@@ -110,7 +110,10 @@ public sealed class SpuWaveAudioOutputTests
                 failure = exception;
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        if (OperatingSystem.IsWindows())
+        {
+            thread.SetApartmentState(ApartmentState.STA);
+        }
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "EyesOnMe start/stop did not finish.");
         Assert.Null(failure);

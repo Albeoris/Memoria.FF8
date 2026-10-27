@@ -24,7 +24,7 @@ public static class GraphicsBackendSelection
 
     public static GraphicsBackend Resolve(GraphicsBackend? commandLine, GraphicsBackend? saved) => commandLine ?? saved ?? GraphicsBackend.Auto;
 
-    public static IReadOnlyList<GraphicsBackend> Available(HostPlatform platform) => platform == HostPlatform.Windows ? [GraphicsBackend.Auto, GraphicsBackend.Direct3D11, GraphicsBackend.Vulkan] : [GraphicsBackend.Auto, GraphicsBackend.Vulkan];
+    public static IReadOnlyList<GraphicsBackend> Available(HostPlatform platform) => platform == HostPlatform.Windows ? [GraphicsBackend.Auto, GraphicsBackend.Direct3D11, GraphicsBackend.Direct3D12, GraphicsBackend.Vulkan] : [GraphicsBackend.Vulkan];
 
     public static string? UnavailableReason(GraphicsBackend backend, HostPlatform platform)
     {
@@ -32,13 +32,9 @@ public static class GraphicsBackendSelection
         {
             return "Unknown graphics backend. Try Auto.";
         }
-        if (backend == GraphicsBackend.Direct3D12)
+        if (backend is GraphicsBackend.Direct3D11 or GraphicsBackend.Direct3D12 && platform != HostPlatform.Windows)
         {
-            return "Direct3D12 is not available in this release. Try Auto.";
-        }
-        if (backend == GraphicsBackend.Direct3D11 && platform != HostPlatform.Windows)
-        {
-            return "Direct3D11 requires Windows. Try Auto to use Vulkan on this platform.";
+            return $"{backend} requires Windows. Try Auto to use Vulkan on this platform.";
         }
         return null;
     }
@@ -49,6 +45,6 @@ public static class GraphicsBackendSelection
         {
             throw new PlatformNotSupportedException(reason);
         }
-        return requested == GraphicsBackend.Auto ? platform == HostPlatform.Windows ? [GraphicsBackend.Direct3D11, GraphicsBackend.Vulkan] : [GraphicsBackend.Vulkan] : [requested];
+        return requested == GraphicsBackend.Auto ? platform == HostPlatform.Windows ? [GraphicsBackend.Direct3D11, GraphicsBackend.Direct3D12, GraphicsBackend.Vulkan] : [GraphicsBackend.Vulkan] : [requested];
     }
 }

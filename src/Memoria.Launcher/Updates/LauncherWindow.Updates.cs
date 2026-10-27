@@ -53,7 +53,7 @@ internal sealed partial class LauncherWindow
             Task<string> release = DescribeChannelAsync(client, UpdateChannel.Release, timeout.Token);
             Task<string> nightly = DescribeChannelAsync(client, UpdateChannel.Nightly, timeout.Token);
             string[] descriptions = await Task.WhenAll(release, nightly);
-            PackageManifest? installed = PackageManifest.LoadOptional(AppContext.BaseDirectory);
+            PackageManifest? installed = PackageManifest.LoadOptional(MacBundleUpdate.NormalizeRoot(AppContext.BaseDirectory));
             string current = installed is null ? "Development build" : $"Installed: {installed.Version} ({installed.BuildId[..Math.Min(8, installed.BuildId.Length)]})";
             updateStatus.Text = current + Environment.NewLine + string.Join(Environment.NewLine, descriptions);
         }
@@ -81,7 +81,7 @@ internal sealed partial class LauncherWindow
             {
                 return name + ": no build published.";
             }
-            PackageManifest? installed = PackageManifest.LoadOptional(AppContext.BaseDirectory);
+            PackageManifest? installed = PackageManifest.LoadOptional(MacBundleUpdate.NormalizeRoot(AppContext.BaseDirectory));
             bool current = installed is not null && release.BuildId == installed.BuildId;
             return $"{name}: {release.Name} · {release.UpdatedAt.ToLocalTime():g}" + (current ? " · installed" : " · available");
         }
@@ -114,7 +114,7 @@ internal sealed partial class LauncherWindow
                 updateStatus.Text = "No build is published on this channel yet.";
                 return;
             }
-            string root = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
+            string root = MacBundleUpdate.NormalizeRoot(AppContext.BaseDirectory);
             PackageManifest installed = PackageManifest.Read(root);
             if (release.BuildId == installed.BuildId)
             {
@@ -145,8 +145,8 @@ internal sealed partial class LauncherWindow
             string work = await Task.Run(() => UpdateInstaller.Prepare(root));
             await Task.Run(() =>
             {
-                string staged = Path.Combine(work, "new");
-                PackageManifest.Extract(archive, staged);
+                string staged = MacBundleUpdate.StagingPath(root);
+                PackageManifest.Extract(archive, staged, installed.RuntimeIdentifier);
                 PackageManifest incoming = PackageManifest.Read(staged);
                 if (release.BuildId is not null && incoming.BuildId != release.BuildId)
                 {

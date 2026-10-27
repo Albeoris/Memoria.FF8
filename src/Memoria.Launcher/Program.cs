@@ -12,7 +12,7 @@ internal static class Program
     [STAThread]
     private static void Main(string[] arguments)
     {
-        string root = AppContext.BaseDirectory;
+        string root = MacBundleUpdate.NormalizeRoot(AppContext.BaseDirectory);
         using Mutex mutex = new(false, UpdateInstaller.MutexName(root));
         bool acquired = false;
         try
@@ -40,7 +40,7 @@ internal static class Program
             }
             else
             {
-                if (OperatingSystem.IsWindows() && UpdateInstaller.NeedsRecovery(root))
+                if (LauncherCapabilities.CanUpdate && UpdateInstaller.NeedsRecovery(root))
                 {
                     UpdateInstaller.StartHelperAsync(Path.TrimEndingDirectorySeparator(root), recovery: true).GetAwaiter().GetResult();
                     return;

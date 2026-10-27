@@ -8,9 +8,9 @@ namespace Memoria.FF8.Bootstrap;
 
 internal static class OwnedChildProcess
 {
-    public static IDisposable? Attach(Process process)
+    public static IDisposable? Attach(Process process, bool unixSession = false)
     {
-        return OperatingSystem.IsWindows() ? WindowsJob.Attach(process) : null;
+        return OperatingSystem.IsWindows() ? WindowsJob.Attach(process) : unixSession ? new UnixHostProcess.Session(process.Id) : null;
     }
 
     [SupportedOSPlatform("windows")]

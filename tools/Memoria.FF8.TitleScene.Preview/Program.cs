@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.TitleScene;
 using SkiaSharp;
-#if WINDOWS
+#if WINDOWS || MEMORIA_NATIVE
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 #endif
@@ -17,6 +17,12 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+#if MEMORIA_VULKAN
+        if (OperatingSystem.IsMacOS())
+        {
+            Environment.SetEnvironmentVariable("SDL_VULKAN_LIBRARY", Path.Combine(AppContext.BaseDirectory, "libMoltenVK.dylib"));
+        }
+#endif
         try
         {
             PreviewOptions options = PreviewOptions.Parse(args);
@@ -28,12 +34,12 @@ internal static class Program
                 crest.Encode(output, SKEncodedImageFormat.Png, 100);
                 return 0;
             }
-#if WINDOWS
+#if WINDOWS || MEMORIA_NATIVE
             using PreviewGame game = new(options);
             game.Run();
             return 0;
 #else
-            throw new PlatformNotSupportedException("The GPU title preview requires the Windows DX11 host. Use --crest for the portable vector raster preview.");
+            throw new PlatformNotSupportedException("The GPU title preview requires a Windows DX11 or Native graphics build. Use --crest for the portable vector raster preview.");
 #endif
         }
         catch (Exception exception)
@@ -119,7 +125,7 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
     }
 }
 
-#if WINDOWS
+#if WINDOWS || MEMORIA_NATIVE
 /// <summary>Independent capture and fenced throughput probe; no game installation or save files required.</summary>
 internal sealed class PreviewGame : Game
 {

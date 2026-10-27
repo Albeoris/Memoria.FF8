@@ -10,7 +10,7 @@ public sealed class GraphicsBackendTests
         Assert.Equal(GraphicsBackend.Vulkan, GraphicsBackendSelection.Resolve(GraphicsBackend.Vulkan, GraphicsBackend.Direct3D11));
         Assert.Equal(GraphicsBackend.Direct3D11, GraphicsBackendSelection.Resolve(null, GraphicsBackend.Direct3D11));
         Assert.Equal(GraphicsBackend.Auto, GraphicsBackendSelection.Resolve(null, null));
-        Assert.Equal([GraphicsBackend.Direct3D11, GraphicsBackend.Vulkan], GraphicsBackendSelection.InitializationOrder(GraphicsBackend.Auto, HostPlatform.Windows));
+        Assert.Equal([GraphicsBackend.Direct3D11, GraphicsBackend.Direct3D12, GraphicsBackend.Vulkan], GraphicsBackendSelection.InitializationOrder(GraphicsBackend.Auto, HostPlatform.Windows));
         Assert.Equal([GraphicsBackend.Vulkan], GraphicsBackendSelection.InitializationOrder(GraphicsBackend.Auto, HostPlatform.Linux));
         Assert.Equal([GraphicsBackend.Vulkan], GraphicsBackendSelection.InitializationOrder(GraphicsBackend.Auto, HostPlatform.MacOS));
         Assert.Equal([GraphicsBackend.Direct3D11], GraphicsBackendSelection.InitializationOrder(GraphicsBackend.Direct3D11, HostPlatform.Windows));
@@ -24,10 +24,11 @@ public sealed class GraphicsBackendTests
         Assert.Equal(GraphicsBackend.Vulkan, GraphicsBackendSelection.Parse("vulkan"));
         Assert.Throws<ArgumentException>(() => GraphicsBackendSelection.Parse("OpenGL"));
         Assert.Throws<ArgumentException>(() => GraphicsBackendSelection.Parse("99"));
-        Assert.Contains("Try Auto", Assert.Throws<PlatformNotSupportedException>(() => GraphicsBackendSelection.InitializationOrder(GraphicsBackend.Direct3D12, HostPlatform.Windows)).Message);
+        Assert.Equal([GraphicsBackend.Direct3D12], GraphicsBackendSelection.InitializationOrder(GraphicsBackend.Direct3D12, HostPlatform.Windows));
+        Assert.Throws<PlatformNotSupportedException>(() => GraphicsBackendSelection.InitializationOrder(GraphicsBackend.Direct3D12, HostPlatform.MacOS));
         Assert.Contains("Try Auto", Assert.Throws<PlatformNotSupportedException>(() => GraphicsBackendSelection.InitializationOrder(GraphicsBackend.Direct3D11, HostPlatform.Linux)).Message);
-        Assert.DoesNotContain(GraphicsBackend.Direct3D12, GraphicsBackendSelection.Available(HostPlatform.Windows));
-        Assert.Equal([GraphicsBackend.Auto, GraphicsBackend.Vulkan], GraphicsBackendSelection.Available(HostPlatform.MacOS));
+        Assert.Contains(GraphicsBackend.Direct3D12, GraphicsBackendSelection.Available(HostPlatform.Windows));
+        Assert.Equal([GraphicsBackend.Vulkan], GraphicsBackendSelection.Available(HostPlatform.MacOS));
     }
 
     [Fact]

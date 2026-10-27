@@ -4,11 +4,27 @@ using System.Text.Json;
 
 namespace Memoria.Launcher;
 
-internal sealed record PackageFile(string Path, long Size, string Sha256);
+internal sealed record PackageFile(string Path, long Size, string Sha256, int UnixMode = 0);
 
-internal sealed record PackageManifest(int SchemaVersion, string BuildId, string Version, DateTimeOffset BuiltAt, PackageFile[] Files)
+internal sealed partial record PackageManifest(int SchemaVersion, string BuildId, string Version, DateTimeOffset BuiltAt, PackageFile[] Files)
 {
+    public string RuntimeIdentifier { get; init; } = "win-x64";
+    public int LayoutVersion { get; init; } = 1;
+    internal string LauncherEntryPoint => RuntimeIdentifier == "win-x64" ? LauncherPath : RuntimeIdentifier == "osx-x64" ? "Contents/MacOS/Memoria.Launcher" : "Memoria.Launcher";
+    internal static StringComparer FileSystemComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+    internal void ValidateTarget(string runtimeIdentifier)
+    {
+        ValidatePaths();
+        if (RuntimeIdentifier != runtimeIdentifier)
+        {
+            throw new InvalidDataException("The update targets a different runtime identifier.");
+        }
+    }
+
     internal const string ManifestPath = "Data/distribution.json";
+    internal const string MacManifestPath = "Contents/MacOS/Data/distribution.json";
+    internal static string ManifestRelativePath(string root) => MacBundleUpdate.IsBundleRoot(root) ? MacManifestPath : ManifestPath;
     internal const string LauncherPath = "Memoria.Launcher.exe";
     private const long MaximumFileSize = 2L * 1024 * 1024 * 1024;
     private const long MaximumPackageSize = 4L * 1024 * 1024 * 1024;
@@ -18,7 +34,7 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
 
     internal static PackageManifest Read(string root)
     {
-        string path = ResolvePath(root, ManifestPath);
+        string path = ResolvePath(root, ManifestRelativePath(root));
         EnsureNoReparsePoints(path);
         using FileStream stream = File.OpenRead(path);
         return Parse(stream);
@@ -26,7 +42,7 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
 
     internal static PackageManifest? LoadOptional(string root)
     {
-        string path = ResolvePath(root, ManifestPath);
+        string path = ResolvePath(root, ManifestRelativePath(root));
         EnsureNoReparsePoints(path);
         try
         {
@@ -45,12 +61,12 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
 
     internal void ValidatePaths()
     {
-        if (SchemaVersion != 1 || string.IsNullOrWhiteSpace(BuildId) || string.IsNullOrWhiteSpace(Version) || BuiltAt == default || Files is null)
+        if ((SchemaVersion != 1 && SchemaVersion != 2) || LayoutVersion != 1 || RuntimeIdentifier is not ("win-x64" or "linux-x64" or "osx-x64") || (SchemaVersion == 1 && RuntimeIdentifier != "win-x64") || (SchemaVersion == 2 && RuntimeIdentifier == "win-x64") || string.IsNullOrWhiteSpace(BuildId) || string.IsNullOrWhiteSpace(Version) || BuiltAt == default || Files is null)
         {
             throw new InvalidDataException("The distribution manifest has an unsupported schema or missing identity.");
         }
 
-        HashSet<string> paths = new(PathComparer);
+        HashSet<string> paths = new(RuntimeIdentifier == "win-x64" ? PathComparer : StringComparer.Ordinal);
         long total = 0;
         foreach (PackageFile file in Files)
         {
@@ -60,6 +76,22 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
             }
 
             ValidateFilePath(file.Path, false);
+            if (RuntimeIdentifier != "osx-x64" && file.Path.StartsWith("Contents/", StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("Bundle paths require the macOS runtime inventory.");
+            }
+            if (RuntimeIdentifier == "osx-x64" && file.Path != "Contents/Info.plist" && !file.Path.StartsWith("Contents/MacOS/", StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("The macOS inventory contains a file outside the fixed bundle layout.");
+            }
+            if (RuntimeIdentifier == "win-x64" && !PathComparer.Equals(file.Path, LauncherPath) && !file.Path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(file.Path))
+            {
+                throw new InvalidDataException("The Windows inventory contains an unowned path.");
+            }
+            if (RuntimeIdentifier != "win-x64" && file.UnixMode != (System.IO.Path.GetFileName(file.Path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" ? 493 : 420))
+            {
+                throw new InvalidDataException("The Unix inventory has an unsupported file mode.");
+            }
             if (!paths.Add(file.Path) || file.Size < 0 || file.Size > MaximumFileSize || file.Sha256 is null || file.Sha256.Length != 64 || !file.Sha256.All(Uri.IsHexDigit))
             {
                 throw new InvalidDataException($"Invalid distribution file record: {file.Path}");
@@ -72,7 +104,13 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
             }
         }
 
-        if (!paths.Contains(LauncherPath) || !paths.Contains("Data/Memoria.FF8.exe") || !paths.Contains("Data/audio-host/Memoria.FF8.Music.exe"))
+        string executablePrefix = RuntimeIdentifier == "osx-x64" ? "Contents/MacOS/" : "";
+        if (RuntimeIdentifier == "osx-x64" && !paths.Contains("Contents/Info.plist"))
+        {
+            throw new InvalidDataException("The macOS bundle has no Info.plist.");
+        }
+        string extension = RuntimeIdentifier == "win-x64" ? ".exe" : "";
+        if (!paths.Contains(LauncherEntryPoint) || !paths.Contains(executablePrefix + "Data/Memoria.FF8" + extension) || !paths.Contains(executablePrefix + "Data/audio-host/Memoria.FF8.Music" + extension))
         {
             throw new InvalidDataException("The distribution is missing a required executable.");
         }
@@ -95,7 +133,7 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
         string fullRoot = Path.GetFullPath(root);
         string fullPath = Path.GetFullPath(Path.Combine(fullRoot, relative.Replace('/', Path.DirectorySeparatorChar)));
         string prefix = Path.EndsInDirectorySeparator(fullRoot) ? fullRoot : fullRoot + Path.DirectorySeparatorChar;
-        if (!fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        if (!fullPath.StartsWith(prefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
         {
             throw new InvalidDataException("The distribution path escapes its root.");
         }
@@ -110,6 +148,10 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
         {
             string path = ResolvePath(root, file.Path);
             EnsureNoReparsePoints(path);
+            if (!OperatingSystem.IsWindows() && manifest.RuntimeIdentifier != "win-x64" && (int)File.GetUnixFileMode(path) != file.UnixMode)
+            {
+                throw new InvalidDataException("Distribution executable mode verification failed: " + file.Path);
+            }
             using FileStream stream = File.OpenRead(path);
             if (stream.Length != file.Size || !Convert.ToHexString(SHA256.HashData(stream)).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
             {
@@ -118,8 +160,13 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
         }
     }
 
-    internal static void Extract(string zipPath, string destination)
+    internal static void Extract(string zipPath, string destination, string? expectedRuntimeIdentifier = null)
     {
+        if (zipPath.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
+        {
+            ExtractUnix(zipPath, destination, expectedRuntimeIdentifier);
+            return;
+        }
         string root = Path.GetFullPath(destination);
         EnsureNoReparsePoints(root);
         if (Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any())
@@ -181,6 +228,10 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
             manifest = Parse(content);
         }
 
+        if (expectedRuntimeIdentifier is not null)
+        {
+            manifest.ValidateTarget(expectedRuntimeIdentifier);
+        }
         HashSet<string> expected = new(manifest.Files.Select(file => file.Path), PathComparer) { ManifestPath };
         if (!expected.SetEquals(files.Keys))
         {
@@ -250,7 +301,8 @@ internal sealed record PackageManifest(int SchemaVersion, string BuildId, string
     private static void ValidateFilePath(string path, bool allowManifest)
     {
         ValidateSegments(path);
-        if ((!PathComparer.Equals(path, LauncherPath) && !path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(path)) || (!allowManifest && PathComparer.Equals(path, ManifestPath)) || path.StartsWith(ManifestPath + "/", StringComparison.OrdinalIgnoreCase))
+        bool portableRoot = !path.Contains('/') && (path == "Memoria.Launcher" || path.EndsWith(".dll", StringComparison.Ordinal) || path.EndsWith(".json", StringComparison.Ordinal) || path.EndsWith(".so", StringComparison.Ordinal) || path.EndsWith(".dylib", StringComparison.Ordinal));
+        if ((!portableRoot && path != "Contents/Info.plist" && !path.StartsWith("Contents/MacOS/", StringComparison.Ordinal) && !PathComparer.Equals(path, LauncherPath) && !path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(path)) || (!allowManifest && (PathComparer.Equals(path, ManifestPath) || path == MacManifestPath)) || path.StartsWith(ManifestPath + "/", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException($"The path is not owned by the distribution: {path}");
         }

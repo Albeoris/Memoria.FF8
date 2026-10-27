@@ -11,9 +11,9 @@ internal sealed partial class RecreateGame
         {
             return new { session.State.Scene, UpdatePaused = updateSave.Paused };
         }
-        if (!request.Command.Equals("save-for-update", StringComparison.OrdinalIgnoreCase) && !request.Command.Equals("cancel-update", StringComparison.OrdinalIgnoreCase) && !request.Command.Equals("quit", StringComparison.OrdinalIgnoreCase))
+        if (!request.Command.Equals("graphics-restart", StringComparison.OrdinalIgnoreCase) && !request.Command.Equals("save-for-update", StringComparison.OrdinalIgnoreCase) && !request.Command.Equals("cancel-update", StringComparison.OrdinalIgnoreCase) && !request.Command.Equals("quit", StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException("Update commands: status, save-for-update, cancel-update, quit.");
+            throw new ArgumentException("Update commands: status, save-for-update, cancel-update, graphics-restart, quit.");
         }
         return DispatchControl(request);
     }

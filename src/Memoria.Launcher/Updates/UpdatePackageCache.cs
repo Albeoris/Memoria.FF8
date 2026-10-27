@@ -15,11 +15,17 @@ internal static class UpdatePackageCache
         {
             throw new InvalidDataException("The update archive metadata is invalid. Check for updates again.");
         }
+        PackageManifest? installed = PackageManifest.LoadOptional(root);
+        if (installed is not null)
+        {
+            installed.ValidateTarget(release.RuntimeIdentifier);
+        }
         cancellationToken.ThrowIfCancellationRequested();
-        string cache = Path.Combine(Path.GetFullPath(root), CacheDirectory);
+        string cache = MacBundleUpdate.IsBundleRoot(root) ? MacBundleUpdate.WorkPath(root) + "-download" : Path.Combine(Path.GetFullPath(root), CacheDirectory);
         UpdateInstaller.RejectLinks(cache);
         Directory.CreateDirectory(cache);
-        string filename = string.Create(CultureInfo.InvariantCulture, $"package-{release.AssetId}-{release.Size}-{release.Sha256.ToLowerInvariant()}.zip");
+        string extension = release.RuntimeIdentifier == "win-x64" ? ".zip" : ".tar.gz";
+        string filename = string.Create(CultureInfo.InvariantCulture, $"package-{release.AssetId}-{release.Size}-{release.Sha256.ToLowerInvariant()}{extension}");
         string archive = Path.Combine(cache, filename);
         UpdateInstaller.RejectLinks(archive);
         if (await IsVerifiedAsync(archive, release, cancellationToken).ConfigureAwait(false))
@@ -45,7 +51,7 @@ internal static class UpdatePackageCache
         foreach (string path in Directory.EnumerateFiles(cache))
         {
             string name = Path.GetFileName(path);
-            if (!path.Equals(archive, StringComparison.OrdinalIgnoreCase) && ((name.StartsWith("package-", StringComparison.Ordinal) && name.EndsWith(".zip", StringComparison.Ordinal)) || (name.StartsWith("download-", StringComparison.Ordinal) && name.EndsWith(".tmp", StringComparison.Ordinal))))
+            if (!path.Equals(archive, StringComparison.OrdinalIgnoreCase) && ((name.StartsWith("package-", StringComparison.Ordinal) && (name.EndsWith(".zip", StringComparison.Ordinal) || name.EndsWith(".tar.gz", StringComparison.Ordinal))) || (name.StartsWith("download-", StringComparison.Ordinal) && name.EndsWith(".tmp", StringComparison.Ordinal))))
             {
                 UpdateInstaller.RejectLinks(path);
                 File.Delete(path);

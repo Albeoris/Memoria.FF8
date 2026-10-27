@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$PackageRoot
+    [Parameter(Mandatory)][string]$PackageRoot,
+    [ValidateSet("win-x64", "linux-x64", "osx-x64")][string]$RuntimeIdentifier = "win-x64"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,20 +19,24 @@ if ($env:GITHUB_ACTIONS -eq 'true') {
         $version = $env:GITHUB_REF_NAME
     }
 }
-$manifestPath = Join-Path $root 'Data/distribution.json'
-$files = @(
-    Get-Item -LiteralPath (Join-Path $root 'Memoria.Launcher.exe')
-    Get-ChildItem -LiteralPath (Join-Path $root 'Data') -File -Recurse | Where-Object FullName -ne $manifestPath
-)
+$prefix = if ($RuntimeIdentifier -eq 'osx-x64') { 'Contents/MacOS/' } else { '' }
+$manifestPath = Join-Path $root ($prefix + 'Data/distribution.json')
+$files = @(Get-ChildItem -LiteralPath $root -File -Recurse | Where-Object FullName -ne $manifestPath)
 $inventory = @($files | Sort-Object FullName | ForEach-Object {
+    $relative = [IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/')
+    $mode = if ($RuntimeIdentifier -eq 'win-x64') { 0 } elseif ([IO.Path]::GetFileName($_.FullName) -in @('Memoria.Launcher', 'Memoria.FF8', 'Memoria.FF8.Music')) { 493 } else { 420 }
     [ordered]@{
+        UnixMode = $mode
         Path = [IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/')
         Size = $_.Length
         Sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     }
 })
 $manifest = [ordered]@{
-    SchemaVersion = 1
+    SchemaVersion = $(if ($RuntimeIdentifier -eq "win-x64") { 1 } else { 2 })
+    RuntimeIdentifier = $RuntimeIdentifier
+    LayoutVersion = 1
+    EntryPoints = @{ Launcher = $prefix + "Memoria.Launcher" + $(if ($RuntimeIdentifier -eq "win-x64") { ".exe" } else { "" }); Game = $prefix + "Data/Memoria.FF8" + $(if ($RuntimeIdentifier -eq "win-x64") { ".exe" } else { "" }) }
     BuildId = $buildId
     Version = $version
     BuiltAt = [DateTimeOffset]::UtcNow.ToString('o')

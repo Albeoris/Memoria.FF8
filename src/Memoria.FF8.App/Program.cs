@@ -8,6 +8,12 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+#if MEMORIA_VULKAN
+        if (OperatingSystem.IsMacOS())
+        {
+            Environment.SetEnvironmentVariable("SDL_VULKAN_LIBRARY", Path.Combine(AppContext.BaseDirectory, "libMoltenVK.dylib"));
+        }
+#endif
         Console.OutputEncoding = new UTF8Encoding(false);
         Console.SetError(new ConsoleErrorWriter(Console.Error, !Console.IsErrorRedirected));
         try

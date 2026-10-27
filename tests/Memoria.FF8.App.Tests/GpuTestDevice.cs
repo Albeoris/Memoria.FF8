@@ -41,7 +41,7 @@ internal sealed class GpuTestDevice : IDisposable
 
     private static void RequirePresentationOutput()
     {
-#if MEMORIA_VULKAN
+#if MEMORIA_NATIVE
         throw new PlatformNotSupportedException("The WindowsDX offscreen HWND helper cannot initialize a Native SDL graphics host. Use a native Game host for Vulkan rendering checks.");
 #else
         using SharpDX.DXGI.Factory1 factory = new();

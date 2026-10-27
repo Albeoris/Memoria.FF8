@@ -10,6 +10,7 @@ using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.App.Tests;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class LocalizationExcelCoexistenceTests(ITestOutputHelper output) : IDisposable
 {
     private const string Key = "$en_excel_acceptance_0000";
@@ -106,7 +107,10 @@ public sealed class LocalizationExcelCoexistenceTests(ITestOutputHelper output) 
                 failure = exception;
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        if (OperatingSystem.IsWindows())
+        {
+            thread.SetApartmentState(ApartmentState.STA);
+        }
         thread.Start();
         thread.Join();
         if (failure is not null)

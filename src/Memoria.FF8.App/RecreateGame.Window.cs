@@ -4,7 +4,7 @@ internal sealed partial class RecreateGame
 {
     private WindowModeController? windowMode;
     private readonly WindowModeHotkey windowModeHotkey = new();
-#if MEMORIA_VULKAN
+#if MEMORIA_NATIVE
     private NativeWindowBackBufferSynchronizer? nativeBackBuffer;
 #endif
 
@@ -14,17 +14,17 @@ internal sealed partial class RecreateGame
         previousDialogContext = SynchronizationContext.Current;
         ModelBrowserDialogs.Desktop = desktopDialogs;
         ModelBrowserDialogs.Confirmation = ShowGameConfirmationAsync;
-#if MEMORIA_VULKAN
+#if MEMORIA_NATIVE
         nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics);
 #endif
-        IGameWindowPlatform platform = WindowModeController.CreatePlatform(Window);
+        IGameWindowPlatform platform = WindowModeController.CreatePlatform(Window, graphics);
         if (options.BattleTestPath is null)
         {
             platform.Maximize();
         }
         windowMode = new WindowModeController(platform);
         windowMode.Apply(uiPreferences.BorderlessWindow);
-#if MEMORIA_VULKAN
+#if MEMORIA_NATIVE
         nativeBackBuffer.Synchronize();
 #endif
     }
@@ -38,7 +38,7 @@ internal sealed partial class RecreateGame
             preferences.Save(UiPreferencesPath);
             uiPreferences = preferences;
             windowMode?.Apply(preferences.BorderlessWindow);
-#if MEMORIA_VULKAN
+#if MEMORIA_NATIVE
             nativeBackBuffer?.Synchronize();
 #endif
             gameMenus?.InvalidateLiveData();

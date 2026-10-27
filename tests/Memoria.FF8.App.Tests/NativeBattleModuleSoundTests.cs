@@ -122,7 +122,10 @@ public sealed class NativeBattleModuleSoundTests
                 failure = exception;
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        if (OperatingSystem.IsWindows())
+        {
+            thread.SetApartmentState(ApartmentState.STA);
+        }
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "Positioned battle sound output did not finish.");
         if (failure is not null)

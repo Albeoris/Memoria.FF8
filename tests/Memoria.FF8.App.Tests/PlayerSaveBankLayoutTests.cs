@@ -59,7 +59,10 @@ public sealed class PlayerSaveBankLayoutTests
                 failure = exception;
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        if (OperatingSystem.IsWindows())
+        {
+            thread.SetApartmentState(ApartmentState.STA);
+        }
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
         Assert.Null(failure);

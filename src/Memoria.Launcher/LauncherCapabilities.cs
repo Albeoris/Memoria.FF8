@@ -2,9 +2,10 @@ namespace Memoria.Launcher;
 
 internal static class LauncherCapabilities
 {
-    public static bool CanLaunchGame => OperatingSystem.IsWindows();
-    public static bool CanUpdate => OperatingSystem.IsWindows();
+    private static bool SupportedDesktop => OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS();
+    public static bool CanLaunchGame => SupportedDesktop && System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.X64;
+    public static bool CanUpdate => CanLaunchGame;
     public static StringComparer PathComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-    public const string GameStatus = "Game launch is unavailable on this platform until the portable game host is delivered. You can browse and validate game files and save launcher settings.";
-    public const string UpdateStatus = "Updates are unavailable on this platform until portable distribution updates are delivered. Windows update packages cannot be installed here.";
+    public const string GameStatus = "The game requires an x64 Windows, Linux or Intel macOS host and its matching native distribution.";
+    public const string UpdateStatus = "Updates require a matching x64 Windows, Linux or Intel macOS distribution. Packages for another operating system cannot be installed here.";
 }

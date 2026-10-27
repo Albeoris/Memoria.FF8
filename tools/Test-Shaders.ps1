@@ -58,13 +58,13 @@ try
             {
                 $fixtureOutput = Join-Path $fixtureRoot $entry.output
                 # MGFX records the input path: retain the same product-relative path.
-                & dotnet tool run mgfxc $entry.source $entry.output "/Profile:$($entry.profile)"
+                & dotnet tool run mgfxc $entry.source $entry.output "/Profile:$($entry.profile)" "/Defines:$($entry.defines)"
                 if ($LASTEXITCODE -ne 0 -or (Get-FileHash -LiteralPath $fixtureOutput -Algorithm SHA256).Hash.ToLowerInvariant() -cne $entry.outputSha256)
                 {
                     throw "Shader did not reproduce from a separate source directory: $($entry.output)."
                 }
             }
-            Write-Host 'PASS: All six payloads reproduce byte-for-byte from a separate source directory'
+            Write-Host 'PASS: All nine payloads reproduce byte-for-byte from a separate source directory'
         }
         finally
         {
@@ -89,6 +89,22 @@ try
     $entry.outputSha256 = (Get-FileHash -LiteralPath $wrongOutput -Algorithm SHA256).Hash.ToLowerInvariant()
     $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath
     Assert-Check $false 'DX11 payload cannot satisfy a Vulkan profile even with an updated hash'
+    Reset-Fixture
+
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $entry = $manifest.effects | Where-Object { $_.source -like '*Triangles.fx' -and $_.profile -eq 'DirectX_12' }
+    $wrongOutput = Join-Path $fixtureRoot $entry.output
+    Copy-Item -LiteralPath (Join-Path $fixtureRoot 'src/Memoria.FF8.App/Shaders/Triangles.mgfxo') -Destination $wrongOutput -Force
+    $entry.outputSha256 = (Get-FileHash -LiteralPath $wrongOutput -Algorithm SHA256).Hash.ToLowerInvariant()
+    $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath
+    Assert-Check $false 'DX11 payload cannot satisfy the DX12 profile even with an updated hash'
+    Reset-Fixture
+
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $entry = $manifest.effects | Where-Object { $_.source -like '*Triangles.fx' -and $_.profile -eq 'DirectX_12' }
+    $entry.defines = ''
+    $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath
+    Assert-Check $false 'DX12 compiler define drift is rejected'
     Reset-Fixture
 
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json

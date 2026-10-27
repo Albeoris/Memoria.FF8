@@ -78,15 +78,40 @@ public sealed class RunningProcess : IAsyncDisposable
     private readonly CancellationTokenSource outputCancellation = new();
     private readonly SemaphoreSlim logLock = new(1);
     private readonly Task output;
+    private int ownedGroup;
 
     internal RunningProcess(ProcessStartInfo info, string logPath)
     {
         log = new StreamWriter(logPath, false) { AutoFlush = true };
+        string? ready = null;
+        if (OperatingSystem.IsLinux())
+        {
+            ready = logPath + ".group-" + Guid.NewGuid().ToString("N");
+            info = OwnedCommand.Wrap(info, ready);
+        }
         process = new Process { StartInfo = info };
         try
         {
             process.Start();
             output = Task.WhenAll(CopyAsync(process.StandardOutput), CopyAsync(process.StandardError));
+            if (ready is not null)
+            {
+                Stopwatch startup = Stopwatch.StartNew();
+                while (!File.Exists(ready) && !process.HasExited && startup.Elapsed < TimeSpan.FromSeconds(10))
+                {
+                    Thread.Sleep(10);
+                }
+                if (!File.Exists(ready) || File.ReadAllText(ready) != process.Id.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                {
+                    if (!process.HasExited)
+                    {
+                        process.Kill(entireProcessTree: true);
+                    }
+                    throw new IOException("The target command did not establish its owned Linux session.");
+                }
+                ownedGroup = process.Id;
+                File.Delete(ready);
+            }
         }
         catch
         {
@@ -105,6 +130,7 @@ public sealed class RunningProcess : IAsyncDisposable
     public async Task<int> WaitAsync(CancellationToken cancellationToken = default)
     {
         await process.WaitForExitAsync(cancellationToken);
+        OwnedCommand.TerminateGroup(Interlocked.Exchange(ref ownedGroup, 0));
         await output.WaitAsync(cancellationToken);
         return process.ExitCode;
     }
@@ -113,6 +139,7 @@ public sealed class RunningProcess : IAsyncDisposable
     {
         try
         {
+            OwnedCommand.TerminateGroup(Interlocked.Exchange(ref ownedGroup, 0));
             if (!process.HasExited)
             {
                 try

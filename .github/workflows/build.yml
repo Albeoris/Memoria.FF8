@@ -1,6 +1,7 @@
-name: Windows distribution
+name: Desktop distributions
 
 on:
+  pull_request:
   push:
     branches: [main]
     tags: ['v*']
@@ -8,107 +9,113 @@ on:
 
 permissions:
   actions: read
-  contents: write
+  contents: read
 
 jobs:
   package:
-    outputs:
-      artifact-run-id: ${{ steps.distribution.outputs.run-id }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            rid: win-x64
+          - os: ubuntu-24.04
+            rid: linux-x64
+          - os: macos-15-intel
+            rid: osx-x64
     concurrency:
-      group: windows-distribution-${{ github.sha }}
+      group: desktop-distribution-${{ github.sha }}-${{ matrix.rid }}
       cancel-in-progress: false
-      queue: max
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     env:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
       - uses: actions/checkout@v7
-      - name: Find an existing tested distribution for this commit
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Validate artifact reuse and orchestration contracts
+        shell: pwsh
+        run: |
+          node --test .github/scripts/find-distribution.test.cjs
+          ./tools/linux-testing/tests/Orchestration.Tests.ps1
+          ./tools/packaging/tests/Packaging.Tests.ps1
+          ./tools/Get-PlatformInventory.ps1 -Check
+      - name: Find a tested payload for this source and RID
         id: distribution
         uses: actions/github-script@v9
         with:
           script: |
             const findDistribution = require('./.github/scripts/find-distribution.cjs');
-            await findDistribution({ github, context, core });
-      - name: Download the existing distribution
+            await findDistribution({ github, context, core, rid: '${{ matrix.rid }}' });
+      - name: Download the existing tested payload
         if: steps.distribution.outputs.reuse == 'true'
         uses: actions/download-artifact@v8
         with:
-          name: Memoria-FF8-win-x64
+          name: ${{ steps.distribution.outputs.artifact-name }}
           path: artifacts
           github-token: ${{ github.token }}
           run-id: ${{ steps.distribution.outputs.run-id }}
-      - name: Cache NuGet packages
+      - uses: actions/cache@v6
         if: steps.distribution.outputs.reuse != 'true'
-        uses: actions/cache@v6
         with:
           path: ${{ env.NUGET_PACKAGES }}
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.*', '**/Directory.Packages.props', '**/NuGet.Config', '**/nuget.config', '**/packages.lock.json', 'global.json') }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.*', '**/Directory.Packages.props', '**/packages.lock.json', 'global.json') }}
           restore-keys: ${{ runner.os }}-nuget-
-      - name: Build and test with the installed .NET 10 SDK
+      - name: Install portable font dependencies
+        if: runner.os == 'Linux' && steps.distribution.outputs.reuse != 'true'
+        run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-cjk
+      - name: Compile complete distribution and selected portable tests
         if: steps.distribution.outputs.reuse != 'true'
         shell: pwsh
         run: |
-          ./tools/Test-Shaders.ps1 -Compile
-          ./Build.ps1
-          ./Build.ps1 -Scope Portable -RuntimeIdentifier win-x64 -Test
-      - uses: actions/upload-artifact@v7
+          ./Build.ps1 -RuntimeIdentifier ${{ matrix.rid }}
+          ./Build.ps1 -Scope Portable -RuntimeIdentifier ${{ matrix.rid }} -Test
+      - name: Validated package receipt ${{ matrix.rid }}
         if: steps.distribution.outputs.reuse != 'true'
+        shell: pwsh
+        env:
+          RECIPE: ${{ steps.distribution.outputs.recipe }}
+        run: |
+          $archives = @(Get-ChildItem artifacts/Memoria-FF8-${{ matrix.rid }}.*)
+          if ($archives.Count -ne 1) { throw 'Expected one RID archive.' }
+          $archive = $archives[0]
+          @{ source = $env:GITHUB_SHA; rid = '${{ matrix.rid }}'; recipe = $env:RECIPE; sdk = (dotnet --version); archive = $archive.Name; sha256 = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant(); run = $env:GITHUB_RUN_ID } | ConvertTo-Json | Set-Content artifacts/receipt-${{ matrix.rid }}.json -Encoding utf8NoBOM
+      # Re-upload reused payloads into this run: publication collects a complete
+      # RID set without an overwritten matrix-job output or a cross-run race.
+      - uses: actions/upload-artifact@v7
+        if: steps.distribution.outputs.reuse != 'true' || steps.distribution.outputs.run-id != github.run_id
         with:
-          name: Memoria-FF8-win-x64
-          path: artifacts/Memoria-FF8-win-x64.zip
+          name: ${{ steps.distribution.outputs.artifact-name }}
+          path: |
+            artifacts/Memoria-FF8-${{ matrix.rid }}.*
+            artifacts/receipt-${{ matrix.rid }}.json
           if-no-files-found: error
           compression-level: 0
           retention-days: 90
-      - name: Publish versioned release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          ./tools/Set-DistributionVersion.ps1 -ArchivePath artifacts/Memoria-FF8-win-x64.zip -Version "$env:GITHUB_REF_NAME" -BuildId "$env:GITHUB_SHA"
-          gh release view "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" --verify-tag --generate-notes
-            if ($LASTEXITCODE -ne 0) { throw 'Could not create the versioned release.' }
-          }
-          gh release upload "$env:GITHUB_REF_NAME" "artifacts/Memoria-FF8-win-x64.zip#$env:GITHUB_SHA" --repo "$env:GITHUB_REPOSITORY" --clobber
-          if ($LASTEXITCODE -ne 0) { throw 'Could not upload the versioned distribution.' }
 
-  nightly:
+  publish:
     needs: package
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
-    runs-on: windows-latest
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      actions: read
+      contents: write
+    runs-on: ubuntu-24.04
     concurrency:
-      group: windows-nightly
+      group: desktop-release-publication
       cancel-in-progress: false
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
       - uses: actions/download-artifact@v8
         with:
-          name: Memoria-FF8-win-x64
+          pattern: Memoria-FF8-*
+          merge-multiple: true
           path: artifacts
-          github-token: ${{ github.token }}
-          run-id: ${{ needs.package.outputs.artifact-run-id }}
-      - name: Update nightly release
+      - name: Publish complete platform set
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          $mainSha = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha
-          if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the current main commit.' }
-          if ($mainSha -ne $env:GITHUB_SHA) {
-            Write-Host 'Skipping nightly: this build is not the current main commit.'
-            return
-          }
-          gh release view nightly --repo "$env:GITHUB_REPOSITORY" *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create nightly --repo "$env:GITHUB_REPOSITORY" --target "$env:GITHUB_SHA" --title 'Nightly' --notes 'Latest successful build from main.' --prerelease
-            if ($LASTEXITCODE -ne 0) { throw 'Could not create the nightly release.' }
-          }
-          gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/git/refs/tags/nightly" -f "sha=$env:GITHUB_SHA" -F force=true
-          if ($LASTEXITCODE -ne 0) { throw 'Could not advance the nightly source tag.' }
-          gh release upload nightly "artifacts/Memoria-FF8-win-x64.zip#$env:GITHUB_SHA" --repo "$env:GITHUB_REPOSITORY" --clobber
-          if ($LASTEXITCODE -ne 0) { throw 'Could not upload the nightly distribution.' }
-          $updatedAt = [DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", [Globalization.CultureInfo]::InvariantCulture)
-          gh release edit nightly --repo "$env:GITHUB_REPOSITORY" --title "Nightly - $updatedAt"
-          if ($LASTEXITCODE -ne 0) { throw 'Could not update the nightly release title.' }
+        run: ./tools/Publish-Distributions.ps1 -Directory artifacts -Source $env:GITHUB_SHA -Reference $env:GITHUB_REF_NAME

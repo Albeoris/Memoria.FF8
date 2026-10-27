@@ -4,7 +4,7 @@ namespace Memoria.Launcher;
 
 internal sealed record UpdateResume(string GameDirectory, string SavePath, bool AchievementsLocalOnly = false)
 {
-    internal static string IntentPath(string root) => Path.Combine(root, ".memoria-update-resume.json");
+    internal static string IntentPath(string root) => Path.Combine(MacBundleUpdate.IsBundleRoot(root) ? MacBundleUpdate.WorkPath(root) : root, ".memoria-update-resume.json");
 
     internal static string? TryDelete(string root)
     {
@@ -78,14 +78,14 @@ internal sealed class GameUpdateSession
         }
     }
 
-    internal async Task<JsonElement> RequestAsync(string command, Func<bool> hasExited, TimeSpan? timeout = null)
+    internal async Task<JsonElement> RequestAsync(string command, Func<bool> hasExited, TimeSpan? timeout = null, string? name = null)
     {
         string id = Guid.NewGuid().ToString("N");
         string request = Path.Combine(ControlDirectory, "requests", id + ".json");
         string response = Path.Combine(ControlDirectory, "responses", id + ".json");
         TimeSpan duration = timeout ?? TimeSpan.FromSeconds(30);
         using CancellationTokenSource deadline = new(duration);
-        File.WriteAllText(request + ".tmp", JsonSerializer.Serialize(new { Id = id, Command = command, Path = SavePath, ExpiresAt = DateTimeOffset.UtcNow + duration }));
+        File.WriteAllText(request + ".tmp", JsonSerializer.Serialize(new { Id = id, Command = command, Name = name, Path = SavePath, ExpiresAt = DateTimeOffset.UtcNow + duration }));
         File.Move(request + ".tmp", request);
         bool answered = false;
         try

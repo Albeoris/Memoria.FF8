@@ -1,4 +1,4 @@
-#if VULKAN
+#if VULKAN || DIRECTX12
 #define VS_PROFILE vs_6_0
 #define PS_PROFILE ps_6_0
 #define SAMPLE_TEXTURE(textureName, samplerName, uv) textureName.Sample(samplerName, uv)
@@ -21,12 +21,12 @@ float4x4 WorldView;
 float3 WorldOffset;
 float WorldFocal;
 float WorldNativeCurvature;
-#if VULKAN
+#if VULKAN || DIRECTX12
 Texture2D SourceTexture : register(t0);
 #else
 texture SourceTexture;
 #endif
-#if VULKAN
+#if VULKAN || DIRECTX12
 sampler TextureSampler : register(s0) = sampler_state
 #else
 sampler TextureSampler = sampler_state

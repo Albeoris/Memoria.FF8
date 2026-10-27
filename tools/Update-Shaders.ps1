@@ -13,6 +13,7 @@ $sources = @(
 )
 $profiles = @(
     @{ Name = 'DirectX_11'; Suffix = '.mgfxo'; Id = 1 },
+    @{ Name = 'DirectX_12'; Suffix = '.dx12.mgfxo'; Id = 2; Defines = 'DIRECTX12=1' },
     @{ Name = 'Vulkan'; Suffix = '.vulkan.mgfxo'; Id = 80 }
 )
 
@@ -72,14 +73,14 @@ try
                     throw "Expected exactly one manifest entry for $source / $($profile.Name)."
                 }
                 $entry = $entries[0]
-                if ($entry.output -cne $output -or $entry.sourceSha256 -cne (Get-SourceSha256 $source) -or $entry.outputSha256 -cne (Get-Sha256 $output))
+                if ($entry.defines -cne [string]$profile.Defines -or $entry.output -cne $output -or $entry.sourceSha256 -cne (Get-SourceSha256 $source) -or $entry.outputSha256 -cne (Get-Sha256 $output))
                 {
                     throw "Stale shader source or output: $source / $($profile.Name). Run tools/Update-Shaders.ps1 on Windows and commit all generated artifacts."
                 }
                 Assert-EffectProfile $output $profile.Id
             }
         }
-        Write-Host 'Validated all six shader artifacts, source/output hashes, compiler pin and backend profiles.'
+        Write-Host 'Validated all nine shader artifacts, source/output hashes, compiler pin and backend profiles.'
     }
     else
     {
@@ -98,7 +99,7 @@ try
             foreach ($profile in $profiles)
             {
                 $output = $source.Substring(0, $source.Length - 3) + $profile.Suffix
-                & dotnet tool run mgfxc $source $output "/Profile:$($profile.Name)"
+                & dotnet tool run mgfxc $source $output "/Profile:$($profile.Name)" "/Defines:$($profile.Defines)"
                 if ($LASTEXITCODE -ne 0)
                 {
                     throw "Shader compilation failed: $source / $($profile.Name)."
@@ -108,6 +109,7 @@ try
                     source = $source
                     sourceSha256 = Get-SourceSha256 $source
                     profile = $profile.Name
+                    defines = [string]$profile.Defines
                     output = $output
                     outputSha256 = Get-Sha256 $output
                 }
@@ -121,7 +123,7 @@ try
         }
         $json = ($manifest | ConvertTo-Json -Depth 6) + "`n"
         [IO.File]::WriteAllText($manifestPath, $json.Replace("`r`n", "`n"), [Text.UTF8Encoding]::new($false))
-        Write-Host 'Generated all six shader artifacts and tools/shader-manifest.json.'
+        Write-Host 'Generated all nine shader artifacts and tools/shader-manifest.json.'
     }
 }
 finally

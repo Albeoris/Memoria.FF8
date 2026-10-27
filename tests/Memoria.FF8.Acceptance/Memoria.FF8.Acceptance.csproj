@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework Condition="'$(MemoriaNativeGraphics)' == 'true'">net10.0</TargetFramework>
+    <TargetFramework Condition="'$(MemoriaNativeGraphics)' != 'true'">net10.0-windows</TargetFramework>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
@@ -16,7 +17,15 @@
     <!-- Built first, never referenced: the tests run the product's executable as a black box. -->
     <ProjectReference Include="..\..\src\Memoria.FF8.App\Memoria.FF8.App.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
-  <ItemGroup>
-    <AssemblyMetadata Include="Candidate" Value="$(MSBuildThisFileDirectory)..\..\src\Memoria.FF8.App\bin\$(Configuration)\net10.0-windows\Memoria.FF8.exe" />
-  </ItemGroup>
+  <Target Name="ResolveCandidateExecutable" BeforeTargets="GetAssemblyAttributes">
+    <MSBuild Projects="../../src/Memoria.FF8.App/Memoria.FF8.App.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework)">
+      <Output TaskParameter="TargetOutputs" ItemName="CandidateAssembly" />
+    </MSBuild>
+    <PropertyGroup>
+      <CandidateExecutableSuffix Condition="'$(MemoriaTargetRuntime)' == 'win-x64'">.exe</CandidateExecutableSuffix>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyMetadata Include="Candidate" Value="@(CandidateAssembly->'%(RootDir)%(Directory)%(Filename)')$(CandidateExecutableSuffix)" />
+    </ItemGroup>
+  </Target>
 </Project>

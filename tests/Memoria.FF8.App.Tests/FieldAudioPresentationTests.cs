@@ -147,7 +147,10 @@ public sealed class FieldAudioPresentationTests
                 failure = exception;
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        if (OperatingSystem.IsWindows())
+        {
+            thread.SetApartmentState(ApartmentState.STA);
+        }
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(20)), "Silent device smoke did not finish.");
         if (failure is not null)

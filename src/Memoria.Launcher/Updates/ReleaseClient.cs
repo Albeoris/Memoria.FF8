@@ -14,13 +14,22 @@ internal enum UpdateChannel
 
 internal sealed record UpdateRelease(UpdateChannel Channel, string Tag, string Name, DateTimeOffset UpdatedAt, long AssetId, long Size, string Sha256, string? BuildId)
 {
+    public string RuntimeIdentifier { get; init; } = "win-x64";
     public Uri DownloadUri => new($"https://api.github.com/repos/Albeoris/Memoria.FF8/releases/assets/{AssetId}");
 }
 
-internal sealed class ReleaseClient(HttpClient client)
+internal sealed class ReleaseClient(HttpClient client, string? runtimeIdentifier = null)
 {
     private const string RepositoryApi = "https://api.github.com/repos/Albeoris/Memoria.FF8";
-    private const string AssetName = "Memoria-FF8-win-x64.zip";
+    internal static string CurrentRuntimeIdentifier => OperatingSystem.IsWindows() ? "win-x64" : OperatingSystem.IsLinux() ? "linux-x64" : OperatingSystem.IsMacOS() ? "osx-x64" : throw new PlatformNotSupportedException();
+    private readonly string rid = runtimeIdentifier ?? CurrentRuntimeIdentifier;
+    internal static string AssetNameFor(string rid) => rid switch
+    {
+        "win-x64" => "Memoria-FF8-win-x64.zip",
+        "linux-x64" => "Memoria-FF8-linux-x64.tar.gz",
+        "osx-x64" => "Memoria-FF8-osx-x64.tar.gz",
+        _ => throw new ArgumentOutOfRangeException(nameof(rid))
+    };
 
     public async Task<UpdateRelease?> GetAsync(UpdateChannel channel, CancellationToken cancellationToken = default)
     {
@@ -64,7 +73,7 @@ internal sealed class ReleaseClient(HttpClient client)
         JsonElement? selected = null;
         foreach (JsonElement asset in assets.EnumerateArray())
         {
-            if (asset.ValueKind != JsonValueKind.Object || !asset.TryGetProperty("name", out JsonElement name) || name.ValueKind != JsonValueKind.String || name.GetString() != AssetName)
+            if (asset.ValueKind != JsonValueKind.Object || !asset.TryGetProperty("name", out JsonElement name) || name.ValueKind != JsonValueKind.String || name.GetString() != AssetNameFor(rid))
             {
                 continue;
             }
@@ -76,7 +85,7 @@ internal sealed class ReleaseClient(HttpClient client)
         }
         if (selected is not JsonElement package)
         {
-            throw new InvalidDataException("The release does not contain the Windows update archive. Try checking again after publication finishes.");
+            throw new InvalidDataException("The release does not contain the selected platform update archive. Try checking again after publication finishes.");
         }
         if (ReadString(package, "state") != "uploaded" || !package.TryGetProperty("id", out JsonElement id) || id.ValueKind != JsonValueKind.Number || !id.TryGetInt64(out long assetId) || assetId <= 0 || !package.TryGetProperty("size", out JsonElement length) || length.ValueKind != JsonValueKind.Number || !length.TryGetInt64(out long size) || size <= 0)
         {
@@ -101,7 +110,7 @@ internal sealed class ReleaseClient(HttpClient client)
             buildId = null;
         }
         string releaseName = release.TryGetProperty("name", out JsonElement title) && title.ValueKind == JsonValueKind.String ? title.GetString()! : tag;
-        return new UpdateRelease(channel, tag, releaseName, updatedAt, assetId, size, digest[7..].ToLowerInvariant(), buildId?.ToLowerInvariant());
+        return new UpdateRelease(channel, tag, releaseName, updatedAt, assetId, size, digest[7..].ToLowerInvariant(), buildId?.ToLowerInvariant()) { RuntimeIdentifier = rid };
     }
 
     public async Task DownloadAsync(UpdateRelease release, string destination, IProgress<double>? progress = null, CancellationToken cancellationToken = default)

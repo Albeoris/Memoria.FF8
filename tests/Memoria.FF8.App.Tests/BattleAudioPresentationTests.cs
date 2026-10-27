@@ -148,7 +148,10 @@ public sealed class BattleAudioPresentationTests
                 failure = exception;
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        if (OperatingSystem.IsWindows())
+        {
+            thread.SetApartmentState(ApartmentState.STA);
+        }
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "Silent battle audio smoke did not finish.");
         if (failure is not null)

@@ -5,12 +5,13 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Memoria.FF8.App.Tests;
 
 [Collection("GPU rendering")]
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class NativeWindowBackBufferTests
 {
     [Fact]
     public void Native_maximize_borderless_and_restore_keep_client_viewport_and_backbuffer_equal()
     {
-#if MEMORIA_VULKAN
+#if MEMORIA_NATIVE
         Assert.SkipUnless(OperatingSystem.IsWindows(), "The native Windows window adapter requires Windows.");
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_WINDOW_MODE_TEST") == "1", "Set MEMORIA_FF8_WINDOW_MODE_TEST=1 to run the visible window mode check.");
         Exception? failure = null;
@@ -51,7 +52,10 @@ public sealed class NativeWindowBackBufferTests
                 failure = exception;
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        if (OperatingSystem.IsWindows())
+        {
+            thread.SetApartmentState(ApartmentState.STA);
+        }
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "Native window resize check timed out.");
         if (failure is not null)

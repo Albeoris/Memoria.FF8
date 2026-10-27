@@ -58,7 +58,10 @@ public sealed class NativeSoundPositionPresentationTests
                 failure = exception;
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        if (OperatingSystem.IsWindows())
+        {
+            thread.SetApartmentState(ApartmentState.STA);
+        }
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(10)), "Silent native pan output check timed out.");
         Assert.Null(failure);

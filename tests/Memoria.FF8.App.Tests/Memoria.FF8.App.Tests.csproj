@@ -1,16 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework Condition="'$(MemoriaNativeGraphics)' == 'true'">net10.0</TargetFramework>
+    <TargetFramework Condition="'$(MemoriaNativeGraphics)' != 'true'">net10.0-windows</TargetFramework>
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
-    <ApplicationManifest>../../src/Memoria.FF8.App/app.manifest</ApplicationManifest>
-    <UseWindowsForms Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'">true</UseWindowsForms>
-    <!-- WinForms compiles existing DX11 test fixtures; the native host retains its own DPI-aware manifest. -->
-    <NoWarn Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'">$(NoWarn);WFO0003</NoWarn>
+    <ApplicationManifest Condition="'$(MemoriaTargetRuntime)' == 'win-x64'">../../src/Memoria.FF8.App/app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
-    <Using Remove="System.Windows.Forms;System.Drawing" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
+    <Compile Remove="WindowModeControllerTests.cs" Condition="'$(MemoriaNativeGraphics)' == 'true'" />
     <Content Include="../../Mods/Memoria/Depixelation/fields/*.json" Link="BundledMods/Memoria/Depixelation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Shared/NativeBattleCommandSequenceFixture.cs" Link="NativeBattleCommandSequenceFixture.cs" />
     <Using Include="Memoria.FF8.Tests" />
@@ -19,8 +17,8 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <ProjectReference Include="../../src/Memoria.FF8.App/Memoria.FF8.App.csproj" />
   </ItemGroup>
-  <Target Name="CopyMusicHost" AfterTargets="Build">
-    <MSBuild Projects="../../src/Memoria.FF8.Music/Memoria.FF8.Music.csproj" Targets="GetMusicHostFiles" Properties="Configuration=$(Configuration);TargetFramework=net10.0;RuntimeIdentifier=win-x64;SelfContained=true">
+  <Target Name="CopyMusicHost" AfterTargets="Build" Condition="'$(SkipMusicHost)' != 'true'">
+    <MSBuild Projects="../../src/Memoria.FF8.Music/Memoria.FF8.Music.csproj" Targets="GetMusicHostFiles" Properties="Configuration=$(Configuration);TargetFramework=net10.0;RuntimeIdentifier=$(MemoriaTargetRuntime);SelfContained=true">
       <Output TaskParameter="TargetOutputs" ItemName="MusicHostFile" />
     </MSBuild>
     <Copy SourceFiles="@(MusicHostFile)" DestinationFiles="@(MusicHostFile->'$(OutDir)audio-host/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />

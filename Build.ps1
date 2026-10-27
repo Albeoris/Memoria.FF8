@@ -52,18 +52,24 @@ if ($Scope -ne 'Distribution') {
     }
     return
 }
-if (![OperatingSystem]::IsWindows() -or $RuntimeIdentifier -ne 'win-x64') {
-    throw 'The complete game distribution currently requires Windows x64. Use -Scope Portable or -Scope Launcher for the other desktop targets until their game hosts are available.'
-}
 $artifacts = Join-Path $root 'artifacts'
-$package = Join-Path $artifacts 'package'
+$package = Join-Path $artifacts ('package/' + $RuntimeIdentifier)
 $staging = Join-Path $artifacts ('staging-' + [Guid]::NewGuid().ToString('N'))
-$data = Join-Path $staging 'Data'
+$payload = $staging
+if ($RuntimeIdentifier -eq 'osx-x64') {
+    $payload = Join-Path $staging 'Memoria.FF8.app/Contents/MacOS'
+}
+$data = Join-Path $payload 'Data'
+$extension = if ($RuntimeIdentifier -eq 'win-x64') { '.exe' } else { '' }
+$executable = 'Memoria.FF8' + $extension
+$launcherName = 'Memoria.Launcher' + $extension
+$backends = if ($RuntimeIdentifier -eq 'win-x64') { @(@{ Name = 'Direct3D11'; Directory = 'dx11' }, @{ Name = 'Vulkan'; Directory = 'vulkan' }, @{ Name = 'Direct3D12'; Directory = 'dx12' }) } else { @(@{ Name = 'Vulkan'; Directory = 'vulkan' }) }
+$hostAssets = @()
 $launcher = Join-Path $staging 'launcher'
 $modDirectories = @('Tonberry', 'Demaster', 'Junction')
 New-Item -ItemType Directory -Force -Path $data, $launcher | Out-Null
 foreach ($directory in $modDirectories) {
-    New-Item -ItemType Directory -Path (Join-Path $staging "Mods/$directory") | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $payload "Mods/$directory") | Out-Null
 }
 
 $bundledMods = Join-Path $root 'Mods/Memoria'
@@ -71,7 +77,7 @@ $bundledModFiles = @(Get-ChildItem -LiteralPath $bundledMods -File -Recurse)
 $expectedModFiles = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
 foreach ($file in $bundledModFiles) {
     $relative = 'Data/BundledMods/Memoria/' + [IO.Path]::GetRelativePath($bundledMods, $file.FullName).Replace('\', '/')
-    $destination = Join-Path $staging $relative
+    $destination = Join-Path $payload $relative
     New-Item -ItemType Directory -Force -Path ([IO.Path]::GetDirectoryName($destination)) | Out-Null
     Copy-Item -LiteralPath $file.FullName -Destination $destination
     [void]$expectedModFiles.Add($relative)
@@ -80,19 +86,25 @@ foreach ($file in $bundledModFiles) {
 Push-Location $root
 try {
     & (Join-Path $root 'tools/Update-Shaders.ps1') -Check
-    $publishArguments = @('-c', $Configuration, '-r', 'win-x64', '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false')
-    foreach ($backend in @(@{ Name = 'Direct3D11'; Directory = 'dx11' }, @{ Name = 'Vulkan'; Directory = 'vulkan' })) {
+    Invoke-DotNet @('build', 'Memoria.FF8.Native.slnx', '-c', $Configuration, ('-p:MemoriaTargetRuntime=' + $RuntimeIdentifier), '-p:MemoriaGraphicsBackend=Vulkan', '-p:TargetFramework=net10.0', '-p:SkipMusicHost=true', '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/graph')), '-m:1')
+    $publishArguments = @('-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false')
+    foreach ($backend in $backends) {
         $hostOutput = Join-Path $data ('Game/' + $backend.Directory)
-        $hostBuild = Join-Path $artifacts ('build/' + $backend.Directory)
+        $hostBuild = Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/' + $backend.Directory)
+        $hostAssets += Join-Path $hostBuild 'obj/Memoria.FF8.App/project.assets.json'
         Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:SkipMusicHost=true', '-p:PublishSingleFile=false', '-m:1') + $publishArguments)
-        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', $hostOutput)
-        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--graphics-payload', $hostOutput, $backend.Name, (Join-Path $root 'tools/shader-manifest.json'))
+        if ($RuntimeIdentifier -eq 'osx-x64') {
+            & (Join-Path $root 'tools/Get-MoltenVK.ps1') -Destination $hostOutput
+        }
+        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', $hostOutput, $RuntimeIdentifier)
+        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--graphics-payload', $hostOutput, $backend.Name, (Join-Path $root 'tools/shader-manifest.json'), $RuntimeIdentifier)
     }
-    Invoke-DotNet (@('publish', 'src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj', '-o', $data, '-p:PublishSingleFile=false') + $publishArguments)
+    Invoke-DotNet (@('publish', 'src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj', '-o', $data, '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/bootstrap')), '-p:PublishSingleFile=false') + $publishArguments)
     # Keep the released worker path with the common x64 music implementation and its complete runtime.
-    Invoke-DotNet @('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '-r', 'win-x64', '--self-contained', 'true', '-o', (Join-Path $data 'audio-host'), '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishSingleFile=false')
-    Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-o', $launcher, '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true') + $publishArguments)
-    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--native-image', 'win-x64', (Join-Path $data 'Memoria.FF8.exe'))
+    Invoke-DotNet @('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-o', (Join-Path $data 'audio-host'), '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/music')), '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishSingleFile=false')
+    $launcherSingleFile = if ($RuntimeIdentifier -eq 'win-x64') { 'true' } else { 'false' }
+    Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-o', $launcher, '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/launcher')), ('-p:PublishSingleFile=' + $launcherSingleFile), '-p:IncludeNativeLibrariesForSelfExtract=true') + $publishArguments)
+    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--native-image', $RuntimeIdentifier, (Join-Path $data $executable))
 
     if ($Test) {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Remastered.Tests', '-c', $Configuration)
@@ -110,20 +122,21 @@ try {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration)
     }
 
-    foreach ($relative in @('Memoria.FF8.exe', 'Game/dx11/Memoria.FF8.exe', 'Game/vulkan/Memoria.FF8.exe', 'Game/vulkan/mgruntime.dll', 'audio-host/Memoria.FF8.Music.exe', 'audio-host/coreclr.dll')) {
+    foreach ($relative in @($executable, ('audio-host/Memoria.FF8.Music' + $extension)) + @($backends | ForEach-Object { 'Game/' + $_.Directory + '/' + $executable })) {
         if (!(Test-Path -LiteralPath (Join-Path $data $relative) -PathType Leaf)) {
             throw "Incomplete distribution: Data/$relative is missing."
         }
     }
     New-Item -ItemType Directory -Force -Path (Join-Path $data 'Steam') | Out-Null
-    Copy-Item -LiteralPath (Join-Path $root 'vendor/Steamworks/redistributable_bin/win64/steam_api64.dll') -Destination (Join-Path $data 'Steam/steam_api64.dll')
+    $steamNative = switch ($RuntimeIdentifier) { 'win-x64' { 'win64/steam_api64.dll' } 'linux-x64' { 'linux64/libsteam_api.so' } 'osx-x64' { 'osx/libsteam_api.dylib' } }
+    Copy-Item -LiteralPath (Join-Path $root ('vendor/Steamworks/redistributable_bin/' + $steamNative)) -Destination (Join-Path $data 'Steam')
     Copy-Item -LiteralPath (Join-Path $root 'vendor/Steamworks/README.md') -Destination (Join-Path $data 'Steam/NOTICE.md')
-    $launcherExecutable = Join-Path $launcher 'Memoria.Launcher.exe'
+    $launcherExecutable = Join-Path $launcher $launcherName
     if (!(Test-Path -LiteralPath $launcherExecutable -PathType Leaf)) {
-        throw 'The launcher publish did not produce Memoria.Launcher.exe.'
+        throw "The launcher publish did not produce $launcherName."
     }
-    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--native-image', 'win-x64', $launcherExecutable)
-    Move-Item -LiteralPath $launcherExecutable -Destination $staging
+    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--native-image', $RuntimeIdentifier, $launcherExecutable)
+    Get-ChildItem -LiteralPath $launcher | Move-Item -Destination $payload
     if ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($launcher)) -ne [IO.Path]::GetFullPath($staging)) {
         throw 'The launcher staging path is outside the generated staging directory.'
     }
@@ -138,7 +151,7 @@ try {
     $licenses = Join-Path $data 'licenses'
     New-Item -ItemType Directory -Force -Path $licenses | Out-Null
     $copiedPackages = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    $assetFiles = @((Join-Path $artifacts 'build/dx11/obj/Memoria.FF8.App/project.assets.json'), (Join-Path $artifacts 'build/vulkan/obj/Memoria.FF8.App/project.assets.json'), (Join-Path $root 'src/Memoria.FF8.Bootstrap/obj/project.assets.json'), (Join-Path $root 'src/Memoria.FF8.Music/obj/project.assets.json'), (Join-Path $root 'src/Memoria.Launcher/obj/project.assets.json'))
+    $assetFiles = $hostAssets + @( (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/bootstrap/obj/Memoria.FF8.Bootstrap/project.assets.json')), (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/music/obj/Memoria.FF8.Music/project.assets.json')), (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/launcher/obj/Memoria.Launcher/project.assets.json')))
     foreach ($assetsPath in $assetFiles) {
         $assets = Get-Content -LiteralPath $assetsPath -Raw | ConvertFrom-Json -AsHashtable
         foreach ($entry in $assets.libraries.GetEnumerator()) {
@@ -161,10 +174,22 @@ try {
             }
         }
     }
-    & (Join-Path $root 'tools/New-DistributionManifest.ps1') -PackageRoot $staging
+    if ($RuntimeIdentifier -ne 'win-x64') {
+        foreach ($path in @((Join-Path $payload $launcherName), (Join-Path $data $executable), (Join-Path $data ('audio-host/Memoria.FF8.Music' + $extension))) + @($backends | ForEach-Object { Join-Path $data ('Game/' + $_.Directory + '/' + $executable) })) {
+            if (![OperatingSystem]::IsWindows()) {
+                [IO.File]::SetUnixFileMode($path, [IO.UnixFileMode]493)
+            }
+        }
+    }
+    if ($RuntimeIdentifier -eq 'osx-x64') {
+        $plist = Join-Path $staging 'Memoria.FF8.app/Contents/Info.plist'
+        Copy-Item -LiteralPath (Join-Path $root 'tools/packaging/Info.plist') -Destination $plist
+    }
+    $manifestRoot = if ($RuntimeIdentifier -eq 'osx-x64') { Join-Path $staging 'Memoria.FF8.app' } else { $payload }
+    & (Join-Path $root 'tools/New-DistributionManifest.ps1') -PackageRoot $manifestRoot -RuntimeIdentifier $RuntimeIdentifier
 
     # Replace only this script's known output directory after every publish succeeds.
-    $resolvedArtifacts = [IO.Path]::GetFullPath($artifacts)
+    $resolvedArtifacts = [IO.Path]::GetFullPath((Join-Path $artifacts "package"))
     $resolvedPackage = [IO.Path]::GetFullPath($package)
     if ([IO.Path]::GetDirectoryName($resolvedPackage) -ne $resolvedArtifacts) {
         throw 'The package path is outside the artifacts directory.'
@@ -172,42 +197,19 @@ try {
     if (Test-Path -LiteralPath $package) {
         Remove-Item -LiteralPath $package -Recurse -Force
     }
+    New-Item -ItemType Directory -Force -Path ([IO.Path]::GetDirectoryName($package)) | Out-Null
     Move-Item -LiteralPath $staging -Destination $package
-    $archive = Join-Path $artifacts 'Memoria-FF8-win-x64.zip'
-    Compress-Archive -LiteralPath (Join-Path $package 'Memoria.Launcher.exe'), (Join-Path $package 'Data'), (Join-Path $package 'Mods') -DestinationPath $archive -Force
-    $zip = [IO.Compression.ZipFile]::OpenRead($archive)
-    try {
-        foreach ($directory in $modDirectories) {
-            if ($null -eq $zip.GetEntry("Mods/$directory/")) {
-                throw "Incomplete distribution archive: Mods/$directory/ is missing."
-            }
-        }
-        foreach ($relative in $expectedModFiles) {
-            if ($null -eq $zip.GetEntry($relative)) {
-                throw "Incomplete distribution archive: $relative is missing."
-            }
-        }
-        foreach ($entry in $zip.Entries) {
-            if ($entry.FullName.StartsWith('Mods/', [StringComparison]::Ordinal) -and !$entry.FullName.EndsWith('/', [StringComparison]::Ordinal) -and !$expectedModFiles.Contains($entry.FullName)) {
-                throw "The distribution archive contains an unexpected mod file: $($entry.FullName)."
-            }
-        }
+    $suffix = if ($RuntimeIdentifier -eq 'win-x64') { '.zip' } else { '.tar.gz' }
+    $archive = Join-Path $artifacts ('Memoria-FF8-' + $RuntimeIdentifier + $suffix)
+    if ($RuntimeIdentifier -eq 'win-x64') {
+        Compress-Archive -LiteralPath (Join-Path $package $launcherName), (Join-Path $package 'Data'), (Join-Path $package 'Mods') -DestinationPath $archive -Force
+        # The released Windows updater remains an immutable gate on every build.
+        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Updater.Compatibility', '-c', $Configuration, '--', $archive)
     }
-    finally {
-        $zip.Dispose()
+    else {
+        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--create-tar', $package, $archive)
     }
-    # Validate with the immutable installed-updater contract on every build, including builds without -Test.
-    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Updater.Compatibility', '-c', $Configuration, '--', $archive)
-    if ($Test) {
-        $previousDistributionPath = $env:MEMORIA_FF8_DISTRIBUTION_PATH
-        try {
-            $env:MEMORIA_FF8_DISTRIBUTION_PATH = $archive
-            Invoke-DotNet @('run', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration, '--no-build', '--', '--filter-class', '*DistributionArchiveTests')
-        }
-        finally {
-            $env:MEMORIA_FF8_DISTRIBUTION_PATH = $previousDistributionPath
-        }
-    }
+    & (Join-Path $root 'tools/Test-Distribution.ps1') -ArchivePath $archive -RuntimeIdentifier $RuntimeIdentifier -Configuration $Configuration
     Write-Host "Distribution: $package"
     Write-Host "Archive: $archive"
 }

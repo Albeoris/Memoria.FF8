@@ -1,6 +1,17 @@
 using Memoria.FF8.Bootstrap;
+using System.Runtime.InteropServices;
 
 using CancellationTokenSource stopping = new();
+using PosixSignalRegistration? terminate = OperatingSystem.IsWindows() ? null : PosixSignalRegistration.Create(PosixSignal.SIGTERM, context =>
+{
+    context.Cancel = true;
+    stopping.Cancel();
+});
+using PosixSignalRegistration? hangup = OperatingSystem.IsWindows() ? null : PosixSignalRegistration.Create(PosixSignal.SIGHUP, context =>
+{
+    context.Cancel = true;
+    stopping.Cancel();
+});
 Console.CancelKeyPress += (_, e) =>
 {
     e.Cancel = true;
@@ -8,6 +19,11 @@ Console.CancelKeyPress += (_, e) =>
 };
 try
 {
+    if (args.FirstOrDefault() == UnixHostProcess.Command)
+    {
+        UnixHostProcess.Execute(args);
+        throw new InvalidOperationException("The Unix host replacement unexpectedly returned.");
+    }
     return await GraphicsDispatcher.RunAsync(AppContext.BaseDirectory, args, Console.Out, Console.Error, stopping.Token);
 }
 catch (OperationCanceledException)

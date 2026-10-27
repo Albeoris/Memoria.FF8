@@ -104,6 +104,66 @@ public sealed class ProcessRunnerTests
         }
     }
 
+    [Fact]
+    public async Task LinuxLeaderExitTerminatesDescendantsThatKeepInheritedPipesOpen()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Skip("Requires Linux owned-session execution.");
+        }
+        string directory = CreateDirectory();
+        int descendant = 0;
+        try
+        {
+            string pid = Path.Combine(directory, "descendant.pid");
+            string log = Path.Combine(directory, "process.log");
+            int? result = await ProcessRunner.CaptureAsync("/bin/sh", ["-c", "sleep 120 & echo $! > descendant.pid; exit 23"], directory, new Dictionary<string, string>(), log, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            Assert.Equal(23, result);
+            descendant = int.Parse(await File.ReadAllTextAsync(pid, TestContext.Current.CancellationToken));
+            bool running = true;
+            for (int attempt = 0; attempt < 100 && running; attempt++)
+            {
+                string stat = Path.Combine("/proc", descendant.ToString(), "stat");
+                try
+                {
+                    string value = await File.ReadAllTextAsync(stat, TestContext.Current.CancellationToken);
+                    running = value[(value.LastIndexOf(')') + 2)..].Split(' ')[0] != "Z";
+                }
+                catch (FileNotFoundException)
+                {
+                    running = false;
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    running = false;
+                }
+                if (running)
+                {
+                    await Task.Delay(25, TestContext.Current.CancellationToken);
+                }
+            }
+            Assert.False(running);
+        }
+        finally
+        {
+            if (descendant > 0)
+            {
+                try
+                {
+                    using System.Diagnostics.Process process = System.Diagnostics.Process.GetProcessById(descendant);
+                    if (!process.HasExited)
+                    {
+                        process.Kill();
+                    }
+                }
+                catch (ArgumentException)
+                {
+                }
+            }
+            Directory.Delete(directory, true);
+        }
+    }
+
     private static string CreateDirectory()
     {
         string directory = Path.Combine(Path.GetTempPath(), "memoria-process-tests-" + Guid.NewGuid().ToString("N"));

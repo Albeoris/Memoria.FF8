@@ -7,7 +7,18 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <WarningsAsErrors>$(WarningsAsErrors);CA1416</WarningsAsErrors>
+    <MemoriaTargetRuntime Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</MemoriaTargetRuntime>
+    <MemoriaTargetRuntime Condition="'$(MemoriaTargetRuntime)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">win-x64</MemoriaTargetRuntime>
+    <MemoriaTargetRuntime Condition="'$(MemoriaTargetRuntime)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</MemoriaTargetRuntime>
+    <MemoriaTargetRuntime Condition="'$(MemoriaTargetRuntime)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">osx-x64</MemoriaTargetRuntime>
+    <MemoriaGraphicsBackend Condition="'$(MemoriaGraphicsBackend)' == '' And ('$(MemoriaTargetRuntime)' == 'linux-x64' Or '$(MemoriaTargetRuntime)' == 'osx-x64')">Vulkan</MemoriaGraphicsBackend>
     <MemoriaGraphicsBackend Condition="'$(MemoriaGraphicsBackend)' == ''">Direct3D11</MemoriaGraphicsBackend>
+    <MemoriaNativeGraphics Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' Or '$(MemoriaGraphicsBackend)' == 'Direct3D12'">true</MemoriaNativeGraphics>
+    <DefineConstants Condition="'$(MemoriaNativeGraphics)' == 'true'">$(DefineConstants);MEMORIA_NATIVE</DefineConstants>
+    <DefineConstants Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'">$(DefineConstants);MEMORIA_DX12</DefineConstants>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+    <BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == '' And '$(ArtifactsPath)' == ''">obj/$(MemoriaGraphicsBackend)/</BaseIntermediateOutputPath>
+    <BaseOutputPath Condition="'$(BaseOutputPath)' == '' And '$(ArtifactsPath)' == ''">bin/$(MemoriaGraphicsBackend)/</BaseOutputPath>
     <DefineConstants Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'">$(DefineConstants);MEMORIA_VULKAN</DefineConstants>
   </PropertyGroup>
 </Project>

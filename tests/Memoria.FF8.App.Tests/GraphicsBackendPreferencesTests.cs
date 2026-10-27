@@ -39,9 +39,9 @@ public sealed class GraphicsBackendPreferencesTests
         menus.Open("config-graphics", false);
         MenuEntry entry = Assert.Single(menus.Entries, entry => entry.Id == "Graphics backend");
         Assert.Contains("Requires restart", entry.Help);
-        Assert.Contains("Try Auto", entry.Help);
+        Assert.Equal(HostPlatforms.Current == HostPlatform.Windows, GraphicsBackendSelection.UnavailableReason(GraphicsBackend.Direct3D12, HostPlatforms.Current) is null);
         Assert.True(entry.Enabled);
         menus.Execute(entry.Action!);
-        Assert.Equal(new MenuAction("config", "Graphics backend", Value: "Auto"), applied);
+        Assert.Equal(new MenuAction("config", "Graphics backend", Value: "Vulkan"), applied);
     }
 }

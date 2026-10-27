@@ -2,15 +2,16 @@
   <PropertyGroup>
     <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
   </PropertyGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' And '$(MemoriaNativeGraphics)' != 'true'">
     <Compile Remove="TitleSceneRenderer.cs;Artwork/TitleArtworkRenderer.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MonoGame.Framework.WindowsDX" Condition="$(TargetFramework.Contains('-windows')) And '$(MemoriaGraphicsBackend)' == 'Direct3D11'" />
-    <PackageReference Include="MonoGame.Framework.Native" Condition="$(TargetFramework.Contains('-windows')) And '$(MemoriaGraphicsBackend)' == 'Vulkan'" />
+    <PackageReference Include="MonoGame.Framework.Native" Condition="'$(MemoriaNativeGraphics)' == 'true'" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
     <EmbeddedResource Include="Shaders/TitleScene.mgfxo" LogicalName="Memoria.FF8.TitleScene.TitleScene.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D11'" />
+    <EmbeddedResource Include="Shaders/TitleScene.dx12.mgfxo" LogicalName="Memoria.FF8.TitleScene.TitleScene.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'" />
     <EmbeddedResource Include="Shaders/TitleScene.vulkan.mgfxo" LogicalName="Memoria.FF8.TitleScene.TitleScene.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
     <EmbeddedResource Include="Artwork/SilverCrest.contours.json" LogicalName="Memoria.FF8.TitleScene.SilverCrest.contours.json" />
   </ItemGroup>

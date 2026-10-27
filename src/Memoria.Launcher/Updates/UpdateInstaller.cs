@@ -44,6 +44,11 @@ internal static class UpdateInstaller
 
     internal static void Recover(string root)
     {
+        if (MacBundleUpdate.IsBundleRoot(root))
+        {
+            MacBundleUpdate.Recover(root);
+            return;
+        }
         string work = Path.Combine(root, WorkDirectory);
         RejectLinks(work);
         string journalPath = Path.Combine(work, "journal.json");
@@ -56,6 +61,10 @@ internal static class UpdateInstaller
 
     internal static bool NeedsRecovery(string root)
     {
+        if (MacBundleUpdate.IsBundleRoot(root))
+        {
+            return MacBundleUpdate.NeedsRecovery(root);
+        }
         string work = Path.Combine(root, WorkDirectory);
         RejectLinks(work);
         return File.Exists(Path.Combine(work, "journal.json")) && !File.Exists(Path.Combine(work, "committed")) && !File.Exists(Path.Combine(work, "rolled-back"));
@@ -63,6 +72,10 @@ internal static class UpdateInstaller
 
     internal static string Prepare(string root)
     {
+        if (MacBundleUpdate.IsBundleRoot(root))
+        {
+            return MacBundleUpdate.Prepare(root);
+        }
         Recover(root);
         string work = Path.Combine(root, WorkDirectory);
         if (Directory.Exists(work))
@@ -90,20 +103,26 @@ internal static class UpdateInstaller
 
     internal static UpdateJournal CreateJournal(string root, PackageManifest incoming)
     {
+        if (MacBundleUpdate.IsBundleRoot(root))
+        {
+            MacBundleUpdate.ValidatePrepared(root, incoming);
+            return new UpdateJournal([]);
+        }
         PackageManifest? previous = PackageManifest.LoadOptional(root);
         if (previous is null)
         {
             throw new InvalidOperationException("This installation has no distribution inventory. Extract a complete current release into a new folder before using automatic updates.");
         }
         previous.ValidatePaths();
-        incoming.ValidatePaths();
-        Dictionary<string, PackageFile> previousFiles = previous.Files.ToDictionary(file => file.Path, StringComparer.OrdinalIgnoreCase);
-        HashSet<string> oldPaths = new(previousFiles.Keys, StringComparer.OrdinalIgnoreCase);
+        incoming.ValidateTarget(previous.RuntimeIdentifier);
+        StringComparer comparer = previous.RuntimeIdentifier == "win-x64" ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        Dictionary<string, PackageFile> previousFiles = previous.Files.ToDictionary(file => file.Path, comparer);
+        HashSet<string> oldPaths = new(previousFiles.Keys, comparer);
         oldPaths.Add(PackageManifest.ManifestPath);
-        HashSet<string> paths = new(oldPaths, StringComparer.OrdinalIgnoreCase);
-        HashSet<string> newPaths = new(incoming.Files.Select(file => file.Path), StringComparer.OrdinalIgnoreCase);
+        HashSet<string> paths = new(oldPaths, comparer);
+        HashSet<string> newPaths = new(incoming.Files.Select(file => file.Path), comparer);
         paths.UnionWith(newPaths);
-        UpdateOperation[] operations = paths.Where(path => path != PackageManifest.ManifestPath && !PreserveEditedMod(root, path, previousFiles)).OrderBy(path => newPaths.Contains(path) ? 1 : 0).ThenBy(path => path, StringComparer.OrdinalIgnoreCase).Append(PackageManifest.ManifestPath).Select(path =>
+        UpdateOperation[] operations = paths.Where(path => path != PackageManifest.ManifestPath && !PreserveEditedMod(root, path, previousFiles)).OrderBy(path => newPaths.Contains(path) ? 1 : 0).ThenBy(path => path, comparer).Append(PackageManifest.ManifestPath).Select(path =>
         {
             string target = PackageManifest.ResolvePath(root, path);
             RejectLinks(target);
@@ -142,6 +161,11 @@ internal static class UpdateInstaller
 
     internal static void Apply(string root, Action<string>? beforeInstall = null)
     {
+        if (MacBundleUpdate.IsBundleRoot(root))
+        {
+            MacBundleUpdate.Apply(root, beforeInstall);
+            return;
+        }
         string work = Path.Combine(root, WorkDirectory);
         RejectLinks(work);
         string staged = Path.Combine(work, "new");
@@ -276,16 +300,37 @@ internal static class UpdateInstaller
 
     internal static async Task StartHelperAsync(string root, bool recovery = false)
     {
-        string work = Path.Combine(root, WorkDirectory);
+        string work = MacBundleUpdate.WorkPath(root);
+        PackageManifest installed = PackageManifest.Read(root);
+        installed.ValidateTarget(ReleaseClient.CurrentRuntimeIdentifier);
         string executable = Environment.ProcessPath ?? throw new InvalidOperationException("Cannot locate the launcher executable.");
-        if (!Path.GetFullPath(executable).Equals(Path.Combine(Path.GetFullPath(root), PackageManifest.LauncherPath), StringComparison.OrdinalIgnoreCase))
+        if (!Path.GetFullPath(executable).Equals(Path.Combine(Path.GetFullPath(root), installed.LauncherEntryPoint), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Automatic installation requires the packaged Memoria.Launcher.exe.");
         }
         string helper = Path.Combine(work, recovery ? "recovery.exe" : "updater.exe");
+        if (!OperatingSystem.IsWindows())
+        {
+            string closure = Path.Combine(work, recovery ? "recovery-runtime" : "updater-runtime");
+            Directory.CreateDirectory(closure);
+            foreach (PackageFile file in installed.Files.Where(file => MacBundleUpdate.IsBundleRoot(root) ? file.Path.StartsWith("Contents/MacOS/", StringComparison.Ordinal) && !file.Path.StartsWith("Contents/MacOS/Data/", StringComparison.Ordinal) : !file.Path.Contains('/')))
+            {
+                string source = PackageManifest.ResolvePath(root, file.Path);
+                RejectLinks(source);
+                string relative = MacBundleUpdate.IsBundleRoot(root) ? file.Path["Contents/MacOS/".Length..] : file.Path;
+                string destination = Path.Combine(closure, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                File.Copy(source, destination, true);
+                File.SetUnixFileMode(destination, (UnixFileMode)file.UnixMode);
+            }
+            helper = Path.Combine(closure, "Memoria.Launcher");
+        }
         File.Delete(Path.Combine(work, "ready"));
         File.Delete(Path.Combine(work, "accepted"));
-        File.Copy(executable, helper, true);
+        if (OperatingSystem.IsWindows())
+        {
+            File.Copy(executable, helper, true);
+        }
         using Process parent = Process.GetCurrentProcess();
         ProcessStartInfo start = new(helper) { UseShellExecute = false, WorkingDirectory = work };
         foreach (string argument in new[] { recovery ? "--recover-update" : "--apply-update", root, parent.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), parent.StartTime.ToUniversalTime().Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture) })
@@ -315,11 +360,16 @@ internal static class UpdateInstaller
         {
             throw new ArgumentException("Invalid update helper arguments.");
         }
-        string root = Path.GetFullPath(arguments[1]);
-        string work = Path.Combine(root, WorkDirectory);
+        if (!Path.IsPathFullyQualified(arguments[1]))
+        {
+            throw new ArgumentException("The update helper requires an absolute installation path.");
+        }
+        string root = MacBundleUpdate.NormalizeRoot(arguments[1]);
+        string work = MacBundleUpdate.WorkPath(root);
         bool recovery = arguments[0] == "--recover-update";
-        string expectedHelper = Path.Combine(work, recovery ? "recovery.exe" : "updater.exe");
-        if (!string.Equals(Environment.ProcessPath, expectedHelper, StringComparison.OrdinalIgnoreCase))
+        string expectedHelper = OperatingSystem.IsWindows() ? Path.Combine(work, recovery ? "recovery.exe" : "updater.exe") : Path.Combine(work, recovery ? "recovery-runtime" : "updater-runtime", "Memoria.Launcher");
+        bool retainedMacRecoveryHelper = recovery && MacBundleUpdate.IsBundleRoot(root) && string.Equals(Environment.ProcessPath, Path.Combine(work, "updater-runtime", "Memoria.Launcher"), StringComparison.Ordinal);
+        if (!retainedMacRecoveryHelper && !string.Equals(Environment.ProcessPath, expectedHelper, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("The update helper must run from its prepared installation directory.");
         }
@@ -368,7 +418,8 @@ internal static class UpdateInstaller
 
     internal static ProcessStartInfo CreateRestartInfo(string root, bool recovery)
     {
-        ProcessStartInfo restart = new(Path.Combine(root, PackageManifest.LauncherPath)) { UseShellExecute = false, WorkingDirectory = root };
+        string launcher = PackageManifest.LoadOptional(root)?.LauncherEntryPoint ?? PackageManifest.LauncherPath;
+        ProcessStartInfo restart = new(Path.Combine(root, launcher)) { UseShellExecute = false, WorkingDirectory = root };
         if (!recovery && File.Exists(UpdateResume.IntentPath(root)))
         {
             restart.ArgumentList.Add("--resume-update");
@@ -378,6 +429,10 @@ internal static class UpdateInstaller
 
     private static Process? FindParent(int id, long started)
     {
+        if (id == 0 && started == 0)
+        {
+            return null;
+        }
         try
         {
             Process process = Process.GetProcessById(id);

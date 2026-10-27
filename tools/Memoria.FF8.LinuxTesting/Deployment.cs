@@ -186,9 +186,40 @@ public static class Deployment
         {
             throw new InvalidDataException("Active payload was edited before deployment; all files are preserved.");
         }
+        RestorePackageModes(stage);
         Directory.Move(payload, Path.Combine(root, "deployment-backup"));
         Directory.Move(stage, payload);
         Recover(root);
+    }
+
+    private static void RestorePackageModes(string root)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+        string inventory = Path.Combine(root, "Data", "distribution.json");
+        if (!File.Exists(inventory))
+        {
+            return;
+        }
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(inventory));
+        if (document.RootElement.GetProperty("RuntimeIdentifier").GetString() != "linux-x64" || document.RootElement.GetProperty("SchemaVersion").GetInt32() != 2)
+        {
+            throw new InvalidDataException("Deployment package has an incompatible RID or schema.");
+        }
+        foreach (JsonElement file in document.RootElement.GetProperty("Files").EnumerateArray())
+        {
+            string relative = file.GetProperty("Path").GetString()!;
+            int mode = file.GetProperty("UnixMode").GetInt32();
+            if (mode is not (420 or 493))
+            {
+                throw new InvalidDataException("Deployment package has an unsafe executable mode.");
+            }
+            string path = Destination(root, relative);
+            CheckLink(path);
+            File.SetUnixFileMode(path, (UnixFileMode)mode);
+        }
     }
 
     public static void Recover(string root)

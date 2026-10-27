@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) / [Build and test](building-and-testing.md)
 
-The migration keeps Windows DX11 usable alongside the Native Vulkan Windows host, sharing portable services, presentation, launcher and audio. See [Windows graphics hosts](graphics-backends.md) for selection, isolated payloads and failure handling. The Linux and Intel macOS game hosts start in later milestones. A successful cross-publish is not evidence of desktop, audio-device or gameplay acceptance on that OS.
+Windows DX11, Vulkan and DX12 share portable services, presentation, launcher and audio. Linux and Intel macOS package the same Native game host with Vulkan. See [graphics hosts](graphics-backends.md) for selection and isolated payloads. A successful cross-publish is not evidence of desktop, audio-device or gameplay acceptance on that OS.
 
 ## Build surfaces
 
@@ -13,11 +13,13 @@ Use PowerShell 7 and the SDK selected by `global.json`:
 ./Build.ps1 -Scope Launcher -RuntimeIdentifier linux-x64
 ./Build.ps1 -Scope Launcher -RuntimeIdentifier osx-x64
 ./Build.ps1 -RuntimeIdentifier win-x64
+./Build.ps1 -RuntimeIdentifier linux-x64
+./Build.ps1 -RuntimeIdentifier osx-x64
 ```
 
-`Portable` compiles `Memoria.FF8.Portable.slnx` against plain `net10.0`, including portable tool and test roots. Its test selection covers the migrated contracts and excludes unrelated battle effects. `Launcher` produces a self-contained x64 launcher payload under `artifacts/launcher/<RID>`; it is not a complete playable distribution. The default `Distribution` scope retains the released Windows package layout and frozen updater gate. Unsupported complete Linux/macOS distributions fail with an explicit diagnostic.
+`Portable` compiles `Memoria.FF8.Portable.slnx` against plain `net10.0`, including portable tool and test roots. Its test selection excludes unrelated battle effects. `Launcher` produces a launcher payload under `artifacts/launcher/<RID>`. `Distribution` compiles the complete Native solution graph and packages the launcher, bootstrap, applicable engines and common x64 music worker under `artifacts/package/<RID>`. Windows retains its released layout and immutable updater gate. The [build guide](building-and-testing.md) gives full Native graph commands.
 
-The `portable.yml` workflow builds/tests on Windows, Ubuntu 24.04 and an explicitly Intel macOS runner. These jobs have read-only permissions and publish development launcher payloads. Complete releases remain Windows-only until the Native game hosts, target acceptance and portable update transactions are available.
+The workflows use Windows x64, Ubuntu 24.04 x64 and an explicitly Intel macOS runner. PR validation has read-only permissions. The release matrix creates all three complete artifacts, validates their extracted inventories/native closure and runs selected portable tests. GPU, audio and gameplay acceptance still require the actual target.
 
 ## Project coverage
 
@@ -53,7 +55,7 @@ Text run ordering uses the retained RichTextKit UAX #9 resolver; HarfBuzz shapes
 
 MonoGame's [3.8.5 native backend announcement](https://monogame.net/blog/2026-07-15-3.8.5-release-2026/) identifies separate Native framework and Vulkan/DX12 runtime families. Version 3.8.5.1 NuGet payloads contain Windows and Linux x64 runtimes and an Intel slice in the macOS universal runtime. A bounded Windows Vulkan probe created and presented five clear frames successfully. This establishes device/window initialization only; it does not establish game rendering.
 
-The inspected `MonoGame.Runtime.Mac.Vulkan` 3.8.5.1 Intel slice declares macOS 26.0 in `LC_BUILD_VERSION`. An older Intel macOS baseline therefore requires a separately verified runtime build or compatible upstream package; do not infer compatibility from the package RID. The current Intel macOS CI runner validates the portable foundation and launcher, not this game runtime. Actual Cocoa lifecycle, relocation and Metal portability checks remain target gates.
+The inspected `MonoGame.Runtime.Mac.Vulkan` 3.8.5.1 Intel slice declares macOS 26.0 in `LC_BUILD_VERSION`. An older baseline requires a separately verified runtime build or compatible upstream package. The Intel CI runner builds and statically validates the complete bundle, including executable modes, native imports and deployment versions. An older runner OS cannot establish macOS 26 runtime acceptance. Cocoa lifecycle, GPU/audio behavior and Metal portability require target acceptance.
 
 The pinned `dotnet-mgfxc` 3.8.5.1 accepts `Vulkan` and `DirectX_12` profiles. Shared shader sources now retain shader model 4 for DX11 and select shader model 6 with explicit texture/sampler registers for Vulkan. Generated payloads are isolated and associated with source/profile/compiler hashes. See [shader generation](shaders.md).
 
@@ -66,3 +68,13 @@ FFmpeg and FFprobe are optional separately installed tools. Windows uses the exi
 Selection validates an explicitly configured directory first, then a valid managed installation, then a paired installation in a local absolute PATH directory. Discovery and executable validation run asynchronously; no PATH or system installation is modified. Both tools must have the current native x64 ABI and report their build configuration. GPL and nonfree configurations are rejected. An invalid managed pair does not hide a valid PATH pair; automatic repair writes only to the managed destination.
 
 Portable CI, package ABI checks and software-rendered output are separate from real-target acceptance. Linux GPU/window/fullscreen, controllers, audio synchronization and gameplay stability require native Linux hardware. Intel macOS startup, audio and graphics require an Intel Mac. WSL2 testing is a development convenience and cannot close those gates.
+
+## Distribution layouts and prerequisites
+
+Windows preserves Memoria.Launcher.exe, Data/Memoria.FF8.exe and the real x64 worker at Data/audio-host/Memoria.FF8.Music.exe. Data/Game/dx11, vulkan and dx12 have separate runtime families and matching shaders. Linux uses corresponding extensionless executables and only Data/Game/vulkan. Extract Memoria-FF8-linux-x64.tar.gz with a mode-preserving archive tool and start ./Memoria.Launcher. A separately installed .NET runtime is unnecessary. Ubuntu 24.04 x64 is the CI baseline. A Vulkan-capable driver, desktop session, font/fontconfig, X11/Wayland dependencies and working audio are required; [Linux testing](linux-testing.md) gives explicit dependency setup and diagnostics.
+
+Intel macOS requires macOS 26.0 and a Metal-capable Intel Mac compatible with MoltenVK. Extract Memoria-FF8-osx-x64.tar.gz and move Memoria.FF8.app to a writable location. Its executable root is Contents/MacOS, with bootstrap/game/audio under Data; Contents/Info.plist declares the deployment baseline. Builds include official [MoltenVK 1.4.2](https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2), verified against a pinned SHA-256, and its license. The app selects that bundled library explicitly; no Vulkan SDK or Homebrew installation is required. Artifacts are unsigned and not notarized; Gatekeeper approval remains a user action. Signing credentials must stay outside the repository and PR jobs.
+
+Descriptors record RID, layout, entry points, complete SHA-256 inventory and Unix modes. Windows retains schema 1 for released-updater compatibility; Unix uses schema 2. The music worker and every offered graphics host are mandatory inventory entries. Validation rejects links, traversal, duplicate/colliding entries, excessive expansion and foreign native architecture. macOS static validation checks bundled Mach-O imports and LC_RPATH, rejects developer-machine paths, verifies the Vulkan/Metal provider and compares native deployment versions with Info.plist.
+
+Configuration, saves, caches, logs and dependency setup belong in per-user locations outside read-only installations and application bundles. Select legal installed game files through the launcher. Offline play uses installed payloads; network availability affects update discovery/download. Keep saves and custom mods outside disposable build directories.

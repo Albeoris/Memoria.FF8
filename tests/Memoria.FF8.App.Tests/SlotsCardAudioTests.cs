@@ -53,7 +53,10 @@ public sealed class SlotsCardAudioTests
                 failure = exception;
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        if (OperatingSystem.IsWindows())
+        {
+            thread.SetApartmentState(ApartmentState.STA);
+        }
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(20)), "The card sound output check did not finish.");
         if (failure is not null)

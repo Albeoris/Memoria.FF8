@@ -58,7 +58,7 @@ Build identity hashes tracked and untracked nonignored working files, deleted fi
 
 Evidence is stored under `artifacts/linux-test/runs/<run-id>/`: orchestration/build/transport logs, per-project portable test logs, `result.json`, system information, Vulkan ICD descriptors, full Vulkan surface/device information and presentation-probe results. Process stdout/stderr and nonzero exit status are preserved. The console prints target failures and structured status. Configuration, cache and test state are separate from ordinary launcher/player data. The source tree never contains copied original game assets or credentials.
 
-Smoke success means the requested process survived its interval. A launcher that exits early, even with exit code zero, does not pass the smoke. Manual launch preserves the actual exit code; its timeout returns 124. The .NET helper uses standard `Process` APIs and `Kill(entireProcessTree: true)` on timeout or cancellation, followed by bounded cleanup and evidence retrieval. Remote cancellation writes `stop.request` in the owned run directory; the helper observes it during tests, diagnostics and smoke execution, then writes `result.json`. Cleanup applies to a running process tree; detached descendants whose parent has already exited are outside this contract. There is no custom process-group manager, `/proc` traversal or application P/Invoke.
+Smoke success means the requested process survived its interval. A launcher that exits early, even with exit code zero, does not pass the smoke. Manual launch preserves the actual exit code; its timeout returns 124. The .NET helper creates an owned Linux session through its own `setsid`/`execvp` entry point and terminates that process group after leader exit, timeout or cancellation. Descendants retaining inherited output pipes remain owned after leader exit. Remote cancellation writes `stop.request` in the owned run directory; the helper observes it during tests, diagnostics and smoke execution, then writes `result.json`. Cleanup never kills by executable name and needs no external `setsid` program. A child deliberately creating a new session leaves this supervision boundary.
 
 Screenshots use an already installed `grim`, `spectacle` or `gnome-screenshot`, or an explicitly configured `ScreenshotCommand` argument array with `{output}` for the output filename. If no suitable command exists, the result records screenshots as unavailable. A screenshot still needs human inspection.
 
@@ -95,7 +95,7 @@ The runner attaches to an existing session using `DISPLAY`/`WAYLAND_DISPLAY` and
 
 ## Current boundary and workflow tests
 
-The committed [build capability profile](../../tools/linux-testing/build-capabilities.json) declares `gameHost: false`. `-Component Game` fails explicitly. When a real supported Linux distribution recipe exists, update this profile to its actual `Distribution` output and game executable; the same workflow can then select that artifact automatically. Filename guesses or a running launcher cannot enable gameplay acceptance.
+The committed [build capability profile](../../tools/linux-testing/build-capabilities.json) declares `gameHost: true` and selects the complete `Distribution` recipe, `artifacts/package/linux-x64` and `Data/Memoria.FF8`. `Auto` selects Game. Binary-only deployment restores executable modes from the verified package inventory before promotion. A surviving process remains a smoke result; gameplay acceptance also requires inspecting the requested slice.
 
 Run orchestration tests without an installed distro or SSH target:
 

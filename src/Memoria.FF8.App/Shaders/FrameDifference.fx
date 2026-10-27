@@ -1,4 +1,4 @@
-#if VULKAN
+#if VULKAN || DIRECTX12
 #define VS_PROFILE vs_6_0
 #define PS_PROFILE ps_6_0
 #define SAMPLE_TEXTURE(textureName, samplerName, uv) textureName.Sample(samplerName, uv)
@@ -10,17 +10,17 @@
 
 float2 InverseSize;
 float2 ViewportOrigin;
-#if VULKAN
+#if VULKAN || DIRECTX12
 Texture2D CurrentTexture : register(t0);
 #else
 texture CurrentTexture;
 #endif
-#if VULKAN
+#if VULKAN || DIRECTX12
 Texture2D PreviousTexture : register(t1);
 #else
 texture PreviousTexture;
 #endif
-#if VULKAN
+#if VULKAN || DIRECTX12
 sampler CurrentSampler : register(s0) = sampler_state
 #else
 sampler CurrentSampler = sampler_state
@@ -33,7 +33,7 @@ sampler CurrentSampler = sampler_state
     AddressU = Clamp;
     AddressV = Clamp;
 };
-#if VULKAN
+#if VULKAN || DIRECTX12
 sampler PreviousSampler : register(s1) = sampler_state
 #else
 sampler PreviousSampler = sampler_state

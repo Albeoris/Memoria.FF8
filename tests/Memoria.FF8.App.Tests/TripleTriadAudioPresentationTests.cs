@@ -68,7 +68,10 @@ public sealed class TripleTriadAudioPresentationTests
                 failure = exception;
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        if (OperatingSystem.IsWindows())
+        {
+            thread.SetApartmentState(ApartmentState.STA);
+        }
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(20)), "Silent card audio device check did not finish.");
         if (failure is not null)

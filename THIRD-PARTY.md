@@ -48,3 +48,5 @@ with or endorsed by Valve Corporation.
 
 The pinned version, hash and runtime placement are documented in
 [the redistributable notice](vendor/Steamworks/README.md), also shipped as `Data/Steam/NOTICE.md`.
+
+Intel macOS distributions include [MoltenVK 1.4.2](https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2), under Apache-2.0. tools/Get-MoltenVK.ps1 fetches the checksum-pinned official macOS archive. Its complete license and component notices ship beside libMoltenVK.dylib as MoltenVK.LICENSE. Upstream source and build instructions are available at the same version tag. No Apple SDK or proprietary game resource is redistributed.

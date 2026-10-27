@@ -184,6 +184,16 @@ public sealed class GameProcessDiagnosticsTests : IDisposable
         Assert.Contains("at Example.Run()", completion);
     }
 
+    [Fact]
+    public void Latest_graphics_readiness_replaces_the_previous_host_after_restart()
+    {
+        using GameProcessDiagnostics diagnostics = new(directory);
+        diagnostics.RecordReadiness("Graphics ready: requested=Direct3D11 actual=Direct3D11 process=10\n");
+        diagnostics.RecordReadiness("Graphics ready: requested=Direct3D12 actual=Direct");
+        diagnostics.RecordReadiness("3D12 process=11\n");
+        Assert.Equal("Graphics ready: requested=Direct3D12 actual=Direct3D12 process=11", diagnostics.GraphicsReady);
+    }
+
     private sealed class FailingConsole(bool disposed) : StringWriter
     {
         public override void Write(string? value)

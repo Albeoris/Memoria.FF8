@@ -18,6 +18,7 @@ internal sealed partial class LauncherWindow : Window
     private readonly Button tryAuto = new() { Content = "Try Auto", IsVisible = false, MinHeight = 30 };
     private GraphicsBackend requestedGraphicsBackend;
     private bool loadingGraphicsBackend;
+    private bool savingGraphicsBackend;
     private bool graphicsPreferenceReadFailed;
     private readonly Button browse = new() { Content = "Browse…", MinWidth = 92, Margin = new Thickness(10, 0, 0, 0) };
     private readonly Button mediaSetup = new() { Content = "Set up FFmpeg", MinWidth = 130, MinHeight = 32 };
@@ -160,6 +161,10 @@ internal sealed partial class LauncherWindow : Window
         {
             graphicsPreferenceReadFailed = false;
             requestedGraphicsBackend = await Task.Run(() => GraphicsBackendPreferences.Read(GraphicsBackendPreferences.DefaultPath));
+            if (HostPlatforms.Current != HostPlatform.Windows && requestedGraphicsBackend == GraphicsBackend.Auto)
+            {
+                requestedGraphicsBackend = GraphicsBackend.Vulkan;
+            }
             graphicsBackend.SelectedItem = GraphicsBackendSelection.Available(HostPlatforms.Current).Contains(requestedGraphicsBackend) ? requestedGraphicsBackend : null;
             UpdateGraphicsStatus();
         }
@@ -177,10 +182,11 @@ internal sealed partial class LauncherWindow : Window
 
     private async Task SaveGraphicsBackendAsync()
     {
-        if (loadingGraphicsBackend || graphicsBackend.SelectedItem is not GraphicsBackend selected)
+        if (loadingGraphicsBackend || savingGraphicsBackend || graphicsBackend.SelectedItem is not GraphicsBackend selected)
         {
             return;
         }
+        savingGraphicsBackend = true;
         graphicsPreferenceReadFailed = false;
         requestedGraphicsBackend = selected;
         UpdateGraphicsStatus();
@@ -188,13 +194,28 @@ internal sealed partial class LauncherWindow : Window
         try
         {
             await Task.Run(() => GraphicsBackendPreferences.Write(GraphicsBackendPreferences.DefaultPath, selected));
+            if (runningGame is { HasExited: false } active && gameUpdateSession is { } control)
+            {
+                Window restartDialog = LauncherDialogs.Create("Graphics backend - requires restart", "Restart game now to apply?\n\nMemoria will preserve your current game in a separate standalone save and resume it. Choose Later to keep playing.", true);
+                if (restartDialog.Content is StackPanel panel && panel.Children.LastOrDefault() is StackPanel buttons)
+                {
+                    ((Button)buttons.Children[0]).Content = "Restart now";
+                    ((Button)buttons.Children[1]).Content = "Later";
+                }
+                if (await restartDialog.ShowDialog<bool>(this))
+                {
+                    await control.RequestAsync("graphics-restart", () => active.HasExited, name: selected.ToString());
+                    graphicsStatus.Text = $"Restarting with requested backend: {selected}. The standalone save is retained if startup fails.";
+                }
+            }
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidDataException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidDataException or InvalidOperationException or TimeoutException)
         {
-            graphicsStatus.Text = "Could not save graphics preference: " + exception.Message;
+            graphicsStatus.Text = "Could not apply the graphics preference or restart safely: " + exception.Message;
         }
         finally
         {
+            savingGraphicsBackend = false;
             SetBusy(false);
         }
     }
@@ -416,6 +437,10 @@ internal sealed partial class LauncherWindow : Window
             while (!process.HasExited)
             {
                 process.Refresh();
+                if (diagnostics.GraphicsReady is string currentReady)
+                {
+                    graphicsStatus.Text = currentReady;
+                }
                 if (!remembered && diagnostics.GraphicsReady is string ready)
                 {
                     graphicsStatus.Text = ready;
@@ -505,7 +530,7 @@ internal sealed partial class LauncherWindow : Window
         installations.IsEnabled = !busy;
         browse.IsEnabled = !busy;
         achievementsLocalOnly.IsEnabled = !busy;
-        graphicsBackend.IsEnabled = !busy;
+        graphicsBackend.IsEnabled = !savingGraphicsBackend && !updating && !loadingGraphicsBackend && (!busy || runningGame is not null) && HostPlatforms.Current == HostPlatform.Windows;
         tryAuto.IsEnabled = !busy;
         mediaSetup.IsEnabled = !busy;
         play.IsEnabled = !busy && LauncherCapabilities.CanLaunchGame;

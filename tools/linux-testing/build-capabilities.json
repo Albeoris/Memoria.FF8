@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "runtimeIdentifier": "linux-x64",
-  "gameHost": false,
-  "scope": "Launcher",
-  "launcherOutput": "artifacts/launcher/linux-x64",
-  "gameOutput": null,
-  "gameExecutable": null
+  "gameHost": true,
+  "scope": "Distribution",
+  "launcherOutput": "artifacts/package/linux-x64",
+  "gameOutput": "artifacts/package/linux-x64",
+  "gameExecutable": "Data/Memoria.FF8"
 }

@@ -21,7 +21,7 @@ public sealed class ReleaseClientTests
             Assert.Equal("Memoria-FF8-Launcher", request.Headers.UserAgent.ToString());
             return JsonResponse(Metadata(tag, label: identity));
         }));
-        UpdateRelease release = Assert.IsType<UpdateRelease>(await new ReleaseClient(http).GetAsync(channel, TestContext.Current.CancellationToken));
+        UpdateRelease release = Assert.IsType<UpdateRelease>(await new ReleaseClient(http, "win-x64").GetAsync(channel, TestContext.Current.CancellationToken));
         Assert.Equal(channel, release.Channel);
         Assert.Equal(tag, release.Tag);
         Assert.Equal(42, release.AssetId);
@@ -34,7 +34,7 @@ public sealed class ReleaseClientTests
     public async Task MissingReleaseIsNotAnError()
     {
         using HttpClient http = new(new Handler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)));
-        Assert.Null(await new ReleaseClient(http).GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
+        Assert.Null(await new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -43,7 +43,7 @@ public sealed class ReleaseClientTests
     public async Task StableRejectsInvalidTagOrPrerelease(string tag, bool prerelease)
     {
         using HttpClient http = new(new Handler(_ => JsonResponse(Metadata(tag, prerelease: prerelease))));
-        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http).GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -53,7 +53,7 @@ public sealed class ReleaseClientTests
     public async Task DraftOrMissingArchiveIsRejected(string json)
     {
         using HttpClient http = new(new Handler(_ => JsonResponse(json)));
-        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http).GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -64,14 +64,14 @@ public sealed class ReleaseClientTests
     public async Task IncompleteAssetOrInvalidDigestIsRejected(string? digest, int size, string state)
     {
         using HttpClient http = new(new Handler(_ => JsonResponse(Metadata("nightly", digest: digest == "valid" ? Digest : digest, size: size, state: state))));
-        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http).GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task UnrecognizedAssetLabelDoesNotBecomeBuildIdentity()
     {
         using HttpClient http = new(new Handler(_ => JsonResponse(Metadata("nightly", label: "Windows archive"))));
-        Assert.Null((await new ReleaseClient(http).GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken))!.BuildId);
+        Assert.Null((await new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken))!.BuildId);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class ReleaseClientTests
         string asset = document.RootElement.GetProperty("assets")[0].GetRawText();
         string json = $"{{\"tag_name\":\"nightly\",\"draft\":false,\"assets\":[{asset},{asset}]}}";
         using HttpClient http = new(new Handler(_ => JsonResponse(json)));
-        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http).GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -90,7 +90,7 @@ public sealed class ReleaseClientTests
     public async Task RateLimitExplainsRetry(HttpStatusCode status)
     {
         using HttpClient http = new(new Handler(_ => new HttpResponseMessage(status)));
-        HttpRequestException error = await Assert.ThrowsAsync<HttpRequestException>(() => new ReleaseClient(http).GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
+        HttpRequestException error = await Assert.ThrowsAsync<HttpRequestException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
         Assert.Equal(status, error.StatusCode);
         Assert.Contains("rate limit", error.Message);
     }
@@ -108,7 +108,7 @@ public sealed class ReleaseClientTests
         }));
         try
         {
-            await new ReleaseClient(http).DownloadAsync(Release(bytes), destination, cancellationToken: TestContext.Current.CancellationToken);
+            await new ReleaseClient(http, "win-x64").DownloadAsync(Release(bytes), destination, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(bytes, await File.ReadAllBytesAsync(destination, TestContext.Current.CancellationToken));
         }
         finally
@@ -126,7 +126,7 @@ public sealed class ReleaseClientTests
         byte[] actual = corrupt ? [3, 2, 1] : [1, 2];
         string destination = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         using HttpClient http = new(new Handler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new NonSeekableMemoryStream(actual)) }));
-        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http).DownloadAsync(Release(expected), destination, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").DownloadAsync(Release(expected), destination, cancellationToken: TestContext.Current.CancellationToken));
         Assert.False(File.Exists(destination));
     }
 
@@ -144,7 +144,7 @@ public sealed class ReleaseClientTests
                 cancellation.Cancel();
             }
         });
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new ReleaseClient(http).DownloadAsync(Release(bytes), destination, progress, cancellation.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new ReleaseClient(http, "win-x64").DownloadAsync(Release(bytes), destination, progress, cancellation.Token));
         Assert.False(File.Exists(destination));
     }
 
@@ -157,7 +157,7 @@ public sealed class ReleaseClientTests
         using HttpClient http = new(new Handler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) }));
         try
         {
-            await Assert.ThrowsAsync<IOException>(() => new ReleaseClient(http).DownloadAsync(Release(bytes), destination, cancellationToken: TestContext.Current.CancellationToken));
+            await Assert.ThrowsAsync<IOException>(() => new ReleaseClient(http, "win-x64").DownloadAsync(Release(bytes), destination, cancellationToken: TestContext.Current.CancellationToken));
             Assert.Equal("existing", await File.ReadAllTextAsync(destination, TestContext.Current.CancellationToken));
         }
         finally

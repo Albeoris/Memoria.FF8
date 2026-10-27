@@ -22,6 +22,10 @@
     <Project Path="tools/Memoria.FF8.Localization/Memoria.FF8.Localization.csproj" />
     <Project Path="src/Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Memoria.FF8.Distribution.Check/Memoria.FF8.Distribution.Check.csproj" />
+    <Project Path="tools/Memoria.FF8.Updater.Compatibility/Memoria.FF8.Updater.Compatibility.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Memoria.FF8.LinuxTesting.Tests/Memoria.FF8.LinuxTesting.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Bootstrap.Tests/Memoria.FF8.Bootstrap.Tests.csproj" />

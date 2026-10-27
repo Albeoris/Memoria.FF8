@@ -68,7 +68,10 @@ public sealed class StartupWindowSizeTests
                 failure = exception;
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        if (OperatingSystem.IsWindows())
+        {
+            thread.SetApartmentState(ApartmentState.STA);
+        }
         thread.Start();
         thread.Join();
         if (failure is not null)

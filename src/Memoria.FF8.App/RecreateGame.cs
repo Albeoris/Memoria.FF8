@@ -981,6 +981,10 @@ internal sealed partial class RecreateGame : Game
             Exit();
             return new { Exiting = true };
         }
+        if (request.Command.Equals("graphics-restart", StringComparison.OrdinalIgnoreCase))
+        {
+            return RestartGraphicsBackend(Memoria.FF8.Platform.GraphicsBackendSelection.Parse(request.Name ?? throw new ArgumentException("A graphics backend is required.")), request.ExpiresAt);
+        }
         if (updateSave.Paused && !request.Command.Equals("status", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("The game is paused for an update. Cancel the update before changing the game.");
@@ -1424,7 +1428,7 @@ internal sealed partial class RecreateGame : Game
     {
         if (disposing)
         {
-#if MEMORIA_VULKAN
+#if MEMORIA_NATIVE
             nativeBackBuffer?.Dispose();
 #endif
             confirmationOverlay.Dispose();

@@ -51,26 +51,26 @@ public sealed class GraphicsDispatcherTests : IDisposable
         Assert.False(start.UseShellExecute);
         Assert.True(start.RedirectStandardOutput);
         Assert.True(start.RedirectStandardError);
-        Assert.Throws<PlatformNotSupportedException>(() => GraphicsDispatcher.HostExecutable(data, GraphicsBackend.Direct3D12));
+        Assert.Equal(Path.Combine(data, "Game", "dx12", HostPlatforms.Current.ExecutableName("Memoria.FF8")), GraphicsDispatcher.HostExecutable(data, GraphicsBackend.Direct3D12));
     }
 
     [Fact]
     public async Task AutoTriesVulkanWhenTheFirstHostIsMissing()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows Auto has two graphics host candidates.");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows Auto has three graphics host candidates.");
         List<GraphicsBackend> attempts = [];
         using StringWriter output = new();
         using StringWriter error = new();
         int result = await RunAsync(GraphicsBackend.Auto, backend =>
         {
             attempts.Add(backend);
-            return backend == GraphicsBackend.Direct3D11 ? MissingHost() : Child(backend, ReadyScript + "\nexit 0");
+            return backend != GraphicsBackend.Vulkan ? MissingHost() : Child(backend, ReadyScript + "\nexit 0");
         }, output, error);
         Assert.Equal(0, result);
-        Assert.Equal([GraphicsBackend.Direct3D11, GraphicsBackend.Vulkan], attempts);
+        Assert.Equal([GraphicsBackend.Direct3D11, GraphicsBackend.Direct3D12, GraphicsBackend.Vulkan], attempts);
         Assert.Contains("Graphics ready: requested=Auto actual=Vulkan", output.ToString());
         Assert.Contains("Direct3D11", error.ToString());
-        Assert.Equal(2, Directory.GetFiles(Path.Combine(directory, "diagnostics"), "result.json", SearchOption.AllDirectories).Length);
+        Assert.Equal(3, Directory.GetFiles(Path.Combine(directory, "diagnostics"), "result.json", SearchOption.AllDirectories).Length);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class GraphicsDispatcherTests : IDisposable
     [Fact]
     public async Task OnlyClassifiedInitializationFailureCanFallbackAfterAHostStarts()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows Auto has two graphics host candidates.");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows Auto has three graphics host candidates.");
         List<GraphicsBackend> attempts = [];
         using StringWriter output = new();
         using StringWriter error = new();
@@ -127,8 +127,8 @@ public sealed class GraphicsDispatcherTests : IDisposable
                 """ : ReadyScript + "\nexit 0");
         }, output, error);
         Assert.Equal(0, result);
-        Assert.Equal([GraphicsBackend.Direct3D11, GraphicsBackend.Vulkan], attempts);
-        Assert.Contains("Graphics ready: requested=Auto actual=Vulkan", output.ToString());
+        Assert.Equal([GraphicsBackend.Direct3D11, GraphicsBackend.Direct3D12], attempts);
+        Assert.Contains("Graphics ready: requested=Auto actual=Direct3D12", output.ToString());
     }
 
     [Theory]

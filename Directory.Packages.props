@@ -20,6 +20,9 @@
     <PackageVersion Include="MonoGame.Framework.WindowsDX" Version="3.8.5.1" />
     <PackageVersion Include="MonoGame.Framework.Native" Version="3.8.5.1" />
     <PackageVersion Include="MonoGame.Runtime.Windows.Vulkan" Version="3.8.5.1" />
+    <PackageVersion Include="MonoGame.Runtime.Windows.DX12" Version="3.8.5.1" />
+    <PackageVersion Include="MonoGame.Runtime.Linux.Vulkan" Version="3.8.5.1" />
+    <PackageVersion Include="MonoGame.Runtime.Mac.Vulkan" Version="3.8.5.1" />
     <PackageVersion Include="SDL3-CS" Version="3.4.18" />
     <PackageVersion Include="SDL3-CS.Windows" Version="3.4.18" />
 

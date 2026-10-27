@@ -1,10 +1,8 @@
-using System.Runtime.Versioning;
 using Microsoft.Xna.Framework;
 
 namespace Memoria.FF8;
 
-/// <summary>Keeps the native swapchain's drawing dimensions equal to the Windows client area.</summary>
-[SupportedOSPlatform("windows")]
+/// <summary>Keeps the native swapchain drawing dimensions equal to the host client area.</summary>
 internal sealed class NativeWindowBackBufferSynchronizer : IDisposable
 {
     private readonly GameWindow window;
@@ -16,7 +14,7 @@ internal sealed class NativeWindowBackBufferSynchronizer : IDisposable
     {
         this.window = window;
         this.graphics = graphics;
-        handle = NativeWindowsGameWindow.ResolveHandle(window.Title);
+        handle = OperatingSystem.IsWindows() ? NativeWindowsGameWindow.ResolveHandle(window.Title) : 0;
         window.ClientSizeChanged += OnClientSizeChanged;
     }
 
@@ -26,7 +24,7 @@ internal sealed class NativeWindowBackBufferSynchronizer : IDisposable
         {
             return;
         }
-        Point size = NativeWindowsGameWindow.GetClientSize(handle);
+        Point size = OperatingSystem.IsWindows() ? NativeWindowsGameWindow.GetClientSize(handle) : new Point(window.ClientBounds.Width, window.ClientBounds.Height);
         if (size.X < 1 || size.Y < 1 || graphics.GraphicsDevice.PresentationParameters.BackBufferWidth == size.X && graphics.GraphicsDevice.PresentationParameters.BackBufferHeight == size.Y)
         {
             return;

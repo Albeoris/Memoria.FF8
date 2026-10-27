@@ -421,6 +421,10 @@ internal sealed partial class RecreateGame
             {
                 ApplyDisplaySettings();
             }
+            if (action.SubjectId == "Graphics backend")
+            {
+                RequestGraphicsRestartConfirmation(uiPreferences.Graphics.Backend);
+            }
             text.FontFamily = uiPreferences.UiFontFamily;
             fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume, uiPreferences.VoiceVolume);
             return;

@@ -7,6 +7,22 @@ public sealed class GameUpdateSessionTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "memoria-session-tests-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public async Task GraphicsRestartCarriesOnlyTheSelectedBackendAndDeadline()
+    {
+        GameUpdateSession session = new(Path.Combine(root, "restart-session"));
+        Task<JsonElement> restarting = session.RequestAsync("graphics-restart", () => false, TimeSpan.FromSeconds(5), name: "Direct3D12");
+        await RespondAsync(session, request =>
+        {
+            Assert.Equal("graphics-restart", request.GetProperty("Command").GetString());
+            Assert.Equal("Direct3D12", request.GetProperty("Name").GetString());
+            Assert.True(request.GetProperty("ExpiresAt").GetDateTimeOffset() > DateTimeOffset.UtcNow);
+            Assert.False(request.TryGetProperty("Arguments", out _));
+            return new { Id = request.GetProperty("Id").GetString(), Ok = true, Result = new { Restarting = true } };
+        });
+        Assert.True((await restarting).GetProperty("Restarting").GetBoolean());
+    }
+
+    [Fact]
     public async Task SaveRequiresMatchingAcknowledgmentAndExistingSave()
     {
         GameUpdateSession session = new(Path.Combine(root, "session"));

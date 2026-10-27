@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Formats.Tar;
+using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
@@ -8,9 +10,48 @@ using System.Reflection.Metadata;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-if (args.Length == 4 && args[0] == "--graphics-payload")
+if (args.Length == 2 && args[0] == "--mac-imports")
 {
-    GraphicsPayload.Validate(Path.GetFullPath(args[1]), args[2], Path.GetFullPath(args[3]));
+    Console.WriteLine(JsonSerializer.Serialize(MacNativeClosure.Read(args[1])));
+    return;
+}
+
+if (args.Length == 4 && args[0] == "--set-version")
+{
+    ArchiveVersion.Set(args[1], args[2], args[3]);
+    return;
+}
+
+if (args.Length == 4 && args[0] == "--validate-archive")
+{
+    PackagedDistribution.ValidateArchive(args[1], args[2], args[3]);
+    return;
+}
+
+if (args.Length == 3 && args[0] == "--create-tar")
+{
+    string root = Path.GetFullPath(args[1]);
+    using FileStream output = File.Create(args[2]);
+    using GZipStream gzip = new(output, CompressionLevel.Optimal);
+    using TarWriter writer = new(gzip, TarEntryFormat.Pax);
+    foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+    {
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException("Package creation cannot follow links.");
+        }
+        string relative = Path.GetRelativePath(root, path).Replace('\\', '/');
+        using FileStream tarContent = File.OpenRead(path);
+        bool executable = Path.GetFileName(path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music";
+        PaxTarEntry entry = new(TarEntryType.RegularFile, relative) { DataStream = tarContent, Mode = (UnixFileMode)(executable ? 493 : 420) };
+        writer.WriteEntry(entry);
+    }
+    return;
+}
+
+if (args.Length is 4 or 5 && args[0] == "--graphics-payload")
+{
+    GraphicsPayload.Validate(Path.GetFullPath(args[1]), args[2], Path.GetFullPath(args[3]), args.Length == 5 ? args[4] : "win-x64");
     return;
 }
 
@@ -25,29 +66,13 @@ if (args.Length >= 3 && args[0] == "--native-image")
     return;
 }
 
-if (args.Length != 1)
+if (args.Length is not (1 or 2))
 {
     throw new ArgumentException("Supply the published Data directory to validate.");
 }
 
 string dataDirectory = Path.GetFullPath(args[0]);
-foreach (string path in Directory.EnumerateFiles(dataDirectory, "*", SearchOption.AllDirectories).Where(path => Path.GetExtension(path) is ".exe" or ".dll"))
-{
-    using FileStream stream = File.OpenRead(path);
-    using (PEReader image = new(stream, PEStreamOptions.LeaveOpen))
-    {
-        if (image.PEHeaders.CorHeader is not null)
-        {
-            if ((image.PEHeaders.CorHeader.Flags & CorFlags.Requires32Bit) != 0)
-            {
-                throw new BadImageFormatException($"The x64 distribution contains a required x86 managed image: {Path.GetFileName(path)}.");
-            }
-            continue;
-        }
-    }
-    stream.Position = 0;
-    NativeImage.RequireX64(stream, "win-x64");
-}
+PayloadImages.Validate(dataDirectory, args.Length == 2 ? args[1] : "win-x64");
 using DistributionAssemblies assemblies = new(dataDirectory);
 Assembly textAssembly = assemblies.LoadFromAssemblyName(new AssemblyName("Albeoris.Games.FF8.TextEncoding"));
 Type encodingType = textAssembly.GetType("Albeoris.Games.FF8.TextEncoding.FF8Encoding", throwOnError: true)!;
@@ -103,22 +128,23 @@ sealed class DistributionAssemblies(string directory) : AssemblyLoadContext(isCo
 
 static class GraphicsPayload
 {
-    public static void Validate(string directory, string backend, string manifestPath)
+    public static void Validate(string directory, string backend, string manifestPath, string rid)
     {
         bool vulkan = backend switch
         {
             "Direct3D11" => false,
             "Vulkan" => true,
-            _ => throw new ArgumentException("Graphics backend must be Direct3D11 or Vulkan.")
+            "Direct3D12" => true,
+            _ => throw new ArgumentException("Graphics backend must be Direct3D11, Direct3D12 or Vulkan.")
         };
         string frameworkPackage = vulkan ? "MonoGame.Framework.Native" : "MonoGame.Framework.WindowsDX";
         using JsonDocument dependencies = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "Memoria.FF8.deps.json")));
-        if (!dependencies.RootElement.GetProperty("runtimeTarget").GetProperty("name").GetString()!.EndsWith("/win-x64", StringComparison.Ordinal))
+        if (!dependencies.RootElement.GetProperty("runtimeTarget").GetProperty("name").GetString()!.EndsWith("/" + rid, StringComparison.Ordinal))
         {
-            throw new InvalidDataException("Graphics payload must target win-x64.");
+            throw new InvalidDataException("Graphics payload RID does not match the requested target.");
         }
         string[] packages = dependencies.RootElement.GetProperty("libraries").EnumerateObject().Select(property => property.Name).Where(name => name.StartsWith("MonoGame.", StringComparison.OrdinalIgnoreCase)).ToArray();
-        string[] expectedPackages = vulkan ? [frameworkPackage + "/3.8.5.1", "MonoGame.Runtime.Windows.Vulkan/3.8.5.1"] : [frameworkPackage + "/3.8.5.1"];
+        string[] expectedPackages = vulkan ? [frameworkPackage + "/3.8.5.1", "MonoGame.Runtime." + (rid == "win-x64" ? (backend == "Direct3D12" ? "Windows.DX12" : "Windows.Vulkan") : rid == "linux-x64" ? "Linux.Vulkan" : "Mac.Vulkan") + "/3.8.5.1"] : [frameworkPackage + "/3.8.5.1"];
         if (!packages.Order(StringComparer.Ordinal).SequenceEqual(expectedPackages.Order(StringComparer.Ordinal), StringComparer.Ordinal))
         {
             throw new InvalidDataException($"Mixed, missing or unexpected MonoGame packages in {backend} host: {string.Join(", ", packages)}.");
@@ -133,35 +159,15 @@ static class GraphicsPayload
                 throw new InvalidDataException($"The shipped MonoGame.Framework.dll does not match the {backend} dependency family.");
             }
         }
-        if (vulkan != File.Exists(Path.Combine(directory, "mgruntime.dll")))
+        string runtime = rid == "win-x64" ? "mgruntime.dll" : rid == "linux-x64" ? "libmgruntime.so" : "libmgruntime.dylib";
+        if (vulkan != File.Exists(Path.Combine(directory, runtime)))
         {
             throw new InvalidDataException("The native MonoGame runtime payload does not match the host backend.");
         }
-        if (vulkan)
-        {
-            using FileStream nativeRuntime = File.OpenRead(Path.Combine(directory, "mgruntime.dll"));
-            NativeImage.RequireX64(nativeRuntime, "win-x64");
-        }
-        foreach (string path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Where(path => Path.GetExtension(path) is ".exe" or ".dll"))
-        {
-            using FileStream stream = File.OpenRead(path);
-            using (PEReader image = new(stream, PEStreamOptions.LeaveOpen))
-            {
-                if (image.PEHeaders.CorHeader is not null)
-                {
-                    if ((image.PEHeaders.CorHeader.Flags & CorFlags.Requires32Bit) != 0)
-                    {
-                        throw new BadImageFormatException($"Required x86 managed image in graphics payload: {Path.GetFileName(path)}.");
-                    }
-                    continue;
-                }
-            }
-            stream.Position = 0;
-            NativeImage.RequireX64(stream, "win-x64");
-        }
+        PayloadImages.Validate(directory, rid);
         using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
         JsonElement root = manifest.RootElement;
-        if (root.GetProperty("schemaVersion").GetInt32() != 1 || root.GetProperty("sourceNormalization").GetString() != "utf8-lf" || root.GetProperty("compiler").GetProperty("package").GetString() != "dotnet-mgfxc" || root.GetProperty("compiler").GetProperty("version").GetString() != "3.8.5.1" || root.GetProperty("effects").GetArrayLength() != 6)
+        if (root.GetProperty("schemaVersion").GetInt32() != 1 || root.GetProperty("sourceNormalization").GetString() != "utf8-lf" || root.GetProperty("compiler").GetProperty("package").GetString() != "dotnet-mgfxc" || root.GetProperty("compiler").GetProperty("version").GetString() != "3.8.5.1" || root.GetProperty("effects").GetArrayLength() != 9)
         {
             throw new InvalidDataException("Shader manifest schema, compiler or complete variant inventory is invalid.");
         }
@@ -174,7 +180,7 @@ static class GraphicsPayload
         foreach (var shader in shaders)
         {
             string? sourceHash = null;
-            foreach (string profile in new[] { "DirectX_11", "Vulkan" })
+            foreach (string profile in new[] { "DirectX_11", "Vulkan", "DirectX_12" })
             {
                 JsonElement[] entries = root.GetProperty("effects").EnumerateArray().Where(entry => entry.GetProperty("source").GetString() == shader.Source && entry.GetProperty("profile").GetString() == profile).ToArray();
                 if (entries.Length != 1)
@@ -182,7 +188,7 @@ static class GraphicsPayload
                     throw new InvalidDataException($"Shader manifest must contain exactly one {profile} variant of {shader.Source}.");
                 }
                 JsonElement entry = entries[0];
-                string expectedOutput = shader.Source[..^3] + (profile == "Vulkan" ? ".vulkan.mgfxo" : ".mgfxo");
+                string expectedOutput = shader.Source[..^3] + (profile == "Vulkan" ? ".vulkan.mgfxo" : profile == "DirectX_12" ? ".dx12.mgfxo" : ".mgfxo");
                 string hash = entry.GetProperty("sourceSha256").GetString()!;
                 string outputHash = entry.GetProperty("outputSha256").GetString()!;
                 if (entry.GetProperty("output").GetString() != expectedOutput || !IsHash(hash) || !IsHash(outputHash) || (sourceHash is not null && sourceHash != hash))
@@ -195,12 +201,12 @@ static class GraphicsPayload
                 {
                     throw new InvalidDataException($"Shader manifest source hash is stale: {shader.Source}.");
                 }
-                if (profile != (vulkan ? "Vulkan" : "DirectX_11"))
+                if (profile != (backend == "Direct3D12" ? "DirectX_12" : vulkan ? "Vulkan" : "DirectX_11"))
                 {
                     continue;
                 }
                 byte[] payload = ReadResource(Path.Combine(directory, shader.Assembly), shader.Resource);
-                if (payload.Length < 10 || !payload.AsSpan(0, 4).SequenceEqual("MGFX"u8) || payload[4] != 11 || payload[5] != (vulkan ? 80 : 1) || Sha256(payload) != outputHash)
+                if (payload.Length < 10 || !payload.AsSpan(0, 4).SequenceEqual("MGFX"u8) || payload[4] != 11 || payload[5] != (backend == "Direct3D12" ? 2 : vulkan ? 80 : 1) || Sha256(payload) != outputHash)
                 {
                     throw new InvalidDataException($"Embedded shader profile or artifact hash does not match {backend}: {shader.Resource}.");
                 }
@@ -233,5 +239,44 @@ static class GraphicsPayload
         var content = image.GetSectionData(image.PEHeaders.CorHeader!.ResourcesDirectory.RelativeVirtualAddress);
         int length = BinaryPrimitives.ReadInt32LittleEndian(content.GetContent(offset, 4).AsSpan());
         return content.GetContent(checked(offset + 4), length).ToArray();
+    }
+}
+
+static class PayloadImages
+{
+    public static void Validate(string directory, string rid)
+    {
+        Span<byte> magic = stackalloc byte[4];
+        foreach (string path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            using FileStream stream = File.OpenRead(path);
+            if (stream.Read(magic) != 4)
+            {
+                continue;
+            }
+            stream.Position = 0;
+            bool pe = magic[0] == 'M' && magic[1] == 'Z';
+            bool elf = magic.SequenceEqual(new byte[] { 0x7f, 0x45, 0x4c, 0x46 });
+            uint signature = BinaryPrimitives.ReadUInt32LittleEndian(magic);
+            bool mach = signature is 0xfeedfacf or 0xcffaedfe or 0xbebafeca or 0xcafebabe or 0xbfbafeca;
+            if (!pe && !elf && !mach)
+            {
+                continue;
+            }
+            if (pe)
+            {
+                using PEReader image = new(stream, PEStreamOptions.LeaveOpen);
+                if (image.PEHeaders.CorHeader is not null)
+                {
+                    if ((image.PEHeaders.CorHeader.Flags & CorFlags.Requires32Bit) != 0)
+                    {
+                        throw new BadImageFormatException("Required x86 managed image: " + path);
+                    }
+                    continue;
+                }
+                stream.Position = 0;
+            }
+            NativeImage.RequireX64(stream, rid);
+        }
     }
 }

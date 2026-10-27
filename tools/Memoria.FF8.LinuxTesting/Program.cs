@@ -8,6 +8,10 @@ internal static class Program
 {
     public static async Task<int> Main(string[] args)
     {
+        if (args.Length >= 3 && args[0] == "--owned-command")
+        {
+            return OwnedCommand.Execute(args[1], args[2], args[3..]);
+        }
         using CancellationTokenSource cancellation = new();
         ConsoleCancelEventHandler cancel = (_, eventArgs) =>
         {

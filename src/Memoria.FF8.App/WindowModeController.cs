@@ -25,17 +25,23 @@ internal sealed class WindowModeController
         this.platform = platform;
     }
 
-    internal static IGameWindowPlatform CreatePlatform(GameWindow window)
+    internal static IGameWindowPlatform CreatePlatform(GameWindow window, GraphicsDeviceManager? graphics = null)
     {
         if (OperatingSystem.IsWindows())
         {
-#if MEMORIA_VULKAN
+#if MEMORIA_NATIVE
             return new WindowsGameWindow(window, NativeWindowsGameWindow.ResolveHandle(window.Title));
 #else
             return new WindowsGameWindow(window, window.Handle);
 #endif
         }
-        throw new PlatformNotSupportedException("This game host currently requires the Windows window adapter.");
+#if MEMORIA_NATIVE
+        if ((OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()) && graphics is not null)
+        {
+            return new NativeDesktopGameWindow(window, graphics);
+        }
+#endif
+        throw new PlatformNotSupportedException("This game host requires a supported desktop window adapter and graphics manager.");
     }
 
     public void Apply(bool requestedBorderless)

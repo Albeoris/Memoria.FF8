@@ -7,7 +7,9 @@ namespace Memoria.FF8;
 /// <summary>Reports the initialized host only after content has loaded and a frame has been presented.</summary>
 internal sealed class GraphicsHostReadiness
 {
-#if MEMORIA_VULKAN
+#if MEMORIA_DX12
+    public const string Backend = "Direct3D12";
+#elif MEMORIA_VULKAN
     public const string Backend = "Vulkan";
 #else
     public const string Backend = "Direct3D11";

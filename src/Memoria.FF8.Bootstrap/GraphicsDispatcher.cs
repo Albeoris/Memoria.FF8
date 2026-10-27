@@ -11,6 +11,7 @@ public static class GraphicsDispatcher
         string name = backend switch
         {
             GraphicsBackend.Direct3D11 => "dx11",
+            GraphicsBackend.Direct3D12 => "dx12",
             GraphicsBackend.Vulkan => "vulkan",
             _ => throw new PlatformNotSupportedException($"No game host for {backend}. Try Auto.")
         };
@@ -67,6 +68,21 @@ public static class GraphicsDispatcher
 
     public static async Task<int> RunAsync(string dataDirectory, string[] args, TextWriter output, TextWriter error, CancellationToken token, Func<GraphicsBackend, ProcessStartInfo>? createStart = null, TimeSpan? initializationTimeout = null)
     {
+        string[] current = args;
+        while (true)
+        {
+            DispatchResult result = await RunSessionAsync(dataDirectory, current, output, error, token, createStart, initializationTimeout);
+            if (result.RestartArguments is null)
+            {
+                return result.ExitCode;
+            }
+            await output.WriteLineAsync("Graphics restart: resuming the preserved standalone game in a new host.");
+            current = result.RestartArguments;
+        }
+    }
+
+    private static async Task<DispatchResult> RunSessionAsync(string dataDirectory, string[] args, TextWriter output, TextWriter error, CancellationToken token, Func<GraphicsBackend, ProcessStartInfo>? createStart, TimeSpan? initializationTimeout)
+    {
         GraphicsBackend requested = RequestedBackend(args);
         IReadOnlyList<GraphicsBackend> order = GraphicsBackendSelection.InitializationOrder(requested, HostPlatforms.Current);
         string diagnostics = Environment.GetEnvironmentVariable("MEMORIA_FF8_HOST_DIAGNOSTICS_DIRECTORY") ?? Path.Combine(ApplicationPaths.Current.Logs, "graphics", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N"));
@@ -79,11 +95,20 @@ public static class GraphicsDispatcher
             Directory.CreateDirectory(attempt);
             string readyPath = Path.Combine(attempt, "ready.json");
             string failurePath = Path.Combine(attempt, "failure.json");
+            string restartPath = Path.Combine(attempt, "restart.json");
+            string restartToken = Guid.NewGuid().ToString("N");
             ProcessStartInfo start = createStart?.Invoke(backend) ?? CreateStartInfo(dataDirectory, backend, args);
             start.Environment[ApplicationInstallation.DirectoryVariable] = Path.GetFullPath(dataDirectory);
             start.Environment["MEMORIA_FF8_HOST_READY_FILE"] = readyPath;
             start.Environment["MEMORIA_FF8_HOST_FAILURE_FILE"] = failurePath;
             start.Environment["MEMORIA_FF8_REQUESTED_GRAPHICS_BACKEND"] = requested.ToString();
+            start.Environment["MEMORIA_GRAPHICS_RESTART_REQUEST"] = restartPath;
+            start.Environment["MEMORIA_GRAPHICS_RESTART_TOKEN"] = restartToken;
+            bool unixSession = !OperatingSystem.IsWindows() && createStart is null;
+            if (unixSession)
+            {
+                start = UnixHostProcess.Wrap(start);
+            }
             await error.WriteLineAsync($"Graphics initialization: requested={requested} attempt={backend}; diagnostics={attempt}");
             bool ready = false;
             bool initializationFailure = false;
@@ -104,7 +129,7 @@ public static class GraphicsDispatcher
                     throw new IOException("The game host did not start.");
                 }
                 started = true;
-                owner = OwnedChildProcess.Attach(process);
+                owner = OwnedChildProcess.Attach(process, unixSession);
                 outputPump = CopyAsync(process.StandardOutput, stdout, output);
                 errorPump = CopyAsync(process.StandardError, stderr, error);
                 Task exited = process.WaitForExitAsync(CancellationToken.None);
@@ -172,7 +197,8 @@ public static class GraphicsDispatcher
             }
             if (ready || !graphical)
             {
-                return exitCode;
+                string[]? restartArguments = ready && exitCode == 0 ? GraphicsRestart.ReadArguments(restartPath, restartToken, process.Id, args) : null;
+                return new DispatchResult(exitCode, restartArguments);
             }
             await error.WriteLineAsync($"Host startup failed: {failure} Diagnostics: {attempt}");
             if (requested != GraphicsBackend.Auto || !initializationFailure)
@@ -181,12 +207,14 @@ public static class GraphicsDispatcher
                 {
                     await error.WriteLineAsync("Try Auto to let the next launch choose a supported backend.");
                 }
-                return exitCode;
+                return new DispatchResult(exitCode, null);
             }
         }
         await error.WriteLineAsync("No graphics host initialized. Update your GPU driver or inspect the recorded diagnostics.");
-        return 1;
+        return new DispatchResult(1, null);
     }
+
+    private sealed record DispatchResult(int ExitCode, string[]? RestartArguments);
 
     private static bool ReadReady(string path, int processId, GraphicsBackend backend)
     {
