@@ -25,7 +25,7 @@ public sealed partial class BattleHudController
         if (SelectedCommand == BattleAbility.Magic)
         {
             MagicCastQuote quote = session.QuoteMagic(SelectedActor!.Id, action.Id);
-            return session.InfiniteMagic ? $"{quote.Available}/{quote.Capacity}" : (SelectedActor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0).ToString();
+            return session.UnlimitedMagic ? "∞" : session.InfiniteMagic ? $"{quote.Available}/{quote.Capacity}" : (SelectedActor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0).ToString();
         }
         int? itemId = action.NativeAction is { Command: 14 } shot ? shot.ActionId + 101 : SelectedCommand == BattleAbility.Item ? action.Id : null;
         return itemId is int id ? (session.Items.FirstOrDefault(item => item.Id == id)?.Count ?? 0).ToString() : "";

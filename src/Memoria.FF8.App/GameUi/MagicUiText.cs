@@ -35,7 +35,7 @@ internal static class MagicUiText
         "NoStockChanges" => "No stock, Junction or maximum HP changes.",
         "SmartLocked" => "Enable Smart Attack in Config to change this preference.",
         "SharedLabel" => "Shared magic stock",
-        "InfiniteLabel" => "Infinite magic",
+        "InfiniteLabel" => "Limited magic",
         "SmartLabel" => "Smart Attack",
         "ConservativeHelp" => "Conservative Auto Junction preserves every other character's spell ownership.",
         "PartyOffLabel" => "Entire party magic",

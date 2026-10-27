@@ -38,6 +38,7 @@ public sealed partial class MenuController
         MenuCatalog.Register(this);
         RegisterFontPickerScreen();
         RegisterQuickSaveRetentionScreen();
+        RegisterGameplayTuningScreens();
         RegisterNamingScreens();
         RegisterChocoboWorldScreens();
         RegisterMagazineScreens();
@@ -727,7 +728,7 @@ public sealed partial class MenuController
         {
             return;
         }
-        if (ExecuteFixtureAction(action) || ExecuteFontPickerAction(action) || ExecuteQuickSaveRetentionAction(action))
+        if (ExecuteFixtureAction(action) || ExecuteFontPickerAction(action) || ExecuteQuickSaveRetentionAction(action) || ExecuteGameplayTuningAction(action))
         {
             return;
         }

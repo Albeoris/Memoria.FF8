@@ -19,6 +19,7 @@ public sealed partial class MenuController
 
     private string ConfigLabel(string id) => LocalizeSettingLabel(id, id switch
     {
+        "Infinite magic" => "Limited magic",
         "Show FPS" => "Frame-rate counter",
         "Field FPS" => "Field and movies",
         "World FPS" => "World map",

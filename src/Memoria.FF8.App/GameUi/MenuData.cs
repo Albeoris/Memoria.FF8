@@ -163,6 +163,7 @@ public sealed class MenuMagic
     public int Quantity { get; set; }
     public string Description { get; set; } = "";
     public int DemoHealing { get; set; }
+    public bool UnlimitedUses { get; set; }
     public int? RemainingUses { get; set; }
     public int? Capacity { get; set; }
     public string Owner { get; set; } = "";
@@ -170,7 +171,7 @@ public sealed class MenuMagic
     public string Availability { get; set; } = "";
     public string Caster { get; set; } = "";
     public bool JunctionAvailable { get; set; } = true;
-    public string StockPresentation => Capacity is int capacity ? $"{RemainingUses}/{capacity}  {Quantity}" : Quantity.ToString();
+    public string StockPresentation => UnlimitedUses ? $"∞  {Quantity}" : Capacity is int capacity ? $"{RemainingUses}/{capacity}  {Quantity}" : Quantity.ToString();
     public string AccessPresentation => string.Join(" · ", new[] { Owner, Availability, Caster }.Where(value => value.Length > 0));
 }
 

@@ -465,7 +465,7 @@ public static partial class SystemTextCatalog
         defaults["magic.Field"] = "Field";
         defaults["magic.HpChange"] = "Record {0}: maximum HP {1} \u2192 {2}";
         defaults["magic.InfiniteDescription"] = "Preserve casting stock and spend limited battle or field uses. Junction bonuses still use stock; victory restores one field use.";
-        defaults["magic.InfiniteLabel"] = "Infinite magic";
+        defaults["magic.InfiniteLabel"] = "Limited magic";
         defaults["magic.MemoriaDestination"] = "Custom difficulty, magic rules, personal Attack choices or usage history require a Memoria save. Choose a Memoria slot; original FF8 files remain intact.";
         defaults["magic.MissingCommand"] = "Magic command missing";
         defaults["magic.Moved"] = "Moved: record {0} \u2192 {1}, {2} \u00D7{3}";
@@ -1088,7 +1088,7 @@ public static partial class SystemTextCatalog
         defaults["setting.gunblade.help"] = "Automatic assists Squall/Seifer gunblade hits. Manual uses the Gunblade / Rotate right binding at contact (default G / RB).";
         defaults["setting.gunblade.option.0"] = "Automatic";
         defaults["setting.gunblade.option.1"] = "Manual";
-        defaults["setting.infinite-magic"] = "Infinite magic";
+        defaults["setting.infinite-magic"] = "Limited magic";
         defaults["setting.infinite-magic.help"] = "Preserve casting stock and spend limited battle or field uses. Junction bonuses still use stock; victory restores one field use.";
         defaults["setting.infinite-magic.option.0"] = "Off";
         defaults["setting.infinite-magic.option.1"] = "On";

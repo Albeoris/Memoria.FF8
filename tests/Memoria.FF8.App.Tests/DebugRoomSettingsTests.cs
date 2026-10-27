@@ -149,14 +149,14 @@ public sealed class DebugRoomSettingsTests
     }
 
     [Fact]
-    public void Debug_room_has_only_developer_tools_and_no_player_preference_copies()
+    public void Debug_room_exposes_gameplay_rules_and_keeps_gallery_preferences_isolated()
     {
         UiPreferences preferences = new();
         int writes = 0;
         MenuController menus = new();
         menus.ConnectPreferences(() => preferences, _ => writes++);
         menus.Open("debug-room", true);
-        Assert.Equal(new[] { "Models", "Battle", "Scene", "UI tools", "Session", "Automation", "Shortcuts" }, menus.Entries.Select(entry => entry.Label));
+        Assert.Equal(new[] { "Gameplay rules", "Models", "Battle", "Scene", "UI tools", "Session", "Automation", "Shortcuts" }, menus.Entries.Select(entry => entry.Label));
         menus.SelectEntry("debug-room", "debug-gallery");
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal("debug-gallery", menus.ScreenId);
