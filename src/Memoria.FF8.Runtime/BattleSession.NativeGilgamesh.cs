@@ -254,7 +254,7 @@ public sealed partial class BattleSession
         int slot = (int)(delta / 0x24);
         NativeBattleModulePoolTask task = pool.Slots[slot];
         task = task.WriteWord(0x0E, (ushort)((task.ReadWord(0x0E) & 0xFF00) | value));
-        return effect with { Pools = effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, task) }) };
+        return effect with { Pools = effect.Pools.SetItem(index, pool.WriteSlot(slot, task)) };
     }
 
     private bool TryWriteNativeGilgameshCompletion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)

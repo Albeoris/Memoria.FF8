@@ -12,7 +12,7 @@ public static class NativeBattleChoco100CameraTask
     {
         resources.Validate();
         context.Validate();
-        if (task.Callback != Callback || task.Payload.IsDefault || task.Payload.Length != 0x70 - 12)
+        if (task.Callback != Callback || task.Payload.IsDefault || task.PayloadLength != 0x70 - 12)
         {
             throw new InvalidDataException("Native Choco100 camera requires its complete original auxiliary task.");
         }

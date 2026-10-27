@@ -10,19 +10,19 @@ public sealed class NativeBattleFileStagingTests
     {
         uint battle = NativeBattleFileStaging.Address;
         const uint field = 0x18DD018;
-        NativeBattleFileStaging original = NativeBattleFileStaging.Unknown().Write(battle + 8, new byte[] { 2, 3 });
-        NativeBattleFileStaging rebased = original.Write(field, new byte[] { 9, 7 });
+        NativeBattleFileStaging original = NativeBattleStorageSnapshots.Capture(NativeBattleFileStaging.Unknown().Write(battle + 8, new byte[] { 2, 3 }));
+        NativeBattleFileStaging rebased = NativeBattleStorageSnapshots.Restore(original).Write(field, new byte[] { 9, 7 });
         Assert.Equal(field, rebased.BaseAddress);
         Assert.Equal(new byte[] { 9, 7 }, rebased.Read(field, 2));
         Assert.Equal(original.Read(battle + 8, 2), rebased.Read(battle + 8, 2));
         Assert.Throws<NotSupportedException>(() => rebased.Read(field + 2, 1));
         Assert.Throws<NotSupportedException>(() => rebased.Read(battle, 1));
         Assert.Equal(battle, original.BaseAddress);
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(rebased))!;
+        NativeBattleFileStaging restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(SnapshotJson(rebased))!);
         Assert.Equal(rebased.Read(battle + 8, 2), restored.Read(battle + 8, 2));
         Assert.Equal(rebased.Read(field, 2), restored.Read(field, 2));
         string prior = "{\"KnownRanges\":[{\"Offset\":8,\"Data\":[2,3]}]}";
-        NativeBattleFileStaging historical = JsonSerializer.Deserialize<NativeBattleFileStaging>(prior)!;
+        NativeBattleFileStaging historical = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(prior)!);
         Assert.Equal(battle, historical.BaseAddress);
         Assert.Equal(new byte[] { 2, 3 }, historical.Read(battle + 8, 2));
     }
@@ -38,7 +38,7 @@ public sealed class NativeBattleFileStagingTests
         Assert.Throws<NotSupportedException>(() => memory.Read(address + 4, 5));
         memory = memory.Write(address + 5, new byte[] { 6, 6, 6 });
         Assert.Equal(new byte[] { 1, 9, 8, 4, 5, 6, 6, 6, 7 }, memory.Read(address, 9));
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(memory))!;
+        NativeBattleFileStaging restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(SnapshotJson(memory))!);
         Assert.Equal(memory.Read(address, 9), restored.Read(address, 9));
         Assert.Throws<NotSupportedException>(() => restored.Read(address + 9, 1));
     }
@@ -64,14 +64,14 @@ public sealed class NativeBattleFileStagingTests
         NativeBattleMusicProcessState process = new(new(1, null, null, null, 0, null), 0, null);
         process = process.InitializeCommands501C60().StageLoad501A20(memory, address);
         Assert.Equal(new NativeBattleMusicLoadPointers(address + 16, address + 24, 8), process.LoadSource);
-        string pending = JsonSerializer.Serialize(process);
+        string pending = SnapshotJson(process);
         memory = memory.Write(address + 28, new byte[] { 7 });
         NativeGlobalSoundProcess sound = NativeGlobalSoundProcess.FromBufferlessColdProcess();
         NativeBattleMusicLoadStep next = process.AdvanceLoad501A70(sound, memory, 1, 0x1234);
         Assert.Equal((byte)7, next.State.Buffers.ReadBuffer(0).EncodedAkaoId);
-        Assert.Equal(pending, JsonSerializer.Serialize(process));
-        NativeBattleMusicLoadStep independent = JsonSerializer.Deserialize<NativeBattleMusicProcessState>(pending)!.AdvanceLoad501A70(JsonSerializer.Deserialize<NativeGlobalSoundProcess>(JsonSerializer.Serialize(sound))!, JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(memory))!, 1, 0x1234);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(independent));
+        Assert.Equal(pending, SnapshotJson(process));
+        NativeBattleMusicLoadStep independent = JsonSerializer.Deserialize<NativeBattleMusicProcessState>(pending)!.AdvanceLoad501A70(JsonSerializer.Deserialize<NativeGlobalSoundProcess>(SnapshotJson(sound))!, NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(SnapshotJson(memory))!), 1, 0x1234);
+        Assert.Equal(SnapshotJson(next), SnapshotJson(independent));
         Assert.Throws<NotSupportedException>(() => process.AdvanceLoad501A70(sound, null, 1, 0x1234));
     }
 
@@ -82,7 +82,7 @@ public sealed class NativeBattleFileStagingTests
         NativeBattleFileStaging memory = NativeBattleFileStaging.Unknown().Write(address + 8, new byte[] { 2, 3 });
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess() with { FileStaging = memory };
         retained.Validate();
-        retained = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(retained))!;
+        retained = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(SnapshotJson(retained))!;
         NativeBattleFileStaging restored = Assert.IsType<NativeBattleFileStaging>(retained.FileStaging);
         Assert.Equal(new byte[] { 2, 3 }, restored.Read(address + 8, 2));
         Assert.Throws<NotSupportedException>(() => restored.Read(address, 1));
@@ -107,4 +107,5 @@ public sealed class NativeBattleFileStagingTests
         bytes[28] = 2;
         return bytes;
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

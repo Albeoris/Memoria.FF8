@@ -30,10 +30,7 @@ public sealed record NativeBattleGilgameshZantetsukenActors([property: JsonRequi
             throw new InvalidDataException("Zantetsuken lost its retained actor memory.");
         }
         Bytes.Validate();
-        if (Bytes.Regions.Any(region => region.Offset > Length - region.Data.Length) || Bytes.UnknownRegions.Any(region => region.Offset > Length - region.Length))
-        {
-            throw new InvalidDataException("Zantetsuken actor storage leaves its original seven records.");
-        }
+        Bytes.ValidateExtent(Length);
     }
 
     public short ReadWord(byte actor, int offset)

@@ -59,11 +59,11 @@ public sealed record NativeBattleCurse47State([property: JsonRequired] NativeBat
         {
             throw new InvalidDataException("Curse requires its complete retained IO script.");
         }
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            RequireRange(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            RequireRange(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Globals.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateUnknownRanges())
         {
             if (region.Offset < 0 || region.Length < 0 || region.Offset > GlobalLength - region.Length)
             {
@@ -81,7 +81,8 @@ public sealed record NativeBattleCurse47State([property: JsonRequired] NativeBat
     public NativeBattleCurse47State Write(uint address, ReadOnlySpan<byte> data)
     {
         RequireRange(address, data.Length);
-        return this with { Globals = Globals.Write(checked((int)(address - BaseAddress)), data) };
+        Globals.Write(checked((int)(address - BaseAddress)), data);
+        return this;
     }
 
     public NativeBattleEffectArena ReadView(uint address, int length)
@@ -94,7 +95,8 @@ public sealed record NativeBattleCurse47State([property: JsonRequired] NativeBat
     {
         RequireRange(address, length);
         view.Validate();
-        return this with { Globals = NativeBattleEffectNodeContextMemory.Copy(view, 0, Globals, checked((int)(address - BaseAddress)), length) };
+        NativeBattleEffectNodeContextMemory.Copy(view, 0, Globals, checked((int)(address - BaseAddress)), length);
+        return this;
     }
 
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));

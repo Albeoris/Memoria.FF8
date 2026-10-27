@@ -27,7 +27,7 @@ public static class NativeBattleDuel274MeteorParticles
             }
             task = task.WriteWord(28, Next()).WriteWord(30, Next()).WriteWord(32, Next());
             task = task.WriteWord(36, unchecked((ushort)((byte)Next() - 128))).WriteWord(38, unchecked((ushort)((byte)Next() - 128))).WriteWord(40, unchecked((ushort)((byte)Next() - 128)));
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         return frame with { Random = random, Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
 
@@ -59,7 +59,7 @@ public static class NativeBattleDuel274MeteorParticles
         }
         short counter = unchecked((short)(Signed(18) + 1));
         task = task.WriteWord(18, unchecked((ushort)counter));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
         return new(frame, pool, counter < 20 ? 0 : 2);
 

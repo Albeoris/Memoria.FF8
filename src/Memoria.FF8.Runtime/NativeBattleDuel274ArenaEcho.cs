@@ -23,7 +23,7 @@ public static class NativeBattleDuel274ArenaEcho
 
     public static NativeBattleDuel274Frame StoreRanges(NativeBattleDuel274Frame frame, uint address, NativeBattleModulePoolTask task, IReadOnlyList<(int Offset, int Length)> writes)
     {
-        if (task.Payload.Length != Length)
+        if (task.PayloadLength != Length)
         {
             throw new InvalidDataException("Native Duel echo write changed its actual physical extent.");
         }
@@ -35,7 +35,7 @@ public static class NativeBattleDuel274ArenaEcho
             {
                 throw new InvalidDataException("Native Duel echo write leaves its actual arena extent.");
             }
-            arena = arena.Write(checked(start + offset), task.Payload.AsSpan().Slice(offset, length));
+            arena = arena.Write(checked(start + offset), task.ReadRawPayloadSpan().Slice(offset, length));
             if (task.UnknownPayloadRanges is { } unknown)
             {
                 foreach (NativeBattleEffectUnknownRegion range in unknown)

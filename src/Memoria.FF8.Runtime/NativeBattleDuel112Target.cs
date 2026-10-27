@@ -48,7 +48,7 @@ public static partial class NativeBattleDuel112Target
 
         void Store()
         {
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         }
     }

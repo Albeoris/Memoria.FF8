@@ -213,7 +213,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             ushort flags = inputs.ReadModel(state.Actor).Flags0;
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)(task.ReadWord(14) | (flags & 0xF7FF))));
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) }, result);
+        return new(frame, pool.WriteSlot(slot, task), result);
 
         int Rand()
         {
@@ -233,7 +233,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         }
         void Set(int child, int offset, int value)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(child, pool.Slots[child].WriteWord(offset, unchecked((ushort)value))) };
+            pool = pool.WriteSlot(child, pool.Slots[child].WriteWord(offset, unchecked((ushort)value)));
         }
         void Scale(int child, int scale)
         {
@@ -272,7 +272,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         void Append(uint callback, Func<NativeBattleModulePoolTask, NativeBattleModulePoolTask> initialize)
         {
             (pool, int child) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(child, initialize(pool.Slots[child])) };
+            pool = pool.WriteSlot(child, initialize(pool.Slots[child]));
         }
     }
     private static short GroupWord(byte[] bytes, int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset));

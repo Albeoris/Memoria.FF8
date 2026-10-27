@@ -49,7 +49,7 @@ public sealed partial class BattleSession
                     task = known ? task.WriteByte(physical, written.ReadByte(physical)) : task.MarkPayloadUnknown(physical, 1);
                 }
             }
-            pool = pool with { Slots = pool.Slots.SetItem(0, task) };
+            pool = pool.WriteSlot(0, task);
             return current with { Effect = current.Effect with { Pools = current.Effect.Pools.Select(bank => bank.DescriptorAddress == pool.DescriptorAddress ? pool : bank).ToImmutableArray() } };
         }
         byte[] Read(NativeBattleDuel216Frame current, int offset, int length)

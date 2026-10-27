@@ -157,8 +157,8 @@ public static partial class NativeBattleRoughDivide163Controller
         {
             Execute(new NativeBattleRoughDivide163Stage((85 - counter) << 8));
         }
-        task = task.WriteWord(12, unchecked((ushort)(counter + 1))) with { Next = pool.Slots[slot].Next };
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        task = task.WriteWord(12, unchecked((ushort)(counter + 1))).SetNext(pool.Slots[slot].Next);
+        pool = pool.WriteSlot(slot, task);
         if (Word(task, 12) <= 85)
         {
             return new(frame, pool, 0);
@@ -170,7 +170,7 @@ public static partial class NativeBattleRoughDivide163Controller
         int Append(uint callback)
         {
             (pool, int created) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(created, pool.Slots[created].WriteWord(12, 0)) };
+            pool = pool.WriteSlot(created, pool.Slots[created].WriteWord(12, 0));
             return created;
         }
         int AppendSimple(uint callback)
@@ -196,11 +196,11 @@ public static partial class NativeBattleRoughDivide163Controller
         }
         void SetRetained(int created)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(created, TaskDword(TaskDword(pool.Slots[created], 16, ReadDword(frame.Staging, 0x23CE280)), 20, ReadDword(frame.Staging, 0x23CE284))) };
+            pool = pool.WriteSlot(created, TaskDword(TaskDword(pool.Slots[created], 16, ReadDword(frame.Staging, 0x23CE280)), 20, ReadDword(frame.Staging, 0x23CE284)));
         }
         void Set(int targetSlot, int offset, int value)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(targetSlot, pool.Slots[targetSlot].WriteWord(offset, unchecked((ushort)value))) };
+            pool = pool.WriteSlot(targetSlot, pool.Slots[targetSlot].WriteWord(offset, unchecked((ushort)value)));
         }
         int Rand()
         {

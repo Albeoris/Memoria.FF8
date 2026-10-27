@@ -13,7 +13,7 @@ public static class NativeBattleBio22LaterEmitters
     private static NativeBattleBio22EmitterStep Advance(uint selfAddress, NativeBattleBio22EmitterFrame frame, NativeBattleBio22Resources resources, NativeBattleBio22LaterEmitterInputs inputs, bool second)
     {
         NativeBattleModulePoolTask task = frame.Task;
-        if (task.Callback != (second ? 0x89D020u : 0x89CD60u) || task.Payload.IsDefault || task.Payload.Length != 0x38 - 12)
+        if (task.Callback != (second ? 0x89D020u : 0x89CD60u) || task.Payload.IsDefault || task.PayloadLength != 0x38 - 12)
         {
             throw new InvalidDataException("Native Bio later emitter requires its actual hierarchy callback and extent.");
         }

@@ -18,7 +18,7 @@ public static class NativeBattleShivaShards
         NativeBattleEffectTaskPool pool = frame.Pool;
         (pool, int slot) = pool.Append(0x5C2260);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0x0C, 0).WriteWord(0x10, 0).WriteWord(0x12, 0).WriteWord(0x14, 0).WriteWord(0x1C, 0x1400).WriteWord(0x20, 0x2200);
-        frame = frame with { Pool = pool with { Slots = pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Pool = pool.WriteSlot(slot, task) };
         return Initialize5C1EE0(frame, mesh);
     }
 
@@ -29,7 +29,7 @@ public static class NativeBattleShivaShards
             throw new InvalidDataException("Native Shiva shards require the complete original103-vertexD2F1C4 mesh.");
         }
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva shards require their current physical arena.");
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         NativeCrtRandomState random = frame.Random;
         int cursor = 0x340;
         int shard = 0;

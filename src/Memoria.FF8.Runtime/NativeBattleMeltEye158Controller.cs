@@ -13,10 +13,10 @@ public static partial class NativeBattleMeltEye158Controller
         int target = inputs.Packets.ReadContact(firstContact).Primary.ActorIndex;
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, RootCount);
         (root, int rootSlot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, int childSlot) = children.Append(SpawnerCallback);
-        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot].WriteWord(12, 0).WriteWord(14, 0)) };
+        children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteWord(12, 0).WriteWord(14, 0));
         NativeBattleEffectTextureState textures = (frame.Memory.Textures ?? throw new NotSupportedException("Melt-Eye requires its original texture state.")).Register5099A0(resources.Camera);
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Melt-Eye requires its executed texture allocation.");
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Melt-Eye requires its executed texture initializer.");

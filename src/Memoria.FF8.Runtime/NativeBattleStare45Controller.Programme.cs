@@ -72,7 +72,7 @@ public static partial class NativeBattleStare45Controller
         {
             task.RequireKnownPayload(0x94, checked((int)task.ReadDword(0x78)));
         }
-        return new(task.Payload.AsSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+        return new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
     }
 
     private static (NativeBattleStare45Frame Frame, NativeBattleActionMatrix Matrix) RotateProgramme45(NativeBattleStare45Frame frame, NativeBattleActionMatrix matrix, char axis, short angle)

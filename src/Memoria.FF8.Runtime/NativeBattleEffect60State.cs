@@ -44,15 +44,13 @@ public sealed record NativeBattleEffect60State([property: JsonRequired] NativeBa
     {
         Span<byte> bytes = stackalloc byte[2];
         BinaryPrimitives.WriteInt16LittleEndian(bytes, unchecked((short)value));
-        return this with { Shared84 = Shared84.Write(offset, bytes) };
+        Shared84.Write(offset, bytes);
+        return this;
     }
 
     private static void Check(NativeBattleEffectArena arena, int length)
     {
         arena.Validate();
-        if (arena.Regions.Any(region => region.Offset > length - region.Data.Length) || arena.UnknownRegions.Any(region => region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect60 retained bytes exceed their physical owner.");
-        }
+        arena.ValidateExtent(length);
     }
 }

@@ -16,7 +16,7 @@ public static class NativeBattleDoomtrain191Glow
         NativeBattleEffectTaskPool pool = Pool(frame);
         (pool, int slot) = pool.Append(0x643A00);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0xC, 0).WriteWord(0x10, 0).WriteWord(0xE, profile.Duration).WriteWord(0x12, profile.Y).WriteWord(0x14, 0xDA1C).WriteWord(0x1C, profile.FirstScale).WriteWord(0x1E, profile.SecondScale);
-        return PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task) });
+        return PutPool(frame, pool.WriteSlot(slot, task));
     }
 
     public static NativeBattleDoomtrain191LeafStep Advance643A00(NativeBattleDoomtrain191Frame frame, int slot, NativeBattleDoomtrain191MeshServices services)
@@ -50,7 +50,7 @@ public static class NativeBattleDoomtrain191Glow
         frame = NativeBattleDoomtrain191Model.Put(frame with { Random = random }, memory with { OrbitAngle = unchecked(angle + step), OrbitStep = unchecked(step + value % 64) });
         ushort next = unchecked((ushort)(task.ReadWord(0xC) + 1));
         pool = Pool(frame);
-        frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(0xC, next)) });
+        frame = PutPool(frame, pool.WriteSlot(slot, task.WriteWord(0xC, next)));
         return new(frame, unchecked((short)next) >= unchecked((short)task.ReadWord(0xE)) ? 2 : 0);
     }
 

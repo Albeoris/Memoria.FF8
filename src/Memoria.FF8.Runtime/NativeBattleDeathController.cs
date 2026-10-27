@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -214,7 +214,7 @@ public static partial class NativeBattleDeathController
         private NativeBattleDeathState State => profile.RequireState(current.Memory);
         private void SetState(NativeBattleDeathState value) => current = current with { Memory = profile.WithState(current.Memory, value) };
         private NativeBattleModulePoolTask Read(uint address) => hierarchy.Read(address);
-        private void Store(uint address, NativeBattleModulePoolTask task) => hierarchy = hierarchy.Write(address, task.WriteByte(0x28, hierarchy.Read(address).ReadByte(0x28)) with { Next = hierarchy.Read(address).Next });
+        private void Store(uint address, NativeBattleModulePoolTask task) => hierarchy = hierarchy.Write(address, task.WriteByte(0x28, hierarchy.Read(address).ReadByte(0x28)).SetNext(hierarchy.Read(address).Next));
         private static int Stage(NativeBattleModulePoolTask task) => unchecked((sbyte)task.ReadByte(0x29));
         private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
         private static NativeBattleModulePoolTask Next(NativeBattleModulePoolTask task) => task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));

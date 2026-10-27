@@ -8,7 +8,7 @@ public sealed partial class BattleSession
     {
         private int Lift(ref NativeBattleModulePoolTask task)
         {
-            NativeBattleTornado146Work work = new(state);
+            using NativeBattleTornado146Work work = new(state);
             int age = Word(task, 12);
             if (age == 0)
             {

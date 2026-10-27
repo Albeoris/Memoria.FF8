@@ -18,19 +18,17 @@ public sealed record NativeBattleMicroMissiles299State([property: JsonRequired] 
     {
         byte[] bytes = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-        return this with { Globals = Globals.Write(Require(address, 4), bytes) };
+        Globals.Write(Require(address, 4), bytes);
+        return this;
     }
     public void Validate()
     {
         Globals.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        if (Globals.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > Length - region.Length))
-        {
-            throw new InvalidDataException("Micro Missiles unknown globals leave their original module.");
-        }
+        Globals.ValidateExtent(Length);
     }
     private static int Require(uint address, int length)
     {

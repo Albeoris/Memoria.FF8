@@ -24,11 +24,11 @@ public sealed record NativeBattleGravija214State([property: JsonRequired] Native
     public void Validate()
     {
         Globals.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Globals.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateUnknownRanges())
         {
             Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
@@ -36,10 +36,7 @@ public sealed record NativeBattleGravija214State([property: JsonRequired] Native
         if (RootBankStorage is { } bank)
         {
             bank.Validate();
-            if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > RootBankLength - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > RootBankLength - region.Length))
-            {
-                throw new InvalidDataException("Gravija retained root bytes leave their physical bank.");
-            }
+            bank.ValidateExtent(RootBankLength);
         }
     }
 
@@ -56,22 +53,51 @@ public sealed record NativeBattleGravija214State([property: JsonRequired] Native
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
-    public NativeBattleGravija214State Write(uint address, ReadOnlySpan<byte> bytes) => IsCopy(address, bytes.Length) ? this with { CopiedSource = CopiedSource.Write(checked((int)(address - CopiedMeshAddress)), bytes) } : this with { Globals = Globals.Write(Require(address, bytes.Length), bytes) };
+    public NativeBattleGravija214State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        if (IsCopy(address, bytes.Length))
+        {
+            CopiedSource.Write(checked((int)(address - CopiedMeshAddress)), bytes);
+        }
+        else
+        {
+            Globals.Write(Require(address, bytes.Length), bytes);
+        }
+        return this;
+    }
     public NativeBattleGravija214State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleGravija214State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleGravija214State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleGravija214State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleGravija214State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     public NativeBattleEffectArena ReadView(uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(IsCopy(address, length) ? CopiedSource : Globals, IsCopy(address, length) ? checked((int)(address - CopiedMeshAddress)) : Require(address, length), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
-    public NativeBattleGravija214State WriteView(uint address, NativeBattleEffectArena source, int length) => IsCopy(address, length) ? this with { CopiedSource = NativeBattleEffectNodeContextMemory.Copy(source, 0, CopiedSource, checked((int)(address - CopiedMeshAddress)), length) } : this with { Globals = NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length) };
+    public NativeBattleGravija214State WriteView(uint address, NativeBattleEffectArena source, int length)
+    {
+        if (IsCopy(address, length))
+        {
+            NativeBattleEffectNodeContextMemory.Copy(source, 0, CopiedSource, checked((int)(address - CopiedMeshAddress)), length);
+        }
+        else
+        {
+            NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length);
+        }
+        return this;
+    }
 
     private static bool IsCopy(uint address, int length) => length >= 0 && address >= CopiedMeshAddress && (ulong)address + (uint)length <= (ulong)CopiedMeshAddress + EntryCopyLength;
 
     private static void ValidateBounded(NativeBattleEffectArena arena, int length)
     {
         arena.Validate();
-        if (arena.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || arena.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Gravija copied bytes leave their one physical owner.");
-        }
+        arena.ValidateExtent(length);
     }
 
     private static int Require(uint address, int length)

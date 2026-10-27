@@ -36,7 +36,7 @@ public static class NativeBattleQuake38GroundEntries
         }
         written.Slice(40, 12).Fill(true);
         written[110] = true;
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < written.Length;)
         {
             if (!written[index])

@@ -15,7 +15,7 @@ public static class NativeBattleHypnotize133Controller
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8])) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
         NativeBattleHypnotize133State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
         return frame with { State = state, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
@@ -234,7 +234,7 @@ public static class NativeBattleHypnotize133Controller
                     task = task.MarkPayloadUnknown(12 + index, 1);
                 }
             }
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         return pool;
     }
@@ -258,7 +258,7 @@ public static class NativeBattleHypnotize133Controller
             NativeBattleEffectTaskPool pool = frame.Effect.Pools[index];
             if (address >= pool.BankAddress && address < pool.BankAddress + (uint)(pool.Stride * pool.Slots.Length) && (address - pool.BankAddress) % pool.Stride == 0)
             {
-                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(checked((int)((address - pool.BankAddress) / pool.Stride)), task) });
+                return WithPool(frame, index, pool.WriteSlot(checked((int)((address - pool.BankAddress) / pool.Stride)), task));
             }
         }
         throw new NotSupportedException("Hypnotize task write has no current physical owner.");

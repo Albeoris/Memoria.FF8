@@ -172,7 +172,7 @@ public static partial class NativeBattleLionHeart165Controller
         }
         task = pool.Slots[slot];
         task = task.WriteWord(12, unchecked((ushort)(Word(task, 12) + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, alive == 0 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), alive == 0 ? 2 : 0);
 
         short ReadMemoryWord(NativeBattleFileStaging staging, uint address) => NativeBattleEffectPoolBytes.Contains(pool, address) ? BinaryPrimitives.ReadInt16LittleEndian(NativeBattleEffectPoolBytes.Read(pool, address, 2)) : ReadWord(staging, address);
         int ReadMemoryDword(NativeBattleFileStaging staging, uint address) => NativeBattleEffectPoolBytes.Contains(pool, address) ? BinaryPrimitives.ReadInt32LittleEndian(NativeBattleEffectPoolBytes.Read(pool, address, 4)) : ReadDword(staging, address);

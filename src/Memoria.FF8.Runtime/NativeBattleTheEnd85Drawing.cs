@@ -14,7 +14,7 @@ public static class NativeBattleTheEnd85Drawing
 {
     public static NativeBattleTheEnd85DrawingStep Advance785660(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleFileStaging staging, uint frozen, NativeBattleTheEnd85DrawServices services)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != 732 - 12 || task.ReadDword(116) != source.Address)
+        if (task.PayloadLength != 732 - 12 || task.ReadDword(116) != source.Address)
         {
             throw new InvalidDataException("Native The End model requires its complete task, retained animation workspace and current source pointer.");
         }
@@ -23,7 +23,7 @@ public static class NativeBattleTheEnd85Drawing
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
         NativeBattleTheEnd85DrawingStep result = Empty(task, staging);
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(148 - 12).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(148 - 12).ToArray().ToImmutableArray());
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, unchecked((int)frozen), (current, node) =>
         {
             NativeBattleTheEnd85DrawingStep drawn = DrawNode785790(task, source, node, context, projection, colors, result.Staging, services);
@@ -32,9 +32,7 @@ public static class NativeBattleTheEnd85Drawing
             result = drawn.PublishedFarColor ? drawn : result with { Staging = drawn.Staging };
             return current;
         });
-        byte[] payload = task.Payload.ToArray();
-        advanced.Workspace.Data.AsSpan().CopyTo(payload.AsSpan(148 - 12));
-        return result with { Task = task with { Payload = payload.ToImmutableArray() }, Remaining = advanced.Remaining, Packets = new(attempts.ToImmutable(), allocation) };
+        return result with { Task = task.WriteRetainedBytes(12 + (148 - 12), advanced.Workspace.Data.AsSpan()), Remaining = advanced.Remaining, Packets = new(attempts.ToImmutable(), allocation) };
     }
 
     public static NativeBattleTheEnd85DrawingStep DrawNode785790(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleFileStaging staging, NativeBattleTheEnd85DrawServices services)

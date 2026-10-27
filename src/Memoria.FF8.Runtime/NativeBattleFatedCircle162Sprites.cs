@@ -83,7 +83,7 @@ public static partial class NativeBattleFatedCircle162Controller
                 staging = WriteWord(staging, address + 4, 0);
                 int scale = initial ? Rand() % 1280 + 2304 : smoke ? Rand() % 4096 + 2304 : Rand() % 3584 + 2048;
                 staging = WriteWord(staging, address + 6, unchecked((ushort)scale));
-                staging = staging.Write(address + 8, task.Payload.AsSpan(4, 8));
+                staging = staging.Write(address + 8, task.ReadRawPayloadSpan().Slice(4, 8));
                 int x = Word(task, 16) + (initial ? Rand() % 400 - 200 : smoke ? Rand() % 2000 - 1000 : Rand() % 1400 - 700);
                 staging = WriteWord(staging, address + 8, unchecked((ushort)x));
                 int y = Word(task, 18);
@@ -103,7 +103,7 @@ public static partial class NativeBattleFatedCircle162Controller
             }
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, Word(task, 12) < 16 || alive != 0 ? 0 : 2);
+        return new(frame, pool.WriteSlot(slot, task), Word(task, 12) < 16 || alive != 0 ? 0 : 2);
 
         int Rand()
         {

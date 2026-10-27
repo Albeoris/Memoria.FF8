@@ -251,7 +251,7 @@ public static partial class NativeBattleLionHeart165Controller
             }
             frame = frame with { Staging = current };
         }
-        return new(frame with { Memory = frame.Memory with { Arena = arena } }, pool with { Slots = pool.Slots.SetItem(slot, task) }, released ? 2 : 0);
+        return new(frame with { Memory = frame.Memory with { Arena = arena } }, pool.WriteSlot(slot, task), released ? 2 : 0);
 
         bool InArena(uint address) => address >= 0x20DFAB8 && (ulong)address - 0x20DFAB8 < NativeBattleEffectArena.Length;
         short ReadBankWord(NativeBattleFileStaging staging, uint address) => InArena(address) ? BinaryPrimitives.ReadInt16LittleEndian((arena ?? throw new NotSupportedException("Native Lion Heart late particles require their retained resource arena.")).Read(checked((int)(address - 0x20DFAB8)), 2)) : ReadWord(staging, address);

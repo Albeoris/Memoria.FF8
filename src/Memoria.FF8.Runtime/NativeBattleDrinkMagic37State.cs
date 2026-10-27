@@ -24,10 +24,7 @@ public sealed record NativeBattleDrinkMagic37State([property: JsonRequired] Nati
             throw new InvalidDataException("Drink Magic requires its retained mutable orb and complete captured anchor.");
         }
         OrbMesh.Validate();
-        if (OrbMesh.Regions.Any(region => region.Offset > NativeBattleDrinkMagic37Profile.OrbLength - region.Data.Length) || OrbMesh.UnknownRegions.Any(region => region.Offset > NativeBattleDrinkMagic37Profile.OrbLength - region.Length))
-        {
-            throw new InvalidDataException("Drink Magic mutable mesh leaves its original physical bank.");
-        }
+        OrbMesh.ValidateExtent(NativeBattleDrinkMagic37Profile.OrbLength);
         if (Nodes is { } nodes)
         {
             if (nodes.SourceArenaOffset < 0 || nodes.SourceArenaOffset > NativeBattleEffectArena.Length - 2 * NativeBattleDrinkMagic37Profile.DrawStep || nodes.AuxiliaryCursor < 0 || nodes.AuxiliaryCursor > NativeBattleEffectArena.Length || nodes.PrimaryDrawCursor is < 0 or > NativeBattleEffectArena.Length || nodes.SecondaryDrawCursor is < 0 or > NativeBattleEffectArena.Length)

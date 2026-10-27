@@ -199,7 +199,7 @@ public static class NativeBattleLaserEye71BeamLower
     {
         task.RequirePayloadRange(offset, length);
         task.ValidateUnknownPayloadRanges();
-        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(offset - 12, length));
+        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
         if (task.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion region in ranges)

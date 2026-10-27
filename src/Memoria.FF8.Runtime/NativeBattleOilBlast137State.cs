@@ -27,11 +27,11 @@ public sealed record NativeBattleOilBlast137State([property: JsonRequired] Nativ
     {
         Globals.Validate();
         Matrix32.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            Require(checked(NativeBattleOilBlast137Profile.BaseAddress + (uint)region.Offset), region.Data.Length);
+            Require(checked(NativeBattleOilBlast137Profile.BaseAddress + (uint)region.Offset), region.Length);
         }
-        if (Globals.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > NativeBattleOilBlast137Profile.GlobalsLength - region.Length) || Matrix32.Regions.Any(region => region.Offset < 0 || region.Offset > 32 - region.Data.Length) || Matrix32.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > 32 - region.Length))
+        if (Globals.EnumerateUnknownRanges().Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > NativeBattleOilBlast137Profile.GlobalsLength - region.Length) || Matrix32.EnumerateDataRanges().Any(region => region.Offset < 0 || region.Offset > 32 - region.Length) || Matrix32.EnumerateUnknownRanges().Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > 32 - region.Length))
         {
             throw new InvalidDataException("Oil Blast retained bytes leave their scalar or mutable matrix owner.");
         }
@@ -52,15 +52,27 @@ public sealed record NativeBattleOilBlast137State([property: JsonRequired] Nativ
         if (IsMatrix(address, bytes.Length))
         {
             RequireSeededMatrix();
-            return this with { Matrix32 = Matrix32.Write(checked((int)(address - NativeBattleOilBlast137Profile.MatrixAddress)), bytes) };
+            Matrix32.Write(checked((int)(address - NativeBattleOilBlast137Profile.MatrixAddress)), bytes);
+            return this;
         }
-        return this with { Globals = Globals.Write(Require(address, bytes.Length), bytes) };
+        Globals.Write(Require(address, bytes.Length), bytes);
+        return this;
     }
 
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
-    public NativeBattleOilBlast137State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleOilBlast137State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleOilBlast137State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleOilBlast137State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
         if (IsMatrix(address, length))
@@ -76,9 +88,11 @@ public sealed record NativeBattleOilBlast137State([property: JsonRequired] Nativ
         if (IsMatrix(address, length))
         {
             RequireSeededMatrix();
-            return this with { Matrix32 = NativeBattleEffectNodeContextMemory.Copy(source, 0, Matrix32, checked((int)(address - NativeBattleOilBlast137Profile.MatrixAddress)), length) };
+            NativeBattleEffectNodeContextMemory.Copy(source, 0, Matrix32, checked((int)(address - NativeBattleOilBlast137Profile.MatrixAddress)), length);
+            return this;
         }
-        return this with { Globals = NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length) };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length);
+        return this;
     }
 
     private void RequireSeededMatrix()

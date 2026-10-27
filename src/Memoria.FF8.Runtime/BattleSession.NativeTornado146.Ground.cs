@@ -20,10 +20,12 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveProcess process = Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tornado capture requires its current primitive owner.");
             byte buffer = process.Buffer80 ?? throw new NotSupportedException("Native Tornado capture requires its actual environment selector.");
             NativeSoftwareDrawingEnvironmentBuffers environments = process.Software?.EnvironmentBuffers ?? throw new NotSupportedException("Native Tornado capture requires its retained drawing environments.");
-            NativeBattleTornado146Work work = new(state);
-            ImmutableArray<byte> environment = NativeBattleDrawEnvironmentPackets.Restore45C0F0(work.Read(0x2493710, 64).ToImmutableArray(), buffer == 0 ? environments.Buffer1 : environments.Buffer0);
-            work.Write(0x2493710, LinkGroundPacket(environment, NativeBattleTornado146State.PacketBank, checked((int)(0x2493710 - NativeBattleTornado146State.WorkAddress)), 0).AsSpan());
-            state = work.Freeze();
+            using (NativeBattleTornado146Work environmentWork = new(state))
+            {
+                ImmutableArray<byte> environment = NativeBattleDrawEnvironmentPackets.Restore45C0F0(environmentWork.Read(0x2493710, 64).ToImmutableArray(), buffer == 0 ? environments.Buffer1 : environments.Buffer0);
+                environmentWork.Write(0x2493710, LinkGroundPacket(environment, NativeBattleTornado146State.PacketBank, checked((int)(0x2493710 - NativeBattleTornado146State.WorkAddress)), 0).AsSpan());
+                state = environmentWork.Freeze();
+            }
             NativeBattleCameraProjection projection = NativeBattleTornado146Ground.CaptureProjection(center, Projection.FocalLength ?? throw new NotSupportedException("Native Tornado capture requires its actual focal WORD."));
             NativeBattleStageState stage = owner.NativeStage ?? throw new NotSupportedException("Native Tornado capture requires its actual stage rows.");
             NativeBattleStageGroup group = stage.Groups[1];
@@ -49,13 +51,13 @@ public sealed partial class BattleSession
                     NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), Colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth);
                     Append(drawn.Packets);
                     staging = staging.Write(workspace, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));
-                    process = process.PublishModelColor(group.ColorFlags).Publish50FDF0(new NativeBattleTornado146Work(state).Dword(0x24AA628), null);
+                    process = process.PublishModelColor(group.ColorFlags).Publish50FDF0(state.Storage.ReadUInt32(checked((int)(0x24AA628 - NativeBattleTornado146State.WorkAddress))), null);
                 }
             }
             owner.NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(staging, 44);
             Memory = Memory with { PrimitiveProcess = process };
             state = state with { CapturePacket = LinkGroundPacket(state.CapturePacket ?? resources.CapturePacket, "DD6780", 0, 1) };
-            work = new(state);
+            using NativeBattleTornado146Work work = new(state);
             byte[] mask = work.Read(0x249A5F8, 8);
             BinaryPrimitives.WriteUInt32LittleEndian(mask, (BinaryPrimitives.ReadUInt32LittleEndian(mask) & 0xFFFFFF) | 0x1000000);
             BinaryPrimitives.WriteUInt32LittleEndian(mask.AsSpan(4), 0xE6000000);
@@ -71,7 +73,7 @@ public sealed partial class BattleSession
 
         private ImmutableArray<byte> LinkGroundPacket(ImmutableArray<byte> bytes, string bank, int offset, ushort flags)
         {
-            NativeBattleLogicalOrdering.Builder links = new(graphics.PrimitiveFrame!.Pending);
+            using NativeBattleLogicalOrdering.Builder links = new(graphics.PrimitiveFrame!.Pending);
             NativeBattlePrimitiveReference reference = new(bank, 0, offset);
             links.InvalidatePacketRange(reference, bytes.Length);
             ImmutableArray<uint> words = Enumerable.Range(0, bytes.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(index * 4))).ToImmutableArray();
@@ -152,7 +154,7 @@ public sealed partial class BattleSession
             owner.NativeStage = stage with { Groups = stage.Groups.SetItem(1, group) };
             Memory = Memory with { PrimitiveProcess = (Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tornado ground requires its current far-color owner.")).PublishFarColor45DDA0(0, 0, 0) };
             NativeBattleScriptedGraphicsMemory controls = Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Tornado ground requires its retained GTE controls.");
-            NativeBattleTornado146Work work = new(state);
+            using NativeBattleTornado146Work work = new(state);
             foreach (NativeBattleRawMesh mesh in GroundMeshes())
             {
                 if (mesh.Vertices.Length * 8 > capacity)

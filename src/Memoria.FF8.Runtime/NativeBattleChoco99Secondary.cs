@@ -13,7 +13,7 @@ public static class NativeBattleChoco99Secondary
 
     private static NativeBattleChoco99SecondaryStep Advance(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, short contextMode40, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool timed)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != 0x58 - 12 || task.Callback != (timed ? 0x721390u : 0x7211D0u) || mesh.Address != (timed ? 0x19DE510u : 0x19DD2D0u) || mesh.Bytes.IsDefault || mesh.Bytes.Length != (timed ? 0xE70 : 0x1240))
+        if (task.Payload.IsDefault || task.PayloadLength != 0x58 - 12 || task.Callback != (timed ? 0x721390u : 0x7211D0u) || mesh.Address != (timed ? 0x19DE510u : 0x19DD2D0u) || mesh.Bytes.IsDefault || mesh.Bytes.Length != (timed ? 0xE70 : 0x1240))
         {
             throw new InvalidDataException("Native Choco secondary requires its actual task and current IO mesh owner.");
         }

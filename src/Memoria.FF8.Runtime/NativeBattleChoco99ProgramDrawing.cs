@@ -41,7 +41,7 @@ public static partial class NativeBattleChoco99ProgramDrawing
     public static NativeBattleChoco99ProgramDraw AdvanceHeldOrStatic(NativeBattleChoco99LoadedProgram profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary)
     {
         var definition = CustomProfile(profile);
-        if (task.Payload.IsDefault || task.Payload.Length != 0x548 - 12 || task.Callback != definition.Callback || source.Address != definition.Address || source.Data.IsDefault || source.Data.Length != definition.Length || task.ReadDword(0x74) != source.Address || task.ReadDword(0x78) != definition.Clear || morphScratch.IsDefault || morphScratch.Length != 0x760)
+        if (task.Payload.IsDefault || task.PayloadLength != 0x548 - 12 || task.Callback != definition.Callback || source.Address != definition.Address || source.Data.IsDefault || source.Data.Length != definition.Length || task.ReadDword(0x74) != source.Address || task.ReadDword(0x78) != definition.Clear || morphScratch.IsDefault || morphScratch.Length != 0x760)
         {
             throw new InvalidDataException("Native Choco program requires its exact task, source, clear and morph owners.");
         }

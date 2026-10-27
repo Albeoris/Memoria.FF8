@@ -55,10 +55,10 @@ public static partial class NativeBattleNoMercy200Controller
             {
                 (pool, int slot) = pool.Append(0x63D670);
                 NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, checked((ushort)index)).WriteWord(20, part).WriteWord(22, part).WriteWord(24, (ushort)(Rand() % 2048)).WriteWord(26, (ushort)(Rand() % 60 + 180)).WriteWord(28, 2048).WriteWord(32, 1).WriteWord(34, 2);
-                pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+                pool = pool.WriteSlot(slot, task);
             }
             (pool, int wave) = pool.Append(0x63D800);
-            pool = pool with { Slots = pool.Slots.SetItem(wave, pool.Slots[wave].WriteWord(12, 0).WriteWord(14, checked((ushort)index)).WriteWord(32, 1).WriteWord(34, 2)) };
+            pool = pool.WriteSlot(wave, pool.Slots[wave].WriteWord(12, 0).WriteWord(14, checked((ushort)index)).WriteWord(32, 1).WriteWord(34, 2));
             index++;
         }
         return new(frame with { Staging = staging }, pool, 0);
@@ -80,7 +80,7 @@ public static partial class NativeBattleNoMercy200Controller
             {
                 task = task.WriteWord(22, unchecked((ushort)(Word(task, 22) - 1)));
             }
-            return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+            return new(frame, pool.WriteSlot(slot, task), 0);
         }
         uint row = ProjectileRow(task);
         int sample = Word(task, 32);
@@ -106,7 +106,7 @@ public static partial class NativeBattleNoMercy200Controller
             task = task.WriteWord(34, unchecked((ushort)(speed + 2)));
         }
         task = task.WriteWord(12, unchecked((ushort)(tick + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, Word(task, 32) >= 64 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), Word(task, 32) >= 64 ? 2 : 0);
     }
 
     private static uint ProjectileRow(NativeBattleModulePoolTask task)

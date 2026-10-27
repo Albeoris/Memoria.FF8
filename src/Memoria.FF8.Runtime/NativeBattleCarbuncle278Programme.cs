@@ -13,7 +13,7 @@ public static class NativeBattleCarbuncle278Programme
     {
         int counter = unchecked((short)task.ReadWord(0xC));
         bool second = source.Address == 0x10C5C8C;
-        if (task.Payload.Length != 0x5E0 - 12 || (second ? counter is < 145 or >= 177 : source.Address != 0x10C2608 || counter is < 110 or > 145))
+        if (task.PayloadLength != 0x5E0 - 12 || (second ? counter is < 145 or >= 177 : source.Address != 0x10C2608 || counter is < 110 or > 145))
         {
             throw new NotSupportedException("Native Carbuncle programme requires its current source and actual creature workspace window.");
         }
@@ -33,7 +33,7 @@ public static class NativeBattleCarbuncle278Programme
 
     public static NativeBattleCarbuncle278ProgrammeDraw AdvanceRecipient6822F0(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
     {
-        if (source.Address != 0x10C1CD8 || task.Payload.Length != 0x10C - 12 || unchecked((short)task.ReadWord(0xC)) is < 0 or >= 21)
+        if (source.Address != 0x10C1CD8 || task.PayloadLength != 0x10C - 12 || unchecked((short)task.ReadWord(0xC)) is < 0 or >= 21)
         {
             throw new NotSupportedException("Native Carbuncle recipient programme requires its current source and actual workspace window.");
         }
@@ -44,7 +44,7 @@ public static class NativeBattleCarbuncle278Programme
 
     private static NativeBattleCarbuncle278ProgrammeDraw AdvanceWorkspace(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, int offset, int length, bool initialize, int depthBias)
     {
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(offset - 12, length).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(offset - 12, length).ToArray().ToImmutableArray());
         if (initialize)
         {
             workspace = workspace.Initialize7016B0(source, length);
@@ -67,9 +67,7 @@ public static class NativeBattleCarbuncle278Programme
             allocated = checked(allocated + drawn.Packets.AllocationBytes);
             return current;
         });
-        byte[] payload = task.Payload.ToArray();
-        advanced.Workspace.Data.AsSpan().CopyTo(payload.AsSpan(offset - 12, length));
-        task = task with { Payload = payload.ToImmutableArray() };
+        task = task.WriteRetainedBytes(12 + (offset - 12), advanced.Workspace.Data.AsSpan());
         return new(memory, task, new(attempts.ToImmutable(), allocated), advanced.Remaining);
     }
 
@@ -112,7 +110,7 @@ public static class NativeBattleCarbuncle278Programme
         else
         {
             morph = NativeBattleGfMorphGeometry.MorphVertices701390(source.Data, geometry, node.Word40, node.Word42, node.Scalar38);
-            NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native Carbuncle programme requires its actual shared morph scratch."));
+            using NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native Carbuncle programme requires its actual shared morph scratch."));
             for (int vertex = 0; vertex < morph.Length; vertex++)
             {
                 NativeBattleVector position = morph[vertex];

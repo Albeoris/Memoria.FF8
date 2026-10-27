@@ -29,7 +29,8 @@ public sealed record NativeBattleScriptedGraphicsMemory([property: JsonRequired]
             throw new InvalidDataException("Native scripted graphics requires its retained depth workspace.");
         }
         Depths.Validate();
-        if (Depths.Regions.Any(region => region.Offset > DepthLength - region.Data.Length) || Depths.UnknownRegions.Any(region => region.Offset > DepthLength - region.Length) || ModuleViewBackup.IsDefault || ModuleViewBackup.Length != 32)
+        Depths.ValidateExtent(DepthLength);
+        if (ModuleViewBackup.IsDefault || ModuleViewBackup.Length != 32)
         {
             throw new InvalidDataException("Native scripted graphics requires its bounded depth workspace and complete module view backup.");
         }

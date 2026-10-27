@@ -29,7 +29,7 @@ public static class NativeBattleDoomtrain191Creature
             short scale = BinaryPrimitives.ReadInt16LittleEndian(Arena().Read(Offset(pointer), 2));
             task = task.WriteWord(0x1C, unchecked((ushort)scale));
             NativeBattleEffectTaskPool initialized = Pool(frame);
-            frame = PutPool(frame, initialized with { Slots = initialized.Slots.SetItem(slot, initialized.Slots[slot].WriteWord(0x1C, unchecked((ushort)scale))) });
+            frame = PutPool(frame, initialized.WriteSlot(slot, initialized.Slots[slot].WriteWord(0x1C, unchecked((ushort)scale))));
         }
         bool paused = (services.ReadFlags() & 1) != 0;
         bool draw = true;
@@ -226,7 +226,7 @@ public static class NativeBattleDoomtrain191Creature
         }
         ushort next = unchecked((ushort)(age + 1));
         NativeBattleEffectTaskPool pool = Pool(frame);
-        frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0xC, next)) });
+        frame = PutPool(frame, pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0xC, next)));
         if (unchecked((short)next) < 279)
         {
             return new(frame, 0);
@@ -262,7 +262,7 @@ public static class NativeBattleDoomtrain191Creature
         {
             NativeBattleEffectTaskPool pool = Pool(frame);
             (pool, int index) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(index, pool.Slots[index].WriteWord(0xC, 0)) };
+            pool = pool.WriteSlot(index, pool.Slots[index].WriteWord(0xC, 0));
             frame = PutPool(frame, pool);
         }
     }

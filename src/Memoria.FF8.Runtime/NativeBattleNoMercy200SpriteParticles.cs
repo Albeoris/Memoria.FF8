@@ -22,7 +22,7 @@ public static partial class NativeBattleNoMercy200Controller
             {
                 task = task.WriteWord(14, unchecked((ushort)(Word(task, 14) - 1)));
             }
-            return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) }, 0);
+            return new(frame, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)), 0);
         }
         int scale = Word(task, callback == 0x639DE0 ? 32 : 28);
         NativeBattleVector point = Point(task);
@@ -53,7 +53,7 @@ public static partial class NativeBattleNoMercy200Controller
                 child = child.WriteWord(18, unchecked((ushort)(Word(child, 18) - Rand() % 100)));
                 child = child.WriteWord(20, unchecked((ushort)(Word(child, 20) + Rand() % 300 - 150)));
                 child = child.WriteWord(22, unchecked((ushort)(-20 - Rand() % 30))).WriteWord(28, unchecked((ushort)(Rand() % 1280 + 2560)));
-                pool = pool with { Slots = pool.Slots.SetItem(childSlot, child) };
+                pool = pool.WriteSlot(childSlot, child);
             }
             for (int index = 0; index < 10; index++)
             {
@@ -67,7 +67,7 @@ public static partial class NativeBattleNoMercy200Controller
                 child = child.WriteWord(26, unchecked((ushort)(-20 - Rand() % 50)));
                 child = child.WriteWord(28, unchecked((ushort)(Rand() % 80 - 40)));
                 child = child.WriteWord(32, unchecked((ushort)(Rand() % 1536 + 2304)));
-                pool = pool with { Slots = pool.Slots.SetItem(childSlot, child) };
+                pool = pool.WriteSlot(childSlot, child);
             }
         }
         bool complete;
@@ -94,7 +94,7 @@ public static partial class NativeBattleNoMercy200Controller
             task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
             complete = Word(task, 12) >= 16;
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) }, complete ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)), complete ? 2 : 0);
 
         NativeBattleModuleResource Sprite(uint address)
         {

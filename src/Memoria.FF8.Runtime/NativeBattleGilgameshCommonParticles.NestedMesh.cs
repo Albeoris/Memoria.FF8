@@ -27,7 +27,7 @@ public static partial class NativeBattleGilgameshCommonParticles
             (pool, slot) = pool.Append(0x593D20);
             random = random.Draw(out ushort angle);
             NativeBattleModulePoolTask child = pool.Slots[slot].WriteWord(12, 0).WriteWord(16, 0).WriteWord(18, 0).WriteWord(20, 0).WriteWord(24, (ushort)(angle % 4096)).WriteWord(26, 50).WriteWord(28, 0x2400).WriteWord(32, 186).WriteWord(34, 186);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, child) };
+            pool = pool.WriteSlot(slot, child);
         }
         task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
         return new(task, pool, random, Signed(task, 12) >= 30 ? 2 : 0);

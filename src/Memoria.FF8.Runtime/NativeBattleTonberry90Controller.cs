@@ -82,7 +82,7 @@ public static partial class NativeBattleTonberry90Controller
             throw new NotSupportedException("Native Tonberry resource completion pointer is not a root byte.");
         }
         int slot = (int)(relative / pool.Stride);
-        return effect with { Pools = effect.Pools.SetItem(poolIndex, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x62, value)) }) };
+        return effect with { Pools = effect.Pools.SetItem(poolIndex, pool.WriteSlot(slot, pool.Slots[slot].WriteByte(0x62, value))) };
     }
 
     private static NativeBattleTonberry90State RequireState(NativeBattleTonberry90Frame frame)

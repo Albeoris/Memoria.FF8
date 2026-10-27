@@ -15,7 +15,7 @@ public static partial class NativeBattleElectrocute275Controller
         NativeCrtRandomState random = frame.Random.Draw(out ushort seed);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         NativeBattleElectrocute275State state = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
         return frame with { State = state, Random = random, Memory = (frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }).SeedSharedEffectRandom7059D0(seed), Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }

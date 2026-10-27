@@ -121,9 +121,6 @@ public static class NativeBattleModelContext44
     private static void RequireTemporary(NativeBattleEffectArena temporary)
     {
         temporary.Validate();
-        if (temporary.Regions.Any(region => region.Offset < 0 || region.Data.Length > 44 - region.Offset) || temporary.UnknownRegions.Any(region => region.Offset < 0 || region.Length > 44 - region.Offset))
-        {
-            throw new InvalidDataException("Model body rendering requires its physical44-byte context.");
-        }
+        temporary.ValidateExtent(44);
     }
 }

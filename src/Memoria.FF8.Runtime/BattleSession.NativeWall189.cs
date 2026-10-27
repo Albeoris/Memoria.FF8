@@ -21,9 +21,9 @@ public sealed partial class BattleSession
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(0x2293F80, 0x2293F60, 16, 2);
         NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(0x2295C00, 0x2295C10, 36, 100);
         (roots, int root) = roots.Append(0x5BE290);
-        roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) };
+        roots = roots.WriteSlot(root, roots.Slots[root].WriteWord(12, 0));
         (particles, int child) = particles.Append(0x5BCA20);
-        particles = particles with { Slots = particles.Slots.SetItem(child, particles.Slots[child].WriteWord(12, 0)) };
+        particles = particles.WriteSlot(child, particles.Slots[child].WriteWord(12, 0));
         return graphics with { OriginalEffect = effect with { Pools = [roots, particles], ReturnedDescriptor = 0x2293F80, DrawArenaOffset = null } };
     }
 
@@ -56,14 +56,14 @@ public sealed partial class BattleSession
                     particles = current;
                     NativeBattleModulePoolTask task = particles.Slots[index];
                     int finished = Child(ref task);
-                    task = task with { Next = particles.Slots[index].Next };
-                    return new(particles with { Slots = particles.Slots.SetItem(index, task) }, finished);
+                    task = task.UpdateHeader(task.Flags, task.State, particles.Slots[index].Next, task.Callback);
+                    return new(particles.WriteSlot(index, task), finished);
                 });
                 particles = children.Pool;
                 if (children.Survivors == 0)
                 {
                     (roots, int outro) = roots.Append(0x5BE2F0);
-                    roots = roots with { Slots = roots.Slots.SetItem(outro, roots.Slots[outro].WriteWord(12, 0).WriteWord(14, 0)) };
+                    roots = roots.WriteSlot(outro, roots.Slots[outro].WriteWord(12, 0).WriteWord(14, 0));
                 }
                 root = root.WriteWord(12, unchecked((ushort)(age + 1)));
                 result = children.Survivors == 0 ? 2 : 0;
@@ -92,8 +92,8 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Wall root callback is unknown.");
             }
-            root = root with { Next = roots.Slots[slot].Next };
-            roots = roots with { Slots = roots.Slots.SetItem(slot, root) };
+            root = root.UpdateHeader(root.Flags, root.State, roots.Slots[slot].Next, root.Callback);
+            roots = roots.WriteSlot(slot, root);
             return new(roots, result);
         });
         roots = stepped.Pool;
@@ -421,7 +421,7 @@ public sealed partial class BattleSession
         }
         void Put(int slot, NativeBattleModulePoolTask task)
         {
-            particles = particles with { Slots = particles.Slots.SetItem(slot, task) };
+            particles = particles.WriteSlot(slot, task);
         }
         static ImmutableArray<byte> Row(ImmutableArray<byte> bytes, int index) => bytes.Slice(index * 24, 24);
         static ImmutableArray<byte> SetRow(ImmutableArray<byte> bytes, int index, ImmutableArray<byte> row)

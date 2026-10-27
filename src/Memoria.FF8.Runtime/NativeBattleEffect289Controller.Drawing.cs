@@ -30,7 +30,7 @@ public static partial class NativeBattleEffect289Controller
         {
             NativeBattleModulePoolTask task = Read(frame, taskAddress);
             task.RequireKnownPayload(workspaceOffset, workspaceBytes);
-            return new(task.Payload.AsSpan().Slice(workspaceOffset - 12, workspaceBytes).ToArray().ToImmutableArray());
+            return new(task.ReadRawPayloadSpan().Slice(workspaceOffset - 12, workspaceBytes).ToArray().ToImmutableArray());
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {

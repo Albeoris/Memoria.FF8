@@ -378,23 +378,19 @@ public static class NativeBattleBlizzaraController
         }
     }
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
-    private static uint Dword(NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(offset - 12, 4));
+    private static uint Dword(NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(task.ReadRawPayloadSpan().Slice(offset - 12, 4));
     private static NativeBattleModulePoolTask WriteDword(NativeBattleModulePoolTask task, int offset, uint value)
     {
-        byte[] bytes = task.Payload.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset - 12, 4), value);
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteDword(12 + (offset - 12), unchecked((uint)(value)));
     }
-    private static NativeBattleModulePoolTask WriteByte(NativeBattleModulePoolTask task, int offset, byte value) => task with { Payload = task.Payload.SetItem(offset - 12, value) };
+    private static NativeBattleModulePoolTask WriteByte(NativeBattleModulePoolTask task, int offset, byte value) => task.WriteByte(12 + (offset - 12), value);
     private static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, unchecked((ushort)(Word(task, offset) + value)));
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, int offset, NativeBattleVector position) => task.WriteWord(offset, unchecked((ushort)position.X)).WriteWord(offset + 2, unchecked((ushort)position.Y)).WriteWord(offset + 4, unchecked((ushort)position.Z));
     private static NativeBattleModuleAnchor Anchor(NativeBattleModulePoolTask task, int offset) => new(Word(task, offset), Word(task, offset + 2), Word(task, offset + 4), Word(task, offset + 6));
     private static NativeBattleModulePoolTask Clear(NativeBattleModulePoolTask task, int length)
     {
-        byte[] bytes = task.Payload.ToArray();
-        bytes.AsSpan(0, length).Clear();
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteRetainedBytes(12, new byte[length]);
     }
-    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) };
+    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool.WriteSlot(slot, task);
 }
 

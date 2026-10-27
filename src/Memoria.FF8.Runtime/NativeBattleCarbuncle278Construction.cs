@@ -49,7 +49,7 @@ public static class NativeBattleCarbuncle278Construction
         frame = inputs.Mirror(frame, plane, bounds);
         NativeBattleEffectTaskPool creature = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2508188);
         (creature, int slot) = creature.Append(0x681630);
-        NativeBattleModulePoolTask task = creature.Slots[slot] with { Payload = new byte[0x5E0 - 12].ToImmutableArray() };
+        NativeBattleModulePoolTask task = creature.Slots[slot].ClearPayload(0x5E0 - 12);
         NativeBattleCarbuncle278Vibration vibration = inputs.StartVibration(frame);
         frame = vibration.Frame;
         task = task.WriteDword(0x10, unchecked((uint)vibration.Handle));
@@ -82,8 +82,8 @@ public static class NativeBattleCarbuncle278Construction
         byte[] dimensions = new byte[4];
         BinaryPrimitives.WriteInt16LittleEndian(dimensions, bounds.Minimum.Z);
         BinaryPrimitives.WriteInt16LittleEndian(dimensions.AsSpan(2), unchecked((short)(delta + (delta >> 4))));
-        arena = arena.Write(0, dimensions).Write(0x28A4 + 12, task.Payload.AsSpan());
-        creature = creature with { Slots = creature.Slots.SetItem(slot, task) };
+        arena = arena.Write(0, dimensions).Write(0x28A4 + 12, task.ReadRawPayloadSpan());
+        creature = creature.WriteSlot(slot, task);
         frame = frame with { Memory = frame.Memory with { Arena = arena, Carbuncle278 = state, CarbuncleExecutableMemory = pose.Executable }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(pool => pool.DescriptorAddress == creature.DescriptorAddress ? creature : pool).ToImmutableArray() } };
         return frame with { Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, 0x3E84) };
 

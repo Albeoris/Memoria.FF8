@@ -73,8 +73,8 @@ public static partial class NativeBattleLionHeart165Controller
             }
             frame = ApplyNextContact(frame, inputs);
         }
-        task = task.WriteWord(12, unchecked((ushort)(counter + 1))) with { Next = pool.Slots[slot].Next };
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= 110 ? 2 : 0);
+        task = task.WriteWord(12, unchecked((ushort)(counter + 1))).SetNext(pool.Slots[slot].Next);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= 110 ? 2 : 0);
 
         int Append(uint callback)
         {
@@ -82,13 +82,13 @@ public static partial class NativeBattleLionHeart165Controller
             SetTask(created, 12, 0);
             return created;
         }
-        void SetTask(int created, int offset, int value) => pool = pool with { Slots = pool.Slots.SetItem(created, pool.Slots[created].WriteWord(offset, unchecked((ushort)value))) };
+        void SetTask(int created, int offset, int value) => pool = pool.WriteSlot(created, pool.Slots[created].WriteWord(offset, unchecked((ushort)value)));
         void PointTask(int created, NativeBattleVector point)
         {
             SetTask(created, 16, point.X);
             SetTask(created, 18, point.Y);
             SetTask(created, 20, point.Z);
-            pool = pool with { Slots = pool.Slots.SetItem(created, pool.Slots[created].MarkPayloadUnknown(22, 2)) };
+            pool = pool.WriteSlot(created, pool.Slots[created].MarkPayloadUnknown(22, 2));
         }
         void Marker(int created)
         {
@@ -127,7 +127,7 @@ public static partial class NativeBattleLionHeart165Controller
         int movement = delta <= 0 ? unchecked(delta * NativeBattleCameraMath.Sine((counter << 10) / duration)) >> 12 : -70 * counter;
         frame = inputs.Execute(frame, new NativeBattleLionHeart165Position(actor, transform.Position28 with { Y = unchecked((short)(movement + Word(task, 32))) }, transform.Vertical34));
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, Word(task, 12) >= duration ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), Word(task, 12) >= duration ? 2 : 0);
     }
 
     public static NativeBattleLionHeart165ChildStep Advance5ED4E0(NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleLionHeart165Inputs inputs)
@@ -146,10 +146,10 @@ public static partial class NativeBattleLionHeart165Controller
             frame = frame with { Random = frame.Random.Draw(out ushort second) };
             frame = frame with { Random = frame.Random.Draw(out ushort third) };
             child = child.WriteWord(24, (ushort)((first % 8) << 9)).WriteWord(26, (ushort)((second % 4) << 9)).WriteWord(28, 8192).WriteWord(32, (ushort)(third % 16 + 6));
-            pool = pool with { Slots = pool.Slots.SetItem(created, child) };
+            pool = pool.WriteSlot(created, child);
         }
-        task = task.WriteWord(12, unchecked((ushort)(counter + 1))) with { Next = pool.Slots[slot].Next };
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= 99 ? 2 : 0);
+        task = task.WriteWord(12, unchecked((ushort)(counter + 1))).SetNext(pool.Slots[slot].Next);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= 99 ? 2 : 0);
     }
 
     private static NativeBattleLionHeart165Frame ApplyNextContact(NativeBattleLionHeart165Frame frame, NativeBattleLionHeart165Inputs inputs)

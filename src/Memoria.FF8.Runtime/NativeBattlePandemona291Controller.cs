@@ -51,7 +51,7 @@ public static class NativeBattlePandemona291Controller
                         NativeBattlePandemona291ChildStep child = services.AdvanceLeaf(frame, address, active.Slots[childIndex]);
                         frame = child.Frame;
                         NativeBattleEffectTaskPool live = frame.Effect.Pools.Single(selected => selected.DescriptorAddress == descriptor);
-                        return new(live with { Slots = live.Slots.SetItem(childIndex, child.Task) }, child.Result);
+                        return new(live.WriteSlot(childIndex, child.Task), child.Result);
                     });
                     frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(active => active.DescriptorAddress == descriptor ? advanced.Pool : active).ToImmutableArray() } };
                     if (descriptor == 0x25562A8)

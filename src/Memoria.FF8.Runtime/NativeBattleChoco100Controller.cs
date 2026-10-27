@@ -70,7 +70,7 @@ public static class NativeBattleChoco100Controller
             throw new NotSupportedException("Native Choco100 completion pointer is not a root BYTE62.");
         }
         int slot = (int)(delta / pool.Stride);
-        return effect with { Pools = effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x62, value)) }) };
+        return effect with { Pools = effect.Pools.SetItem(index, pool.WriteSlot(slot, pool.Slots[slot].WriteByte(0x62, value))) };
     }
 
     public static NativeBattleChoco100Frame AppendProgram(NativeBattleChoco100Frame frame, uint parentAddress, NativeBattleChoco97AppendProgram operation, NativeBattleActionPacketsState packets)
@@ -558,8 +558,7 @@ public static class NativeBattleChoco100Controller
         }
         void Store(uint address, NativeBattleModulePoolTask task)
         {
-            NativeBattleModulePoolTask current = hierarchy.Read(address);
-            hierarchy = hierarchy.Write(address, current with { Payload = task.Payload.SetItem(0x28 - 12, current.ReadByte(0x28)) });
+            hierarchy = hierarchy.Write(address, task);
         }
         int Finish(uint address, bool increment)
         {

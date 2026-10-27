@@ -197,7 +197,7 @@ public static class NativeBattleGatlingGun305Slots
 
     private static NativeBattleEffectArena TaskPosition(NativeBattleModulePoolTask task)
     {
-        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(4, 8));
+        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(4, 8));
         if (task.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)

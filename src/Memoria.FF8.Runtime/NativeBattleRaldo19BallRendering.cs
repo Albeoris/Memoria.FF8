@@ -301,9 +301,6 @@ public static class NativeBattleRaldo19BallRendering
     private static void ValidateBound(NativeBattleEffectArena arena, int length)
     {
         arena.Validate();
-        if (arena.Regions.Any(region => region.Offset > length - region.Data.Length) || arena.UnknownRegions.Any(region => region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Raldo ball arena leaves its actual original physical owner.");
-        }
+        arena.ValidateExtent(length);
     }
 }

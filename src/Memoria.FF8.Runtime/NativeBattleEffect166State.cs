@@ -50,10 +50,25 @@ public sealed record NativeBattleEffect166State([property: JsonRequired] NativeB
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
-    public NativeBattleEffect166State Write(uint address, ReadOnlySpan<byte> bytes) => WriteView(address, NativeBattleEffectArena.Clear().Write(0, bytes), bytes.Length);
+    public NativeBattleEffect166State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        int offset = Require(address, bytes.Length);
+        Storage.Write(offset, bytes);
+        return this;
+    }
     public NativeBattleEffect166State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleEffect166State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleEffect166State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect166State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleEffect166State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
 
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
@@ -64,7 +79,8 @@ public sealed record NativeBattleEffect166State([property: JsonRequired] NativeB
     public NativeBattleEffect166State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
         int offset = Require(address, length);
-        return this with { Storage = NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, offset, length) };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, offset, length);
+        return this;
     }
 
     public NativeBattleEffectArena ReadBank(int index) => ReadBank(BankAddress(index));
@@ -101,11 +117,11 @@ public sealed record NativeBattleEffect166State([property: JsonRequired] NativeB
         {
             ValidateBank(packet, CapturePacketLength);
         }
-        foreach (NativeBattleEffectMemoryRegion region in Storage.Regions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateDataRanges())
         {
-            _ = Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            _ = Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Storage.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateUnknownRanges())
         {
             _ = Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
@@ -163,9 +179,6 @@ public sealed record NativeBattleEffect166State([property: JsonRequired] NativeB
     private static void ValidateBank(NativeBattleEffectArena bank, int length)
     {
         bank.Validate();
-        if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect166 retained bytes leave their physical bank allocation.");
-        }
+        bank.ValidateExtent(length);
     }
 }

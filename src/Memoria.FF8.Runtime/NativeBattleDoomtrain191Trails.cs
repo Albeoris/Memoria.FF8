@@ -26,11 +26,11 @@ public sealed record NativeBattleDoomtrain191TrailMemory([property: System.Text.
     public void Validate()
     {
         Data.Validate();
-        foreach (var region in Data.Regions)
+        foreach (var region in Data.EnumerateDataRanges())
         {
-            Require(region.Offset, region.Data.Length);
+            Require(region.Offset, region.Length);
         }
-        foreach (var region in Data.UnknownRegions)
+        foreach (var region in Data.EnumerateUnknownRanges())
         {
             Require(region.Offset, region.Length);
         }
@@ -76,7 +76,7 @@ public static class NativeBattleDoomtrain191Trails
         NativeBattleDoomtrain191TrailMemory memory = state.Trails ?? NativeBattleDoomtrain191TrailMemory.Unknown();
         int rows = wheel ? NativeBattleDoomtrain191TrailMemory.RowsA : NativeBattleDoomtrain191TrailMemory.RowsB;
         memory = memory with { Data = memory.Data.Write(rows, new byte[4]).Write(rows + 20, new byte[4]) };
-        return PutPool(frame with { Memory = frame.Memory with { Doomtrain191 = state with { Trails = memory } } }, pool with { Slots = pool.Slots.SetItem(slot, task) });
+        return PutPool(frame with { Memory = frame.Memory with { Doomtrain191 = state with { Trails = memory } } }, pool.WriteSlot(slot, task));
     }
 
     public static NativeBattleDoomtrain191LeafStep Advance(NativeBattleDoomtrain191Frame frame, int slot, NativeBattleModuleResource sprite, NativeBattleDoomtrain191SteamServices services)
@@ -206,7 +206,7 @@ public static class NativeBattleDoomtrain191Trails
         }
         frame = PublishGlobals(frame);
         pool = Pool(frame);
-        frame = PutPool(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0xC, next)) });
+        frame = PutPool(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0xC, next)));
         return new(frame, result);
 
         void SpawnCurrent()

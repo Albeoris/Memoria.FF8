@@ -144,12 +144,12 @@ public static class NativeBattleSiren95ProgramDrawing
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
-        if (task.ReadDword(0x74) != source.Address || task.Payload.Length < 0x94 - 12)
+        if (task.ReadDword(0x74) != source.Address || task.PayloadLength < 0x94 - 12)
         {
             throw new InvalidDataException("Native Siren programme requires its actual source and retained workspace.");
         }
         NativeBattleActionMatrix context = NativeBattleSearchProgramDrawing.ComposeContext758D70(task, view);
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
         int frozen = unchecked((int)State(frame).ReadDword(0x2585E38));
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, frozen, (current, node) =>
         {
@@ -171,7 +171,7 @@ public static class NativeBattleSiren95ProgramDrawing
                 {
                     throw new NotSupportedException("Native Siren morph leaves its retained addressed scratch window.");
                 }
-                NativeBattleEffectArenaWriter output = new(State(frame).Globals);
+                using NativeBattleEffectArenaWriter output = new(State(frame).Globals);
                 uint destination = 0x258EF98;
                 foreach (NativeBattleVector vertex in NativeBattleGfMorphGeometry.MorphVertices701390(source.Data, geometry, node.Word40, node.Word42, node.Scalar38))
                 {
@@ -235,14 +235,14 @@ public static class NativeBattleSiren95ProgramDrawing
                 state = state.Write(0x258FB80, node.Data.AsSpan().Slice(8, 6));
                 state = state.WriteDword(0x258EC60, unchecked((uint)(int)node.Vector24.X)).WriteDword(0x258EC64, unchecked((uint)(int)node.Vector24.Y)).WriteDword(0x258EC68, unchecked((uint)(int)node.Vector24.Z));
                 frame = frame with { Memory = frame.Memory with { Siren95 = state } };
-                NativeBattleEffectArenaWriter output = new(state.Globals);
+                using NativeBattleEffectArenaWriter output = new(state.Globals);
                 foreach ((int input, uint destination) in mode == 1 ? Copy73E7F0 : Copy73EB10)
                 {
                     if (input < 0 || input > count * 8 - 4)
                     {
                         throw new NotSupportedException("Native Siren selected vertex publication leaves its actual consumed shape.");
                     }
-                    bool unknown = morph && State(frame).Globals.UnknownRegions.Any(region => region.Offset < 0x258EF98 - NativeBattleSiren95State.GlobalAddress + input + 4 && region.Offset + region.Length > 0x258EF98 - NativeBattleSiren95State.GlobalAddress + input);
+                    bool unknown = morph && State(frame).Globals.EnumerateUnknownRanges().Any(region => region.Offset < 0x258EF98 - NativeBattleSiren95State.GlobalAddress + input + 4 && region.Offset + region.Length > 0x258EF98 - NativeBattleSiren95State.GlobalAddress + input);
                     int target = checked((int)(destination - NativeBattleSiren95State.GlobalAddress));
                     if (!unknown)
                     {
@@ -253,7 +253,7 @@ public static class NativeBattleSiren95ProgramDrawing
                         for (int lane = 0; lane < 4; lane++)
                         {
                             int origin = checked((int)(0x258EF98 - NativeBattleSiren95State.GlobalAddress + input + lane));
-                            if (State(frame).Globals.UnknownRegions.Any(region => origin >= region.Offset && origin < region.Offset + region.Length))
+                            if (State(frame).Globals.EnumerateUnknownRanges().Any(region => origin >= region.Offset && origin < region.Offset + region.Length))
                             {
                                 output.MarkUnknown(target + lane, 1);
                             }
@@ -279,9 +279,7 @@ public static class NativeBattleSiren95ProgramDrawing
             byte[] Selected(int offset, int length) => morph ? State(frame).Read(unchecked(0x258EF98u + (uint)offset), length) : Source(checked(selected + offset), length).ToArray();
         });
         task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-        byte[] payload = task.Payload.ToArray();
-        advanced.Workspace.Data.AsSpan().CopyTo(payload.AsSpan(0x94 - 12));
-        task = task with { Payload = payload.ToImmutableArray() };
+        task = task.WriteRetainedBytes(0x94, advanced.Workspace.Data.AsSpan());
         return new(frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } }, advanced.Remaining);
     }
 

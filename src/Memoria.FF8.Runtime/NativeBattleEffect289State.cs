@@ -25,25 +25,19 @@ public sealed record NativeBattleEffect289State([property: JsonRequired] NativeB
     {
         Globals.Validate();
         MeshWStorage.Validate();
-        if (MeshWStorage.Regions.Any(region => region.Offset < 0 || region.Offset > MeshWStorageLength - region.Data.Length) || MeshWStorage.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > MeshWStorageLength - region.Length))
+        MeshWStorage.ValidateExtent(MeshWStorageLength);
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            throw new InvalidDataException("Effect289 current source W bytes leave their two physical mesh lane domains.");
+            Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
-        {
-            Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
-        }
-        foreach (NativeBattleEffectUnknownRegion region in Globals.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateUnknownRanges())
         {
             Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
         if (RootBankStorage is { } bank)
         {
             bank.Validate();
-            if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > RootBankLength - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > RootBankLength - region.Length))
-            {
-                throw new InvalidDataException("Effect289 retained root bytes leave their physical bank.");
-            }
+            bank.ValidateExtent(RootBankLength);
         }
     }
 
@@ -51,12 +45,30 @@ public sealed record NativeBattleEffect289State([property: JsonRequired] NativeB
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
-    public NativeBattleEffect289State Write(uint address, ReadOnlySpan<byte> bytes) => this with { Globals = Globals.Write(Require(address, bytes.Length), bytes) };
+    public NativeBattleEffect289State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        Globals.Write(Require(address, bytes.Length), bytes);
+        return this;
+    }
     public NativeBattleEffect289State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleEffect289State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleEffect289State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect289State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleEffect289State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     public NativeBattleEffectArena ReadView(uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(Globals, Require(address, length), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
-    public NativeBattleEffect289State WriteView(uint address, NativeBattleEffectArena source, int length) => this with { Globals = NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length) };
+    public NativeBattleEffect289State WriteView(uint address, NativeBattleEffectArena source, int length)
+    {
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length);
+        return this;
+    }
 
     public NativeBattleEffect289State WriteMeshW(uint sourceAddress, int vertex, short value)
     {
@@ -65,7 +77,10 @@ public sealed record NativeBattleEffect289State([property: JsonRequired] NativeB
         {
             throw new InvalidDataException("Effect289 current W write leaves its selected source vertex lanes.");
         }
-        return this with { MeshWStorage = MeshWStorage.Write((mesh * MeshVertexCount + vertex) * 2, BitConverter.GetBytes(value)) };
+        Span<byte> encoded = stackalloc byte[2];
+        BinaryPrimitives.WriteInt16LittleEndian(encoded, value);
+        MeshWStorage.Write((mesh * MeshVertexCount + vertex) * 2, encoded);
+        return this;
     }
 
     public NativeBattleEffectArena ReadStatic(NativeBattleEffect289Resources resources, uint address, int length)

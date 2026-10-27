@@ -203,10 +203,7 @@ public static class NativeBattleCuraga88Mesh
     private static void ValidateContext(NativeBattleEffectArena context)
     {
         context.Validate();
-        if (context.Regions.Any(region => region.Offset > ContextLength - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset > ContextLength - region.Length))
-        {
-            throw new InvalidDataException("Native Curaga mesh context leaves its original88-byte physical owner.");
-        }
+        context.ValidateExtent(ContextLength);
     }
 }
 

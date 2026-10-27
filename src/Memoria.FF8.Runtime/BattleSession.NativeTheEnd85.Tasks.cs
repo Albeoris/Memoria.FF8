@@ -109,11 +109,9 @@ public sealed partial class BattleSession
                 AcceptInput(address, input);
                 NativeBattleModulePoolTask task = Task(address);
                 NativeBattleGfAnimationSource source = Program(task.ReadDword(116));
-                NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(148 - 12).ToArray().ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(148 - 12).ToArray().ToImmutableArray());
                 workspace = workspace.Initialize7016B0(source, checked((int)task.ReadDword(120)));
-                byte[] payload = task.Payload.ToArray();
-                workspace.Data.AsSpan().CopyTo(payload.AsSpan(148 - 12));
-                Put(address, task with { Payload = payload.ToImmutableArray() });
+                Put(address, task.WriteRetainedBytes(12 + (148 - 12), workspace.Data.AsSpan()));
                 return Input(address);
             },
             input =>

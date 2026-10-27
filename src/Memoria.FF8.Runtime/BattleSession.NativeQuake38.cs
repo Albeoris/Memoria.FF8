@@ -140,7 +140,7 @@ public sealed partial class BattleSession
         private NativeBattleModulePoolTask Merge(uint address, NativeBattleModulePoolTask task)
         {
             NativeBattleModulePoolTask current = hierarchy.Read(address);
-            return (task with { Next = current.Next }).WriteByte(40, current.ReadByte(40));
+            return (task.UpdateHeader(task.Flags, task.State, current.Next, task.Callback)).WriteByte(40, current.ReadByte(40));
         }
 
         private uint Spawn(uint parent, int pool, uint callback, int size)

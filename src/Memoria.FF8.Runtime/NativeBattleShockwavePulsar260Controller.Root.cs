@@ -16,7 +16,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         (textures, _) = textures.EnqueueArenaTim505E30(Arena(frame), tim);
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (roots, int slot) = roots.Append(RootCallback);
-        roots = roots with { Slots = roots.Slots.SetItem(slot, roots.Slots[slot].WriteDword(0xC, 0)) };
+        roots = roots.WriteSlot(slot, roots.Slots[slot].WriteDword(0xC, 0));
         NativeBattleShockwavePulsar260State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, RootModelAddress(parameters.Actor78));
         return frame with { State = state, Memory = frame.Memory with { Textures = textures }, Effect = frame.Effect with { Pools = [roots], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
@@ -127,7 +127,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         NativeBattleEffectTaskPool mains = NativeBattleEffectTaskPool.Initialize(MainDescriptor, working + MainOffset, MainStride, 1);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, working + ChildrenOffset, ChildStride, ChildCount);
         (mains, int mainSlot) = mains.Append(MainCallback);
-        mains = mains with { Slots = mains.Slots.SetItem(mainSlot, mains.Slots[mainSlot].WriteBytes(0xC, new byte[0x4A3 * 4])) };
+        mains = mains.WriteSlot(mainSlot, mains.Slots[mainSlot].WriteBytes(0xC, new byte[0x4A3 * 4]));
         frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], mains, children] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [mains, children]) };
         uint mainAddress = checked(mains.BankAddress + (uint)(mainSlot * mains.Stride));
         byte caster = checked((byte)Actor(frame.State.ReadDword(CasterGlobal)));

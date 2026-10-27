@@ -73,7 +73,7 @@ public sealed partial class BattleSession
                 {
                     throw new InvalidDataException("Native Storm Breath requires one to three original target records.");
                 }
-                NativeBattleModulePoolTask target = pools[1].Slots[slot] with { Payload = new byte[0x4F8].ToImmutableArray() };
+                NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0x4F8);
                 target = target.WriteWord(14, (ushort)count);
                 int[] ordered = Enumerable.Range(0, count).ToArray();
                 for (int a = 0; a < count - 1; a++)
@@ -110,7 +110,7 @@ public sealed partial class BattleSession
                     pools[selected] = pool;
                     NativeBattleModulePoolTask task = pool.Slots[slot];
                     int result = task.Callback == 0x6EA920 ? Target(ref task) : Particle(ref task);
-                    return new(pools[selected] with { Slots = pools[selected].Slots.SetItem(slot, task) }, result);
+                    return new(pools[selected].WriteSlot(slot, task), result);
                 });
                 pools[bank] = step.Pool;
                 survivors += step.Survivors;
@@ -118,7 +118,7 @@ public sealed partial class BattleSession
         }
         bool completed = root.ReadByte(15) != 0 && survivors == 0;
         root = root.WriteWord(12, (ushort)Math.Min(Word(root, 12) + 1, 10));
-        pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, root) };
+        pools[0] = pools[0].WriteSlot(0, root);
         if (completed)
         {
             pools[0] = pools[0].Advance((pool, _) => new(pool, 2)).Pool;
@@ -355,7 +355,7 @@ public sealed partial class BattleSession
 
         void Play(ref NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, int size, ImmutableArray<uint> flags, NativeBattleActionMatrix context, bool initialize)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(0x64 - 12, 0x4A0).ToArray().ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x64 - 12, 0x4A0).ToArray().ToImmutableArray());
             if (initialize)
             {
                 workspace = workspace.Initialize7016B0(source, size);
@@ -397,9 +397,7 @@ public sealed partial class BattleSession
                 Append(NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, vertices, matrix, projection, new(render, node.Scalar36 != 0 ? node.Color32 : 0u, node.Scalar36, null, null, null, 17, 2), colors));
                 return current;
             });
-            byte[] payload = task.Payload.ToArray();
-            advanced.Workspace.Data.AsSpan().CopyTo(payload.AsSpan(0x64 - 12));
-            task = task with { Payload = payload.ToImmutableArray() };
+            task = task.WriteRetainedBytes(0x64, advanced.Workspace.Data.AsSpan());
         }
 
         void Mesh(ImmutableArray<byte> source, NativeBattleActionMatrix world, uint flags)
@@ -462,8 +460,8 @@ public sealed partial class BattleSession
             (pools[bank], slot) = pools[bank].Append(callback);
             return true;
         }
-        NativeBattleModulePoolTask Clear(int bank, int slot) => pools[bank].Slots[slot] with { Payload = new byte[pools[bank].Stride - 12].ToImmutableArray() };
-        void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank] with { Slots = pools[bank].Slots.SetItem(slot, task) };
+        NativeBattleModulePoolTask Clear(int bank, int slot) => pools[bank].Slots[slot].ClearPayload(pools[bank].Stride - 12);
+        void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank].WriteSlot(slot, task);
         int Roll()
         {
             random = random.Draw(out ushort value);

@@ -18,7 +18,7 @@ public static class NativeBattleDuel212Preparation
         {
             throw new InvalidDataException("Native Burning Rave preparation requires its actual scene and action contact rows.");
         }
-        task = task with { Payload = new byte[3268].ToImmutableArray(), UnknownPayloadRanges = null, ResourcePointers = null };
+        task = task.ClearPayload(3268);
         for (int index = 0; index < 7; index++)
         {
             frame = frame with { Staging = frame.Staging.Write(checked(0x25102A0u + (uint)index * 4), BitConverter.GetBytes((uint)services.ReadModel(index).Flags0)) };
@@ -73,7 +73,7 @@ public static class NativeBattleDuel212Preparation
 
         void Store()
         {
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == pool.DescriptorAddress ? pool : bank).ToImmutableArray() } };
         }
         void Refresh()

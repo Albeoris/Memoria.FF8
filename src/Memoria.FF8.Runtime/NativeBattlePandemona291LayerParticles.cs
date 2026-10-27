@@ -31,9 +31,9 @@ public static class NativeBattlePandemona291LayerParticles
             NativeCrtRandomState random = frame.Random.Draw(out ushort angle);
             frame = frame with { Random = random };
             NativeBattleModulePoolTask task = pool.Slots[index].WriteWord(0xC, 0).WriteWord(0xE, unchecked((ushort)radius)).WriteWord(0x10, angle).WriteWord(0x12, spin).WriteWord(0x14, unchecked((ushort)center)).WriteWord(0x16, scale).WriteWord(0x18, displacement);
-            pool = pool with { Slots = pool.Slots.SetItem(index, task) };
+            pool = pool.WriteSlot(index, task);
             int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 0xC);
-            arena = arena.Write(offset, task.Payload.AsSpan().Slice(0, 14));
+            arena = arena.Write(offset, task.ReadRawPayloadSpan().Slice(0, 14));
         }
         return frame with { Memory = frame.Memory with { Arena = arena }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }

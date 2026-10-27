@@ -10,7 +10,7 @@ public static class NativeBattleBio22Overlay
 {
     public static NativeBattleBio22OverlayStep Advance89C650(NativeBattleModulePoolTask task, NativeBattleEffectHeapAllocation program, Func<int, ImmutableArray<int>> readRetainedProxyDepth)
     {
-        if (task.Callback != 0x89C650 || task.Payload.Length != 0x3C - 12 || task.ReadDword(0x30) != 0x162693C || program.Identity != "FF8_EN:162693C" || program.Data.IsDefault || program.Data.Length != 0x10)
+        if (task.Callback != 0x89C650 || task.PayloadLength != 0x3C - 12 || task.ReadDword(0x30) != 0x162693C || program.Identity != "FF8_EN:162693C" || program.Data.IsDefault || program.Data.Length != 0x10)
         {
             throw new InvalidDataException("Native overlay requires its actual3C-byte task and bounded four-DWORD program.");
         }

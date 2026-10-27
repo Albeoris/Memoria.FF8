@@ -24,10 +24,7 @@ public sealed record NativeBattleCarbuncleExecutableMemory([property: JsonRequir
             throw new InvalidDataException("Native Carbuncle lost its current executable skeleton owner.");
         }
         Skeleton.Validate();
-        if (Skeleton.Regions.Any(region => region.Offset > Length - region.Data.Length) || Skeleton.UnknownRegions.Any(region => region.Offset > Length - region.Length))
-        {
-            throw new InvalidDataException("Native Carbuncle executable skeleton leaves its original section.");
-        }
+        Skeleton.ValidateExtent(Length);
     }
 
     public byte[] Read(uint address, int count)
@@ -37,7 +34,8 @@ public sealed record NativeBattleCarbuncleExecutableMemory([property: JsonRequir
 
     public NativeBattleCarbuncleExecutableMemory Write(uint address, ReadOnlySpan<byte> bytes)
     {
-        return this with { Skeleton = Skeleton.Write(Offset(address, bytes.Length), bytes) };
+        Skeleton.Write(Offset(address, bytes.Length), bytes);
+        return this;
     }
 
     public NativeBattleCarbuncleExecutableMemory SelectFirstPose(NativeBattlePoseFirstFrame frame)

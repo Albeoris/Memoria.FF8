@@ -122,14 +122,14 @@ public static partial class NativeBattleLionHeart165Controller
         int Append(uint callback)
         {
             (pool, int created) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(created, pool.Slots[created].WriteWord(12, 0)) };
+            pool = pool.WriteSlot(created, pool.Slots[created].WriteWord(12, 0));
             return created;
         }
         int CopyPoint(uint callback, uint source)
         {
             int created = Append(callback);
             NativeBattleModulePoolTask task = CopyStagingToTask(frame.Staging, source, pool.Slots[created], 16, 8);
-            pool = pool with { Slots = pool.Slots.SetItem(created, task) };
+            pool = pool.WriteSlot(created, task);
             return created;
         }
         void Marker(int created)
@@ -146,7 +146,7 @@ public static partial class NativeBattleLionHeart165Controller
         }
         void Set(int created, int offset, int value)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(created, pool.Slots[created].WriteWord(offset, unchecked((ushort)value))) };
+            pool = pool.WriteSlot(created, pool.Slots[created].WriteWord(offset, unchecked((ushort)value)));
         }
         int Rand()
         {

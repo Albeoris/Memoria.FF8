@@ -34,7 +34,7 @@ public static partial class NativeBattleAcid317Controller
     private static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)actor * 156) : throw new InvalidDataException("Acid actor leaves the native model bank.");
     private static NativeBattleModulePoolTask Task(NativeBattleAcid317Frame frame, int pool, int slot) => frame.Effect.Pools[pool].Slots[slot];
     private static NativeBattleAcid317Frame WithPool(NativeBattleAcid317Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
-    private static NativeBattleAcid317Frame Put(NativeBattleAcid317Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool] with { Slots = frame.Effect.Pools[pool].Slots.SetItem(slot, task with { Next = Task(frame, pool, slot).Next }) });
+    private static NativeBattleAcid317Frame Put(NativeBattleAcid317Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, Task(frame, pool, slot).Next, task.Callback)));
     public static NativeBattleModulePoolTask Read(NativeBattleAcid317Frame frame, uint address)
     {
         foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)

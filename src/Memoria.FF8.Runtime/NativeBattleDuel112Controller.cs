@@ -26,7 +26,7 @@ public static class NativeBattleDuel112Controller
         frame = frame with { Staging = Dword(frame.Staging, 0x25218E0, 0x1D972C0u + 156u * parameters.Actor78) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521960, 0x25218F8, 28, 1);
         (root, int slot) = root.Append(0x6CBCF0);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot] with { Payload = new byte[16].ToImmutableArray() }) };
+        root = root.WriteSlot(slot, root.Slots[slot].ClearPayload(16));
         int count = BinaryPrimitives.ReadInt32LittleEndian(resources.Read(0x12C592C, 4).AsSpan());
         if (count < 2)
         {
@@ -85,7 +85,7 @@ public static class NativeBattleDuel112Controller
                     if (targets.Slots.Any(candidate => (candidate.Flags & 1) == 0))
                     {
                         (targets, int targetSlot) = targets.Append(0x6CBF90);
-                        targets = targets with { Slots = targets.Slots.SetItem(targetSlot, targets.Slots[targetSlot] with { Payload = new byte[0xF48 - 12].ToImmutableArray(), ResourcePointers = null, UnknownPayloadRanges = null }) };
+                        targets = targets.WriteSlot(targetSlot, targets.Slots[targetSlot].ClearPayload(0xF48 - 12));
                         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, targets) } };
                         frame = initializeTarget(frame, targetSlot, sequence);
                         task = task.WriteByte(14, unchecked((byte)(sequence + 1)));
@@ -148,6 +148,6 @@ public static class NativeBattleDuel112Controller
         {
             throw new InvalidDataException("Native Duel completion lost its active physical texture task.");
         }
-        return effect with { Pools = effect.Pools.SetItem(4, pool with { Slots = pool.Slots.SetItem(slot, task.WriteByte(14, value)) }) };
+        return effect with { Pools = effect.Pools.SetItem(4, pool.WriteSlot(slot, task.WriteByte(14, value))) };
     }
 }

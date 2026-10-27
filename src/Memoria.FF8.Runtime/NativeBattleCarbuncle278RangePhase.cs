@@ -41,11 +41,11 @@ public static class NativeBattleCarbuncle278RangeSetup
         }
         (pool, int index) = pool.Append(0x6831D0);
         short scale = unchecked((short)Math.Min(actorScale38 * 4, 4096));
-        NativeBattleModulePoolTask task = pool.Slots[index] with { Payload = new byte[16].ToImmutableArray() };
+        NativeBattleModulePoolTask task = pool.Slots[index].ClearPayload(16);
         task = task.WriteDword(0x18, parentAddress).WriteWord(0xE, unchecked((ushort)(phase.Maximum * scale >> 12))).WriteWord(0x10, 2048).WriteWord(0x12, 256).WriteWord(0x14, unchecked((ushort)-8));
-        pool = pool with { Slots = pool.Slots.SetItem(index, task) };
+        pool = pool.WriteSlot(index, task);
         int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 12);
-        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.Payload.AsSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
+        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }
 
     public static NativeBattleCarbuncle278ChildStep Finish6831D0(NativeBattleModulePoolTask task, bool paused)

@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x18 - 12, 0x124));
         workspace = workspace.Initialize7016B0(resources.Prim, 0x124);
         task = PublishWorkspace(task, 0x18, workspace);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         return (graphics, frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(4, pool) } });
     }
 
@@ -66,7 +66,7 @@ public sealed partial class BattleSession
         });
         pool = frame.Effect.Pools[4];
         task = PublishWorkspace(pool.Slots[slot], 0x18, advanced.Workspace);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         return (graphics, frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(4, pool) } });
     }
 }

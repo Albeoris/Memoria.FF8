@@ -13,7 +13,7 @@ public static partial class NativeBattleLionHeart165Controller
         (pool, int slot) = pool.Append(0x63E9C0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 0);
         task = TaskDword(TaskDword(TaskDword(task, 20, 0xD88930), 24, 0x23C58E0), 28, checked(0x1D972C0u + (uint)frame.Parameters.Actor78 * 156));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         frame = frame with { Memory = frame.Memory with { LionHeart165 = state with { CameraTask = camera }, GuardianCameraProcess = camera.Process } };
         return new(frame, pool, 0);
     }
@@ -35,7 +35,7 @@ public static partial class NativeBattleLionHeart165Controller
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 432) };
         frame = frame with { Memory = frame.Memory with { GuardianCameraProcess = step.Task.Process, LionHeart165 = state with { CameraTask = step.Task } } };
         task = TaskDword(task.WriteWord(12, step.Task.Frame), 20, checked(0xD88930u + (uint)step.Task.Offset));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         if (step.Published)
         {
             frame = publish(frame, step);

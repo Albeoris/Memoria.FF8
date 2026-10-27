@@ -171,7 +171,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Native Rinoa86 common texture completion requires its exact root BYTE98.");
         }
         int slot = checked((int)(delta / pool.Stride));
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(frame.Effect.Pools.IndexOf(pool), pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(98, value)) }) } };
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(frame.Effect.Pools.IndexOf(pool), pool.WriteSlot(slot, pool.Slots[slot].WriteByte(98, value))) } };
     }
 
     private void CompleteNativeRinoa86Io(uint callback)

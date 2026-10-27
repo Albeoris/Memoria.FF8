@@ -53,12 +53,12 @@ public sealed partial class BattleSession
                 0x5CEB10 => Sparks(ref task),
                 _ => throw new NotSupportedException("Native Bomb glow selected an unrelated callback.")
             };
-            task = task with { Next = children.Slots[slot].Next };
-            return new(children with { Slots = children.Slots.SetItem(slot, task) }, result);
+            task = task.UpdateHeader(task.Flags, task.State, children.Slots[slot].Next, task.Callback);
+            return new(children.WriteSlot(slot, task), result);
         });
         children = advanced.Pool;
         root = root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)));
-        roots = roots with { Slots = roots.Slots.SetItem(0, root) };
+        roots = roots.WriteSlot(0, root);
         if (advanced.Survivors == 0)
         {
             roots = roots.Advance((pool, _) => new(pool, 2)).Pool;
@@ -77,7 +77,7 @@ public sealed partial class BattleSession
             if (frame == 1)
             {
                 int glow = Add(0x5CE0F0);
-                children = children with { Slots = children.Slots.SetItem(glow, children.Slots[glow].WriteWord(26, (ushort)(graphics.Models[actor].Flags0 & 4))) };
+                children = children.WriteSlot(glow, children.Slots[glow].WriteWord(26, (ushort)(graphics.Models[actor].Flags0 & 4)));
                 Add(0x5CEB10);
                 NativeBattleModuleAnchor anchor = NativeBattlePoseMatrices.ReadAnchor(graphics.Models[actor], NativeGraphicsPoseResource(graphics, actor).PoseSource!);
                 PublishNativeModuleSound(resources.Sound, 0, anchor);
@@ -181,7 +181,7 @@ public sealed partial class BattleSession
         int Add(uint callback)
         {
             (children, int slot) = children.Append(callback);
-            children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, 0)) };
+            children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, 0));
             return slot;
         }
         int Roll()

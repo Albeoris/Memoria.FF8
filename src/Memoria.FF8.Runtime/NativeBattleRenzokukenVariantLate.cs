@@ -60,12 +60,12 @@ public static partial class NativeBattleRenzokukenVariantController
         int Append(uint callback)
         {
             (pool, int slot) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 0)) };
+            pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 0));
             return slot;
         }
         void Set(int slot, int offset, int value)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(offset, unchecked((ushort)value))) };
+            pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(offset, unchecked((ushort)value)));
         }
     }
 
@@ -142,6 +142,6 @@ public static partial class NativeBattleRenzokukenVariantController
         }
         short speed = unchecked((short)task.ReadWord(speedOffset));
         task = task.WriteWord(scaleOffset, unchecked((ushort)(task.ReadWord(scaleOffset) + speed))).WriteWord(12, unchecked((ushort)(counter + 1))).WriteWord(speedOffset, unchecked((ushort)(speed - speed / 4)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= lifetime ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= lifetime ? 2 : 0);
     }
 }

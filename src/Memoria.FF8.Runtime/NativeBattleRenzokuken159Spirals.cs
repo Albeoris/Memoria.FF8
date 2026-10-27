@@ -43,7 +43,7 @@ public static partial class NativeBattleRenzokuken159Controller
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1))).WriteWord(14, unchecked((ushort)(task.ReadWord(14) + 1)));
         frame = WriteState(frame, State(frame) with { Spirals = particles.ToImmutableArray() });
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, unchecked((short)task.ReadWord(12)) >= state.Duration - 1 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), unchecked((short)task.ReadWord(12)) >= state.Duration - 1 ? 2 : 0);
 
         int Rand()
         {

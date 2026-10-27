@@ -10,13 +10,13 @@ public static partial class NativeBattleAdditional182Controller
         frame = Dword(frame, 0x23065CC, NativeBattleEffectNodeMemory.ArenaAddress);
         NativeBattleEffectTaskPool roots = ResetPool(frame, 0x2304238, 0x2304228, 16, 1);
         (roots, int root) = roots.Append(0x5CB4E0);
-        roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) };
+        roots = roots.WriteSlot(root, roots.Slots[root].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = ResetPool(frame, 0x23056E8, 0x23056F8, 36, 100);
         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Additional requires its actual first contact.");
         bool set = (inputs.Packets.ReadContact(first).Primary.HitFlags3 & 4) != 0;
         (children, int director) = children.Append(set ? 0x5CA0E0u : 0x5CA970u);
-        children = children with { Slots = children.Slots.SetItem(director, children.Slots[director].WriteWord(12, 0)) };
+        children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
         frame = Dword(Dword(Dword(frame, 0x2304220, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x230650C, Parameters(frame).Actor78), 0x2306508, 0x1D99A78);
         foreach ((uint bank, int count) in new (uint, int)[] { (0x2304248, 120), (0x2304D88, 100) })
         {

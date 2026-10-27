@@ -233,6 +233,6 @@ public static partial class NativeBattleFireEffect
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int amount) => task.WriteWord(offset, unchecked((ushort)(Word(task, offset) + amount)));
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, NativeBattleModuleAnchor position) => task.WriteWord(16, unchecked((ushort)position.X)).WriteWord(18, unchecked((ushort)position.Y)).WriteWord(20, unchecked((ushort)position.Z)).WriteWord(22, unchecked((ushort)position.W));
-    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) };
+    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool.WriteSlot(slot, task);
     private static int FirstContact(NativeBattleActionHeaderSlot header) => header.FirstContactIndex ?? throw new InvalidDataException("Native Fire requires its physical contact pointer.");
 }

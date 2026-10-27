@@ -126,7 +126,7 @@ public static class NativeBattleDuel216Scene
             Word(82, GlobalWord(0x2508908) - 4181);
             Word(84, Position(target).Y + 1536);
             NativeBattleEffectTaskPool secondary = frame.Effect.Pools.Single(bank => bank.DescriptorAddress == NativeBattleDuel216Controller.Secondary);
-            frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == secondary.DescriptorAddress ? secondary with { Head = null, Tail = null } : bank).ToImmutableArray() } };
+            frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == secondary.DescriptorAddress ? secondary.UpdateLinks(null, null) : bank).ToImmutableArray() } };
         }
         if ((uint)phase < 32)
         {
@@ -269,7 +269,7 @@ public static class NativeBattleDuel216Scene
 
         void Store()
         {
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == pool.DescriptorAddress ? pool : bank).ToImmutableArray() } };
         }
         void Execute(NativeBattleDuel216SceneOperation operation)

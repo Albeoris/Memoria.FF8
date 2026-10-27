@@ -52,7 +52,7 @@ public static partial class NativeBattleDuel112Target
         int radius = (4 - phase) << 11;
         NativeBattleVector position = new(unchecked((short)(unchecked((short)task.ReadWord(68)) + (unchecked(radius * NativeBattleCameraMath.Sine(yaw)) >> 12))), unchecked((short)(unchecked((short)task.ReadWord(70)) - radius)), unchecked((short)(unchecked((short)task.ReadWord(72)) + (unchecked(radius * NativeBattleCameraMath.Cosine(yaw)) >> 12))));
         services.WriteModel(actor, model with { Transform = transform with { Position28 = position } });
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
     }
 }

@@ -26,7 +26,7 @@ public static partial class NativeBattleEffect183Controller
             if (offset < (uint)(pool.Stride * pool.Slots.Length) && offset % pool.Stride == 0)
             {
                 int slot = (int)(offset / pool.Stride);
-                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) });
+                return WithPool(frame, index, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)));
             }
         }
         throw new InvalidDataException("Effect183 task write leaves its physical pools.");
@@ -69,7 +69,7 @@ public static partial class NativeBattleEffect183Controller
 
     private static NativeBattleModulePoolTask CopyTaskPoint(NativeBattleModulePoolTask task, NativeBattleModulePoolTask source)
     {
-        task = task.WriteBytes(16, source.Payload.AsSpan().Slice(4, 8));
+        task = task.WriteBytes(16, source.ReadRawPayloadSpan().Slice(4, 8));
         if (source.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)

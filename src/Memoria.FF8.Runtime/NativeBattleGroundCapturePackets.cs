@@ -14,10 +14,7 @@ public sealed record NativeBattleGroundCaptureMemory([property: JsonRequired] Na
     public void Validate()
     {
         Statics.Validate();
-        if (Statics.Regions.Any(region => region.Offset > Length - region.Data.Length) || Statics.UnknownRegions.Any(region => region.Offset > Length - region.Length))
-        {
-            throw new InvalidDataException("Native stage ground capture leaves its shared physical static window.");
-        }
+        Statics.ValidateExtent(Length);
     }
 
     public byte[] Read(int offset, int count)
@@ -134,7 +131,7 @@ public static class NativeBattleGroundCapturePackets
         ImmutableArray<byte> generated = NativeBattleDrawEnvironmentPackets.Restore45C0F0(new byte[64].ToImmutableArray(), environment);
         int length = environment[0x18] == 0 ? 24 : 36;
         retained = retained.Write(offset + 3, generated.AsSpan().Slice(3, length - 3));
-        NativeBattleLogicalOrdering.Builder links = new(current.Ordering);
+        using NativeBattleLogicalOrdering.Builder links = new(current.Ordering);
         NativeBattlePrimitiveReference reference = new(NativeBattleGroundCaptureMemory.PacketBank, 0, offset);
         links.InvalidatePacketRange(reference, length);
         bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;

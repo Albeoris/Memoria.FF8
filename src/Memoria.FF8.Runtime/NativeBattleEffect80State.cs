@@ -34,8 +34,18 @@ public sealed record NativeBattleEffect80State([property: JsonRequired] NativeBa
     }
 
     public NativeBattleEffect80State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleEffect80State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleEffect80State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect80State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleEffect80State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
 
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
@@ -64,7 +74,8 @@ public sealed record NativeBattleEffect80State([property: JsonRequired] NativeBa
             if (Contains(start, size, address, length))
             {
                 NativeBattleEffectArena destination = InitializedSources.TryGetValue(start, out NativeBattleEffectArena? current) ? current : throw new NotSupportedException("Effect80 initialized writes require an explicitly bound current owner.");
-                return this with { InitializedSources = InitializedSources.SetItem(start, NativeBattleEffectNodeContextMemory.Copy(source, 0, destination, checked((int)(address - start)), length)) };
+                NativeBattleEffectNodeContextMemory.Copy(source, 0, destination, checked((int)(address - start)), length);
+                return this;
             }
         }
         foreach ((uint start, int size) in NodeSourceLengths)
@@ -77,7 +88,8 @@ public sealed record NativeBattleEffect80State([property: JsonRequired] NativeBa
                 return ReplaceNodeBank(start, bytes.ToImmutableArray());
             }
         }
-        return this with { Storage = NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, Require(address, length), length) };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, Require(address, length), length);
+        return this;
     }
 
     public NativeBattleEffect80State BindNodeSource(NativeBattleEffect80Resources resources, uint address)
@@ -155,11 +167,11 @@ public sealed record NativeBattleEffect80State([property: JsonRequired] NativeBa
     public void Validate()
     {
         Storage.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Storage.Regions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateDataRanges())
         {
-            _ = Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            _ = Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Storage.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateUnknownRanges())
         {
             _ = Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
@@ -236,9 +248,6 @@ public sealed record NativeBattleEffect80State([property: JsonRequired] NativeBa
     private static void ValidateBank(NativeBattleEffectArena bank, int length)
     {
         bank.Validate();
-        if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect80 retained bytes leave their physical bank allocation.");
-        }
+        bank.ValidateExtent(length);
     }
 }

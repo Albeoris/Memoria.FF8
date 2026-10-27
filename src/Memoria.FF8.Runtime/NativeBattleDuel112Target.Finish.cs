@@ -52,7 +52,7 @@ public static partial class NativeBattleDuel112Target
             if (particles.Slots.Any(candidate => (candidate.Flags & 1) == 0))
             {
                 (particles, int textureSlot) = particles.Append(0x6CD870);
-                particles = particles with { Slots = particles.Slots.SetItem(textureSlot, particles.Slots[textureSlot] with { Payload = new byte[36].ToImmutableArray(), ResourcePointers = null, UnknownPayloadRanges = null }) };
+                particles = particles.WriteSlot(textureSlot, particles.Slots[textureSlot].ClearPayload(36));
             }
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(4, particles) } };
         }
@@ -68,7 +68,7 @@ public static partial class NativeBattleDuel112Target
             result = 0;
         }
         services.WriteModel(actor, model);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         return new(frame, pool, result);
     }
@@ -90,7 +90,7 @@ public static partial class NativeBattleDuel112Target
         }
         int result = task.ReadWord(14) != 0 ? 2 : 0;
         task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(4, pool) } };
         return new(frame, pool, result);
     }

@@ -82,7 +82,7 @@ public static class NativeBattleCarbuncle278Controller
                         _ => NativeBattleCarbuncle278RangeSetup.Finish6831D0(child.Task, paused)
                     };
                     int childOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
-                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(childOffset, finished.Task.Payload.AsSpan()) } };
+                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(childOffset, finished.Task.ReadRawPayloadSpan()) } };
                     return new(current with { Slots = current.Slots.SetItem(index, finished.Task) }, finished.Result);
                 }
                 if (task.Callback == 0x6822F0)
@@ -96,7 +96,7 @@ public static class NativeBattleCarbuncle278Controller
                     frame = recipient.Frame;
                     task = recipient.Task;
                     int recipientOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
-                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(recipientOffset, task.Payload.AsSpan()).MarkUnknown(recipientOffset + 0x46 - 12, 2) } };
+                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(recipientOffset, task.ReadRawPayloadSpan()).MarkUnknown(recipientOffset + 0x46 - 12, 2) } };
                     if (age is >= 15 and < 35)
                     {
                         NativeBattleStaticMeshResource bounds = frame.Effect.Binding.Carbuncle278Resources?.CreatureBoundsMesh ?? throw new NotSupportedException("Native Carbuncle recipient children require their original bound vertices.");
@@ -126,7 +126,7 @@ public static class NativeBattleCarbuncle278Controller
                             task = task.WriteWord(0xC, unchecked((ushort)(task.ReadWord(0xC) + 1)));
                         }
                     }
-                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(recipientOffset, task.Payload.AsSpan()).MarkUnknown(recipientOffset + 0x46 - 12, 2) } };
+                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(recipientOffset, task.ReadRawPayloadSpan()).MarkUnknown(recipientOffset + 0x46 - 12, 2) } };
                     return new(current with { Slots = current.Slots.SetItem(index, task) }, result);
                 }
                 if (task.Callback is 0x683E80 or 0x683DC0)
@@ -144,7 +144,7 @@ public static class NativeBattleCarbuncle278Controller
                         sparkle = new(finished.Task, finished.Result);
                     }
                     int sparkleOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
-                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(sparkleOffset, sparkle.Task.Payload.AsSpan()) } };
+                    frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(sparkleOffset, sparkle.Task.ReadRawPayloadSpan()) } };
                     return new(current with { Slots = current.Slots.SetItem(index, sparkle.Task) }, sparkle.Result);
                 }
                 if (task.Callback != 0x681630)
@@ -181,7 +181,7 @@ public static class NativeBattleCarbuncle278Controller
                     if (poll.Busy)
                     {
                         int heldOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
-                        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(heldOffset, task.Payload.AsSpan()) } };
+                        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(heldOffset, task.ReadRawPayloadSpan()) } };
                         return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
                     }
                     uint destination = checked(NativeBattleCarbuncle278Entry.RequireState(frame.Memory).ModelBuffer81F8 + 0x23ECC);
@@ -207,7 +207,7 @@ public static class NativeBattleCarbuncle278Controller
                     if (poll.Busy)
                     {
                         int heldOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
-                        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(heldOffset, task.Payload.AsSpan()) } };
+                        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(heldOffset, task.ReadRawPayloadSpan()) } };
                         return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
                     }
                 }
@@ -247,7 +247,7 @@ public static class NativeBattleCarbuncle278Controller
                     frame = frame with { Memory = frame.Memory with { Carbuncle278 = complete with { Flash81D4 = 0 } } };
                 }
                 int offset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
-                frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.Payload.AsSpan()) } };
+                frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) } };
                 return new(current with { Slots = current.Slots.SetItem(index, task) }, creatureResult);
             });
             //6811E0's balanced borrowed context is consumed only by active beam callbacks in681270.

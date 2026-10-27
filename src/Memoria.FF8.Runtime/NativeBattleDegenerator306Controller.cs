@@ -14,10 +14,10 @@ public static partial class NativeBattleDegenerator306Controller
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Degenerator requires its current arena."), tim);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
         (root, int index) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(index, root.Slots[index].WriteWord(12, 0)) };
+        root = root.WriteSlot(index, root.Slots[index].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int main) = children.Append(MainCallback);
-        children = children with { Slots = children.Slots.SetItem(main, children.Slots[main].WriteWord(12, 0)) };
+        children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
         NativeBattleDegenerator306State state = frame.State.ClearSlotHeads().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(TargetGlobal, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteDword(CasterGlobal, Parameters(frame).Actor78).WriteDword(ParametersGlobal, 0x1D99A78);
         return frame with { State = state, Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) } };
     }

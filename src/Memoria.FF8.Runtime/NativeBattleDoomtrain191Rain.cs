@@ -33,7 +33,7 @@ public static class NativeBattleDoomtrain191Rain
         }
         ushort age = unchecked((ushort)(task.ReadWord(0xC) + 1));
         pool = Pool(frame);
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(frame.Effect.Pools.IndexOf(pool), pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(0xC, age)) }) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(frame.Effect.Pools.IndexOf(pool), pool.WriteSlot(slot, task.WriteWord(0xC, age))) } };
         return new(frame, unchecked((short)age) >= 308 && batch.AllocationBytes == 0 ? 2 : 0);
 
         NativeBattleGfGeometryBatch DrawParticles()

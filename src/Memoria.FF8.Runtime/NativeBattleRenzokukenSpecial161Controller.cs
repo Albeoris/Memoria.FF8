@@ -95,7 +95,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             ushort flags = inputs.ReadModel(state.Actor).Flags0;
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)(task.ReadWord(14) | (flags & 0xF7FF))));
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) }, result);
+        return new(frame, pool.WriteSlot(slot, task), result);
 
         void Execute(NativeBattleRenzokuken160Operation operation)
         {
@@ -104,7 +104,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         void Append(uint callback, Func<NativeBattleModulePoolTask, NativeBattleModulePoolTask> initialize)
         {
             (pool, int child) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(child, initialize(pool.Slots[child])) };
+            pool = pool.WriteSlot(child, initialize(pool.Slots[child]));
         }
     }
 }

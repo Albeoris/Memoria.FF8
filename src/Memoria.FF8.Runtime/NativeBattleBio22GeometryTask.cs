@@ -15,7 +15,7 @@ public static class NativeBattleBio22GeometryTask
 {
     public static NativeBattleBio22GeometryTaskStep Advance89AAE0(NativeBattleModulePoolTask task, NativeBattleModulePoolTask parent, NativeBattleEffectMemory memory, NativeBattleBio22Resources resources, Func<NativeBattleEffectMemory, NativeBattleModulePoolTask, NativeBattleBio22Geometry, bool, NativeBattleEffectMemory> draw)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != 0x98 - 12 || task.Callback != 0x89AAE0)
+        if (task.Payload.IsDefault || task.PayloadLength != 0x98 - 12 || task.Callback != 0x89AAE0)
         {
             throw new InvalidDataException("Native Bio geometry requires its actual hierarchy task.");
         }

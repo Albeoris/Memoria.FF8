@@ -17,7 +17,7 @@ public static partial class NativeBattleXatmDeath276Controller
         NativeBattleXatmDeath276State state = new(memory.Cursor, null, 0);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2508318, 0x2508290, 0x14, 1);
         (root, int slot) = root.Append(0x684FA0);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         memory = memory with { Textures = textures.Register5099A0(resources.Camera) };
         return new(memory, effect with { Pools = [root], ReturnedDescriptor = 0x2508318 }, state);
     }
@@ -44,7 +44,7 @@ public static partial class NativeBattleXatmDeath276Controller
         public NativeBattleXatmDeath276Frame Frame { get; set; } = frame;
         public void Pool(int index, NativeBattleEffectTaskPool pool) => Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(index, pool) } };
         private NativeBattleModulePoolTask Read(int pool, int slot) => Frame.Effect.Pools[pool].Slots[slot];
-        private void Put(int pool, int slot, NativeBattleModulePoolTask task) => Pool(pool, Frame.Effect.Pools[pool] with { Slots = Frame.Effect.Pools[pool].Slots.SetItem(slot, task) });
+        private void Put(int pool, int slot, NativeBattleModulePoolTask task) => Pool(pool, Frame.Effect.Pools[pool].WriteSlot(slot, task));
         private void Execute(NativeBattleXatmDeath276Operation operation) => Frame = inputs.Execute(Frame, operation);
         private int Random()
         {

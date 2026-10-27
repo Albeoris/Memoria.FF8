@@ -36,7 +36,7 @@ public static class NativeBattleBlizzaraFaces
     public static ImmutableArray<byte> ExpandedVertices(NativeBattleModulePoolTask task)
     {
         RequireTask(task);
-        return task.Payload.AsSpan().Slice(ExpandedOffset - 12, ExpandedLength).ToArray().ToImmutableArray();
+        return task.ReadRawPayloadSpan().Slice(ExpandedOffset - 12, ExpandedLength).ToArray().ToImmutableArray();
     }
 
     public static NativeBattleBlizzaraFaceInitialization Initialize(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, int sequence, NativeBattleBlizzaraResources resources)
@@ -48,7 +48,6 @@ public static class NativeBattleBlizzaraFaces
         }
         byte[] primary = resources.PrimaryMesh.Bytes.ToArray();
         byte[] partner = resources.PartnerMesh.Bytes.ToArray();
-        byte[] payload = task.Payload.ToArray();
         (int first, int count) = NativeBattleIceMeshVertices.Group(primary, 6);
         (int second, int partnerCount) = NativeBattleIceMeshVertices.Group(partner, 2);
         if (count != FaceCount || partnerCount != FaceCount || BinaryPrimitives.ReadUInt32LittleEndian(primary) != 0x438 || BinaryPrimitives.ReadUInt32LittleEndian(primary.AsSpan(4)) != 134)
@@ -57,7 +56,7 @@ public static class NativeBattleBlizzaraFaces
         }
         for (int index = 0; index < FaceCount; index++)
         {
-            BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(0x32 + index * 0x48 - 12), 0);
+            task.WriteWord(0x32 + index * 0x48, 0);
             int face = first + index * 28;
             uint command = BinaryPrimitives.ReadUInt32LittleEndian(primary.AsSpan(face)) & 0xFDFFFFFF;
             BinaryPrimitives.WriteUInt32LittleEndian(primary.AsSpan(face), command);
@@ -65,9 +64,11 @@ public static class NativeBattleBlizzaraFaces
             primary[face + 0x1B] = 0;
             partner.AsSpan(second + index * 20, 3).Fill(255);
         }
-        NativeBattleIceMeshVertices.ExpandGt3(primary, resources.PrimaryMesh.Bytes.AsSpan().Slice(8, 134 * 8), payload.AsSpan(ExpandedOffset - 12, ExpandedLength));
+        byte[] expanded = new byte[ExpandedLength];
+        NativeBattleIceMeshVertices.ExpandGt3(primary, resources.PrimaryMesh.Bytes.AsSpan().Slice(8, 134 * 8), expanded);
+        task.WriteRetainedBytes(ExpandedOffset, expanded);
         NativeBattleEffectArena arena = RequireArena(memory).Write(PrimaryMeshOffset(sequence), primary).Write(PartnerMeshOffset(sequence), partner);
-        return new(memory with { Arena = arena }, task with { Payload = payload.ToImmutableArray() });
+        return new(memory with { Arena = arena }, task);
     }
 
     public static NativeBattleBlizzaraFaceStep Advance(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, int sequence, int phase, NativeCrtRandomState random)
@@ -80,7 +81,6 @@ public static class NativeBattleBlizzaraFaces
         NativeBattleEffectArena arena = RequireArena(memory);
         byte[] primary = arena.Read(PrimaryMeshOffset(sequence), PrimaryMeshLength);
         byte[] partner = arena.Read(PartnerMeshOffset(sequence), PartnerMeshLength);
-        byte[] payload = task.Payload.ToArray();
         (int first, int count) = NativeBattleIceMeshVertices.Group(primary, 6);
         (int second, int partnerCount) = NativeBattleIceMeshVertices.Group(partner, 2);
         if (count != FaceCount || partnerCount != FaceCount)
@@ -130,12 +130,12 @@ public static class NativeBattleBlizzaraFaces
                     int color = face + (corner == 0 ? 0 : corner == 1 ? 0x14 : 0x18);
                     for (int component = 0; component < 3; component++)
                     {
-                        payload[row + 0x38 + corner * 4 + component - 12] = (byte)((primary[color + component] + 15) >> 3);
+                        task.WriteByte(row + 0x38 + corner * 4 + component, (byte)((primary[color + component] + 15) >> 3));
                     }
                 }
                 for (int component = 0; component < 3; component++)
                 {
-                    payload[row + 0x44 + component - 12] = (byte)((partner[second + index * 20 + component] + 15) >> 2);
+                    task.WriteByte(row + 0x44 + component, (byte)((partner[second + index * 20 + component] + 15) >> 2));
                 }
             }
         }
@@ -181,17 +181,17 @@ public static class NativeBattleBlizzaraFaces
             }
         }
         arena = arena.Write(PrimaryMeshOffset(sequence), primary).Write(PartnerMeshOffset(sequence), partner);
-        return new(memory with { Arena = arena }, task with { Payload = payload.ToImmutableArray() }, random);
+        return new(memory with { Arena = arena }, task, random);
 
-        short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(offset - 12));
-        void Set(int offset, int value) => BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(offset - 12), unchecked((ushort)value));
+        short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(task.ReadRawPayloadSpan().Slice(offset - 12));
+        void Set(int offset, int value) => task.WriteWord(offset, unchecked((ushort)value));
         int[] Corners(int face) => Enumerable.Range(0, 3).Select(corner => checked(ExpandedOffset + BinaryPrimitives.ReadUInt16LittleEndian(primary.AsSpan(face + 4 + corner * 2)) * 4)).ToArray();
         bool Fade(byte[] mesh, int color, int steps)
         {
             bool zero = true;
             for (int component = 0; component < 3; component++)
             {
-                byte value = (byte)Math.Max(0, mesh[color + component] - payload[steps + component - 12]);
+                byte value = (byte)Math.Max(0, mesh[color + component] - task.ReadRawPayloadSpan()[steps + component - 12]);
                 mesh[color + component] = value;
                 zero &= value == 0;
             }
@@ -201,7 +201,7 @@ public static class NativeBattleBlizzaraFaces
 
     private static void RequireTask(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != 0x53CC - 12)
+        if (task.PayloadLength != 0x53CC - 12)
         {
             throw new InvalidDataException("Native Blizzara requires its complete physical53CC-byte primary task.");
         }

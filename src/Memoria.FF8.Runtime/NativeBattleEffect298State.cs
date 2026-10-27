@@ -29,29 +29,26 @@ public sealed record NativeBattleEffect298State([property: JsonRequired] NativeB
     {
         Globals.Validate();
         ScriptCounterWrites.Validate();
-        foreach (var region in Globals.Regions)
-        {
-            _ = RequireGlobal(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
-        }
-        foreach (var region in Globals.UnknownRegions)
+        foreach (var region in Globals.EnumerateDataRanges())
         {
             _ = RequireGlobal(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (var region in ScriptCounterWrites.Regions)
+        foreach (var region in Globals.EnumerateUnknownRanges())
         {
-            _ = RequireCounter(checked(ScriptAddress + (uint)region.Offset), region.Data.Length);
+            _ = RequireGlobal(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (var region in ScriptCounterWrites.UnknownRegions)
+        foreach (var region in ScriptCounterWrites.EnumerateDataRanges())
+        {
+            _ = RequireCounter(checked(ScriptAddress + (uint)region.Offset), region.Length);
+        }
+        foreach (var region in ScriptCounterWrites.EnumerateUnknownRanges())
         {
             _ = RequireCounter(checked(ScriptAddress + (uint)region.Offset), region.Length);
         }
         if (RootBankStorage is { } bank)
         {
             bank.Validate();
-            if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > RootBankLength - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > RootBankLength - region.Length))
-            {
-                throw new InvalidDataException("Effect298 retained root leaves its physical bank.");
-            }
+            bank.ValidateExtent(RootBankLength);
         }
     }
 
@@ -64,23 +61,37 @@ public sealed record NativeBattleEffect298State([property: JsonRequired] NativeB
     {
         if (IsCounter(address, bytes.Length))
         {
-            return this with { ScriptCounterWrites = ScriptCounterWrites.Write(RequireCounter(address, bytes.Length), bytes) };
+            ScriptCounterWrites.Write(RequireCounter(address, bytes.Length), bytes);
+            return this;
         }
-        return this with { Globals = Globals.Write(RequireGlobal(address, bytes.Length), bytes) };
+        Globals.Write(RequireGlobal(address, bytes.Length), bytes);
+        return this;
     }
 
     public NativeBattleEffect298State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleEffect298State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleEffect298State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect298State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleEffect298State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     public NativeBattleEffectArena ReadView(uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(Globals, RequireGlobal(address, length), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
 
     public NativeBattleEffect298State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
         if (IsCounter(address, length))
         {
-            return this with { ScriptCounterWrites = NativeBattleEffectNodeContextMemory.Copy(source, 0, ScriptCounterWrites, RequireCounter(address, length), length) };
+            NativeBattleEffectNodeContextMemory.Copy(source, 0, ScriptCounterWrites, RequireCounter(address, length), length);
+            return this;
         }
-        return this with { Globals = NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, RequireGlobal(address, length), length) };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, RequireGlobal(address, length), length);
+        return this;
     }
 
     public byte[] ReadStatic(NativeBattleEffect298Resources resources, uint address, int length)
@@ -95,13 +106,13 @@ public sealed record NativeBattleEffect298State([property: JsonRequired] NativeB
                     continue;
                 }
                 int offset = checked((int)(lane - ScriptAddress));
-                if (ScriptCounterWrites.UnknownRegions.Any(region => offset >= region.Offset && offset < region.Offset + region.Length))
+                if (ScriptCounterWrites.EnumerateUnknownRanges().Contains(offset))
                 {
                     throw new NotSupportedException("Effect298 script counter has no observed current physical value.");
                 }
-                if (ScriptCounterWrites.Regions.Any(region => offset >= region.Offset && offset < region.Offset + region.Data.Length))
+                if (ScriptCounterWrites.EnumerateDataRanges().Contains(offset))
                 {
-                    result[checked((int)(lane - address))] = ScriptCounterWrites.Read(offset, 1)[0];
+                    result[checked((int)(lane - address))] = ScriptCounterWrites.ReadByte(offset);
                 }
             }
         }

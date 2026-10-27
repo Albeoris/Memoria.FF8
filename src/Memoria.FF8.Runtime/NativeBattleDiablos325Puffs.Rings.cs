@@ -9,7 +9,7 @@ public static partial class NativeBattleDiablos325Puffs
         NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(frame.Memory);
         NativeBattleEffectArena source = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos ring birth requires its actual arena.");
         using NativeBattleEffectArenaTransaction? owned = source.Transaction is null ? new(source) : null;
-        NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
+        using NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
         NativeCrtRandomState? random = frame.Random;
         for (int countdown = 31; countdown >= 0; countdown--)
         {
@@ -46,7 +46,7 @@ public static partial class NativeBattleDiablos325Puffs
     {
         NativeBattleEffectArena source = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos ring drift requires its actual arena.");
         using NativeBattleEffectArenaTransaction? owned = source.Transaction is null ? new(source) : null;
-        NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
+        using NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
         for (int index = 0; index < Capacity; index++)
         {
             int offset = BaseOffset + index * 16;

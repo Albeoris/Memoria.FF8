@@ -42,10 +42,10 @@ public static partial class NativeBattleRenzokukenSpecialController
         }
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(profile.MainDescriptor, profile.MainBank, 16, 1);
         (main, int mainSlot) = main.Append(profile.RootCallback);
-        main = main with { Slots = main.Slots.SetItem(mainSlot, main.Slots[mainSlot].WriteWord(12, 0)) };
+        main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(profile.ChildDescriptor, profile.ChildBank, 36, 100);
         (children, int childSlot) = children.Append(profile.ControllerCallback);
-        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot].WriteWord(12, 0)) };
+        children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteWord(12, 0));
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native special Renzokuken entry requires its actual texture owner.");
         textures = textures.Register5099A0(resources.Animation);
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native special Renzokuken entry requires its original initializer TIM asset.");

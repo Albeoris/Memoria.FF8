@@ -21,10 +21,10 @@ public static class NativeBattleUltraWaves184Controller
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Ultra Waves requires its current texture allocation."), tim);
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
         (roots, int root) = roots.Append(RootCallback);
-        roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) };
+        roots = roots.WriteSlot(root, roots.Slots[root].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int main) = children.Append(MainCallback);
-        children = children with { Slots = children.Slots.SetItem(main, children.Slots[main].WriteWord(12, 0)) };
+        children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
         NativeBattleUltraWaves184State state = frame.State.SeedColdSources(resources).WriteDword(0x22BD108, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteDword(0x22BE8E0, 0x1D99A78).WriteDword(0x22BE8E4, Parameters(frame).Actor78).WriteDword(InitializerGlobal, checked(0x20DFAB8u + (uint)tim));
         for (int index = 0; index < 100; index++)
         {
@@ -196,7 +196,7 @@ public static class NativeBattleUltraWaves184Controller
             if (offset < owner.Stride * owner.Slots.Length && offset % owner.Stride == 0)
             {
                 int slot = (int)(offset / owner.Stride);
-                return Pool(frame, pool, owner with { Slots = owner.Slots.SetItem(slot, task with { Next = owner.Slots[slot].Next }) });
+                return Pool(frame, pool, owner.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, owner.Slots[slot].Next, task.Callback)));
             }
         }
         throw new InvalidDataException("Ultra Waves task pointer leaves its original pools.");

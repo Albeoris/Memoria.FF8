@@ -105,7 +105,7 @@ public static class NativeBattleDuel215Targets
         }
         void Store()
         {
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == pool.DescriptorAddress ? pool : bank).ToImmutableArray() } };
         }
         short Signed(int offset) => unchecked((short)task.ReadWord(offset));

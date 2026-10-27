@@ -11,7 +11,7 @@ public static partial class NativeBattleDiablos325Puffs
     public static NativeBattleDiablos325Frame Reset6545B0(NativeBattleDiablos325Frame frame)
     {
         NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(frame.Memory);
-        NativeBattleEffectArenaWriter writer = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos puffs require their actual current arena."));
+        using NativeBattleEffectArenaWriter writer = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos puffs require their actual current arena."));
         for (int index = 0; index < Capacity; index++)
         {
             writer.Write(BaseOffset + index * 16 + 15, [0]);
@@ -28,7 +28,7 @@ public static partial class NativeBattleDiablos325Puffs
         NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(frame.Memory);
         NativeBattleEffectArena source = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos puffs require their actual current arena.");
         using NativeBattleEffectArenaTransaction? owned = source.Transaction is null ? new(source) : null;
-        NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
+        using NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
         NativeCrtRandomState? random = frame.Random;
         for (uint index = 0; index < count; index++)
         {
@@ -92,7 +92,7 @@ public static partial class NativeBattleDiablos325Puffs
     {
         NativeBattleEffectArena source = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos puff motion requires its actual arena.");
         using NativeBattleEffectArenaTransaction? owned = source.Transaction is null ? new(source) : null;
-        NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
+        using NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
         for (int index = 0; index < Capacity; index++)
         {
             int offset = BaseOffset + index * 16;

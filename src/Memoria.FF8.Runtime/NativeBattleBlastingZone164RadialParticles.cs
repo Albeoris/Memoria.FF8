@@ -77,7 +77,7 @@ public static partial class NativeBattleBlastingZone164Controller
                 }
             }
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, released ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), released ? 2 : 0);
 
         void SetWord(uint address, int value)
         {

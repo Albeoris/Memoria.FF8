@@ -155,7 +155,7 @@ public static partial class NativeBattleFatedCircle162Controller
         {
             task = task.WriteWord(offset, unchecked((ushort)(Word(task, offset) - 1)));
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+        return new(frame, pool.WriteSlot(slot, task), 0);
     }
 
     private static NativeBattleFatedCircle162ChildStep DampedScale(NativeBattleFatedCircle162Frame frame, NativeBattleEffectTaskPool pool, int slot, uint flags, NativeBattleModulePoolTask task, short counter, int lifetime)
@@ -169,5 +169,5 @@ public static partial class NativeBattleFatedCircle162Controller
         return Finish(frame, pool, slot, task, lifetime);
     }
 
-    private static NativeBattleFatedCircle162ChildStep Finish(NativeBattleFatedCircle162Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task, int lifetime) => new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= lifetime ? 2 : 0);
+    private static NativeBattleFatedCircle162ChildStep Finish(NativeBattleFatedCircle162Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task, int lifetime) => new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= lifetime ? 2 : 0);
 }

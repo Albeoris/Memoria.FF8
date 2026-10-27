@@ -33,7 +33,7 @@ public static class NativeBattleDoomtrain191Sky
             task = task.WriteWord(0x1E, unchecked((ushort)(Random() % 32)));
             task = task.WriteWord(0x20, unchecked((ushort)(Random() % (actor == 0 ? 4096 : 2048))));
             task = task.WriteWord(0x22, unchecked((ushort)(Random() % (actor == 0 ? 24 : 40) + (actor == 0 ? 36 : 60))));
-            frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task) });
+            frame = PutPool(frame, pool.WriteSlot(slot, task));
         }
         return frame;
 
@@ -87,7 +87,7 @@ public static class NativeBattleDoomtrain191Sky
         ushort next = unchecked((ushort)(age + 1));
         task = task.WriteWord(0x10, unchecked((ushort)(Word(0x10) + Word(0x12)))).WriteWord(0x14, unchecked((ushort)(Word(0x14) + Word(0x16)))).WriteWord(0x1E, unchecked((ushort)(task.ReadWord(0x1E) + 1))).WriteWord(0x20, unchecked((ushort)(Word(0x20) + Word(0x22)))).WriteWord(0xC, next);
         NativeBattleEffectTaskPool pool = Pool(frame);
-        frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task) });
+        frame = PutPool(frame, pool.WriteSlot(slot, task));
         return new(frame, unchecked((short)next) >= 388 ? 2 : 0);
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));

@@ -15,7 +15,7 @@ public sealed record NativeBattleRegen147State([property: JsonRequired] NativeBa
             throw new InvalidDataException("Native Regen requires its physical process storage.");
         }
         Storage.Validate();
-        if (!Storage.UnknownRegions.Any(region => region.Offset == PhysicalLength && region.Length == NativeBattleEffectArena.Length - PhysicalLength))
+        if (!Storage.EnumerateUnknownRanges().Any(region => region.Offset == PhysicalLength && region.Length == NativeBattleEffectArena.Length - PhysicalLength))
         {
             throw new InvalidDataException("Native Regen cannot own bytes beyond its physical process bank.");
         }

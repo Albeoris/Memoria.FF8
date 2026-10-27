@@ -8,10 +8,10 @@ public static partial class NativeBattleChainGun190Controller
         resources.Validate();
         NativeBattleEffectTaskPool roots = ResetPool(frame, 0x2281B30, 0x2281B20, 16, 1);
         (roots, int root) = roots.Append(0x5BC900);
-        roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) };
+        roots = roots.WriteSlot(root, roots.Slots[root].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = ResetPool(frame, 0x2283108, 0x2283118, 36, 100);
         (children, int main) = children.Append(0x5BB380);
-        children = children with { Slots = children.Slots.SetItem(main, children.Slots[main].WriteWord(12, 0)) };
+        children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Chain Gun requires its actual first contact pointer.");
         frame = Dword(Dword(Dword(frame, 0x2281B18, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x2283F2C, Parameters(frame).Actor78), 0x2283F28, 0x1D99A78);

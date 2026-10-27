@@ -12,16 +12,26 @@ public sealed record NativeBattleTheEnd85State([property: JsonRequired] NativeBa
     public void Validate()
     {
         Globals.Validate();
-        if (Script is { } script && (script.IsDefault || script.Length != 80) || ModelData is { } data && (data.IsDefault || data.Length != 0xA0C4) || Globals.Regions.Any(region => region.Offset > GlobalLength - region.Data.Length) || Globals.UnknownRegions.Any(region => region.Offset > GlobalLength - region.Length))
+        Globals.ValidateExtent(GlobalLength);
+        if (Script is { } script && (script.IsDefault || script.Length != 80) || ModelData is { } data && (data.IsDefault || data.Length != 0xA0C4) || Globals.EnumerateDataRanges().Any(region => region.Offset > GlobalLength - region.Length) || Globals.EnumerateUnknownRanges().Any(region => region.Offset > GlobalLength - region.Length))
         {
             throw new InvalidDataException("Native The End requires its bounded physical globals and complete retained IO script.");
         }
     }
     public byte[] Read(uint address, int length) => Globals.Read(Offset(address, length), length);
-    public NativeBattleTheEnd85State Write(uint address, ReadOnlySpan<byte> bytes) => this with { Globals = Globals.Write(Offset(address, bytes.Length), bytes) };
+    public NativeBattleTheEnd85State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        Globals.Write(Offset(address, bytes.Length), bytes);
+        return this;
+    }
     public uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public ushort Word(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
-    public NativeBattleTheEnd85State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleTheEnd85State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     private static int Offset(uint address, int length)
     {
         if (address < GlobalAddress || length < 0 || length > GlobalLength || (ulong)address - GlobalAddress > (uint)(GlobalLength - length))

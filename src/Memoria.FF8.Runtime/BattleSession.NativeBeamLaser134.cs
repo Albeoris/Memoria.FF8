@@ -77,7 +77,7 @@ public sealed partial class BattleSession
         {
             NativeBattleModulePoolTask task = NativeBattleBeamLaser134Controller.Read(current, address);
             ImmutableArray<bool> known = Enumerable.Range(12, 32).Select(offset => task.UnknownPayloadRanges is not { } ranges || !ranges.Any(range => offset >= range.Offset && offset < range.Offset + range.Length)).ToImmutableArray();
-            NativeBattlePackedMatrix32 matrix = new(task.Payload.AsSpan(0, 32).ToArray().ToImmutableArray(), known);
+            NativeBattlePackedMatrix32 matrix = new(task.ReadRawPayloadSpan().Slice(0, 32).ToArray().ToImmutableArray(), known);
             return new(current, NativeBattleBeamLaser134Contexts.Child(Camera().CapturePackedView1D97778(), matrix, Morph(current)));
         }
 

@@ -89,7 +89,7 @@ public static class NativeBattleDuel215Preparation
         services.WriteModel(actor, caster with { Transform = casterTransform, Rotation14 = 0 });
         frame = frame with { Staging = frame.Staging.Write(0x2508998, BitConverter.GetBytes(Pack(casterTransform.Position28.X, casterTransform.Position28.Y))).Write(0x250899C, BitConverter.GetBytes(Pack(casterTransform.Position28.Z, casterTransform.Vertical34))).Write(0x25089A0, task.ReadBytes(384, 4)).Write(0x25089A4, task.ReadBytes(388, 4)) };
         task = NativeBattleDuel215Controller.ClearParticles69B040(task, checked(pool.BankAddress + (uint)(slot * pool.Stride)));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == pool.DescriptorAddress ? pool : bank).ToImmutableArray() } };
         frame = services.BindActor5022C0(frame, actor, checked(pool.BankAddress + (uint)(slot * pool.Stride) + 16));
         frame = services.SelectSequence505C00(frame, actor, 1);

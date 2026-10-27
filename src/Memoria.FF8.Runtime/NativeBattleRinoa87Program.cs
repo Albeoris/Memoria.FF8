@@ -92,6 +92,6 @@ public static class NativeBattleRinoa87Program
         return NativeBattlePoseMatrices.Compose56C2F0(view, local);
     }
 
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.Payload.AsSpan().Slice(148 - 12).ToArray().ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.ReadRawPayloadSpan().Slice(148 - 12).ToArray().ToImmutableArray());
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace) => task.WriteBytes(148, workspace.Data.AsSpan());
 }

@@ -77,7 +77,7 @@ public static class NativeBattleShivaOpeningParticles
         }
         task = frame.Pool.Slots[slot];
         task = task.WriteWord(0x18, unchecked((ushort)(task.ReadWord(0x18) + task.ReadWord(0x1A)))).WriteWord(0x22, unchecked((ushort)(task.ReadWord(0x22) + 2)));
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Pool = frame.Pool.WriteSlot(slot, task) };
         if (counter is >= 0 and <= 30)
         {
             int start = frame.Geometry.Current.W;
@@ -117,7 +117,7 @@ public static class NativeBattleShivaOpeningParticles
             }
         }
         task = frame.Pool.Slots[slot].WriteWord(0x0C, unchecked((ushort)(frame.Pool.Slots[slot].ReadWord(0x0C) + 1)));
-        frame = frame with { Memory = frame.Memory with { Arena = arena }, Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Memory = frame.Memory with { Arena = arena }, Pool = frame.Pool.WriteSlot(slot, task) };
         return new(frame, unchecked((short)task.ReadWord(0x0C)) >= 60 && active == 0 ? 2 : 0);
 
         short TaskWord(int offset) => unchecked((short)task.ReadWord(offset));

@@ -20,7 +20,7 @@ public static class NativeBattleArenaPose
 
     public static NativeBattleEffectArena WritePose(NativeBattleEffectArena arena, int skeleton, NativeBattleDecodedPose pose)
     {
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         writer.Write(skeleton + 1, [(byte)((arena.Read(skeleton + 1, 1)[0] & ~1) | (pose.HasScale ? 1 : 0))]);
         WriteVector(writer, skeleton + 8, pose.Translation);
         for (int index = 0; index < pose.Bones.Length; index++)
@@ -46,7 +46,7 @@ public static class NativeBattleArenaPose
         }
         ImmutableArray<NativeBattleRigBone> bones = definition.MoveToImmutable();
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.RigBoneMatrices(scale, bones, pose);
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < matrices.Length; index++)
         {
             int paddingOffset = skeleton + 50 + index * 48;
@@ -83,7 +83,7 @@ public static class NativeBattleArenaPose
 
     public static NativeBattleEffectArena WriteMatrix(NativeBattleEffectArena arena, int offset, NativeBattleActionMatrix matrix, bool unknownPadding)
     {
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         WriteMatrix(writer, offset, matrix, unknownPadding);
         return writer.Freeze();
     }
@@ -113,7 +113,7 @@ public static class NativeBattleArenaPose
 
     public static NativeBattleEffectArena WriteVector(NativeBattleEffectArena arena, int offset, NativeBattleVector vector)
     {
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         WriteVector(writer, offset, vector);
         return writer.Freeze();
     }

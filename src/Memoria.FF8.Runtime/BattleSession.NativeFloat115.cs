@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521808, 0x25217E0, 20, 1);
         (root, _) = root.Append(0x6C9420);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0));
         return graphics with { OriginalEffect = effect with { Pools = [root], ReturnedDescriptor = 0x2521808, DrawArenaOffset = null, Float115 = new(memory.Cursor) } };
     }
 
@@ -54,14 +54,14 @@ public sealed partial class BattleSession
             {
                 NativeBattleEffectTaskPool pool = targets ?? throw new InvalidDataException("Native Float lost its target pool.");
                 (pool, int slot) = pool.Append(0x6C9580);
-                NativeBattleModulePoolTask task = pool.Slots[slot] with { Payload = new byte[0x55C].ToImmutableArray() };
+                NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x55C);
                 NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action];
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Float requires the original selected contact.");
                 int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
                 task = task.WriteWord(14, (ushort)action).WriteDword(16, checked(0x1D972C0u + (uint)target * 156));
                 task = Init(task, 0x14, 0x2E8, resources.Glyph);
                 task = Init(task, 0x2FC, 0x26C, resources.Upper);
-                targets = pool with { Slots = pool.Slots.SetItem(slot, task) };
+                targets = pool.WriteSlot(slot, task);
                 root = root.WriteByte(14, unchecked((byte)(action + 1)));
             }
         }
@@ -77,14 +77,14 @@ public sealed partial class BattleSession
                     throw new NotSupportedException("Native Float selected an unrelated target callback.");
                 }
                 int result = Target(ref task);
-                task = task with { Next = targets.Slots[slot].Next };
-                targets = targets with { Slots = targets.Slots.SetItem(slot, task) };
+                task = task.UpdateHeader(task.Flags, task.State, targets.Slots[slot].Next, task.Callback);
+                targets = targets.WriteSlot(slot, task);
                 return new(targets, result);
             });
             targets = step.Pool;
             survivors = step.Survivors;
         }
-        roots = roots with { Slots = roots.Slots.SetItem(0, root) };
+        roots = roots.WriteSlot(0, root);
         if (survivors == 0)
         {
             roots = roots.Advance((pool, _) => new(pool, 2)).Pool;
@@ -92,7 +92,7 @@ public sealed partial class BattleSession
         else
         {
             int counter = unchecked((short)root.ReadWord(12)) + 1;
-            roots = roots with { Slots = roots.Slots.SetItem(0, root.WriteWord(12, unchecked((ushort)(counter >= 10 ? 0 : counter)))) };
+            roots = roots.WriteSlot(0, root.WriteWord(12, unchecked((ushort)(counter >= 10 ? 0 : counter))));
         }
         return graphics with { OriginalEffect = effect with { Pools = targets is null ? [roots] : [roots, targets], ReturnedDescriptor = survivors == 0 ? 0u : 0x2521808u } };
 

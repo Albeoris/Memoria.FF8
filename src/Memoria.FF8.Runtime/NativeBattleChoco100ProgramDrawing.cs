@@ -29,7 +29,7 @@ public static class NativeBattleChoco100ProgramDrawing
     private static NativeBattleChoco99ProgramDraw Advance(NativeBattleChoco100LoadedProgram? profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> targetRaw8, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary)
     {
         var definition = profile is { } loaded ? LoadedProfile(loaded) : (Address: 0x1663154u, Length: 0x2884, Callback: 0x70F5F0u, Clear: 0x4AC);
-        if (task.Payload.IsDefault || task.Payload.Length != 0x540 - 12 || task.Callback != definition.Callback || source.Address != definition.Address || source.Data.IsDefault || source.Data.Length != definition.Length || task.ReadDword(0x74) != source.Address || task.ReadDword(0x78) != definition.Clear || morphScratch.IsDefault || morphScratch.Length != 0x120)
+        if (task.Payload.IsDefault || task.PayloadLength != 0x540 - 12 || task.Callback != definition.Callback || source.Address != definition.Address || source.Data.IsDefault || source.Data.Length != definition.Length || task.ReadDword(0x74) != source.Address || task.ReadDword(0x78) != definition.Clear || morphScratch.IsDefault || morphScratch.Length != 0x120)
         {
             throw new InvalidDataException("Native Choco program requires its actual task, source, clear and morph owners.");
         }

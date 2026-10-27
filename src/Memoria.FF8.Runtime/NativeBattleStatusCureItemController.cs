@@ -30,7 +30,7 @@ public static class NativeBattleStatusCureItemController
         (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native status-cure item requires its current571870 arena."), textureOffset);
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(profile.MainDescriptor, profile.MainBank, 20, 1);
         (roots, int slot) = roots.Append(profile.RootCallback);
-        roots = roots with { Slots = roots.Slots.SetItem(slot, roots.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
+        roots = roots.WriteSlot(slot, roots.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         NativeBattleStatusCureItemExecution execution = new(arenaOffset, checked(0x1D972C0u + (uint)parameters.Actor78 * 156));
         return new(memory with { Textures = textures }, effect with { Pools = [roots], ReturnedDescriptor = profile.MainDescriptor, StatusCureItem = execution, DrawArenaOffset = null }, execution);
     }
@@ -69,8 +69,8 @@ public static class NativeBattleStatusCureItemController
                 root = root.WriteByte(15, 1);
                 children = NativeBattleEffectTaskPool.Initialize(profile.ChildDescriptor, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)frame.Execution.ArenaOffset), profile.ChildStride, 1);
                 NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native status-cure item requires its current child-bank bytes.");
-                NativeBattleModulePoolTask retainedChild = children.Slots[0] with { Payload = arena.Read(checked(frame.Execution.ArenaOffset + 12), profile.ChildStride - 12).ToImmutableArray() };
-                children = children with { Slots = children.Slots.SetItem(0, retainedChild) };
+                NativeBattleModulePoolTask retainedChild = children.Slots[0].WriteRetainedBytes(12, arena.Read(checked(frame.Execution.ArenaOffset + 12), profile.ChildStride - 12));
+                children = children.WriteSlot(0, retainedChild);
                 (children, int childSlot) = children.Append(profile.ChildCallback);
                 NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
                 int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native status-cure item requires its actual first contact pointer.");
@@ -81,9 +81,9 @@ public static class NativeBattleStatusCureItemController
                 {
                     child = child.WriteWord(18, unchecked((ushort)inputs.ReadModelY(target)));
                 }
-                NativeBattleGfAnimationWorkspace workspace = new(child.Payload.Slice(8, profile.WorkspaceBytes));
+                NativeBattleGfAnimationWorkspace workspace = new(child.ReadRawPayloadSpan().Slice(8, profile.WorkspaceBytes).ToArray().ToImmutableArray());
                 workspace = workspace.Initialize7016B0(resources.Layout, profile.WorkspaceBytes);
-                children = children with { Slots = children.Slots.SetItem(childSlot, StoreWorkspace(child, workspace)) };
+                children = children.WriteSlot(childSlot, StoreWorkspace(child, workspace));
                 frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [children]) };
                 sounds.Add(new(resources.Sound, 0, null) { Pan = 128, RawPan = 128 });
             }
@@ -107,7 +107,7 @@ public static class NativeBattleStatusCureItemController
                         throw new NotSupportedException("Native status-cure item child requires its own animation callback.");
                     }
                     NativeBattleVector anchor = new(unchecked((short)child.ReadWord(12)), unchecked((short)child.ReadWord(14)), unchecked((short)child.ReadWord(16)));
-                    NativeBattleGfAnimationWorkspace workspace = new(child.Payload.Slice(8, profile.WorkspaceBytes));
+                    NativeBattleGfAnimationWorkspace workspace = new(child.ReadRawPayloadSpan().Slice(8, profile.WorkspaceBytes).ToArray().ToImmutableArray());
                     NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Layout, 0, (current, node) =>
                     {
                         frame = inputs.Draw(frame, node, anchor);
@@ -152,8 +152,6 @@ public static class NativeBattleStatusCureItemController
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] payload = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(payload.AsSpan(8));
-        return task with { Payload = payload.ToImmutableArray() };
+        return task.WriteRetainedBytes(12 + (8), workspace.Data.AsSpan());
     }
 }

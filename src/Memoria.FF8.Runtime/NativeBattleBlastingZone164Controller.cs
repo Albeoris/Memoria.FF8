@@ -147,8 +147,8 @@ public static partial class NativeBattleBlastingZone164Controller
         {
             Execute(new NativeBattleBlastingZone164Stage((314 - counter) << 8));
         }
-        task = task.WriteWord(12, unchecked((ushort)(counter + 1))) with { Next = pool.Slots[slot].Next };
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        task = task.WriteWord(12, unchecked((ushort)(counter + 1))).SetNext(pool.Slots[slot].Next);
+        pool = pool.WriteSlot(slot, task);
         if (Word(task, 12) <= 314)
         {
             return new(frame, pool, 0);
@@ -159,7 +159,7 @@ public static partial class NativeBattleBlastingZone164Controller
         void AppendSimple(uint callback)
         {
             (pool, int created) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(created, pool.Slots[created].WriteWord(12, 0).WriteWord(14, 0)) };
+            pool = pool.WriteSlot(created, pool.Slots[created].WriteWord(12, 0).WriteWord(14, 0));
         }
         void Spawn(uint initializer)
         {

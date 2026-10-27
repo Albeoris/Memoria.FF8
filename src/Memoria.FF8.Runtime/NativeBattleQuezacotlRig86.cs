@@ -151,7 +151,7 @@ public static partial class NativeBattleQuezacotlRig86
         AddPool(0x2521728, 0x3BA5C, 0x80, 16);
         AddPool(0x2521718, 0x3C27C, 0x3C, 32);
         AddPool(0x2521708, 0x3F200, 0x20, 128);
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < 256; index++)
         {
             writer.Write(0x3CA02 + index * 0x28, [0xFF, 0xFF]);
@@ -189,7 +189,7 @@ public static partial class NativeBattleQuezacotlRig86
     private static NativeBattleQuezacotlRigWrite Synchronize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect)
     {
         NativeBattleEffectTaskPool child = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
-        child = child with { Slots = child.Slots.SetItem(0, child.Slots[0] with { Payload = memory.Arena!.Read(12, child.Stride - 12).ToImmutableArray() }) };
+        child = child.WriteSlot(0, child.Slots[0].WriteRetainedBytes(12, memory.Arena!.Read(12, child.Stride - 12)));
         return new(memory, effect with { Pools = effect.Pools.Select(pool => pool.DescriptorAddress == child.DescriptorAddress ? child : pool).ToImmutableArray() });
     }
 }

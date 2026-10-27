@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(profile.RootDescriptor, profile.RootBank, 20, 1);
         (root, int slot) = root.Append(profile.RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         return graphics with { OriginalEffect = effect with { Pools = [root], ReturnedDescriptor = profile.RootDescriptor, DrawArenaOffset = null, Level = new(memory.Cursor) } };
     }
 
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
             }
             NativeBattleEffectTaskPool pool = targets ?? throw new InvalidDataException("Native level effect lost its child pool.");
             (pool, int slot) = pool.Append(profile.ChildCallback);
-            NativeBattleModulePoolTask task = pool.Slots[slot] with { Payload = new byte[profile.TaskBytes - 12].ToImmutableArray() };
+            NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(profile.TaskBytes - 12);
             int first = header.FirstContactIndex ?? throw new InvalidDataException("Native level effect requires its captured contact directory.");
             int contactIndex = root.ReadByte(14);
             int actor = nativeActionPackets.ReadContact(first + contactIndex).Primary.ActorIndex;
@@ -75,7 +75,7 @@ public sealed partial class BattleSession
             task = task.WriteDword(28, unchecked((uint)scale.X)).WriteDword(32, unchecked((uint)scale.Y)).WriteDword(36, unchecked((uint)scale.Z));
             NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x20, profile.WorkspaceBytes));
             task = PublishWorkspace(task, 0x2C, workspace.Initialize7016B0(resources.Animation, profile.WorkspaceBytes));
-            targets = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            targets = pool.WriteSlot(slot, task);
             root = root.WriteByte(14, unchecked((byte)(root.ReadByte(14) + 1)));
             PublishNativeModuleSound(new(resources.Sound, 0, null) { Pan = 128, RawPan = 128 });
         }
@@ -126,7 +126,7 @@ public sealed partial class BattleSession
             survivors = children.Survivors;
         }
         bool completed = root.ReadByte(15) != 0 && survivors == 0;
-        roots = roots with { Slots = roots.Slots.SetItem(0, completed ? root : root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)))) };
+        roots = roots.WriteSlot(0, completed ? root : root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1))));
         if (completed)
         {
             roots = roots.Advance((pool, _) => new(pool, 2)).Pool;

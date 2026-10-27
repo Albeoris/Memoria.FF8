@@ -28,10 +28,31 @@ public sealed record NativeBattleEffect65State([property: JsonRequired] NativeBa
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
-    public NativeBattleEffect65State Write(uint address, ReadOnlySpan<byte> bytes) => WriteView(address, NativeBattleEffectArena.Clear().Write(0, bytes), bytes.Length);
+    public NativeBattleEffect65State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        if (Within(address, bytes.Length, ChildDescriptor, ChildQueueLength))
+        {
+            ReadChildQueue().Write(checked((int)(address - ChildDescriptor)), bytes);
+            return this;
+        }
+        bool literal = address < BaseAddress;
+        int offset = Require(address, bytes.Length, literal ? LiteralBase : BaseAddress, literal ? LiteralRanges : OwnedRanges);
+        (literal ? LiteralStorage : Storage).Write(offset, bytes);
+        return this;
+    }
     public NativeBattleEffect65State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleEffect65State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleEffect65State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect65State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleEffect65State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
 
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
@@ -48,12 +69,13 @@ public sealed record NativeBattleEffect65State([property: JsonRequired] NativeBa
     {
         if (Within(address, length, ChildDescriptor, ChildQueueLength))
         {
-            return this with { ChildQueueStorage = NativeBattleEffectNodeContextMemory.Copy(source, 0, ReadChildQueue(), checked((int)(address - ChildDescriptor)), length) };
+            NativeBattleEffectNodeContextMemory.Copy(source, 0, ReadChildQueue(), checked((int)(address - ChildDescriptor)), length);
+            return this;
         }
         bool literal = address < BaseAddress;
         int offset = Require(address, length, literal ? LiteralBase : BaseAddress, literal ? LiteralRanges : OwnedRanges);
-        NativeBattleEffectArena current = NativeBattleEffectNodeContextMemory.Copy(source, 0, literal ? LiteralStorage : Storage, offset, length);
-        return literal ? this with { LiteralStorage = current } : this with { Storage = current };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, literal ? LiteralStorage : Storage, offset, length);
+        return this;
     }
 
     public NativeBattleEffectArena ReadChildQueue() => ChildQueueStorage ?? throw new InvalidDataException("Effect65 child queue is exclusively owned by its active pool.");
@@ -141,11 +163,11 @@ public sealed record NativeBattleEffect65State([property: JsonRequired] NativeBa
     private static void ValidateStorage(NativeBattleEffectArena storage, uint origin, ImmutableArray<(uint Address, int Length)> ranges)
     {
         storage.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in storage.Regions)
+        foreach (NativeBattleEffectStorageRange region in storage.EnumerateDataRanges())
         {
-            _ = Require(checked(origin + (uint)region.Offset), region.Data.Length, origin, ranges);
+            _ = Require(checked(origin + (uint)region.Offset), region.Length, origin, ranges);
         }
-        foreach (NativeBattleEffectUnknownRegion region in storage.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in storage.EnumerateUnknownRanges())
         {
             _ = Require(checked(origin + (uint)region.Offset), region.Length, origin, ranges);
         }
@@ -154,9 +176,6 @@ public sealed record NativeBattleEffect65State([property: JsonRequired] NativeBa
     private static void ValidateBank(NativeBattleEffectArena bank, int length)
     {
         bank.Validate();
-        if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect65 retained bytes leave their physical allocation.");
-        }
+        bank.ValidateExtent(length);
     }
 }

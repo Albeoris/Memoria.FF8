@@ -15,7 +15,9 @@ public sealed partial class BattleSession
             NativeBattleStageState stage = session.NativeStage ?? throw new NotSupportedException("Native Quake requires its actual stage owner.");
             NativeBattleStageGroup ground = SelectGroundPose(stage.Groups[1]);
             session.NativeStage = stage with { Groups = stage.Groups.SetItem(1, ground) };
-            NativeBattleTemporaryAllocation context = NativeBattleTemporaryMemory.Allocate5082B0(session.NativeFileStaging!, 44);
+            NativeBattleFileStaging sourceStaging = session.NativeFileStaging!;
+            using NativeBattleFileStagingTransaction? stagingTransaction = sourceStaging.Transaction is null ? new(sourceStaging) : null;
+            NativeBattleTemporaryAllocation context = NativeBattleTemporaryMemory.Allocate5082B0(stagingTransaction?.View ?? sourceStaging, 44);
             int capacity = checked((session.NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Quake requires its actual posed CPU workspace.")) * 8);
             uint workspace = checked(0x196B018u - (uint)capacity);
             NativeBattleFileStaging staging = context.Staging.Write(context.Address + 4, BitConverter.GetBytes(workspace)).Write(context.Address + 20, new byte[4]).Write(context.Address + 24, BitConverter.GetBytes((ushort)320)).Write(context.Address + 26, BitConverter.GetBytes((ushort)216)).Write(context.Address + 28, BitConverter.GetBytes(ground.ColorFlags)).Write(context.Address + 32, BitConverter.GetBytes(uint.MaxValue)).Write(context.Address + 36, BitConverter.GetBytes(ground.ColorDepth));
@@ -56,7 +58,7 @@ public sealed partial class BattleSession
                 ImmutableArray<NativeBattleRawVertexGroup> groups = mesh.PackedVertexGroups ?? throw new NotSupportedException("Native Quake requires its original packed ground bone/vertex groups.");
                 short vertexBase = groups.IsEmpty ? (short)0 : groups[^1].Count;
                 state = state.SetWord(0x2792D68, vertexBase);
-                session.NativeFileStaging = staging;
+                session.NativeFileStaging = stagingTransaction?.Freeze(staging) ?? staging;
                 foreach (NativeBattleRawPolygon polygon in mesh.Polygons)
                 {
                     primitive = unchecked((short)(primitive + 1));
@@ -82,9 +84,10 @@ public sealed partial class BattleSession
                         DrawEdge(offset, edge, first, second, centroid);
                     }
                 }
-                staging = session.NativeFileStaging!;
+                staging = stagingTransaction?.View ?? session.NativeFileStaging!;
             }
-            session.NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(staging, 12);
+            staging = NativeBattleTemporaryMemory.Release5082D0(staging, 12);
+            session.NativeFileStaging = stagingTransaction?.Freeze(staging) ?? staging;
             GroundState(primitive);
             session.NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(session.NativeFileStaging!, 44);
         }

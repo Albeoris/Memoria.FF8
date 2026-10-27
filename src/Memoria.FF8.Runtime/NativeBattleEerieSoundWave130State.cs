@@ -19,18 +19,21 @@ public sealed record NativeBattleEerieSoundWave130State([property: JsonRequired]
     public void Validate()
     {
         Globals.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        if (Globals.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > Length - region.Length))
-        {
-            throw new InvalidDataException("Eerie Sound Wave retained globals leave their original scalar owner.");
-        }
+        Globals.ValidateExtent(Length);
     }
 
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Require(address, 4), 4));
-    public NativeBattleEerieSoundWave130State WriteDword(uint address, uint value) => this with { Globals = Globals.Write(Require(address, 4), BitConverter.GetBytes(value)) };
+    public NativeBattleEerieSoundWave130State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        Globals.Write(Require(address, 4), encoded);
+        return this;
+    }
 
     private static int Require(uint address, int length)
     {

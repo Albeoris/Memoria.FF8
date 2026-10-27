@@ -29,12 +29,23 @@ public sealed record NativeBattleEffect70State([property: JsonRequired] NativeBa
 
     public NativeBattleEffect70State Write(uint address, ReadOnlySpan<byte> bytes)
     {
-        return this with { Storage = Storage.Write(Require(address, bytes.Length), bytes) };
+        Storage.Write(Require(address, bytes.Length), bytes);
+        return this;
     }
 
     public NativeBattleEffect70State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleEffect70State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleEffect70State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect70State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleEffect70State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
 
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
@@ -43,7 +54,8 @@ public sealed record NativeBattleEffect70State([property: JsonRequired] NativeBa
 
     public NativeBattleEffect70State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
-        return this with { Storage = NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, Require(address, length), length) };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, Require(address, length), length);
+        return this;
     }
 
     public NativeBattleEffectArena ReadRootBank() => RootBankStorage ?? throw new InvalidDataException("Effect70 root bank is owned exclusively by the active pool.");
@@ -67,11 +79,11 @@ public sealed record NativeBattleEffect70State([property: JsonRequired] NativeBa
     public void Validate()
     {
         Storage.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Storage.Regions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateDataRanges())
         {
-            _ = Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            _ = Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Storage.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateUnknownRanges())
         {
             _ = Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
@@ -109,9 +121,6 @@ public sealed record NativeBattleEffect70State([property: JsonRequired] NativeBa
     private static void ValidateBank(NativeBattleEffectArena bank, int length)
     {
         bank.Validate();
-        if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect70 retained bytes leave their physical bank allocation.");
-        }
+        bank.ValidateExtent(length);
     }
 }

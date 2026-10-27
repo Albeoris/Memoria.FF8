@@ -18,10 +18,7 @@ public sealed record NativeBattleEffect338Skeleton([property: JsonRequired] Nati
     public void Validate()
     {
         Storage.Validate();
-        if (Storage.Regions.Any(region => region.Offset < 0 || region.Offset > Length - region.Data.Length) || Storage.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > Length - region.Length))
-        {
-            throw new InvalidDataException("Effect338 current skeleton leaves its original model section.");
-        }
+        Storage.ValidateExtent(Length);
     }
 
     public NativeBattleEffect338Skeleton Publish(NativeBattleDecodedPose pose)

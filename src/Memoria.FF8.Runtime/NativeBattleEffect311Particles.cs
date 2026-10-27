@@ -20,7 +20,7 @@ public static class NativeBattleEffect311Particles
             (pool, int slot) = pool.Append(0x665C30);
             NativeBattleModulePoolTask child = pool.Slots[slot];
             child = child.WriteWord(12, 0).WriteWord(14, (ushort)(50 - (Roll() & 7))).WriteWord(16, Roll()).WriteWord(20, Roll()).WriteWord(22, Roll()).WriteWord(24, Roll()).WriteWord(18, (ushort)((Roll() & 1023) + 1500));
-            pool = pool with { Slots = pool.Slots.SetItem(slot, child) };
+            pool = pool.WriteSlot(slot, child);
         }
         return new(pool, random);
 

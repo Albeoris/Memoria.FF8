@@ -21,7 +21,7 @@ public static class NativeBattleScanTarget
         NativeBattleEffectParameters parameters = frame.Scan.Effect.Parameters ?? throw new InvalidDataException("Native Scan target requires its actual action parameters.");
         NativeBattleEffectHierarchy hierarchy = new(frame.Scan.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
-        if (task.Callback != 0x84D230 || task.Payload.Length != 0x58 - 12)
+        if (task.Callback != 0x84D230 || task.PayloadLength != 0x58 - 12)
         {
             throw new InvalidDataException("Native Scan target requires its84D230 fifty-eight-byte task.");
         }

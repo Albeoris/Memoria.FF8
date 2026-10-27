@@ -43,10 +43,10 @@ public static partial class NativeBattleBlastingZone164Controller
         short facing = unchecked((short)(angle.Axis.Y < 0 ? -angle.Angle : angle.Angle));
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x23C6968, 0x23C6958, 16, 1);
         (main, int mainSlot) = main.Append(0x5F5B10);
-        main = main with { Slots = main.Slots.SetItem(mainSlot, main.Slots[mainSlot].WriteWord(12, 0)) };
+        main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23C8F40, 0x23C8F50, 36, 100);
         (children, int childSlot) = children.Append(0x5F0430);
-        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot].WriteWord(12, 0)) };
+        children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteWord(12, 0));
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native5F0260 requires its actual texture owner.");
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native5F0260 requires its actual initializer texture.");
         (textures, _) = textures.EnqueueTim505E30(new(tim.Name, tim.Data));

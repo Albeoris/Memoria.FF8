@@ -9,8 +9,11 @@ public static partial class NativeBattleDuel212Controller
         NativeBattleEffectTaskPool fragments = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == Fragments);
         if (resetFragments)
         {
-            NativeBattleEffectTaskPool cleared = NativeBattleEffectTaskPool.Initialize(Fragments, fragments.BankAddress, fragments.Stride, checked((ushort)fragments.Slots.Length));
-            fragments = cleared with { Slots = cleared.Slots.Select((task, index) => task with { Payload = fragments.Slots[index].Payload, ResourcePointers = fragments.Slots[index].ResourcePointers, UnknownPayloadRanges = fragments.Slots[index].UnknownPayloadRanges }).ToImmutableArray() };
+            for (int index = 0; index < fragments.Slots.Length; index++)
+            {
+                fragments.Slots[index].UpdateHeader(0, 0, null, 0);
+            }
+            fragments = fragments.UpdateLinks(null, null);
         }
         for (int index = 0; index < 2; index++)
         {
@@ -25,7 +28,7 @@ public static partial class NativeBattleDuel212Controller
             task = task.WriteWord(12, unchecked((ushort)(origin.X + (Rand() & 0xFFF) - 2048))).WriteWord(14, 1024).WriteWord(16, unchecked((ushort)(origin.Z - 5160)));
             task = task.WriteWord(18, 0).WriteWord(20, unchecked((ushort)(-512 - (Rand() & 0x1FF)))).WriteWord(22, 0);
             task = task.WriteByte(28, unchecked((byte)Rand())).WriteByte(29, unchecked((byte)Rand())).WriteByte(30, unchecked((byte)Rand())).WriteByte(31, unchecked((byte)Rand()));
-            fragments = fragments with { Slots = fragments.Slots.SetItem(slot, task) };
+            fragments = fragments.WriteSlot(slot, task);
         }
         NativeBattleEffectTaskPool sprites = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == Sprites);
         Sprite(0x6A3800, 16);
@@ -41,7 +44,7 @@ public static partial class NativeBattleDuel212Controller
             (sprites, int slot) = sprites.Append(callback);
             NativeBattleModulePoolTask task = sprites.Slots[slot].WriteWord(12, unchecked((ushort)(origin.X + 4700 * Rand() / 32768 - 2350))).WriteWord(14, 0).WriteWord(16, unchecked((ushort)(origin.Z - 4136)));
             task = task.WriteWord(18, unchecked((ushort)(((Rand() << 11) >> 15) + 4096))).WriteByte(20, 0).WriteByte(21, unchecked((byte)-127)).WriteByte(22, 0).WriteByte(23, life);
-            sprites = sprites with { Slots = sprites.Slots.SetItem(slot, task) };
+            sprites = sprites.WriteSlot(slot, task);
         }
         int Rand()
         {

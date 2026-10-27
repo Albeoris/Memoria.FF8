@@ -33,7 +33,7 @@ public static class NativeBattleDuel274Controller
         frame = frame with { Staging = Dword(frame.Staging, 0x2508468, 0) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1);
         (root, int slot) = root.Append(0x689990);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[12]).WriteByte(16, 0).WriteByte(17, selector)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[12]).WriteByte(16, 0).WriteByte(17, selector));
         frame = frame with { Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = root.DescriptorAddress } };
         return WriteRootTransition(frame, 0, selector);
     }
@@ -74,7 +74,7 @@ public static class NativeBattleDuel274Controller
                     int target = actors.ResolveMinimum501FF0(readTarget(task.ReadByte(14)));
                     (short maximum, short minimum) = actors.ReadBounds6DFD90(target);
                     NativeBattleModulePoolTask child = targets.Slots[targetSlot].WriteBytes(12, new byte[104]).WriteByte(15, 0).WriteByte(14, task.ReadByte(14)).WriteByte(16, 1).WriteDword(20, Address(target)).WriteWord(92, unchecked((ushort)maximum)).WriteWord(94, unchecked((ushort)minimum));
-                    targets = targets with { Slots = targets.Slots.SetItem(targetSlot, child) };
+                    targets = targets.WriteSlot(targetSlot, child);
                     task = task.WriteByte(14, unchecked((byte)(task.ReadByte(14) + 1)));
                     root = root with { Slots = root.Slots.SetItem(slot, task) };
                     frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, root).SetItem(1, targets) } };
@@ -147,7 +147,7 @@ public static class NativeBattleDuel274Controller
             current = Index(linked);
         }
         while (current != first);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         if (selector != 0)
         {
@@ -159,7 +159,7 @@ public static class NativeBattleDuel274Controller
             frame = frame with { Effect = frame.Effect with { Parameters = parameters with { Parameter81 = 1 } } };
         }
         task = task.WriteWord(12, 1);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         return new(frame, pool, 0);
     }
@@ -170,7 +170,7 @@ public static class NativeBattleDuel274Controller
         int index = NativeBattleDuel274Banks.Index(frame, 0x25084B8);
         NativeBattleEffectTaskPool root = frame.Effect.Pools[index];
         NativeBattleModulePoolTask task = root.Slots[0].WriteByte(16, pending).WriteByte(17, selector);
-        root = root with { Slots = root.Slots.SetItem(0, task) };
+        root = root.WriteSlot(0, task);
         return frame with { Staging = frame.Staging.Write(0x25084D8, [pending, selector]), Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, root) } };
     }
 

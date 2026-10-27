@@ -8,11 +8,11 @@ public sealed class NativeBattleFileStagingUnknownTests
     public void Symbolic_pointer_replacement_removes_loader_zero_raw_bytes_without_erasing_neighbors()
     {
         const uint address = 0x255FEC2;
-        NativeBattleFileStaging cold = NativeBattleFileStaging.FromColdProcess().Write(address, [1, 2, 3, 4]);
+        NativeBattleFileStaging cold = NativeBattleStorageSnapshots.Capture(NativeBattleFileStaging.FromColdProcess().Write(address, [1, 2, 3, 4]));
         NativeBattleResourcePointer pointer = new(null, null) { CpuRow = 3 };
-        NativeBattleFileStaging symbolic = cold.WriteResourcePointer(address, pointer);
+        NativeBattleFileStaging symbolic = NativeBattleStorageSnapshots.Restore(cold).WriteResourcePointer(address, pointer);
         symbolic.Validate();
-        NativeBattleFileStaging contradictory = symbolic with { LoaderZeroRanges = cold.LoaderZeroRanges };
+        NativeBattleFileStaging contradictory = NativeBattleStorageSnapshots.Capture(symbolic) with { LoaderZeroRanges = cold.LoaderZeroRanges };
         Assert.Throws<InvalidDataException>(() => contradictory.Validate());
         Assert.Equal(pointer, symbolic.ReadResourcePointer(address));
         Assert.All(symbolic.ReadSnapshot(address, 4).Known, value => Assert.False(value));
@@ -41,10 +41,11 @@ public sealed class NativeBattleFileStagingUnknownTests
     public void Independent_restore_keeps_split_known_ranges_and_future_writes()
     {
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x24F9950, new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }).MarkUnknown(0x24F9952, 4);
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        NativeBattleFileStaging restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(SnapshotJson(staging))!);
         Assert.Equal(new byte[] { 1, 2 }, restored.Read(0x24F9950, 2));
         Assert.Equal(new byte[] { 7, 8 }, restored.Read(0x24F9956, 2));
         Assert.Throws<NotSupportedException>(() => restored.Read(0x24F9952, 4));
-        Assert.Equal(JsonSerializer.Serialize(staging.Write(0x24F9952, new byte[] { 9, 10, 11, 12 })), JsonSerializer.Serialize(restored.Write(0x24F9952, new byte[] { 9, 10, 11, 12 })));
+        Assert.Equal(SnapshotJson(staging.Write(0x24F9952, new byte[] { 9, 10, 11, 12 })), SnapshotJson(restored.Write(0x24F9952, new byte[] { 9, 10, 11, 12 })));
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

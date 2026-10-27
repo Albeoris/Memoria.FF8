@@ -122,7 +122,7 @@ public static class NativeBattleShivaParticleBanks
         }
         NativeBattleModulePoolTask task = frame.Pool.Slots[slot];
         task = task.WriteWord(0x0C, unchecked((ushort)(task.ReadWord(0x0C) + 1)));
-        frame = frame with { Memory = frame.Memory with { Arena = arena.Publish() }, Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Memory = frame.Memory with { Arena = arena.Publish() }, Pool = frame.Pool.WriteSlot(slot, task) };
         return new(frame, unchecked((short)task.ReadWord(0x0C)) >= 4 && alive == 0 ? 2 : 0);
 
         ushort Uword(int address) => BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(address, 2));

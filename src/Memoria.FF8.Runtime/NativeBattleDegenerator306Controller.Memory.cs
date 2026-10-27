@@ -34,7 +34,7 @@ public static partial class NativeBattleDegenerator306Controller
     private static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)actor * 156) : throw new InvalidDataException("Degenerator actor leaves the native model bank.");
     private static NativeBattleModulePoolTask Task(NativeBattleDegenerator306Frame frame, int pool, int slot) => frame.Effect.Pools[pool].Slots[slot];
     private static NativeBattleDegenerator306Frame WithPool(NativeBattleDegenerator306Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
-    private static NativeBattleDegenerator306Frame Put(NativeBattleDegenerator306Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool] with { Slots = frame.Effect.Pools[pool].Slots.SetItem(slot, task with { Next = Task(frame, pool, slot).Next }) });
+    private static NativeBattleDegenerator306Frame Put(NativeBattleDegenerator306Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, Task(frame, pool, slot).Next, task.Callback)));
     public static NativeBattleModulePoolTask Read(NativeBattleDegenerator306Frame frame, uint address)
     {
         foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)

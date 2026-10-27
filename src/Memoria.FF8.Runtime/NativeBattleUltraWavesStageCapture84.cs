@@ -88,9 +88,6 @@ public static class NativeBattleUltraWavesStageCapture84
     private static void RequireTemporary(NativeBattleEffectArena temporary)
     {
         temporary.Validate();
-        if (temporary.Regions.Any(region => region.Offset < 0 || region.Data.Length > 84 - region.Offset) || temporary.UnknownRegions.Any(region => region.Offset < 0 || region.Length > 84 - region.Offset))
-        {
-            throw new InvalidDataException("Ultra Waves capture requires its bounded retained84-byte temporary.");
-        }
+        temporary.ValidateExtent(84);
     }
 }

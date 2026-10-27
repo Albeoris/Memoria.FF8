@@ -151,7 +151,7 @@ public sealed partial class BattleSession
         }
         int slot = checked((int)(delta / 0x24));
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteByte(0x0E, value);
-        return effect with { Pools = effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(slot, task) }) };
+        return effect with { Pools = effect.Pools.SetItem(1, pool.WriteSlot(slot, task)) };
     }
 
     private bool TryWriteNativeShivaCompletion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)

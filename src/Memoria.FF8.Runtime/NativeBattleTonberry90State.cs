@@ -67,10 +67,7 @@ public sealed partial record NativeBattleTonberry90State([property: JsonRequired
     public void Validate()
     {
         Globals.Validate();
-        if (Globals.Regions.Any(region => region.Offset > GlobalLength - region.Data.Length) || Globals.UnknownRegions.Any(region => region.Offset > GlobalLength - region.Length))
-        {
-            throw new InvalidDataException("Native Tonberry module globals leave their physical span.");
-        }
+        Globals.ValidateExtent(GlobalLength);
         if (CreatureModelState is { } model && (model.TaskAddress == 0 || model.ResourceAddress == 0 || model.DecodedPose is { Bones.IsDefault: true }))
         {
             throw new InvalidDataException("Native Tonberry creature requires its actual initialized model identity and decoded pose bytes.");
@@ -88,10 +85,20 @@ public sealed partial record NativeBattleTonberry90State([property: JsonRequired
     public NativeBattleTonberry90IoState? Io { get; init; }
     public uint? CameraAddress1547510 { get; init; }
     public byte[] Read(uint address, int length) => Globals.Read(Offset(address, length), length);
-    public NativeBattleTonberry90State Write(uint address, ReadOnlySpan<byte> bytes) => this with { Globals = Globals.Write(Offset(address, bytes.Length), bytes) };
+    public NativeBattleTonberry90State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        Globals.Write(Offset(address, bytes.Length), bytes);
+        return this;
+    }
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Offset(address, 4), 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Globals.Read(Offset(address, 2), 2));
-    public NativeBattleTonberry90State WriteDword(uint address, uint value) => this with { Globals = Globals.Write(Offset(address, 4), BitConverter.GetBytes(value)) };
+    public NativeBattleTonberry90State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        Globals.Write(Offset(address, 4), encoded);
+        return this;
+    }
 
     private static int Offset(uint address, int length)
     {

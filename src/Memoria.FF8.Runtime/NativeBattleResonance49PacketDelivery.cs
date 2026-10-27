@@ -29,8 +29,8 @@ public static class NativeBattleResonance49PacketDelivery
         {
             RequireStatic(checked(destination + (uint)attempt.ByteOffsetRelative), attempt.PacketLength);
         }
-        NativeBattleEffectArenaWriter writer = new(state.Globals);
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleEffectArenaWriter writer = new(state.Globals);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         NativeBattleEffectPacketArena.AppendAttempts(writer, links, checked((int)(destination - StaticBase)), batch, flags, bank: PacketBank);
         state = state with { Globals = writer.Freeze() };
         state.Validate();
@@ -75,7 +75,7 @@ public static class NativeBattleResonance49PacketDelivery
         {
             throw new InvalidDataException("Resonance common emission leaves its physical allocation.");
         }
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         int acceptedEnd = 0;
         foreach ((NativeBattleGfGeometryAttempt attempt, ushort flags) in attempts)

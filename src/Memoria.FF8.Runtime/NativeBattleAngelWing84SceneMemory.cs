@@ -40,7 +40,8 @@ public sealed record NativeBattleAngelWing84SceneMemory([property: JsonRequired]
         RequireRange(offset, 2, 84);
         Span<byte> bytes = stackalloc byte[2];
         BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
-        return this with { Settings = Settings.Write(offset, bytes) };
+        Settings.Write(offset, bytes);
+        return this;
     }
 
     public NativeBattleAngelWing84SceneMemory WriteDword(int offset, uint value)
@@ -48,7 +49,8 @@ public sealed record NativeBattleAngelWing84SceneMemory([property: JsonRequired]
         RequireRange(offset, 4, 84);
         Span<byte> bytes = stackalloc byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-        return this with { Settings = Settings.Write(offset, bytes) };
+        Settings.Write(offset, bytes);
+        return this;
     }
 
     public NativeBattleAngelWing84SceneMemory ClearCamera() => this with { Camera = NativeBattleMoogleCamera.Reset732AF0() };
@@ -74,10 +76,7 @@ public sealed record NativeBattleAngelWing84SceneMemory([property: JsonRequired]
             throw new InvalidDataException("Native Angel Wing scene has no actual memory owner.");
         }
         storage.Validate();
-        if (storage.Regions.Any(region => region.Offset > length - region.Data.Length) || storage.UnknownRegions.Any(region => region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Native Angel Wing scene bytes leave their original physical workspace.");
-        }
+        storage.ValidateExtent(length);
     }
 
     private static void RequireRange(int offset, int count, int length)

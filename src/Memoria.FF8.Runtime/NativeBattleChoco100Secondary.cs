@@ -66,7 +66,7 @@ public static class NativeBattleChoco100Secondary
 {
     public static NativeBattleChoco100SecondaryStep Advance716C20(NativeBattleChoco100SecondaryFrame frame, uint workAddress, Func<NativeBattleChoco100SecondaryFrame, NativeBattleChoco100SecondaryFrame> draw)
     {
-        if (frame.Task.Callback != 0x716C20 || frame.Task.Payload.IsDefault || frame.Task.Payload.Length != 0xD0 - 12 || frame.Actor.Index != frame.Task.ReadByte(0x2D) || frame.Actor.Index is < 0 or > 6)
+        if (frame.Task.Callback != 0x716C20 || frame.Task.Payload.IsDefault || frame.Task.PayloadLength != 0xD0 - 12 || frame.Actor.Index != frame.Task.ReadByte(0x2D) || frame.Actor.Index is < 0 or > 6)
         {
             throw new InvalidDataException("Native Choco actor secondary requires its complete selected actor and task.");
         }

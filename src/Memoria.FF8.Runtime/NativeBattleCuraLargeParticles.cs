@@ -242,7 +242,7 @@ public static partial class NativeBattleCuraParticles
         {
             NativeBattleCuraSceneResource scene = resources.Scenes.Single(source => source.Address == profile.Resource(sourceAddress));
             NativeBattleGfAnimationSource source = new(scene.Address, scene.Data);
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(0x60 - 12).ToArray().ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x60 - 12).ToArray().ToImmutableArray());
             switch (Phase())
             {
                 case 0:
@@ -263,7 +263,7 @@ public static partial class NativeBattleCuraParticles
                         WriteWorkspace(current);
                         NativeBattleModulePacketBatch batch = NativeBattleCuraScenePackets.Emit88AF90(scene, node, parent, projection, wide ? 0x40000030u : 0x30u, profile.ReadSceneFade(frame.Memory));
                         Execute(new NativeBattleCuraMeshOperation(batch));
-                        return new(task.Payload.AsSpan().Slice(0x60 - 12).ToArray().ToImmutableArray());
+                        return new(task.ReadRawPayloadSpan().Slice(0x60 - 12).ToArray().ToImmutableArray());
                     });
                     WriteWorkspace(step.Workspace);
                     if (step.Remaining == 0)
@@ -280,9 +280,7 @@ public static partial class NativeBattleCuraParticles
         }
         void WriteWorkspace(NativeBattleGfAnimationWorkspace workspace)
         {
-            byte[] payload = task.Payload.ToArray();
-            workspace.Data.AsSpan().CopyTo(payload.AsSpan(0x60 - 12));
-            task = task with { Payload = payload.ToImmutableArray() };
+            task = task.WriteRetainedBytes(0x60, workspace.Data.AsSpan());
         }
         void CopiedActor()
         {

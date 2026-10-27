@@ -9,7 +9,7 @@ public sealed partial class BattleSession
     {
         private void InitializeCloudDeltas()
         {
-            NativeBattleTornado146Work work = new(state);
+            using NativeBattleTornado146Work work = new(state);
             for (int vertex = 0; vertex < 120; vertex++)
             {
                 for (int axis = 0; axis < 3; axis++)
@@ -35,7 +35,7 @@ public sealed partial class BattleSession
             ImmutableArray<byte> vertices = resources.CloudTarget;
             if (age < 12)
             {
-                NativeBattleTornado146Work work = new(state);
+                using NativeBattleTornado146Work work = new(state);
                 for (int vertex = 0; vertex < 120; vertex++)
                 {
                     for (int axis = 0; axis < 3; axis++)
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
 
         private int Sparks(ref NativeBattleModulePoolTask task)
         {
-            NativeBattleTornado146Work work = new(state);
+            using NativeBattleTornado146Work work = new(state);
             List<(NativeBattleVector Point, int Size, int Frame)> draws = [];
             for (int index = 0; index < 60; index++)
             {
@@ -131,7 +131,7 @@ public sealed partial class BattleSession
 
         private int Debris(ref NativeBattleModulePoolTask task)
         {
-            NativeBattleTornado146Work work = new(state);
+            using NativeBattleTornado146Work work = new(state);
             List<(NativeBattleVector Point, int Size, int Frame)> draws = [];
             int start = Word(task, 14);
             for (int index = start; index < start + 20; index++)

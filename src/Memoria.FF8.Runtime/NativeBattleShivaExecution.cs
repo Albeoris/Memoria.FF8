@@ -464,7 +464,7 @@ public static class NativeBattleShivaExecution
         {
             int slot = Slot(address);
             NativeBattleModulePoolTask current = Children.Slots[slot];
-            SetChildren(Children with { Slots = Children.Slots.SetItem(slot, task with { Next = current.Next }) });
+            SetChildren(Children.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, current.Next, task.Callback)));
         }
 
         private uint Append(uint callback)
@@ -472,7 +472,7 @@ public static class NativeBattleShivaExecution
             NativeBattleEffectTaskPool pool = Children;
             int slot;
             (pool, slot) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, 0).WriteWord(0x0E, 0)) };
+            pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0x0C, 0).WriteWord(0x0E, 0));
             SetChildren(pool);
             return checked(pool.BankAddress + (uint)(slot * pool.Stride));
         }

@@ -124,7 +124,7 @@ public static partial class NativeBattleNoMercy200Controller
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, alive == 0 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), alive == 0 ? 2 : 0);
 
         void SetWord(uint address, int value)
         {

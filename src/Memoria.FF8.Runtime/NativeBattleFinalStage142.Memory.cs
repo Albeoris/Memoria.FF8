@@ -77,9 +77,6 @@ public sealed partial record NativeBattleFinalStage142State
     {
         ArgumentNullException.ThrowIfNull(bank);
         bank.Validate();
-        if (bank.Regions.Any(region => region.Offset > 1024 - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset > 1024 - region.Length))
-        {
-            throw new InvalidDataException("Native final stage overlay bank storage exceeds its original1024 bytes.");
-        }
+        bank.ValidateExtent(1024);
     }
 }

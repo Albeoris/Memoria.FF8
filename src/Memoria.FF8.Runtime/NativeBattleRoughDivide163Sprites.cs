@@ -52,7 +52,7 @@ public static partial class NativeBattleRoughDivide163Controller
                 }
                 else
                 {
-                    staging = staging.Write(record + 8, task.Payload.AsSpan(4, 8));
+                    staging = staging.Write(record + 8, task.ReadRawPayloadSpan().Slice(4, 8));
                 }
                 if (flag is 1 or 2)
                 {
@@ -125,7 +125,7 @@ public static partial class NativeBattleRoughDivide163Controller
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, alive == 0 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), alive == 0 ? 2 : 0);
 
         int Rand()
         {

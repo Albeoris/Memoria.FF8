@@ -27,9 +27,7 @@ public static partial class NativeBattleWendigoController
         }
         private static NativeBattleModulePoolTask PrimWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
         {
-            byte[] payload = task.Payload.ToArray();
-            workspace.Data.AsSpan().CopyTo(payload.AsSpan(0x94 - 12));
-            return task with { Payload = payload.ToImmutableArray() };
+            return task.WriteRetainedBytes(0x94, workspace.Data.AsSpan());
         }
         private void InitializePrim(uint address)
         {

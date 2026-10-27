@@ -21,23 +21,40 @@ public sealed record NativeBattleNeedlesFamilyState(ushort Effect, [property: Js
     {
         Globals.Validate();
         Packets.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            Require(checked(Profile.BaseAddress + (uint)region.Offset), region.Data.Length);
+            Require(checked(Profile.BaseAddress + (uint)region.Offset), region.Length);
         }
-        if (Globals.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > Profile.Length - region.Length) || Packets.Regions.Any(region => region.Offset < 0 || region.Offset > NativeBattleNeedlesFamilyProfile.PacketBytes - region.Data.Length) || Packets.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > NativeBattleNeedlesFamilyProfile.PacketBytes - region.Length))
+        if (Globals.EnumerateUnknownRanges().Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > Profile.Length - region.Length) || Packets.EnumerateDataRanges().Any(region => region.Offset < 0 || region.Offset > NativeBattleNeedlesFamilyProfile.PacketBytes - region.Length) || Packets.EnumerateUnknownRanges().Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > NativeBattleNeedlesFamilyProfile.PacketBytes - region.Length))
         {
             throw new InvalidDataException("Needles retained memory leaves its physical owner.");
         }
     }
     public byte[] Read(uint address, int length) => Globals.Read(Require(address, length), length);
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
-    public NativeBattleNeedlesFamilyState Write(uint address, ReadOnlySpan<byte> bytes) => this with { Globals = Globals.Write(Require(address, bytes.Length), bytes) };
-    public NativeBattleNeedlesFamilyState WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleNeedlesFamilyState Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        Globals.Write(Require(address, bytes.Length), bytes);
+        return this;
+    }
+    public NativeBattleNeedlesFamilyState WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     public NativeBattleEffectArena ReadView(uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(Globals, Require(address, length), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
-    public NativeBattleNeedlesFamilyState WriteView(uint address, NativeBattleEffectArena source, int length) => this with { Globals = NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length) };
+    public NativeBattleNeedlesFamilyState WriteView(uint address, NativeBattleEffectArena source, int length)
+    {
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length);
+        return this;
+    }
     public byte[] ReadPacket(uint address, int length) => Packets.Read(PacketOffset(address, length), length);
-    public NativeBattleNeedlesFamilyState WritePacket(uint address, ReadOnlySpan<byte> bytes) => this with { Packets = Packets.Write(PacketOffset(address, bytes.Length), bytes) };
+    public NativeBattleNeedlesFamilyState WritePacket(uint address, ReadOnlySpan<byte> bytes)
+    {
+        Packets.Write(PacketOffset(address, bytes.Length), bytes);
+        return this;
+    }
     private int Require(uint address, int length)
     {
         NativeBattleNeedlesFamilyProfile p = Profile;

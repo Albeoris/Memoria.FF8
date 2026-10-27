@@ -79,7 +79,7 @@ public static partial class NativeBattleSiren95Controller
             throw new NotSupportedException("Native Siren resource completion pointer is not a root byte.");
         }
         int slot = (int)(relative / pool.Stride);
-        return effect with { Pools = effect.Pools.SetItem(poolIndex, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x62, value)) }) };
+        return effect with { Pools = effect.Pools.SetItem(poolIndex, pool.WriteSlot(slot, pool.Slots[slot].WriteByte(0x62, value))) };
     }
 
     private static NativeBattleSiren95State RequireState(NativeBattleSiren95Frame frame)

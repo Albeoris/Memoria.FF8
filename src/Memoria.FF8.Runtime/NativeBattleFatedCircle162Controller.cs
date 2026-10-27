@@ -99,7 +99,7 @@ public static partial class NativeBattleFatedCircle162Controller
                 Execute(new NativeBattleFatedCircle162EnqueueTexture());
                 NativeBattleEffectTaskPool main = frame.Effect.Pools[0];
                 (main, int loader) = main.Append(0x5FCFF0);
-                main = main with { Slots = main.Slots.SetItem(loader, main.Slots[loader].WriteWord(12, 0)) };
+                main = main.WriteSlot(loader, main.Slots[loader].WriteWord(12, 0));
                 frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, main) } };
                 break;
             case 110:
@@ -162,8 +162,8 @@ public static partial class NativeBattleFatedCircle162Controller
         {
             Execute(new NativeBattleFatedCircle162Sound(unchecked((uint)ReadDword(frame.Staging, 0xDA8C6C))));
         }
-        task = task.WriteWord(12, unchecked((ushort)(counter + 1))) with { Next = pool.Slots[slot].Next };
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        task = task.WriteWord(12, unchecked((ushort)(counter + 1))).SetNext(pool.Slots[slot].Next);
+        pool = pool.WriteSlot(slot, task);
         if (Word(task, 12) <= 170)
         {
             return new(frame, pool, 0);
@@ -179,12 +179,12 @@ public static partial class NativeBattleFatedCircle162Controller
             {
                 child = writePadding ? Position(child, position) : PositionXyz(child, position);
             }
-            pool = pool with { Slots = pool.Slots.SetItem(created, child) };
+            pool = pool.WriteSlot(created, child);
             return created;
         }
         void Set(int targetSlot, int offset, int value)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(targetSlot, pool.Slots[targetSlot].WriteWord(offset, unchecked((ushort)value))) };
+            pool = pool.WriteSlot(targetSlot, pool.Slots[targetSlot].WriteWord(offset, unchecked((ushort)value)));
         }
         int Rand()
         {

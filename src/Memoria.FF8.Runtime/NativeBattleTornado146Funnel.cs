@@ -11,7 +11,7 @@ public static class NativeBattleTornado146Funnel
 
     public static NativeBattleTornado146State Initialize6152E0(NativeBattleTornado146State state)
     {
-        NativeBattleTornado146Work work = new(state);
+        using NativeBattleTornado146Work work = new(state);
         for (int texture = 0; texture < 2; texture++)
         {
             uint basis = texture == 0 ? 0x2495230u : 0x2497A30u;
@@ -112,7 +112,7 @@ public static class NativeBattleTornado146Funnel
             frequency = 2048 + (-fraction * 768 >> 12);
             phase = fraction * 768 >> 12;
         }
-        NativeBattleTornado146Work work = new(state);
+        using NativeBattleTornado146Work work = new(state);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 40);
         Scratch scratch = new(allocation.Staging, allocation.Address, 40);
         for (int ring = 16; ring >= 0; ring--)
@@ -165,7 +165,7 @@ public static class NativeBattleTornado146Funnel
 
     private static (NativeBattleTornado146State State, NativeBattleLogicalOrdering Ordering, NativeBattleFileStaging Staging) Draw(NativeBattleTornado146State state, NativeBattleLogicalOrdering ordering, NativeBattleFileStaging staging, NativeBattleCameraProjection projection, int age)
     {
-        NativeBattleTornado146Work work = new(state);
+        using NativeBattleTornado146Work work = new(state);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 288);
         Scratch scratch = new(allocation.Staging, allocation.Address, 288);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();

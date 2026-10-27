@@ -57,6 +57,6 @@ public static partial class NativeBattleLionHeart165Controller
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
         bool released = callback == 0x5EB790 ? Word(task, 12) >= 48 : task.ReadWord(12) >= (callback == 0x5ED760 ? 40 : 24);
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, released ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), released ? 2 : 0);
     }
 }

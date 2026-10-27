@@ -26,7 +26,7 @@ public static partial class NativeBattleBreath129Controller
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Breath requires its current arena."), tim);
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (roots, int slot) = roots.Append(0x6B4CB0);
-        roots = roots with { Slots = roots.Slots.SetItem(slot, roots.Slots[slot].WriteBytes(12, new byte[8])) };
+        roots = roots.WriteSlot(slot, roots.Slots[slot].WriteBytes(12, new byte[8]));
         NativeBattleBreath129State state = frame.State.RequireSeeds(resources).WriteDword(0x2521158, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(0x2521160, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
         return frame with { State = state with { RootBankStorage = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [roots], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }

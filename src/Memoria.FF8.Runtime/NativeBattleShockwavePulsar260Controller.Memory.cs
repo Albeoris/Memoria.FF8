@@ -29,7 +29,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
             if (offset < pool.Stride * pool.Slots.Length && offset % pool.Stride == 0)
             {
                 int slot = (int)(offset / pool.Stride);
-                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) });
+                return WithPool(frame, index, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)));
             }
         }
         throw new InvalidDataException("Shockwave Pulsar task leaves its original task pools.");
@@ -55,7 +55,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
                     throw new InvalidDataException("Shockwave Pulsar physical view crosses a task payload boundary.");
                 }
                 NativeBattleModulePoolTask task = pool.Slots[(int)(relative / pool.Stride)];
-                NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(offset - 12, length));
+                NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
                 if (task.UnknownPayloadRanges is { } ranges)
                 {
                     foreach (NativeBattleEffectUnknownRegion range in ranges)
@@ -119,7 +119,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
     public static NativeBattleShockwavePulsar260Frame InitializeAct(NativeBattleShockwavePulsar260Frame frame, uint address, int offset, int size, uint sourceAddress, NativeBattleShockwavePulsar260Resources resources)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(offset - 12, size).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(offset - 12, size).ToArray().ToImmutableArray());
         workspace = workspace.Initialize7016B0(resources.Act(sourceAddress), size);
         return Write(frame, address, task.WriteBytes(offset, workspace.Data.AsSpan()));
     }

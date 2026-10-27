@@ -60,7 +60,7 @@ public static partial class NativeBattleRinoa89Controller
                 {
                     continue;
                 }
-                NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
+                using NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
                 byte[] bytes = new byte[24];
                 BinaryPrimitives.WriteUInt32LittleEndian(bytes, 0x14A07F4);
                 for (int axis = 0; axis < 3; axis++)
@@ -74,7 +74,7 @@ public static partial class NativeBattleRinoa89Controller
                 frame = frame with { Memory = frame.Memory with { Arena = writer.Freeze() } };
                 continue;
             }
-            NativeBattleEffectArenaWriter updates = new(RequireArena(frame));
+            using NativeBattleEffectArenaWriter updates = new(RequireArena(frame));
             updates.Write(offset, emitter.AsSpan(0, 1));
             for (int axis = 0; axis < 4; axis++)
             {

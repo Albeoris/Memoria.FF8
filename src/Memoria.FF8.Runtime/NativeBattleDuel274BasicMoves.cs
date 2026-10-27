@@ -219,7 +219,7 @@ public static partial class NativeBattleDuel274BasicMoves
         pool = frame.Effect.Pools[index];
         task = pool.Slots[slot];
         ushort counter = unchecked((ushort)(task.ReadWord(18) + 1));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(18, counter)) };
+        pool = pool.WriteSlot(slot, task.WriteWord(18, counter));
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
         return new(frame, pool, counter < 8 ? 0 : 2);
     }
@@ -239,7 +239,7 @@ public static partial class NativeBattleDuel274BasicMoves
         {
             task = task.WriteWord(16, unchecked((ushort)(position.Z - 128)));
         }
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, task) }) } };
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool.WriteSlot(slot, task)) } };
     }
 
     private static NativeBattleDuel274Frame Emit68B5E0(NativeBattleDuel274Frame frame, int model, short bone, NativeBattleDuel274MoveInputs inputs)
@@ -264,7 +264,7 @@ public static partial class NativeBattleDuel274BasicMoves
                     task = task.WriteWord(offset, 0);
                 }
             }
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         return frame with { Random = random, Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     }
@@ -332,6 +332,6 @@ public static partial class NativeBattleDuel274BasicMoves
     private static NativeBattleDuel274Frame Store(NativeBattleDuel274Frame frame, int slot, NativeBattleModulePoolTask task)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(slot, task) }) } };
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool.WriteSlot(slot, task)) } };
     }
 }

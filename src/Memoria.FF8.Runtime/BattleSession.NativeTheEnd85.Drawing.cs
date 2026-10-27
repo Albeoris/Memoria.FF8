@@ -149,7 +149,7 @@ public sealed partial class BattleSession
                     }
                     NativeBattleModulePoolTask task = pool.Slots[slot];
                     task.RequireKnownPayload(offset, length);
-                    return task.Payload.AsSpan().Slice(offset - 12, length).ToArray();
+                    return task.ReadRawPayloadSpan().Slice(offset - 12, length).ToArray();
                 }
             }
             if (address >= 0x20DFAB8 && (ulong)address - 0x20DFAB8 + (uint)length <= NativeBattleEffectArena.Length)
@@ -181,9 +181,7 @@ public sealed partial class BattleSession
                     }
                     uint taskAddress = address - (uint)offset;
                     NativeBattleModulePoolTask task = Task(taskAddress);
-                    byte[] payload = task.Payload.ToArray();
-                    bytes.AsSpan().CopyTo(payload.AsSpan(offset - 12));
-                    Put(taskAddress, (task with { Payload = payload.ToImmutableArray() }).WithoutUnknownPayload(offset, bytes.Length).WithoutResourcePointers(offset, bytes.Length));
+                    Put(taskAddress, task.WriteBytes(offset, bytes.AsSpan()));
                     return;
                 }
             }

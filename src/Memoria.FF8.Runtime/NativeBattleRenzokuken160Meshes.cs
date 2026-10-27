@@ -24,7 +24,7 @@ public static partial class NativeBattleRenzokuken160Controller
         }
         short speed = Word(task, 34);
         task = task.WriteWord(32, unchecked((ushort)(task.ReadWord(32) + speed))).WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1))).WriteWord(34, unchecked((ushort)(speed - (speed >> 2))));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= 12 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= 12 ? 2 : 0);
 
         void Draw(uint address, NativeBattleActionMatrix basis, NativeBattleModuleMeshContext parameters)
         {
@@ -84,7 +84,7 @@ public static partial class NativeBattleRenzokuken160Controller
         }
         short expansion = Word(task, 30);
         task = task.WriteWord(28, unchecked((ushort)(task.ReadWord(28) + expansion))).WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1))).WriteWord(30, unchecked((ushort)(expansion - expansion / 6)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= 8 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= 8 ? 2 : 0);
 
         void Draw(uint address, NativeBattleActionMatrix basis, NativeBattleModuleMeshContext parameters)
         {

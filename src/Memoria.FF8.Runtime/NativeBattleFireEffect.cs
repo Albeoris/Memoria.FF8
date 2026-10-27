@@ -15,7 +15,7 @@ public static partial class NativeBattleFireEffect
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x24CA828, 0x24CA818, 16, 1);
         (main, int mainSlot) = main.Append(0x62A610);
-        main = main with { Slots = main.Slots.SetItem(mainSlot, main.Slots[mainSlot].WriteWord(12, 0)) };
+        main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x24CA838, 0x24CA848, 36, 150);
         bool multiple = header.ReadByte(16) > 1;
         (children, int childSlot) = children.Append(multiple ? 0x629990u : 0x62A380u);
@@ -25,7 +25,7 @@ public static partial class NativeBattleFireEffect
             int first = header.FirstContactIndex ?? throw new InvalidDataException("Native Fire requires its actual physical contact pointer even for a zero-count header.");
             child = child.WriteWord(32, packets.ReadContact(first).Primary.ActorIndex);
         }
-        children = children with { Slots = children.Slots.SetItem(childSlot, child) };
+        children = children.WriteSlot(childSlot, child);
         return effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress, FireModelCompletion = System.Collections.Immutable.ImmutableArray.Create(1, 1, 1, 1, 1, 1, 1) };
     }
 

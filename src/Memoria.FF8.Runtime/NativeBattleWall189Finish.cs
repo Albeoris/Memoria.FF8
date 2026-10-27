@@ -28,7 +28,7 @@ public static class NativeBattleWall189Finish
         {
             throw new InvalidDataException("Native Wall texture completion has no active original outro task.");
         }
-        roots = roots with { Slots = roots.Slots.SetItem(index, task.WriteByte(14, value)) };
+        roots = roots.WriteSlot(index, task.WriteByte(14, value));
         return effect with { Pools = effect.Pools.SetItem(0, roots) };
     }
 }

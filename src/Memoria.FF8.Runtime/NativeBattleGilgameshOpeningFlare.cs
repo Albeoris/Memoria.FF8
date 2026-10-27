@@ -34,12 +34,12 @@ public static class NativeBattleGilgameshOpeningFlare
         int slot;
         (pool, slot) = pool.Append(0x593250);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(16, unchecked((ushort)(rotated.X + (short)world.X))).WriteWord(18, unchecked((ushort)(rotated.Y + (short)world.Y))).WriteWord(20, unchecked((ushort)(rotated.Z + (short)world.Z))).WriteWord(32, 800).WriteWord(34, 800);
-        return pool with { Slots = pool.Slots.SetItem(slot, task) };
+        return pool.WriteSlot(slot, task);
     }
 
     public static NativeBattleGilgameshOpeningFlareStep Step593250(NativeBattleModulePoolTask task, NativeBattleGilgameshOpeningFlareState state, NativeBattleGilgameshOpeningFlareResources resources, NativeBattleVector cameraEye, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short dqa, int dqb, uint graphicsFlags)
     {
-        if (task is null || task.Callback != 0x593250 || task.Payload.IsDefault || task.Payload.Length != 24)
+        if (task is null || task.Callback != 0x593250 || task.Payload.IsDefault || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native593250 requires its actual raw0x24-byte flare task.");
         }

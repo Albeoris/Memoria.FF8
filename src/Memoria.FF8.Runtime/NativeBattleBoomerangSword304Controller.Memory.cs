@@ -28,7 +28,7 @@ public static partial class NativeBattleBoomerangSword304Controller
             if (offset < (uint)(pool.Stride * pool.Slots.Length) && offset % pool.Stride == 0)
             {
                 int slot = (int)(offset / pool.Stride);
-                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) });
+                return WithPool(frame, index, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)));
             }
         }
         throw new InvalidDataException("Boomerang Sword task write leaves its canonical physical pools.");
@@ -146,7 +146,7 @@ public static partial class NativeBattleBoomerangSword304Controller
     public static NativeBattleBoomerangSword304Frame PublishContext(NativeBattleBoomerangSword304Frame frame, uint address, NativeBattleEffectArena context, int length) => frame with { Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), address, context, length) };
     public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(offset - 12, length));
+        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
         if (task.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)

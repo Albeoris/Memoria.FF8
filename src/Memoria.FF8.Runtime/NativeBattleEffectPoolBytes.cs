@@ -82,7 +82,7 @@ public static class NativeBattleEffectPoolBytes
                 {
                     throw new NotSupportedException("Native task descriptor mutation changes the physical bank dimensions.");
                 }
-                pool = pool with { Head = Index(pool, BinaryPrimitives.ReadUInt32LittleEndian(descriptor)), Tail = Index(pool, BinaryPrimitives.ReadUInt32LittleEndian(descriptor.AsSpan(4))) };
+                pool = pool.UpdateLinks(Index(pool, BinaryPrimitives.ReadUInt32LittleEndian(descriptor)), Index(pool, BinaryPrimitives.ReadUInt32LittleEndian(descriptor.AsSpan(4))));
                 index += count;
                 continue;
             }
@@ -94,13 +94,13 @@ public static class NativeBattleEffectPoolBytes
                 length = Math.Min(length, 12 - field);
                 byte[] header = Header(pool, task);
                 bytes.Slice(index, length).CopyTo(header.AsSpan(field));
-                task = task with { Flags = BinaryPrimitives.ReadUInt16LittleEndian(header), State = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(2)), Next = Index(pool, BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(4))), Callback = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(8)) };
+                task = task.UpdateHeader(BinaryPrimitives.ReadUInt16LittleEndian(header), BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(2)), Index(pool, BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(4))), BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(8)));
             }
             else
             {
                 task = task.WriteBytes(field, bytes.Slice(index, length));
             }
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
             index += length;
         }
         return pool;

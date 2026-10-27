@@ -25,7 +25,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         BinaryPrimitives.WriteInt32LittleEndian(storage.AsSpan(row * 32), -1);
         frame = Store(frame, state with { ExtraStorage = storage.ToImmutableArray() });
         (pool, int slot) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 0).WriteWord(14, checked((ushort)row))) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 0).WriteWord(14, checked((ushort)row)));
         return (frame, pool, slot);
     }
 
@@ -62,7 +62,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                 StoredWrite(bank, offset + 6, StoredRand(2176) + 1792);
                 if (direct340)
                 {
-                    task.Payload.AsSpan().Slice(16, 8).CopyTo(bank.AsSpan(offset + 8, 8));
+                    task.ReadRawPayloadSpan().Slice(16, 8).CopyTo(bank.AsSpan(offset + 8, 8));
                 }
                 else
                 {
@@ -118,7 +118,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             BinaryPrimitives.WriteInt32LittleEndian(bank.AsSpan(source), 0);
             frame = Store(frame, ReadState(frame) with { ExtraStorage = bank.ToImmutableArray() });
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, alive == 0 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), alive == 0 ? 2 : 0);
 
         int StoredRand(int maximum)
         {

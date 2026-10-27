@@ -4,91 +4,152 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed partial record NativeBattleEffectArena
+public partial record NativeBattleEffectArena
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableDictionary<int, NativeBattleResourcePointer?>? ResourcePointers { get; init; }
-
-    private void ValidateResourcePointerStorage()
+    public ImmutableDictionary<int, NativeBattleResourcePointer?>? ResourcePointers
     {
-        if (ResourcePointers is null)
+        get
         {
-            return;
+            RequireSnapshotEnumeration();
+            return initialPointers;
         }
-        foreach (var entry in ResourcePointers)
+        init
         {
-            RequireRange(entry.Key, 4);
-            NativeBattleResourcePointer? pointer = entry.Value;
-            if (pointer is not null && !pointer.HasValidOwner())
-            {
-                throw new InvalidDataException("Native arena resource pointer has an invalid source owner.");
-            }
-            if ((pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress) is uint numeric)
-            {
-                if (IntersectsUnknown(entry.Key, 4) || BinaryPrimitives.ReadUInt32LittleEndian(ReadStorage(entry.Key, 4)) != numeric)
-                {
-                    throw new InvalidDataException("Native arena resource pointer differs from its physical bytes.");
-                }
-            }
-            else if (Enumerable.Range(entry.Key, 4).Any(offset => !IntersectsUnknown(offset, 1)))
-            {
-                throw new InvalidDataException("Native symbolic arena resource pointer must retain unknown numeric bytes.");
-            }
+            RequireImportMetadata();
+            initialPointers = value;
         }
     }
 
-    private NativeBattleEffectArena? RemoveResourcePointers(int offset, int length)
+    public bool TryGetResourcePointer(int offset, out NativeBattleResourcePointer? pointer)
     {
-        if (ResourcePointers is null || length <= 0)
+        RequireRange(offset, 4);
+        if (TryEffectiveRoute(offset, 4, out NativeBattleEffectArenaTransaction? transaction, out int routedOffset))
         {
-            return null;
+            return transaction!.TryGetResourcePointer(routedOffset, out pointer);
         }
-        var updated = ResourcePointers.RemoveRange(ResourcePointers.Keys.Where(pointer => pointer < (long)offset + length && pointer + 4L > offset));
-        return updated.Count == ResourcePointers.Count ? null : this with { ResourcePointers = updated.Count == 0 ? null : updated };
+        if (!IsSnapshot)
+        {
+            return Working.TryGetResourcePointer(workingOffset + offset, out pointer);
+        }
+        Validate();
+        pointer = null;
+        return initialPointers is not null && initialPointers.TryGetValue(offset, out pointer);
     }
 
     public NativeBattleResourcePointer? ReadResourcePointer(int offset)
+        => TryGetResourcePointer(offset, out NativeBattleResourcePointer? pointer) ? pointer : new(null, ReadUInt32(offset));
+
+    public IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> EnumerateResourcePointers()
     {
-        RequireRange(offset, 4);
-        var pointers = Transaction is { } transaction ? transaction.ResourcePointers : ResourcePointers;
-        if (pointers is not null && pointers.TryGetValue(offset, out NativeBattleResourcePointer? pointer))
+        if (TryEffectiveRoute(0, bound, out NativeBattleEffectArenaTransaction? transaction, out int routedOffset))
         {
-            var bytes = ReadSnapshot(offset, 4);
-            if ((pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress) is uint numeric)
+            foreach ((int offset, NativeBattleResourcePointer? pointer) in transaction!.EnumerateResourcePointers())
             {
-                if (bytes.Known.Any(value => !value) || BinaryPrimitives.ReadUInt32LittleEndian(bytes.Data) != numeric)
+                int relative = offset - routedOffset;
+                if (relative >= 0 && relative <= bound - 4)
                 {
-                    throw new InvalidDataException("Native arena pointer metadata differs from its physical DWORD.");
+                    yield return new(relative, pointer);
                 }
             }
-            else if (bytes.Known.Any(value => value))
-            {
-                throw new InvalidDataException("Native symbolic arena pointer has fabricated numeric bytes.");
-            }
-            return pointer;
         }
-        return new(null, BinaryPrimitives.ReadUInt32LittleEndian(Read(offset, 4)));
+        else if (IsSnapshot)
+        {
+            Validate();
+            if (initialPointers is not null)
+            {
+                foreach (var pointer in initialPointers)
+                {
+                    yield return pointer;
+                }
+            }
+        }
+        else
+        {
+            using var pointers = Working.EnumerateResourcePointers();
+            while (pointers.MoveNext())
+            {
+                int offset = pointers.Current.Key - workingOffset;
+                if (offset >= 0 && offset <= bound - 4)
+                {
+                    yield return new(offset, pointers.Current.Value);
+                }
+            }
+        }
     }
 
     public NativeBattleEffectArena WriteResourcePointer(int offset, NativeBattleResourcePointer? pointer)
     {
+        RequireWritable();
         RequireRange(offset, 4);
-        NativeBattleEffectArena current;
-        if ((pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress) is uint numeric)
+        ValidatePointer(pointer);
+        if (TryEffectiveRoute(offset, 4, out NativeBattleEffectArenaTransaction? transaction, out int routedOffset))
         {
-            byte[] bytes = new byte[4];
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes, numeric);
-            current = Write(offset, bytes);
+            transaction!.WriteResourcePointer(routedOffset, pointer);
         }
         else
         {
-            current = MarkUnknown(offset, 4);
+            PrepareCoverage(1);
+            long previousVersion = Working.Version;
+            try
+            {
+                Working.SetResourcePointer(workingOffset + offset, pointer);
+            }
+            finally
+            {
+                if (Working.Version != previousVersion)
+                {
+                    RecordCoverage(offset, 4);
+                    bool numeric = (pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress) is not null;
+                    if (numeric)
+                    {
+                        RecordDataCoverage(offset, 4);
+                    }
+                    RecordKnowledge(offset, 4, numeric);
+                }
+            }
         }
-        if (current.Transaction is { } transaction)
-        {
-            transaction.SetResourcePointer(offset, pointer);
-            return current;
-        }
-        return current with { ResourcePointers = (current.ResourcePointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty).SetItem(offset, pointer) };
+        return this;
     }
+
+    internal static void ValidatePointer(NativeBattleResourcePointer? pointer)
+    {
+        if (pointer is not null && !pointer.HasValidOwner())
+        {
+            throw new InvalidDataException("Native arena resource pointer has an invalid source owner.");
+        }
+    }
+
+    private void ValidateResourcePointerStorage()
+    {
+        if (initialPointers is null)
+        {
+            return;
+        }
+        Span<byte> bytes = stackalloc byte[4];
+        foreach ((int offset, NativeBattleResourcePointer? pointer) in initialPointers)
+        {
+            RequireRange(offset, 4);
+            ValidatePointer(pointer);
+            if ((pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress) is uint numeric)
+            {
+                ReadImportData(offset, bytes);
+                if (IntersectsUnknown(offset, 4) || BinaryPrimitives.ReadUInt32LittleEndian(bytes) != numeric)
+                {
+                    throw new InvalidDataException("Native arena resource pointer differs from its physical bytes.");
+                }
+            }
+            else
+            {
+                for (int index = 0; index < 4; index++)
+                {
+                    if (!IntersectsUnknown(offset + index, 1))
+                    {
+                        throw new InvalidDataException("Native symbolic arena resource pointer must retain unknown numeric bytes.");
+                    }
+                }
+            }
+        }
+    }
+
 }

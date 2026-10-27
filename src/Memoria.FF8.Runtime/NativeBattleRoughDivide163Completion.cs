@@ -21,7 +21,7 @@ public static partial class NativeBattleRoughDivide163Controller
             throw new InvalidDataException("Native Rough Divide completion requires its live texture task.");
         }
         task = task.WriteWord(14, (ushort)((task.ReadWord(14) & 0xFF00) | value));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         return effect with { Pools = effect.Pools.SetItem(effect.Pools.IndexOf(effect.Pools.Single(current => current.DescriptorAddress == 0x23CA1C8)), pool) };
     }
 }

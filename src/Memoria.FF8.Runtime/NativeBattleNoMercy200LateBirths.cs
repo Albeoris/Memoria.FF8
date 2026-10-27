@@ -6,7 +6,7 @@ public static partial class NativeBattleNoMercy200Controller
     {
         (pool, int slot) = pool.Append(0x63D230);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(16, unchecked((ushort)-310)).WriteWord(18, unchecked((ushort)-200)).WriteWord(20, unchecked((ushort)-350)).WriteWord(28, 1280).WriteWord(30, 1280);
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+        return new(frame, pool.WriteSlot(slot, task), 0);
     }
 
     public static NativeBattleNoMercy200ChildStep Begin63DAF0(NativeBattleNoMercy200Frame frame, NativeBattleEffectTaskPool pool, NativeBattleNoMercy200TargetInputs inputs)
@@ -18,7 +18,7 @@ public static partial class NativeBattleNoMercy200Controller
             task = task.WriteWord(24, (ushort)(Rand() % 2048)).WriteWord(26, unchecked((ushort)(Rand() % 1024 - 512)));
             ushort scale = (ushort)((Rand() % 3072 + 4608) / 3);
             task = task.WriteWord(28, scale).WriteWord(30, scale);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         return new(frame, pool, 0);
 
@@ -37,15 +37,15 @@ public static partial class NativeBattleNoMercy200Controller
             int displacement = unchecked(2000 * inputs.ReadScale38(actor)) >> 12;
             (pool, int first) = pool.Append(0x63DE90);
             NativeBattleModulePoolTask task = pool.Slots[first].WriteWord(12, 0).WriteWord(14, index).WriteWord(24, unchecked((ushort)displacement)).WriteWord(26, checked((ushort)actor));
-            pool = pool with { Slots = pool.Slots.SetItem(first, task) };
+            pool = pool.WriteSlot(first, task);
             (pool, int second) = pool.Append(0x63E170);
             task = Anchor(pool.Slots[second].WriteWord(12, 0).WriteWord(14, index), inputs.ReadAnchor(actor)).WriteWord(24, unchecked((ushort)displacement)).WriteWord(26, checked((ushort)actor));
-            pool = pool with { Slots = pool.Slots.SetItem(second, task) };
+            pool = pool.WriteSlot(second, task);
             (pool, int third) = pool.Append(0x63E4E0);
             task = CopyPoint(pool.Slots[third].WriteWord(12, 0), task).WriteWord(24, (ushort)(Rand() % 2048)).WriteWord(26, (ushort)(Rand() % 120 + 50));
             ushort scale = (ushort)((Rand() % 2560 + 1536) / 4);
             task = task.WriteWord(28, scale).WriteWord(30, scale).WriteWord(32, (ushort)(Rand() % 1024 + 1280));
-            pool = pool with { Slots = pool.Slots.SetItem(third, task) };
+            pool = pool.WriteSlot(third, task);
             index++;
         }
         return new(frame, pool, 0);

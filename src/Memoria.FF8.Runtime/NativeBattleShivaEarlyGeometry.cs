@@ -19,7 +19,7 @@ public static class NativeBattleShivaEarlyGeometry
         {
             throw new InvalidDataException("Native Shiva geometry requires its retained current/previous vectors, original37 source pairs and admitted0..36 count.");
         }
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < 74; index++)
         {
             writer.Write(VertexArenaOffset + index * 8 + 6, new byte[2]);

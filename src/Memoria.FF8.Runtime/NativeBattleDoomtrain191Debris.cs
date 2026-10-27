@@ -31,12 +31,12 @@ public static class NativeBattleDoomtrain191Debris
                 short scale = unchecked((short)(Random() % 3072 + 1152));
                 ushort stretch = unchecked((ushort)((Random() % 6144 + 1664) / 2));
                 NativeBattleModulePoolTask row = pool.Slots[child].WriteWord(0xC, 0).WriteWord(0xE, delay).WriteWord(0x10, x).WriteWord(0x12, y).WriteWord(0x14, z).WriteWord(0x16, 12).WriteWord(0x1C, unchecked((ushort)scale)).WriteWord(0x1E, unchecked((ushort)(scale / 6))).WriteWord(0x20, stretch).WriteWord(0x22, stretch);
-                frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(child, row) });
+                frame = PutPool(frame, pool.WriteSlot(child, row));
             }
         }
         pool = Pool(frame);
         ushort next = unchecked((ushort)(age + 1));
-        frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0xC, next)) });
+        frame = PutPool(frame, pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0xC, next)));
         return new(frame, unchecked((short)next) > 12 ? 2 : 0);
 
         int Random()
@@ -59,7 +59,7 @@ public static class NativeBattleDoomtrain191Debris
         {
             if (!paused)
             {
-                frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(0xE, unchecked((ushort)(task.ReadWord(0xE) - 1)))) });
+                frame = PutPool(frame, pool.WriteSlot(slot, task.WriteWord(0xE, unchecked((ushort)(task.ReadWord(0xE) - 1)))));
             }
             return new(frame, 0);
         }
@@ -98,7 +98,7 @@ public static class NativeBattleDoomtrain191Debris
         task = task.WriteWord(0x20, unchecked((ushort)Math.Min(stretch, (short)0x7000))).WriteWord(0x22, unchecked((ushort)(step - step / 8)));
         ushort next = unchecked((ushort)(age + 1));
         pool = Pool(frame);
-        frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(0xC, next) with { Next = pool.Slots[slot].Next }) });
+        frame = PutPool(frame, pool.WriteSlot(slot, task.WriteWord(0xC, next).SetNext(pool.Slots[slot].Next)));
         return new(frame, unchecked((short)next) >= Word(0x16) || (frame.Memory.Doomtrain191!.LookupCounter & 2) != 0 ? 2 : 0);
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));

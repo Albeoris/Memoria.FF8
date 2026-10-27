@@ -19,7 +19,7 @@ public static partial class NativeBattleDiablos325Puffs
         ImmutableArray<NativeBattleActionMatrix> bones = Enumerable.Range(0, count).Select(index => NativeBattleGfMatrices.Compose56C2F0(world, NativeBattleArenaPose.ReadMatrix(source, skeleton + 32 + index * 48))).ToImmutableArray();
         uint geometry = task.ReadDword(0x248);
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => source.Read(NativeBattleWaterExecutionFields.ArenaOffset(unchecked(geometry + (uint)offset), length), length), count);
-        NativeBattleEffectArenaWriter writer = new(source);
+        using NativeBattleEffectArenaWriter writer = new(source);
         int vertexIndex = 0;
         int particles = 0;
         short centerX = unchecked((short)task.ReadWord(0x160));

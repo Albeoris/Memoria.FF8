@@ -67,7 +67,7 @@ public static class NativeBattleDrinkMagic37OrbWave
     private static void ValidateMesh(NativeBattleEffectArena mesh)
     {
         mesh.Validate();
-        if (mesh.Regions.Any(region => region.Offset > NativeBattleDrinkMagic37Profile.OrbLength - region.Data.Length) || mesh.UnknownRegions.Any(region => region.Offset > NativeBattleDrinkMagic37Profile.OrbLength - region.Length) || BinaryPrimitives.ReadUInt32LittleEndian(mesh.Read(4, 4)) != 276)
+        if (mesh.ExceedsExtent(NativeBattleDrinkMagic37Profile.OrbLength) || BinaryPrimitives.ReadUInt32LittleEndian(mesh.Read(4, 4)) != 276)
         {
             throw new InvalidDataException("Drink Magic wave requires its retained addressed orb mesh.");
         }

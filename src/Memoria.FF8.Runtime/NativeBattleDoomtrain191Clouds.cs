@@ -15,7 +15,7 @@ public static class NativeBattleDoomtrain191Clouds
         NativeBattleEffectTaskPool pool = Pool(frame);
         (pool, int slot) = pool.Append(0x643340);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0xC, 0).WriteWord(0xE, profile.Duration).WriteWord(0x10, 0).WriteWord(0x12, profile.Y).WriteWord(0x14, 30000).WriteWord(0x16, profile.Count).WriteWord(0x1C, profile.Width).WriteWord(0x1E, profile.Velocity).WriteWord(0x20, profile.Scale).WriteWord(0x22, profile.Spacing);
-        return PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task) });
+        return PutPool(frame, pool.WriteSlot(slot, task));
     }
 
     public static NativeBattleDoomtrain191LeafStep Advance(NativeBattleDoomtrain191Frame frame, int slot, NativeBattleModuleResource sprite, NativeBattleDoomtrain191SteamServices services)
@@ -113,7 +113,7 @@ public static class NativeBattleDoomtrain191Clouds
             }
         }
         pool = Pool(frame);
-        frame = PutPool(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(0xC, next) with { Next = pool.Slots[slot].Next }) });
+        frame = PutPool(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, pool.WriteSlot(slot, task.WriteWord(0xC, next).SetNext(pool.Slots[slot].Next)));
         return new(frame, result);
 
         short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));

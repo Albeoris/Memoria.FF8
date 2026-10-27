@@ -15,7 +15,7 @@ public static partial class NativeBattleEvilEye282Controller
         {
             NativeBattleModulePoolTask current = Read(frame, address);
             current.RequireKnownPayload(workspaceOffset, workspaceBytes);
-            return new(current.Payload.AsSpan().Slice(workspaceOffset - 12).ToArray().ToImmutableArray());
+            return new(current.ReadRawPayloadSpan().Slice(workspaceOffset - 12).ToArray().ToImmutableArray());
         }
         NativeBattleGfAnimationSource source = resources.ReadProgramme(Workspace().ResourceAddress);
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>

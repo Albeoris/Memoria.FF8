@@ -117,7 +117,7 @@ public static class NativeBattleShivaLateChildren
         return drawMesh(frame, new(mesh, matrix, context));
     }
 
-    private static NativeBattleShivaEarlyTaskFrame Write(NativeBattleShivaEarlyTaskFrame frame, int slot, NativeBattleModulePoolTask task) => frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+    private static NativeBattleShivaEarlyTaskFrame Write(NativeBattleShivaEarlyTaskFrame frame, int slot, NativeBattleModulePoolTask task) => frame with { Pool = frame.Pool.WriteSlot(slot, task) };
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
 
     private static NativeBattleShivaEarlyTaskStep Increment(NativeBattleShivaEarlyTaskFrame frame, int slot, int limit)

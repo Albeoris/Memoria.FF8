@@ -140,7 +140,7 @@ public static class NativeBattleXatmDeath276Debris
                 }
             }
         }
-        directors = directors with { Slots = directors.Slots.SetItem(0, director) };
+        directors = directors.WriteSlot(0, director);
         return frame with { Memory = frame.Memory with { Arena = arena }, Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(7, directors) }, State = frame.State with { Seed = seed } };
     }
 

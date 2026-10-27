@@ -61,14 +61,14 @@ public sealed partial class BattleSession
                         0x608040 => Warp(ref child),
                         _ => throw new NotSupportedException("Native Ultra Waves selected an unrelated child callback.")
                     };
-                    child = child with { Next = children.Slots[childSlot].Next };
-                    return new(children with { Slots = children.Slots.SetItem(childSlot, child) }, childResult);
+                    child = child.UpdateHeader(child.Flags, child.State, children.Slots[childSlot].Next, child.Callback);
+                    return new(children.WriteSlot(childSlot, child), childResult);
                 });
                 children = childStep.Pool;
                 if (childStep.Survivors == 0)
                 {
                     (roots, int wait) = roots.Append(0x6095F0);
-                    roots = roots with { Slots = roots.Slots.SetItem(wait, roots.Slots[wait].WriteWord(12, 0).WriteWord(14, 0)) };
+                    roots = roots.WriteSlot(wait, roots.Slots[wait].WriteWord(12, 0).WriteWord(14, 0));
                 }
                 result = childStep.Survivors == 0 ? 2 : 0;
             }
@@ -80,11 +80,10 @@ public sealed partial class BattleSession
                     (NativeBattleAuxiliaryState auxiliary, _) = graphics.Auxiliary.AppendCommonTextureLoad508630(0x24224D4, completion, (address, value) =>
                     {
                         NativeBattleModulePoolTask owner = roots.Slots[slot];
-                        owner = owner with { Payload = owner.Payload.SetItem(2, value) };
-                        roots = roots with { Slots = roots.Slots.SetItem(slot, owner) };
+                        owner = owner.WriteByte(12 + (2), value);
+                        roots = roots.WriteSlot(slot, owner);
                     });
                     graphics = graphics with { Auxiliary = auxiliary };
-                    task = task with { Payload = task.Payload.SetItem(2, roots.Slots[slot].Payload[2]) };
                 }
                 result = task.ReadWord(14) != 0 ? 2 : 0;
             }
@@ -92,8 +91,8 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Ultra Waves selected an unrelated root callback.");
             }
-            task = task.WriteWord(12, unchecked((ushort)(frame + 1))) with { Next = roots.Slots[slot].Next };
-            return new(roots with { Slots = roots.Slots.SetItem(slot, task) }, result);
+            task = task.WriteWord(12, unchecked((ushort)(frame + 1))).SetNext(roots.Slots[slot].Next);
+            return new(roots.WriteSlot(slot, task), result);
         });
         roots = rootStep.Pool;
         NativeEffectMemory = NativeEffectMemory! with { UltraWaves154 = state with { Particles = particles.ToImmutableArray() } };
@@ -126,7 +125,7 @@ public sealed partial class BattleSession
                     (x, y, z) = NativeBattleGfMatrices.Rotate56C3D0(world, resources.EmitterVectors[emitter * 2 + 1]);
                     var normalized = NativeBattleActionGeometryRules.NormalizeVector56BC50(unchecked((short)(anchor.X - position.X + unchecked((short)x))), unchecked((short)(anchor.Y - position.Y + unchecked((short)y))), unchecked((short)(anchor.Z - position.Z + unchecked((short)z))));
                     NativeBattleModulePoolTask child = children.Slots[slot].WriteWord(14, (ushort)(1 << (emitter * 2))).WriteWord(16, unchecked((ushort)position.X)).WriteWord(18, unchecked((ushort)position.Y)).WriteWord(20, unchecked((ushort)position.Z)).WriteWord(24, unchecked((ushort)normalized.X)).WriteWord(26, unchecked((ushort)normalized.Y)).WriteWord(28, unchecked((ushort)normalized.Z)).WriteWord(32, (ushort)(Roll() % 4096)).WriteWord(34, 0);
-                    children = children with { Slots = children.Slots.SetItem(slot, child) };
+                    children = children.WriteSlot(slot, child);
                     task = task.WriteWord(16, unchecked((ushort)anchor.X)).WriteWord(18, unchecked((ushort)anchor.Y)).WriteWord(20, unchecked((ushort)anchor.Z));
                 }
                 PublishNativeModuleSound(new(resources.Sound, 0, null) { Pan = 128 });
@@ -198,7 +197,7 @@ public sealed partial class BattleSession
         int Add(uint callback)
         {
             (children, int slot) = children.Append(callback);
-            children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, 0)) };
+            children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, 0));
             return slot;
         }
         int Roll()

@@ -28,7 +28,7 @@ public static partial class NativeBattleBadBreath131Controller
             if (offset < (uint)(pool.Stride * pool.Slots.Length) && offset % pool.Stride == 0)
             {
                 int slot = (int)(offset / pool.Stride);
-                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) });
+                return WithPool(frame, index, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)));
             }
         }
         throw new InvalidDataException("Bad Breath task write leaves its canonical physical pools.");

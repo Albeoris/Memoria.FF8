@@ -60,7 +60,7 @@ public static partial class NativeBattleRinoa89Controller
         short centerY = BeamCenterWord(frame, 2);
         short centerZ = BeamCenterWord(frame, 4);
         task = task.WriteDword(32, unchecked((uint)(centerX + distance * matrix.Rotation[2]))).WriteDword(36, unchecked((uint)(centerY + distance * matrix.Rotation[5]))).WriteDword(40, unchecked((uint)(centerZ + distance * matrix.Rotation[8]))).WriteWord(44, 0);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         return new(frame, pool, slot);
     }
 

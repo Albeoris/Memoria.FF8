@@ -10,10 +10,10 @@ public static partial class NativeBattleBlaster186Controller
         frame = Dword(frame, 0x22BC120, NativeBattleEffectNodeMemory.ArenaAddress);
         NativeBattleEffectTaskPool roots = ResetPool(frame, 0x22B7628, 0x22B7608, 16, 2);
         (roots, int root) = roots.Append(0x5C0C80);
-        roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) };
+        roots = roots.WriteSlot(root, roots.Slots[root].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = ResetPool(frame, 0x22B9930, 0x22B9940, 36, 100);
         (children, int director) = children.Append(0x5BF7B0);
-        children = children with { Slots = children.Slots.SetItem(director, children.Slots[director].WriteWord(12, 0)) };
+        children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Blaster requires its actual first contact.");
         frame = Dword(Dword(Dword(frame, 0x22B7600, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x22BC0FC, Parameters(frame).Actor78), 0x22BC0F8, 0x1D99A78);
@@ -87,7 +87,7 @@ public static partial class NativeBattleBlaster186Controller
         {
             NativeBattleEffectTaskPool roots = frame.Effect.Pools[0];
             (roots, int slot) = roots.Append(0x5C0CF0);
-            roots = roots with { Slots = roots.Slots.SetItem(slot, roots.Slots[slot].WriteWord(12, 0).WriteWord(14, 0)) };
+            roots = roots.WriteSlot(slot, roots.Slots[slot].WriteWord(12, 0).WriteWord(14, 0));
             frame = WithPool(frame, 0, roots);
         }
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1))));

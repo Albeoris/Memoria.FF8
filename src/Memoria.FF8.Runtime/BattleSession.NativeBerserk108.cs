@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521B18, 0x2521AD0, 20, 1);
         (root, _) = root.Append(0x6CFD70);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0));
         return graphics with { OriginalEffect = effect with { Pools = [root], ReturnedDescriptor = 0x2521B18, DrawArenaOffset = null, Berserk108 = new(memory.Cursor) } };
     }
 
@@ -57,12 +57,12 @@ public sealed partial class BattleSession
                 }
                 else if (Allocate(1, 0x6CFF60, out int slot))
                 {
-                    NativeBattleModulePoolTask task = pools[1].Slots[slot] with { Payload = new byte[0x8B8].ToImmutableArray() };
+                    NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x8B8);
                     NativeBattleVector spawn = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0) with { Y = graphics.Models[actor].Transform!.Angle36 };
                     task = WindStore(WindStore(task.WriteWord(14, (ushort)action).WriteDword(20, entity), 24, spawn), 32, ReadNativeDefaultPosition571400(graphics, actor));
                     NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x628 - 12, 0x29C));
                     task = PublishWorkspace(task, 0x628, workspace.Initialize7016B0(resources.Burst, 0x29C));
-                    pools[1] = pools[1] with { Slots = pools[1].Slots.SetItem(slot, task) };
+                    pools[1] = pools[1].WriteSlot(slot, task);
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));
                 }
             }
@@ -104,15 +104,15 @@ public sealed partial class BattleSession
                     {
                         throw new NotSupportedException("Native Berserk selected an unrelated callback.");
                     }
-                    task = task with { Next = pools[current].Slots[slot].Next };
-                    pools[current] = pools[current] with { Slots = pools[current].Slots.SetItem(slot, task) };
+                    task = task.UpdateHeader(task.Flags, task.State, pools[current].Slots[slot].Next, task.Callback);
+                    pools[current] = pools[current].WriteSlot(slot, task);
                     return new(pools[current], result);
                 });
                 pools[current] = step.Pool;
                 survivors += step.Survivors;
             }
         }
-        pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, root) };
+        pools[0] = pools[0].WriteSlot(0, root);
         if (survivors == 0)
         {
             pools[0] = pools[0].Advance((pool, _) => new(pool, 2)).Pool;
@@ -120,7 +120,7 @@ public sealed partial class BattleSession
         else
         {
             int counter = WindWord(root, 12) + 1;
-            pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, root.WriteWord(12, unchecked((ushort)(counter >= 10 ? 0 : counter)))) };
+            pools[0] = pools[0].WriteSlot(0, root.WriteWord(12, unchecked((ushort)(counter >= 10 ? 0 : counter))));
         }
         nativeCrtRandom = random;
         return graphics with { OriginalEffect = effect with { Pools = pools.ToImmutableArray(), ReturnedDescriptor = survivors == 0 ? 0u : 0x2521B18u } };
@@ -132,9 +132,9 @@ public sealed partial class BattleSession
             NativeBattleVector spawn = WindVector(task, 24);
             if (counter < 4 && Allocate(2, 0x6D0C20, out int swirlSlot))
             {
-                NativeBattleModulePoolTask swirl = pools[2].Slots[swirlSlot] with { Payload = new byte[0x414].ToImmutableArray() };
+                NativeBattleModulePoolTask swirl = pools[2].Slots[swirlSlot].ClearPayload(0x414);
                 swirl = swirl.WriteWord(16, unchecked((ushort)((counter << 10) + 0x200))).WriteWord(22, 0x800).WriteDword(28, Address(slot * 0x8C4));
-                pools[2] = pools[2] with { Slots = pools[2].Slots.SetItem(swirlSlot, swirl) };
+                pools[2] = pools[2].WriteSlot(swirlSlot, swirl);
             }
             int elapsed = counter - 17;
             if ((uint)elapsed < 6)
@@ -156,19 +156,19 @@ public sealed partial class BattleSession
                     {
                         continue;
                     }
-                    NativeBattleModulePoolTask particle = pools[3].Slots[particleSlot] with { Payload = new byte[16].ToImmutableArray() };
+                    NativeBattleModulePoolTask particle = pools[3].Slots[particleSlot].ClearPayload(16);
                     NativeBattleVector point = new(unchecked((short)((NativeBattleCameraMath.Sine(angle) * distance >> 12) + spawn.X)), unchecked((short)(spawn.Y - (Random() >> 5))), unchecked((short)((NativeBattleCameraMath.Cosine(angle) * distance >> 12) + spawn.Z)));
                     particle = WindStore(particle.WriteWord(14, 0x800).WriteByte(13, unchecked((byte)(0xFE - (Random() & 15)))).WriteDword(24, 0x12E6E98), 16, point);
-                    pools[3] = pools[3] with { Slots = pools[3].Slots.SetItem(particleSlot, particle) };
+                    pools[3] = pools[3].WriteSlot(particleSlot, particle);
                     angle += 0x555;
                 }
             }
             elapsed = counter - 9;
             if ((uint)elapsed < 8 && (elapsed & 1) == 0 && Allocate(3, 0x6D1250, out int sparkSlot))
             {
-                NativeBattleModulePoolTask spark = pools[3].Slots[sparkSlot] with { Payload = new byte[16].ToImmutableArray() };
+                NativeBattleModulePoolTask spark = pools[3].Slots[sparkSlot].ClearPayload(16);
                 spark = WindStore(spark.WriteWord(14, 0x1000).WriteDword(24, 0x12E6C48), 16, new(unchecked((short)((Random() & 511) + anchor.X - 0x100)), unchecked((short)((Random() & 511) + anchor.Y - 0x100)), unchecked((short)((Random() & 511) + anchor.Z - 0x100))));
-                pools[3] = pools[3] with { Slots = pools[3].Slots.SetItem(sparkSlot, spark) };
+                pools[3] = pools[3].WriteSlot(sparkSlot, spark);
             }
             if ((uint)(counter - 10) < 8)
             {
@@ -207,9 +207,7 @@ public sealed partial class BattleSession
             (int tx, int ty, int tz) = NativeBattleGfMatrices.Rotate56C3D0(view, anchor);
             NativeBattleActionMatrix rayMatrix = view with { X = unchecked(tx + view.X), Y = unchecked(ty + view.Y), Z = unchecked(tz + view.Z) };
             NativeBattleBerserk108RayStep rays = NativeBattleBerserk108Geometry.Rays(task.Payload.Slice(0x28 - 12, 32 * 48), point => NativeBattleModuleProjection.Project45FE10(rayMatrix, point, projection));
-            byte[] payload = task.Payload.ToArray();
-            rays.Rays.AsSpan().CopyTo(payload.AsSpan(0x28 - 12));
-            task = task with { Payload = payload.ToImmutableArray() };
+            task = task.WriteRetainedBytes(0x28, rays.Rays.AsSpan());
             Append(rays.Packets, 1);
             if (counter == 0)
             {

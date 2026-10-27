@@ -34,7 +34,7 @@ public static class NativeBattleDoomtrain191Steam
         {
             task = task.WriteWord(0x18, 0).WriteWord(0x1C, 2000).WriteWord(0x20, unchecked((ushort)-90));
         }
-        return PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task) });
+        return PutPool(frame, pool.WriteSlot(slot, task));
     }
 
     public static NativeBattleDoomtrain191LeafStep Advance(NativeBattleDoomtrain191Frame frame, int slot, NativeBattleModuleResource resource, NativeBattleDoomtrain191SteamServices services)
@@ -128,7 +128,7 @@ public static class NativeBattleDoomtrain191Steam
                 result = 2;
             }
             NativeBattleEffectTaskPool pool = Pool(frame);
-            frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task) });
+            frame = PutPool(frame, pool.WriteSlot(slot, task));
         }
         return new(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, result);
 

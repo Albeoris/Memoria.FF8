@@ -59,7 +59,7 @@ public static class NativeBattleScriptedLighting
         {
             uint current = unchecked(address + (uint)index);
             int offset = checked((int)(current - NativeBattleScriptedEffectMemory.Address));
-            if (frame.Core.Core.UnknownRegions.Any(region => offset >= region.Offset && offset < region.Offset + region.Length))
+            if (frame.Core.Core.EnumerateUnknownRanges().Any(region => offset >= region.Offset && offset < region.Offset + region.Length))
             {
                 known[index] = false;
             }

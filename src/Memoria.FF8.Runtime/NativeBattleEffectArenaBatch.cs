@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Groups ordered local stores between existing immutable arena publication points.</summary>
+/// <summary>Groups ordered local stores between existing committed working-owner boundaries.</summary>
 internal sealed class NativeBattleEffectArenaBatch(NativeBattleEffectArena source) : IDisposable
 {
     private NativeBattleEffectArena arena = source;

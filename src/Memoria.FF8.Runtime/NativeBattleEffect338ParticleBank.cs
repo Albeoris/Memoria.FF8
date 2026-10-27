@@ -15,7 +15,7 @@ public sealed record NativeBattleEffect338ParticleBank([property: JsonRequired] 
     public void Validate()
     {
         Storage.Validate();
-        if (Storage.Regions.Any(region => region.Offset < 0 || region.Offset > Length - region.Data.Length) || Storage.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > Length - region.Length) || NextOffset is int next && (next < 0 || next >= Length || next % Stride != 0))
+        if (Storage.ExceedsExtent(Length) || NextOffset is int next && (next < 0 || next >= Length || next % Stride != 0))
         {
             throw new InvalidDataException("Effect338 particle storage or allocation cursor leaves its original bank.");
         }

@@ -344,10 +344,7 @@ public static class NativeBattleWaterMeshPreparation
     private static void ValidateDepth(NativeBattleEffectArena depths)
     {
         depths.Validate();
-        if (depths.Regions.Any(region => region.Offset > DepthLength - region.Data.Length) || depths.UnknownRegions.Any(region => region.Offset > DepthLength - region.Length))
-        {
-            throw new InvalidDataException("Native Water depth workspace leaves its mapped process bounds.");
-        }
+        depths.ValidateExtent(DepthLength);
     }
 
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));

@@ -119,18 +119,16 @@ public static class NativeBattleSearchProgramDrawing
 
     private static void RequireTask(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source)
     {
-        if (task.Payload.IsDefault || task.Payload.Length < 0x17C - 12 || task.ReadDword(0x74) != source.Address)
+        if (task.PayloadLength < 0x17C - 12 || task.ReadDword(0x74) != source.Address)
         {
             throw new InvalidDataException("Native Search program requires its complete task and exact retained source pointer.");
         }
     }
 
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.Payload.AsSpan().Slice(0x94 - 12, 0xE8).ToArray().ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.ReadRawPayloadSpan().Slice(0x94 - 12, 0xE8).ToArray().ToImmutableArray());
 
     private static NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] bytes = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(bytes.AsSpan(0x94 - 12, 0xE8));
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteRetainedBytes(12 + (0x94 - 12), workspace.Data.AsSpan());
     }
 }

@@ -311,7 +311,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native Duel completion requires its actual target callback.");
         }
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(96, value)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteByte(96, value));
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
     }
 

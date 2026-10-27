@@ -14,10 +14,10 @@ public static partial class NativeBattleGatlingGun150Controller
         frame = Dword(Dword(Dword(frame, FirstTargetGlobal, inputs.Packets.ReadContact(contact).Primary.ActorIndex), ParametersGlobal, 0x1D99A78), CasterGlobal, parameters.Actor78);
         NativeBattleEffectTaskPool root = ResetPool(frame, RootDescriptor, RootBank, RootStride, RootCount);
         (root, int rootSlot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = ResetPool(frame, ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, int director) = children.Append(MainCallback);
-        children = children with { Slots = children.Slots.SetItem(director, children.Slots[director].WriteWord(12, 0)) };
+        children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
         foreach (uint bank in new[] { ParticleBBase, ParticleABase })
         {
             for (int index = 0; index < ParticleCount; index++)

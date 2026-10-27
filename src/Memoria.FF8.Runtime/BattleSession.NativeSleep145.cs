@@ -31,7 +31,7 @@ public sealed partial class BattleSession
         (children, int slot) = children.Append(0x6186A0);
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Sleep requires its first action contact.");
-        children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, nativeActionPackets.ReadContact(contact).Primary.ActorIndex)) };
+        children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, nativeActionPackets.ReadContact(contact).Primary.ActorIndex));
         return graphics with { OriginalEffect = effect with { Pools = [root, children], ReturnedDescriptor = 0x24AA828, DrawArenaOffset = null } };
     }
 
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
                 0x619000 => Particle(ref task),
                 _ => throw new NotSupportedException("Native Sleep selected an unrelated task callback.")
             };
-            task = task with { Next = children.Slots[slot].Next };
+            task = task.UpdateHeader(task.Flags, task.State, children.Slots[slot].Next, task.Callback);
             Put(slot, task);
             return new(children, result);
         });
@@ -88,7 +88,7 @@ public sealed partial class BattleSession
             }
         }
         root = root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)));
-        rootPool = rootPool with { Slots = rootPool.Slots.SetItem(0, root) };
+        rootPool = rootPool.WriteSlot(0, root);
         if (advanced.Survivors == 0)
         {
             rootPool = rootPool.Advance((pool, _) => new(pool, 2)).Pool;
@@ -346,7 +346,7 @@ public sealed partial class BattleSession
             (children, slot) = children.Append(callback);
             return children.Slots[slot];
         }
-        void Put(int slot, NativeBattleModulePoolTask task) => children = children with { Slots = children.Slots.SetItem(slot, task) };
+        void Put(int slot, NativeBattleModulePoolTask task) => children = children.WriteSlot(slot, task);
         int Roll()
         {
             random = random.Draw(out ushort value);

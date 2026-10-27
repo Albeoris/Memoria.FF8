@@ -57,7 +57,7 @@ public static class NativeBattleDuel274Particles
                 task = task.WriteWord(28, unchecked((ushort)(-Signed(task, 20) >> 3))).WriteWord(30, unchecked((ushort)(-Signed(task, 22) >> 3))).WriteWord(32, unchecked((ushort)(-Signed(task, 24) >> 3)));
             }
             task = task.WriteWord(26, unchecked((ushort)sprite));
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
             count = unchecked(count - 1);
             if (count == 0)
             {
@@ -98,7 +98,7 @@ public static class NativeBattleDuel274Particles
             task = task.WriteWord(20, unchecked((ushort)(Signed(task, 20) + Signed(task, 28)))).WriteWord(22, unchecked((ushort)(Signed(task, 22) + Signed(task, 30)))).WriteWord(24, unchecked((ushort)(Signed(task, 24) + Signed(task, 32))));
             result = 0;
         }
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(poolIndex, pool) } };
         return new(frame, pool, result);
     }

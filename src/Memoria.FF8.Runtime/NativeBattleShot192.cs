@@ -31,7 +31,7 @@ public static class NativeBattleShot192
         }
         int slot = checked((int)(delta / pool.Stride));
         int index = effect.Pools.IndexOf(pool);
-        return effect with { Pools = effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(14, value)) }) };
+        return effect with { Pools = effect.Pools.SetItem(index, pool.WriteSlot(slot, pool.Slots[slot].WriteByte(14, value))) };
     }
 
     public static NativeBattleShot192Frame Enter(NativeBattleShot192Frame frame, NativeBattleActionPacketsState packets)
@@ -74,7 +74,7 @@ public static class NativeBattleShot192
         }
         return frame with { Memory = frame.Memory with { Shot192 = state }, Effect = frame.Effect with { Pools = pools.ToImmutableArray(), ReturnedDescriptor = Root } };
 
-        void Put(int pool, int slot, NativeBattleModulePoolTask task) => pools[pool] = pools[pool] with { Slots = pools[pool].Slots.SetItem(slot, task) };
+        void Put(int pool, int slot, NativeBattleModulePoolTask task) => pools[pool] = pools[pool].WriteSlot(slot, task);
     }
 
     public static NativeBattleShot192Frame Advance(NativeBattleShot192Frame frame, NativeBattleShot192Inputs inputs, NativeBattleShot192Resources resources)
@@ -103,7 +103,7 @@ public static class NativeBattleShot192
                 {
                     (pools[0], int cleanup) = pools[0].Append(0x5BB260);
                     Put(0, cleanup, pools[0].Slots[cleanup].WriteWord(12, 0).WriteWord(14, 0));
-                    task = task with { Next = pools[0].Slots[index].Next };
+                    task = task.UpdateHeader(task.Flags, task.State, pools[0].Slots[index].Next, task.Callback);
                 }
                 task = Increment(task);
                 result = actions == 0 && particles == 0 && (state.Control & 2) != 0 ? 2 : 0;
@@ -589,7 +589,7 @@ public static class NativeBattleShot192
             (pools[pool], int slot) = pools[pool].Append(callback);
             Put(pool, slot, initialize(pools[pool].Slots[slot]));
         }
-        void Put(int pool, int slot, NativeBattleModulePoolTask task) => pools[pool] = pools[pool] with { Slots = pools[pool].Slots.SetItem(slot, task) };
+        void Put(int pool, int slot, NativeBattleModulePoolTask task) => pools[pool] = pools[pool].WriteSlot(slot, task);
     }
 
     private static void RequirePools(NativeBattleEffectTaskPool[] pools)

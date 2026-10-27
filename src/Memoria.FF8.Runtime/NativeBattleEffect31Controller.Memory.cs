@@ -14,7 +14,7 @@ public static partial class NativeBattleEffect31Controller
     public static NativeBattleEffect31Frame Write(NativeBattleEffect31Frame frame, uint address, NativeBattleModulePoolTask task)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        task = task with { Next = hierarchy.Read(address).Next };
+        task = task.UpdateHeader(task.Flags, task.State, hierarchy.Read(address).Next, task.Callback);
         return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, task).Pools } };
     }
 

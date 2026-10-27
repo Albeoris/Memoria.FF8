@@ -70,7 +70,7 @@ public sealed partial class BattleSession
                         0x60C740 => Burst(ref child, 4, resources.Sprites[3], 0),
                         _ => throw new NotSupportedException("Native Ultrasonic Waves selected an unrelated effect callback.")
                     };
-                    child = child with { Next = children.Slots[childSlot].Next };
+                    child = child.UpdateHeader(child.Flags, child.State, children.Slots[childSlot].Next, child.Callback);
                     Put(childSlot, child);
                     return new(children, code);
                 });
@@ -78,7 +78,7 @@ public sealed partial class BattleSession
                 if (advanced.Survivors == 0)
                 {
                     (roots, int waitSlot) = roots.Append(0x60C960);
-                    roots = roots with { Slots = roots.Slots.SetItem(waitSlot, roots.Slots[waitSlot].WriteWord(12, 0).WriteWord(14, 0)) };
+                    roots = roots.WriteSlot(waitSlot, roots.Slots[waitSlot].WriteWord(12, 0).WriteWord(14, 0));
                 }
                 result = advanced.Survivors == 0 ? 2 : 0;
             }
@@ -90,7 +90,7 @@ public sealed partial class BattleSession
                     (NativeBattleAuxiliaryState auxiliary, _) = graphics.Auxiliary.AppendCommonTextureLoad508630(checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)process.BufferOffset), completion, (address, value) =>
                     {
                         NativeBattleModulePoolTask current = roots.Slots[slot];
-                        roots = roots with { Slots = roots.Slots.SetItem(slot, current.WriteWord(14, (ushort)((current.ReadWord(14) & 0xFF00) | value))) };
+                        roots = roots.WriteSlot(slot, current.WriteWord(14, (ushort)((current.ReadWord(14) & 0xFF00) | value)));
                     });
                     graphics = graphics with { Auxiliary = auxiliary };
                     task = task.WriteWord(14, roots.Slots[slot].ReadWord(14));
@@ -101,8 +101,8 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Ultrasonic Waves selected an unrelated root callback.");
             }
-            task = (task with { Next = roots.Slots[slot].Next }).WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
-            roots = roots with { Slots = roots.Slots.SetItem(slot, task) };
+            task = (task.UpdateHeader(task.Flags, task.State, roots.Slots[slot].Next, task.Callback)).WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
+            roots = roots.WriteSlot(slot, task);
             return new(roots, result);
         });
         roots = rootStep.Pool;
@@ -270,7 +270,7 @@ public sealed partial class BattleSession
             (children, slot) = children.Append(callback);
             return children.Slots[slot];
         }
-        void Put(int slot, NativeBattleModulePoolTask task) => children = children with { Slots = children.Slots.SetItem(slot, task) };
+        void Put(int slot, NativeBattleModulePoolTask task) => children = children.WriteSlot(slot, task);
         int Roll()
         {
             random = random.Draw(out ushort value);

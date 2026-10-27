@@ -24,7 +24,7 @@ public static class NativeBattleGilgameshScheduler
             current = current with { Particles = particles.Pool };
             NativeBattleModulePoolTask task = current.Main.Slots[slot];
             task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
-            current = current with { Main = current.Main with { Slots = current.Main.Slots.SetItem(slot, task) } };
+            current = current with { Main = current.Main.WriteSlot(slot, task) };
             return new(current.Main, (children.Survivors | particles.Survivors) == 0 ? 2 : 0);
         });
         current = current with { Main = main.Pool };

@@ -15,7 +15,7 @@ public static partial class NativeBattleOilBlast137Controller
         (textures, _) = textures.EnqueueArenaTim505E30(arena, tim);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         textures = textures.Register5099A0(resources.Camera);
         return frame with
         {
@@ -64,7 +64,7 @@ public static partial class NativeBattleOilBlast137Controller
             NativeBattleEffectTaskPool secondary = NativeBattleEffectTaskPool.Initialize(SecondaryDescriptor, checked(working + SecondaryOffset), SecondaryStride, SecondaryCount);
             NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, working, ParticleStride, ParticleCount);
             (main, int slot) = main.Append(MainCallback);
-            main = main with { Slots = main.Slots.SetItem(slot, main.Slots[slot].WriteBytes(12, new byte[MainStride - 12]).WriteDword(16, target)) };
+            main = main.WriteSlot(slot, main.Slots[slot].WriteBytes(12, new byte[MainStride - 12]).WriteDword(16, target));
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, secondary, particles] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, secondary, particles]) };
             frame = Write(frame, address, Read(frame, address).WriteWord(14, 1));
             NativeBattleOilBlast137PointStep anchor = inputs.ReadBone502170(frame, target, 0xF1, 0);

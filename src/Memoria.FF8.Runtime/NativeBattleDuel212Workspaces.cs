@@ -30,7 +30,7 @@ public static class NativeBattleDuel212Workspaces
         });
         target = Target(frame);
         task = target.Slots[0].WriteBytes(offset, advanced.Workspace.Data.AsSpan());
-        target = target with { Slots = target.Slots.SetItem(0, task) };
+        target = target.WriteSlot(0, task);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(pool => pool.DescriptorAddress == target.DescriptorAddress ? target : pool).ToImmutableArray() } };
         return new(frame, ordering, advanced.Remaining);
     }

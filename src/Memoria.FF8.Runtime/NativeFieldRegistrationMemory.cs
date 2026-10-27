@@ -18,7 +18,7 @@ internal sealed class NativeFieldRegistrationMemory
     {
         this.source = source.Rebase(Math.Min(first, source.BaseAddress));
         origin = this.source.BaseAddress;
-        ulong last = Math.Max(end, this.source.KnownRanges.IsEmpty ? origin : (ulong)origin + (uint)this.source.KnownRanges[^1].Offset + (uint)this.source.KnownRanges[^1].Data.Length);
+        ulong last = Math.Max(end, this.source.KnownExtentEnd);
         int length = checked((int)(last - origin));
         (byte[] data, bool[] observed) = this.source.ReadSnapshot(origin, length);
         bytes = data;

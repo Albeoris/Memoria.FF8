@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect338Controller
         {
             NativeBattleModulePoolTask retained = Read(frame, address);
             retained.RequireKnownPayload(20, bytes);
-            return new(retained.Payload.AsSpan().Slice(8, bytes).ToArray().ToImmutableArray());
+            return new(retained.ReadRawPayloadSpan().Slice(8, bytes).ToArray().ToImmutableArray());
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (workspace, node) =>
         {

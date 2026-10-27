@@ -7,7 +7,7 @@ public static class NativeBattleDiablos325WingMorph
     public static NativeBattleEffectArena Vertices6590E0(NativeBattleEffectArena arena, uint first, uint second, int ratio, uint target)
     {
         using NativeBattleEffectArenaTransaction? owned = arena.Transaction is null ? new(arena) : null;
-        NativeBattleEffectArenaWriter writer = new(owned?.View ?? arena);
+        using NativeBattleEffectArenaWriter writer = new(owned?.View ?? arena);
         int count = checked((int)ReadDword(writer, unchecked(first + 4)));
         for (int index = 0; index < count; index++)
         {
@@ -28,7 +28,7 @@ public static class NativeBattleDiablos325WingMorph
     public static NativeBattleEffectArena Polygons659200(NativeBattleEffectArena arena, uint first, uint second, int ratio, uint target)
     {
         using NativeBattleEffectArenaTransaction? owned = arena.Transaction is null ? new(arena) : null;
-        NativeBattleEffectArenaWriter writer = new(owned?.View ?? arena);
+        using NativeBattleEffectArenaWriter writer = new(owned?.View ?? arena);
         uint a = unchecked(first + ReadDword(writer, first));
         uint b = unchecked(second + ReadDword(writer, second));
         WriteDword(writer, target, 8);

@@ -16,7 +16,7 @@ public sealed partial record NativeBattleDiablos325Trail([property: JsonRequired
         uint first = checked(state.ModelBuffer5208 + 0x4C5C);
         uint second = checked(state.ModelBuffer5208 + 0x7C5C);
         NativeBattleDiablos325Trail trail = new(first, second, unchecked((ushort)(15 - parameter)), unchecked((ushort)((1 << (parameter & 31)) / 2)), intensity, bias);
-        NativeBattleEffectArenaWriter writer = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos trails require their actual current arena."));
+        using NativeBattleEffectArenaWriter writer = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos trails require their actual current arena."));
         for (int index = 0; index < 512; index++)
         {
             writer.Write(0x4C5C + index * 24 + 6, [0xFF, 0xFF]);

@@ -26,7 +26,10 @@ public static partial class NativeBattleEffect218Controller
         foreach (NativeBattleCureFamilyPool profile in Pools)
         {
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity);
-            pool = pool with { Slots = pool.Slots.Select((task, slot) => CopyTask(task, 12, state.ReadView(checked(profile.Bank + (uint)(slot * profile.Stride) + 12), profile.Stride - 12), profile.Stride - 12)).ToImmutableArray() };
+            for (int slot = 0; slot < pool.Slots.Length; slot++)
+            {
+                CopyTask(pool.Slots[slot], 12, state.ReadView(checked(profile.Bank + (uint)(slot * profile.Stride) + 12), profile.Stride - 12), profile.Stride - 12);
+            }
             pools.Add(pool);
         }
         foreach (NativeBattleEffectTaskPool pool in pools)

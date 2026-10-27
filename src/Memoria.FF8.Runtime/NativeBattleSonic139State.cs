@@ -44,11 +44,11 @@ public sealed record NativeBattleSonic139State([property: JsonRequired] NativeBa
     public void Validate()
     {
         Globals.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Globals.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateUnknownRanges())
         {
             Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
@@ -69,12 +69,23 @@ public sealed record NativeBattleSonic139State([property: JsonRequired] NativeBa
     public byte[] Read(uint address, int length) => Owner(address, length).Arena.Read(Owner(address, length).Offset, length);
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
-    public NativeBattleSonic139State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleSonic139State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleSonic139State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleSonic139State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     public NativeBattleSonic139State Write(uint address, ReadOnlySpan<byte> bytes)
     {
         (NativeBattleEffectArena arena, int offset, bool frames) = Owner(address, bytes.Length);
-        return frames ? this with { OriginalFrames = arena.Write(offset, bytes) } : this with { Globals = arena.Write(offset, bytes) };
+        arena.Write(offset, bytes);
+        return this;
     }
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
@@ -84,8 +95,8 @@ public sealed record NativeBattleSonic139State([property: JsonRequired] NativeBa
     public NativeBattleSonic139State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
         (NativeBattleEffectArena arena, int offset, bool frames) = Owner(address, length);
-        NativeBattleEffectArena next = NativeBattleEffectNodeContextMemory.Copy(source, 0, arena, offset, length);
-        return frames ? this with { OriginalFrames = next } : this with { Globals = next };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, arena, offset, length);
+        return this;
     }
     private (NativeBattleEffectArena Arena, int Offset, bool Frames) Owner(uint address, int length)
     {
@@ -106,9 +117,6 @@ public sealed record NativeBattleSonic139State([property: JsonRequired] NativeBa
     private static void Bounded(NativeBattleEffectArena arena, int length)
     {
         arena.Validate();
-        if (arena.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || arena.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Sonic Wave retained bytes leave their single physical owner.");
-        }
+        arena.ValidateExtent(length);
     }
 }

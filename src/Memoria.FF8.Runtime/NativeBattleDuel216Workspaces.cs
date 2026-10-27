@@ -42,7 +42,7 @@ public static class NativeBattleDuel216Workspaces
         });
         pool = Pool(frame, descriptor);
         task = pool.Slots[slot].WriteBytes(offset, advanced.Workspace.Data.AsSpan());
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         frame = Store(frame, pool);
         return new(frame, ordering, advanced.Remaining);
     }
@@ -59,7 +59,7 @@ public static class NativeBattleDuel216Workspaces
         NativeBattleDuel216Resources resources = frame.Memory.Duel216?.Resources ?? throw new NotSupportedException("Native Different Beat child requires its entered resources.");
         NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(24, 236).ToImmutableArray());
         task = task.WriteBytes(24, workspace.Initialize7016B0(resources.Hierarchy(0x115049C), 236).Data.AsSpan());
-        return Store(frame, pool with { Slots = pool.Slots.SetItem(slot, task) });
+        return Store(frame, pool.WriteSlot(slot, task));
     }
 
     public static NativeBattleDuel216HierarchyTaskStep Advance69A5D0(NativeBattleDuel216Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering)

@@ -23,11 +23,11 @@ public sealed record NativeBattleEffect315State([property: JsonRequired] NativeB
     public void Validate()
     {
         Globals.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            RequireGlobal(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            RequireGlobal(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Globals.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateUnknownRanges())
         {
             RequireGlobal(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
@@ -46,10 +46,25 @@ public sealed record NativeBattleEffect315State([property: JsonRequired] NativeB
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
-    public NativeBattleEffect315State Write(uint address, ReadOnlySpan<byte> bytes) => WriteView(address, NativeBattleEffectArena.Clear().Write(0, bytes), bytes.Length);
+    public NativeBattleEffect315State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        (NativeBattleEffectArena bank, int offset, int owner) = Owner(address, bytes.Length);
+        bank.Write(offset, bytes);
+        return this;
+    }
     public NativeBattleEffect315State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleEffect315State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleEffect315State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect315State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleEffect315State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
 
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
@@ -60,14 +75,8 @@ public sealed record NativeBattleEffect315State([property: JsonRequired] NativeB
     public NativeBattleEffect315State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
         (NativeBattleEffectArena bank, int offset, int owner) = Owner(address, length);
-        NativeBattleEffectArena result = NativeBattleEffectNodeContextMemory.Copy(source, 0, bank, offset, length);
-        return owner switch
-        {
-            0 => this with { Globals = result },
-            1 => this with { ParticleStorage = result },
-            2 => this with { RootBankStorage = result },
-            _ => this with { ChildBankStorage = result }
-        };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, bank, offset, length);
+        return this;
     }
 
     private (NativeBattleEffectArena Bank, int Offset, int Owner) Owner(uint address, int length)
@@ -101,9 +110,6 @@ public sealed record NativeBattleEffect315State([property: JsonRequired] NativeB
     private static void ValidateBank(NativeBattleEffectArena bank, int length)
     {
         bank.Validate();
-        if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect315 retained bytes leave their physical bank.");
-        }
+        bank.ValidateExtent(length);
     }
 }

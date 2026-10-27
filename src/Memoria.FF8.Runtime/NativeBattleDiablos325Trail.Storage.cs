@@ -14,7 +14,7 @@ public sealed partial record NativeBattleDiablos325Trail
         }
         NativeBattleEffectArena source = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos trails require their retained arena.");
         using NativeBattleEffectArenaTransaction? owned = source.Transaction is null ? new(source) : null;
-        NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
+        using NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
         Storage storage = new(writer, NativeBattleDiablos325Entry.RequireState(frame.Memory));
         uint? point = storage.Spawn(context);
         return new(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? writer.Freeze(), Diablos325 = storage.Freeze() } }, point);
@@ -28,7 +28,7 @@ public sealed partial record NativeBattleDiablos325Trail
         }
         NativeBattleEffectArena source = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos trails require their retained arena.");
         using NativeBattleEffectArenaTransaction? owned = source.Transaction is null ? new(source) : null;
-        NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
+        using NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
         Storage storage = new(writer, NativeBattleDiablos325Entry.RequireState(frame.Memory));
         storage.Advance(widths);
         return frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? writer.Freeze(), Diablos325 = storage.Freeze() } };

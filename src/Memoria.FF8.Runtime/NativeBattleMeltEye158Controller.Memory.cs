@@ -25,7 +25,7 @@ public static partial class NativeBattleMeltEye158Controller
             NativeBattleEffectTaskPool pool = frame.Effect.Pools[index];
             if (address >= pool.BankAddress && address < pool.BankAddress + (uint)(pool.Stride * pool.Slots.Length) && (address - pool.BankAddress) % pool.Stride == 0)
             {
-                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(checked((int)((address - pool.BankAddress) / pool.Stride)), task) });
+                return WithPool(frame, index, pool.WriteSlot(checked((int)((address - pool.BankAddress) / pool.Stride)), task));
             }
         }
         throw new NotSupportedException("Melt-Eye task write has no current physical owner.");
@@ -71,7 +71,7 @@ public static partial class NativeBattleMeltEye158Controller
 
     public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(offset - 12, length));
+        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
         if (task.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)

@@ -146,7 +146,7 @@ public static partial class NativeBattleAquaParticles
 
     private static NativeBattleModulePoolTask CopyPayload(NativeBattleModulePoolTask source, int sourceOffset, NativeBattleModulePoolTask destination, int destinationOffset, int length)
     {
-        destination = destination.WriteBytes(destinationOffset, source.Payload.AsSpan().Slice(sourceOffset - 12, length));
+        destination = destination.WriteBytes(destinationOffset, source.ReadRawPayloadSpan().Slice(sourceOffset - 12, length));
         if (source.UnknownPayloadRanges is { } unknown)
         {
             foreach (NativeBattleEffectUnknownRegion range in unknown)

@@ -291,15 +291,13 @@ public static class NativeBattleDoomtrain191Controller
     }
 
     private static NativeBattleDoomtrain191Frame Publish(NativeBattleDoomtrain191Frame frame, NativeBattleEffectTaskPool main, NativeBattleEffectTaskPool children) => frame with { Effect = frame.Effect with { Pools = [main, children] } };
-    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool with { Slots = pool.Slots.SetItem(slot, task) };
+    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool.WriteSlot(slot, task);
 
-    private static uint ReadDword(NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(offset - 12));
+    private static uint ReadDword(NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(task.ReadRawPayloadSpan().Slice(offset - 12));
 
     private static NativeBattleModulePoolTask WriteDword(NativeBattleModulePoolTask task, int offset, uint value)
     {
-        byte[] bytes = task.Payload.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset - 12), value);
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteDword(12 + (offset - 12), unchecked((uint)(value)));
     }
 
     private static ImmutableArray<byte> RawVector(NativeBattleVector vector, short fourth)

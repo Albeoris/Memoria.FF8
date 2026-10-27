@@ -60,7 +60,7 @@ public static class NativeBattleSiren95Io
             throw new NotSupportedException("Native Siren programme leaves its current physical file bank.");
         }
         int end = banks.Length;
-        foreach (NativeBattleEffectUnknownRegion unknown in banks.Bytes.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange unknown in banks.Bytes.EnumerateUnknownRanges())
         {
             if ((long)unknown.Offset + unknown.Length <= offset)
             {

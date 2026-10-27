@@ -25,27 +25,48 @@ public sealed record NativeBattleUltraWaves184State([property: JsonRequired] Nat
         return this with { CapturePackets = NativeBattleEffectArena.Clear().Write(0, resources.CapturePackets.AsSpan()), ColdSourcesPending = false };
     }
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(RequireGlobal(address, 4), 4));
-    public NativeBattleUltraWaves184State WriteDword(uint address, uint value) => this with { Globals = Globals.Write(RequireGlobal(address, 4), BitConverter.GetBytes(value)) };
+    public NativeBattleUltraWaves184State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        Globals.Write(RequireGlobal(address, 4), encoded);
+        return this;
+    }
     public NativeBattleEffectArena ReadView(uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(Globals, RequireGlobal(address, length), Unknown(length), 0, length);
-    public NativeBattleUltraWaves184State WriteView(uint address, NativeBattleEffectArena source, int length) => this with { Globals = NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, RequireGlobal(address, length), length) };
+    public NativeBattleUltraWaves184State WriteView(uint address, NativeBattleEffectArena source, int length)
+    {
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, RequireGlobal(address, length), length);
+        return this;
+    }
     public NativeBattleResourcePointer? ReadResourcePointer(uint address) => Globals.ReadResourcePointer(RequireGlobal(address, 4));
-    public NativeBattleUltraWaves184State WriteResourcePointer(uint address, NativeBattleResourcePointer? pointer) => this with { Globals = Globals.WriteResourcePointer(RequireGlobal(address, 4), pointer) };
+    public NativeBattleUltraWaves184State WriteResourcePointer(uint address, NativeBattleResourcePointer? pointer)
+    {
+        Globals.WriteResourcePointer(RequireGlobal(address, 4), pointer);
+        return this;
+    }
     public uint ReadCursor() => BinaryPrimitives.ReadUInt32LittleEndian(Packets.Read(PacketDrawingLength, 4));
-    public NativeBattleUltraWaves184State WriteCursor(uint value) => this with { Packets = Packets.Write(PacketDrawingLength, BitConverter.GetBytes(value)) };
+    public NativeBattleUltraWaves184State WriteCursor(uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        Packets.Write(PacketDrawingLength, encoded);
+        return this;
+    }
     public NativeBattleUltraWaves184State CopyCommonTexture(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length != PacketPhysicalLength)
         {
             throw new InvalidDataException("Ultra Waves common texture must cover its complete physical destination.");
         }
-        return this with { Packets = Packets.Write(0, bytes) };
+        Packets.Write(0, bytes);
+        return this;
     }
     public void Validate()
     {
         ValidateArena(Globals, GlobalsLength);
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            _ = RequireGlobal(checked(GlobalsAddress + (uint)region.Offset), region.Data.Length);
+            _ = RequireGlobal(checked(GlobalsAddress + (uint)region.Offset), region.Length);
         }
         ValidateArena(Particles, ParticlesLength);
         ValidateArena(Quads, QuadsLength);
@@ -57,10 +78,7 @@ public sealed record NativeBattleUltraWaves184State([property: JsonRequired] Nat
     private static void ValidateArena(NativeBattleEffectArena arena, int length)
     {
         arena.Validate();
-        if (arena.Regions.Any(region => region.Offset < 0 || region.Data.Length > length - region.Offset) || arena.UnknownRegions.Any(region => region.Offset < 0 || region.Length > length - region.Offset))
-        {
-            throw new InvalidDataException("Ultra Waves retained bytes leave their physical owner.");
-        }
+        arena.ValidateExtent(length);
     }
     private static int RequireGlobal(uint address, int length)
     {

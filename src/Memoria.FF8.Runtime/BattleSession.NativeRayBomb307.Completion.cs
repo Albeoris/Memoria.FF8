@@ -29,7 +29,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Ray-Bomb completion requires its original texture callback.");
             }
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(14, value)) };
+            pool = pool.WriteSlot(slot, pool.Slots[slot].WriteByte(14, value));
             return effect with { Pools = effect.Pools.SetItem(0, pool) };
         }
     }

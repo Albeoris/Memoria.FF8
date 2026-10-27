@@ -17,7 +17,7 @@ public static partial class NativeBattleMicroMissiles299Controller
         frame = frame with { Memory = frame.Memory with { Textures = textures }, State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(parameters.Actor78)) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int index) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(index, root.Slots[index].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(index, root.Slots[index].WriteDword(12, 0).WriteDword(16, 0));
         return frame with { Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) } };
     }
 
@@ -192,7 +192,7 @@ public static partial class NativeBattleMicroMissiles299Controller
     private static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)actor * 156) : throw new InvalidDataException("Micro Missiles actor leaves the native model bank.");
     private static NativeBattleModulePoolTask Task(NativeBattleMicroMissiles299Frame frame, int pool, int slot) => frame.Effect.Pools[pool].Slots[slot];
     private static NativeBattleMicroMissiles299Frame WithPool(NativeBattleMicroMissiles299Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
-    private static NativeBattleMicroMissiles299Frame Put(NativeBattleMicroMissiles299Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool] with { Slots = frame.Effect.Pools[pool].Slots.SetItem(slot, task with { Next = Task(frame, pool, slot).Next }) });
+    private static NativeBattleMicroMissiles299Frame Put(NativeBattleMicroMissiles299Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, Task(frame, pool, slot).Next, task.Callback)));
     public static NativeBattleModulePoolTask Read(NativeBattleMicroMissiles299Frame frame, uint address)
     {
         foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)

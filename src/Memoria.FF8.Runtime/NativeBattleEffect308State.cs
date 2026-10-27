@@ -54,11 +54,15 @@ public sealed record NativeBattleEffect308State([property: JsonRequired] NativeB
     }
     public NativeBattleEffect308State WriteWord(uint address, ushort value)
     {
-        return Write(address, BitConverter.GetBytes(value));
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
     }
     public NativeBattleEffect308State WriteDword(uint address, uint value)
     {
-        return Write(address, BitConverter.GetBytes(value));
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
     }
 
     public NativeBattleEffectArena ReadView(uint address, int length)
@@ -79,14 +83,17 @@ public sealed record NativeBattleEffect308State([property: JsonRequired] NativeB
     {
         if (WithinScript(address, length, out uint script))
         {
-            return this with { ScriptStorage = ScriptStorage.SetItem(script, NativeBattleEffectNodeContextMemory.Copy(source, 0, ReadScript(script), checked((int)(address - script)), length)) };
+            NativeBattleEffectNodeContextMemory.Copy(source, 0, ReadScript(script), checked((int)(address - script)), length);
+            return this;
         }
         if (WithinCommonQueue(address, length, out uint descriptor))
         {
-            return this with { CommonQueueStorage = CommonQueueStorage.SetItem(descriptor, NativeBattleEffectNodeContextMemory.Copy(source, 0, ReadCommonQueue(descriptor), checked((int)(address - descriptor)), length)) };
+            NativeBattleEffectNodeContextMemory.Copy(source, 0, ReadCommonQueue(descriptor), checked((int)(address - descriptor)), length);
+            return this;
         }
         int offset = Require(address, length);
-        return this with { Storage = NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, offset, length) };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, offset, length);
+        return this;
     }
 
     public NativeBattleEffectArena ReadCommonQueue(uint descriptor)
@@ -230,11 +237,11 @@ public sealed record NativeBattleEffect308State([property: JsonRequired] NativeB
                 ValidateBank(queue, CommonQueueLength);
             }
         }
-        foreach (NativeBattleEffectMemoryRegion region in Storage.Regions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateDataRanges())
         {
-            RequireStorage(region.Offset, region.Data.Length);
+            RequireStorage(region.Offset, region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Storage.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateUnknownRanges())
         {
             RequireStorage(region.Offset, region.Length);
         }
@@ -289,9 +296,6 @@ public sealed record NativeBattleEffect308State([property: JsonRequired] NativeB
     private static void ValidateBank(NativeBattleEffectArena bank, int length)
     {
         bank.Validate();
-        if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect308 retained bytes leave their physical bank allocation.");
-        }
+        bank.ValidateExtent(length);
     }
 }

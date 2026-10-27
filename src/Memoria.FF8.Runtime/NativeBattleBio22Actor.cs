@@ -11,7 +11,7 @@ public static class NativeBattleBio22Actor
 {
     public static NativeBattleBio22ActorStep Advance89D3D0(NativeBattleBio22ActorFrame frame, Func<NativeBattleBio22ActorFrame, NativeBattleBio22ActorFrame> drawActualActor)
     {
-        if (frame.Task.Callback != 0x89D3D0 || frame.Task.Payload.IsDefault || frame.Task.Payload.Length != 0x38 - 12)
+        if (frame.Task.Callback != 0x89D3D0 || frame.Task.Payload.IsDefault || frame.Task.PayloadLength != 0x38 - 12)
         {
             throw new InvalidDataException("Native Bio final actor requires its actual hierarchy auxiliary task.");
         }

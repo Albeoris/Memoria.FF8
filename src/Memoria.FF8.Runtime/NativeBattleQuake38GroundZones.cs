@@ -79,7 +79,7 @@ internal ref struct NativeBattleQuake38MemoryPlan(NativeBattleEffectArena arena,
         {
             return arena;
         }
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         Span<byte> bytes = stackalloc byte[2];
         for (int index = 0; index < count; index++)
         {

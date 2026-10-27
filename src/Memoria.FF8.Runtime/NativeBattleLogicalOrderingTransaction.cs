@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Private ordered pool appends share their indexes and publish one immutable ordering table.</summary>
+/// <summary>A bounded suffix journal over the retained pending owner; Freeze accepts its current prefix.</summary>
 internal sealed class NativeBattleLogicalOrderingTransaction : IDisposable
 {
     private bool disposed;
@@ -11,22 +11,51 @@ internal sealed class NativeBattleLogicalOrderingTransaction : IDisposable
         {
             throw new InvalidOperationException("Native ordering pool transactions cannot be nested.");
         }
+        Validation = RequireActive;
         Writer = new(source);
-        View = source with { Transaction = this };
+        View = new(source, this);
     }
 
+    internal Action Validation { get; }
     internal NativeBattleLogicalOrdering.Builder Writer { get; }
     public NativeBattleLogicalOrdering View { get; }
-    public void BeginCheckpoint() => Writer.BeginCheckpoint();
-    public void CommitCheckpoint() => Writer.CommitCheckpoint();
-    public void RollbackCheckpoint() => Writer.RollbackCheckpoint();
-
+    public void BeginCheckpoint()
+    {
+        RequireActive();
+        Writer.BeginCheckpoint();
+    }
+    public void CommitCheckpoint()
+    {
+        RequireActive();
+        Writer.CommitCheckpoint();
+    }
+    public void RollbackCheckpoint()
+    {
+        RequireActive();
+        Writer.RollbackCheckpoint();
+    }
     public NativeBattleLogicalOrdering Freeze()
     {
         RequireActive();
-        return Writer.ToImmutable();
+        return Writer.PublishRoot();
     }
-
+    internal NativeBattleLogicalOrdering.Delta SuspendDelta()
+    {
+        RequireActive();
+        return Writer.SuspendDelta();
+    }
+    internal void ResumeDelta(NativeBattleLogicalOrdering.Delta delta)
+    {
+        RequireActive();
+        Writer.ResumeDelta(delta);
+    }
     internal void RequireActive() => ObjectDisposedException.ThrowIf(disposed, this);
-    public void Dispose() => disposed = true;
+    public void Dispose()
+    {
+        if (!disposed)
+        {
+            Writer.Dispose();
+            disposed = true;
+        }
+    }
 }

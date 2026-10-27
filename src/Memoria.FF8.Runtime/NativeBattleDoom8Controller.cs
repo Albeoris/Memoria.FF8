@@ -31,7 +31,7 @@ public static partial class NativeBattleDoom8Controller
     public static NativeBattleDoom8Frame Write(NativeBattleDoom8Frame frame, uint address, NativeBattleModulePoolTask task)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        hierarchy = hierarchy.Write(address, task with { Next = hierarchy.Read(address).Next });
+        hierarchy = hierarchy.Write(address, task.UpdateHeader(task.Flags, task.State, hierarchy.Read(address).Next, task.Callback));
         return frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
     }
 

@@ -24,8 +24,8 @@ public static class NativeBattleEffect218StaticPackets
         bool quad = address == NativeBattleEffect218State.CaptureQuadAddress;
         NativeBattleEffectArena source = quad ? state.CaptureQuad ?? throw new NotSupportedException("Effect218 static packet requires its current original quad.") : state.Globals;
         uint start = quad ? NativeBattleEffect218State.CaptureQuadAddress : NativeBattleEffect218State.GlobalsAddress;
-        NativeBattleEffectArenaWriter writer = new(source);
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleEffectArenaWriter writer = new(source);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         NativeBattleEffectPacketArena.AppendAttempts(writer, links, checked((int)(address - start)), batch, flags, bank: quad ? QuadBank : GlobalsBank);
         state = quad ? state with { CaptureQuad = writer.Freeze() } : state with { Globals = writer.Freeze() };
         return new(state, links.ToImmutable());

@@ -19,7 +19,7 @@ public static class NativeBattleScanResultTask
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Scan.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
-        if (task.Callback != (alternate ? 0x850FD0u : 0x84FAF0u) || task.Payload.Length != 0x78 - 12)
+        if (task.Callback != (alternate ? 0x850FD0u : 0x84FAF0u) || task.PayloadLength != 0x78 - 12)
         {
             throw new InvalidDataException("Native Scan result window requires its matching seventy-eight-byte callback task.");
         }

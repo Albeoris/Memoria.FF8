@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -7,11 +6,11 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleModulePoolTask
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableArray<NativeBattleEffectUnknownRegion>? UnknownPayloadRanges { get; init; }
+    public ImmutableArray<NativeBattleEffectUnknownRegion>? UnknownPayloadRanges { get => RequireSnapshotData().Unknown; init => RejectInitializer(); }
 
     internal void RequirePayloadRange(int offset, int length)
     {
-        if (Payload.IsDefault || offset < 12 || length < 0 || offset - 12 > Payload.Length - length)
+        if (offset < 12 || length < 0 || offset - 12 > PayloadLength - length)
         {
             throw new InvalidDataException("Native task memory access leaves its physical payload.");
         }
@@ -19,7 +18,12 @@ public sealed partial record NativeBattleModulePoolTask
 
     internal void ValidateUnknownPayloadRanges()
     {
-        if (UnknownPayloadRanges is not { } ranges)
+        if (owner is not null)
+        {
+            owner.RequireActive();
+            return;
+        }
+        if (RequireSnapshotData().Unknown is not { } ranges)
         {
             return;
         }
@@ -30,7 +34,7 @@ public sealed partial record NativeBattleModulePoolTask
         int end = 11;
         foreach (NativeBattleEffectUnknownRegion range in ranges)
         {
-            if (range is null || range.Offset <= end || range.Length <= 0 || range.Offset < 12 || range.Offset - 12 > Payload.Length - range.Length)
+            if (range is null || range.Offset <= end || range.Length <= 0 || range.Offset < 12 || range.Offset - 12 > PayloadLength - range.Length)
             {
                 throw new InvalidDataException("Native task unknown-byte ranges must be bounded, sorted, disjoint and merged.");
             }
@@ -41,109 +45,165 @@ public sealed partial record NativeBattleModulePoolTask
     internal void RequireKnownPayload(int offset, int length)
     {
         RequirePayloadRange(offset, length);
-        ValidateUnknownPayloadRanges();
-        if (length == 0 || UnknownPayloadRanges is not { } ranges)
+        if (owner is not null)
         {
+            for (int index = 0; index < length; index++)
+            {
+                _ = owner.Body.ReadByte(Start + offset + index);
+            }
             return;
         }
-        foreach (NativeBattleEffectUnknownRegion range in ranges)
+        ValidateUnknownPayloadRanges();
+        foreach (NativeBattleEffectUnknownRegion range in RequireSnapshotData().Unknown ?? [])
         {
-            if (range.Offset >= (long)offset + length)
-            {
-                break;
-            }
-            if (range.Offset + (long)range.Length > offset)
+            if (range.Offset < (long)offset + length && range.Offset + (long)range.Length > offset)
             {
                 throw new NotSupportedException($"Native task payload bytes at+0x{offset:X} are unresolved.");
             }
         }
     }
 
+    /// <summary>Borrow raw payload bytes for the immediate owner scope; unknown lanes remain raw and storage growth invalidates the view.</summary>
+    public ReadOnlySpan<byte> ReadRawPayloadSpan()
+    {
+        return owner is null ? RequireSnapshotData().Payload.AsSpan() : owner.RequireActive().Body.BorrowRawReadOnly(Start + 12, PayloadLength);
+    }
+
+    public void ReadInto(int offset, Span<byte> destination)
+    {
+        RequirePayloadRange(offset, destination.Length);
+        if (owner is not null)
+        {
+            owner.Body.ReadInto(Start + offset, destination);
+        }
+        else
+        {
+            RequireKnownPayload(offset, destination.Length);
+            RequireSnapshotData().Payload.AsSpan().Slice(offset - 12, destination.Length).CopyTo(destination);
+        }
+    }
+
     public byte[] ReadBytes(int offset, int length)
     {
-        RequireKnownPayload(offset, length);
-        return NativeBattleTelemetry.Materialize(1146, Payload.AsSpan().Slice(offset - 12, length));
+        RequirePayloadRange(offset, length);
+        byte[] result = new byte[length];
+        ReadInto(offset, result);
+        return result;
+    }
+
+    public void ReadWithKnownness(int offset, Span<byte> bytes, Span<bool> known)
+    {
+        RequirePayloadRange(offset, bytes.Length);
+        if (known.Length != bytes.Length)
+        {
+            throw new ArgumentException("Native task byte/knownness destinations must match.", nameof(known));
+        }
+        if (owner is not null)
+        {
+            owner.Body.ReadWithKnownness(Start + offset, bytes, known);
+            return;
+        }
+        RequireSnapshotData().Payload.AsSpan().Slice(offset - 12, bytes.Length).CopyTo(bytes);
+        known.Fill(true);
+        foreach (NativeBattleEffectUnknownRegion range in RequireSnapshotData().Unknown ?? [])
+        {
+            int first = Math.Max(offset, range.Offset);
+            int end = (int)Math.Min((long)offset + bytes.Length, range.Offset + (long)range.Length);
+            if (end > first)
+            {
+                known.Slice(first - offset, end - first).Fill(false);
+            }
+        }
+    }
+
+    public (byte[] Data, bool[] Known) ReadSnapshot(int offset, int length)
+    {
+        RequirePayloadRange(offset, length);
+        byte[] bytes = new byte[length];
+        bool[] known = new bool[length];
+        ReadWithKnownness(offset, bytes, known);
+        return (bytes, known);
     }
 
     public NativeBattleModulePoolTask WriteBytes(int offset, ReadOnlySpan<byte> data)
     {
         RequirePayloadRange(offset, data.Length);
-        byte[] payload = NativeBattleTelemetry.Materialize(1147, Payload.AsSpan());
-        NativeBattleTelemetry.Copy(1148, data, payload.AsSpan(offset - 12));
-        return (this with { Payload = ImmutableCollectionsMarshal.AsImmutableArray(payload) }).WithoutResourcePointers(offset, data.Length).WithoutUnknownPayload(offset, data.Length);
+        RequireOwner().Body.Write(Start + offset, data);
+        return this;
+    }
+
+    public NativeBattleModulePoolTask WriteWithKnownness(int offset, ReadOnlySpan<byte> data, ReadOnlySpan<bool> known)
+    {
+        RequirePayloadRange(offset, data.Length);
+        RequireOwner().Body.WriteWithKnownness(Start + offset, data, known);
+        return this;
+    }
+
+    public NativeBattleModulePoolTask WriteRetainedBytes(int offset, ReadOnlySpan<byte> data)
+    {
+        RequirePayloadRange(offset, data.Length);
+        RequireOwner().Body.WriteRetainedBytes(Start + offset, data);
+        return this;
+    }
+
+    public NativeBattleModulePoolTask ClearPayload(int expectedLength)
+    {
+        if (expectedLength != PayloadLength)
+        {
+            throw new InvalidDataException("Native task clear changes its physical payload width.");
+        }
+        return ClearPayload();
+    }
+
+    public NativeBattleModulePoolTask ClearPayload()
+    {
+        NativeBattleTaskBankOwner current = RequireOwner();
+        if (current.HasCheckpoint)
+        {
+            current.Storage.ReserveCheckpointCapacity(PayloadLength, current.Storage.ResourcePointerCount);
+        }
+        Span<byte> zero = stackalloc byte[256];
+        zero.Clear();
+        for (int offset = 0; offset < PayloadLength; offset += zero.Length)
+        {
+            current.Body.Write(Start + 12 + offset, zero[..Math.Min(zero.Length, PayloadLength - offset)]);
+        }
+        return this;
     }
 
     public NativeBattleModulePoolTask MarkPayloadUnknown(int offset, int length)
     {
         RequirePayloadRange(offset, length);
-        ValidateUnknownPayloadRanges();
-        if (length == 0)
-        {
-            return this;
-        }
-        List<NativeBattleEffectUnknownRegion> all = UnknownPayloadRanges is { } retained ? retained.ToList() : [];
-        all.Add(new(offset, length));
-        List<NativeBattleEffectUnknownRegion> merged = [];
-        foreach (NativeBattleEffectUnknownRegion range in all.OrderBy(range => range.Offset))
-        {
-            if (merged.Count != 0 && merged[^1].Offset + merged[^1].Length >= range.Offset)
-            {
-                NativeBattleEffectUnknownRegion previous = merged[^1];
-                merged[^1] = new(previous.Offset, Math.Max(previous.Offset + previous.Length, range.Offset + range.Length) - previous.Offset);
-            }
-            else
-            {
-                merged.Add(range);
-            }
-        }
-        return (this with { UnknownPayloadRanges = merged.ToImmutableArray() }).WithoutResourcePointers(offset, length);
+        RequireOwner().Body.MarkUnknown(Start + offset, length);
+        return this;
     }
 
-    internal NativeBattleModulePoolTask WithoutUnknownPayload(int offset, int length)
+    internal NativeBattleTaskSnapshotData ExportSnapshotData() => owner is null ? RequireSnapshotData() : owner.ReadTask(slot);
+
+    internal void Replace(NativeBattleTaskSnapshotData data)
     {
-        ValidateUnknownPayloadRanges();
-        if (UnknownPayloadRanges is not { } ranges || length == 0)
+        RequireOwner();
+        if (data.Payload.IsDefault || data.Payload.Length != PayloadLength)
         {
-            return this;
+            throw new InvalidDataException("Native replacement task changes its physical payload.");
         }
-        int end = checked(offset + length);
-        bool overlaps = false;
-        foreach (NativeBattleEffectUnknownRegion range in ranges)
+        NativeBattleTaskBankSnapshot proof = new(0, 0, checked((ushort)(PayloadLength + 12)), [data], null, null, false);
+        proof.Tasks[0].ValidateUnknownPayloadRanges();
+        proof.Tasks[0].ValidateResourcePointers();
+        NativeBattleTaskBankOwner current = RequireOwner();
+        if (current.HasCheckpoint)
         {
-            if (range.Offset >= end)
-            {
-                break;
-            }
-            if (range.Offset + range.Length > offset)
-            {
-                overlaps = true;
-                break;
-            }
+            current.Storage.ReserveCheckpointCapacity(checked(PayloadLength + 12 + 4 * (data.Pointers?.Count ?? 0)), checked(current.Storage.ResourcePointerCount + 2 * (data.Pointers?.Count ?? 0)));
         }
-        if (!overlaps)
+        UpdateHeader(data.Flags, data.State, data.Next, data.Callback);
+        WriteBytes(12, data.Payload.AsSpan());
+        foreach (NativeBattleEffectUnknownRegion range in data.Unknown ?? [])
         {
-            return this;
+            MarkPayloadUnknown(range.Offset, range.Length);
         }
-        ImmutableArray<NativeBattleEffectUnknownRegion>.Builder result = ImmutableArray.CreateBuilder<NativeBattleEffectUnknownRegion>();
-        foreach (NativeBattleEffectUnknownRegion range in ranges)
+        foreach ((int offset, NativeBattleResourcePointer pointer) in data.Pointers ?? ImmutableDictionary<int, NativeBattleResourcePointer>.Empty)
         {
-            int rangeEnd = range.Offset + range.Length;
-            if (rangeEnd <= offset || range.Offset >= end)
-            {
-                result.Add(range);
-            }
-            else
-            {
-                if (range.Offset < offset)
-                {
-                    result.Add(new(range.Offset, offset - range.Offset));
-                }
-                if (rangeEnd > end)
-                {
-                    result.Add(new(end, rangeEnd - end));
-                }
-            }
+            WriteResourcePointer(offset, pointer);
         }
-        return this with { UnknownPayloadRanges = result.Count == 0 ? null : result.ToImmutable() };
     }
 }

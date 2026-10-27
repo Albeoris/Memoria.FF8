@@ -10,10 +10,10 @@ public static partial class NativeBattleSandStorm155Controller
         resources.Validate();
         NativeBattleEffectTaskPool root = ResetPool(frame, 0x23F0818, 0x23F0808, 16, 1);
         (root, int rootSlot) = root.Append(0x607BB0);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = ResetPool(frame, 0x23F1AE8, 0x23F1AF8, 36, 100);
         (children, int director) = children.Append(0x606DB0);
-        children = children with { Slots = children.Slots.SetItem(director, children.Slots[director].WriteWord(12, 0)) };
+        children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
         int contact = header.FirstContactIndex ?? throw new NotSupportedException("Sand Storm requires its actual first contact.");
         frame = Dword(frame, 0x23F0800, inputs.Packets.ReadContact(contact).Primary.ActorIndex);

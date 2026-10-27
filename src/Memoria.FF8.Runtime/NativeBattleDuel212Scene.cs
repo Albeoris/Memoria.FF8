@@ -33,7 +33,7 @@ public static partial class NativeBattleDuel212Controller
         task = task.WriteWord(12, unchecked((ushort)tick));
         if (tick == 182)
         {
-            return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 2);
+            return new(frame, pool.WriteSlot(slot, task), 2);
         }
         if (tick == 174)
         {
@@ -114,10 +114,10 @@ public static partial class NativeBattleDuel212Controller
         Execute(new NativeBattleDuel212Camera(tick));
         return Finish();
 
-        NativeBattleDuel212Step Finish() => new(frame, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) }, 0);
+        NativeBattleDuel212Step Finish() => new(frame, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)), 0);
         void Execute(NativeBattleDuel212Operation operation)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) };
+            pool = pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback));
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(active => active.DescriptorAddress == pool.DescriptorAddress ? pool : active).ToImmutableArray() } };
             frame = inputs.Drawing.Execute(frame, operation);
             pool = frame.Effect.Pools.Single(active => active.DescriptorAddress == pool.DescriptorAddress);

@@ -215,7 +215,7 @@ public static partial class NativeBattleRoughDivide163Controller
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, alive == 0 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), alive == 0 ? 2 : 0);
 
         int Rand()
         {

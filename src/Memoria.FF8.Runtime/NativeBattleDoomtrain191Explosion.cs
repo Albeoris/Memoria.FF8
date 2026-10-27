@@ -20,7 +20,7 @@ public static class NativeBattleDoomtrain191Explosion
             ushort delay = unchecked((ushort)(Random() % 12 + 2 * index));
             ushort size = unchecked((ushort)(Random() % 4096 + 5632));
             NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0xC, 0).WriteWord(0xE, mask).WriteWord(0x10, x).WriteWord(0x12, y).WriteWord(0x14, z).WriteWord(0x16, delay).WriteWord(0x1C, size);
-            frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task) });
+            frame = PutPool(frame, pool.WriteSlot(slot, task));
         }
         return frame;
 
@@ -44,7 +44,7 @@ public static class NativeBattleDoomtrain191Explosion
         {
             if (!paused)
             {
-                frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(0x16, unchecked((ushort)(task.ReadWord(0x16) - 1)))) });
+                frame = PutPool(frame, pool.WriteSlot(slot, task.WriteWord(0x16, unchecked((ushort)(task.ReadWord(0x16) - 1)))));
             }
             return new(frame, 0);
         }
@@ -136,7 +136,7 @@ public static class NativeBattleDoomtrain191Explosion
         }
         ushort next = unchecked((ushort)(age + 1));
         pool = Pool(frame);
-        frame = PutPool(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0xC, next)) });
+        frame = PutPool(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0xC, next)));
         return new(frame, unchecked((short)next) >= 4 && survivors == 0 ? 2 : 0);
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));

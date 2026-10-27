@@ -21,7 +21,7 @@ public sealed record NativeBattleGilgameshSwordTrailState([property: JsonRequire
             throw new InvalidDataException("Native sword trail requires its retained process banks.");
         }
         Memory.Validate();
-        if (Memory.Regions.Any(region => !Contains(region.Offset, region.Data.Length)) || Memory.UnknownRegions.Any(region => !Contains(region.Offset, region.Length)))
+        if (Memory.EnumerateDataRanges().Any(region => !Contains(region.Offset, region.Length)) || Memory.EnumerateUnknownRanges().Any(region => !Contains(region.Offset, region.Length)))
         {
             throw new InvalidDataException("Native sword trail retained bytes leave its five bounded physical banks.");
         }
@@ -29,26 +29,23 @@ public sealed record NativeBattleGilgameshSwordTrailState([property: JsonRequire
 
     internal static NativeBattleEffectArena CopyPoint(NativeBattleEffectArena memory, int source, int destination)
     {
-        byte[] bytes = new byte[8];
-        foreach (NativeBattleEffectMemoryRegion region in memory.Regions)
-        {
-            int first = Math.Max(source, region.Offset);
-            int end = Math.Min(source + 8, region.Offset + region.Data.Length);
-            if (first < end)
-            {
-                region.Data.AsSpan().Slice(first - region.Offset, end - first).CopyTo(bytes.AsSpan(first - source));
-            }
-        }
-        ImmutableArray<NativeBattleEffectUnknownRegion> unknown = memory.UnknownRegions;
+        Span<byte> bytes = stackalloc byte[8];
+        Span<bool> known = stackalloc bool[8];
+        memory.ReadWithKnownness(source, bytes, known);
         memory = memory.Write(destination, bytes);
-        foreach (NativeBattleEffectUnknownRegion region in unknown)
+        for (int index = 0; index < known.Length;)
         {
-            int first = Math.Max(source, region.Offset);
-            int end = Math.Min(source + 8, region.Offset + region.Length);
-            if (first < end)
+            if (known[index])
             {
-                memory = memory.MarkUnknown(destination + first - source, end - first);
+                index++;
+                continue;
             }
+            int first = index++;
+            while (index < known.Length && !known[index])
+            {
+                index++;
+            }
+            memory = memory.MarkUnknown(destination + first, index - first);
         }
         return memory;
     }

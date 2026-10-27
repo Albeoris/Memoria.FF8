@@ -24,10 +24,7 @@ public sealed partial record NativeBattleSiren95State([property: JsonRequired] N
                 throw new InvalidDataException("Native Siren IO requires its complete retained script.");
             }
         }
-        if (Globals.Regions.Any(region => region.Offset > GlobalLength - region.Data.Length) || Globals.UnknownRegions.Any(region => region.Offset > GlobalLength - region.Length))
-        {
-            throw new InvalidDataException("Native Siren module globals leave their physical span.");
-        }
+        Globals.ValidateExtent(GlobalLength);
     }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -40,10 +37,19 @@ public sealed partial record NativeBattleSiren95State([property: JsonRequired] N
     public uint? CameraAddress15339D0 { get; init; }
 
     public byte[] Read(uint address, int length) => Globals.Read(Offset(address, length), length);
-    public NativeBattleSiren95State Write(uint address, ReadOnlySpan<byte> bytes) => this with { Globals = Globals.Write(Offset(address, bytes.Length), bytes) };
+    public NativeBattleSiren95State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        Globals.Write(Offset(address, bytes.Length), bytes);
+        return this;
+    }
     public uint ReadDword(uint address) => System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public ushort ReadWord(uint address) => System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
-    public NativeBattleSiren95State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleSiren95State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
 
     private static int Offset(uint address, int length)
     {

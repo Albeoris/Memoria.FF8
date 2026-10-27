@@ -12,7 +12,7 @@ public static class NativeBattleDoomtrain191Environment
             case 0x63F850:
                 NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDoomtrain191Controller.ChildDescriptor);
                 (pool, int slot) = pool.Append(address == 0x63F7A0 ? 0x63F7D0u : 0x63F880u);
-                pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0xC, 0).WriteWord(0xE, 16).WriteWord(0x18, 4096).WriteWord(0x1A, 1)) };
+                pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0xC, 0).WriteWord(0xE, 16).WriteWord(0x18, 4096).WriteWord(0x1A, 1));
                 int index = frame.Effect.Pools.IndexOf(frame.Effect.Pools.Single(current => current.DescriptorAddress == pool.DescriptorAddress));
                 return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
             case 0x63F780:
@@ -56,7 +56,7 @@ public static class NativeBattleDoomtrain191Environment
         }
         ushort next = unchecked((ushort)(age + 1));
         pool = frame.Effect.Pools.Single(current => current.DescriptorAddress == NativeBattleDoomtrain191Controller.ChildDescriptor);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0xC, next)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0xC, next));
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(frame.Effect.Pools.IndexOf(frame.Effect.Pools.Single(current => current.DescriptorAddress == pool.DescriptorAddress)), pool) } };
         if (unchecked((short)next) < duration)
         {

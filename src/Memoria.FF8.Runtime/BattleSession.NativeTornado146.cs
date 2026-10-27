@@ -48,12 +48,12 @@ public sealed partial class BattleSession
             Memory = Memory with { Textures = textures };
             NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(0x24936E8, 0x24936C8, 16, 2);
             (roots, int rootSlot) = roots.Append(0x618560);
-            roots = roots with { Slots = roots.Slots.SetItem(rootSlot, roots.Slots[rootSlot].WriteWord(12, 0)) };
+            roots = roots.WriteSlot(rootSlot, roots.Slots[rootSlot].WriteWord(12, 0));
             NativeBattleEffectTaskPool tasks = NativeBattleEffectTaskPool.Initialize(0x2493750, 0x2493760, 36, 100);
             (tasks, int director) = tasks.Append(0x614E10);
-            tasks = tasks with { Slots = tasks.Slots.SetItem(director, tasks.Slots[director].WriteWord(12, 0).WriteWord(14, 0)) };
+            tasks = tasks.WriteSlot(director, tasks.Slots[director].WriteWord(12, 0).WriteWord(14, 0));
             pools = [roots, tasks];
-            NativeBattleTornado146Work work = new(state);
+            using NativeBattleTornado146Work work = new(state);
             NativeBattleEffectParameters parameters = effect.Parameters ?? throw new NotSupportedException("Native Tornado requires its current cast parameters.");
             int first = owner.nativeActionPackets.Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Native Tornado requires the actual first contact pointer.");
             work.WriteDword(0x2491E3C, owner.nativeActionPackets.ReadContact(first).Primary.ActorIndex);
@@ -76,7 +76,7 @@ public sealed partial class BattleSession
                 int result;
                 if (task.Callback == 0x618560)
                 {
-                    NativeBattleTornado146Work work = new(state);
+                    using NativeBattleTornado146Work work = new(state);
                     uint parity = (uint)(Word(task, 12) & 1);
                     work.WriteDword(0x24AA624, parity);
                     work.WriteDword(0x24AA628, parity == 0 ? 0x249A624u : 0x24A2624u);
@@ -86,7 +86,7 @@ public sealed partial class BattleSession
                         pools[1] = current;
                         NativeBattleModulePoolTask child = current.Slots[childSlot];
                         int code = Step(ref child);
-                        child = child with { Next = pools[1].Slots[childSlot].Next };
+                        child = child.UpdateHeader(child.Flags, child.State, pools[1].Slots[childSlot].Next, child.Callback);
                         Put(1, childSlot, child);
                         return new(pools[1], code);
                     });
@@ -107,7 +107,6 @@ public sealed partial class BattleSession
                             Put(0, targetSlot, pools[0].Slots[targetSlot].WriteByte(14, value));
                         });
                         graphics = graphics with { Auxiliary = auxiliary };
-                        task = task with { Payload = pools[0].Slots[slot].Payload };
                     }
                     result = Word(task, 14) != 0 ? 2 : 0;
                     task = task.WriteWord(12, unchecked((ushort)(Word(task, 12) + 1)));
@@ -116,7 +115,7 @@ public sealed partial class BattleSession
                 {
                     throw new NotSupportedException("Native Tornado root bank selected an unrelated callback.");
                 }
-                task = task with { Next = pools[0].Slots[slot].Next };
+                task = task.UpdateHeader(task.Flags, task.State, pools[0].Slots[slot].Next, task.Callback);
                 Put(0, slot, task);
                 return new(pools[0], result);
             });
@@ -189,7 +188,7 @@ public sealed partial class BattleSession
                 InitializeCloudDeltas();
                 int sparks = Allocate(1, 0x617990);
                 Put(1, sparks, CopyPosition(pools[1].Slots[sparks].WriteWord(12, 0), task));
-                NativeBattleTornado146Work work = new(state);
+                using NativeBattleTornado146Work work = new(state);
                 for (int index = 0; index < 60; index++)
                 {
                     work.WriteDword(0x249A230u + (uint)index * 16, uint.MaxValue);
@@ -281,17 +280,15 @@ public sealed partial class BattleSession
             (pools[bank], int slot) = pools[bank].Append(callback);
             return slot;
         }
-        private void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank] with { Slots = pools[bank].Slots.SetItem(slot, task) };
+        private void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank].WriteSlot(slot, task);
         private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
         private static NativeBattleVector Position(NativeBattleModulePoolTask task) => new(Word(task, 16), Word(task, 18), Word(task, 20));
         private void Append(NativeBattleGfGeometryBatch batch)
         {
-            NativeBattleTornado146Work work = new(state);
+            using NativeBattleTornado146Work work = new(state);
             uint physical = work.Dword(0x24AA628);
             int cursor = checked((int)(physical - NativeBattleTornado146State.WorkAddress));
             NativeBattleRegionalPacketWrite written = NativeBattleRegionalPacketArena.Append(state.Storage, NativeBattleTornado146State.PacketBank, cursor, NativeBattleTornado146State.WorkLength, graphics.PrimitiveFrame!.Pending, batch);
-            state = state with { Storage = written.Arena };
-            work = new(state);
             work.WriteDword(0x24AA628, checked(NativeBattleTornado146State.WorkAddress + (uint)written.Cursor));
             state = work.Freeze();
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
@@ -321,7 +318,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native Tornado texture completion has no live returned wait task.");
         }
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(14, value)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteByte(14, value));
         updated = graphics with { OriginalEffect = effect with { Pools = effect.Pools.SetItem(0, pool) } };
         return true;
     }

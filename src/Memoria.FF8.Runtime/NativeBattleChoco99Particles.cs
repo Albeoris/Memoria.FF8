@@ -88,7 +88,7 @@ public static class NativeBattleChoco99Particles
     public static NativeBattleChoco99ParticleStep Advance(NativeBattleModulePoolTask task, NativeBattleChoco99ParticleResources resources, Func<short, bool> modeAtLeast, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
     {
         resources.Validate();
-        if (task.Payload.IsDefault || task.Payload.Length != 0xB0 - 12 || task.Callback is not (TrailCallback or RadialCallback))
+        if (task.Payload.IsDefault || task.PayloadLength != 0xB0 - 12 || task.Callback is not (TrailCallback or RadialCallback))
         {
             throw new InvalidDataException("Native Choco99 particle requires its actual B0-byte four-point task.");
         }

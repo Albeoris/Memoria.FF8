@@ -64,7 +64,7 @@ public static class NativeBattleReflectController
                 NativeBattleVector anchor0 = Bone(actor, 0xF0);
                 NativeBattleVector anchor1 = Bone(actor, 0xF1);
                 NativeBattleActionMatrix model = new([0, 0, 0, 0, 0, 0, 0, 0, 0], (anchor0.X + anchor1.X) >> 1, (anchor0.Y + anchor1.Y) >> 1, (anchor0.Z + anchor1.Z) >> 1, 4096);
-                NativeBattleModulePoolTask task = pools[1].Slots[slot] with { Payload = new byte[0x50].ToImmutableArray() };
+                NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x50);
                 task = WriteMatrix(task.WriteWord(14, checked((ushort)action)).WriteDword(16, pointer), 20, model);
                 Store(1, slot, task);
                 root = root.WriteByte(14, unchecked((byte)(action + 1)));
@@ -74,7 +74,7 @@ public static class NativeBattleReflectController
                     if (Available(3))
                     {
                         (pools[3], int child) = pools[3].Append(0x6D2F30);
-                        NativeBattleModulePoolTask hexagon = pools[3].Slots[child] with { Payload = new byte[16].ToImmutableArray() };
+                        NativeBattleModulePoolTask hexagon = pools[3].Slots[child].ClearPayload(16);
                         hexagon = hexagon.WriteDword(24, parent).WriteWord(14, 1024).WriteWord(16, unchecked((ushort)angle));
                         hexagon = hexagon.WriteWord(18, (Roll() & 1) != 0 ? unchecked((ushort)-16) : (ushort)16).WriteWord(20, unchecked((ushort)(-37 - (Roll() & 31))));
                         Store(3, child, hexagon);
@@ -115,7 +115,7 @@ public static class NativeBattleReflectController
                             {
                                 continue;
                             }
-                            NativeBattleModulePoolTask beam = pools[2].Slots[orphan] with { Flags = 1, State = 0, Next = null, Callback = 0x6D3C50 };
+                            NativeBattleModulePoolTask beam = pools[2].Slots[orphan].UpdateHeader(1, 0, null, 0x6D3C50);
                             beam = beam.WriteWord(12, 0).WriteWord(14, unchecked((ushort)angle)).WriteWord(16, checked((ushort)((Roll() & 1023) + 512))).WriteWord(18, 0).WriteWord(20, 0).WriteDword(24, checked(pool.BankAddress + (uint)(slot * pool.Stride)));
                             Store(2, orphan, beam);
                             angle += 0x155;
@@ -131,7 +131,7 @@ public static class NativeBattleReflectController
                         if (phase < 18 && phase % 6 == 0 && Available(4))
                         {
                             (pools[4], int child) = pools[4].Append(0x6D3AF0);
-                            NativeBattleModulePoolTask ring = pools[4].Slots[child] with { Payload = new byte[16].ToImmutableArray() };
+                            NativeBattleModulePoolTask ring = pools[4].Slots[child].ClearPayload(16);
                             ring = ring.WriteDword(24, checked(pool.BankAddress + (uint)(slot * pool.Stride))).WriteWord(14, unchecked((ushort)(maximum * size >> 12))).WriteWord(16, 2048).WriteWord(18, 256).WriteWord(20, unchecked((ushort)-8));
                             Store(4, child, ring);
                         }
@@ -216,7 +216,7 @@ public static class NativeBattleReflectController
         return new(current with { Effect = current.Effect with { Pools = pools.ToImmutableArray(), ReturnedDescriptor = complete ? 0u : RootDescriptor } }, contacts.ToImmutable(), sounds.ToImmutable());
 
         bool Available(int index) => pools[index].Slots.Any(task => (task.Flags & 1) == 0);
-        void Store(int index, int slot, NativeBattleModulePoolTask task) => pools[index] = pools[index] with { Slots = pools[index].Slots.SetItem(slot, task) };
+        void Store(int index, int slot, NativeBattleModulePoolTask task) => pools[index] = pools[index].WriteSlot(slot, task);
         ushort Roll()
         {
             current = current with { Memory = current.Memory.DrawSharedEffectRandom7059E0(out ushort value) };

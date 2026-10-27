@@ -30,7 +30,7 @@ public static class NativeBattleEffect326ModelDirector
 {
     public static NativeBattleEffect326ModelDirectorStep Advance62CEE0(NativeBattleModulePoolTask task, NativeBattleEffect326ModelInputs inputs)
     {
-        if (task.Callback != 0x62CEE0 || task.Payload.IsDefault || task.Payload.Length != 24)
+        if (task.Callback != 0x62CEE0 || task.Payload.IsDefault || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Effect326 model director requires its actual 36-byte task.");
         }

@@ -39,10 +39,10 @@ public static partial class NativeBattleRoughDivide163Controller
         staging = StoreMatrix(staging, 0x23CD0D8, actorMatrix, true);
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x23CA1C8, 0x23CA1A8, 16, 2);
         (main, int mainSlot) = main.Append(0x5F9020);
-        main = main with { Slots = main.Slots.SetItem(mainSlot, main.Slots[mainSlot].WriteWord(12, 0)) };
+        main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23CD348, 0x23CD358, 36, 100);
         (children, int childSlot) = children.Append(0x5F5C80);
-        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot].WriteWord(12, 0)) };
+        children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteWord(12, 0));
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native5F5B80 requires its actual texture owner.");
         textures = textures.Register5099A0(resources.StaticData, 0xE3C);
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native5F5B80 requires its actual initializer texture.");

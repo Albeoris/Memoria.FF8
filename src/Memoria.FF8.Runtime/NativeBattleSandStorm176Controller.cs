@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -24,17 +24,17 @@ public static partial class NativeBattleSandStorm176Controller
             }
             state = state with { FunnelMatrix = resources.FunnelMatrix, PendingColdMatrix = false };
         }
-        NativeBattleEffectArenaWriter module = new(state.Module);
+        using NativeBattleEffectArenaWriter module = new(state.Module);
         for (int index = 0; index < 150; index++)
         {
-            module = module.Write(checked((int)(0x23685B8 - ModuleBase)) + index * 24, new byte[4]);
+            module.Write(checked((int)(0x23685B8 - ModuleBase)) + index * 24, new byte[4]);
         }
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, 0x2368588, 16, 1);
         (root, int rootSlot) = root.Append(0x5D1A60);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23733E8, 0x23733F8, 36, 100);
         (children, int director) = children.Append(0x5D01B0);
-        children = children with { Slots = children.Slots.SetItem(director, children.Slots[director].WriteWord(12, 0)) };
+        children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native Sand Storm requires its texture queue.");
         textures = textures.Register5099A0(resources.Camera);
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x2374554)?.ArenaOffset ?? throw new NotSupportedException("Native Sand Storm requires its initializer file allocation.");
@@ -80,13 +80,13 @@ public static partial class NativeBattleSandStorm176Controller
                     0x5D1820 => Sand(ref task, true),
                     _ => throw new NotSupportedException("Native Sand Storm reached an unrelated private callback.")
                 };
-                task = task with { Next = children.Slots[slot].Next };
-                children = children with { Slots = children.Slots.SetItem(slot, task) };
+                task = task.UpdateHeader(task.Flags, task.State, children.Slots[slot].Next, task.Callback);
+                children = children.WriteSlot(slot, task);
                 return new(children, result);
             });
             children = step.Pool;
             root = root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)));
-            roots = roots with { Slots = roots.Slots.SetItem(0, root) };
+            roots = roots.WriteSlot(0, root);
             if (step.Survivors == 0)
             {
                 roots = roots.Advance((pool, _) => new(pool, 2)).Pool;
@@ -116,7 +116,7 @@ public static partial class NativeBattleSandStorm176Controller
             (children, int slot) = children.Append(callback);
             return slot;
         }
-        private void Put(int slot, NativeBattleModulePoolTask task) => children = children with { Slots = children.Slots.SetItem(slot, task with { Next = children.Slots[slot].Next }) };
+        private void Put(int slot, NativeBattleModulePoolTask task) => children = children.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, children.Slots[slot].Next, task.Callback));
         private void Emit(NativeBattleSandStorm176Operation operation)
         {
             current = inputs.Execute(current with { Effect = current.Effect with { Pools = [current.Effect.Pools[0], children] } }, operation);

@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleEffect107Resources resources = effect.Binding.Effect107Resources ?? throw new NotSupportedException("Native6D1310 requires its authenticated original resources.");
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521BA8, 0x2521B40, 20, 1);
         (root, _) = root.Append(0x6D13B0);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0] with { Payload = ImmutableArray.CreateRange(new byte[8]) }) };
+        root = root.WriteSlot(0, root.Slots[0].ClearPayload(8));
         if ((effect.Parameters!.Flags79 & 1) == 0)
         {
             NativeBattleEffectMemory memory = NativeEffectMemory!;
@@ -67,15 +67,15 @@ public sealed partial class BattleSession
                 else
                 {
                     (pools[1], int slot) = pools[1].Append(0x6D1640);
-                    NativeBattleModulePoolTask target = pools[1].Slots[slot] with { Payload = ImmutableArray.CreateRange(new byte[652]) };
+                    NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(652);
                     target = target.WriteWord(14, (ushort)sequence).WriteDword(20, modelAddress);
                     NativeBattleVector first = ReadNativeGraphicsBone(graphics, model, 241, 0);
                     NativeBattleVector second = ReadNativeGraphicsBone(graphics, model, 240, 0);
                     target = target.WriteWord(24, unchecked((ushort)((first.X + second.X) >> 1))).WriteWord(26, unchecked((ushort)((first.Y + second.Y) >> 1))).WriteWord(28, unchecked((ushort)((first.Z + second.Z) >> 1)));
-                    NativeBattleGfAnimationWorkspace workspace = new(target.Payload.AsSpan().Slice(20, 632).ToArray().ToImmutableArray());
+                    NativeBattleGfAnimationWorkspace workspace = new(target.ReadRawPayloadSpan().Slice(20, 632).ToArray().ToImmutableArray());
                     workspace = workspace.Initialize7016B0(resources.Hierarchy, 632);
                     target = StoreWorkspace(target, workspace);
-                    pools[1] = pools[1] with { Slots = pools[1].Slots.SetItem(slot, target) };
+                    pools[1] = pools[1].WriteSlot(slot, target);
                     root = root.WriteByte(14, unchecked((byte)(sequence + 1)));
                 }
             }
@@ -98,7 +98,7 @@ public sealed partial class BattleSession
                         0x6D2910 => AdvanceSpray(ref task),
                         _ => throw new NotSupportedException("Native effect107 task selected an unrelated callback.")
                     };
-                    return new(pools[current] with { Slots = pools[current].Slots.SetItem(slot, task) }, result);
+                    return new(pools[current].WriteSlot(slot, task), result);
                 });
                 pools[index] = step.Pool;
                 survivors += step.Survivors;
@@ -109,7 +109,7 @@ public sealed partial class BattleSession
         {
             root = root.WriteWord(12, unchecked((ushort)((Effect107Word(root, 12) + 1) % 45)));
         }
-        pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, root) };
+        pools[0] = pools[0].WriteSlot(0, root);
         if (complete)
         {
             NativeBattleEffectTaskStep finished = pools[0].Advance((pool, _) => new(pool, 2));
@@ -141,7 +141,7 @@ public sealed partial class BattleSession
                     if (Append(2, 0x6D1E10, out int slot))
                     {
                         short radius = (short)((Roll() & 511) + 2048);
-                        NativeBattleModulePoolTask child = pools[2].Slots[slot] with { Payload = ImmutableArray.CreateRange(new byte[16]) };
+                        NativeBattleModulePoolTask child = pools[2].Slots[slot].ClearPayload(16);
                         child = child.WriteDword(16, Effect107Arena + (uint)(targetIndex * 664)).WriteWord(20, unchecked((ushort)angle)).WriteWord(22, (ushort)radius).WriteWord(24, unchecked((ushort)(-radius >> 4))).WriteWord(26, unchecked((ushort)(radius >> 10)));
                         Put(2, slot, child);
                         angle += 1024;
@@ -192,7 +192,7 @@ public sealed partial class BattleSession
             }
             if (frame >= 10)
             {
-                NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(20, 632).ToArray().ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(20, 632).ToArray().ToImmutableArray());
                 NativeBattleGfAnimationAdvance step = workspace.Advance701970(resources.Hierarchy, 0, (current, node) => AdvanceHierarchy(current, node, anchor, Effect107Arena + (uint)(targetIndex * 664 + 32)));
                 task = StoreWorkspace(task, step.Workspace);
             }
@@ -300,7 +300,7 @@ public sealed partial class BattleSession
             (pools[pool], slot) = pools[pool].Append(callback);
             return true;
         }
-        void Put(int pool, int slot, NativeBattleModulePoolTask task) => pools[pool] = pools[pool] with { Slots = pools[pool].Slots.SetItem(slot, task) };
+        void Put(int pool, int slot, NativeBattleModulePoolTask task) => pools[pool] = pools[pool].WriteSlot(slot, task);
         int Roll()
         {
             random = random.Draw(out ushort value);
@@ -337,9 +337,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask target, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] data = target.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(data.AsSpan(20));
-        return target with { Payload = data.ToImmutableArray() };
+        return target.WriteRetainedBytes(12 + (20), workspace.Data.AsSpan());
     }
     private static short Effect107Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleVector Effect107Vector(NativeBattleModulePoolTask task, int offset) => new(Effect107Word(task, offset), Effect107Word(task, offset + 2), Effect107Word(task, offset + 4));

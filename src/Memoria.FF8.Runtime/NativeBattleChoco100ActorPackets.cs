@@ -43,8 +43,10 @@ public static class NativeBattleChoco100ActorPackets
         if (work.Length != 0)
         {
             arena = arena.Write(workArenaOffset, work);
-            IEnumerable<NativeBattleEffectUnknownRegion> padding = Enumerable.Range(0, mesh.Vertices.Length).Select(index => new NativeBattleEffectUnknownRegion(workArenaOffset + index * 16 + 6, 2));
-            arena = arena with { UnknownRegions = arena.UnknownRegions.Concat(padding).OrderBy(region => region.Offset).ToImmutableArray() };
+            for (int index = 0; index < mesh.Vertices.Length; index++)
+            {
+                arena.MarkUnknown(workArenaOffset + index * 16 + 6, 2);
+            }
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;

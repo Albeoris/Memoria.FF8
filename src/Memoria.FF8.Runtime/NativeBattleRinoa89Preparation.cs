@@ -103,7 +103,7 @@ public static partial class NativeBattleRinoa89Controller
 
         void Store()
         {
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == Body ? pool : bank).ToImmutableArray() } };
         }
         void Refresh()

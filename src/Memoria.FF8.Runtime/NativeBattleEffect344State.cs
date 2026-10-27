@@ -30,12 +30,23 @@ public sealed record NativeBattleEffect344State([property: JsonRequired] NativeB
 
     public NativeBattleEffect344State Write(uint address, ReadOnlySpan<byte> bytes)
     {
-        return this with { Storage = Storage.Write(Require(address, bytes.Length), bytes) };
+        Storage.Write(Require(address, bytes.Length), bytes);
+        return this;
     }
 
     public NativeBattleEffect344State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleEffect344State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleEffect344State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect344State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleEffect344State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
 
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
@@ -44,7 +55,8 @@ public sealed record NativeBattleEffect344State([property: JsonRequired] NativeB
 
     public NativeBattleEffect344State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
-        return this with { Storage = NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, Require(address, length), length) };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, Require(address, length), length);
+        return this;
     }
 
     public NativeBattleEffectArena ReadBank(int index)
@@ -73,11 +85,11 @@ public sealed record NativeBattleEffect344State([property: JsonRequired] NativeB
     public void Validate()
     {
         Storage.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Storage.Regions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateDataRanges())
         {
-            _ = Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            _ = Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Storage.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateUnknownRanges())
         {
             _ = Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
@@ -130,9 +142,6 @@ public sealed record NativeBattleEffect344State([property: JsonRequired] NativeB
     private static void ValidateBank(NativeBattleEffectArena bank, int length)
     {
         bank.Validate();
-        if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect344 retained bytes leave their physical bank allocation.");
-        }
+        bank.ValidateExtent(length);
     }
 }

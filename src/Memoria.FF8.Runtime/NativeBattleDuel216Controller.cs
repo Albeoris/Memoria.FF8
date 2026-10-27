@@ -38,7 +38,7 @@ public static class NativeBattleDuel216Controller
         staging = Dword(Dword(Dword(Dword(Dword(staging, 0x2508870, checked(Arena + (uint)tim.ArenaOffset)), 0x250890C, Arena), 0x250887C, 0x1D99A78), 0x2508880, checked(0x1D972C0u + (uint)parameters.Actor78 * 156)), 0x2508884, checked(0x1D972C0u + (uint)minimumTargetIndex * 156));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Root, 0x25088D8, 16, 1);
         (root, int slot) = root.Append(0x695AB0);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));
         staging = staging.MarkUnknown(Root, 32);
         return new(memory with { Duel216 = new(true, parameters, resources), Textures = textures }, effect with { Pools = [root], ReturnedDescriptor = Root }, staging, random);
     }
@@ -73,7 +73,7 @@ public static class NativeBattleDuel216Controller
                 int mainIndex = Index(frame, Main);
                 NativeBattleEffectTaskPool main = frame.Effect.Pools[mainIndex];
                 (main, int child) = main.Append(0x6960E0);
-                main = main with { Slots = main.Slots.SetItem(child, main.Slots[child].WriteBytes(12, new byte[1529 * 4])) };
+                main = main.WriteSlot(child, main.Slots[child].WriteBytes(12, new byte[1529 * 4]));
                 frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(mainIndex, main) } };
                 Execute(new NativeBattleDuel216PrepareMain(child));
             }

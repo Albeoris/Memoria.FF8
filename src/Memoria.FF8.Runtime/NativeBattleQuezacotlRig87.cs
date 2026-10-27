@@ -161,7 +161,7 @@ public static partial class NativeBattleQuezacotlRig86
         int skeleton = checked((int)(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(Directory, 4)) - ArenaAddress));
         int count = arena.Read(skeleton, 1)[0];
         NativeBattleActionMatrix model = ReadMatrix(arena, 0x68);
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < count; index++)
         {
             NativeBattleActionMatrix bone = ReadBoneMatrix(memory, index);

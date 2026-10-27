@@ -27,10 +27,7 @@ public sealed record NativeBattleDoomtrain191ModelMemory([property: JsonRequired
         static void Check(NativeBattleEffectArena memory, int length)
         {
             memory.Validate();
-            if (memory.Regions.Any(region => region.Offset > length - region.Data.Length) || memory.UnknownRegions.Any(region => region.Offset > length - region.Length))
-            {
-                throw new InvalidDataException("Native Doomtrain model memory leaves its disjoint physical owner.");
-            }
+            memory.ValidateExtent(length);
         }
     }
 }

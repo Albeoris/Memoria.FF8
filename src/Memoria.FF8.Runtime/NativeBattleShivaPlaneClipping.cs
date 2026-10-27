@@ -101,7 +101,7 @@ public static class NativeBattleShivaPlaneClipping
         {
             throw new InvalidDataException("Native5C50D0 requires its actual current model-local bone matrices.");
         }
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < mesh.Vertices.Length; index++)
         {
             NativeBattleRawVertex vertex = mesh.Vertices[index];

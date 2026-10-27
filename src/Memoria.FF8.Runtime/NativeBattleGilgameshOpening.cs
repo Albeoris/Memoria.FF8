@@ -34,7 +34,7 @@ public static class NativeBattleGilgameshOpening
                 random = random.Draw(out ushort value);
                 task = task.WriteWord(0x18, (ushort)(value % 4096));
             }
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
     }
 
@@ -80,7 +80,7 @@ public static class NativeBattleGilgameshOpening
 
     private static void ValidateTask(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != 24 || task.Callback is not (0x592E90 or 0x592F90 or 0x5930C0))
+        if (task.Payload.IsDefault || task.PayloadLength != 24 || task.Callback is not (0x592E90 or 0x592F90 or 0x5930C0))
         {
             throw new InvalidDataException("Native Gilgamesh opening requires its original raw0x24-byte leaf task.");
         }

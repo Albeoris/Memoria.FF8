@@ -134,7 +134,7 @@ public sealed partial class BattleSession
             NativeBattleSharedEffectRandomState random = current.Memory.SharedEffectRandom ?? throw new NotSupportedException("Native X-ATM092 arcs require their actual shared random owner.");
             uint? directionResidue = current.Memory.ExecutionStack is { } stack ? NativeBattleXatmDeath276Stack.ResolveDirectionResidue(stack, graphics.EntryLifecycle) : null;
             NativeBattleXatmDeath276ArcStep stepped = NativeBattleXatmDeath276Arcs.Advance(pool.Slots[slot], new(lengths, resources.ArcDistances), profile, projection, random, Triangle, directionResidue);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, stepped.Task) };
+            pool = pool.WriteSlot(slot, stepped.Task);
             current = current with { Memory = current.Memory with { SharedEffectRandom = stepped.Random }, Effect = current.Effect with { Pools = current.Effect.Pools.SetItem(5, pool) } };
             (graphics, current) = AppendNativeXatmDeath276FramePackets(graphics, current, NativeBattleCinematicMonsterPackets.Pack(stepped.FramePrimitives), 1);
             return new(current, stepped.Result);

@@ -13,7 +13,7 @@ public static partial class NativeBattleBlastingZone164Controller
             {
                 task = task.WriteWord(14, unchecked((ushort)(Word(task, 14) - 1)));
             }
-            return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+            return new(frame, pool.WriteSlot(slot, task), 0);
         }
         short counter = Word(task, 12);
         switch (callback)
@@ -130,7 +130,7 @@ public static partial class NativeBattleBlastingZone164Controller
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
         bool released = callback == 0x5F44F0 ? Word(task, 12) >= lifetime : task.ReadWord(12) >= lifetime;
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, released ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), released ? 2 : 0);
 
         void Emit(uint address, NativeBattleActionMatrix matrix, uint flags, int? fade, bool common = false, bool tinted = false, int table = 17, byte shift = 2)
         {

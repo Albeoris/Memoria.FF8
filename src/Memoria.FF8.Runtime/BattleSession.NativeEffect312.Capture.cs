@@ -110,7 +110,7 @@ public sealed partial class BattleSession
             ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
             NativeBattlePrimitiveReference reference = new(executable ? "CDF6B0" : "223CCA0", 0, executable ? 0 : checked((int)(address - BaseAddress)));
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect312 capture requires its retained ordering table.");
-            NativeBattleLogicalOrdering.Builder links = new(primitive.Pending);
+            using NativeBattleLogicalOrdering.Builder links = new(primitive.Pending);
             links.InvalidatePacketRange(reference, length);
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
             links.Prepend(17, reference, words, flags, [0, 0, 0, 0]);

@@ -10,7 +10,7 @@ public static class NativeBattleEffect289CustomMesh108
     public static NativeBattleEffect289CustomMesh108Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, int tableBaseBucket = 17, byte depthShift = 2)
     {
         context.Validate();
-        if (Dword(context, 0) != mesh.Address || depthShift > 31 || context.Regions.Any(region => region.Offset > 108 - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset > 108 - region.Length) || mesh.Bytes.IsDefault || BinaryPrimitives.ReadInt32LittleEndian(Read(4, 4)) != 164)
+        if (Dword(context, 0) != mesh.Address || depthShift > 31 || context.ExceedsExtent(108) || mesh.Bytes.IsDefault || BinaryPrimitives.ReadInt32LittleEndian(Read(4, 4)) != 164)
         {
             throw new InvalidDataException("Effect289 custom mesh requires its actual bounded source and 108-byte context.");
         }

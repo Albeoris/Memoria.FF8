@@ -16,7 +16,7 @@ public static partial class NativeBattleEnergyBomber217Controller
         int target = inputs.Packets.ReadContact(FirstContact(frame, inputs)).Primary.ActorIndex;
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8])) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
         return frame with { State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78)).WriteDword(TargetGlobal, ModelAddress(target)), Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -95,7 +95,7 @@ public static partial class NativeBattleEnergyBomber217Controller
         NativeBattleModulePoolTask task = main.Slots[slot].WriteBytes(12, new byte[MainStride - 12]);
         NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[0x398].ToImmutableArray()).Initialize7016B0(resources.MainAct, 0x398);
         task = task.WriteBytes(0x44, workspace.Data.AsSpan());
-        frame = WithPool(frame, 1, main with { Slots = main.Slots.SetItem(slot, task) });
+        frame = WithPool(frame, 1, main.WriteSlot(slot, task));
         NativeBattleEnergyBomber217AnchorStep anchor = inputs.ReadAnchor571400(frame, Actor(frame.State.ReadDword(TargetGlobal)));
         frame = anchor.Frame;
         task = Read(frame, main.BankAddress).WriteWord(0x28, unchecked((ushort)anchor.Anchor.X)).WriteWord(0x2A, unchecked((ushort)anchor.Anchor.Y)).WriteWord(0x2C, unchecked((ushort)anchor.Anchor.Z)).WriteWord(0x2E, unchecked((ushort)anchor.Anchor.W));
@@ -121,7 +121,7 @@ public static partial class NativeBattleEnergyBomber217Controller
             NativeBattleEffectTaskPool pool = frame.Effect.Pools[index];
             if (address >= pool.BankAddress && address < pool.BankAddress + (uint)(pool.Stride * pool.Slots.Length) && (address - pool.BankAddress) % pool.Stride == 0)
             {
-                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(checked((int)((address - pool.BankAddress) / pool.Stride)), task) });
+                return WithPool(frame, index, pool.WriteSlot(checked((int)((address - pool.BankAddress) / pool.Stride)), task));
             }
         }
         throw new NotSupportedException("EnergyBomber217 task write has no current physical owner.");
@@ -143,7 +143,7 @@ public static partial class NativeBattleEnergyBomber217Controller
 
     private static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(offset - 12, length));
+        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
         if (task.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)

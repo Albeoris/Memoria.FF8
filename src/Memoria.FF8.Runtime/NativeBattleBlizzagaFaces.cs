@@ -28,7 +28,7 @@ public static class NativeBattleBlizzagaFaces
     public static ImmutableArray<byte> ExpandedVertices(NativeBattleModulePoolTask task, int phase)
     {
         RequireTask(task);
-        return task.Payload.AsSpan().Slice(VertexOffset - 12, phase <= 32 ? 177 * 8 : ExpandedLength).ToArray().ToImmutableArray();
+        return task.ReadRawPayloadSpan().Slice(VertexOffset - 12, phase <= 32 ? 177 * 8 : ExpandedLength).ToArray().ToImmutableArray();
     }
 
     public static (short Minimum, short Span) Extents(NativeBattleBlizzagaResources resources)
@@ -77,17 +77,21 @@ public static class NativeBattleBlizzagaFaces
         }
         if (phase <= 30)
         {
-            ImmutableArray<byte> morphed = NativeBattleGfMorphGeometry.Morph45E9D0(resources.MorphSourceVertices.Bytes, 8, resources.ReferenceVertices.Bytes, 8, 177, 682 + (phase - 28) * 1365, task.Payload, VertexOffset - 12);
-            return new(memory, task with { Payload = morphed }, random);
+            ImmutableArray<NativeBattleVector> morphed = NativeBattleGfMorphGeometry.MorphVertices45E9D0(resources.MorphSourceVertices.Bytes, 8, resources.ReferenceVertices.Bytes, 8, 177, 682 + (phase - 28) * 1365);
+            for (int index = 0; index < morphed.Length; index++)
+            {
+                NativeBattleVector vertex = morphed[index];
+                task.WriteWord(VertexOffset + index * 8, unchecked((ushort)vertex.X)).WriteWord(VertexOffset + index * 8 + 2, unchecked((ushort)vertex.Y)).WriteWord(VertexOffset + index * 8 + 4, unchecked((ushort)vertex.Z));
+            }
+            return new(memory, task, random);
         }
-        byte[] payload = task.Payload.ToArray();
         if (phase == 31)
         {
-            resources.ReferenceVertices.Bytes.AsSpan().Slice(8, 177 * 8).CopyTo(payload.AsSpan(VertexOffset - 12));
+            task.WriteRetainedBytes(VertexOffset, resources.ReferenceVertices.Bytes.AsSpan().Slice(8, 177 * 8));
         }
         if (phase <= 32)
         {
-            return new(memory, task with { Payload = payload.ToImmutableArray() }, random);
+            return new(memory, task, random);
         }
         byte[] mesh = ReadPrimaryMesh(memory, sequence).ToArray();
         byte[] companion = Companion(memory).ToArray();
@@ -99,7 +103,9 @@ public static class NativeBattleBlizzagaFaces
         }
         if (phase == 33)
         {
-            NativeBattleIceMeshVertices.ExpandGt3(mesh, resources.ReferenceVertices.Bytes.AsSpan()[8..], payload.AsSpan(VertexOffset - 12, ExpandedLength));
+            byte[] expanded = new byte[ExpandedLength];
+            NativeBattleIceMeshVertices.ExpandGt3(mesh, resources.ReferenceVertices.Bytes.AsSpan()[8..], expanded);
+            task.WriteRetainedBytes(VertexOffset, expanded);
             for (int index = 0; index < FaceCount; index++)
             {
                 int face = first + index * 28;
@@ -194,16 +200,16 @@ public static class NativeBattleBlizzagaFaces
                 Set(selected[corner] + 4, transformed.Z);
             }
         }
-        return new(memory with { Arena = Arena(memory).Write(MeshOffset(sequence), mesh), BlizzagaCompanion = companion.ToImmutableArray() }, task with { Payload = payload.ToImmutableArray() }, random);
+        return new(memory with { Arena = Arena(memory).Write(MeshOffset(sequence), mesh), BlizzagaCompanion = companion.ToImmutableArray() }, task, random);
 
-        short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(offset - 12));
-        void Set(int offset, int value) => BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(offset - 12), unchecked((ushort)value));
+        short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(task.ReadRawPayloadSpan().Slice(offset - 12));
+        void Set(int offset, int value) => task.WriteWord(offset, unchecked((ushort)value));
         int[] Corners(int face) => Enumerable.Range(0, 3).Select(corner => checked(VertexOffset + BinaryPrimitives.ReadUInt16LittleEndian(mesh.AsSpan(face + 4 + corner * 2)) * 4)).ToArray();
     }
 
     private static void RequireTask(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != 0x6428 - 12)
+        if (task.PayloadLength != 0x6428 - 12)
         {
             throw new InvalidDataException("Native Blizzaga requires its complete physical6428-byte primary task.");
         }

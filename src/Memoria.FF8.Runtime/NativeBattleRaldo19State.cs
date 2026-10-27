@@ -54,9 +54,6 @@ public sealed record NativeBattleRaldo19State([property: JsonRequired] NativeBat
             throw new InvalidDataException("Raldo requires its actual retained mutable memory owners.");
         }
         arena.Validate();
-        if (arena.Regions.Any(region => region.Offset > length - region.Data.Length) || arena.UnknownRegions.Any(region => region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Raldo retained bytes exceed their original static owner.");
-        }
+        arena.ValidateExtent(length);
     }
 }

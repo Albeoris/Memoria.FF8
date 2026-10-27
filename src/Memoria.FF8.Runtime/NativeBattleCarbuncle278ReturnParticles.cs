@@ -30,9 +30,9 @@ public static class NativeBattleCarbuncle278ReturnParticles
         frame = frame with { Memory = frame.Memory.DrawSharedEffectRandom7059E0(out ushort kindRandom) };
         int floor = NativeBattleCarbuncle278Entry.RequireState(frame.Memory).Base81CC;
         NativeBattleModulePoolTask task = pool.Slots[index].WriteWord(0xC, unchecked((ushort)x)).WriteWord(0xE, 0).WriteWord(0x10, unchecked((ushort)(z + floor))).WriteWord(0x12, 0).WriteWord(0x14, unchecked((ushort)(x >> 2))).WriteWord(0x16, unchecked((ushort)speed)).WriteWord(0x18, unchecked((ushort)(z >> 2))).WriteWord(0x1A, (ushort)(kindRandom & 1));
-        pool = pool with { Slots = pool.Slots.SetItem(index, task) };
+        pool = pool.WriteSlot(index, task);
         int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 12);
-        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.Payload.AsSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
+        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }
 
     public static NativeBattleModuleDraw Draw683DC0(NativeBattleModulePoolTask task, ImmutableArray<NativeBattleModuleResource> resources)

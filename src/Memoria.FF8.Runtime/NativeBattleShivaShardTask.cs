@@ -115,7 +115,7 @@ public static class NativeBattleShivaShardTask
         if (!paused)
         {
             task = frame.Pool.Slots[slot].WriteWord(0x0C, unchecked((ushort)(frame.Pool.Slots[slot].ReadWord(0x0C) + 1)));
-            frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+            frame = frame with { Pool = frame.Pool.WriteSlot(slot, task) };
             result = unchecked((short)task.ReadWord(0x0C)) >= 18 && allocated == 0 ? 2 : 0;
         }
         return new(frame, new(attempts.ToImmutable(), allocated), result);

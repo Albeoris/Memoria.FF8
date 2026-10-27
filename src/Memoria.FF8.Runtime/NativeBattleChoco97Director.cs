@@ -39,7 +39,7 @@ public static class NativeBattleChoco97Director
     internal static NativeBattleChoco97DirectorStep AdvanceFamily(NativeBattleChoco97DirectorFrame frame, NativeBattleChoco97DirectorInputs inputs, bool choco98)
     {
         frame.Context.Validate();
-        if (frame.Task.Callback != (choco98 ? NativeBattleChoco98Director.Callback : Callback) || frame.Task.Payload.IsDefault || frame.Task.Payload.Length != 0x48 - 12)
+        if (frame.Task.Callback != (choco98 ? NativeBattleChoco98Director.Callback : Callback) || frame.Task.Payload.IsDefault || frame.Task.PayloadLength != 0x48 - 12)
         {
             throw new InvalidDataException("Native Choco director requires its complete original target task.");
         }

@@ -34,7 +34,7 @@ public static class NativeBattleEffect3
         }
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x2557078, 0x2557060, 20, 1);
         (main, int slot) = main.Append(0x700CA0);
-        main = main with { Slots = main.Slots.SetItem(slot, main.Slots[slot] with { Payload = ImmutableArray.CreateRange(new byte[8]) }) };
+        main = main.WriteSlot(slot, main.Slots[slot].ClearPayload(8));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x2557088, 0x2557000, 28, 3);
         return effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress, DrawArenaOffset = null };
     }
@@ -65,23 +65,22 @@ public static class NativeBattleEffect3
             {
                 throw new NotSupportedException("Native effect3 main task lost its700CA0 callback.");
             }
-            uint buffer = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(4));
+            uint buffer = BinaryPrimitives.ReadUInt32LittleEndian(task.ReadRawPayloadSpan().Slice(4));
             drawArenaOffset = buffer != 0 ? 0 : 0x8000;
-            byte[] payload = task.Payload.ToArray();
-            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), buffer != 0 ? 0u : 1u);
+            task.WriteDword(16, buffer != 0 ? 0u : 1u);
             if (Word(task, 12) == 1)
             {
-                payload[3] = 1;
-                byte sequence = payload[2];
+                task.WriteByte(15, 1);
+                byte sequence = task.ReadByte(14);
                 if (sequence <= inputs.Packets.Headers[parameters.HeaderIndex7C].ReadByte(17))
                 {
                     int first = FirstContact(Header(sequence));
                     int model = inputs.Packets.ReadContact(first).Primary.ActorIndex;
                     uint modelAddress = checked(0x1D972C0u + 156u * (uint)model);
-                    bool busy = children.Slots.Any(child => (child.Flags & 1) != 0 && BinaryPrimitives.ReadUInt32LittleEndian(child.Payload.AsSpan().Slice(4)) == modelAddress && Word(child, 12) <= 15);
+                    bool busy = children.Slots.Any(child => (child.Flags & 1) != 0 && BinaryPrimitives.ReadUInt32LittleEndian(child.ReadRawPayloadSpan().Slice(4)) == modelAddress && Word(child, 12) <= 15);
                     if (busy)
                     {
-                        BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
+                        task.WriteWord(12, 0);
                     }
                     else
                     {
@@ -94,20 +93,20 @@ public static class NativeBattleEffect3
                         BinaryPrimitives.WriteInt16LittleEndian(childPayload.AsSpan(10), anchor.Y);
                         BinaryPrimitives.WriteInt16LittleEndian(childPayload.AsSpan(12), anchor.Z);
                         BinaryPrimitives.WriteInt16LittleEndian(childPayload.AsSpan(14), unchecked((short)((-4096 - inputs.ReadTransform(model).Scale38) >> 2)));
-                        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot] with { Payload = childPayload.ToImmutableArray() }) };
-                        payload[2] = unchecked((byte)(sequence + 1));
+                        children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteBytes(12, childPayload));
+                        task.WriteByte(14, unchecked((byte)(sequence + 1)));
                     }
                 }
             }
             NativeBattleEffectTaskStep childStep = children.Advance(AdvanceChild);
             children = childStep.Pool;
-            bool released = payload[3] != 0 && childStep.Survivors == 0;
+            bool released = task.ReadByte(15) != 0 && childStep.Survivors == 0;
             if (!released)
             {
-                short counter = unchecked((short)(BinaryPrimitives.ReadInt16LittleEndian(payload) + 1));
-                BinaryPrimitives.WriteInt16LittleEndian(payload, counter >= 5 ? (short)0 : counter);
+                short counter = unchecked((short)(unchecked((short)task.ReadWord(12)) + 1));
+                task.WriteWord(12, unchecked((ushort)(counter >= 5 ? (short)0 : counter)));
             }
-            return new(pool with { Slots = pool.Slots.SetItem(slot, task with { Payload = payload.ToImmutableArray() }) }, released ? 2 : 0);
+            return new(pool.WriteSlot(slot, task), released ? 2 : 0);
         });
         return new(effect with { Pools = [main.Pool, children], ReturnedDescriptor = main.Survivors == 0 ? 0 : main.Pool.DescriptorAddress, DrawArenaOffset = drawArenaOffset }, draws.ToImmutable(), contacts.ToImmutable(), sounds.ToImmutable());
 
@@ -119,7 +118,7 @@ public static class NativeBattleEffect3
                 throw new NotSupportedException("Native effect3 child lost its700DE0 callback.");
             }
             short frame = Word(task, 12);
-            uint address = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(4));
+            uint address = BinaryPrimitives.ReadUInt32LittleEndian(task.ReadRawPayloadSpan().Slice(4));
             uint relative = unchecked(address - 0x1D972C0u);
             if (relative % 156 != 0 || relative / 156 >= 7)
             {
@@ -164,7 +163,7 @@ public static class NativeBattleEffect3
                 inputs.ApplyContact?.Invoke(first);
             }
             task = task.WriteWord(12, unchecked((ushort)(frame + 1)));
-            return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, Word(task, 12) >= 25 ? 2 : 0);
+            return new(pool.WriteSlot(slot, task), Word(task, 12) >= 25 ? 2 : 0);
         }
 
         void Draw(uint address, int first, int count, int phase, NativeBattleModuleAnchor anchor, int depth, bool ground = false)

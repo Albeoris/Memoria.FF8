@@ -15,7 +15,7 @@ public static class NativeBattleEffect79Mesh104
         {
             context = Put(context, 4, checked(mesh.Address + 8));
         }
-        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0xC0 or 0xF0 or 0x2030 or 0x20F0) || depthShift > 31 || context.Regions.Any(region => region.Offset > 104 - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset > 104 - region.Length))
+        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0xC0 or 0xF0 or 0x2030 or 0x20F0) || depthShift > 31 || context.ExceedsExtent(104))
         {
             throw new InvalidDataException("Effect79 mesh104 requires its actual bounded windowed context.");
         }

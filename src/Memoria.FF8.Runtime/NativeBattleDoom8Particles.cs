@@ -196,7 +196,7 @@ public static class NativeBattleDoom8Particles
     {
         source.RequirePayloadRange(sourceOffset, 8);
         source.ValidateUnknownPayloadRanges();
-        byte[] bytes = source.Payload.AsSpan().Slice(sourceOffset - 12, 8).ToArray();
+        byte[] bytes = source.ReadRawPayloadSpan().Slice(sourceOffset - 12, 8).ToArray();
         bool[] known = Enumerable.Repeat(true, 8).ToArray();
         if (source.UnknownPayloadRanges is { } ranges)
         {

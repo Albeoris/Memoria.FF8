@@ -7,8 +7,8 @@ public static partial class NativeBattleEffectPacketArena
     /// <summary>Apply ordered native stores and links, including rejected attempts and nonsequential E1/draw packet insertion.</summary>
     public static NativeBattleEffectPacketWrite Append(NativeBattleEffectMemory memory, int cursor, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null)
     {
-        NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native effect packet attempts require their actual571870 arena bytes."));
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native effect packet attempts require their actual571870 arena bytes."));
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         AppendAttempts(arena, links, cursor, batch, flags20, moduleDraw);
         return new(memory with { Arena = arena.Freeze() }, checked(cursor + batch.AllocationBytes), links.ToImmutable());
     }
@@ -18,8 +18,8 @@ public static partial class NativeBattleEffectPacketArena
         NativeBattleEffectArena source = memory.Arena ?? throw new NotSupportedException("Native private packets require their actual effect arena.");
         using NativeBattleEffectArenaTransaction? owned = source.Transaction is null ? new(source) : null;
         NativeBattleEffectArena view = owned?.View ?? source;
-        NativeBattleEffectArenaWriter arena = new(view);
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleEffectArenaWriter arena = new(view);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         AppendAttempts(arena, links, cursor, batch, flags20, moduleDraw, orderingAddress);
         return new(memory with { Arena = owned?.Freeze() ?? view }, checked(cursor + batch.AllocationBytes), links.ToImmutable());
     }

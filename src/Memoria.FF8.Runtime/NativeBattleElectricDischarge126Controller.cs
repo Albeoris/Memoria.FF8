@@ -14,7 +14,7 @@ public static partial class NativeBattleElectricDischarge126Controller
         (textures, _) = textures.EnqueueArenaTim505E30(Arena(frame), tim);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         NativeBattleElectricDischarge126State state = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
         for (int actor = 0; actor < 3; actor++)
         {

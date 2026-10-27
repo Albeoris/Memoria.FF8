@@ -11,7 +11,7 @@ public static class NativeBattleWindowedMesh144
     {
         context.Validate();
         uint flags = U(context, 0x20);
-        if (U(context, 0) != mesh.Address || flags is not (0x33 or 0xF3) || depthShift > 31 || context.Regions.Any(region => region.Offset < 0 || region.Offset > 144 - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > 144 - region.Length))
+        if (U(context, 0) != mesh.Address || flags is not (0x33 or 0xF3) || depthShift > 31 || context.ExceedsExtent(144))
         {
             throw new InvalidDataException("Windowed windowed drawing requires its actual 144-byte context and selected source.");
         }

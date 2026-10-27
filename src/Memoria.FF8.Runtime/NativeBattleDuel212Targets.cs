@@ -94,7 +94,7 @@ public static class NativeBattleDuel212Targets
                 frame = frame with { Random = frame.Random.Draw(out ushort size) };
                 NativeBattleModulePoolTask sprite = sprites.Slots[slot].WriteWord(12, unchecked((ushort)point.X)).WriteWord(14, unchecked((ushort)point.Y)).WriteWord(16, unchecked((ushort)point.Z)).WriteWord(18, unchecked((ushort)(((size << 11) >> 15) + 4096)));
                 sprite = sprite.WriteByte(20, 0).WriteByte(21, unchecked((byte)-15)).WriteByte(22, 0).WriteByte(23, 16);
-                sprites = sprites with { Slots = sprites.Slots.SetItem(slot, sprite) };
+                sprites = sprites.WriteSlot(slot, sprite);
             }
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == sprites.DescriptorAddress ? sprites : bank).ToImmutableArray() } };
         }
@@ -102,7 +102,7 @@ public static class NativeBattleDuel212Targets
 
         void Store()
         {
-            pool = pool with { Slots = pool.Slots.SetItem(0, task) };
+            pool = pool.WriteSlot(0, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == pool.DescriptorAddress ? pool : bank).ToImmutableArray() } };
         }
         void Refresh()

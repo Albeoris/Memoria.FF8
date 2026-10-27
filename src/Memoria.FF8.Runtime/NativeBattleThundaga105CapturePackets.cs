@@ -13,7 +13,7 @@ public sealed record NativeBattleThundaga105CaptureMemory([property: JsonRequire
     public byte[] Read(int offset, int count)
     {
         Statics.Validate();
-        if (offset < 0 || count < 0 || offset > Length - count || Statics.Regions.Any(region => region.Offset > Length - region.Data.Length) || Statics.UnknownRegions.Any(region => region.Offset > Length - region.Length))
+        if (offset < 0 || count < 0 || offset > Length - count || Statics.ExceedsExtent(Length))
         {
             throw new InvalidDataException("Native Thundaga capture statics leave their actual108-byte owner.");
         }
@@ -77,7 +77,7 @@ public static class NativeBattleThundaga105CapturePackets
         BinaryPrimitives.WriteUInt32LittleEndian(black.AsSpan(16), 128u << 16);
         BinaryPrimitives.WriteUInt32LittleEndian(black.AsSpan(20), 128u << 16 | 128);
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native capture black packet requires its actual effect arena.");
-        NativeBattleLogicalOrdering.Builder blackAlias = new(ordering);
+        using NativeBattleLogicalOrdering.Builder blackAlias = new(ordering);
         blackAlias.InvalidatePacketRange(new("20DFAB8", 0, cursor), black.Length);
         ordering = blackAlias.ToImmutable();
         memory = memory with { Arena = arena.Write(cursor, black) };
@@ -101,7 +101,7 @@ public static class NativeBattleThundaga105CapturePackets
             int length = checked(4 + 4 * header[3]);
             byte[] data = retained.Read(offset, length);
             ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
-            NativeBattleLogicalOrdering.Builder links = new(ordering);
+            using NativeBattleLogicalOrdering.Builder links = new(ordering);
             links.InvalidatePacketRange(new(NativeBattleThundaga105CaptureMemory.PacketBank, 0, offset), length);
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
             links.Prepend(17, new(NativeBattleThundaga105CaptureMemory.PacketBank, 0, offset), words, 0, [0, 0, 0, 0]);

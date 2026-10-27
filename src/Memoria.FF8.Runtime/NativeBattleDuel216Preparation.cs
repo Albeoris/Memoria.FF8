@@ -117,7 +117,7 @@ public static class NativeBattleDuel216Preparation
         return model.RotationPadding18 is ushort padding ? task.WriteWord(offset + 6, padding) : task.MarkPayloadUnknown(offset + 6, 2);
     }
     private static NativeBattleEffectTaskPool Main(NativeBattleDuel216Frame frame) => frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel216Controller.Main && pool.BankAddress == NativeBattleDuel216Controller.Arena && pool.Stride == 6128 && pool.Slots.Length == 1);
-    private static NativeBattleDuel216Frame Publish(NativeBattleDuel216Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(candidate => candidate.DescriptorAddress == pool.DescriptorAddress ? pool with { Slots = pool.Slots.SetItem(slot, task) } : candidate).ToImmutableArray() } };
+    private static NativeBattleDuel216Frame Publish(NativeBattleDuel216Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(candidate => candidate.DescriptorAddress == pool.DescriptorAddress ? pool.WriteSlot(slot, task) : candidate).ToImmutableArray() } };
     private static int ModelIndex(NativeBattleFileStaging staging, uint global)
     {
         uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(global, 4));

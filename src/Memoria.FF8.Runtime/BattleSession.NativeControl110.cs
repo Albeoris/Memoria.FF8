@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures, Control110 = retained with { Vertices = retained.Vertices ?? resources.Stream.Slice(8, 308 * 8) } };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521A40, 0x25219D8, 20, 1);
         (root, _) = root.Append(0x6CE2A0);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0));
         return graphics with { OriginalEffect = effect with { Pools = [root], ReturnedDescriptor = 0x2521A40, DrawArenaOffset = null, Control110 = new(memory.Cursor) } };
     }
 
@@ -88,7 +88,7 @@ public sealed partial class BattleSession
                         0x6CF280 => Ring(ref task),
                         _ => throw new NotSupportedException("Native control110 selected an unrelated callback.")
                     };
-                    task = task with { Next = pools[selected].Slots[slot].Next };
+                    task = task.UpdateHeader(task.Flags, task.State, pools[selected].Slots[slot].Next, task.Callback);
                     Put(selected, slot, task);
                     return new(pools[selected], result);
                 });
@@ -372,8 +372,8 @@ public sealed partial class BattleSession
             (pools[bank], slot) = pools[bank].Append(callback);
             return true;
         }
-        NativeBattleModulePoolTask Clear(int bank, int slot) => pools[bank].Slots[slot] with { Payload = new byte[pools[bank].Stride - 12].ToImmutableArray() };
-        void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank] with { Slots = pools[bank].Slots.SetItem(slot, task) };
+        NativeBattleModulePoolTask Clear(int bank, int slot) => pools[bank].Slots[slot].ClearPayload(pools[bank].Stride - 12);
+        void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank].WriteSlot(slot, task);
         void Append(NativeBattleGfGeometryBatch batch)
         {
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch);

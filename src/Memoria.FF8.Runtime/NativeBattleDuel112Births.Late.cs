@@ -86,7 +86,7 @@ public static partial class NativeBattleDuel112Births
         void Store(int poolIndex, int slot, NativeBattleModulePoolTask task)
         {
             NativeBattleEffectTaskPool pool = frame.Effect.Pools[poolIndex];
-            frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(poolIndex, pool with { Slots = pool.Slots.SetItem(slot, task) }) } };
+            frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(poolIndex, pool.WriteSlot(slot, task)) } };
         }
     }
 }

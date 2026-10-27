@@ -60,7 +60,7 @@ public static partial class NativeBattleEffect30Controller
 
     private static NativeBattleModulePoolTask CopyPacked(NativeBattleModulePoolTask task, int source, int destination, int length)
     {
-        byte[] bytes = task.Payload.AsSpan().Slice(source - 12, length).ToArray();
+        byte[] bytes = task.ReadRawPayloadSpan().Slice(source - 12, length).ToArray();
         var unknown = task.UnknownPayloadRanges;
         task = task.WriteBytes(destination, bytes);
         if (unknown is { } ranges)

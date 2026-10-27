@@ -36,7 +36,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             NativeBattleModulePoolTask created = pool.Slots[child].WriteWord(12, 0).WriteWord(14, (ushort)contact);
             ushort scale = (ushort)(Rand() % 768 + 1280);
             created = created.WriteWord(28, scale).WriteWord(30, scale);
-            pool = pool with { Slots = pool.Slots.SetItem(child, created) };
+            pool = pool.WriteSlot(child, created);
             NativeBattleRenzokuken160State state = ReadState(frame).Core;
             NativeBattleRenzokukenContactOrigin origin = readOrigin?.Invoke(contact) ?? new(state.Origin, state.OriginPadding);
             int impact = contact * 156;
@@ -98,7 +98,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         }
         frame = WriteState(frame, ReadState(frame).Core with { Sparks = sparks.ToImmutableArray(), Debris = debris.ToImmutableArray(), ImpactStates = impacts.ToImmutableArray() });
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) }, unchecked((short)task.ReadWord(12)) >= ReadState(frame).Core.Duration - 1 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), unchecked((short)task.ReadWord(12)) >= ReadState(frame).Core.Duration - 1 ? 2 : 0);
 
         void WritePadding(byte[] bytes, int offset, ushort? value, int bank, int index)
         {

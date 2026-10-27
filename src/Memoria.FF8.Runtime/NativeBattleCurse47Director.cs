@@ -135,7 +135,7 @@ public static class NativeBattleCurse47Director
     }
 
     private static NativeBattleModulePoolTask Read(NativeBattleCurse47Frame frame, uint address) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-    private static NativeBattleCurse47Frame Put(NativeBattleCurse47Frame frame, uint address, NativeBattleModulePoolTask task) => frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task with { Next = Read(frame, address).Next }).Pools } };
+    private static NativeBattleCurse47Frame Put(NativeBattleCurse47Frame frame, uint address, NativeBattleModulePoolTask task) => frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task.UpdateHeader(task.Flags, task.State, Read(frame, address).Next, task.Callback)).Pools } };
     private static NativeBattleCurse47Frame Next(NativeBattleCurse47Frame frame, uint address) => Put(frame, address, Read(frame, address).WriteByte(0x29, unchecked((byte)(Read(frame, address).ReadByte(0x29) + 1))));
 
     private static void Require(NativeBattleCurse47Frame frame, uint address)

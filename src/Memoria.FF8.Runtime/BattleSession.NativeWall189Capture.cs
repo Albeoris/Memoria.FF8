@@ -58,7 +58,7 @@ public sealed partial class BattleSession
 
         ImmutableArray<byte> Link(ImmutableArray<byte> bytes, string bank, ushort flags)
         {
-            NativeBattleLogicalOrdering.Builder links = new(graphics.PrimitiveFrame!.Pending);
+            using NativeBattleLogicalOrdering.Builder links = new(graphics.PrimitiveFrame!.Pending);
             NativeBattlePrimitiveReference reference = new(bank, 0, 0);
             links.InvalidatePacketRange(reference, bytes.Length);
             ImmutableArray<uint> words = Enumerable.Range(0, bytes.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(index * 4))).ToImmutableArray();

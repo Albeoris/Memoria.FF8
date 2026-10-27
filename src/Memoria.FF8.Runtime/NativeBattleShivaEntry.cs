@@ -52,11 +52,11 @@ public static class NativeBattleShivaEntry
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x22BC180, 0x22BC160, 0x10, 2);
         int mainSlot;
         (main, mainSlot) = main.Append(0x5C7F50);
-        main = main with { Slots = main.Slots.SetItem(mainSlot, main.Slots[mainSlot].WriteWord(0x0C, 0)) };
+        main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(0x0C, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x22BC198, 0x22BC1A8, 0x24, 100);
         int childSlot;
         (children, childSlot) = children.Append(0x5C0F30);
-        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot].WriteWord(0x0C, 0)) };
+        children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteWord(0x0C, 0));
         return new(memory with { Arena = arena, Textures = textures }, effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress }, new(parameters.Actor78, target, center, world, 0));
     }
 }

@@ -63,7 +63,7 @@ public static class NativeBattlePandemona291Entry
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x14, 1);
         (pool, int slot) = pool.Append(MainCallback);
         NativeBattleModulePoolTask root = pool.Slots[slot].WriteDword(0xC, 0).WriteDword(0x10, 0);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, root) };
+        pool = pool.WriteSlot(slot, root);
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int count = header.ReadByte(0x10);
         int sum = 0;

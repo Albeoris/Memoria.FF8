@@ -28,7 +28,7 @@ public static partial class NativeBattleWildCannonBlow156Controller
             if (offset < (uint)(pool.Stride * pool.Slots.Length) && offset % pool.Stride == 0)
             {
                 int slot = (int)(offset / pool.Stride);
-                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) });
+                return WithPool(frame, index, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)));
             }
         }
         throw new InvalidDataException("Wild Cannon Blow task write leaves its canonical physical pools.");
@@ -76,7 +76,7 @@ public static partial class NativeBattleWildCannonBlow156Controller
     public static NativeBattleWildCannonBlow156Frame PublishContext(NativeBattleWildCannonBlow156Frame frame, uint address, NativeBattleEffectArena context, int length) => frame with { Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), address, context, length) };
     public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(offset - 12, length));
+        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
         if (task.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)
@@ -143,7 +143,7 @@ public static partial class NativeBattleWildCannonBlow156Controller
         NativeBattleEffectTaskPool selected = effect.Pools[poolIndex];
         int slot = (int)((address - selected.BankAddress) / selected.Stride);
         NativeBattleModulePoolTask task = selected.Slots[slot].WriteBytes(14, [value]);
-        return effect with { Pools = effect.Pools.SetItem(poolIndex, selected with { Slots = selected.Slots.SetItem(slot, task) }) };
+        return effect with { Pools = effect.Pools.SetItem(poolIndex, selected.WriteSlot(slot, task)) };
     }
 
     private static NativeBattleWildCannonBlow156Frame DetachBanks(NativeBattleWildCannonBlow156Frame frame)

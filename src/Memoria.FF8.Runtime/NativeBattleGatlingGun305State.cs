@@ -18,11 +18,11 @@ public sealed record NativeBattleGatlingGun305State([property: JsonRequired] Nat
     {
         Globals.Validate();
         Packets.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        if (Globals.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > Length - region.Length) || Packets.Regions.Any(region => region.Offset < 0 || region.Offset > NativeBattleGatlingGun305Profile.PacketBytes - region.Data.Length) || Packets.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > NativeBattleGatlingGun305Profile.PacketBytes - region.Length))
+        if (Globals.EnumerateUnknownRanges().Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > Length - region.Length) || Packets.EnumerateDataRanges().Any(region => region.Offset < 0 || region.Offset > NativeBattleGatlingGun305Profile.PacketBytes - region.Length) || Packets.EnumerateUnknownRanges().Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > NativeBattleGatlingGun305Profile.PacketBytes - region.Length))
         {
             throw new InvalidDataException("Gatling Gun retained memory leaves its actual scalar or fixed packet owner.");
         }
@@ -30,15 +30,41 @@ public sealed record NativeBattleGatlingGun305State([property: JsonRequired] Nat
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public byte[] Read(uint address, int length) => Globals.Read(Require(address, length), length);
-    public NativeBattleGatlingGun305State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleGatlingGun305State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleGatlingGun305State Write(uint address, ReadOnlySpan<byte> bytes) => this with { Globals = Globals.Write(Require(address, bytes.Length), bytes) };
+    public NativeBattleGatlingGun305State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleGatlingGun305State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleGatlingGun305State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        Globals.Write(Require(address, bytes.Length), bytes);
+        return this;
+    }
     public NativeBattleEffectArena ReadView(uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(Globals, Require(address, length), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
-    public NativeBattleGatlingGun305State WriteView(uint address, NativeBattleEffectArena source, int length) => this with { Globals = NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length) };
+    public NativeBattleGatlingGun305State WriteView(uint address, NativeBattleEffectArena source, int length)
+    {
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length);
+        return this;
+    }
     public NativeBattleResourcePointer? ReadResourcePointer(uint address) => Globals.ReadResourcePointer(Require(address, 4));
-    public NativeBattleGatlingGun305State WriteResourcePointer(uint address, NativeBattleResourcePointer? pointer) => this with { Globals = Globals.WriteResourcePointer(Require(address, 4), pointer) };
+    public NativeBattleGatlingGun305State WriteResourcePointer(uint address, NativeBattleResourcePointer? pointer)
+    {
+        Globals.WriteResourcePointer(Require(address, 4), pointer);
+        return this;
+    }
     public byte[] ReadPacket(uint address, int length) => Packets.Read(PacketOffset(address, length), length);
-    public NativeBattleGatlingGun305State WritePacket(uint address, ReadOnlySpan<byte> bytes) => this with { Packets = Packets.Write(PacketOffset(address, bytes.Length), bytes) };
+    public NativeBattleGatlingGun305State WritePacket(uint address, ReadOnlySpan<byte> bytes)
+    {
+        Packets.Write(PacketOffset(address, bytes.Length), bytes);
+        return this;
+    }
     public NativeBattleGatlingGun305State ClearSlotHeads()
     {
         NativeBattleGatlingGun305State state = this;

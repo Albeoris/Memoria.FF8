@@ -12,15 +12,21 @@ public sealed record NativeBattlePain34State([property: JsonRequired] NativeBatt
     public void Validate()
     {
         Globals.Validate();
-        if (Globals.Regions.Any(region => region.Offset > Length - region.Data.Length) || Globals.UnknownRegions.Any(region => region.Offset > Length - region.Length))
-        {
-            throw new InvalidDataException("Native Pain globals leave their physical module range.");
-        }
+        Globals.ValidateExtent(Length);
     }
     public byte[] Read(uint address, int length) => Globals.Read(Offset(address, length), length);
     public uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
-    public NativeBattlePain34State Write(uint address, ReadOnlySpan<byte> bytes) => this with { Globals = Globals.Write(Offset(address, bytes.Length), bytes) };
-    public NativeBattlePain34State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattlePain34State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        Globals.Write(Offset(address, bytes.Length), bytes);
+        return this;
+    }
+    public NativeBattlePain34State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     private static int Offset(uint address, int length)
     {
         if (address < Address || length < 0 || length > Length || (ulong)address - Address > (uint)(Length - length))

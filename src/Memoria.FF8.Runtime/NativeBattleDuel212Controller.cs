@@ -24,7 +24,7 @@ public static partial class NativeBattleDuel212Controller
         }
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Root, 0x2510248, 16, 1);
         (root, int slot) = root.Append(0x6A0DC0);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));
         staging = Put(staging, 0x2510278, 0x20DFAB8);
         staging = Put(staging, 0x25101FC, 0x1D99A78);
         staging = Put(staging, 0x2510200, checked(0x1D972C0u + 156u * parameters.Actor78));

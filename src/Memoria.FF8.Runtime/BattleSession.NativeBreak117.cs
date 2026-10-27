@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25216A8, 0x2521660, 20, 1);
         (root, _) = root.Append(0x6C1740);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0));
         return graphics with { OriginalEffect = effect with { Pools = [root], ReturnedDescriptor = 0x25216A8, DrawArenaOffset = null, Break117 = new(0) } };
     }
 
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
                     NativeBattleVector position = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
                     NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Break requires its actor heightWORD24.");
                     position = position with { Y = transform.Angle36 };
-                    NativeBattleModulePoolTask task = WindStore(pools[1].Slots[slot] with { Payload = new byte[0x1564].ToImmutableArray() }, 16, position).WriteWord(14, (ushort)action).WriteDword(24, entity);
+                    NativeBattleModulePoolTask task = WindStore(pools[1].Slots[slot].ClearPayload(0x1564), 16, position).WriteWord(14, (ushort)action).WriteDword(24, entity);
                     NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x1C - 12, 0x1554));
                     Put(1, slot, PublishWorkspace(task, 0x1C, workspace.Initialize7016B0(resources.Shell, 0x1554)));
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));
@@ -97,7 +97,7 @@ public sealed partial class BattleSession
                         0x6C3390 when selectedBank == 3 => Spark(ref task),
                         _ => throw new NotSupportedException("Native Break selected an unrelated callback.")
                     };
-                    task = task with { Next = pools[selectedBank].Slots[slot].Next };
+                    task = task.UpdateHeader(task.Flags, task.State, pools[selectedBank].Slots[slot].Next, task.Callback);
                     Put(selectedBank, slot, task);
                     return new(pools[selectedBank], result);
                 });
@@ -105,7 +105,7 @@ public sealed partial class BattleSession
                 survivors += step.Survivors;
             }
         }
-        pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, root) };
+        pools[0] = pools[0].WriteSlot(0, root);
         if (survivors == 0)
         {
             pools[0] = pools[0].Advance((pool, _) => new(pool, 2)).Pool;
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
         else
         {
             int age = WindWord(root, 12) + 1;
-            pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, root.WriteWord(12, unchecked((ushort)(age >= 20 ? 0 : age)))) };
+            pools[0] = pools[0].WriteSlot(0, root.WriteWord(12, unchecked((ushort)(age >= 20 ? 0 : age))));
         }
         nativeCrtRandom = random;
         return graphics with { OriginalEffect = effect with { Pools = pools.ToImmutableArray(), ReturnedDescriptor = survivors == 0 ? 0u : 0x25216A8u } };
@@ -151,7 +151,7 @@ public sealed partial class BattleSession
             int elapsed = age - 50;
             if ((uint)elapsed < 30 && (elapsed & 1) == 0 && Allocate(2, 0x6C3440, out int debrisSlot))
             {
-                NativeBattleModulePoolTask debris = pools[2].Slots[debrisSlot] with { Payload = new byte[0x24].ToImmutableArray() };
+                NativeBattleModulePoolTask debris = pools[2].Slots[debrisSlot].ClearPayload(0x24);
                 int distance = unchecked((int)((uint)unchecked((elapsed + 40) * scale) >> 10));
                 int angle = Random();
                 short vx = unchecked((short)(unchecked(NativeBattleCameraMath.Cosine(angle) * distance) >> 12));
@@ -170,7 +170,7 @@ public sealed partial class BattleSession
             }
             if ((uint)elapsed < 20 && Allocate(3, 0x6C3390, out int sparkSlot))
             {
-                NativeBattleModulePoolTask spark = pools[3].Slots[sparkSlot] with { Payload = new byte[0x1C].ToImmutableArray() };
+                NativeBattleModulePoolTask spark = pools[3].Slots[sparkSlot].ClearPayload(0x1C);
                 int speed = (Random() & 127) + 64;
                 int angle = Random();
                 short vx = unchecked((short)(unchecked(NativeBattleCameraMath.Cosine(angle) * speed) >> 12));
@@ -290,7 +290,7 @@ public sealed partial class BattleSession
             (pools[bank], slot) = pools[bank].Append(callback);
             return true;
         }
-        void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank] with { Slots = pools[bank].Slots.SetItem(slot, task) };
+        void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank].WriteSlot(slot, task);
         uint Address(int offset) => checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)buffer + (uint)offset);
         int Actor(uint address)
         {

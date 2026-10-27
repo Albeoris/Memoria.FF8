@@ -10,10 +10,7 @@ public sealed record NativeBattleDoomtrain191KnockbackMemory([property: System.T
     public void Validate()
     {
         Rows.Validate();
-        if (Rows.Regions.Any(region => region.Offset > 252 - region.Data.Length) || Rows.UnknownRegions.Any(region => region.Offset > 252 - region.Length))
-        {
-            throw new InvalidDataException("Native Doomtrain knockback requires its seven physical36-byte rows.");
-        }
+        Rows.ValidateExtent(252);
     }
 }
 
@@ -37,7 +34,7 @@ public static class NativeBattleDoomtrain191Knockback
             ushort spin = unchecked((ushort)((Random() % 2 + 1) << 12));
             ushort mask = unchecked((ushort)(1u << ((index + 1) & 31)));
             NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0xC, 0).WriteWord(0xE, unchecked((ushort)actor)).WriteWord(0x18, spin).WriteWord(0x1A, mask).WriteWord(0x10, unchecked((ushort)point.X)).WriteWord(0x12, unchecked((ushort)point.Y)).WriteWord(0x14, unchecked((ushort)point.Z));
-            frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task) });
+            frame = PutPool(frame, pool.WriteSlot(slot, task));
             int record = checked(actor * 36);
             rows = rows.Write(record, BitConverter.GetBytes((ushort)(model.Flags0 & 0x1020)));
             rows = rows.Write(record + 4, BitConverter.GetBytes(model.Rotation12 ?? throw new NotSupportedException("Native Doomtrain knockback requires its current actor pitch."))).Write(record + 6, BitConverter.GetBytes(model.Rotation14 ?? throw new NotSupportedException("Native Doomtrain knockback requires its current actor yaw."))).Write(record + 8, BitConverter.GetBytes(model.Rotation16 ?? throw new NotSupportedException("Native Doomtrain knockback requires its current actor roll.")));
@@ -106,7 +103,7 @@ public static class NativeBattleDoomtrain191Knockback
         if ((services.ReadFlags() & 1) != 0)
         {
             pool = Pool(frame);
-            return new(PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) }), 0);
+            return new(PutPool(frame, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback))), 0);
         }
         if (age < 16)
         {
@@ -120,7 +117,7 @@ public static class NativeBattleDoomtrain191Knockback
         }
         ushort next = unchecked((ushort)(age + 1));
         pool = Pool(frame);
-        frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(0xC, next) with { Next = pool.Slots[slot].Next }) });
+        frame = PutPool(frame, pool.WriteSlot(slot, task.WriteWord(0xC, next).SetNext(pool.Slots[slot].Next)));
         frame = frame with { Memory = frame.Memory with { Doomtrain191 = frame.Memory.Doomtrain191! with { Knockback = owner with { Rows = rows } } } };
         if (unchecked((short)next) < 50)
         {
@@ -135,7 +132,7 @@ public static class NativeBattleDoomtrain191Knockback
         pool = Pool(frame);
         (pool, int child) = pool.Append(0x646F70);
         NativeBattleModulePoolTask burst = pool.Slots[child].WriteWord(0xC, 0).WriteWord(0xE, task.ReadWord(0x1A)).WriteDword(0x10, BinaryPrimitives.ReadUInt32LittleEndian(rows.Read(record + 12, 4))).WriteDword(0x14, BinaryPrimitives.ReadUInt32LittleEndian(rows.Read(record + 16, 4))).WriteWord(0x1C, unchecked((ushort)(unchecked(transform.Scale38 * 2000) >> 12)));
-        frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(child, burst) });
+        frame = PutPool(frame, pool.WriteSlot(child, burst));
         return new(frame, 2);
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));

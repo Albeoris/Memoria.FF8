@@ -27,8 +27,8 @@ public static class NativeBattleGatlingGun305PacketArena
             throw new InvalidDataException("Gatling Gun packets require their retained physical cursor and contiguous native banks.");
         }
         int cursor = checked((int)(physicalCursor - PacketAddress));
-        NativeBattleEffectArenaWriter writer = new(state.Packets);
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleEffectArenaWriter writer = new(state.Packets);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         NativeBattleEffectPacketArena.AppendAttempts(writer, links, cursor, batch, bank: PacketBank, capacity: PacketLength);
         state = (state with { Packets = writer.Freeze() }).WriteDword(CursorAddress, checked(physicalCursor + (uint)batch.AllocationBytes));
         return new(state, links.ToImmutable());

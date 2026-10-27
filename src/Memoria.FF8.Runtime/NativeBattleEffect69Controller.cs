@@ -81,7 +81,7 @@ public static partial class NativeBattleEffect69Controller
         NativeBattleEffectArena retained = frame.State.ReadBank(index);
         for (int slot = 0; slot < pool.Slots.Length; slot++)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(slot, CopyTask(pool.Slots[slot], 12, Slice(retained, slot * shape.Stride + 12, shape.Stride - 12), shape.Stride - 12)) };
+            pool = pool.WriteSlot(slot, CopyTask(pool.Slots[slot], 12, Slice(retained, slot * shape.Stride + 12, shape.Stride - 12), shape.Stride - 12));
         }
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) }, State = frame.State.DetachBank(index) };
     }

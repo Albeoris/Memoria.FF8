@@ -15,7 +15,7 @@ public static class NativeBattleDiablos325LateReset
     public static NativeBattleDiablos325Frame ClearParticleLinks655567(NativeBattleDiablos325Frame frame)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(item => item.DescriptorAddress == NativeBattleDiablos325Particles.Descriptor);
-        NativeBattleEffectTaskPool cleared = pool with { Head = null, Tail = null };
+        NativeBattleEffectTaskPool cleared = pool.UpdateLinks(null, null);
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(item => item.DescriptorAddress == cleared.DescriptorAddress ? cleared : item).ToImmutableArray() } };
     }
 

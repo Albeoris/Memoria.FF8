@@ -81,7 +81,7 @@ public sealed partial class BattleSession
         int staticOffset = buffer * 24;
         byte[] packet = capturePackets.Read(staticOffset, 24);
         ImmutableArray<uint> words = Enumerable.Range(0, 6).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(index * 4))).ToImmutableArray();
-        NativeBattleLogicalOrdering.Builder links = new(graphics.PrimitiveFrame!.Pending);
+        using NativeBattleLogicalOrdering.Builder links = new(graphics.PrimitiveFrame!.Pending);
         NativeBattlePrimitiveReference reference = new(captureBank, 0, staticOffset);
         links.InvalidatePacketRange(reference, 24);
         bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;

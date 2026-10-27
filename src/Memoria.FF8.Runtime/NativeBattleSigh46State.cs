@@ -44,20 +44,20 @@ public sealed record NativeBattleSigh46State([property: JsonRequired] NativeBatt
     public void Validate()
     {
         Globals.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            RequireGlobal(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            RequireGlobal(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Globals.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateUnknownRanges())
         {
             RequireGlobal(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
         Channels.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Channels.Regions)
+        foreach (NativeBattleEffectStorageRange region in Channels.EnumerateDataRanges())
         {
-            RequireChannel(checked(ChannelBase + (uint)region.Offset), region.Data.Length);
+            RequireChannel(checked(ChannelBase + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Channels.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Channels.EnumerateUnknownRanges())
         {
             RequireChannel(checked(ChannelBase + (uint)region.Offset), region.Length);
         }
@@ -93,15 +93,30 @@ public sealed record NativeBattleSigh46State([property: JsonRequired] NativeBatt
         var owner = Resolve(address, length);
         return NativeBattleEffectNodeContextMemory.Copy(owner.Arena, owner.Offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
     }
-    public NativeBattleSigh46State Write(uint address, ReadOnlySpan<byte> bytes) => WriteView(address, NativeBattleEffectArena.Clear().Write(0, bytes), bytes.Length);
+    public NativeBattleSigh46State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        var owner = Resolve(address, bytes.Length);
+        owner.Arena.Write(owner.Offset, bytes);
+        return this;
+    }
     public NativeBattleSigh46State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleSigh46State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleSigh46State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleSigh46State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleSigh46State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     public NativeBattleSigh46State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
         var owner = Resolve(address, length);
-        NativeBattleEffectArena written = NativeBattleEffectNodeContextMemory.Copy(source, 0, owner.Arena, owner.Offset, length);
-        return owner.Kind switch { 1 => this with { SourceHeader = written }, 2 => this with { MutablePe = written }, 3 => this with { Channels = written }, _ => this with { Globals = written } };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, owner.Arena, owner.Offset, length);
+        return this;
     }
     public NativeBattleStaticMeshResource ReadMesh(NativeBattleSigh46Resources resources, uint address)
     {
@@ -169,9 +184,6 @@ public sealed record NativeBattleSigh46State([property: JsonRequired] NativeBatt
     private static void ValidateBounded(NativeBattleEffectArena arena, int length)
     {
         arena.Validate();
-        if (arena.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || arena.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Sigh retained bytes leave their physical owner.");
-        }
+        arena.ValidateExtent(length);
     }
 }

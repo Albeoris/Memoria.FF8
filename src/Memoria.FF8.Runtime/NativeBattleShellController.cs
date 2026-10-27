@@ -226,7 +226,7 @@ public static class NativeBattleShellController
                 case 0x86B390:
                     if (phase == 0)
                     {
-                        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(0x94 - 12, 0x258).ToArray().ToImmutableArray());
+                        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12, 0x258).ToArray().ToImmutableArray());
                         task = StoreWorkspace(task, workspace.Initialize7016B0(resources.Shield, 0x258));
                         NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
                         NativeBattleEffectLocalBounds bounds = model.GeometryBounds52 ?? throw new NotSupportedException("Native Shell shield requires its current native geometry bounds.");
@@ -249,7 +249,7 @@ public static class NativeBattleShellController
                         NativeBattleActionMatrix world = NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), facing) with { X = Word(task, 0x1C), Y = Word(task, 0x1E), Z = Word(task, 0x20) };
                         world = NativeBattlePoseMatrices.Scale56BEF0(world, unchecked((int)task.ReadDword(0x50)), unchecked((int)task.ReadDword(0x54)), unchecked((int)task.ReadDword(0x58)));
                         NativeBattleActionMatrix placement = NativeBattleGfMatrices.Compose56C2F0(inputs.Camera, world);
-                        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(0x94 - 12, 0x258).ToArray().ToImmutableArray());
+                        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12, 0x258).ToArray().ToImmutableArray());
                         NativeBattleEffectHierarchy local = state;
                         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Shield, 0, (owner, node) =>
                         {
@@ -304,9 +304,7 @@ public static class NativeBattleShellController
     private static NativeBattleEffectHierarchy Done(NativeBattleEffectHierarchy state, uint address) => Next(state.Write(address, state.Read(address).WriteByte(0x26, (byte)(state.Read(address).ReadByte(0x26) | 1))), address);
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] bytes = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(bytes.AsSpan(0x94 - 12));
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteRetainedBytes(0x94, workspace.Data.AsSpan());
     }
     private static NativeBattleEffectHierarchyCallback Finish(NativeBattleEffectHierarchy state, uint address)
     {

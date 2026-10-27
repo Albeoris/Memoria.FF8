@@ -9,7 +9,7 @@ public static class NativeBattleCarbuncle278Creature
 {
     public static NativeBattleModulePoolTask Initialize6EC060(NativeBattleModulePoolTask task, uint taskAddress, NativeBattleEffectOwnedModelResource resource)
     {
-        if (resource.Address != 0x10B6F94 || task.Payload.Length != 0x5E0 - 12)
+        if (resource.Address != 0x10B6F94 || task.PayloadLength != 0x5E0 - 12)
         {
             throw new InvalidDataException("Native Carbuncle creature requires its actual task and original model resource.");
         }

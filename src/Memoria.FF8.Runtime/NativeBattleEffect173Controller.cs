@@ -24,9 +24,9 @@ public static partial class NativeBattleEffect173Controller
         NativeBattleEffectTaskPool root = InitializeBank(frame, 0);
         NativeBattleEffectTaskPool child = InitializeBank(frame, 1);
         (root, int rootSlot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         (child, int mainSlot) = child.Append(MainCallback);
-        child = child with { Slots = child.Slots.SetItem(mainSlot, child.Slots[mainSlot].WriteWord(12, 0)) };
+        child = child.WriteSlot(mainSlot, child.Slots[mainSlot].WriteWord(12, 0));
         frame = frame with { State = frame.State.DetachBank(0).DetachBank(1), Effect = frame.Effect with { Pools = [root, child], ReturnedDescriptor = RootDescriptor } };
         for (int index = 0; index < FirstRecordCount; index++)
         {
@@ -136,7 +136,7 @@ public static partial class NativeBattleEffect173Controller
         NativeBattleEffectArena bytes = ReadBytes(frame, bankAddress, CommonStride * CommonCount);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(CommonDescriptor, bankAddress, CommonStride, CommonCount);
         pool = NativeBattleEffectTaskMemory.WriteBankSpan(pool, 0, bytes, CommonStride * CommonCount);
-        pool = pool with { Head = Slot(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(queue.Read(0, 4))), Tail = Slot(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(queue.Read(4, 4))) };
+        pool = pool.UpdateLinks(Slot(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(queue.Read(0, 4))), Slot(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(queue.Read(4, 4))));
         pool.Validate();
         return frame with { State = frame.State.DetachCommonQueue(), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [pool]) };
 

@@ -45,8 +45,8 @@ public static partial class NativeBattleCpuTrails
             if (address >= owner.BankAddress && address - owner.BankAddress < (uint)(owner.Stride * owner.Slots.Length) && (address - owner.BankAddress) % owner.Stride == 0)
             {
                 int slot = (int)((address - owner.BankAddress) / owner.Stride);
-                task = task with { Next = owner.Slots[slot].Next };
-                return WithPool(frame, pool, owner with { Slots = owner.Slots.SetItem(slot, task) });
+                task = task.UpdateHeader(task.Flags, task.State, owner.Slots[slot].Next, task.Callback);
+                return WithPool(frame, pool, owner.WriteSlot(slot, task));
             }
         }
         throw new InvalidDataException("Native CPU trail task pointer leaves its canonical pools.");

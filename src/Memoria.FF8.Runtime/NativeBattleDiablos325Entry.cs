@@ -26,7 +26,7 @@ public static class NativeBattleDiablos325Entry
         (textures, _) = textures.EnqueueArenaTim505E30(arena, resource);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x10, 1);
         (pool, int slot) = pool.Append(MainCallback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteDword(0xC, 0)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteDword(0xC, 0));
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int count = header.ReadByte(0x10);
         int sumZ = 0;

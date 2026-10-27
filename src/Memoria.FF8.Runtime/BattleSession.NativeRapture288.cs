@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(0x2507C78, 0x2507C88, 24, 1);
         (roots, int slot) = roots.Append(0x679290);
         NativeBattleModulePoolTask task = roots.Slots[slot].WriteDword(12, 0).WriteDword(16, 0).WriteDword(20, 0);
-        roots = roots with { Slots = roots.Slots.SetItem(slot, task) };
+        roots = roots.WriteSlot(slot, task);
         return graphics with { OriginalEffect = effect with { Pools = [roots], ReturnedDescriptor = 0x2507C78, DrawArenaOffset = null } };
     }
 
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
                     NativeBattleContactPacket contact = nativeActionPackets.ReadContact(first + ordinal);
                     int actor = contact.Primary.ActorIndex;
                     NativeBattleGraphicsModel model = graphics.Models[actor];
-                    NativeBattleModulePoolTask target = pools[1].Slots[slot] with { Payload = new byte[1044].ToImmutableArray() };
+                    NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(1044);
                     target = target.WriteWord(14, unchecked((ushort)(model.Transform ?? throw new NotSupportedException("Native Rapture requires target WORD30.")).Position28.Y)).WriteByte(16, (byte)(contact.Primary.HitFlags3 & 4)).WriteDword(20, checked(0x1D972C0u + (uint)actor * 156));
                     target = Init(target, 24, 252, resources.First);
                     Put(1, slot, Init(target, 276, 780, resources.Second));
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
         {
             root = root.WriteWord(12, unchecked((ushort)((WindWord(root, 12) + 1) % 10))).WriteWord(14, unchecked((ushort)(WindWord(root, 14) + 1)));
         }
-        pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, root) };
+        pools[0] = pools[0].WriteSlot(0, root);
         if (released)
         {
             pools[0] = pools[0].Advance((pool, _) => new(pool, 2)).Pool;
@@ -217,9 +217,7 @@ public sealed partial class BattleSession
         NativeBattleModulePoolTask Init(NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source) => Store(task, offset, new NativeBattleGfAnimationWorkspace(task.Payload.Slice(offset - 12, size)).Initialize7016B0(source, size));
         NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, int offset, NativeBattleGfAnimationWorkspace workspace)
         {
-            byte[] bytes = task.Payload.ToArray();
-            workspace.Data.AsSpan().CopyTo(bytes.AsSpan(offset - 12));
-            return task with { Payload = bytes.ToImmutableArray() };
+            return task.WriteRetainedBytes(offset, workspace.Data.AsSpan());
         }
         ushort Random()
         {
@@ -238,7 +236,7 @@ public sealed partial class BattleSession
         }
         void Put(int bank, int slot, NativeBattleModulePoolTask task)
         {
-            pools[bank] = pools[bank] with { Slots = pools[bank].Slots.SetItem(slot, task) };
+            pools[bank] = pools[bank].WriteSlot(slot, task);
         }
         void Append(NativeBattleGfGeometryBatch batch)
         {

@@ -89,7 +89,7 @@ public static class NativeBattleQuezacotlPathProducer
         {
             arena = NativeBattleQuezacotlParticleProducer.Dword(arena, checked((int)(BankAddress - ArenaAddress) + previous * 0x20 + 4), checked(BankAddress + (uint)index * 0x20));
         }
-        pool = pool with { Slots = pool.Slots.SetItem(index, pool.Slots[index] with { Payload = raw.AsSpan(12).ToArray().ToImmutableArray() }) };
+        pool = pool.WriteSlot(index, pool.Slots[index].WriteRetainedBytes(12, raw.AsSpan(12)));
         ImmutableArray<uint> heads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native6C76E0 requires its retained secondary descriptor heads.");
         heads = heads.SetItem(2, pool.Head is int head ? checked(BankAddress + (uint)head * 0x20) : 0);
         return new(memory with { Arena = arena, QuezacotlSecondaryHeads = heads }, effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == Descriptor ? pool : existing).ToImmutableArray() }, index, row);
@@ -122,7 +122,7 @@ public static class NativeBattleQuezacotlPathProducer
                 return new(memory, null);
             }
         }
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         NativeBattleQuezacotlParticleProducer.Word(writer, row, vertex);
         NativeBattleQuezacotlParticleProducer.Word(writer, row + 2, width);
         NativeBattleQuezacotlParticleProducer.Word(writer, row + 0x14, intensity);

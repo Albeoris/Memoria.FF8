@@ -27,7 +27,7 @@ public static class NativeBattleCarbuncle278RecipientChildren
                     continue;
                 }
                 (pool, int index) = pool.Append(0x683760);
-                NativeBattleModulePoolTask task = pool.Slots[index] with { Payload = new byte[16].ToImmutableArray() };
+                NativeBattleModulePoolTask task = pool.Slots[index].ClearPayload(16);
                 task = task.WriteDword(0x18, parentAddress).WriteWord(0xE, 1024).WriteWord(0x10, angle).WriteWord(0x12, 16);
                 frame = frame with { Memory = frame.Memory.DrawSharedEffectRandom7059E0(out ushort direction) };
                 if ((direction & 1) != 0)
@@ -127,8 +127,8 @@ public static class NativeBattleCarbuncle278RecipientChildren
 
     private static NativeBattleCarbuncle278Frame Store(NativeBattleCarbuncle278Frame frame, NativeBattleEffectTaskPool pool, int index, NativeBattleModulePoolTask task)
     {
-        pool = pool with { Slots = pool.Slots.SetItem(index, task) };
+        pool = pool.WriteSlot(index, task);
         int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 12);
-        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.Payload.AsSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
+        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }
 }

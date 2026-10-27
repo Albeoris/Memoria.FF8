@@ -51,10 +51,10 @@ public static partial class NativeBattleLionHeart165Controller
         short facing = unchecked((short)(angle.Axis.Y < 0 ? -angle.Angle : angle.Angle));
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x23C34B0, 0x23C34A0, 16, 1);
         (main, int mainSlot) = main.Append(0x5F01F0);
-        main = main with { Slots = main.Slots.SetItem(mainSlot, main.Slots[mainSlot].WriteWord(12, 0)) };
+        main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23C5910, 0x23C5920, 36, 100);
         (children, int childSlot) = children.Append(0x5E9650);
-        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot].WriteWord(12, 0)) };
+        children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteWord(12, 0));
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native5E9470 requires its actual texture owner.");
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native5E9470 requires its actual initializer texture.");
         (textures, _) = textures.EnqueueTim505E30(new(tim.Name, tim.Data));

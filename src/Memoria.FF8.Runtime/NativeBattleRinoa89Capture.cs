@@ -52,7 +52,7 @@ public static class NativeBattleRinoa89Capture
             throw new InvalidDataException("Native Wishing Star capture leaves its aligned common allocation.");
         }
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Wishing Star capture requires its private addressed roots.");
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         int acceptedEnd = 0;
         foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)

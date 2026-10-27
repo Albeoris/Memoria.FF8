@@ -10,7 +10,7 @@ public static class NativeBattleEffect315Scrolling124
     public static NativeBattleEffect315Scrolling124Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 3)
     {
         uint flags = Dword(context, 0x20);
-        if (Dword(context, 0) != mesh.Address || flags is not (0x33 or 0xF3) || Dword(context, 8) != 0 || depthShift > 31 || context.Regions.Any(region => region.Offset < 0 || region.Offset > 124 - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > 124 - region.Length))
+        if (Dword(context, 0) != mesh.Address || flags is not (0x33 or 0xF3) || Dword(context, 8) != 0 || depthShift > 31 || context.ExceedsExtent(124))
         {
             throw new InvalidDataException("Effect315 requires its actual bounded scrolling mesh caller.");
         }

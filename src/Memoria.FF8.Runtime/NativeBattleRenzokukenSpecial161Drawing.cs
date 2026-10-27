@@ -20,7 +20,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         }
         short speed = unchecked((short)task.ReadWord(30));
         task = task.WriteWord(28, unchecked((ushort)(scale + speed))).WriteWord(12, unchecked((ushort)(counter + 1))).WriteWord(30, unchecked((ushort)(speed - speed / 3)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= 10 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= 10 ? 2 : 0);
     }
 
     public static NativeBattleRenzokuken160Frame AdvanceParticles5FEC60(NativeBattleRenzokuken160Frame frame, uint graphicsFlags, Func<NativeBattleRenzokuken160Frame, NativeBattleRenzokuken160Sprite, NativeBattleRenzokuken160SpriteStep> draw)

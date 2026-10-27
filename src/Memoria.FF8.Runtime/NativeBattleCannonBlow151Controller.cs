@@ -10,10 +10,10 @@ public static partial class NativeBattleCannonBlow151Controller
         frame = Dword(frame, 0x244FD58, NativeBattleEffectNodeMemory.ArenaAddress);
         NativeBattleEffectTaskPool roots = ResetPool(frame, 0x244D698, 0x244D678, 16, 2);
         (roots, int root) = roots.Append(0x60E270);
-        roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) };
+        roots = roots.WriteSlot(root, roots.Slots[root].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = ResetPool(frame, 0x244E9E8, 0x244E9F8, 36, 100);
         (children, int director) = children.Append(0x60CA90);
-        children = children with { Slots = children.Slots.SetItem(director, children.Slots[director].WriteWord(12, 0).WriteWord(14, 0)) };
+        children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0).WriteWord(14, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Cannon Blow requires its actual first contact.");
         frame = Dword(Dword(Dword(frame, 0x244D670, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x244F92C, Parameters(frame).Actor78), 0x244F928, 0x1D99A78);
@@ -84,7 +84,7 @@ public static partial class NativeBattleCannonBlow151Controller
         {
             NativeBattleEffectTaskPool roots = frame.Effect.Pools[0];
             (roots, int slot) = roots.Append(0x60E2E0);
-            roots = roots with { Slots = roots.Slots.SetItem(slot, roots.Slots[slot].WriteWord(12, 0).WriteWord(14, 0)) };
+            roots = roots.WriteSlot(slot, roots.Slots[slot].WriteWord(12, 0).WriteWord(14, 0));
             frame = WithPool(frame, 0, roots);
         }
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1))));

@@ -62,7 +62,7 @@ public static class NativeBattleQuezacotlRibbonProducer
             BinaryPrimitives.WriteUInt32LittleEndian(pointer, checked(pool.BankAddress + (uint)index * pool.Stride));
             arena = arena.Write(checked((int)(pool.BankAddress - 0x20DFAB8) + tail * pool.Stride + 4), pointer);
         }
-        pool = pool with { Slots = pool.Slots.SetItem(index, pool.Slots[index] with { Payload = raw.AsSpan(12).ToArray().ToImmutableArray() }) };
+        pool = pool.WriteSlot(index, pool.Slots[index].WriteRetainedBytes(12, raw.AsSpan(12)));
         ImmutableArray<uint> heads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native6C87B0 requires its retained secondary descriptor heads.");
         heads = heads.SetItem(0, pool.Head is int head ? checked(pool.BankAddress + (uint)head * pool.Stride) : 0);
         return new(memory with { Arena = arena, QuezacotlSecondaryHeads = heads }, effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == pool.DescriptorAddress ? pool : existing).ToImmutableArray() }, index);

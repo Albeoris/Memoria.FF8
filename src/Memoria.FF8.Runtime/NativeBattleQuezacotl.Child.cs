@@ -30,7 +30,7 @@ public static class NativeBattleQuezacotlChild
             NativeBattleEffectIoAdvance advance = NativeBattleEffectIo.Advance534210(memory);
             memory = advance.Memory;
             request = advance.Request;
-            child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteWord(12, 1)) };
+            child = child.WriteSlot(0, child.Slots[0].WriteWord(12, 1));
             memory = memory with { Arena = memory.Arena!.Write(12, [1, 0]) };
         }
         effect = effect with { Pools = effect.Pools.Select(pool => pool.DescriptorAddress == child.DescriptorAddress ? child : pool).ToImmutableArray(), Quezacotl = state };
@@ -63,7 +63,7 @@ public static class NativeBattleQuezacotlChild
                 }
                 return effect;
             }
-            main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, unchecked((ushort)(main.Slots[0].ReadWord(12) + 1)))) };
+            main = main.WriteSlot(0, main.Slots[0].WriteWord(12, unchecked((ushort)(main.Slots[0].ReadWord(12) + 1))));
         }
         return effect with { Pools = effect.Pools.Select(pool => pool.DescriptorAddress == main.DescriptorAddress ? main : pool).ToImmutableArray() };
     }

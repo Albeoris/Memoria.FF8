@@ -110,7 +110,7 @@ public static class NativeBattleDuelEchoDrawing
                     }
                     if (unknownStart > cursor)
                     {
-                        staging = staging.Write(checked(temporary.Address + (uint)(cursor - 12)), current.Payload.AsSpan().Slice(cursor - 12, unknownStart - cursor));
+                        staging = staging.Write(checked(temporary.Address + (uint)(cursor - 12)), current.ReadRawPayloadSpan().Slice(cursor - 12, unknownStart - cursor));
                     }
                     staging = staging.MarkUnknown(checked(temporary.Address + (uint)(unknownStart - 12)), unknownEnd - unknownStart);
                     cursor = unknownEnd;
@@ -118,7 +118,7 @@ public static class NativeBattleDuelEchoDrawing
             }
             if (cursor < end)
             {
-                staging = staging.Write(checked(temporary.Address + (uint)(cursor - 12)), current.Payload.AsSpan().Slice(cursor - 12, end - cursor));
+                staging = staging.Write(checked(temporary.Address + (uint)(cursor - 12)), current.ReadRawPayloadSpan().Slice(cursor - 12, end - cursor));
             }
             frame = writeStaging(frame, staging);
         }

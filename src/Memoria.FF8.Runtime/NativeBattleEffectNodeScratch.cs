@@ -15,7 +15,7 @@ public sealed record NativeBattleEffectNodeScratch([property: JsonRequired] Immu
     public void Validate()
     {
         Prefix2793E08?.Validate();
-        if (Prefix2793E08 is { } prefix && (prefix.Regions.Any(region => region.Offset + region.Data.Length > 40) || prefix.UnknownRegions.Any(region => region.Offset + region.Length > 40)))
+        if (Prefix2793E08 is { } prefix && (prefix.EnumerateDataRanges().Any(region => region.Offset + region.Length > 40) || prefix.EnumerateUnknownRanges().Any(region => region.Offset + region.Length > 40)))
         {
             throw new InvalidDataException("Native node scratch prefix exceeds its forty-byte physical owner.");
         }

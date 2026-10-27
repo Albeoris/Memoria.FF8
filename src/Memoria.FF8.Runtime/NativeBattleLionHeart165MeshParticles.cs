@@ -214,7 +214,7 @@ public static partial class NativeBattleLionHeart165Controller
             }
             frame = frame with { Staging = staging };
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, released ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), released ? 2 : 0);
 
         int Rand()
         {

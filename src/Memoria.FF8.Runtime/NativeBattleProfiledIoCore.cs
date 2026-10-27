@@ -63,7 +63,7 @@ internal static class NativeBattleProfiledIoCore
     internal static NativeBattleProfiledIoAdvance Advance(NativeBattleIoProfile profile, NativeBattleModulePoolTask task, NativeBattleProfiledIoState state)
     {
         Validate(profile, state);
-        if (task.Callback != profile.TaskCallback || task.Payload.IsDefault || task.Payload.Length != 0x30 - 12)
+        if (task.Callback != profile.TaskCallback || task.Payload.IsDefault || task.PayloadLength != 0x30 - 12)
         {
             throw new InvalidDataException("Native script IO requires its actual complete hierarchy task.");
         }

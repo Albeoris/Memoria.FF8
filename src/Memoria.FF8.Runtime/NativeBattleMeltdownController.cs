@@ -32,7 +32,7 @@ public static partial class NativeBattleMeltdownController
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Meltdown requires its original first target.");
         NativeBattleModulePoolTask director = tasks.Slots[slot].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, packets.ReadContact(first).Primary.ActorIndex).WriteWord(34, header.ReadByte(0));
-        tasks = tasks with { Slots = tasks.Slots.SetItem(slot, director) };
+        tasks = tasks.WriteSlot(slot, director);
         return new(memory, effect with { Pools = [root, tasks], ReturnedDescriptor = RootDescriptor }, random);
     }
 
@@ -82,13 +82,13 @@ public static partial class NativeBattleMeltdownController
                     0x613EF0 => Particles(ref node, true),
                     _ => throw new NotSupportedException("Native Meltdown reached an unknown private callback.")
                 };
-                node = node with { Next = tasks.Slots[slot].Next };
-                tasks = tasks with { Slots = tasks.Slots.SetItem(slot, node) };
+                node = node.UpdateHeader(node.Flags, node.State, tasks.Slots[slot].Next, node.Callback);
+                tasks = tasks.WriteSlot(slot, node);
                 return new(tasks, complete ? 2 : 0);
             });
             tasks = step.Pool;
             task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
-            root = root with { Slots = root.Slots.SetItem(0, task) };
+            root = root.WriteSlot(0, task);
             if (step.Survivors == 0)
             {
                 root = root.Advance((pool, _) => new(pool, 2)).Pool;
@@ -121,7 +121,7 @@ public static partial class NativeBattleMeltdownController
             return tasks.Slots[slot];
         }
 
-        private void Set(int slot, NativeBattleModulePoolTask task) => tasks = tasks with { Slots = tasks.Slots.SetItem(slot, task) };
+        private void Set(int slot, NativeBattleModulePoolTask task) => tasks = tasks.WriteSlot(slot, task);
         private short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
         private static int Offset(uint address) => address >= 0x2476640 ? checked(0x1A90 + (int)(address - 0x2476640)) : checked((int)(address - 0x2464BA8));
         private short W(uint address) => BinaryPrimitives.ReadInt16LittleEndian(globals.AsSpan(Offset(address)));

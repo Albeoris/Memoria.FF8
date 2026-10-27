@@ -12,7 +12,7 @@ public static partial class NativeBattleBadBreath300StripMesh
     public static NativeBattleBadBreath300StripMeshStep Draw66F710(ImmutableArray<byte> source, uint sourceAddress, NativeBattleEffectArena context92, uint selectedVerticesAddress, Func<int, (NativeBattleVector Vertex, short? W)> readVertex, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2)
     {
         context92.Validate();
-        if (context92.Regions.Any(region => region.Offset < 0 || region.Offset > ContextLength - region.Data.Length) || context92.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > ContextLength - region.Length) || source.IsDefault || source.Length < 8 || U32(context92, 0) != sourceAddress || U32(context92, 0x20) != selectedVerticesAddress || depthShift > 31)
+        if (context92.ExceedsExtent(ContextLength) || source.IsDefault || source.Length < 8 || U32(context92, 0) != sourceAddress || U32(context92, 0x20) != selectedVerticesAddress || depthShift > 31)
         {
             throw new InvalidDataException("Bad Breath strip drawing requires its actual mutable source,92-byte context and selected vertex owner.");
         }

@@ -122,7 +122,7 @@ public sealed partial class BattleSession
                 _ => throw new NotSupportedException("Native Duel selected an unsupported child callback or physical bank.")
             };
             pool = current.Effect.Pools[poolIndex];
-            pool = pool with { Slots = pool.Slots.SetItem(slot, particle.Task) };
+            pool = pool.WriteSlot(slot, particle.Task);
             current = current with { Effect = current.Effect with { Pools = current.Effect.Pools.SetItem(poolIndex, pool) } };
             return new(current, pool, particle.Result);
 

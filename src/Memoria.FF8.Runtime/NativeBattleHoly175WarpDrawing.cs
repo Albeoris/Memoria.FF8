@@ -19,8 +19,8 @@ public static class NativeBattleHoly175WarpDrawing
             throw new InvalidDataException("Native Holy warp requires its actual buffer and aligned private allocation cursor.");
         }
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 8, 4, signedFocalH, 4096);
-        NativeBattleEffectArenaWriter gridA = new(frame.State.GridA);
-        NativeBattleEffectArenaWriter gridB = new(frame.State.GridB);
+        using NativeBattleEffectArenaWriter gridA = new(frame.State.GridA);
+        using NativeBattleEffectArenaWriter gridB = new(frame.State.GridB);
         int[] depths = new int[4];
         for (int point = 0; point < 315; point++)
         {
@@ -33,11 +33,11 @@ public static class NativeBattleHoly175WarpDrawing
             gridB.Write(point * 16, Dword(projected.Screen));
         }
         NativeBattleHoly175WarpState state = frame.State with { GridA = gridA.Freeze(), GridB = gridB.Freeze() };
-        NativeBattleEffectArenaWriter faces = new(state.Faces);
+        using NativeBattleEffectArenaWriter faces = new(state.Faces);
         NativeBattleEffectArena packets = state.PhysicalPackets;
         NativeBattleEffectArena privateArena = frame.PrivateArena;
         int privateCursor = frame.PrivateCursor;
-        NativeBattleLogicalOrdering.Builder ordering = new(frame.Ordering);
+        using NativeBattleLogicalOrdering.Builder ordering = new(frame.Ordering);
         int alive = 0;
         for (int faceIndex = 0; faceIndex < 1120; faceIndex++)
         {

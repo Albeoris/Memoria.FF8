@@ -11,7 +11,7 @@ public static class NativeBattleTonberry90ProgramDrawing
     public static NativeBattleTonberry90ActorDraw Advance764130(NativeBattleTonberry90Frame frame, uint address, NativeBattleGfAnimationSource source, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleTonberry90ProgramDrawServices services)
     {
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-        if (task.ReadDword(0x74) != source.Address || task.Payload.Length < 0x94 - 12)
+        if (task.ReadDword(0x74) != source.Address || task.PayloadLength < 0x94 - 12)
         {
             throw new InvalidDataException("Native Tonberry programme requires its actual source pointer and retained workspace.");
         }
@@ -19,7 +19,7 @@ public static class NativeBattleTonberry90ProgramDrawing
         NativeBattleActionMatrix context = NativeBattleSearchProgramDrawing.ComposeContext758D70(task, view);
         NativeBattleTonberry90State shared = frame.Memory.Tonberry90 ?? throw new NotSupportedException("Native Tonberry programme requires its current module state.");
         int frozen = unchecked((int)shared.ReadDword(0x25A2118));
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, frozen, (current, node) =>
         {
             if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -56,9 +56,7 @@ public static class NativeBattleTonberry90ProgramDrawing
             return current;
         });
         task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-        byte[] payload = task.Payload.ToArray();
-        advanced.Workspace.Data.AsSpan().CopyTo(payload.AsSpan(0x94 - 12));
-        task = task with { Payload = payload.ToImmutableArray() };
+        task = task.WriteRetainedBytes(0x94, advanced.Workspace.Data.AsSpan());
         frame = frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } };
         return new(frame, advanced.Remaining);
     }

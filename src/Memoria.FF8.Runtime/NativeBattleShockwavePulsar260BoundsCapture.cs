@@ -9,10 +9,7 @@ public static class NativeBattleShockwavePulsar260BoundsCapture
     public static NativeBattleShockwavePulsar260BoundsStep Capture693000(NativeBattleEffectMemory memory, NativeBattleEffectArena retained24, IReadOnlyList<NativeBattlePackedMatrix32> bones, Func<int, int, byte[]> readGeometry, uint objectMask)
     {
         retained24.Validate();
-        if (retained24.Regions.Any(region => region.Offset < 0 || region.Data.Length > 24 - region.Offset) || retained24.UnknownRegions.Any(region => region.Offset < 0 || region.Length > 24 - region.Offset))
-        {
-            throw new InvalidDataException("Shockwave Pulsar bounds require their physical24-byte allocation.");
-        }
+        retained24.ValidateExtent(24);
         NativeBattleEffectArena temporary = Dword(Dword(Dword(retained24, 0, 0x10000), 4, 0xFFFF0000), 8, 0).Write(0xC, BitConverter.GetBytes((short)4096));
         temporary = Dword(temporary, 0x14, objectMask);
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Shockwave Pulsar bounds require their current GTE matrix."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Shockwave Pulsar bounds require their current GTE data."));

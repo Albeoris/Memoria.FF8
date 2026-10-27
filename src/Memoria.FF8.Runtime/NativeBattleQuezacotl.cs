@@ -94,41 +94,38 @@ public static class NativeBattleQuezacotl
             throw new InvalidDataException("Native6C3760 lost its original1x20 task bank.");
         }
         NativeBattleModulePoolTask task = main.Slots[0];
-        byte[] payload = task.Payload.ToArray();
-        uint buffer = BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(4));
+        uint buffer = task.ReadDword(16);
         int draw = buffer != 0 ? 0x2E50 : 0x15E50;
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), buffer != 0 ? 0u : 1u);
-        short phase = BinaryPrimitives.ReadInt16LittleEndian(payload);
+        task.WriteDword(16, buffer != 0 ? 0u : 1u);
+        short phase = unchecked((short)task.ReadWord(12));
         ImmutableArray<NativeBattleEffectTaskPool> pools = effect.Pools;
-        if (phase == 2 && pause == 0 && payload[3] == 0)
+        if (phase == 2 && pause == 0 && task.ReadByte(15) == 0)
         {
             NativeVibrationEnqueue queued = (vibration ?? throw new NotSupportedException("Native6C3760 requires the actual retained4A29A0 vibration queue.")).Enqueue(resources.Vibration, 1, 128);
             vibration = queued.State;
             NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(0x2521738, 0x20DFAB8, 0x8D0, 1);
             (child, int index) = child.Append(0x6C3940);
-            byte[] childPayload = child.Slots[index].Payload.ToArray();
-            BinaryPrimitives.WriteInt32LittleEndian(childPayload.AsSpan(4), queued.Handle);
-            child = child with { Slots = child.Slots.SetItem(index, child.Slots[index] with { Payload = childPayload.ToImmutableArray() }) };
+            child.Slots[index].WriteDword(16, unchecked((uint)queued.Handle));
             byte[] physical = new byte[0x8D0];
             BinaryPrimitives.WriteUInt16LittleEndian(physical, 1);
             BinaryPrimitives.WriteUInt32LittleEndian(physical.AsSpan(8), 0x6C3940);
-            childPayload.CopyTo(physical, 12);
+            child.Slots[index].ReadRawPayloadSpan().CopyTo(physical.AsSpan(12));
             NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C3760 requires the actual cleared571B50 arena for its8D0 task.");
             memory = memory with { Arena = arena.Write(0, physical).Write(0x28E50, [1, 0, 0, 0]) };
             memory = NativeBattleEffectIo.Initialize534110(memory, 0x28E54);
             pools = pools.Where(pool => pool.DescriptorAddress != child.DescriptorAddress).Append(child).ToImmutableArray();
-            payload[3] = 1;
+            task.WriteByte(15, 1);
         }
-        bool childBoundary = payload[3] != 0;
+        bool childBoundary = task.ReadByte(15) != 0;
         if (childBoundary)
         {
             state = state with { Billboard17B0 = NativeBattleGfMatrices.Normalize67AAE0(view ?? throw new NotSupportedException("Native6C3760 requires its prior native camera matrix before private child submission.")) };
         }
         else if (pause == 0)
         {
-            BinaryPrimitives.WriteInt16LittleEndian(payload, unchecked((short)(phase + 1)));
+            task.WriteWord(12, unchecked((ushort)(phase + 1)));
         }
-        main = main with { Slots = main.Slots.SetItem(0, task with { Payload = payload.ToImmutableArray() }) };
+        main = main.WriteSlot(0, task);
         pools = pools.Select(pool => pool.DescriptorAddress == main.DescriptorAddress ? main : pool).ToImmutableArray();
         return new(memory, effect with { Pools = pools, Quezacotl = state, DrawArenaOffset = draw }, vibration, childBoundary);
     }

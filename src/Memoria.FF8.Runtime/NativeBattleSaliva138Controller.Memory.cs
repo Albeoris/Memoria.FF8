@@ -28,7 +28,7 @@ public static partial class NativeBattleSaliva138Controller
             if (offset < (uint)(pool.Stride * pool.Slots.Length) && offset % pool.Stride == 0)
             {
                 int slot = (int)(offset / pool.Stride);
-                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) });
+                return WithPool(frame, index, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)));
             }
         }
         throw new InvalidDataException("Saliva task write leaves its canonical physical pools.");
@@ -96,7 +96,7 @@ public static partial class NativeBattleSaliva138Controller
     private static NativeBattleSaliva138Frame PublishContext(NativeBattleSaliva138Frame frame, uint address, NativeBattleEffectArena context, int length) => frame with { Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), address, context, length) };
     private static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(offset - 12, length));
+        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
         if (task.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)
@@ -140,7 +140,7 @@ public static partial class NativeBattleSaliva138Controller
 
     private static NativeBattleModulePoolTask InitializeWorkspace(NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source)
     {
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(offset - 12, size).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(offset - 12, size).ToArray().ToImmutableArray());
         return task.WriteBytes(offset, workspace.Initialize7016B0(source, size).Data.AsSpan());
     }
 

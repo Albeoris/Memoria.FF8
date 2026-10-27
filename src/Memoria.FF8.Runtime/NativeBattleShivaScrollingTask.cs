@@ -9,7 +9,7 @@ public static class NativeBattleShivaScrollingTask
         NativeBattleEffectTaskPool pool = frame.Pool;
         (pool, int slot) = pool.Append(0x5C6FF0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0x0C, 0).WriteWord(0x10, 0).WriteWord(0x12, 0).WriteWord(0x14, unchecked((ushort)-2500)).WriteWord(0x1C, 2730).WriteWord(0x1E, 2730).WriteWord(0x20, 1877).WriteWord(0x22, 1877);
-        return frame with { Pool = pool with { Slots = pool.Slots.SetItem(slot, task) } };
+        return frame with { Pool = pool.WriteSlot(slot, task) };
     }
 
     public static NativeBattleShivaEarlyTaskStep Advance5C6FF0(NativeBattleShivaEarlyTaskFrame frame, int slot, uint graphicsFlags, NativeBattleActionMatrix viewWorld, NativeBattleStaticMeshResource mesh, Func<NativeBattleShivaEarlyTaskFrame, NativeBattleShivaScrollingDraw, NativeBattleShivaEarlyTaskFrame> draw)
@@ -36,7 +36,7 @@ public static class NativeBattleShivaScrollingTask
             task = task.WriteWord(0x22, unchecked((ushort)(Word(0x22) - Word(0x22) / 3)));
         }
         task = task.WriteWord(0x0C, unchecked((ushort)(task.ReadWord(0x0C) + 1)));
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Pool = frame.Pool.WriteSlot(slot, task) };
         return new(frame, unchecked((short)task.ReadWord(0x0C)) >= 30 ? 2 : 0);
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));

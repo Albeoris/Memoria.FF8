@@ -9,14 +9,15 @@ public static partial class NativeBattleEffectTaskMemory
 {
     private const uint ArenaAddress = 0x20DFAB8;
 
+    /// <summary>Borrows the live physical bank; the view does not create a second storage authority.</summary>
     public static NativeBattleEffectArena CaptureBank(NativeBattleEffectTaskPool pool)
     {
-        pool.Validate();
-        if ((long)pool.Stride * pool.Slots.Length > NativeBattleEffectArena.Length)
+        NativeBattleTaskBankOwner owner = pool.RequireOwner();
+        if (!owner.IsPool)
         {
-            throw new NotSupportedException("Native task bank capture leaves its bounded physical storage carrier.");
+            throw new InvalidOperationException("An unbound logical task cannot expose a physical bank view.");
         }
-        return PublishPool(NativeBattleEffectArena.Clear(), pool, 0);
+        return NativeBattleEffectArena.BorrowWorking(owner.Storage, owner.StorageOffset, owner.BankLength);
     }
 
     public static bool TryReadPointer(ImmutableArray<NativeBattleEffectTaskPool> pools, uint address, out NativeBattleResourcePointer? pointer)
@@ -48,7 +49,8 @@ public static partial class NativeBattleEffectTaskMemory
             throw new NotSupportedException("Native resource pointer has no physical task payload owner.");
         }
         NativeBattleEffectTaskPool selected = pools[pool];
-        return pools.SetItem(pool, selected with { Slots = selected.Slots.SetItem(slot, selected.Slots[slot].WriteResourcePointer(offset, pointer)) });
+        selected.Slots[slot].WriteResourcePointer(offset, pointer);
+        return pools;
     }
 
     public static NativeBattleEffectMemory RevokeArenaOwnership(NativeBattleEffectMemory memory, ImmutableArray<NativeBattleEffectTaskPool> pools)
@@ -72,6 +74,17 @@ public static partial class NativeBattleEffectTaskMemory
         }
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native task transfer requires its retained arena owner.");
         ImmutableArray<NativeBattleEffectTaskPool>.Builder retained = ImmutableArray.CreateBuilder<NativeBattleEffectTaskPool>();
+        List<NativeBattleEffectTaskPool> transferred = [];
+        foreach (NativeBattleEffectTaskPool candidate in effect.Pools)
+        {
+            candidate.Validate();
+            if (candidate.HasCheckpoint)
+            {
+                throw new InvalidOperationException("Native task authority transfer requires committed pool checkpoints.");
+            }
+            _ = ArenaOffset(candidate);
+        }
+        using NativeBattleEffectArenaWriter writer = new(arena);
         foreach (NativeBattleEffectTaskPool pool in effect.Pools)
         {
             pool.Validate();
@@ -80,7 +93,13 @@ public static partial class NativeBattleEffectTaskMemory
                 retained.Add(pool);
                 continue;
             }
-            arena = PublishPool(arena, pool, offset);
+            PublishPool(writer, pool, offset);
+            transferred.Add(pool);
+        }
+        arena = writer.Freeze();
+        foreach (NativeBattleEffectTaskPool transferredPool in transferred)
+        {
+            transferredPool.Revoke();
         }
         return new(memory with { Arena = arena }, effect with { Pools = retained.ToImmutable() });
     }
@@ -107,40 +126,61 @@ public static partial class NativeBattleEffectTaskMemory
         pool.Validate();
         int offset = ArenaOffset(pool) ?? throw new NotSupportedException("Native descriptor reassignment requires its actual arena-backed bank.");
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native descriptor reassignment requires its retained arena owner.");
-        arena = PublishPool(arena, pool, offset);
+        if (pool.HasCheckpoint)
+        {
+            throw new InvalidOperationException("Native task authority transfer requires its committed pool checkpoint.");
+        }
+        using NativeBattleEffectArenaWriter writer = new(arena);
+        PublishPool(writer, pool, offset);
+        arena = writer.Freeze();
+        pool.Revoke();
         return new(memory with { Arena = arena }, effect with { Pools = effect.Pools.RemoveAt(index) });
     }
 
-    private static NativeBattleEffectArena PublishPool(NativeBattleEffectArena arena, NativeBattleEffectTaskPool pool, int offset)
+    /// <summary>Explicit detached bank export for lifecycle handoff; ordinary readers borrow CaptureBank.</summary>
+    public static NativeBattleEffectArena ExportBank(NativeBattleEffectTaskPool pool)
+    {
+        pool.Validate();
+        using NativeBattleEffectArenaWriter writer = new(NativeBattleEffectArena.Clear());
+        PublishPool(writer, pool, 0);
+        return writer.Freeze();
+    }
+
+    private static void PublishPool(NativeBattleEffectArenaWriter writer, NativeBattleEffectTaskPool pool, int offset)
     {
         for (int slot = 0; slot < pool.Slots.Length; slot++)
         {
             NativeBattleModulePoolTask task = pool.Slots[slot];
             byte[] data = new byte[pool.Stride];
+            bool[] known = new bool[pool.Stride];
+            Array.Fill(known, true, 0, 12);
             BinaryPrimitives.WriteUInt16LittleEndian(data, task.Flags);
             BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(2), task.State);
             uint next = task.Next is int linked ? checked(pool.BankAddress + (uint)(linked * pool.Stride)) : 0;
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4), next);
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(8), task.Callback);
-            NativeBattleTelemetry.Copy(1150, task.Payload.AsSpan(), data.AsSpan(12));
+            task.ReadWithKnownness(12, data.AsSpan(12), known.AsSpan(12));
             int target = checked(offset + slot * pool.Stride);
-            arena = arena.Write(target, data);
-            if (task.UnknownPayloadRanges is { } unknown)
+            writer.Write(target, data);
+            for (int index = 12; index < known.Length;)
             {
-                foreach (NativeBattleEffectUnknownRegion range in unknown)
+                if (known[index])
                 {
-                    arena = arena.MarkUnknown(checked(target + range.Offset), range.Length);
+                    index++;
+                    continue;
                 }
+                int first = index++;
+                while (index < known.Length && !known[index])
+                {
+                    index++;
+                }
+                writer.MarkUnknown(target + first, index - first);
             }
-            if (task.ResourcePointers is { } pointers)
+            foreach ((int field, NativeBattleResourcePointer pointer) in task.EnumerateResourcePointers())
             {
-                foreach ((int field, NativeBattleResourcePointer pointer) in pointers)
-                {
-                    arena = arena.WriteResourcePointer(checked(target + field), pointer);
-                }
+                writer.SetResourcePointer(checked(target + field), pointer);
             }
         }
-        return arena;
     }
 
     private static int? ArenaOffset(NativeBattleEffectTaskPool pool)

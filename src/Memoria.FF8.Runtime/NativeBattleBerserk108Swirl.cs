@@ -9,11 +9,10 @@ public static class NativeBattleBerserk108Swirl
 {
     public static NativeBattleBerserk108SwirlStep Advance(NativeBattleModulePoolTask task, NativeBattleVector anchor, NativeBattleCameraProjection projection, ImmutableArray<byte> windows)
     {
-        if (task.Payload.Length != 0x414 || windows.Length != 16)
+        if (task.PayloadLength != 0x414 || windows.Length != 16)
         {
             throw new InvalidDataException("Native Berserk requires its original swirl bank and texture rectangles.");
         }
-        byte[] bytes = task.Payload.ToArray();
         int counter = R(12);
         int count = unchecked((int)U(24));
         if ((uint)count > 32)
@@ -33,7 +32,7 @@ public static class NativeBattleBerserk108Swirl
                 int phase = 4096 - ((counter * 4 + index) << 12) / 24;
                 if (count < 32)
                 {
-                    bytes.AsSpan(0x20 - 12, count * 32).CopyTo(bytes.AsSpan(0x40 - 12));
+                    task.WriteRetainedBytes(0x40, task.ReadRawPayloadSpan().Slice(0x20 - 12, count * 32));
                     count++;
                 }
                 W(0x20, R(16));
@@ -104,12 +103,12 @@ public static class NativeBattleBerserk108Swirl
         }
         D(24, (uint)count);
         W(12, counter + 1);
-        return new(task with { Payload = bytes.ToImmutableArray() }, new(attempts.ToImmutable(), allocated), counter + 1 > 8 && count < 2 ? 2 : 0);
+        return new(task, new(attempts.ToImmutable(), allocated), counter + 1 > 8 && count < 2 ? 2 : 0);
 
-        short R(int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset - 12));
-        uint U(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset - 12));
-        void W(int offset, int value) => BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset - 12), unchecked((short)value));
-        void D(int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset - 12), value);
+        short R(int offset) => BinaryPrimitives.ReadInt16LittleEndian(task.ReadRawPayloadSpan().Slice(offset - 12));
+        uint U(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(task.ReadRawPayloadSpan().Slice(offset - 12));
+        void W(int offset, int value) => task.WriteWord(offset, unchecked((ushort)value));
+        void D(int offset, uint value) => task.WriteDword(offset, value);
         NativeBattleTextureWindow Rectangle(int offset) => new(BinaryPrimitives.ReadInt16LittleEndian(windows.AsSpan().Slice(offset)), BinaryPrimitives.ReadInt16LittleEndian(windows.AsSpan().Slice(offset + 2)), BinaryPrimitives.ReadInt16LittleEndian(windows.AsSpan().Slice(offset + 4)), BinaryPrimitives.ReadInt16LittleEndian(windows.AsSpan().Slice(offset + 6)));
         void Project(int entry, int angleDelta, int screenOffset, int depthOffset)
         {

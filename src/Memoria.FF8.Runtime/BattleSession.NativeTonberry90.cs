@@ -234,7 +234,7 @@ public sealed partial class BattleSession
                 int geometryOffset = checked((int)(geometryAddress - source.Address));
                 NativeBattleThundaga105Bounds bounds = NativeBattleGroundCapturePackets.Bounds8DE160(source.Data.AsSpan().Slice(geometryOffset));
                 NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
-                ImmutableArray<byte> anchor = task.Payload.AsSpan().Slice(0x1C - 12, 8).ToArray().ToImmutableArray();
+                ImmutableArray<byte> anchor = task.ReadRawPayloadSpan().Slice(0x1C - 12, 8).ToArray().ToImmutableArray();
                 NativeBattleCameraState currentCamera = NativeCamera ?? throw new NotSupportedException("Native ground capture requires its current camera globals.");
                 NativeBattleThundaga105CaptureTransform capture = NativeBattleThundaga105CaptureGeometry.TransformCapture(anchor, bounds, currentCamera.Projection ?? throw new NotSupportedException("Native ground capture requires its current GTE projection."), 128, 256, currentCamera.FocalLength ?? throw new NotSupportedException("Native ground capture requires its current global focal WORD."));
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native ground capture requires its current ordering table.");

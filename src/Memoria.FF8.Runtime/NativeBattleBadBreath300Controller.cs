@@ -15,7 +15,7 @@ public static partial class NativeBattleBadBreath300Controller
         frame = frame with { State = frame.State.SeedColdSources(resources).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78)) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int index) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(index, root.Slots[index].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(index, root.Slots[index].WriteDword(12, 0).WriteDword(16, 0));
         return frame with { Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) } };
     }
 

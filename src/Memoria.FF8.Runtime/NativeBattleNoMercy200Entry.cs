@@ -43,10 +43,10 @@ public static partial class NativeBattleNoMercy200Controller
         staging = StoreMatrix(staging, 0x24F8D90, new(NativeBattleModuleAlignment.Rotation5714F0(alignment.Angle, alignment.Axis), bone241.X, 0, bone241.Z, 4096));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Root, 0x24F8D60, 16, 2);
         (root, int rootSlot) = root.Append(0x63E680);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(Children, 0x24F99A0, 36, 250);
         (children, int childSlot) = children.Append(0x639380);
-        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot].WriteWord(12, 0)) };
+        children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteWord(12, 0));
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native6391D0 requires its actual texture owner.");
         (textures, _) = textures.EnqueueTim505E30(resources.InitialTim);
         state = state with { GlobalsInitialized = true, Resources = resources, Parameters = parameters, CameraTask = null };

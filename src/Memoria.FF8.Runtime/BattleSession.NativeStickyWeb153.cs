@@ -64,12 +64,12 @@ public sealed partial class BattleSession
                 0x60AC10 => Particles(ref task, 2),
                 _ => throw new NotSupportedException("Native Sticky Web selected an unrelated task callback.")
             };
-            task = task with { Next = children.Slots[slot].Next };
-            return new(children with { Slots = children.Slots.SetItem(slot, task) }, result);
+            task = task.UpdateHeader(task.Flags, task.State, children.Slots[slot].Next, task.Callback);
+            return new(children.WriteSlot(slot, task), result);
         });
         children = advanced.Pool;
         rootTask = rootTask.WriteWord(12, unchecked((ushort)(rootTask.ReadWord(12) + 1)));
-        root = root with { Slots = root.Slots.SetItem(0, rootTask) };
+        root = root.WriteSlot(0, rootTask);
         if (advanced.Survivors == 0)
         {
             root = root.Advance((pool, _) => new(pool, 2)).Pool;
@@ -106,7 +106,7 @@ public sealed partial class BattleSession
             if (frame == 13)
             {
                 int slot = Add(0x609930);
-                children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(16, 0).WriteWord(20, 0x380).WriteWord(18, unchecked((ushort)(Vector(0x1908).Y + 750))).WriteWord(22, unchecked((ushort)-60))) };
+                children = children.WriteSlot(slot, children.Slots[slot].WriteWord(16, 0).WriteWord(20, 0x380).WriteWord(18, unchecked((ushort)(Vector(0x1908).Y + 750))).WriteWord(22, unchecked((ushort)-60)));
                 for (int ring = 0; ring < 5; ring++)
                 {
                     Dword(0x1930 + ring * 20, 0);
@@ -139,7 +139,7 @@ public sealed partial class BattleSession
             {
                 model = model.WriteWord(30, unchecked((ushort)scale));
             }
-            children = children with { Slots = children.Slots.SetItem(slot, model) };
+            children = children.WriteSlot(slot, model);
         }
 
         int Model(ref NativeBattleModulePoolTask task, bool burst)
@@ -264,7 +264,7 @@ public sealed partial class BattleSession
         int Add(uint callback)
         {
             (children, int slot) = children.Append(callback);
-            children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, 0)) };
+            children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, 0));
             return slot;
         }
         void Append(NativeBattleGfGeometryBatch batch, int tail = 0)

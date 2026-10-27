@@ -151,7 +151,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
             frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260CameraRestore());
             frame = frame with { State = frame.State.WriteDword(0x25086B0, 0).WriteDword(0x25086A8, 0) };
             NativeBattleEffectTaskPool children = frame.Effect.Pools[2];
-            frame = WithPool(frame, 2, children with { Head = null, Tail = null });
+            frame = WithPool(frame, 2, children.UpdateLinks(null, null));
             NativeBattleShockwavePulsar260IoStep poll = inputs.PollIo(frame, 1);
             return new(poll.Frame, poll.Busy ? 0 : 2);
         }

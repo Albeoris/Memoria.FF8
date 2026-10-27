@@ -28,7 +28,7 @@ public sealed class NativeBattleFileStagingTransactionTests
         Assert.True(known[8194]);
         Assert.False(known[8193]);
         NativeBattleFileStaging unchanged = transaction.Freeze(transaction.View);
-        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(unchanged));
+        Assert.Equal(SnapshotJson(source), SnapshotJson(unchanged));
         NativeBattleFileStaging current = transaction.View.Write(address + 3, [7]);
         Assert.Equal(new byte[] { 1, 7, 3, 4 }, current.Read(address + 2, 4));
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, source.Read(address + 2, 4));
@@ -48,16 +48,16 @@ public sealed class NativeBattleFileStagingTransactionTests
         current = current.MarkUnknown(address + 4096, 1);
         Assert.Throws<NotSupportedException>(() => current.Read(address + 4094, 4));
         (byte[] data, bool[] known) = current.ReadSnapshot(address + 4094, 4);
-        Assert.Equal(new byte[] { 1, 2, 0, 4 }, data);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, data);
         Assert.Equal(new[] { true, true, false, true }, known);
-        NativeBattleFileStaging first = transaction.Freeze(current);
+        NativeBattleFileStaging first = NativeBattleStorageSnapshots.Capture(transaction.Freeze(current));
         current = current.Write(address + 4096, [8]);
         NativeBattleFileStaging second = transaction.Freeze(current);
         Assert.Throws<NotSupportedException>(() => first.Read(address + 4096, 1));
         Assert.Equal(new byte[] { 1, 2, 8, 4 }, second.Read(address + 4094, 4));
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(second))!;
+        NativeBattleFileStaging restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(SnapshotJson(second))!);
         Assert.Equal(second.Read(address, 16000), restored.Read(address, 16000));
-        Assert.Throws<InvalidOperationException>(() => JsonSerializer.Serialize(current));
+        Assert.Throws<InvalidOperationException>(() => SnapshotJson(current));
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class NativeBattleFileStagingTransactionTests
         uint address = NativeBattleFileStaging.Address;
         NativeBattleFileStaging source = NativeBattleFileStaging.Unknown().Write(address, new byte[10000]);
         using NativeBattleFileStagingTransaction transaction = new(source);
-        NativeBattleFileStaging expected = Apply(source);
+        NativeBattleFileStaging expected = Apply(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source)));
         NativeBattleFileStaging actual = transaction.Freeze(Apply(transaction.View));
         Assert.Equal(expected.BaseAddress, actual.BaseAddress);
         Assert.Equal(expected.ResourcePointers, actual.ResourcePointers);
@@ -93,6 +93,7 @@ public sealed class NativeBattleFileStagingTransactionTests
     {
         uint address = NativeBattleFileStaging.Address;
         NativeBattleFileStaging source = new([new(0, ImmutableArray.CreateRange(new byte[1024 * 1024]))]);
+        NativeBattleFileStaging original = NativeBattleStorageSnapshots.Capture(source);
         using NativeBattleFileStagingTransaction transaction = new(source);
         NativeBattleFileStaging current = transaction.View;
         long allocated = GC.GetAllocatedBytesForCurrentThread();
@@ -104,7 +105,7 @@ public sealed class NativeBattleFileStagingTransactionTests
         allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
         Assert.True(allocated < 4 * 1024 * 1024, $"Private scratch stores allocated {allocated} bytes.");
         Assert.Equal(4095, BitConverter.ToInt32(current.Read(address + 128, 4)));
-        Assert.Equal(new byte[4], source.Read(address + 128, 4));
+        Assert.Equal(new byte[4], original.Read(address + 128, 4));
     }
 
     [Fact]
@@ -122,4 +123,5 @@ public sealed class NativeBattleFileStagingTransactionTests
         Assert.Throws<ObjectDisposedException>(() => escaped!.Read(NativeBattleFileStaging.Address, 1));
         Assert.Throws<ObjectDisposedException>(() => escaped!.Write(NativeBattleFileStaging.Address, [2]));
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

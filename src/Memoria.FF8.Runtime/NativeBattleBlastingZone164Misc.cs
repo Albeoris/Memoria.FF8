@@ -57,7 +57,7 @@ public static partial class NativeBattleBlastingZone164Controller
                 }
             }
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, released ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), released ? 2 : 0);
 
         int Rand()
         {
@@ -77,7 +77,7 @@ public static partial class NativeBattleBlastingZone164Controller
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, Word(task, 12) >= 14 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), Word(task, 12) >= 14 ? 2 : 0);
     }
 
     public static NativeBattleBlastingZone164ChildStep Advance5F5AD0(NativeBattleBlastingZone164Frame frame, NativeBattleEffectTaskPool pool, int slot, Func<NativeBattleBlastingZone164Frame, uint, NativeBattleBlastingZone164Frame> beginTextureLoad)
@@ -93,6 +93,6 @@ public static partial class NativeBattleBlastingZone164Controller
         }
         bool released = task.ReadWord(14) != 0;
         task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, released ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), released ? 2 : 0);
     }
 }

@@ -37,7 +37,7 @@ public static class NativeBattleAngelWing84Programs
                         frame = inputs.SetStageFlags(frame, false);
                         Read();
                     }
-                    NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(148 - 12, size).ToArray().ToImmutableArray());
+                    NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(148 - 12, size).ToArray().ToImmutableArray());
                     task = StoreWorkspace(task, workspace.Initialize7016B0(source, size));
                     NativeBattleModelTransform actor = inputs.Controller.ReadModel(task.ReadByte(44)).Transform ?? throw new NotSupportedException("Native Angel Wing program requires its actual caster position and WORD34.");
                     task = task.WriteWord(28, unchecked((ushort)actor.Position28.X)).WriteWord(30, unchecked((ushort)actor.Position28.Y)).WriteWord(32, unchecked((ushort)actor.Position28.Z)).WriteWord(34, unchecked((ushort)actor.Vertical34)).WriteDword(80, 4096).WriteDword(84, 4096).WriteDword(88, 4096);
@@ -100,7 +100,7 @@ public static class NativeBattleAngelWing84Programs
         int AdvanceWorkspace()
         {
             NativeBattleActionMatrix context = NativeBattleSearchProgramDrawing.ComposeContext758D70(task, inputs.Controller.Camera);
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(148 - 12, size).ToArray().ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(148 - 12, size).ToArray().ToImmutableArray());
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
             {
                 NativeBattleGfGeometryBatch batch = DrawNode(source, node, context, unchecked((short)task.ReadWord(136)), task.ReadWord(128), inputs.Projection, inputs.Colors);
@@ -169,8 +169,6 @@ public static class NativeBattleAngelWing84Programs
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] bytes = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(bytes.AsSpan(148 - 12));
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteRetainedBytes(148, workspace.Data.AsSpan());
     }
 }

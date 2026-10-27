@@ -16,7 +16,7 @@ public sealed record NativeBattleEffect338State([property: JsonRequired] NativeB
         Globals.Validate();
         RootBankStorage?.Validate();
         Skeleton?.Validate();
-        if (Globals.Regions.Any(region => region.Offset < 0 || region.Offset > Length - region.Data.Length) || Globals.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > Length - region.Length) || RootBankStorage is { } root && (root.Regions.Any(region => region.Offset < 0 || region.Offset > 20 - region.Data.Length) || root.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > 20 - region.Length)) || ColdSourcePending && Skeleton is not null)
+        if (Globals.EnumerateDataRanges().Any(region => region.Offset < 0 || region.Offset > Length - region.Length) || Globals.EnumerateUnknownRanges().Any(region => region.Offset < 0 || region.Offset > Length - region.Length) || RootBankStorage is { } root && (root.EnumerateDataRanges().Any(region => region.Offset < 0 || region.Offset > 20 - region.Length) || root.EnumerateUnknownRanges().Any(region => region.Offset < 0 || region.Offset > 20 - region.Length)) || ColdSourcePending && Skeleton is not null)
         {
             throw new InvalidDataException("Effect338 retained memory leaves its original current owners.");
         }
@@ -38,10 +38,26 @@ public sealed record NativeBattleEffect338State([property: JsonRequired] NativeB
 
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Offset(address, 4), 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Globals.Read(Offset(address, 2), 2));
-    public NativeBattleEffect338State WriteDword(uint address, uint value) => this with { Globals = Globals.Write(Offset(address, 4), BitConverter.GetBytes(value)) };
-    public NativeBattleEffect338State WriteWord(uint address, ushort value) => this with { Globals = Globals.Write(Offset(address, 2), BitConverter.GetBytes(value)) };
+    public NativeBattleEffect338State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        Globals.Write(Offset(address, 4), encoded);
+        return this;
+    }
+    public NativeBattleEffect338State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        Globals.Write(Offset(address, 2), encoded);
+        return this;
+    }
     public NativeBattleEffectArena ReadView(uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(Globals, Offset(address, length), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
-    public NativeBattleEffect338State WriteView(uint address, NativeBattleEffectArena source, int length) => this with { Globals = NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Offset(address, length), length) };
+    public NativeBattleEffect338State WriteView(uint address, NativeBattleEffectArena source, int length)
+    {
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Offset(address, length), length);
+        return this;
+    }
 
     private static int Offset(uint address, int length)
     {

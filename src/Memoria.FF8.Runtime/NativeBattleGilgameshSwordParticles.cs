@@ -20,22 +20,22 @@ public static partial class NativeBattleGilgameshSwordParticles
         particles.Validate();
         int slot;
         (children, slot) = children.Append(0x594FD0);
-        children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)variant))) };
+        children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)variant)));
         (particles, slot) = particles.Append(0x595D50);
-        particles = particles with { Slots = particles.Slots.SetItem(slot, particles.Slots[slot].WriteWord(12, 0).WriteWord(14, 105)) };
+        particles = particles.WriteSlot(slot, particles.Slots[slot].WriteWord(12, 0).WriteWord(14, 105));
         for (int index = 0; index < 4; index++)
         {
             (children, slot) = children.Append(0x594CA0);
-            children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, (ushort)index).WriteWord(28, (ushort)(1 << index)).WriteWord(30, unchecked((ushort)resources.SwordOrder[index]))) };
+            children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(14, (ushort)index).WriteWord(28, (ushort)(1 << index)).WriteWord(30, unchecked((ushort)resources.SwordOrder[index])));
             (children, slot) = children.Append(0x5948A0);
-            children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(28, (ushort)(1 << index)).WriteWord(30, unchecked((ushort)resources.SwordOrder[index]))) };
+            children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, 0).WriteWord(28, (ushort)(1 << index)).WriteWord(30, unchecked((ushort)resources.SwordOrder[index])));
         }
         return new(children, particles);
     }
 
     public static NativeBattleGilgameshSwordParticleStep Step(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshSwordParticleResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags, Func<int, byte, short, NativeBattleVector> readSwordBone, NativeBattleSummonColors? colors = null)
     {
-        if (task is null || task.Payload.IsDefault || task.Payload.Length != 24 || task.Callback is not (0x5948A0 or 0x594CA0))
+        if (task is null || task.Payload.IsDefault || task.PayloadLength != 24 || task.Callback is not (0x5948A0 or 0x594CA0))
         {
             throw new InvalidDataException("Native sword particles require their selected raw0x24-byte callback task.");
         }

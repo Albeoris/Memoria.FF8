@@ -38,8 +38,8 @@ public sealed class NativeBattleFileStagingPerformanceTests
         byte[] image = new byte[1024 * 1024];
         Random random = new(873);
         random.NextBytes(image);
-        NativeBattleFileStaging original = new([new(0, image.ToImmutableArray())]);
-        NativeBattleFileStaging memory = original.Write(address + 16, [1, 2, 3, 4]);
+        NativeBattleFileStaging original = NativeBattleStorageSnapshots.Capture(new NativeBattleFileStaging([new(0, image.ToImmutableArray())]));
+        NativeBattleFileStaging memory = NativeBattleStorageSnapshots.Restore(original).Write(address + 16, [1, 2, 3, 4]);
         long allocated = GC.GetAllocatedBytesForCurrentThread();
         for (int index = 0; index < 256; index++)
         {
@@ -57,7 +57,7 @@ public sealed class NativeBattleFileStagingPerformanceTests
             BitConverter.GetBytes(index).CopyTo(image, 32 + index * 4);
         }
         Assert.Equal(image, memory.Read(address, image.Length));
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(memory))!;
+        NativeBattleFileStaging restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(SnapshotJson(memory))!);
         Assert.Equal(memory.Read(address, image.Length), restored.Read(address, image.Length));
         Assert.Equal(memory.Write(address + 4094, [3, 4, 5, 6]).Read(address, image.Length), restored.Write(address + 4094, [3, 4, 5, 6]).Read(address, image.Length));
     }
@@ -90,16 +90,10 @@ public sealed class NativeBattleFileStagingPerformanceTests
         }
         memory = memory.Write(address - 13, [9]);
         memory.Validate();
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(memory))!;
+        NativeBattleFileStaging restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(SnapshotJson(memory))!);
         (byte[] actual, bool[] observed) = restored.ReadSnapshot(address, expected.Length);
         Assert.Equal(known, observed);
-        for (int index = 0; index < expected.Length; index++)
-        {
-            if (known[index])
-            {
-                Assert.Equal(expected[index], actual[index]);
-            }
-        }
+        Assert.Equal(expected, actual);
         NativeBattleResourcePointer pointer = new(null, null) { CpuRow = 0 };
         restored = restored.WriteResourcePointer(address + 4094, pointer);
         Assert.Equal(pointer, restored.ReadResourcePointer(address + 4094));
@@ -107,4 +101,5 @@ public sealed class NativeBattleFileStagingPerformanceTests
         restored = restored.Write(address + 4094, [1, 2, 3, 4]);
         Assert.Equal(0x04030201u, restored.ReadResourcePointer(address + 4094)!.StagingAddress);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

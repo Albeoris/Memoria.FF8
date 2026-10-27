@@ -58,7 +58,7 @@ public static partial class NativeBattleRoughDivide163Controller
             task = task.WriteWord(28, unchecked((ushort)(Word(task, 28) + 5)));
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, Word(task, 12) >= 40 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), Word(task, 12) >= 40 ? 2 : 0);
     }
 
     private static (NativeBattleGfGeometryBatch Batch, int Cursor) DrawEcho(NativeBattleFileStaging staging, int count, short age, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory registers, NativeBattleSummonColors colors)

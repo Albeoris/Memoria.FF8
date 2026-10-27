@@ -74,7 +74,7 @@ public static class NativeBattleShivaSecondShatter
         task = frame.Pool.Slots[slot];
         task = task.WriteWord(0x12, counter < 5 ? unchecked((ushort)(task.ReadWord(0x12) - task.ReadWord(0x22))) : (ushort)0);
         task = task.WriteWord(0x0C, unchecked((ushort)(task.ReadWord(0x0C) + 1)));
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Pool = frame.Pool.WriteSlot(slot, task) };
         return new(frame, packets, unchecked((short)task.ReadWord(0x0C)) >= 89 && packets.AllocationBytes == 0 ? 2 : 0);
     }
 
@@ -169,13 +169,13 @@ public static class NativeBattleShivaSecondShatter
         {
             task = task.WriteWord(word.Offset, word.Value);
         }
-        return frame with { Pool = pool with { Slots = pool.Slots.SetItem(slot, task) } };
+        return frame with { Pool = pool.WriteSlot(slot, task) };
     }
 
     private static NativeBattleShivaFinalStep Increment(NativeBattleShivaFinalFrame frame, int slot, int threshold)
     {
         NativeBattleModulePoolTask task = frame.Pool.Slots[slot].WriteWord(0x0C, unchecked((ushort)(frame.Pool.Slots[slot].ReadWord(0x0C) + 1)));
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Pool = frame.Pool.WriteSlot(slot, task) };
         return new(frame, new([], 0), unchecked((short)task.ReadWord(0x0C)) >= threshold ? 2 : 0);
     }
 

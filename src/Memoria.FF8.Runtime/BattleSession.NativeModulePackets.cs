@@ -97,7 +97,7 @@ public sealed partial class BattleSession
         NativeBattleLogicalOrdering ordering = frame.Pending;
         // TODO(TD-009): Logical module words do not establish every physical padding byte.
         ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         if (batch.AllocationBytes != 0)
         {
             links.InvalidatePacketRange(new(bank, process.PacketBuffer, cursor), batch.AllocationBytes);

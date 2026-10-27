@@ -97,7 +97,7 @@ public static class NativeBattleUltraWavesGrid
             registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
             grid = Dword(grid, at, registers.Geometry.Sxy[2]!.Value);
         }
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         string bank = quadsAddress.ToString("X");
         for (int index = 0; index < 27 * 40; index++)
         {

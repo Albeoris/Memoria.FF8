@@ -25,7 +25,7 @@ public static partial class NativeBattleRoughDivide163Controller
                 NativeBattleFileStaging staging = WriteWord(WriteDword(frame.Staging, record, 4), record + 4, 0);
                 short scale = unchecked((short)(Rand() % 2560 + 1280));
                 staging = WriteWord(staging, record + 6, unchecked((ushort)scale));
-                staging = staging.Write(record + 8, task.Payload.AsSpan(4, 8));
+                staging = staging.Write(record + 8, task.ReadRawPayloadSpan().Slice(4, 8));
                 staging = WriteWord(staging, record + 8, unchecked((ushort)(ReadWord(staging, record + 8) + Rand() % (2 * radius) - radius)));
                 staging = WriteWord(staging, record + 10, unchecked((ushort)(-350 * heightIndex - Rand() % 800 + 400)));
                 staging = WriteWord(staging, record + 12, unchecked((ushort)(ReadWord(staging, record + 12) + Rand() % (2 * radius) - radius)));
@@ -91,7 +91,7 @@ public static partial class NativeBattleRoughDivide163Controller
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, alive == 0 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), alive == 0 ? 2 : 0);
 
         int Rand()
         {

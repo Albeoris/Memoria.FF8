@@ -38,7 +38,7 @@ public sealed partial class BattleSession
             }
             NativeBattleEffectTaskPool pool = effect.Pools[poolIndex];
             int slot = checked((int)(delta / 16));
-            return effect with { Pools = effect.Pools.SetItem(poolIndex, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(14, value)) }) };
+            return effect with { Pools = effect.Pools.SetItem(poolIndex, pool.WriteSlot(slot, pool.Slots[slot].WriteByte(14, value))) };
         }
     }
 }

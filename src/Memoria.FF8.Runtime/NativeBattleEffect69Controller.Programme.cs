@@ -8,7 +8,7 @@ public static partial class NativeBattleEffect69Controller
     public static NativeBattleEffect69Frame AdvanceProgramme(NativeBattleEffect69Frame frame, uint address, bool initialize, NativeBattleEffect69Resources resources, NativeBattleEffect69Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan(0x1C - 12, NativeBattleEffect69Profile.ProgrammeWorkspaceLength).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x1C - 12, NativeBattleEffect69Profile.ProgrammeWorkspaceLength).ToArray().ToImmutableArray());
         if (initialize)
         {
             workspace = workspace.Initialize7016B0(resources.Programme, NativeBattleEffect69Profile.ProgrammeWorkspaceLength);

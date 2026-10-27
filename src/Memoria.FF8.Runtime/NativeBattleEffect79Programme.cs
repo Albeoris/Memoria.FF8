@@ -11,12 +11,12 @@ public static class NativeBattleEffect79Programme
     public static NativeBattleEffect79Frame Initialize7016B0(NativeBattleEffect79Frame frame, uint taskAddress, uint sourceAddress, int sizeBytes, NativeBattleEffect79Resources resources)
     {
         NativeBattleModulePoolTask task = Read(frame, taskAddress);
-        if (task.Payload.Length + 12 != 704 || task.ReadDword(0x74) != sourceAddress || unchecked((int)task.ReadDword(0x78)) != sizeBytes)
+        if (task.PayloadLength + 12 != 704 || task.ReadDword(0x74) != sourceAddress || unchecked((int)task.ReadDword(0x78)) != sizeBytes)
         {
             throw new InvalidDataException("Effect79 programme initialization requires its current source and actual task workspace clear size.");
         }
         NativeBattleGfAnimationSource source = CurrentSource(frame, sourceAddress, resources);
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
         workspace = workspace.Initialize7016B0(source, sizeBytes);
         return PublishWorkspace(frame, taskAddress, workspace);
     }
@@ -58,7 +58,7 @@ public static class NativeBattleEffect79Programme
     {
         NativeBattleModulePoolTask task = Read(frame, taskAddress);
         NativeBattleGfAnimationSource source = CurrentSource(frame, task.ReadDword(0x74), resources);
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, unchecked((int)frame.State.ReadDword(0x25E8954)), (current, node) =>
         {
             frame = PublishWorkspace(frame, taskAddress, current);
@@ -78,13 +78,11 @@ public static class NativeBattleEffect79Programme
     private static NativeBattleEffect79Frame PublishWorkspace(NativeBattleEffect79Frame frame, uint taskAddress, NativeBattleGfAnimationWorkspace workspace)
     {
         NativeBattleModulePoolTask task = Read(frame, taskAddress);
-        byte[] payload = task.Payload.ToArray();
-        if (workspace.Data.Length != payload.Length - (0x94 - 12))
+        if (workspace.Data.Length != task.PayloadLength - (0x94 - 12))
         {
             throw new InvalidDataException("Effect79 programme workspace leaves its current task payload.");
         }
-        workspace.Data.AsSpan().CopyTo(payload.AsSpan(0x94 - 12));
-        return Write(frame, taskAddress, task with { Payload = payload.ToImmutableArray() });
+        return Write(frame, taskAddress, task.WriteRetainedBytes(0x94, workspace.Data.AsSpan()));
     }
 
     public static NativeBattleEffect79Frame DrawNode7B5D80(NativeBattleEffect79Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller92, NativeBattleEffect79Resources resources, NativeBattleEffect79Inputs inputs)

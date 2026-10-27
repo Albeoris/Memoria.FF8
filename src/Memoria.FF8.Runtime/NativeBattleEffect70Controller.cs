@@ -20,7 +20,7 @@ public static partial class NativeBattleEffect70Controller
         NativeBattleCureFamilyPool shape = Pools[0];
         NativeBattleEffectTaskPool root = PreparePool(shape, frame.State.ReadRootBank());
         (root, int slot) = root.Append(0x6DD970);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));
         return frame with { State = frame.State.DetachRootBank(), Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
 
@@ -94,7 +94,7 @@ public static partial class NativeBattleEffect70Controller
 
     public static NativeBattleEffect70Frame ClearSecondaryLinks(NativeBattleEffect70Frame frame)
     {
-        NativeBattleEffectTaskPool pool = frame.Effect.Pools[2] with { Head = null, Tail = null };
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools[2].UpdateLinks(null, null);
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, pool) } };
     }
 
@@ -103,7 +103,7 @@ public static partial class NativeBattleEffect70Controller
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(shape.Descriptor, shape.Bank, shape.Stride, shape.Capacity);
         for (int index = 0; index < pool.Slots.Length; index++)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(index, CopyTask(pool.Slots[index], 12, Slice(retained, index * pool.Stride + 12, pool.Stride - 12), pool.Stride - 12)) };
+            pool = pool.WriteSlot(index, CopyTask(pool.Slots[index], 12, Slice(retained, index * pool.Stride + 12, pool.Stride - 12), pool.Stride - 12));
         }
         return pool;
     }

@@ -206,7 +206,7 @@ public static class NativeBattleBlizzardController
 
     internal static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     internal static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, unchecked((ushort)(Word(task, offset) + value)));
-    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) };
+    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool.WriteSlot(slot, task);
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, NativeBattleVector anchor) => task.WriteWord(16, unchecked((ushort)anchor.X)).WriteWord(18, unchecked((ushort)anchor.Y)).WriteWord(20, unchecked((ushort)anchor.Z));
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, NativeBattleModulePoolTask source) => task.WriteWord(16, source.ReadWord(16)).WriteWord(18, source.ReadWord(18)).WriteWord(20, source.ReadWord(20)).WriteWord(22, source.ReadWord(22));
 }

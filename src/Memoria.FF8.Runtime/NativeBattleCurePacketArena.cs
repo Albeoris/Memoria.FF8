@@ -28,8 +28,8 @@ public static partial class NativeBattleEffectPacketArena
 {
     public static NativeBattleEffectPacketWrite Append(NativeBattleEffectMemory memory, int cursor, NativeBattleLogicalOrdering ordering, NativeBattleModulePacketBatch batch, NativeBattleEffectGouraudWrites gouraudWrites, int? moduleDraw = null)
     {
-        NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native effect packet writes require the571870 effect arena."));
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native effect packet writes require the571870 effect arena."));
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         if (gouraudWrites is not (NativeBattleEffectGouraudWrites.FullDword or NativeBattleEffectGouraudWrites.RgbBytes))
         {
             throw new ArgumentOutOfRangeException(nameof(gouraudWrites));
@@ -112,7 +112,7 @@ public static partial class NativeBattleEffectPacketArena
                 {
                     end++;
                 }
-                arena = arena.Write(checked(address + offset), bytes.AsSpan(offset, end - offset));
+                arena.Write(checked(address + offset), bytes.AsSpan(offset, end - offset));
                 offset = end;
             }
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
@@ -120,7 +120,7 @@ public static partial class NativeBattleEffectPacketArena
             links.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, allocation.Flags20, primitive.VertexPayload4, moduleDraw);
             if (linked)
             {
-                arena = arena.Write(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));
+                arena.Write(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));
             }
 
             void Preserve(int first, int count) => Array.Fill(written, false, first, count);

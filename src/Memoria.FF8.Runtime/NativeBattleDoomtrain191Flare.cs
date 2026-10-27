@@ -20,7 +20,7 @@ public static class NativeBattleDoomtrain191Flare
         NativeBattleModulePoolTask task = pool.Slots[index].WriteWord(0xC, 0).WriteWord(0x10, unchecked((ushort)(point.X + anchor.X))).WriteWord(0x12, unchecked((ushort)(point.Y + anchor.Y))).WriteWord(0x14, unchecked((ushort)(point.Z + anchor.Z))).WriteWord(0x1C, 0xB00);
         NativeCrtRandomState random = frame.Random.Draw(out ushort angle);
         frame = NativeBattleDoomtrain191Model.Put(frame, memory with { OrbitAngle = angle % 4096, OrbitStep = 0x110 });
-        return PutPool(frame with { Random = random }, pool with { Slots = pool.Slots.SetItem(index, task) });
+        return PutPool(frame with { Random = random }, pool.WriteSlot(index, task));
     }
 
     public static NativeBattleDoomtrain191LeafStep Advance643880(NativeBattleDoomtrain191Frame frame, int slot, NativeBattleDoomtrain191MeshServices services)
@@ -45,7 +45,7 @@ public static class NativeBattleDoomtrain191Flare
         }
         ushort next = unchecked((ushort)(age + 1));
         pool = Pool(frame);
-        frame = PutPool(frame, pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(0xC, next)) });
+        frame = PutPool(frame, pool.WriteSlot(slot, task.WriteWord(0xC, next)));
         return new(frame, unchecked((short)next) >= 22 ? 2 : 0);
     }
 

@@ -27,10 +27,10 @@ public static class NativeBattleEffect344Controller
             for (int slot = 0; slot < pool.Slots.Length; slot++)
             {
                 NativeBattleModulePoolTask task = CopyTask(pool.Slots[slot], 12, Slice(retained, slot * shape.Stride + 12, shape.Stride - 12), shape.Stride - 12);
-                pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+                pool = pool.WriteSlot(slot, task);
             }
             (pool, int allocated) = pool.Append(index == 0 ? 0x62A7A0u : 0x62A6D0u);
-            pool = pool with { Slots = pool.Slots.SetItem(allocated, pool.Slots[allocated].WriteWord(12, 0)) };
+            pool = pool.WriteSlot(allocated, pool.Slots[allocated].WriteWord(12, 0));
             pools.Add(pool);
             state = state.DetachBank(index);
         }
@@ -129,7 +129,7 @@ public static class NativeBattleEffect344Controller
     public static NativeBattleEffect344Frame Write(NativeBattleEffect344Frame frame, uint address, NativeBattleModulePoolTask task)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, task with { Next = hierarchy.Read(address).Next }).Pools } };
+        return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, task.UpdateHeader(task.Flags, task.State, hierarchy.Read(address).Next, task.Callback)).Pools } };
     }
 
     public static NativeBattleEffect344Frame WriteCompletionByte(NativeBattleEffect344Frame frame, uint address, byte value)

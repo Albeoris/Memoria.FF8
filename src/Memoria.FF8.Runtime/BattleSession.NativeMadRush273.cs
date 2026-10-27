@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2508530, 0x25084F8, 20, 1);
         (root, int slot) = root.Append(0x68D700);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         return graphics with { OriginalEffect = effect with { Pools = [root], ReturnedDescriptor = 0x2508530, DrawArenaOffset = null, MadRush273 = new(memory.Cursor) } };
     }
 
@@ -58,14 +58,14 @@ public sealed partial class BattleSession
                     continue;
                 }
                 (pool, int slot) = pool.Append(0x68D8B0);
-                NativeBattleModulePoolTask task = pool.Slots[slot] with { Payload = new byte[0x304].ToImmutableArray() };
+                NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x304);
                 int actor = nativeActionPackets.ReadContact(first + contact).Primary.ActorIndex;
                 NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
                 task = WindStore(task.WriteWord(12, unchecked((ushort)(-contact * 2))).WriteWord(14, (ushort)contact).WriteDword(16, checked(0x1D972C0u + (uint)actor * 156)), 20, anchor);
                 task = task.WriteWord(22, unchecked((ushort)(graphics.Models[actor].Transform?.Angle36 ?? throw new NotSupportedException("Mad Rush requires its target height."))));
                 NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x10, 0x2F4));
                 task = PublishWorkspace(task, 0x1C, workspace.Initialize7016B0(resources.Animation, 0x2F4));
-                targets = pool with { Slots = pool.Slots.SetItem(slot, task) };
+                targets = pool.WriteSlot(slot, task);
                 PublishNativeModuleSound(new(resources.Sound, 0, null) { Pan = 128, RawPan = 128 });
             }
         }
@@ -105,7 +105,7 @@ public sealed partial class BattleSession
                     (current, int child) = current.Append(0x68DBE0);
                     (NativeCrtRandomState random, NativeBattleModulePoolTask particle) = NativeBattleMadRush273Particles.Initialize(nativeCrtRandom ?? throw new NotSupportedException("Mad Rush requires its current CRT stream."), current.Slots[child], anchor);
                     nativeCrtRandom = random;
-                    particles = current with { Slots = current.Slots.SetItem(child, particle) };
+                    particles = current.WriteSlot(child, particle);
                 }
                 int result = 0;
                 if (advance.Remaining == 0)
@@ -137,7 +137,7 @@ public sealed partial class BattleSession
             particleSurvivors = particlesStep.Survivors;
         }
         bool completed = root.ReadByte(15) != 0 && targetSurvivors == 0 && particleSurvivors == 0;
-        roots = roots with { Slots = roots.Slots.SetItem(0, completed ? root : root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)))) };
+        roots = roots.WriteSlot(0, completed ? root : root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1))));
         if (completed)
         {
             roots = roots.Advance((pool, _) => new(pool, 2)).Pool;

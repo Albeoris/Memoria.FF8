@@ -18,7 +18,7 @@ public static partial class NativeBattleRinoa89Controller
         {
             (pool, int slot) = pool.Append(0x6FD340);
             NativeBattleModulePoolTask task = SpritePosition(pool.Slots[slot], point).WriteWord(18, 4096).WriteBytes(31, [0]);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         for (int index = 0; index < particles; index++)
         {
@@ -36,7 +36,7 @@ public static partial class NativeBattleRinoa89Controller
             task = task.WriteBytes(29, [unchecked((byte)((BeamRandom(ref frame) & 0x1F) - 16))]);
             task = task.WriteBytes(30, [unchecked((byte)((BeamRandom(ref frame) & 0x1F) - 16))]);
             task = task.WriteBytes(28, [unchecked((byte)-20)]);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         return new(frame, pool);
     }
@@ -52,7 +52,7 @@ public static partial class NativeBattleRinoa89Controller
         frame = services.DrawBillboard571C80(frame, SpritePoint(task), scale, displacement, phase);
         sbyte next = unchecked((sbyte)(phase + 1));
         task = task.WriteBytes(31, [unchecked((byte)next)]);
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, next < 12 ? 0 : 2);
+        return new(frame, pool.WriteSlot(slot, task), next < 12 ? 0 : 2);
     }
 
     public static NativeBattleRinoa89TaskStep AdvanceSprite6FD3C0(NativeBattleRinoa89Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRinoa89SpriteServices services)
@@ -70,7 +70,7 @@ public static partial class NativeBattleRinoa89Controller
         task = task.WriteBytes(31, [remaining]);
         if (remaining == 0)
         {
-            return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 2);
+            return new(frame, pool.WriteSlot(slot, task), 2);
         }
         short velocityY = unchecked((short)task.ReadWord(22));
         short x = unchecked((short)(point.X + task.ReadWord(20)));
@@ -80,7 +80,7 @@ public static partial class NativeBattleRinoa89Controller
         task = SpritePosition(task, new(x, y, z)).WriteWord(22, unchecked((ushort)nextVelocityY));
         task = task.WriteBytes(26, [unchecked((byte)(angleX + task.ReadBytes(29, 1)[0]))]);
         task = task.WriteBytes(27, [unchecked((byte)(angleY + task.ReadBytes(30, 1)[0]))]);
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+        return new(frame, pool.WriteSlot(slot, task), 0);
     }
 
     private static NativeBattleModulePoolTask SpritePosition(NativeBattleModulePoolTask task, NativeBattleVector point) => task.WriteWord(12, unchecked((ushort)point.X)).WriteWord(14, unchecked((ushort)point.Y)).WriteWord(16, unchecked((ushort)point.Z));

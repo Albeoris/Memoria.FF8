@@ -134,31 +134,12 @@ public static class NativeBattleHeroController
         {
             int offset = checked(frame.State.WorkingArenaOffset + index * profile.ChildStride + 12);
             (byte[] data, bool[] known) = arena.ReadSnapshot(offset, profile.ChildStride - 12);
-            NativeBattleModulePoolTask task = children.Slots[index] with { Payload = data.ToImmutableArray() };
-            for (int start = 0; start < known.Length;)
+            NativeBattleModulePoolTask task = children.Slots[index].WriteWithKnownness(12, data, known);
+            foreach ((int address, NativeBattleResourcePointer? pointer) in arena.EnumerateResourcePointers())
             {
-                if (known[start])
+                if (pointer is not null && address >= offset && address <= offset + data.Length - 4)
                 {
-                    start++;
-                    continue;
-                }
-                int end = start + 1;
-                while (end < known.Length && !known[end])
-                {
-                    end++;
-                }
-                task = task.MarkPayloadUnknown(start + 12, end - start);
-                start = end;
-            }
-            ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers = arena.Transaction is { } transaction ? transaction.ResourcePointers : arena.ResourcePointers;
-            if (pointers is not null)
-            {
-                foreach ((int address, NativeBattleResourcePointer? pointer) in pointers)
-                {
-                    if (pointer is not null && address >= offset && address <= offset + data.Length - 4)
-                    {
-                        task = task.WriteResourcePointer(address - offset + 12, pointer);
-                    }
+                    task = task.WriteResourcePointer(address - offset + 12, pointer);
                 }
             }
             children = Put(children, index, task);
@@ -319,7 +300,7 @@ public static class NativeBattleHeroController
         return new(unchecked((short)task.ReadWord(offset)), unchecked((short)task.ReadWord(offset + 2)), unchecked((short)task.ReadWord(offset + 4)), unchecked((short)task.ReadWord(offset + 6)));
     }
 
-    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int index, NativeBattleModulePoolTask task) => pool with { Slots = pool.Slots.SetItem(index, task) };
+    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int index, NativeBattleModulePoolTask task) => pool.WriteSlot(index, task);
 
     private static NativeBattleHeroFrame WithPool(NativeBattleHeroFrame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
 

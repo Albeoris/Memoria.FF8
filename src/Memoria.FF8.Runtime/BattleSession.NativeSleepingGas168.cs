@@ -71,12 +71,12 @@ public sealed partial class BattleSession
                 0x5E2720 => Sparkles(ref task, true),
                 _ => throw new NotSupportedException("Native Sleeping Gas selected an unrelated task callback.")
             };
-            task = task with { Next = children.Slots[slot].Next };
-            return new(children with { Slots = children.Slots.SetItem(slot, task) }, result);
+            task = task.UpdateHeader(task.Flags, task.State, children.Slots[slot].Next, task.Callback);
+            return new(children.WriteSlot(slot, task), result);
         });
         children = advanced.Pool;
         root = root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)));
-        rootPool = rootPool with { Slots = rootPool.Slots.SetItem(0, root) };
+        rootPool = rootPool.WriteSlot(0, root);
         if (advanced.Survivors == 0)
         {
             rootPool = rootPool.Advance((pool, _) => new(pool, 2)).Pool;
@@ -339,7 +339,7 @@ public sealed partial class BattleSession
             random = random.Draw(out ushort value);
             return value;
         }
-        void Put(int slot, NativeBattleModulePoolTask task) => children = children with { Slots = children.Slots.SetItem(slot, task) };
+        void Put(int slot, NativeBattleModulePoolTask task) => children = children.WriteSlot(slot, task);
     }
 
     private static short TaskWord(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

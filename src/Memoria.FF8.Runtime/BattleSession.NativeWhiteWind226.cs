@@ -63,7 +63,7 @@ public sealed partial class BattleSession
                         0x694D40 => Target(ref task),
                         _ => throw new NotSupportedException("Native White Wind selected an unrelated callback.")
                     };
-                    task = task with { Next = pools[current].Slots[slot].Next };
+                    task = task.UpdateHeader(task.Flags, task.State, pools[current].Slots[slot].Next, task.Callback);
                     Put(current, slot, task);
                     return new(pools[current], result);
                 });
@@ -214,14 +214,12 @@ public sealed partial class BattleSession
             NativeBattleVector point = ReadNativeDefaultPosition571400(graphics, actor);
             return point with { Y = Height(actor) };
         }
-        void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank] with { Slots = pools[bank].Slots.SetItem(slot, task) };
+        void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank].WriteSlot(slot, task);
     }
 
     private static NativeBattleModulePoolTask PublishWorkspace(NativeBattleModulePoolTask task, int offset, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] payload = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(payload.AsSpan(offset - 12));
-        return task with { Payload = payload.ToImmutableArray() };
+        return task.WriteRetainedBytes(offset, workspace.Data.AsSpan());
     }
     private static short WindWord(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleVector WindVector(NativeBattleModulePoolTask task, int offset) => new(WindWord(task, offset), WindWord(task, offset + 2), WindWord(task, offset + 4));

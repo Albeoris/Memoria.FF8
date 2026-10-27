@@ -16,7 +16,7 @@ public static class NativeBattleShivaBurstTask
             if ((graphicsFlags & 0x201) == 0)
             {
                 task = task.WriteWord(0x0E, unchecked((ushort)(task.ReadWord(0x0E) - 1)));
-                frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+                frame = frame with { Pool = frame.Pool.WriteSlot(slot, task) };
             }
             return new(frame, 0);
         }
@@ -44,7 +44,7 @@ public static class NativeBattleShivaBurstTask
             throw new NotSupportedException("Native Shiva burst scale decay requires its nonzero signed divisor.");
         }
         task = task.WriteWord(0x18, unchecked((ushort)(task.ReadWord(0x18) + task.ReadWord(0x1A)))).WriteWord(0x1A, unchecked((ushort)(speed - (speed >> 3)))).WriteWord(0x1C, unchecked((ushort)(task.ReadWord(0x1C) + task.ReadWord(0x1E)))).WriteWord(0x1E, unchecked((ushort)(velocity - velocity / divisor))).WriteWord(0x0C, unchecked((ushort)(task.ReadWord(0x0C) + 1)));
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Pool = frame.Pool.WriteSlot(slot, task) };
         return new(frame, Word(task, 0x0C) >= 14 ? 2 : 0);
     }
 

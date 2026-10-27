@@ -11,8 +11,8 @@ public static class NativeBattleRegionalPacketArena
         {
             throw new InvalidDataException("Native module packets leave their aligned physical bank.");
         }
-        NativeBattleEffectArenaWriter arena = new(source);
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleEffectArenaWriter arena = new(source);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         int accepted = 0;
         foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
         {
@@ -37,13 +37,19 @@ public static class NativeBattleRegionalPacketArena
                 {
                     links.InvalidatePacketRange(new(bank, 0, address + offset), end - offset);
                 }
-                arena = state switch
+                switch (state)
                 {
-                    NativeBattleGfPacketByteState.Known => arena.Write(address + offset, attempt.Data.AsSpan().Slice(offset, end - offset)),
-                    NativeBattleGfPacketByteState.Unknown => arena.MarkUnknown(address + offset, end - offset),
-                    NativeBattleGfPacketByteState.Untouched => arena,
-                    _ => throw new InvalidDataException("Native module packet has an invalid write mask.")
-                };
+                    case NativeBattleGfPacketByteState.Known:
+                        arena.Write(address + offset, attempt.Data.AsSpan().Slice(offset, end - offset));
+                        break;
+                    case NativeBattleGfPacketByteState.Unknown:
+                        arena.MarkUnknown(address + offset, end - offset);
+                        break;
+                    case NativeBattleGfPacketByteState.Untouched:
+                        break;
+                    default:
+                        throw new InvalidDataException("Native module packet has an invalid write mask.");
+                }
                 offset = end;
             }
             if (attempt.Primitive is { } primitive)
@@ -57,7 +63,7 @@ public static class NativeBattleRegionalPacketArena
                 links.Prepend(primitive.Bucket, new(bank, 0, address), primitive.Words, 0, primitive.VertexPayload4);
                 if (linked)
                 {
-                    arena = arena.Write(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));
+                    arena.Write(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));
                 }
                 accepted = Math.Max(accepted, end);
             }

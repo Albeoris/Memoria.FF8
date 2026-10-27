@@ -28,13 +28,13 @@ public sealed partial class BattleSession
         }
         NativeBattleEffectTaskPool roots = RegenPool(state.Storage, 0x2476678, 0x2476668, 0x10, 1);
         (roots, int root) = roots.Append(0x614D10);
-        roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) };
+        roots = roots.WriteSlot(root, roots.Slots[root].WriteWord(12, 0));
         NativeBattleEffectTaskPool tasks = RegenPool(state.Storage, 0x2476688, 0x2476698, 0x24, 100);
         (tasks, int first) = tasks.Append(0x614350);
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C];
         int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Regen requires its first contact.");
         byte actor = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
-        tasks = tasks with { Slots = tasks.Slots.SetItem(first, tasks.Slots[first].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, actor)) };
+        tasks = tasks.WriteSlot(first, tasks.Slots[first].WriteWord(12, 0).WriteWord(14, 0).WriteWord(32, actor));
         state = state with { Storage = RegenDword(RegenDword(state.Storage, 0, actor), 0xE4C, effect.Parameters.Actor78) };
         NativeEffectMemory = memory with { Regen147 = state };
         return graphics with { OriginalEffect = effect with { Pools = [roots, tasks], ReturnedDescriptor = 0x2476678 } };
@@ -68,12 +68,12 @@ public sealed partial class BattleSession
                 0x6148E0 => Leaf(ref node),
                 _ => throw new NotSupportedException("Native Regen reached an unrelated callback.")
             };
-            node = node with { Next = tasks.Slots[slot].Next };
-            tasks = tasks with { Slots = tasks.Slots.SetItem(slot, node) };
+            node = node.UpdateHeader(node.Flags, node.State, tasks.Slots[slot].Next, node.Callback);
+            tasks = tasks.WriteSlot(slot, node);
             return new(tasks, complete ? 2 : 0);
         });
         tasks = advanced.Pool;
-        roots = roots with { Slots = roots.Slots.SetItem(0, root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)))) };
+        roots = roots.WriteSlot(0, root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1))));
         if (advanced.Survivors == 0)
         {
             roots = roots.Advance((pool, _) => new(pool, 2)).Pool;
@@ -83,7 +83,7 @@ public sealed partial class BattleSession
         {
             for (int slot = 0; slot < pool.Slots.Length; slot++)
             {
-                storage = storage.Write(checked((int)(pool.BankAddress - 0x2476660) + slot * pool.Stride + 12), pool.Slots[slot].Payload.AsSpan());
+                storage = storage.Write(checked((int)(pool.BankAddress - 0x2476660) + slot * pool.Stride + 12), pool.Slots[slot].ReadRawPayloadSpan());
             }
         }
         state = state with { Storage = RegenDword(storage, 0x1B558, unchecked((int)(0x2476660u + (uint)cursor))) };
@@ -97,7 +97,7 @@ public sealed partial class BattleSession
             nativeCrtRandom = (nativeCrtRandom ?? throw new NotSupportedException("Native Regen requires its CRT random owner.")).Draw(out ushort value);
             return value;
         }
-        void Set(int slot, NativeBattleModulePoolTask node) => tasks = tasks with { Slots = tasks.Slots.SetItem(slot, node) };
+        void Set(int slot, NativeBattleModulePoolTask node) => tasks = tasks.WriteSlot(slot, node);
         (int Slot, NativeBattleModulePoolTask Node) Add(uint callback)
         {
             (tasks, int slot) = tasks.Append(callback);
@@ -324,7 +324,11 @@ public sealed partial class BattleSession
     private static NativeBattleEffectTaskPool RegenPool(NativeBattleEffectArena storage, uint descriptor, uint address, ushort stride, ushort capacity)
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor, address, stride, capacity);
-        return pool with { Slots = pool.Slots.Select((node, slot) => node with { Payload = storage.Read(checked((int)(address - 0x2476660) + slot * stride + 12), stride - 12).ToImmutableArray() }).ToImmutableArray() };
+        for (int slot = 0; slot < pool.Slots.Length; slot++)
+        {
+            pool.Slots[slot].WriteBytes(12, storage.Read(checked((int)(address - 0x2476660) + slot * stride + 12), stride - 12));
+        }
+        return pool;
     }
 
     private static NativeBattleEffectArena RegenDword(NativeBattleEffectArena storage, int offset, int value)

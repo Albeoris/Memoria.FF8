@@ -18,7 +18,7 @@ public static class NativeBattleDoomtrain191Finish
         pool = Pool(frame.Effect);
         task = pool.Slots[slot];
         int result = task.ReadWord(0xE) == 0 ? 0 : 2;
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(0xC, unchecked((ushort)(task.ReadWord(0xC) + 1)))) };
+        pool = pool.WriteSlot(slot, task.WriteWord(0xC, unchecked((ushort)(task.ReadWord(0xC) + 1))));
         return new(frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(frame.Effect.Pools.IndexOf(Pool(frame.Effect)), pool) } }, result);
     }
 
@@ -32,7 +32,7 @@ public static class NativeBattleDoomtrain191Finish
         }
         int slot = checked((int)(relative / pool.Stride));
         NativeBattleModulePoolTask task = pool.Slots[slot];
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(14, (ushort)((task.ReadWord(14) & 0xFF00) | value))) };
+        pool = pool.WriteSlot(slot, task.WriteWord(14, (ushort)((task.ReadWord(14) & 0xFF00) | value)));
         return effect with { Pools = effect.Pools.SetItem(effect.Pools.IndexOf(Pool(effect)), pool) };
     }
 

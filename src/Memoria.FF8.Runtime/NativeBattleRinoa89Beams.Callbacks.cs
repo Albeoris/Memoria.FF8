@@ -51,11 +51,11 @@ public static partial class NativeBattleRinoa89Controller
             task = task.WriteBytes(48, advanced.Workspace.Data.AsSpan());
             if (advanced.Remaining == 0)
             {
-                return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 2);
+                return new(frame, pool.WriteSlot(slot, task), 2);
             }
         }
         task = task.WriteWord(44, unchecked((ushort)(age + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+        return new(frame, pool.WriteSlot(slot, task), 0);
     }
 
     public static NativeBattleRinoa89TaskStep AdvanceBeam6FDC20(NativeBattleRinoa89Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRinoa89BeamServices services)
@@ -86,7 +86,7 @@ public static partial class NativeBattleRinoa89Controller
             }
         }
         task = task.WriteWord(44, unchecked((ushort)(age + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, age < 12 ? 0 : 2);
+        return new(frame, pool.WriteSlot(slot, task), age < 12 ? 0 : 2);
     }
 
     private static NativeBattleRinoa89Frame BeamDrawMesh(NativeBattleRinoa89Frame frame, NativeBattleActionMatrix pose, NativeBattleRinoa89BeamServices services, bool common)

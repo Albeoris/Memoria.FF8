@@ -164,6 +164,6 @@ public static partial class NativeBattleRenzokukenSpecialController
             BinaryPrimitives.WriteInt32LittleEndian(storage.AsSpan(row), 0);
             frame = Store(frame, ReadState(frame) with { ExtraStorage = storage.ToImmutableArray() });
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, result);
+        return new(frame, pool.WriteSlot(slot, task), result);
     }
 }

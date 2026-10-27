@@ -175,7 +175,7 @@ public static partial class NativeBattleNoMercy200Controller
             Execute(new NativeBattleNoMercy200Stage((174 - tick) << 8));
         }
         task = pool.Slots[slot].WriteWord(12, unchecked((ushort)(pool.Slots[slot].ReadWord(12) + 1)));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         bool completed = unchecked((short)task.ReadWord(12)) > 174;
         if (completed)
         {

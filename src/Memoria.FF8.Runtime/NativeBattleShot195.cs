@@ -60,7 +60,7 @@ public static class NativeBattleShot195
         }
         return frame with { Memory = frame.Memory with { Shot195 = state }, Effect = frame.Effect with { Pools = pools.ToImmutableArray(), ReturnedDescriptor = Root } };
 
-        void Put(int pool, int slot, NativeBattleModulePoolTask task) => pools[pool] = pools[pool] with { Slots = pools[pool].Slots.SetItem(slot, task) };
+        void Put(int pool, int slot, NativeBattleModulePoolTask task) => pools[pool] = pools[pool].WriteSlot(slot, task);
     }
 
     public static NativeBattleShot195Frame Advance(NativeBattleShot195Frame frame, NativeBattleShot195Inputs inputs, NativeBattleShot195Resources resources)
@@ -658,7 +658,7 @@ public static class NativeBattleShot195
             (pools[pool], int slot) = pools[pool].Append(callback);
             Put(pool, slot, initialize(pools[pool].Slots[slot]));
         }
-        void Put(int pool, int slot, NativeBattleModulePoolTask task) => pools[pool] = pools[pool] with { Slots = pools[pool].Slots.SetItem(slot, task) };
+        void Put(int pool, int slot, NativeBattleModulePoolTask task) => pools[pool] = pools[pool].WriteSlot(slot, task);
     }
 
     private static void RequirePools(NativeBattleEffectTaskPool[] pools)

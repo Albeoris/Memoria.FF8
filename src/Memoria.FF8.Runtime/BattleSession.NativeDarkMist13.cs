@@ -88,7 +88,7 @@ public sealed partial class BattleSession
                     _ => throw new NotSupportedException("Native Dark Mist selected an unrelated task callback.")
                 };
                 NativeBattleModulePoolTask actual = hierarchy.Read(address);
-                task = (task with { Next = actual.Next }).WriteByte(0x28, actual.ReadByte(0x28)).WriteWord(0x24, unchecked((ushort)(Word(task, 0x24) + 1)));
+                task = (task.UpdateHeader(task.Flags, task.State, actual.Next, task.Callback)).WriteByte(0x28, actual.ReadByte(0x28)).WriteWord(0x24, unchecked((ushort)(Word(task, 0x24) + 1)));
                 hierarchy = hierarchy.Write(address, task);
                 bool ended = (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0;
                 if (ended)

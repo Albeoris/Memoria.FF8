@@ -12,7 +12,7 @@ public static partial class NativeBattleBlastingZone164Controller
             {
                 task = task.WriteWord(14, unchecked((ushort)(Word(task, 14) - 1)));
             }
-            return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+            return new(frame, pool.WriteSlot(slot, task), 0);
         }
         NativeBattleActionMatrix rotation = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)), Word(task, 28), Word(task, 32), Word(task, 28));
         NativeBattleActionMatrix matrix = AtCamera(rotation, Billboard(task, Word(task, 28), 0, view));
@@ -44,6 +44,6 @@ public static partial class NativeBattleBlastingZone164Controller
         }
         short speed = Word(task, 34);
         task = task.WriteWord(32, unchecked((ushort)(Word(task, 32) + speed))).WriteWord(12, unchecked((ushort)(counter + 1))).WriteWord(34, unchecked((ushort)(speed - speed / 12)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, Word(task, 12) >= 36 - Word(task, 14) ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), Word(task, 12) >= 36 - Word(task, 14) ? 2 : 0);
     }
 }

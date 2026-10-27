@@ -12,7 +12,7 @@ public static class NativeBattleMasamuneParticles
 
     public static NativeBattleMasamuneParticlePreparation Prepare(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, bool ring, bool paused, Action<NativeBattleVector>? observeDirection = null)
     {
-        if (task.Callback != (ring ? 0x590F10u : 0x590B60u) || task.Payload.Length != 24)
+        if (task.Callback != (ring ? 0x590F10u : 0x590B60u) || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Masamune particles require their actual raw callback task.");
         }

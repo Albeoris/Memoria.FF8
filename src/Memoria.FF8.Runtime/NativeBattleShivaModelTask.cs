@@ -167,7 +167,7 @@ public static class NativeBattleShivaModelTask
     {
         NativeBattleEffectTaskPool pool = frame.Pool;
         (pool, int slot) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, 0).WriteWord(0x0E, 0)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0x0C, 0).WriteWord(0x0E, 0));
         return frame with { Pool = pool };
     }
 
@@ -191,7 +191,7 @@ public static class NativeBattleShivaModelTask
 
     private static NativeBattleShivaModelFrame WriteTask(NativeBattleShivaModelFrame frame, int slot, NativeBattleModulePoolTask task)
     {
-        return frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task with { Next = frame.Pool.Slots[slot].Next }) } };
+        return frame with { Pool = frame.Pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, frame.Pool.Slots[slot].Next, task.Callback)) };
     }
 
     private static NativeBattleShivaDistortionContext BindProjectedScratch(NativeBattleShivaDistortionContext context)

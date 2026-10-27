@@ -15,10 +15,7 @@ public static class NativeBattleEffect20BodyRendering
         temporary.Validate();
         inputs.Camera.Validate();
         inputs.CopiedState4.Validate();
-        if (temporary.Regions.Any(region => region.Offset > TemporaryLength - region.Data.Length) || temporary.UnknownRegions.Any(region => region.Offset > TemporaryLength - region.Length))
-        {
-            throw new InvalidDataException("Effect body preparation requires its actual 140-byte temporary allocation.");
-        }
+        temporary.ValidateExtent(TemporaryLength);
         NativeBattleActionMatrix local = NativeBattleCuragaMatrices.Identity8DD770() with { X = Signed(task, 0x58), Y = Signed(task, 0x5A) - 0x1140, Z = Signed(task, 0x5C) };
         temporary = Matrix(temporary, 0x40, local, Padding(temporary, 0x52), true);
         Rotate('Y', Signed(task, 0x6A));

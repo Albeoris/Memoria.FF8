@@ -26,7 +26,7 @@ public static partial class NativeBattleEffect79Controller
             for (int slot = 0; slot < shape.Capacity; slot++)
             {
                 NativeBattleModulePoolTask task = CopyTask(pool.Slots[slot], 12, Slice(retained, slot * shape.Stride + 12, shape.Stride - 12), shape.Stride - 12);
-                pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+                pool = pool.WriteSlot(slot, task);
             }
             pools.Add(pool);
             state = state.DetachBank(index);

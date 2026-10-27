@@ -48,10 +48,10 @@ public sealed partial class BattleSession
             Memory = Memory with { Textures = textures };
             NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(0x2461EB0, 0x2461E90, 16, 2);
             (roots, int rootSlot) = roots.Append(0x612000);
-            roots = roots with { Slots = roots.Slots.SetItem(rootSlot, roots.Slots[rootSlot].WriteWord(12, 0)) };
+            roots = roots.WriteSlot(rootSlot, roots.Slots[rootSlot].WriteWord(12, 0));
             NativeBattleEffectTaskPool tasks = NativeBattleEffectTaskPool.Initialize(0x2463180, 0x2463190, 36, 100);
             (tasks, int director) = tasks.Append(0x60F770);
-            tasks = tasks with { Slots = tasks.Slots.SetItem(director, tasks.Slots[director].WriteWord(12, 0).WriteWord(14, 0)) };
+            tasks = tasks.WriteSlot(director, tasks.Slots[director].WriteWord(12, 0).WriteWord(14, 0));
             pools = [roots, tasks];
             state = state.Initialize();
             effect = effect with { ReturnedDescriptor = 0x2461EB0, DrawArenaOffset = null };
@@ -77,7 +77,7 @@ public sealed partial class BattleSession
                         pools[1] = current;
                         NativeBattleModulePoolTask child = current.Slots[childSlot];
                         int code = Step(ref child);
-                        child = child with { Next = pools[1].Slots[childSlot].Next };
+                        child = child.UpdateHeader(child.Flags, child.State, pools[1].Slots[childSlot].Next, child.Callback);
                         Put(1, childSlot, child);
                         return new(pools[1], code);
                     });
@@ -101,7 +101,6 @@ public sealed partial class BattleSession
                             Put(0, targetSlot, pools[0].Slots[targetSlot].WriteByte(14, value));
                         });
                         graphics = graphics with { Auxiliary = auxiliary };
-                        task = task with { Payload = pools[0].Slots[slot].Payload };
                     }
                     result = Word(task, 14) != 0 ? 2 : 0;
                     task = task.WriteWord(12, unchecked((ushort)(Word(task, 12) + 1)));
@@ -110,7 +109,7 @@ public sealed partial class BattleSession
                 {
                     throw new NotSupportedException("Native Ultima root bank selected an unrelated callback.");
                 }
-                task = task with { Next = pools[0].Slots[slot].Next };
+                task = task.UpdateHeader(task.Flags, task.State, pools[0].Slots[slot].Next, task.Callback);
                 Put(0, slot, task);
                 return new(pools[0], result);
             });
@@ -155,7 +154,7 @@ public sealed partial class BattleSession
             (pools[bank], int slot) = pools[bank].Append(callback);
             return slot;
         }
-        private void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank] with { Slots = pools[bank].Slots.SetItem(slot, task) };
+        private void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank].WriteSlot(slot, task);
         private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
         private static NativeBattleVector Position(NativeBattleModulePoolTask task) => new(Word(task, 16), Word(task, 18), Word(task, 20));
         private void Append(NativeBattleGfGeometryBatch batch)
@@ -189,7 +188,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native Ultima texture completion has no live returned wait task.");
         }
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(14, value)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteByte(14, value));
         updated = graphics with { OriginalEffect = effect with { Pools = effect.Pools.SetItem(0, pool) } };
         return true;
     }

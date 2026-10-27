@@ -32,8 +32,8 @@ public static class NativeBattleNeedlesFamilyPacketArena
         {
             throw new InvalidDataException("Needles packets require their retained physical cursor and contiguous native banks.");
         }
-        NativeBattleEffectArenaWriter writer = new(state.Packets);
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleEffectArenaWriter writer = new(state.Packets);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         NativeBattleEffectPacketArena.AppendAttempts(writer, links, checked((int)(physicalCursor - profile.PacketBase)), batch, bank: Bank(state.Effect), capacity: NativeBattleNeedlesFamilyProfile.PacketBytes);
         state = (state with { Packets = writer.Freeze() }).WriteDword(profile.CursorGlobal, checked(physicalCursor + (uint)batch.AllocationBytes));
         return new(state, links.ToImmutable());

@@ -60,7 +60,7 @@ public static class NativeBattleQuezacotlFragmentPool
             {
                 memory = WriteDword(memory, Bank + (uint)tail * Stride + 4, Bank + (uint)index * Stride);
             }
-            pool = pool with { Slots = pool.Slots.SetItem(index, pool.Slots[index] with { Payload = raw.AsSpan(12).ToArray().ToImmutableArray() }) };
+            pool = pool.WriteSlot(index, pool.Slots[index].WriteRetainedBytes(12, raw.AsSpan(12)));
 
             ushort Next()
             {
@@ -118,7 +118,7 @@ public static class NativeBattleQuezacotlFragmentPool
             ReadOnlySpan<byte> raw = executable.Data.AsSpan().Slice(Offset(index), Stride);
             NativeBattleModulePoolTask task = pool.Slots[index];
             uint next = task.Next is int linked ? Bank + (uint)linked * Stride : 0;
-            if (BinaryPrimitives.ReadUInt16LittleEndian(raw) != task.Flags || BinaryPrimitives.ReadUInt16LittleEndian(raw[2..]) != task.State || BinaryPrimitives.ReadUInt32LittleEndian(raw[4..]) != next || BinaryPrimitives.ReadUInt32LittleEndian(raw[8..]) != task.Callback || !raw[12..].SequenceEqual(task.Payload.AsSpan()))
+            if (BinaryPrimitives.ReadUInt16LittleEndian(raw) != task.Flags || BinaryPrimitives.ReadUInt16LittleEndian(raw[2..]) != task.State || BinaryPrimitives.ReadUInt32LittleEndian(raw[4..]) != next || BinaryPrimitives.ReadUInt32LittleEndian(raw[8..]) != task.Callback || !raw[12..].SequenceEqual(task.ReadRawPayloadSpan()))
             {
                 throw new InvalidDataException("Native fragment typed task disagrees with its current physical EXE bytes.");
             }

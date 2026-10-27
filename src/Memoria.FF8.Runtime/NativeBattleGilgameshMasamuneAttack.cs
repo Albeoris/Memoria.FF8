@@ -22,7 +22,7 @@ public static class NativeBattleGilgameshMasamuneAttack
         }
         children.Validate();
         NativeBattleModulePoolTask parent = Read(parentAddress);
-        if (parent.Callback != 0x590510 || parent.Payload.IsDefault || parent.Payload.Length != 24)
+        if (parent.Callback != 0x590510 || parent.Payload.IsDefault || parent.PayloadLength != 24)
         {
             throw new InvalidDataException("Masamune requires its actual attack callback task.");
         }
@@ -117,13 +117,13 @@ public static class NativeBattleGilgameshMasamuneAttack
         {
             (int index, int slot) = Locate(address);
             NativeBattleEffectTaskPool pool = current.Effect.Pools[index];
-            current = current with { Effect = current.Effect with { Pools = current.Effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, value with { Next = pool.Slots[slot].Next }) }) } };
+            current = current with { Effect = current.Effect with { Pools = current.Effect.Pools.SetItem(index, pool.WriteSlot(slot, value.UpdateHeader(value.Flags, value.State, pool.Slots[slot].Next, value.Callback))) } };
         }
     }
 
     private static NativeBattleModulePoolTask CopyAnchor(NativeBattleModulePoolTask destination, NativeBattleModulePoolTask source)
     {
-        NativeBattleModulePoolTask copied = destination.WriteBytes(0x10, source.Payload.AsSpan().Slice(0x10 - 12, 8));
+        NativeBattleModulePoolTask copied = destination.WriteBytes(0x10, source.ReadRawPayloadSpan().Slice(0x10 - 12, 8));
         if (source.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)

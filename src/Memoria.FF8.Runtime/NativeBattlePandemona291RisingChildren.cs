@@ -21,7 +21,7 @@ public static class NativeBattlePandemona291RisingChildren
                 arena = arena.Write(start + field, BitConverter.GetBytes(task.ReadWord(field)));
             }
             arena = arena.Write(start + 0x20, BitConverter.GetBytes(0));
-            pool = pool with { Slots = pool.Slots.SetItem(index, task) };
+            pool = pool.WriteSlot(index, task);
         }
         return frame with { Memory = frame.Memory with { Arena = arena }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }

@@ -40,12 +40,12 @@ public sealed class NativeBattleFileStagingLoaderZeroTests
     [Fact]
     public void Current_writes_override_loader_bytes_after_warm_json_restore()
     {
-        NativeBattleFileStaging cold = NativeBattleFileStaging.FromColdProcess();
-        NativeBattleFileStaging written = cold.Write(SelectedWord, [0xA7, 0x39]);
+        NativeBattleFileStaging cold = NativeBattleStorageSnapshots.Capture(NativeBattleFileStaging.FromColdProcess());
+        NativeBattleFileStaging written = NativeBattleStorageSnapshots.Restore(cold).Write(SelectedWord, [0xA7, 0x39]);
         NativeBattleFileStaging restored = Restore(written);
         Assert.Equal(new byte[] { 0, 0xA7, 0x39, 0 }, restored.Read(SelectedWord - 1, 4));
         Assert.Equal(new byte[2], cold.Read(SelectedWord, 2));
-        Assert.Equal(JsonSerializer.Serialize(written), JsonSerializer.Serialize(restored));
+        Assert.Equal(SnapshotJson(written), SnapshotJson(restored));
     }
 
     [Fact]
@@ -65,10 +65,10 @@ public sealed class NativeBattleFileStagingLoaderZeroTests
     [Fact]
     public void Overlapping_copies_transfer_zero_knownness_and_holes_instead_of_healing_them()
     {
-        NativeBattleFileStaging source = NativeBattleFileStaging.FromColdProcess().Write(SelectedWord, [1, 2, 3, 4, 5, 6]).MarkUnknown(SelectedWord + 2, 1);
-        NativeBattleFileStaging current = source.CopyMemory(SelectedWord, SelectedWord + 1, 6);
+        NativeBattleFileStaging source = NativeBattleStorageSnapshots.Capture(NativeBattleFileStaging.FromColdProcess().Write(SelectedWord, [1, 2, 3, 4, 5, 6]).MarkUnknown(SelectedWord + 2, 1));
+        NativeBattleFileStaging current = NativeBattleStorageSnapshots.Restore(source).CopyMemory(SelectedWord, SelectedWord + 1, 6);
         (byte[] bytes, bool[] known) = current.ReadSnapshot(SelectedWord, 7);
-        Assert.Equal(new byte[] { 1, 1, 2, 0, 4, 5, 6 }, bytes);
+        Assert.Equal(new byte[] { 1, 1, 2, 3, 4, 5, 6 }, bytes);
         Assert.Equal(new[] { true, true, true, false, true, true, true }, known);
         current = current.CopyMemory(SelectedWord + 8, ZeroEnd + 32, 4);
         Assert.Equal(new byte[4], current.Read(ZeroEnd + 32, 4));
@@ -85,14 +85,15 @@ public sealed class NativeBattleFileStagingLoaderZeroTests
     public void Transaction_freeze_keeps_zero_pages_current_writes_and_explicit_unknown_bytes()
     {
         NativeBattleFileStaging source = NativeBattleFileStaging.FromColdProcess();
+        NativeBattleFileStaging original = NativeBattleStorageSnapshots.Capture(source);
         using NativeBattleFileStagingTransaction transaction = new(source);
         Assert.Equal(new byte[4], transaction.View.Read(SelectedWord, 4));
         NativeBattleFileStaging readOnly = transaction.Freeze(transaction.View);
-        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(readOnly));
+        Assert.Equal(SnapshotJson(source), SnapshotJson(readOnly));
         const uint crossing = 0x255FFFE;
         NativeBattleFileStaging current = transaction.View.Write(crossing, [1, 2, 3, 4]).MarkUnknown(crossing + 2, 1).Write(crossing + 3, [9]);
         Assert.Equal(new[] { true, true, false, true }, current.ReadSnapshot(crossing, 4).Known);
-        NativeBattleFileStaging first = transaction.Freeze(current);
+        NativeBattleFileStaging first = NativeBattleStorageSnapshots.Capture(transaction.Freeze(current));
         first.Validate();
         Assert.Equal(new byte[] { 1, 2 }, first.Read(crossing, 2));
         Assert.Throws<NotSupportedException>(() => first.Read(crossing + 2, 1));
@@ -103,15 +104,15 @@ public sealed class NativeBattleFileStagingLoaderZeroTests
         Assert.Equal(new byte[] { 1, 2, 8, 9 }, second.Read(crossing, 4));
         Assert.Throws<NotSupportedException>(() => first.Read(crossing + 2, 1));
         Assert.Throws<NotSupportedException>(() => Restore(first).Read(crossing + 2, 1));
-        Assert.Equal(new byte[4], source.Read(crossing, 4));
+        Assert.Equal(new byte[4], original.Read(crossing, 4));
     }
 
     [Fact]
     public void Older_json_without_zero_provenance_retains_only_explicit_current_writes()
     {
-        JsonObject old = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleFileStaging.FromColdProcess().Write(SelectedWord, [7])))!.AsObject();
+        JsonObject old = JsonNode.Parse(SnapshotJson(NativeBattleFileStaging.FromColdProcess().Write(SelectedWord, [7])))!.AsObject();
         Assert.True(old.Remove("LoaderZeroRanges"));
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(old.ToJsonString())!;
+        NativeBattleFileStaging restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(old.ToJsonString())!);
         restored.Validate();
         Assert.Empty(restored.LoaderZeroRanges);
         Assert.Equal(new byte[] { 7 }, restored.Read(SelectedWord, 1));
@@ -142,5 +143,6 @@ public sealed class NativeBattleFileStagingLoaderZeroTests
         Assert.Equal(new[] { true, true, false, false }, restored.ReadSnapshot(input, 4).Known);
     }
 
-    private static NativeBattleFileStaging Restore(NativeBattleFileStaging staging) => JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+    private static NativeBattleFileStaging Restore(NativeBattleFileStaging staging) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(SnapshotJson(staging))!);
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

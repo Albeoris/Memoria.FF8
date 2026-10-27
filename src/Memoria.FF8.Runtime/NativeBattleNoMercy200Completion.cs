@@ -21,7 +21,7 @@ public static partial class NativeBattleNoMercy200Controller
             throw new InvalidDataException("Native No Mercy completion requires its live texture task.");
         }
         task = task.WriteWord(14, (ushort)((task.ReadWord(14) & 0xFF00) | value));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         return effect with { Pools = effect.Pools.SetItem(effect.Pools.IndexOf(effect.Pools.Single(current => current.DescriptorAddress == Root)), pool) };
     }
 }

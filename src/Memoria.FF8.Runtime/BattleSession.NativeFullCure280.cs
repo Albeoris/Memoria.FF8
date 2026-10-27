@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures, FullCure280 = process with { EntryRandom = random } };
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(0x2508018, 0x2508028, 20, 1);
         (roots, int slot) = roots.Append(0x67E7F0);
-        roots = roots with { Slots = roots.Slots.SetItem(slot, roots.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
+        roots = roots.WriteSlot(slot, roots.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         return graphics with { OriginalEffect = effect with { FullCure280 = new(0), Pools = [roots], ReturnedDescriptor = 0x2508018, DrawArenaOffset = null } };
     }
 
@@ -58,7 +58,7 @@ public sealed partial class BattleSession
             {
                 director = director.WriteDword(16 + index * 4, checked(0x1D972C0u + (uint)nativeActionPackets.ReadContact(contact + index).Primary.ActorIndex * 156));
             }
-            directors = directors with { Slots = directors.Slots.SetItem(slot, director) };
+            directors = directors.WriteSlot(slot, director);
         }
         int directorSurvivors = 1;
         int sparkSurvivors = 1;
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
                     NativeBattleGfAnimationWorkspace workspace = new(target.Payload.Slice(12, 2244));
                     workspace = workspace.Initialize7016B0(resources.Layout, 2244);
                     target = StoreWorkspace(target, workspace);
-                    targets = targets with { Slots = targets.Slots.SetItem(targetSlot, target) };
+                    targets = targets.WriteSlot(targetSlot, target);
                     PublishNativeModuleSound(new(resources.Sound, 0, null) { Pan = 128, RawPan = 128 });
                 }
                 task = task.WriteWord(12, unchecked((ushort)(age + 1)));
@@ -111,7 +111,7 @@ public sealed partial class BattleSession
                     (sparks, int sparkSlot) = sparks.Append(0x67EF50);
                     NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Full-cure sparks require their target skeleton.");
                     NativeBattleModulePoolTask spark = WindStore(sparks.Slots[sparkSlot], 12, ReadNativeGraphicsBone(graphics, actor, checked((byte)(age % source.BoneCount)), 0)).WriteWord(18, 0);
-                    sparks = sparks with { Slots = sparks.Slots.SetItem(sparkSlot, spark) };
+                    sparks = sparks.WriteSlot(sparkSlot, spark);
                 }
                 task = task.WriteWord(22, unchecked((ushort)(age + 1)));
                 if (age + 1 >= 30)
@@ -158,7 +158,7 @@ public sealed partial class BattleSession
         {
             root = root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)));
         }
-        roots = roots with { Slots = roots.Slots.SetItem(0, root) };
+        roots = roots.WriteSlot(0, root);
         if (released)
         {
             roots = roots.Advance((pool, _) => new(pool, 2)).Pool;
@@ -167,9 +167,7 @@ public sealed partial class BattleSession
 
         NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
         {
-            byte[] payload = task.Payload.ToArray();
-            workspace.Data.AsSpan().CopyTo(payload.AsSpan(12));
-            return task with { Payload = payload.ToImmutableArray() };
+            return task.WriteRetainedBytes(12 + (12), workspace.Data.AsSpan());
         }
 
         void DrawMesh(NativeBattleGfAnimationNode node, NativeBattleVector anchor)

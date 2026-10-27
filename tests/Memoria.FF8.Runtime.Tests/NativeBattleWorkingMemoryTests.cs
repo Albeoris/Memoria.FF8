@@ -5,6 +5,104 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleWorkingMemoryTests
 {
     [Fact]
+    public void Lazy_metadata_participants_follow_child_commits_and_parent_rollbacks_without_full_snapshots()
+    {
+        using NativeBattleWorkingMemory memory = new(16);
+        MetadataParticipant metadata = new() { Value = 10 };
+        memory.BeginCheckpoint();
+        memory.BeginNestedCheckpoint();
+        memory.EnlistCheckpointParticipant(metadata);
+        memory.EnlistCheckpointParticipant(metadata);
+        Assert.Equal(2, metadata.Marks);
+        metadata.Value = 20;
+        memory.WriteByte(0, 1);
+        memory.CommitNestedCheckpoint();
+        Assert.Equal(1, metadata.Marks);
+        memory.RollbackCheckpoint();
+        Assert.Equal(10, metadata.Value);
+        Assert.Equal(0, metadata.Marks);
+        Assert.Equal((byte)0, memory.ReadByte(0));
+
+        memory.BeginCheckpoint();
+        memory.EnlistCheckpointParticipant(metadata);
+        metadata.Value = 11;
+        memory.BeginNestedCheckpoint();
+        memory.EnlistCheckpointParticipant(metadata);
+        metadata.Value = 12;
+        memory.RollbackNestedCheckpoint();
+        Assert.Equal(11, metadata.Value);
+        memory.CommitCheckpoint();
+        Assert.Equal(11, metadata.Value);
+        Assert.Equal(0, metadata.Marks);
+    }
+
+    private sealed class MetadataParticipant : INativeBattleCheckpointParticipant
+    {
+        private readonly Stack<int> marks = [];
+        public int Value { get; set; }
+        public int Marks => marks.Count;
+        public void BeginCheckpoint() => marks.Push(Value);
+        public void CommitCheckpoint() => _ = marks.Pop();
+        public void RollbackCheckpoint() => Value = marks.Pop();
+    }
+
+    [Fact]
+    public void Nested_changes_preserve_parent_undo_across_commits_and_restore_only_the_failed_suffix()
+    {
+        using NativeBattleWorkingMemory memory = new(128);
+        memory.SetResourcePointer(4, new(null, 0x12345678));
+        memory.BeginCheckpoint();
+        memory.WriteByte(0, 1);
+        memory.BeginNestedCheckpoint();
+        memory.WriteByte(5, 0xA5);
+        memory.SetResourcePointer(80, new(null, 99));
+        Assert.Equal(2, memory.CheckpointDepth);
+        Assert.Throws<InvalidOperationException>(memory.CommitCheckpoint);
+        memory.RollbackNestedCheckpoint();
+        Assert.Equal(1, memory.CheckpointDepth);
+        Assert.Equal((byte)1, memory.ReadByte(0));
+        Assert.Equal(0x12345678u, memory.ReadResourcePointer(4)!.StagingAddress);
+        Assert.Equal(8, memory.StoredLength);
+        memory.BeginNestedCheckpoint();
+        memory.WriteByte(0, 2);
+        memory.CommitNestedCheckpoint();
+        Assert.Equal((byte)2, memory.ReadByte(0));
+        memory.RollbackCheckpoint();
+        Assert.Equal(0, memory.CheckpointDepth);
+        Assert.Equal((byte)0, memory.ReadByte(0));
+        Assert.Equal(0x12345678u, memory.ReadResourcePointer(4)!.StagingAddress);
+        memory.BeginCheckpoint();
+        memory.BeginNestedCheckpoint();
+        memory.WriteRetainedBytes(4, [3, 4, 5, 6]);
+        memory.RollbackCheckpoint();
+        Assert.Equal(0, memory.CheckpointDepth);
+        Assert.Equal(0x12345678u, memory.ReadUInt32(4));
+    }
+
+    [Fact]
+    public void Mixed_knownness_stores_preserve_hidden_bytes_and_use_one_undo_entry_per_changed_lane()
+    {
+        using NativeBattleWorkingMemory memory = new(64, maxJournalEntries: 4);
+        memory.WriteUInt32(0, 0x12345678);
+        memory.BeginCheckpoint();
+        memory.ReserveCheckpointCapacity(4, 0);
+        memory.WriteWithKnownness(0, [1, 2, 3, 4], [true, false, true, false]);
+        Assert.Equal(4, memory.JournalEntryCount);
+        byte[] bytes = new byte[4];
+        bool[] known = new bool[4];
+        memory.ReadWithKnownness(0, bytes, known);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, bytes);
+        Assert.Equal(new[] { true, false, true, false }, known);
+        Assert.Throws<NotSupportedException>(() => memory.ReadUInt32(0));
+        memory.RollbackCheckpoint();
+        Assert.Equal(0x12345678u, memory.ReadUInt32(0));
+        long version = memory.Version;
+        Assert.Throws<ArgumentException>(() => memory.WriteWithKnownness(0, [1, 2], [true]));
+        Assert.Equal(version, memory.Version);
+        Assert.Equal(0x12345678u, memory.ReadUInt32(0));
+    }
+
+    [Fact]
     public void Captured_extent_tracks_physical_stores_not_reserved_capacity_and_rollback_restores_it()
     {
         using NativeBattleWorkingMemory memory = new(1024, initialCapacity: 512);

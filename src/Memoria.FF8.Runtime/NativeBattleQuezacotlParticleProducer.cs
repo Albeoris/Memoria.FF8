@@ -54,7 +54,7 @@ public static class NativeBattleQuezacotlParticleProducer
                 return new(memory, null);
             }
         }
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         byte[] raw = new byte[6];
         PutVector(raw, 0, position);
         writer.Write(row, raw);
@@ -124,7 +124,7 @@ public static class NativeBattleQuezacotlParticleProducer
         {
             arena = Dword(arena, checked((int)(pool.BankAddress - ArenaAddress) + tail * pool.Stride + 4), checked(pool.BankAddress + (uint)slot * pool.Stride));
         }
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = raw.AsSpan(12).ToArray().ToImmutableArray() }) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteRetainedBytes(12, raw.AsSpan(12)));
         ImmutableArray<uint> heads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native6C7D10 requires its retained secondary descriptor heads.");
         heads = heads.SetItem(1, pool.Head is int head ? checked(pool.BankAddress + (uint)head * pool.Stride) : 0);
         return new(memory with { Arena = arena, QuezacotlSecondaryHeads = heads }, effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == pool.DescriptorAddress ? pool : existing).ToImmutableArray() }, slot, row);

@@ -297,7 +297,7 @@ public static class NativeBattleFiraController
 
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, unchecked((ushort)(Word(task, offset) + value)));
-    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) };
+    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool.WriteSlot(slot, task);
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, NativeBattleModulePoolTask source, int offset = 16) => task.WriteWord(16, source.ReadWord(offset)).WriteWord(18, source.ReadWord(offset + 2)).WriteWord(20, source.ReadWord(offset + 4)).WriteWord(22, source.ReadWord(offset + 6));
     private static NativeBattleModulePoolTask WorkingPosition(NativeBattleModulePoolTask task, int offset, NativeBattleFiraPosition source) => task.WriteWord(offset, unchecked((ushort)source.X)).WriteWord(offset + 2, unchecked((ushort)source.Fourth)).WriteWord(offset + 4, unchecked((ushort)source.Z)).WriteWord(offset + 6, unchecked((ushort)source.Y));
 }

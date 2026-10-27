@@ -17,7 +17,7 @@ public static class NativeBattleGilgameshMeshAuxiliaries
             (pool, slot) = pool.Append(0x593600);
             int angle = baseAngle + index * 1024;
             NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(16, unchecked((ushort)(NativeBattleCameraMath.Sine(angle) * 1000 >> 12))).WriteWord(18, unchecked((ushort)-15000)).WriteWord(20, unchecked((ushort)(NativeBattleCameraMath.Cosine(angle) * 1000 >> 12))).WriteWord(24, unchecked((ushort)angle)).WriteWord(28, 1024).WriteWord(34, 90);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         return new(pool, random);
     }
@@ -35,7 +35,7 @@ public static class NativeBattleGilgameshMeshAuxiliaries
             random = random.Draw(out ushort yScale);
             int velocity = row.ScaleSource / 8;
             NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(14, unchecked((ushort)row.Delay)).WriteWord(16, 0).WriteWord(18, unchecked((ushort)row.Y)).WriteWord(20, 0).WriteWord(24, (ushort)(angle % 4096)).WriteWord(26, (ushort)(angularVelocity % 60 + 20)).WriteWord(30, unchecked((ushort)velocity)).WriteWord(28, unchecked((ushort)(2 * velocity))).WriteWord(32, unchecked((ushort)(yScale % 1536 + row.YScaleBase)));
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         return new(pool, random);
     }
@@ -89,7 +89,7 @@ public static class NativeBattleGilgameshMeshAuxiliaries
 
     private static void ValidateTask(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != 24 || task.Callback is not (0x593600 or 0x594210))
+        if (task.Payload.IsDefault || task.PayloadLength != 24 || task.Callback is not (0x593600 or 0x594210))
         {
             throw new InvalidDataException("Native Gilgamesh finite mesh requires its original raw0x24-byte child task.");
         }

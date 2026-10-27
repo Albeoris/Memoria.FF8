@@ -23,7 +23,7 @@ public static partial class NativeBattleRenzokuken159Controller
             {
                 task = task.WriteWord(14, unchecked((ushort)(Word(task, 14) - 1)));
             }
-            return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+            return new(frame, pool.WriteSlot(slot, task), 0);
         }
         short counter = Word(task, 12);
         int scale = Word(task, 28);
@@ -43,7 +43,7 @@ public static partial class NativeBattleRenzokuken159Controller
             short verticalSpeed = Word(task, 34);
             task = task.WriteWord(32, unchecked((ushort)(Word(task, 32) + verticalSpeed))).WriteWord(34, unchecked((ushort)(verticalSpeed - verticalSpeed / divisor)));
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= lifetime ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= lifetime ? 2 : 0);
     }
 
     public static NativeBattleRenzokuken159ChildStep Advance602390(NativeBattleRenzokuken159Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken159Inputs inputs, NativeBattleRenzokuken159Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
@@ -96,7 +96,7 @@ public static partial class NativeBattleRenzokuken159Controller
         }
         short expansion = Word(task, 30);
         task = task.WriteWord(28, unchecked((ushort)(task.ReadWord(28) + expansion))).WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1))).WriteWord(30, unchecked((ushort)(expansion - expansion / 6)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= 8 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= 8 ? 2 : 0);
 
         void Draw(uint address, NativeBattleActionMatrix basis, NativeBattleModuleMeshContext parameters)
         {

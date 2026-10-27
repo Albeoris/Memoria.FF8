@@ -40,6 +40,6 @@ public static partial class NativeBattleLionHeart165Controller
         int divisor = callback == 0x5EBFC0 ? 7 : callback == 0x5EFFF0 ? 6 : 4;
         task = task.WriteWord(scaleOffset, unchecked((ushort)(Word(task, scaleOffset) + speed))).WriteWord(speedOffset, unchecked((ushort)(speed - speed / divisor)));
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= (callback == 0x5EE0F0 ? 18 : callback == 0x5EFFF0 ? 16 : 10) ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= (callback == 0x5EE0F0 ? 18 : callback == 0x5EFFF0 ? 16 : 10) ? 2 : 0);
     }
 }

@@ -33,7 +33,7 @@ public static class NativeBattleDiablos325Orbit
     public static NativeBattleDiablos325Frame RaisePuffs656321(NativeBattleDiablos325Frame frame)
     {
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos puff transition requires its actual arena.");
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < NativeBattleDiablos325Puffs.Capacity; index++)
         {
             int offset = NativeBattleDiablos325Puffs.BaseOffset + index * 16;

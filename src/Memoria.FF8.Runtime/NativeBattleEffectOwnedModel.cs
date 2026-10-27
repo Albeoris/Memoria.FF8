@@ -127,7 +127,7 @@ public static class NativeBattleEffectOwnedModel
     }
     private static void RequireTask(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.Payload.Length < 0x140 - 12)
+        if (task.Payload.IsDefault || task.PayloadLength < 0x140 - 12)
         {
             throw new InvalidDataException("Native embedded model requires its complete physical effect task.");
         }

@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -28,10 +28,10 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures, Suicide180 = state with { BufferOffset = buffer, Particles = particles.ToImmutableArray() } };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2307DB0, 0x2307DA0, 16, 1);
         (root, int rootSlot) = root.Append(0x5CDED0);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x2308720, 0x2308730, 36, 100);
         (children, int director) = children.Append(0x5CC900);
-        children = children with { Slots = children.Slots.SetItem(director, children.Slots[director].WriteWord(12, 0)) };
+        children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
         return graphics with { OriginalEffect = effect with { Pools = [root, children], ReturnedDescriptor = root.DescriptorAddress, DrawArenaOffset = buffer } };
     }
 
@@ -68,13 +68,13 @@ public sealed partial class BattleSession
                 0x5CDC80 => Particles(ref task, 8),
                 _ => throw new NotSupportedException("Native Suicide selected an unrelated private callback.")
             };
-            task = task with { Next = children.Slots[slot].Next };
-            children = children with { Slots = children.Slots.SetItem(slot, task) };
+            task = task.UpdateHeader(task.Flags, task.State, children.Slots[slot].Next, task.Callback);
+            children = children.WriteSlot(slot, task);
             return new(children, result);
         });
         children = advanced.Pool;
         root = root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)));
-        roots = roots with { Slots = roots.Slots.SetItem(0, root) };
+        roots = roots.WriteSlot(0, root);
         if (advanced.Survivors == 0)
         {
             roots = roots.Advance((pool, _) => new(pool, 2)).Pool;
@@ -203,7 +203,7 @@ public sealed partial class BattleSession
             PutTask(slot, children.Slots[slot].WriteDword(16, parent.ReadDword(16)).WriteDword(20, parent.ReadDword(20)));
             return slot;
         }
-        void PutTask(int slot, NativeBattleModulePoolTask task) => children = children with { Slots = children.Slots.SetItem(slot, task with { Next = children.Slots[slot].Next }) };
+        void PutTask(int slot, NativeBattleModulePoolTask task) => children = children.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, children.Slots[slot].Next, task.Callback));
         ushort Roll()
         {
             random = random.Draw(out ushort value);

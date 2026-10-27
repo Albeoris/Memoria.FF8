@@ -8,7 +8,7 @@ public static class NativeBattleDiablos325BodyProjection
     {
         NativeBattleActionMatrix camera = projection.View ?? throw new NotSupportedException("Native Diablos body projection requires its current camera basis.");
         using NativeBattleEffectArenaTransaction? owned = arena.Transaction is null ? new(arena) : null;
-        NativeBattleEffectArenaWriter writer = new(owned?.View ?? arena);
+        using NativeBattleEffectArenaWriter writer = new(owned?.View ?? arena);
         for (int index = 0; index < count; index++)
         {
             NativeBattleVector point = transformWorld(index);

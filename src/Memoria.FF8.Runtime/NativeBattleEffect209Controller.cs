@@ -21,11 +21,11 @@ public static partial class NativeBattleEffect209Controller
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, CommonAddress).WriteDword(GuardianGlobal, GuardianAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, (uint)actor).WriteDword(TargetGlobal, (uint)target) };
         NativeBattleEffectTaskPool root = InitializeBank(frame, 0);
         (root, int rootSlot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool child = InitializeBank(frame, 1);
         byte modelId = inputs.ReadModel(frame, actor).ModelId4 ?? throw new NotSupportedException("Effect209 requires its current caster model byte.");
         (child, int mainSlot) = child.Append(modelId == 0x85 ? AlternateCallback : MainCallback);
-        child = child with { Slots = child.Slots.SetItem(mainSlot, child.Slots[mainSlot].WriteWord(12, 0)) };
+        child = child.WriteSlot(mainSlot, child.Slots[mainSlot].WriteWord(12, 0));
         frame = frame with { State = frame.State.DetachBank(0).DetachBank(1), Effect = frame.Effect with { Pools = [root, child], ReturnedDescriptor = RootDescriptor } };
         frame = inputs.Execute(frame, new NativeBattleEffect209RegisterCamera5099A0(CameraAddress));
         return inputs.Execute(frame, new NativeBattleEffect209UploadTim505E30(TimAddress));

@@ -10,7 +10,7 @@ public static class NativeBattleEffect209ModeMesh96
     public static NativeBattleEffect209ModeMesh96Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context96, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2)
     {
         context96.Validate();
-        if (depthShift > 31 || Dword(context96, 0) != mesh.Address || Dword(context96, 0x1C) is not (0x33 or 0xF3) || context96.Regions.Any(region => region.Offset > 96 - region.Data.Length) || context96.UnknownRegions.Any(region => region.Offset > 96 - region.Length))
+        if (depthShift > 31 || Dword(context96, 0) != mesh.Address || Dword(context96, 0x1C) is not (0x33 or 0xF3) || context96.ExceedsExtent(96))
         {
             throw new InvalidDataException("Effect209 mode mesh requires its reached 96-byte caller context.");
         }

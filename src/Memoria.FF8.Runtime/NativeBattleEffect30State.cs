@@ -16,7 +16,8 @@ public sealed record NativeBattleEffect30State([property: JsonRequired] NativeBa
     public void Validate()
     {
         Globals.Validate();
-        if (Globals.Regions.Any(region => region.Offset < 0 || region.Offset > Length - region.Data.Length) || Globals.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > Length - region.Length) || ExecutableBytes is { } bytes && (bytes.IsDefault || bytes.Length != NativeBattleEffect30Profile.SourceLength) || ColdSourcePending && ExecutableBytes is not null)
+        Globals.ValidateExtent(Length);
+        if (ExecutableBytes is { } bytes && (bytes.IsDefault || bytes.Length != NativeBattleEffect30Profile.SourceLength) || ColdSourcePending && ExecutableBytes is not null)
         {
             throw new InvalidDataException("Effect30 retained globals or addressed node bank leave their physical owner.");
         }
@@ -38,10 +39,26 @@ public sealed record NativeBattleEffect30State([property: JsonRequired] NativeBa
 
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Require(address, 4), 4));
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Globals.Read(Require(address, 2), 2));
-    public NativeBattleEffect30State WriteDword(uint address, uint value) => this with { Globals = Globals.Write(Require(address, 4), BitConverter.GetBytes(value)) };
-    public NativeBattleEffect30State WriteWord(uint address, ushort value) => this with { Globals = Globals.Write(Require(address, 2), BitConverter.GetBytes(value)) };
+    public NativeBattleEffect30State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        Globals.Write(Require(address, 4), encoded);
+        return this;
+    }
+    public NativeBattleEffect30State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        Globals.Write(Require(address, 2), encoded);
+        return this;
+    }
     public NativeBattleResourcePointer? ReadResourcePointer(uint address) => Globals.ReadResourcePointer(Require(address, 4));
-    public NativeBattleEffect30State WriteResourcePointer(uint address, NativeBattleResourcePointer? pointer) => this with { Globals = Globals.WriteResourcePointer(Require(address, 4), pointer) };
+    public NativeBattleEffect30State WriteResourcePointer(uint address, NativeBattleResourcePointer? pointer)
+    {
+        Globals.WriteResourcePointer(Require(address, 4), pointer);
+        return this;
+    }
 
     private static int Require(uint address, int length)
     {

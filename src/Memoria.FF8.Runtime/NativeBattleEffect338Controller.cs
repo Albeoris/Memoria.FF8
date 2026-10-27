@@ -90,7 +90,10 @@ public static partial class NativeBattleEffect338Controller
         foreach (NativeBattleCureFamilyPool profile in Pools.Skip(1))
         {
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity);
-            pool = pool with { Slots = pool.Slots.Select((task, slot) => CopyTask(task, 12, NativeBattleEffectNodeContextMemory.Copy(arena, checked((int)(profile.Bank - ArenaAddress)) + slot * profile.Stride + 12, NativeBattleEffectArena.Clear().MarkUnknown(0, profile.Stride - 12), 0, profile.Stride - 12), profile.Stride - 12)).ToImmutableArray() };
+            for (int slot = 0; slot < pool.Slots.Length; slot++)
+            {
+                CopyTask(pool.Slots[slot], 12, NativeBattleEffectNodeContextMemory.Copy(arena, checked((int)(profile.Bank - ArenaAddress)) + slot * profile.Stride + 12, NativeBattleEffectArena.Clear().MarkUnknown(0, profile.Stride - 12), 0, profile.Stride - 12), profile.Stride - 12);
+            }
             pools.Add(pool);
         }
         return frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, pools.ToImmutable().RemoveAt(0)), Effect = frame.Effect with { Pools = pools.ToImmutable() } };

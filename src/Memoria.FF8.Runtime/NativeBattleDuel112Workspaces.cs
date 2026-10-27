@@ -43,11 +43,11 @@ public static class NativeBattleDuel112Workspaces
 
     private static NativeBattleGfAnimationWorkspace Read(NativeBattleModulePoolTask task, int offset, int size, bool requireKnown = true)
     {
-        if (task.Callback != 0x6CBF90 || offset < 12 || size < 0 || offset - 12 > task.Payload.Length - size)
+        if (task.Callback != 0x6CBF90 || offset < 12 || size < 0 || offset - 12 > task.PayloadLength - size)
         {
             throw new InvalidDataException("Native Duel workspace leaves its actual target task.");
         }
-        return new((requireKnown ? task.ReadBytes(offset, size) : task.Payload.AsSpan().Slice(offset - 12, size).ToArray()).ToImmutableArray());
+        return new((requireKnown ? task.ReadBytes(offset, size) : task.ReadRawPayloadSpan().Slice(offset - 12, size).ToArray()).ToImmutableArray());
     }
 
     private static NativeBattleDuel112Frame Store(NativeBattleDuel112Frame frame, int slot, int offset, NativeBattleGfAnimationWorkspace workspace)
@@ -59,7 +59,7 @@ public static class NativeBattleDuel112Workspaces
         }
         NativeBattleModulePoolTask task = pool.Slots[slot];
         task = task.WriteBytes(offset, workspace.Data.AsSpan());
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
     }
 

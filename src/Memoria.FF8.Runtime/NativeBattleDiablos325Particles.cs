@@ -36,11 +36,9 @@ public static partial class NativeBattleDiablos325Particles
         (pool, int index) = pool.Append(Callback);
         NativeBattleModulePoolTask task = pool.Slots[index].WriteWord(0xC, unchecked((ushort)position.X)).WriteWord(0xE, unchecked((ushort)position.Y)).WriteWord(0x10, unchecked((ushort)position.Z)).WriteWord(0x12, unchecked((ushort)parameter));
         NativeBattleGfAnimationSource source = ReadSource(frame, programme);
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x18 - 12, 0xD0));
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x18 - 12, 0xD0).ToArray().ToImmutableArray());
         workspace = workspace.Initialize7016B0(source, 0xD0);
-        byte[] payload = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(payload.AsSpan(0x18 - 12, 0xD0));
-        pool = pool with { Slots = pool.Slots.SetItem(index, task with { Payload = payload.ToImmutableArray() }) };
+        pool = pool.WriteSlot(index, task.WriteRetainedBytes(12 + (0x18 - 12), workspace.Data.AsSpan()));
         return Synchronize(Replace(frame, pool), pool);
     }
 
@@ -68,7 +66,7 @@ public static partial class NativeBattleDiablos325Particles
             }
             uint pause = NativeBattleDiablos325Entry.RequireState(frame.Memory).Pause5180;
             NativeBattleVector position = new(unchecked((short)task.ReadWord(0xC)), unchecked((short)task.ReadWord(0xE)), unchecked((short)task.ReadWord(0x10)));
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x18 - 12, 0xD0));
+            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x18 - 12, 0xD0).ToArray().ToImmutableArray());
             NativeBattleGfAnimationSource source = ReadSource(frame, workspace.ResourceAddress);
             NativeBattleGfAnimationAdvance programme = workspace.Advance701970(source, unchecked((int)pause), (cache, node) =>
             {
@@ -76,9 +74,7 @@ public static partial class NativeBattleDiablos325Particles
                 frame = submit(frame with { Memory = drawn.Memory }, drawn.Packets);
                 return cache;
             });
-            byte[] payload = task.Payload.ToArray();
-            programme.Workspace.Data.AsSpan().CopyTo(payload.AsSpan(0x18 - 12, 0xD0));
-            task = task with { Payload = payload.ToImmutableArray() };
+            task = task.WriteRetainedBytes(12 + (0x18 - 12), programme.Workspace.Data.AsSpan());
             if (programme.Remaining != 0 && pause == 0)
             {
                 task = task.WriteWord(0xE, unchecked((ushort)(task.ReadWord(0xE) + 24)));
@@ -111,7 +107,7 @@ public static partial class NativeBattleDiablos325Particles
 
     private static NativeBattleDiablos325Frame Synchronize(NativeBattleDiablos325Frame frame, NativeBattleEffectTaskPool pool)
     {
-        NativeBattleEffectArenaWriter writer = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos particle bank requires its current arena."));
+        using NativeBattleEffectArenaWriter writer = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos particle bank requires its current arena."));
         for (int index = 0; index < pool.Slots.Length; index++)
         {
             NativeBattleModulePoolTask task = pool.Slots[index];
@@ -120,7 +116,7 @@ public static partial class NativeBattleDiablos325Particles
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2), task.State);
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), task.Next is int next ? checked(pool.BankAddress + (uint)(next * pool.Stride)) : 0);
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8), task.Callback);
-            task.Payload.AsSpan().CopyTo(bytes.AsSpan(12));
+            task.ReadRawPayloadSpan().CopyTo(bytes.AsSpan(12));
             writer.Write(NativeBattleWaterExecutionFields.ArenaOffset(checked(pool.BankAddress + (uint)(index * pool.Stride)), bytes.Length), bytes);
         }
         return frame with { Memory = frame.Memory with { Arena = writer.Freeze() } };

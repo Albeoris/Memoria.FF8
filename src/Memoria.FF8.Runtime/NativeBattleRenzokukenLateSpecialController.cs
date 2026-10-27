@@ -215,7 +215,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             ushort flags = inputs.ReadModel(state.Core.Actor).Flags0;
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)((flags & 0xF7FF) | task.ReadWord(14))));
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, result);
+        return new(frame, pool.WriteSlot(slot, task), result);
 
         void Execute(NativeBattleRenzokuken160Operation operation) => frame = inputs.Execute(frame, operation);
         int Rand(int maximum)
@@ -234,7 +234,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             (frame, pool, int child) = AllocateStoredTask(frame, pool, callback);
             return child;
         }
-        void Set(int child, int offset, int value) => pool = pool with { Slots = pool.Slots.SetItem(child, pool.Slots[child].WriteWord(offset, unchecked((ushort)value))) };
+        void Set(int child, int offset, int value) => pool = pool.WriteSlot(child, pool.Slots[child].WriteWord(offset, unchecked((ushort)value)));
         void Scale(int child, int offset, int value)
         {
             Set(child, offset, value);

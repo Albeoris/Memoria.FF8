@@ -10,10 +10,10 @@ public static partial class NativeBattlePoisonGas171Controller
         frame = Dword(frame, 0x23AF814, NativeBattleEffectNodeMemory.ArenaAddress);
         NativeBattleEffectTaskPool roots = ResetPool(frame, 0x23AD718, 0x23AD708, 16, 1);
         (roots, int root) = roots.Append(0x5DC8C0);
-        roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) };
+        roots = roots.WriteSlot(root, roots.Slots[root].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = ResetPool(frame, 0x23AE9E8, 0x23AE9F8, 36, 100);
         (children, int main) = children.Append(0x5DB340);
-        children = children with { Slots = children.Slots.SetItem(main, children.Slots[main].WriteWord(12, 0)) };
+        children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0));
         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Poison Gas requires its actual first contact pointer.");
         frame = Dword(Dword(Dword(frame, 0x23AD700, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x23AF80C, Parameters(frame).Actor78), 0x23AF808, 0x1D99A78);

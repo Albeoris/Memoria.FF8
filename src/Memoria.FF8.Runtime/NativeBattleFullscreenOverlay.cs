@@ -13,10 +13,7 @@ public sealed record NativeBattleFullscreenOverlayState([property: JsonRequired]
     public void Validate()
     {
         Packets.Validate();
-        if (Packets.Regions.Any(region => region.Offset > Length - region.Data.Length) || Packets.UnknownRegions.Any(region => region.Offset > Length - region.Length))
-        {
-            throw new InvalidDataException("Native fullscreen static packets leave their108-byte physical owner.");
-        }
+        Packets.ValidateExtent(Length);
     }
     public byte[] Read(int offset, int count)
     {
@@ -58,7 +55,7 @@ public static class NativeBattleFullscreenOverlay
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
-        if (task.Callback != (delayedCaller ? 0x8DDC30u : Callback) || task.Payload.Length < 0x40 - 12 || task.ReadDword(0x34) != program.Address || program.Address == 0 || program.Commands.IsDefaultOrEmpty)
+        if (task.Callback != (delayedCaller ? 0x8DDC30u : Callback) || task.PayloadLength < 0x40 - 12 || task.ReadDword(0x34) != program.Address || program.Address == 0 || program.Commands.IsDefaultOrEmpty)
         {
             throw new InvalidDataException("Native fullscreen callback requires its actual40-byte task and bounded program owner.");
         }
@@ -140,7 +137,7 @@ public static class NativeBattleFullscreenOverlay
         void Draw(uint color)
         {
             NativeBattleEffectArena bytes = retained.Packets;
-            NativeBattleLogicalOrdering.Builder links = new(frame.Ordering);
+            using NativeBattleLogicalOrdering.Builder links = new(frame.Ordering);
             for (int quadrant = 0; quadrant < 4; quadrant++)
             {
                 int x = (quadrant & 1) * 160;

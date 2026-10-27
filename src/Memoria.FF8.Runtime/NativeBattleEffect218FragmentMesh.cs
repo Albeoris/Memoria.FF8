@@ -10,7 +10,7 @@ public static class NativeBattleEffect218FragmentMesh
     public static NativeBattleEffect218FragmentMeshStep Draw635280(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants)
     {
         context.Validate();
-        if (context.Regions.Any(region => region.Offset < 0 || region.Offset > 96 - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > 96 - region.Length) || Dword(context, 0) != mesh.Address || Dword(context, 0x1C) != 0x3C)
+        if (context.ExceedsExtent(96) || Dword(context, 0) != mesh.Address || Dword(context, 0x1C) != 0x3C)
         {
             throw new InvalidDataException("Effect218 fragment drawing requires its actual addressed caller context.");
         }

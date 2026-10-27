@@ -143,7 +143,7 @@ public static partial class NativeBattleResonance49Controller
         {
             task.RequireKnownPayload(0x94, checked((int)task.ReadDword(0x78)));
         }
-        return new(task.Payload.AsSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+        return new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
     }
 
     private static (NativeBattleResonance49Frame Frame, NativeBattleActionMatrix Matrix) RotateProgramme49(NativeBattleResonance49Frame frame, NativeBattleActionMatrix matrix, char axis, short angle)

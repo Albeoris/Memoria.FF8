@@ -31,7 +31,7 @@ public static class NativeBattleGilgameshDirector
 {
     public static NativeBattleGilgameshDirectorStep Advance592300(NativeBattleModulePoolTask task, NativeBattleGilgameshDirectorInputs inputs)
     {
-        if (task.Callback != 0x592300 || task.Payload.IsDefault || task.Payload.Length != 24)
+        if (task.Callback != 0x592300 || task.Payload.IsDefault || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native Gilgamesh director requires its original raw24h task.");
         }

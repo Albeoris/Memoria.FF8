@@ -6,11 +6,19 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Detached physical storage. Unmaterialized suffix bytes use InitialKnownZero.</summary>
 internal sealed record NativeBattleWorkingMemorySnapshot(int LogicalLength, bool InitialKnownZero, int StoredLength, ImmutableArray<NativeBattleEffectMemoryRegion> Regions, ImmutableArray<NativeBattleEffectUnknownRegion> UnknownRegions, ImmutableDictionary<int, NativeBattleResourcePointer?> ResourcePointers);
 
+internal interface INativeBattleCheckpointParticipant
+{
+    void BeginCheckpoint();
+    void CommitCheckpoint();
+    void RollbackCheckpoint();
+}
+
 /// <summary>One authoritative, single-threaded native memory owner retained across callbacks.</summary>
 internal sealed class NativeBattleWorkingMemory : IDisposable
 {
     private readonly record struct ByteUndo(int Offset, byte Data, bool Known);
     private readonly record struct PointerUndo(int Offset, bool Present, NativeBattleResourcePointer? Value);
+    private readonly record struct CheckpointMark(int Bytes, int Pointers, int StoredLength);
     private readonly int logicalLength;
     private readonly bool initialKnownZero;
     private readonly int maxJournalEntries;
@@ -21,6 +29,8 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
     private readonly List<int> removedPointers = [];
     private readonly List<ByteUndo> byteUndo = [];
     private readonly List<PointerUndo> pointerUndo = [];
+    private readonly List<CheckpointMark> nestedCheckpoints = [];
+    private readonly List<List<INativeBattleCheckpointParticipant>> checkpointParticipants = [];
     private bool checkpoint;
     private bool revoked;
     private long version;
@@ -54,6 +64,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
     public int JournalEntryCount => Observe(byteUndo.Count + pointerUndo.Count);
     public int ResourcePointerCount => Observe(pointers.Count);
     public bool HasCheckpoint => Observe(checkpoint);
+    public int CheckpointDepth => Observe(checkpoint ? nestedCheckpoints.Count + 1 : 0);
 
     public byte ReadByte(int offset)
     {
@@ -79,6 +90,18 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
     public short ReadInt16(int offset) => unchecked((short)ReadUInt16(offset));
     public int ReadInt32(int offset) => unchecked((int)ReadUInt32(offset));
 
+    /// <summary>Immediate raw inspection of backing bytes, including unknown lanes; valid until the next mutation or capacity change.</summary>
+    public ReadOnlySpan<byte> BorrowRawReadOnly(int offset, int length)
+    {
+        RequireRange(offset, length);
+        if (length == 0)
+        {
+            return [];
+        }
+        EnsureCapacity(offset + length);
+        return data.AsSpan(offset, length);
+    }
+
     public void ReadInto(int offset, Span<byte> destination)
     {
         RequireRange(offset, destination.Length);
@@ -94,7 +117,20 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
             throw new ArgumentException("Native memory data and knownness destinations must have equal lengths.", nameof(destinationKnown));
         }
         ReadData(offset, destination);
-        int count = Math.Min(destination.Length, Math.Max(0, known.Length - offset));
+        ReadKnownness(offset, destinationKnown);
+    }
+
+    public bool IsKnown(int offset, int length)
+    {
+        RequireRange(offset, length);
+        int count = Math.Min(length, Math.Max(0, known.Length - offset));
+        return !known.AsSpan(Math.Min(offset, known.Length), count).Contains(false) && (count == length || initialKnownZero);
+    }
+
+    public void ReadKnownness(int offset, Span<bool> destinationKnown)
+    {
+        RequireRange(offset, destinationKnown.Length);
+        int count = Math.Min(destinationKnown.Length, Math.Max(0, known.Length - offset));
         NativeBattleTelemetry.Copy(1002, known.AsSpan(Math.Min(offset, known.Length), count), destinationKnown);
         destinationKnown[count..].Fill(initialKnownZero);
         NativeBattleTelemetry.Record(1002, NativeBattleTrafficKind.Fill, destinationKnown.Length - count);
@@ -157,6 +193,94 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         storedLength = Math.Max(storedLength, offset + length);
         version++;
         NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.Fill, length);
+    }
+
+    public void WriteWithKnownness(int offset, ReadOnlySpan<byte> source, ReadOnlySpan<bool> sourceKnown)
+    {
+        RequireRange(offset, source.Length);
+        if (sourceKnown.Length != source.Length)
+        {
+            throw new ArgumentException("Native memory data and knownness sources must have equal lengths.", nameof(sourceKnown));
+        }
+        if (source.IsEmpty)
+        {
+            return;
+        }
+        CollectPointers(offset, source.Length);
+        int changes = 0;
+        if (checkpoint)
+        {
+            for (int index = 0; index < source.Length; index++)
+            {
+                if (ByteAt(offset + index) != source[index] || IsKnown(offset + index) != sourceKnown[index])
+                {
+                    changes++;
+                }
+            }
+        }
+        ReserveJournal(changes, removedPointers.Count);
+        EnsureCapacity(offset + source.Length);
+        if (checkpoint)
+        {
+            for (int index = 0; index < source.Length; index++)
+            {
+                int target = offset + index;
+                if (data[target] != source[index] || known[target] != sourceKnown[index])
+                {
+                    byteUndo.Add(new(target, data[target], known[target]));
+                }
+            }
+            NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, changes * 2L);
+        }
+        InvalidatePointers();
+        source.CopyTo(data.AsSpan(offset));
+        sourceKnown.CopyTo(known.AsSpan(offset));
+        bytesWritten += source.Length;
+        storedLength = Math.Max(storedLength, offset + source.Length);
+        version++;
+        NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, source.Length * 2L);
+    }
+
+    /// <summary>Replaces backing bytes while retaining each destination lane's existing knownness.</summary>
+    public void WriteRetainedBytes(int offset, ReadOnlySpan<byte> source)
+    {
+        RequireRange(offset, source.Length);
+        if (source.IsEmpty)
+        {
+            return;
+        }
+        CollectPointers(offset, source.Length);
+        int changes = 0;
+        if (checkpoint)
+        {
+            for (int index = 0; index < source.Length; index++)
+            {
+                if (ByteAt(offset + index) != source[index])
+                {
+                    changes++;
+                }
+            }
+        }
+        ReserveJournal(changes, removedPointers.Count);
+        EnsureCapacity(offset + source.Length);
+        if (checkpoint)
+        {
+            for (int index = 0; index < source.Length; index++)
+            {
+                int target = offset + index;
+                if (data[target] != source[index])
+                {
+                    byteUndo.Add(new(target, data[target], known[target]));
+                }
+            }
+            NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, changes * 2L);
+        }
+        InvalidatePointers();
+        source.CopyTo(data.AsSpan(offset));
+        bytesWritten += source.Length;
+        storedLength = Math.Max(storedLength, offset + source.Length);
+        version++;
+        NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, source.Length);
     }
 
     /// <summary>Memmove of raw bytes and knownness; destination typed provenance is invalidated.</summary>
@@ -279,6 +403,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         }
         byteUndo.Clear();
         pointerUndo.Clear();
+        ParticipantFrame(0).Clear();
         checkpointStoredLength = storedLength;
         checkpoint = true;
     }
@@ -286,6 +411,11 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
     public void CommitCheckpoint()
     {
         RequireCheckpoint();
+        if (nestedCheckpoints.Count != 0)
+        {
+            throw new InvalidOperationException("Native working memory cannot publish an unfinished nested change.");
+        }
+        CompleteParticipantFrame(0, rollback: false);
         checkpoint = false;
         byteUndo.Clear();
         pointerUndo.Clear();
@@ -294,14 +424,109 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
     public void RollbackCheckpoint()
     {
         RequireCheckpoint();
-        for (int index = byteUndo.Count - 1; index >= 0; index--)
+        long restoredBytes = RestoreUndo(0, 0, checkpointStoredLength);
+        for (int depth = nestedCheckpoints.Count; depth >= 0; depth--)
+        {
+            CompleteParticipantFrame(depth, rollback: true);
+        }
+        nestedCheckpoints.Clear();
+        version++;
+        checkpoint = false;
+        byteUndo.Clear();
+        pointerUndo.Clear();
+        NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, restoredBytes);
+    }
+
+    public void BeginNestedCheckpoint()
+    {
+        RequireCheckpoint();
+        if (nestedCheckpoints.Count >= maxJournalEntries)
+        {
+            throw new InvalidOperationException("Native working memory nested changes exceed the bounded journal capacity.");
+        }
+        ParticipantFrame(nestedCheckpoints.Count + 1).Clear();
+        nestedCheckpoints.Add(new(byteUndo.Count, pointerUndo.Count, storedLength));
+    }
+
+    public void CommitNestedCheckpoint()
+    {
+        RequireNestedCheckpoint();
+        CompleteParticipantFrame(nestedCheckpoints.Count, rollback: false);
+        nestedCheckpoints.RemoveAt(nestedCheckpoints.Count - 1);
+    }
+
+    public void RollbackNestedCheckpoint()
+    {
+        RequireNestedCheckpoint();
+        CheckpointMark mark = nestedCheckpoints[^1];
+        long restoredBytes = RestoreUndo(mark.Bytes, mark.Pointers, mark.StoredLength);
+        CompleteParticipantFrame(nestedCheckpoints.Count, rollback: true);
+        nestedCheckpoints.RemoveAt(nestedCheckpoints.Count - 1);
+        version++;
+        NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, restoredBytes);
+    }
+
+    public void EnlistCheckpointParticipant(INativeBattleCheckpointParticipant participant)
+    {
+        RequireCheckpoint();
+        ArgumentNullException.ThrowIfNull(participant);
+        for (int depth = 0; depth <= nestedCheckpoints.Count; depth++)
+        {
+            List<INativeBattleCheckpointParticipant> frame = ParticipantFrame(depth);
+            bool registered = false;
+            foreach (INativeBattleCheckpointParticipant previous in frame)
+            {
+                if (ReferenceEquals(previous, participant))
+                {
+                    registered = true;
+                    break;
+                }
+            }
+            if (!registered)
+            {
+                frame.EnsureCapacity(frame.Count + 1);
+                participant.BeginCheckpoint();
+                frame.Add(participant);
+            }
+        }
+    }
+
+    private List<INativeBattleCheckpointParticipant> ParticipantFrame(int depth)
+    {
+        while (checkpointParticipants.Count <= depth)
+        {
+            checkpointParticipants.Add([]);
+        }
+        return checkpointParticipants[depth];
+    }
+
+    private void CompleteParticipantFrame(int depth, bool rollback)
+    {
+        List<INativeBattleCheckpointParticipant> frame = ParticipantFrame(depth);
+        for (int index = frame.Count - 1; index >= 0; index--)
+        {
+            if (rollback)
+            {
+                frame[index].RollbackCheckpoint();
+            }
+            else
+            {
+                frame[index].CommitCheckpoint();
+            }
+        }
+        frame.Clear();
+    }
+
+    private long RestoreUndo(int firstByte, int firstPointer, int previousStoredLength)
+    {
+        long restoredBytes = (byteUndo.Count - firstByte) * 2L;
+        for (int index = byteUndo.Count - 1; index >= firstByte; index--)
         {
             ByteUndo entry = byteUndo[index];
             data[entry.Offset] = entry.Data;
             known[entry.Offset] = entry.Known;
         }
-        long restoredBytes = byteUndo.Count * 2L;
-        for (int index = pointerUndo.Count - 1; index >= 0; index--)
+        for (int index = pointerUndo.Count - 1; index >= firstPointer; index--)
         {
             PointerUndo entry = pointerUndo[index];
             if (entry.Present)
@@ -313,10 +538,10 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
                 pointers.Remove(entry.Offset);
             }
         }
-        storedLength = checkpointStoredLength;
-        version++;
-        CommitCheckpoint();
-        NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, restoredBytes);
+        storedLength = previousStoredLength;
+        byteUndo.RemoveRange(firstByte, byteUndo.Count - firstByte);
+        pointerUndo.RemoveRange(firstPointer, pointerUndo.Count - firstPointer);
+        return restoredBytes;
     }
 
     public NativeBattleWorkingMemorySnapshot Capture()
@@ -426,6 +651,8 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         pointers.Clear();
         byteUndo.Clear();
         pointerUndo.Clear();
+        nestedCheckpoints.Clear();
+        checkpointParticipants.Clear();
         removedPointers.Clear();
     }
 
@@ -569,6 +796,15 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         if (!checkpoint)
         {
             throw new InvalidOperationException("Native working memory requires its active checkpoint.");
+        }
+    }
+
+    private void RequireNestedCheckpoint()
+    {
+        RequireCheckpoint();
+        if (nestedCheckpoints.Count == 0)
+        {
+            throw new InvalidOperationException("Native working memory requires its active nested change.");
         }
     }
 

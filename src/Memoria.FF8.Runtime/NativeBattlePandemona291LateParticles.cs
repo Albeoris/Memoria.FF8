@@ -30,7 +30,7 @@ public static class NativeBattlePandemona291LateParticles
                 arena = arena.Write(start + field, BitConverter.GetBytes(task.ReadWord(field)));
             }
             arena = arena.Write(start + 0x14, [task.ReadByte(0x14), task.ReadByte(0x15), task.ReadByte(0x16)]);
-            pool = pool with { Slots = pool.Slots.SetItem(index, task) };
+            pool = pool.WriteSlot(index, task);
         }
         return frame with { Memory = frame.Memory with { Arena = arena }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }

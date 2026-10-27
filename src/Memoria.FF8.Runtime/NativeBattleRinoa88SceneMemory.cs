@@ -48,7 +48,8 @@ public sealed record NativeBattleRinoa88SceneMemory([property: JsonRequired] Nat
         RequireRange(offset, 2);
         Span<byte> bytes = stackalloc byte[2];
         BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
-        return this with { Settings = Settings.Write(offset, bytes) };
+        Settings.Write(offset, bytes);
+        return this;
     }
 
     public bool CanRequestPhase(short phase) => SignedWord(68) == SignedWord(64) && SignedWord(68) == phase - 1;
@@ -61,10 +62,7 @@ public sealed record NativeBattleRinoa88SceneMemory([property: JsonRequired] Nat
         {
             throw new InvalidDataException("Native Rinoa88 camera requires its actual anchor-padding provenance.");
         }
-        if (Settings.Regions.Any(region => region.Offset > 84 - region.Data.Length) || Settings.UnknownRegions.Any(region => region.Offset > 84 - region.Length))
-        {
-            throw new InvalidDataException("Native Rinoa88 scene bytes leave their original84-byte workspace.");
-        }
+        Settings.ValidateExtent(84);
     }
 
     private static void RequireRange(int offset, int count)

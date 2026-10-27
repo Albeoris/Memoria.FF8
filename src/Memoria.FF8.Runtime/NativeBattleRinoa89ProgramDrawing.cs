@@ -29,7 +29,7 @@ public static class NativeBattleRinoa89ProgramDrawing
             selected = context.Morph;
             NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native6FBB80 requires its retained morph owner.");
             int destination = NativeBattleWaterExecutionFields.ArenaOffset(selected, checked(count * 8));
-            NativeBattleEffectArenaWriter writer = new(arena);
+            using NativeBattleEffectArenaWriter writer = new(arena);
             for (int vertex = 0; vertex < vertices.Length; vertex++)
             {
                 byte[] xyz = new byte[6];

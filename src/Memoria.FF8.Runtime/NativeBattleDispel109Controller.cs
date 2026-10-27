@@ -23,7 +23,7 @@ public static class NativeBattleDispel109Controller
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521AB0, 0x2521A78, 20, 1);
         (root, int slot) = root.Append(0x6CF540);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         return frame with { Effect = frame.Effect with { Dispel109 = new(0), Pools = [root], ReturnedDescriptor = 0x2521AB0, DrawArenaOffset = null } };
     }
 
@@ -65,10 +65,10 @@ public static class NativeBattleDispel109Controller
                     NativeBattleModulePoolTask task = ClearPayload(targets.Slots[slot]).WriteWord(14, group).WriteDword(20, actorPointer);
                     NativeBattleModuleAnchor anchor = inputs.ReadAnchor(actor);
                     task = task.WriteWord(24, unchecked((ushort)anchor.X)).WriteWord(26, unchecked((ushort)anchor.Y)).WriteWord(28, unchecked((ushort)anchor.Z)).WriteWord(30, unchecked((ushort)(3 * (inputs.ReadHeight(actor) + 256))));
-                    NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(20, 808));
+                    NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(20, 808).ToArray().ToImmutableArray());
                     inputs.ObserveTargetInitialize6CF687?.Invoke();
                     task = StoreWorkspace(task, workspace.Initialize7016B0(resources.Animation, 808));
-                    targets = targets with { Slots = targets.Slots.SetItem(slot, task) };
+                    targets = targets.WriteSlot(slot, task);
                     frame = SetPool(frame, 1, targets);
                     root = root.WriteByte(14, unchecked((byte)(group + 1)));
                 }
@@ -84,7 +84,7 @@ public static class NativeBattleDispel109Controller
                 NativeBattleDispel109LeafStep leaf = Advance6CF700(frame, pool.Slots[slot], resources, inputs);
                 frame = leaf.Frame;
                 NativeBattleEffectTaskPool updated = frame.Effect.Pools[1];
-                return new(updated with { Slots = updated.Slots.SetItem(slot, leaf.Task) }, leaf.Result);
+                return new(updated.WriteSlot(slot, leaf.Task), leaf.Result);
             });
             frame = SetPool(frame, 1, targets.Pool);
             targetSurvivors = targets.Survivors;
@@ -94,7 +94,7 @@ public static class NativeBattleDispel109Controller
                 NativeBattleDispel109LeafStep leaf = Advance6CFC50(frame, pool.Slots[slot], inputs);
                 frame = leaf.Frame;
                 NativeBattleEffectTaskPool updated = frame.Effect.Pools[2];
-                return new(updated with { Slots = updated.Slots.SetItem(slot, leaf.Task) }, leaf.Result);
+                return new(updated.WriteSlot(slot, leaf.Task), leaf.Result);
             });
             frame = SetPool(frame, 2, sparks.Pool);
             sparkSurvivors = sparks.Survivors;
@@ -105,7 +105,7 @@ public static class NativeBattleDispel109Controller
             short next = unchecked((short)(root.ReadWord(12) + 1));
             root = root.WriteWord(12, next >= 10 ? (ushort)0 : unchecked((ushort)next));
         }
-        roots = roots with { Slots = roots.Slots.SetItem(0, root) };
+        roots = roots.WriteSlot(0, root);
         if (complete)
         {
             roots = roots.Advance((pool, _) => new(pool, 2)).Pool;
@@ -142,7 +142,7 @@ public static class NativeBattleDispel109Controller
         }
         if (age >= 0)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(20, 808));
+            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(20, 808).ToArray().ToImmutableArray());
             NativeBattleGfAnimationAdvance played = workspace.Advance701970(resources.Animation, 0, (current, node) =>
             {
                 frame = inputs.DrawModel(frame, task, node);
@@ -189,16 +189,14 @@ public static class NativeBattleDispel109Controller
         NativeBattleEffectTaskPool sparks = frame.Effect.Pools[2];
         (sparks, int slot) = sparks.Append(0x6CFC50);
         NativeBattleModulePoolTask spark = ClearPayload(sparks.Slots[slot]).WriteWord(14, life).WriteWord(16, unchecked((ushort)x)).WriteWord(18, unchecked((ushort)y)).WriteWord(20, unchecked((ushort)z)).WriteWord(22, scale).WriteDword(24, resource);
-        return SetPool(frame, 2, sparks with { Slots = sparks.Slots.SetItem(slot, spark) });
+        return SetPool(frame, 2, sparks.WriteSlot(slot, spark));
     }
 
-    private static NativeBattleModulePoolTask ClearPayload(NativeBattleModulePoolTask task) => (task with { Payload = ImmutableArray.CreateRange(new byte[task.Payload.Length]) }).WithoutResourcePointers(12, task.Payload.Length).WithoutUnknownPayload(12, task.Payload.Length);
+    private static NativeBattleModulePoolTask ClearPayload(NativeBattleModulePoolTask task) => task.ClearPayload(task.PayloadLength);
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] payload = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(payload.AsSpan(20));
-        return (task with { Payload = payload.ToImmutableArray() }).WithoutUnknownPayload(32, 808).WithoutResourcePointers(32, 808);
+        return task.WriteBytes(32, workspace.Data.AsSpan());
     }
 
     private static NativeBattleDispel109Frame SetPool(NativeBattleDispel109Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };

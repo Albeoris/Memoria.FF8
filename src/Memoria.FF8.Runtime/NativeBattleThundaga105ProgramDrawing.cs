@@ -174,7 +174,7 @@ public static class NativeBattleThundaga105ProgramDrawing
 
     private static void RequireTask(NativeBattleModulePoolTask task)
     {
-        if (task.Callback != 0x6D43B0 || task.Payload.IsDefault || task.Payload.Length != 0x884 - 12)
+        if (task.Callback != 0x6D43B0 || task.PayloadLength != 0x884 - 12)
         {
             throw new InvalidDataException("Native Thundaga primary program requires its actual complete task.");
         }
@@ -188,12 +188,10 @@ public static class NativeBattleThundaga105ProgramDrawing
         }
     }
 
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.Payload.AsSpan(WorkspaceOffset - 12, WorkspaceLength).ToArray().ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.ReadRawPayloadSpan().Slice(WorkspaceOffset - 12, WorkspaceLength).ToArray().ToImmutableArray());
 
     private static NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] payload = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(payload.AsSpan(WorkspaceOffset - 12, WorkspaceLength));
-        return task with { Payload = payload.ToImmutableArray() };
+        return task.WriteRetainedBytes(12 + (WorkspaceOffset - 12), workspace.Data.AsSpan());
     }
 }

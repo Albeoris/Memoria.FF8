@@ -42,7 +42,7 @@ public static partial class NativeBattleNoMercy200Controller
             uint address = checked(0xE33D70u + (uint)actor * 4);
             if (ReadDword(frame.Staging, address) == 0 && Word(task, 12) == 0)
             {
-                return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) }, 0);
+                return new(frame, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)), 0);
             }
             if (Word(task, 12) == 0)
             {
@@ -75,7 +75,7 @@ public static partial class NativeBattleNoMercy200Controller
         {
             frame = frame with { Staging = WriteDword(frame.Staging, checked(0xE33D70u + (uint)actor * 4), 1) };
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) }, complete ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)), complete ? 2 : 0);
 
         void Spawn(int target, int count)
         {
@@ -101,7 +101,7 @@ public static partial class NativeBattleNoMercy200Controller
                     child = child.WriteWord(18, unchecked((ushort)(Word(child, 18) - 500 - Rand() % 300)));
                 }
                 child = child.WriteWord(28, unchecked((ushort)(Rand() % 1536 + 3328)));
-                pool = pool with { Slots = pool.Slots.SetItem(childSlot, child) };
+                pool = pool.WriteSlot(childSlot, child);
             }
         }
         int Rand()
@@ -123,6 +123,6 @@ public static partial class NativeBattleNoMercy200Controller
             int first = header.FirstContactIndex ?? throw new NotSupportedException("Native No Mercy single target requires its original first contact pointer.");
             task = task.WriteWord(32, packets.ReadContact(first).Primary.ActorIndex);
         }
-        return pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) };
+        return pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback));
     }
 }

@@ -10,8 +10,8 @@ public static class NativeBattleHoly175WarpInitialization
     public static NativeBattleHoly175WarpInitializationResult InitializeGrid5D2210(NativeBattleHoly175WarpState state, NativeCrtRandomState random)
     {
         state.Validate();
-        NativeBattleEffectArenaWriter gridA = new(state.GridA);
-        NativeBattleEffectArenaWriter gridB = new(state.GridB);
+        using NativeBattleEffectArenaWriter gridA = new(state.GridA);
+        using NativeBattleEffectArenaWriter gridB = new(state.GridB);
         for (int row = 0; row < 15; row++)
         {
             for (int column = 0; column < 21; column++)
@@ -67,8 +67,8 @@ public static class NativeBattleHoly175WarpInitialization
             }
         }
         state = state with { GridA = gridA.Freeze(), GridB = gridB.Freeze() };
-        NativeBattleEffectArenaWriter faces = new(state.Faces);
-        NativeBattleEffectArenaWriter packets = new(state.PhysicalPackets);
+        using NativeBattleEffectArenaWriter faces = new(state.Faces);
+        using NativeBattleEffectArenaWriter packets = new(state.PhysicalPackets);
         ImmutableArray<uint>? pointerCache = state.PointPointerCache;
         for (int row = 0; row < 14; row++)
         {
@@ -118,7 +118,7 @@ public static class NativeBattleHoly175WarpInitialization
     public static NativeBattleHoly175WarpInitializationResult InitializeFaces5D25D0(NativeBattleHoly175WarpState state, NativeCrtRandomState random)
     {
         state.Validate();
-        NativeBattleEffectArenaWriter faces = new(state.Faces);
+        using NativeBattleEffectArenaWriter faces = new(state.Faces);
         for (int face = 0; face < 1120; face++)
         {
             byte[] pointers = state.Faces.Read(face * 36, 12);

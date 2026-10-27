@@ -31,11 +31,11 @@ internal partial class NativeBattleEffectNodeMemory
         this.first = first;
         NativeBattleEffectHierarchy hierarchy = new(effect.Pools);
         originalTask = hierarchy.Read(taskAddress);
-        if (originalTask.Payload.Length != 676 - 12)
+        if (originalTask.PayloadLength != 676 - 12)
         {
             throw new InvalidDataException("Native effect node context requires its original676-byte task.");
         }
-        taskBytes = originalTask.Payload.ToArray();
+        taskBytes = originalTask.ReadRawPayloadSpan().ToArray();
         if (emitterBytes <= 0 || geometryBytes <= 0 || second != first + emitterBytes || first < 0 || second > NativeBattleEffectArena.Length - geometryBytes)
         {
             throw new InvalidDataException("Native effect node auxiliary ranges contradict their original contiguous allocations.");
@@ -44,23 +44,10 @@ internal partial class NativeBattleEffectNodeMemory
         arena.Validate();
         bytes = new byte[checked(emitterBytes + geometryBytes)];
         unknown = new bool[bytes.Length];
-        foreach (NativeBattleEffectMemoryRegion region in arena.Regions)
+        arena.ReadWithKnownness(first, bytes, unknown);
+        for (int index = 0; index < unknown.Length; index++)
         {
-            int begin = Math.Max(first, region.Offset);
-            int end = Math.Min(first + bytes.Length, region.Offset + region.Data.Length);
-            if (end > begin)
-            {
-                region.Data.AsSpan().Slice(begin - region.Offset, end - begin).CopyTo(bytes.AsSpan(begin - first));
-            }
-        }
-        foreach (NativeBattleEffectUnknownRegion region in arena.UnknownRegions)
-        {
-            int begin = Math.Max(first, region.Offset);
-            int end = Math.Min(first + bytes.Length, region.Offset + region.Length);
-            if (end > begin)
-            {
-                Array.Fill(unknown, true, begin - first, end - begin);
-            }
+            unknown[index] = !unknown[index];
         }
     }
 

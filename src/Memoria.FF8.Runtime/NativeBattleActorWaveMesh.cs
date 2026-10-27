@@ -208,9 +208,6 @@ public static class NativeBattleActorWaveMesh
     private static void ValidateContext(NativeBattleEffectArena context)
     {
         context.Validate();
-        if (context.Regions.Any(region => region.Offset > ContextLength - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset > ContextLength - region.Length))
-        {
-            throw new InvalidDataException("Native actor mesh context leaves its original104-byte physical owner.");
-        }
+        context.ValidateExtent(ContextLength);
     }
 }

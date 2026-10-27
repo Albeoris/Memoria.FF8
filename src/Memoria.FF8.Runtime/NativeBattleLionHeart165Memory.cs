@@ -41,7 +41,7 @@ public static partial class NativeBattleLionHeart165Controller
     private static NativeBattleFileStaging CopyTaskToStaging(NativeBattleFileStaging staging, uint destination, NativeBattleModulePoolTask task, int source, int length)
     {
         task.RequirePayloadRange(source, length);
-        staging = staging.Write(destination, task.Payload.AsSpan().Slice(source - 12, length));
+        staging = staging.Write(destination, task.ReadRawPayloadSpan().Slice(source - 12, length));
         if (task.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)

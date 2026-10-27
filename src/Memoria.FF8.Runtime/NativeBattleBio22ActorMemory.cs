@@ -52,10 +52,7 @@ public sealed record NativeBattleBio22ActorMemory([property: JsonRequired] Nativ
             throw new InvalidDataException("Native Bio actor work requires each explicit retained physical owner.");
         }
         storage.Validate();
-        if (storage.Regions.Any(region => region.Offset > length - region.Data.Length) || storage.UnknownRegions.Any(region => region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Native Bio actor storage leaves its retained physical partition.");
-        }
+        storage.ValidateExtent(length);
     }
     private static byte[] Read(NativeBattleEffectArena storage, int offset, int length, int extent)
     {

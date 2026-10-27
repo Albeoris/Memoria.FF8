@@ -26,7 +26,7 @@ public static partial class NativeBattleRayBomb307Controller
             if (relative < owner.Stride * owner.Slots.Length && relative % owner.Stride == 0)
             {
                 int slot = (int)(relative / owner.Stride);
-                return WithPool(frame, pool, owner with { Slots = owner.Slots.SetItem(slot, task with { Next = owner.Slots[slot].Next }) });
+                return WithPool(frame, pool, owner.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, owner.Slots[slot].Next, task.Callback)));
             }
         }
         throw new InvalidDataException("Ray-Bomb task pointer leaves its canonical pools.");

@@ -35,7 +35,7 @@ public static partial class NativeBattleDuel215Controller
         staging = Dword(Dword(Dword(staging, 0x25089A8, Arena), 0x250893C, 0x1D99A78), 0x2508940, checked(0x1D972C0u + (uint)parameters.Actor78 * 156));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Root, 0x2508978, 16, 1);
         (root, int slot) = root.Append(0x69AC00);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));
         return new(memory with { Duel215 = new(true, parameters, resources), Textures = textures }, effect with { Pools = [root], ReturnedDescriptor = Root }, staging, random);
     }
 
@@ -69,7 +69,7 @@ public static partial class NativeBattleDuel215Controller
                     throw new InvalidDataException("Native Duel215 lost its initialized scene pool.");
                 }
                 (scene, int child) = scene.Append(0x69B070);
-                scene = scene with { Slots = scene.Slots.SetItem(child, scene.Slots[child].WriteBytes(12, new byte[1277 * 4])) };
+                scene = scene.WriteSlot(child, scene.Slots[child].WriteBytes(12, new byte[1277 * 4]));
                 Publish(current with { Slots = current.Slots.SetItem(slot, task) });
                 frame = inputs.Execute(frame, new NativeBattleDuel215PrepareScene(child));
                 Refresh();

@@ -67,7 +67,7 @@ public sealed partial class BattleSession
                     int first = nativeActionPackets.Headers[parameters.HeaderIndex7C + action].FirstContactIndex ?? throw new NotSupportedException("Native Zombie requires its original first action target.");
                     byte model = nativeActionPackets.ReadContact(first).Primary.ActorIndex;
                     (pools[1], int slot) = pools[1].Append(0x6C9BC0);
-                    NativeBattleModulePoolTask task = pools[1].Slots[slot] with { Payload = new byte[0x704].ToImmutableArray() };
+                    NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x704);
                     task = task.WriteWord(14, checked((ushort)action)).WriteDword(16, checked(0x1D972C0u + model * 156u));
                     NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(16, 0x6F4));
                     Store(1, slot, Workspace(task, workspace.Initialize7016B0(resources.Layout, 0x6F4)));
@@ -153,7 +153,7 @@ public sealed partial class BattleSession
 
         void Store(int bank, int slot, NativeBattleModulePoolTask task)
         {
-            pools[bank] = pools[bank] with { Slots = pools[bank].Slots.SetItem(slot, task) };
+            pools[bank] = pools[bank].WriteSlot(slot, task);
         }
         void Mark(int actor, bool marked)
         {
@@ -173,9 +173,7 @@ public sealed partial class BattleSession
         static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
         static NativeBattleModulePoolTask Workspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
         {
-            byte[] bytes = task.Payload.ToArray();
-            workspace.Data.AsSpan().CopyTo(bytes.AsSpan(16));
-            return task with { Payload = bytes.ToImmutableArray() };
+            return task.WriteRetainedBytes(12 + (16), workspace.Data.AsSpan());
         }
     }
 }

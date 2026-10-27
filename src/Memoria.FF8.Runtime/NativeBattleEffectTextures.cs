@@ -67,7 +67,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             memory = memory.Write(2 * ((y + row) * 1024 + x), bytes.Slice(2 * row * width, 2 * width));
         }
-        return this with { VramRegions = memory.Regions, LiveTextureSources = NativeBattleTextureProvenance.Overwrite(LiveTextureSources, x, y, width, height), TextureRegistrations = NativeBattleTextureCopyHistory.Upload(TextureRegistrations, x, y, width, height) };
+        return this with { VramRegions = memory.Capture().Regions, LiveTextureSources = NativeBattleTextureProvenance.Overwrite(LiveTextureSources, x, y, width, height), TextureRegistrations = NativeBattleTextureCopyHistory.Upload(TextureRegistrations, x, y, width, height) };
     }
 
     public static NativeBattleEffectTextureState FromColdProcess() => new(ImmutableArray.CreateRange(new NativeBattleEffectTimUpload?[32]), 0, null, []) { VramReadTail = new byte[PcPageReadTailLength].ToImmutableArray() };
@@ -98,7 +98,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             throw new InvalidDataException("Native texture upload state requires32 physical slots and its successful0..31 pending count.");
         }
-        new NativeBattleEffectArena(VramRegions).Validate();
+        NativeBattleEffectArena.CreateSnapshot(VramRegions, []).Validate();
         if (TextureFileContext is { } context && (string.IsNullOrWhiteSpace(context.Identity.Name) || !Enum.IsDefined(context.Identity.Domain) || context.Identity.SourceOffset < 0 || context.NextTimMember < 0))
         {
             throw new InvalidDataException("Native texture file context requires its observed open and nonnegative upload ordinal.");
@@ -491,7 +491,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                     origin = null;
                 }
                 ImmutableArray<byte> bytes = data.ToArray().ToImmutableArray();
-                NativeBattleEffectArenaWriter writer = new(bank);
+                using NativeBattleEffectArenaWriter writer = new(bank);
                 for (int row = 0; row < height; row++)
                 {
                     writer.Write(checked(2 * ((y + row) * 1024 + x)), bytes.AsSpan().Slice(2 * row * width, 2 * width));
@@ -505,7 +505,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 uploads.Add(new(x, y, width, height, bytes) { Origin = origin });
             }
         }
-        return new(this with { Count = 0, VramRegions = bank.Regions, LiveTextureSources = liveSources, TextureRegistrations = registrations, TextureFileContext = fileContext }, uploads.ToImmutable()) { Arena = arenaSource };
+        return new(this with { Count = 0, VramRegions = bank.Capture().Regions, LiveTextureSources = liveSources, TextureRegistrations = registrations, TextureFileContext = fileContext }, uploads.ToImmutable()) { Arena = arenaSource };
 
         NativeBattleEffectTextureRectangle? FollowingPaletteRectangle(int imageIndex)
         {
@@ -552,7 +552,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 }
             }
             byte[] changed = new byte[bytesPerRow * copy.Height];
-            NativeBattleEffectArenaWriter writer = new(bank);
+            using NativeBattleEffectArenaWriter writer = new(bank);
             for (int row = 0; row < copy.Height; row++)
             {
                 int write = 2 * ((copy.DestinationY + row) * 1024 + copy.DestinationX);
@@ -609,7 +609,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
     {
         Validate();
         //45BD30's base1B47818 is PE zero-fill; the shared sparse1MB bank preserves untouched zeroes.
-        return new NativeBattleEffectArena(VramRegions).Read(0, 1024 * 512 * 2);
+        return NativeBattleEffectArena.CreateSnapshot(VramRegions, []).Read(0, 1024 * 512 * 2);
     }
 
     private static int BlockLength(NativeBattleEffectHeapAllocation source, int offset)

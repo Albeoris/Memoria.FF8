@@ -28,10 +28,26 @@ public sealed record NativeBattleEffect68State([property: JsonRequired] NativeBa
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
-    public NativeBattleEffect68State Write(uint address, ReadOnlySpan<byte> bytes) => WriteView(address, NativeBattleEffectArena.Clear().Write(0, bytes), bytes.Length);
+    public NativeBattleEffect68State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        bool header = address >= HeaderBase;
+        int offset = Require(address, bytes.Length, header ? HeaderBase : BaseAddress, header ? HeaderRanges : CoreRanges);
+        (header ? Header : Core).Write(offset, bytes);
+        return this;
+    }
     public NativeBattleEffect68State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleEffect68State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleEffect68State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect68State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleEffect68State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
 
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
@@ -44,8 +60,8 @@ public sealed record NativeBattleEffect68State([property: JsonRequired] NativeBa
     {
         bool header = address >= HeaderBase;
         int offset = Require(address, length, header ? HeaderBase : BaseAddress, header ? HeaderRanges : CoreRanges);
-        NativeBattleEffectArena current = NativeBattleEffectNodeContextMemory.Copy(source, 0, header ? Header : Core, offset, length);
-        return header ? this with { Header = current } : this with { Core = current };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, header ? Header : Core, offset, length);
+        return this;
     }
 
     public (NativeBattleEffect68State State, NativeBattleEffectMemory Memory) BindMeshSources(NativeBattleEffectMemory memory, NativeBattleEffect68Resources resources)
@@ -126,11 +142,11 @@ public sealed record NativeBattleEffect68State([property: JsonRequired] NativeBa
     private static void ValidateStorage(NativeBattleEffectArena storage, uint origin, ImmutableArray<(uint Address, int Length)> ranges)
     {
         storage.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in storage.Regions)
+        foreach (NativeBattleEffectStorageRange region in storage.EnumerateDataRanges())
         {
-            _ = Require(checked(origin + (uint)region.Offset), region.Data.Length, origin, ranges);
+            _ = Require(checked(origin + (uint)region.Offset), region.Length, origin, ranges);
         }
-        foreach (NativeBattleEffectUnknownRegion region in storage.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in storage.EnumerateUnknownRanges())
         {
             _ = Require(checked(origin + (uint)region.Offset), region.Length, origin, ranges);
         }
@@ -173,9 +189,6 @@ public sealed record NativeBattleEffect68State([property: JsonRequired] NativeBa
     private static void ValidateBank(NativeBattleEffectArena bank, int length)
     {
         bank.Validate();
-        if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect68 retained bytes leave their physical bank allocation.");
-        }
+        bank.ValidateExtent(length);
     }
 }

@@ -1,18 +1,13 @@
 using System.Collections.Immutable;
-using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Private ordered scratch stores read through sparse pages before one immutable publication.</summary>
+/// <summary>Private changed-byte stores commit accepted prefixes into a persistent staging authority.</summary>
 internal sealed class NativeBattleFileStagingTransaction : IDisposable
 {
-    private const int PageLength = 4096;
-    private sealed record Page(byte[] Data, bool[] Known)
-    {
-        public bool Dirty { get; set; }
-    }
     private readonly NativeBattleFileStaging source;
-    private readonly Dictionary<uint, Page> pages = [];
+    private readonly NativeBattleFileStagingWorkingOwner owner;
+    private readonly NativeBattleFileStagingOverlay overlay;
     private bool disposed;
 
     public NativeBattleFileStagingTransaction(NativeBattleFileStaging source)
@@ -23,37 +18,43 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         }
         source.Validate();
         this.source = source;
+        owner = source.WorkingOwner;
+        overlay = owner.LeaseOverlay();
         View = source with { Transaction = this };
     }
 
     public NativeBattleFileStaging View { get; }
+    public uint BaseAddress
+    {
+        get
+        {
+            RequireActive();
+            return overlay.BaseAddress;
+        }
+    }
+    public ulong KnownExtentEnd
+    {
+        get
+        {
+            RequireActive();
+            return overlay.KnownExtentEnd;
+        }
+    }
 
     public byte[] Read(uint address, int length)
     {
         RequireRange(address, length);
-        for (int offset = 0; offset < length;)
+        if (!overlay.IsKnown(address, length))
         {
-            uint current = checked(address + (uint)offset);
-            uint pageAddress = current / PageLength * PageLength;
-            int first = checked((int)(current - pageAddress));
-            int count = Math.Min(length - offset, PageLength - first);
-            if (CachedPage(pageAddress).Known.AsSpan(first, count).Contains(false))
-            {
-                throw new NotSupportedException("Native retained memory read reaches unobserved bytes.");
-            }
-            offset += count;
+            throw new NotSupportedException("Native retained memory read reaches unobserved bytes.");
         }
-        byte[] data = new byte[length];
-        for (int offset = 0; offset < length;)
-        {
-            uint current = checked(address + (uint)offset);
-            uint pageAddress = current / PageLength * PageLength;
-            int first = checked((int)(current - pageAddress));
-            int count = Math.Min(length - offset, PageLength - first);
-            NativeBattleTelemetry.Copy(1032, pages[pageAddress].Data.AsSpan(first, count), data.AsSpan(offset));
-            offset += count;
-        }
-        return data;
+        return ReadSnapshot(address, length).Data;
+    }
+
+    public bool IsKnown(uint address, int length)
+    {
+        RequireRange(address, length);
+        return overlay.IsKnown(address, length);
     }
 
     public (byte[] Data, bool[] Known) ReadSnapshot(uint address, int length)
@@ -61,144 +62,147 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         RequireRange(address, length);
         byte[] data = new byte[length];
         bool[] known = new bool[length];
-        for (int offset = 0; offset < length;)
-        {
-            uint current = checked(address + (uint)offset);
-            uint pageAddress = current / PageLength * PageLength;
-            int first = checked((int)(current - pageAddress));
-            int count = Math.Min(length - offset, PageLength - first);
-            Page page = CachedPage(pageAddress);
-            NativeBattleTelemetry.Copy(1033, page.Data.AsSpan(first, count), data.AsSpan(offset));
-            NativeBattleTelemetry.Copy(1034, page.Known.AsSpan(first, count), known.AsSpan(offset));
-            offset += count;
-        }
+        overlay.ReadWithKnownness(address, data, known);
         return (data, known);
+    }
+
+    public void ReadWithKnownness(uint address, Span<byte> data, Span<bool> known)
+    {
+        RequireRange(address, data.Length);
+        if (known.Length != data.Length)
+        {
+            throw new ArgumentException("Native staging data and knownness destinations must have equal lengths.", nameof(known));
+        }
+        overlay.ReadWithKnownness(address, data, known);
+    }
+
+    public void Rebase(uint address)
+    {
+        RequireActive();
+        overlay.Rebase(address);
     }
 
     public void Write(uint address, ReadOnlySpan<byte> bytes)
     {
         RequireRange(address, bytes.Length);
-        for (int offset = 0; offset < bytes.Length;)
+        overlay.Write(address, bytes);
+    }
+
+    public void WriteRaw(uint address, ReadOnlySpan<byte> bytes, ReadOnlySpan<bool> known)
+    {
+        RequireRange(address, bytes.Length);
+        if (known.Length != bytes.Length)
         {
-            uint current = checked(address + (uint)offset);
-            uint pageAddress = current / PageLength * PageLength;
-            int first = checked((int)(current - pageAddress));
-            int count = Math.Min(bytes.Length - offset, PageLength - first);
-            Page page = CachedPage(pageAddress);
-            page.Dirty = true;
-            NativeBattleTelemetry.Copy(1035, bytes.Slice(offset, count), page.Data.AsSpan(first));
-            NativeBattleTelemetry.Fill(1036, page.Known, true, first, count);
-            offset += count;
+            throw new ArgumentException("Native staging raw stores require their complete knownness mask.", nameof(known));
+        }
+        overlay.Write(address, bytes);
+        for (int index = 0; index < known.Length;)
+        {
+            if (known[index])
+            {
+                index++;
+                continue;
+            }
+            int first = index++;
+            while (index < known.Length && !known[index])
+            {
+                index++;
+            }
+            overlay.MarkUnknown(checked(address + (uint)first), index - first);
         }
     }
 
     public void MarkUnknown(uint address, int length)
     {
         RequireRange(address, length);
-        for (int offset = 0; offset < length;)
-        {
-            uint current = checked(address + (uint)offset);
-            uint pageAddress = current / PageLength * PageLength;
-            int first = checked((int)(current - pageAddress));
-            int count = Math.Min(length - offset, PageLength - first);
-            Page page = CachedPage(pageAddress);
-            page.Dirty = true;
-            NativeBattleTelemetry.Clear(1037, page.Data, first, count);
-            NativeBattleTelemetry.Fill(1038, page.Known, false, first, count);
-            offset += count;
-        }
+        overlay.MarkUnknown(address, length);
+    }
+
+    public void ForgetLoaderZero(uint address, int length)
+    {
+        RequireRange(address, length);
+        overlay.ForgetLoaderZero(address, length);
+    }
+
+    public bool IntersectsLoaderZero(uint address, int length)
+    {
+        RequireRange(address, length);
+        return overlay.IntersectsLoaderZero(address, length);
+    }
+
+    public bool TryGetPointer(uint address, out NativeBattleResourcePointer? pointer)
+    {
+        RequireRange(address, 4);
+        return overlay.TryGetPointer(address, out pointer);
+    }
+
+    public void SetPointerMetadata(uint address, NativeBattleResourcePointer? pointer)
+    {
+        RequireRange(address, 4);
+        overlay.SetPointerMetadata(address, pointer);
+    }
+
+    public void InvalidatePointers(uint address, int length)
+    {
+        RequireRange(address, length);
+        overlay.InvalidatePointers(address, length);
+    }
+
+    public ImmutableDictionary<uint, NativeBattleResourcePointer?> CapturePointers()
+    {
+        RequireActive();
+        return overlay.CapturePointers();
+    }
+
+    public ImmutableArray<NativeBattleLoaderZeroRegion> CaptureLoaderZeros()
+    {
+        RequireActive();
+        return overlay.CaptureLoaderZeros();
+    }
+
+    public void BeginCheckpoint()
+    {
+        RequireActive();
+        overlay.BeginCheckpoint();
+    }
+
+    public void CommitCheckpoint()
+    {
+        RequireActive();
+        overlay.CommitCheckpoint();
+    }
+
+    public void RollbackCheckpoint()
+    {
+        RequireActive();
+        overlay.RollbackCheckpoint();
     }
 
     public NativeBattleFileStaging Freeze(NativeBattleFileStaging current)
     {
         RequireActive();
-        if (current.Transaction != this)
+        if (!ReferenceEquals(current.Transaction, this))
         {
             throw new InvalidOperationException("Native staging publication requires its current transaction view.");
         }
-        NativeBattleFileStaging rebased = source.Rebase(current.BaseAddress);
-        List<NativeBattleEffectMemoryRegion> ranges = [];
-        uint[] changed = pages.Where(pair => pair.Value.Dirty).Select(pair => pair.Key).Order().ToArray();
-        foreach (NativeBattleEffectMemoryRegion region in rebased.KnownRanges)
-        {
-            int cursor = region.Offset;
-            int end = checked(region.Offset + region.Data.Length);
-            foreach (uint address in changed)
-            {
-                long first = (long)address - current.BaseAddress;
-                long last = first + PageLength;
-                if (last <= cursor || first >= end)
-                {
-                    continue;
-                }
-                if (first > cursor)
-                {
-                    Keep(cursor, checked((int)first));
-                }
-                cursor = checked((int)Math.Min(end, last));
-            }
-            if (cursor < end)
-            {
-                Keep(cursor, end);
-            }
-
-            void Keep(int first, int last)
-            {
-                ranges.Add(first == region.Offset && last == end ? region : new(first, NativeBattleTelemetry.Slice(1040, region.Data, first - region.Offset, last - first)));
-            }
-        }
-        foreach (uint address in changed)
-        {
-            Page page = pages[address];
-            for (int index = 0; index < PageLength;)
-            {
-                if (!page.Known[index])
-                {
-                    index++;
-                    continue;
-                }
-                int first = index++;
-                while (index < PageLength && page.Known[index])
-                {
-                    index++;
-                }
-                ranges.Add(new(checked((int)((long)address + first - current.BaseAddress)), ImmutableCollectionsMarshal.AsImmutableArray(NativeBattleTelemetry.Materialize(1039, page.Data.AsSpan(first, index - first)))));
-            }
-        }
-        NativeBattleFileStaging result = current with { KnownRanges = ranges.OrderBy(range => range.Offset).ToImmutableArray(), Transaction = null };
-        foreach (uint address in changed)
-        {
-            result = result.ForgetLoaderZero(address, PageLength);
-        }
-        result.Validate();
-        return result;
-    }
-
-    private Page CachedPage(uint address)
-    {
-        if (!pages.TryGetValue(address, out Page? page))
-        {
-            (byte[] data, bool[] known) = source.ReadSnapshotStorage(address, PageLength);
-            page = new(data, known);
-            pages.Add(address, page);
-        }
-        return page;
+        overlay.Publish();
+        return source;
     }
 
     private void RequireRange(uint address, int length)
     {
         RequireActive();
-        if (length < 0 || (ulong)address + (uint)length > (ulong)uint.MaxValue + 1)
-        {
-            throw new InvalidDataException("Native staging access leaves its physical address extent.");
-        }
+        NativeBattleFileStaging.RequirePhysicalRange(address, length);
     }
 
     internal void RequireActive() => ObjectDisposedException.ThrowIf(disposed, this);
 
     public void Dispose()
     {
-        disposed = true;
-        pages.Clear();
+        if (!disposed)
+        {
+            disposed = true;
+            owner.ReturnOverlay(overlay);
+        }
     }
 }

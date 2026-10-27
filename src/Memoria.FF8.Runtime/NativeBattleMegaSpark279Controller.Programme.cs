@@ -11,7 +11,7 @@ public static partial class NativeBattleMegaSpark279Controller
         {
             NativeBattleModulePoolTask task = Read(frame, address);
             task.RequireKnownPayload(offset, bytes);
-            return new(task.Payload.AsSpan().Slice(offset - 12, bytes).ToArray().ToImmutableArray());
+            return new(task.ReadRawPayloadSpan().Slice(offset - 12, bytes).ToArray().ToImmutableArray());
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {

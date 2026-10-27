@@ -61,7 +61,8 @@ public sealed record NativeBattleRinoa86SceneMemory([property: JsonRequired] Nat
         RequireRange(offset, 2);
         Span<byte> bytes = stackalloc byte[2];
         BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
-        return this with { Settings = Settings.Write(offset, bytes) };
+        Settings.Write(offset, bytes);
+        return this;
     }
 
     public bool CanRequestPhase(short phase) => SignedWord(68) == SignedWord(64) && SignedWord(68) == phase - 1;
@@ -69,10 +70,7 @@ public sealed record NativeBattleRinoa86SceneMemory([property: JsonRequired] Nat
     public void Validate()
     {
         Settings.Validate();
-        if (Settings.Regions.Any(region => region.Offset > 84 - region.Data.Length) || Settings.UnknownRegions.Any(region => region.Offset > 84 - region.Length))
-        {
-            throw new InvalidDataException("Native Rinoa86 scene bytes leave their original84-byte workspace.");
-        }
+        Settings.ValidateExtent(84);
     }
 
     private static void RequireRange(int offset, int count)

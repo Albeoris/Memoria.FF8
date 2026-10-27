@@ -14,7 +14,7 @@ public static partial class NativeBattleNoMercy200Controller
         (pool, int slot) = pool.Append(0x63AD20);
         frame = frame with { Random = frame.Random.Draw(out ushort random) };
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 0).WriteWord(16, unchecked((ushort)anchor.X)).WriteWord(18, 0).WriteWord(20, unchecked((ushort)anchor.Z)).WriteWord(22, unchecked((ushort)anchor.W)).WriteWord(24, (ushort)(random % 2048)).WriteWord(28, 3584).WriteWord(32, 6912);
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+        return new(frame, pool.WriteSlot(slot, task), 0);
     }
 
     public static NativeBattleNoMercy200ChildStep Begin63AE80(NativeBattleNoMercy200Frame frame, NativeBattleEffectTaskPool pool)
@@ -23,7 +23,7 @@ public static partial class NativeBattleNoMercy200Controller
         (pool, int slot) = pool.Append(0x63AF40);
         frame = frame with { Random = frame.Random.Draw(out ushort random) };
         NativeBattleModulePoolTask task = TaskDword(TaskDword(pool.Slots[slot], 16, unchecked((uint)ReadDword(frame.Staging, 0x24FBCD8))), 20, unchecked((uint)ReadDword(frame.Staging, 0x24FBCDC))).WriteWord(12, 0).WriteWord(24, (ushort)(random % 1024)).WriteWord(26, 40).WriteWord(28, 384).WriteWord(30, 384);
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+        return new(frame, pool.WriteSlot(slot, task), 0);
     }
 
     public static NativeBattleNoMercy200ChildStep Begin63CBD0(NativeBattleNoMercy200Frame frame, NativeBattleEffectTaskPool pool)
@@ -36,7 +36,7 @@ public static partial class NativeBattleNoMercy200Controller
             task = task.WriteWord(26, unchecked((ushort)((speed & 1) != 0 ? -speed : speed))).WriteWord(28, 56).WriteWord(30, 56).WriteWord(32, (ushort)(Rand() % 4096));
             speed = Rand() % 70 + 30;
             task = task.WriteWord(34, unchecked((ushort)((speed & 1) != 0 ? -speed : speed)));
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         return new(frame, pool, 0);
 
@@ -160,7 +160,7 @@ public static partial class NativeBattleNoMercy200Controller
         }
         task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
         int end = callback == 0x63AD20 ? 40 : callback == 0x63CD00 ? 37 : callback == 0x63DBD0 ? 14 : 16;
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, Word(task, 12) >= end ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), Word(task, 12) >= end ? 2 : 0);
     }
 
     private static NativeBattleNoMercy200Frame PlaceImpact400(NativeBattleNoMercy200Frame frame)

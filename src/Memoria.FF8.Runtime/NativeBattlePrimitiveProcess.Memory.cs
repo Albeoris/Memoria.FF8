@@ -17,7 +17,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
         }
     }
     private static readonly ConditionalWeakTable<NativeBattlePrimitiveReference, NativeBattlePrimitiveReference> NormalizedCommonReferences = new();
-    private static readonly ConditionalWeakTable<NativeBattleCommonPacketMemory, object> ValidatedCommonMemory = new();
+
     [JsonIgnore]
     internal NativeBattleCommonPacketTransaction? CommonTransaction { get; init; }
 
@@ -65,7 +65,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
     {
         if (CommonTransaction is { } transaction)
         {
-            transaction.MarkUnknown(offset, length);
+            transaction.MarkUnknown(this, offset, length);
             return this;
         }
         ValidateCommonPacketMemory();
@@ -84,7 +84,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
     {
         if (CommonTransaction is { } transaction)
         {
-            return transaction.Read(offset, count);
+            return transaction.Read(this, offset, count);
         }
         ValidateCommonPacketMemory();
         CommonSliceRange slices = CommonSlices(offset, count);
@@ -101,7 +101,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
     {
         if (CommonTransaction is { } transaction)
         {
-            return transaction.ReadSnapshot(offset, count);
+            return transaction.ReadSnapshot(this, offset, count);
         }
         ValidateCommonPacketMemory();
         CommonSliceRange slices = CommonSlices(offset, count);
@@ -117,9 +117,9 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
         return (bytes, known);
     }
 
-    private readonly record struct CommonSlice(int Bank, int Offset, int Count, int SourceOffset);
+    internal readonly record struct CommonSlice(int Bank, int Offset, int Count, int SourceOffset);
 
-    private readonly record struct CommonSliceRange(int Bank, int Stride, int Offset, int Count)
+    internal readonly record struct CommonSliceRange(int Bank, int Stride, int Offset, int Count)
     {
         public Enumerator GetEnumerator() => new(this);
 
@@ -144,7 +144,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
         }
     }
 
-    private CommonSliceRange CommonSlices(int offset, int count)
+    internal CommonSliceRange CommonSlices(int offset, int count)
     {
         int bank = CommonBank(out int stride);
         RequireCommonRange(offset, count, CommonPacketWriteCapacity);
@@ -157,50 +157,21 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
         {
             return;
         }
-        memory.Bank070Buffer0?.Transaction?.RequireActive();
-        memory.Bank070Buffer1?.Transaction?.RequireActive();
-        memory.Bank094Buffer0?.Transaction?.RequireActive();
-        memory.Bank094Buffer1?.Transaction?.RequireActive();
-        _ = ValidatedCommonMemory.GetValue(memory, static retained =>
-        {
-            ValidateCommonPacketStorage(retained);
-            return new object();
-        });
+        ValidateCommonArena(memory.Bank070Buffer0, 114688);
+        ValidateCommonArena(memory.Bank070Buffer1, 114688);
+        ValidateCommonArena(memory.Bank094Buffer0, 147456);
+        ValidateCommonArena(memory.Bank094Buffer1, 147456);
     }
 
-    private static void ValidateCommonPacketStorage(NativeBattleCommonPacketMemory memory)
+    private static void ValidateCommonArena(NativeBattleEffectArena? arena, int capacity)
     {
-        NativeBattleEffectArena?[] banks = [memory.Bank070Buffer0, memory.Bank070Buffer1, memory.Bank094Buffer0, memory.Bank094Buffer1];
-        for (int index = 0; index < banks.Length; index++)
+        if (arena is not null)
         {
-            if (banks[index] is not { } arena)
-            {
-                continue;
-            }
-            arena.Validate();
-            int capacity = index < 2 ? 114688 : 147456;
-            if (arena.Regions.Any(region => region.Offset > capacity - region.Data.Length) || arena.UnknownRegions.Any(region => region.Offset > capacity - region.Length))
-            {
-                throw new InvalidDataException("Native common packet memory exceeds its selected physical heap capacity.");
-            }
-            IEnumerable<(int Offset, int Length)> spans = arena.Regions.Select(region => (region.Offset, region.Data.Length)).Concat(arena.UnknownRegions.Select(region => (region.Offset, region.Length))).OrderBy(region => region.Offset);
-            int covered = 0;
-            foreach ((int offset, int length) in spans)
-            {
-                if (offset > covered)
-                {
-                    throw new InvalidDataException("Native common packet memory has unclassified bytes; common heaps have no implicit cleared holes.");
-                }
-                covered = Math.Max(covered, checked(offset + length));
-            }
-            if (covered != capacity)
-            {
-                throw new InvalidDataException("Native common packet memory must classify its entire physical capacity as explicit data or unknown bytes.");
-            }
+            arena.ValidateExplicitCoverage(capacity);
         }
     }
 
-    private int CommonBank(out int capacity)
+    internal int CommonBank(out int capacity)
     {
         if (PacketBuffer > 1 || PacketBank is not ("off_B6D070" or "off_B6D094"))
         {
@@ -210,7 +181,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
         return (PacketBank == "off_B6D070" ? 0 : 2) + PacketBuffer;
     }
 
-    private NativeBattleEffectArena? CommonArena(int bank)
+    internal NativeBattleEffectArena? CommonArena(int bank)
     {
         return bank switch
         {
@@ -222,7 +193,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
         };
     }
 
-    private NativeBattlePrimitiveProcess StoreCommonArena(int bank, NativeBattleEffectArena arena)
+    internal NativeBattlePrimitiveProcess StoreCommonArena(int bank, NativeBattleEffectArena arena)
     {
         NativeBattleCommonPacketMemory memory = CommonPacketMemory ?? new(null, null, null, null);
         memory = bank switch
@@ -236,9 +207,9 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
         return this with { CommonPacketMemory = memory };
     }
 
-    private static NativeBattleEffectArena UnknownCommonArena(int capacity)
+    internal static NativeBattleEffectArena UnknownCommonArena(int capacity)
     {
-        return new([]) { UnknownRegions = [new(0, capacity)] };
+        return NativeBattleEffectArena.CreateUnknown(capacity);
     }
 
     private static void RequireCommonRange(int offset, int count, int capacity)

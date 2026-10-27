@@ -151,7 +151,7 @@ public static class NativeBattleDuel216Particles
         return new(frame, Store(pool, slot, task), next < (accelerating ? 8 : 12) ? 0 : 2);
     }
 
-    private static NativeBattleEffectTaskPool Store(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool with { Slots = pool.Slots.SetItem(slot, task) };
+    private static NativeBattleEffectTaskPool Store(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool.WriteSlot(slot, task);
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, NativeBattleVector point) => task.WriteWord(12, unchecked((ushort)point.X)).WriteWord(14, unchecked((ushort)point.Y)).WriteWord(16, unchecked((ushort)point.Z));
     private static NativeBattleVector Point(NativeBattleModulePoolTask task) => new(unchecked((short)task.ReadWord(12)), unchecked((short)task.ReadWord(14)), unchecked((short)task.ReadWord(16)));
     private static bool Full(NativeBattleEffectTaskPool pool) => pool.Slots.All(task => (task.Flags & 1) != 0);

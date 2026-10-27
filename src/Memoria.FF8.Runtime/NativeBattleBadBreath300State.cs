@@ -46,24 +46,26 @@ public sealed record NativeBattleBadBreath300State([property: JsonRequired] Nati
         {
             NativeBattleBadBreath300Resources.ValidateMesh(meshB);
         }
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        if (Globals.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > Length - region.Length))
-        {
-            throw new InvalidDataException("Bad Breath unknown globals leave their original module.");
-        }
+        Globals.ValidateExtent(Length);
     }
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Require(address, 4), 4));
     public NativeBattleBadBreath300State WriteDword(uint address, uint value)
     {
         byte[] bytes = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-        return this with { Globals = Globals.Write(Require(address, 4), bytes) };
+        Globals.Write(Require(address, 4), bytes);
+        return this;
     }
     public NativeBattleEffectArena ReadView(uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(Globals, Require(address, length), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
-    public NativeBattleBadBreath300State WriteView(uint address, NativeBattleEffectArena source, int length) => this with { Globals = NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length) };
+    public NativeBattleBadBreath300State WriteView(uint address, NativeBattleEffectArena source, int length)
+    {
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length);
+        return this;
+    }
     public ImmutableArray<byte> ReadMesh(uint address) => (address == NativeBattleBadBreath300Profile.MeshAAddress ? MeshA : address == NativeBattleBadBreath300Profile.MeshBAddress ? MeshB : throw new InvalidDataException("Bad Breath selected an unsupported mutable mesh owner.")) ?? throw new NotSupportedException("Bad Breath requires its actual retained executable mesh publication.");
     public NativeBattleBadBreath300State WriteMesh(uint address, ImmutableArray<byte> bytes)
     {

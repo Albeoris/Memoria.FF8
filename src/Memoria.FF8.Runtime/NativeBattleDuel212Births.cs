@@ -21,7 +21,7 @@ public static partial class NativeBattleDuel212Controller
             task = task.WriteWord(18, 0).WriteWord(20, 0).WriteWord(22, 0);
             task = task.WriteByte(27, unchecked((byte)(lifeBase + ((lifeSpread * Rand()) >> 15))));
             task = task.WriteByte(28, unchecked((byte)Rand())).WriteByte(29, unchecked((byte)Rand())).WriteByte(30, unchecked((byte)Rand())).WriteByte(31, unchecked((byte)Rand()));
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         while (count-- != 0);
         return new(frame, pool, 0);
@@ -55,7 +55,7 @@ public static partial class NativeBattleDuel212Controller
         task = task.WriteWord(18, unchecked((ushort)(node.GeometryIndex != 0 ? speed + 90 : -90 - speed)));
         task = task.WriteByte(27, 10).WriteWord(32, unchecked((ushort)(((Rand() << 12) >> 15) + 2048)));
         task = task.WriteByte(28, unchecked((byte)Rand())).WriteByte(29, unchecked((byte)Rand())).WriteByte(30, unchecked((byte)Rand())).WriteByte(31, unchecked((byte)Rand()));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+        return new(frame, pool.WriteSlot(slot, task), 0);
 
         int Rand()
         {

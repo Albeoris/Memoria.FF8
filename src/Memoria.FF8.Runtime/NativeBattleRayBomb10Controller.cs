@@ -16,10 +16,10 @@ public static partial class NativeBattleRayBomb10Controller
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new NotSupportedException("Native627E60 requires its actual action parameters.");
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x24C91F8, 0x24C91D8, 0x10, 2);
         (root, int rootSlot) = root.Append(0x629730);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x24C9988, 0x24C9998, 0x24, 100);
         (children, int director) = children.Append(0x627F10);
-        children = children with { Slots = children.Slots.SetItem(director, children.Slots[director].WriteWord(12, 0)) };
+        children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
         byte[] particles = retained.Particles.ToArray();
         for (int index = 0; index < 80; index++)
         {
@@ -97,7 +97,7 @@ public static partial class NativeBattleRayBomb10Controller
             throw new NotSupportedException("Native Ray-Bomb completion lost its restore callback owner.");
         }
         task = task.WriteWord(14, (ushort)((task.ReadWord(14) & 0xFF00) | value));
-        return effect with { Pools = effect.Pools.SetItem(0, pool with { Slots = pool.Slots.SetItem(slot, task) }) };
+        return effect with { Pools = effect.Pools.SetItem(0, pool.WriteSlot(slot, task)) };
     }
 
     private sealed partial class Execution(NativeBattleRayBomb10Frame frame, NativeBattleRayBomb10Resources resources, NativeBattleRayBomb10Inputs inputs)
@@ -112,7 +112,7 @@ public static partial class NativeBattleRayBomb10Controller
         }
         private bool DrawOnly => (inputs.GraphicsFlags & 0x201) != 0;
         public void SetPool(int pool, NativeBattleEffectTaskPool state) => Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(pool, state) } };
-        public void Write(int pool, int slot, NativeBattleModulePoolTask task) => SetPool(pool, Frame.Effect.Pools[pool] with { Slots = Frame.Effect.Pools[pool].Slots.SetItem(slot, task) });
+        public void Write(int pool, int slot, NativeBattleModulePoolTask task) => SetPool(pool, Frame.Effect.Pools[pool].WriteSlot(slot, task));
         private NativeBattleModulePoolTask Read(int slot) => Frame.Effect.Pools[1].Slots[slot];
         private void Put(int slot, NativeBattleModulePoolTask task) => Write(1, slot, task);
         private void Execute(NativeBattleRayBomb10Operation operation) => Frame = inputs.Execute(Frame, operation);

@@ -15,7 +15,7 @@ public static class NativeBattleEffectOverlayPackets
 
     private static NativeBattleGfGeometryBatch Emit(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, uint callback, Action<ushort>? observeDepth)
     {
-        if (task.Callback != callback || task.Payload.IsDefault || task.Payload.Length != 68)
+        if (task.Callback != callback || task.Payload.IsDefault || task.PayloadLength != 68)
         {
             throw new InvalidDataException("Native8D6790 requires its original80-byte task and callback.");
         }

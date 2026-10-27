@@ -19,7 +19,7 @@ public static partial class NativeBattleBoomerangSword304Controller
         {
             NativeBattleModulePoolTask task = Read(frame, address);
             task.RequireKnownPayload(workspaceOffset, workspaceBytes);
-            return new(task.Payload.AsSpan().Slice(workspaceOffset - 12, workspaceBytes).ToArray().ToImmutableArray());
+            return new(task.ReadRawPayloadSpan().Slice(workspaceOffset - 12, workspaceBytes).ToArray().ToImmutableArray());
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {

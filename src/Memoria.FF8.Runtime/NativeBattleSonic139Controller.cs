@@ -18,7 +18,7 @@ public static partial class NativeBattleSonic139Controller
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Sonic Wave requires its current arena."), tim);
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (roots, int slot) = roots.Append(RootCallback);
-        roots = roots with { Slots = roots.Slots.SetItem(slot, roots.Slots[slot].WriteBytes(12, new byte[8])) };
+        roots = roots.WriteSlot(slot, roots.Slots[slot].WriteBytes(12, new byte[8]));
         NativeBattleSonic139State state = frame.State.CopyEntrySnapshot6A8860(resources).WriteDword(InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
         return frame with { State = state with { RootBankStorage = null }, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [roots], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
@@ -154,7 +154,7 @@ public static partial class NativeBattleSonic139Controller
             throw new InvalidDataException("Sonic Wave completion byte leaves its actual main task.");
         }
         NativeBattleEffectTaskPool pool = effect.Pools[index];
-        return effect with { Pools = effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteByte(0x13, value)) }) };
+        return effect with { Pools = effect.Pools.SetItem(index, pool.WriteSlot(0, pool.Slots[0].WriteByte(0x13, value))) };
     }
 
     private static void RequireBinding(NativeBattleSonic139Frame frame)

@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleFileStaging
@@ -10,36 +8,23 @@ public sealed partial record NativeBattleFileStaging
         {
             throw new ArgumentOutOfRangeException(nameof(length));
         }
+        RequireWritableRange(address, length);
         if (length == 0)
         {
             return this;
         }
-        NativeBattleFileStaging current = address < BaseAddress ? Rebase(address) : this;
-        if (current.Transaction is { } transaction)
+        if (address < BaseAddress)
+        {
+            Rebase(address);
+        }
+        if (Transaction is { } transaction)
         {
             transaction.MarkUnknown(address, length);
-            return current.InvalidateResourcePointers(address, length);
         }
-        int first = current.Offset(address);
-        int end = checked(first + length);
-        ImmutableArray<NativeBattleEffectMemoryRegion>.Builder known = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
-        foreach (NativeBattleEffectMemoryRegion region in current.KnownRanges)
+        else
         {
-            int regionEnd = checked(region.Offset + region.Data.Length);
-            if (regionEnd <= first || region.Offset >= end)
-            {
-                known.Add(region);
-                continue;
-            }
-            if (region.Offset < first)
-            {
-                known.Add(new(region.Offset, NativeBattleTelemetry.Slice(1028, region.Data, 0, first - region.Offset)));
-            }
-            if (regionEnd > end)
-            {
-                known.Add(new(end, NativeBattleTelemetry.Slice(1029, region.Data, end - region.Offset, regionEnd - end)));
-            }
+            RequireOwner().MarkUnknown(address, length);
         }
-        return (current with { KnownRanges = known.ToImmutable() }).ForgetLoaderZero(address, length).InvalidateResourcePointers(address, length);
+        return this;
     }
 }

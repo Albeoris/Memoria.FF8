@@ -76,7 +76,7 @@ public static partial class NativeBattleLionHeart165Controller
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= 301 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= 301 ? 2 : 0);
     }
 
     private static NativeBattleLionHeart165Frame Interpolate(NativeBattleLionHeart165Frame frame, uint points, int count, uint destination)

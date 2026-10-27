@@ -24,7 +24,7 @@ public static partial class NativeBattleLionHeart165Controller
         {
             frame = inputs.Execute(frame, new NativeBattleLionHeart165StageFlags(false));
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, released ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), released ? 2 : 0);
     }
 
     public static NativeBattleLionHeart165ChildStep Advance5F0130(NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleLionHeart165Inputs inputs)
@@ -38,7 +38,7 @@ public static partial class NativeBattleLionHeart165Controller
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, Word(task, 12) >= 12 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), Word(task, 12) >= 12 ? 2 : 0);
     }
 
     public static NativeBattleLionHeart165ChildStep Advance5F01B0(NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool, int slot, Func<NativeBattleLionHeart165Frame, uint, NativeBattleLionHeart165Frame> beginTextureLoad)
@@ -54,6 +54,6 @@ public static partial class NativeBattleLionHeart165Controller
         }
         bool released = task.ReadWord(14) != 0;
         task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, released ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), released ? 2 : 0);
     }
 }

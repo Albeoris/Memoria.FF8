@@ -15,7 +15,7 @@ public static class NativeBattleGilgameshExcalipoorAttack
     public static NativeBattleGilgameshAttackStep Advance(NativeBattleGilgameshAttackProfile profile, NativeBattleModulePoolTask task, NativeBattleEffectTaskPool children, NativeCrtRandomState random, uint graphicsFlags, ImmutableArray<byte> contactActors, Func<byte, NativeBattleModuleAnchor> readAnchor571400)
     {
         profile.Validate();
-        if (task.Callback != profile.Callback || task.Payload.IsDefault || task.Payload.Length != 24 || children.DescriptorAddress != 0x21FFD58 || children.BankAddress != 0x21FFD68 || children.Stride != 36 || children.Slots.Length != 100 || contactActors.IsDefault || contactActors.Length > byte.MaxValue)
+        if (task.Callback != profile.Callback || task.Payload.IsDefault || task.PayloadLength != 24 || children.DescriptorAddress != 0x21FFD58 || children.BankAddress != 0x21FFD68 || children.Stride != 36 || children.Slots.Length != 100 || contactActors.IsDefault || contactActors.Length > byte.MaxValue)
         {
             throw new InvalidDataException("Native Gilgamesh attack requires its actual raw task, child bank and physical header contacts.");
         }
@@ -68,7 +68,7 @@ public static class NativeBattleGilgameshExcalipoorAttack
 
         void Publish(int slot, NativeBattleModulePoolTask value)
         {
-            children = children with { Slots = children.Slots.SetItem(slot, value) };
+            children = children.WriteSlot(slot, value);
         }
     }
 

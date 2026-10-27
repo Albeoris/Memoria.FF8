@@ -13,10 +13,10 @@ public static partial class NativeBattleGatlingGun305Controller
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Gatling Gun requires its current texture queue.");
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (root, int rootSlot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int mainSlot) = children.Append(MainCallback);
-        children = children with { Slots = children.Slots.SetItem(mainSlot, children.Slots[mainSlot].WriteWord(12, 0)) };
+        children = children.WriteSlot(mainSlot, children.Slots[mainSlot].WriteWord(12, 0));
         NativeBattleGatlingGun305State state = frame.State.WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(TargetGlobal, inputs.Packets.ReadContact(first).Primary.ActorIndex).WriteDword(CasterGlobal, Parameters(frame).Actor78).ClearSlotHeads();
         textures = textures.Register5099A0(resources.Camera);
         (textures, _) = textures.EnqueueArenaTim505E30(frame.Memory.Arena ?? throw new NotSupportedException("Gatling Gun requires its current resource arena."), tim);

@@ -104,7 +104,7 @@ public static partial class NativeBattleBlastingZone164Controller
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
         bool released = callback is 0x5F1E70 or 0x5F3B30 ? Word(task, 12) >= lifetime : task.ReadWord(12) >= lifetime;
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, released ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), released ? 2 : 0);
 
         void Emit(uint address, NativeBattleActionMatrix matrix, uint flags, int? fade, bool common = false, bool tinted = false, byte shift = 2)
         {

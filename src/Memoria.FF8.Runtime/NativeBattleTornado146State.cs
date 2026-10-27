@@ -14,42 +14,57 @@ public sealed record NativeBattleTornado146State([property: JsonRequired] Native
     public void Validate()
     {
         Storage.Validate();
-        if (Storage.Regions.Any(region => region.Offset > WorkLength - region.Data.Length) || Storage.UnknownRegions.Any(region => region.Offset > WorkLength - region.Length) || CapturePacket is { } packet && (packet.IsDefault || packet.Length != 24))
+        Storage.ValidateExtent(WorkLength);
+        if (CapturePacket is { } packet && (packet.IsDefault || packet.Length != 24))
         {
             throw new InvalidDataException("Native Tornado requires its complete bounded module and capture packet owners.");
         }
     }
 }
 
-public sealed class NativeBattleTornado146Work
+public sealed class NativeBattleTornado146Work : IDisposable
 {
     private readonly NativeBattleTornado146State state;
     private NativeBattleEffectArenaWriter writer;
-    private readonly byte[] data;
-    private readonly bool[] known;
 
     public NativeBattleTornado146Work(NativeBattleTornado146State state)
     {
         state.Validate();
         this.state = state;
         writer = new(state.Storage);
-        (data, known) = state.Storage.ReadSnapshot(0, NativeBattleTornado146State.WorkLength);
     }
 
-    public byte Byte(uint address) => Read(address, 1)[0];
-    public ushort Word(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
+    public byte Byte(uint address)
+    {
+        Span<byte> bytes = stackalloc byte[1];
+        ReadInto(address, bytes);
+        return bytes[0];
+    }
+    public ushort Word(uint address)
+    {
+        Span<byte> bytes = stackalloc byte[2];
+        ReadInto(address, bytes);
+        return BinaryPrimitives.ReadUInt16LittleEndian(bytes);
+    }
     public short SignedWord(uint address) => unchecked((short)Word(address));
-    public uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
+    public uint Dword(uint address)
+    {
+        Span<byte> bytes = stackalloc byte[4];
+        ReadInto(address, bytes);
+        return BinaryPrimitives.ReadUInt32LittleEndian(bytes);
+    }
     public int SignedDword(uint address) => unchecked((int)Dword(address));
     public byte[] Read(uint address, int count)
     {
         RequireRange(address, count);
         int offset = checked((int)(address - NativeBattleTornado146State.WorkAddress));
-        if (known.AsSpan(offset, count).Contains(false))
-        {
-            throw new NotSupportedException("Native Tornado read reaches an unresolved retained model or scratch byte.");
-        }
-        return data.AsSpan(offset, count).ToArray();
+        return writer.ReadThrough(offset, count);
+    }
+
+    private void ReadInto(uint address, Span<byte> bytes)
+    {
+        RequireRange(address, bytes.Length);
+        writer.ReadIntoThrough(checked((int)(address - NativeBattleTornado146State.WorkAddress)), bytes);
     }
 
     public void WriteByte(uint address, byte value) => Write(address, [value]);
@@ -71,8 +86,6 @@ public sealed class NativeBattleTornado146Work
     {
         RequireRange(address, bytes.Length);
         int offset = checked((int)(address - NativeBattleTornado146State.WorkAddress));
-        bytes.CopyTo(data.AsSpan(offset));
-        known.AsSpan(offset, bytes.Length).Fill(true);
         writer = writer.Write(offset, bytes);
     }
 
@@ -80,18 +93,18 @@ public sealed class NativeBattleTornado146Work
     {
         RequireRange(address, count);
         int offset = checked((int)(address - NativeBattleTornado146State.WorkAddress));
-        return (data.AsSpan(offset, count).ToArray(), known.AsSpan(offset, count).ToArray());
+        return writer.ReadSnapshotThrough(offset, count);
     }
 
     public void MarkUnknown(uint address, int count)
     {
         RequireRange(address, count);
         int offset = checked((int)(address - NativeBattleTornado146State.WorkAddress));
-        known.AsSpan(offset, count).Fill(false);
         writer = writer.MarkUnknown(offset, count);
     }
 
     public NativeBattleTornado146State Freeze() => state with { Storage = writer.Freeze() };
+    public void Dispose() => writer.Dispose();
 
     private static void RequireRange(uint address, int count)
     {

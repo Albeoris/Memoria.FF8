@@ -10,7 +10,7 @@ public static class NativeBattleTornado146Ground
 {
     public static NativeBattleTornado146State Initialize615160(NativeBattleTornado146State state, NativeBattleStaticMeshResource mesh, Action<int, uint>? storeContext = null)
     {
-        NativeBattleTornado146Work work = new(state);
+        using NativeBattleTornado146Work work = new(state);
         for (uint address = 0x2491BC0; address < 0x2491CE0; address += 4)
         {
             work.WriteDword(address, 1);

@@ -62,7 +62,7 @@ public static class NativeBattleBlindController
                 int contact = inputs.Packets.Headers[parameters.HeaderIndex7C + action].FirstContactIndex ?? throw new NotSupportedException("Native Blind requires its actual first action target.");
                 byte model = inputs.Packets.ReadContact(contact).Primary.ActorIndex;
                 (pools[1], int slot) = pools[1].Append(0x6BE080);
-                NativeBattleModulePoolTask target = pools[1].Slots[slot] with { Payload = new byte[0x830].ToImmutableArray() };
+                NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0x830);
                 target = target.WriteWord(14, checked((ushort)action)).WriteDword(24, checked(0x1D972C0u + model * 156u));
                 NativeBattleGfAnimationWorkspace workspace = new(target.Payload.Slice(16, 0x820));
                 target = StoreWorkspace(target, workspace.Initialize7016B0(resources.Layout, 0x820));
@@ -138,7 +138,7 @@ public static class NativeBattleBlindController
 
         void Store(int index, int slot, NativeBattleModulePoolTask task)
         {
-            pools[index] = pools[index] with { Slots = pools[index].Slots.SetItem(slot, task) };
+            pools[index] = pools[index].WriteSlot(slot, task);
         }
     }
 
@@ -152,8 +152,6 @@ public static class NativeBattleBlindController
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] bytes = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(bytes.AsSpan(16));
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteRetainedBytes(12 + (16), workspace.Data.AsSpan());
     }
 }

@@ -30,8 +30,8 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Native Ultra Waves completion requires its original waiting callback.");
             }
             NativeBattleModulePoolTask task = root.Slots[slot];
-            task = task with { Payload = task.Payload.SetItem(2, value) };
-            root = root with { Slots = root.Slots.SetItem(slot, task) };
+            task = task.WriteByte(12 + (2), value);
+            root = root.WriteSlot(slot, task);
             return effect with { Pools = effect.Pools.SetItem(0, root) };
         }
     }

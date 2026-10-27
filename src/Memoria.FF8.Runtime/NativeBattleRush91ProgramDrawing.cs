@@ -121,7 +121,7 @@ public static class NativeBattleRush91ProgramDrawing
 
     private static void RequireTask(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != 0x108 - 12 || task.ReadDword(0x74) != source.Address)
+        if (task.PayloadLength != 0x108 - 12 || task.ReadDword(0x74) != source.Address)
         {
             throw new InvalidDataException("Native Rush program requires its complete108-byte task and exact retained source pointer.");
         }
@@ -135,12 +135,10 @@ public static class NativeBattleRush91ProgramDrawing
         }
     }
 
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.Payload.AsSpan().Slice(0x94 - 12, 0x70).ToArray().ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.ReadRawPayloadSpan().Slice(0x94 - 12, 0x70).ToArray().ToImmutableArray());
 
     private static NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] bytes = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(bytes.AsSpan(0x94 - 12, 0x70));
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteRetainedBytes(12 + (0x94 - 12), workspace.Data.AsSpan());
     }
 }

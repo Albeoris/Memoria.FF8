@@ -18,7 +18,7 @@ public static class NativeBattleGilgameshSwordTrail
         }
         int slot;
         (pool, slot) = pool.Append(0x5943D0);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 0)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 0));
         NativeBattleEffectArena memory = state.Memory;
         for (int index = 0; index < 10; index++)
         {
@@ -30,7 +30,7 @@ public static class NativeBattleGilgameshSwordTrail
     public static NativeBattleGilgameshSwordTrailStep Step5943D0(NativeBattleGilgameshSwordTrailState state, NativeBattleModulePoolTask task, int selector, Func<int, byte, short, NativeBattleVector> readBone502170, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, NativeBattleSummonColors colors, NativeBattleGilgameshSwordTrailResources resources, uint graphicsFlags)
     {
         state.Validate();
-        if (task.Payload.IsDefault || task.Payload.Length != 24 || (uint)selector >= 4)
+        if (task.Payload.IsDefault || task.PayloadLength != 24 || (uint)selector >= 4)
         {
             throw new InvalidDataException("Native5943D0 requires its raw0x24-byte task and actual sword selector.");
         }

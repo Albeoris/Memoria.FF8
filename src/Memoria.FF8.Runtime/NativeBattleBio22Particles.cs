@@ -107,7 +107,7 @@ public static class NativeBattleBio22Particles
                 frame = frame with { Task = advanced.Task };
                 if (advanced.Result == 1)
                 {
-                    NativeBattleBio22BillboardAppend request = new(selfAddress, frame.Task.ReadWord(0x68), frame.Task.Payload.AsSpan().Slice(0x30 - 12, 16).ToArray().ToImmutableArray());
+                    NativeBattleBio22BillboardAppend request = new(selfAddress, frame.Task.ReadWord(0x68), frame.Task.ReadRawPayloadSpan().Slice(0x30 - 12, 16).ToArray().ToImmutableArray());
                     frame = inputs.AppendBillboard(frame, request);
                     frame = frame with { Task = frame.Task.WriteByte(0x26, (byte)(frame.Task.ReadByte(0x26) | 1)).WriteByte(0x29, 2) };
                 }
@@ -136,7 +136,7 @@ public static class NativeBattleBio22Particles
 
     private static void Require(NativeBattleModulePoolTask task, uint callback)
     {
-        if (task.Callback != callback || task.Payload.IsDefault || task.Payload.Length != 0x70 - 12)
+        if (task.Callback != callback || task.Payload.IsDefault || task.PayloadLength != 0x70 - 12)
         {
             throw new InvalidDataException("Native Bio particle requires its actual hierarchy callback and task extent.");
         }

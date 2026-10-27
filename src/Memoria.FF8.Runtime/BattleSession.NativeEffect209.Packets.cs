@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
         NativeBattleGeometryPrimitive linked = new(draw.Bucket, words, []);
         NativeBattleGfGeometryBatch batch = new([new(0, bytes.ToImmutableArray(), mask.ToImmutableArray(), linked)], 40);
-        NativeBattleEffectArena retained = new(work.Regions);
+        NativeBattleEffectArena retained = work.Arena;
         batch = NativeBattlePacketBatchWords.ResolveWithKnownness(batch, offset, NativeBattleGuardianWorkBuffer.Length, address =>
         {
             (byte[] value, bool[] known) = retained.ReadSnapshot(address, 1);

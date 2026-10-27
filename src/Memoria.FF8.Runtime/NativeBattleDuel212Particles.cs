@@ -44,7 +44,7 @@ public static partial class NativeBattleDuel212Controller
             task = task.WriteWord(16, unchecked((ushort)(Word(task, 16) + 4 * SignedByte(task, 22))));
             task = task.WriteWord(12, unchecked((ushort)(Word(task, 12) + 4 * SignedByte(task, 20))));
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, complete ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), complete ? 2 : 0);
     }
 
     public static NativeBattleDuel212Step SpawnSprites(NativeBattleDuel212Frame frame, NativeBattleEffectTaskPool pool, int count, byte lifetime, NativeBattleVector origin, int spread, short bias, sbyte vx, sbyte vy, sbyte vz, int scaleSpread, short scaleBase, uint callback)
@@ -63,7 +63,7 @@ public static partial class NativeBattleDuel212Controller
             task = task.WriteWord(16, unchecked((ushort)(origin.Z + bias + ((spread * Rand()) >> 15))));
             task = task.WriteWord(18, unchecked((ushort)(scaleBase + ((scaleSpread * Rand()) >> 15))));
             task = task.WriteByte(20, unchecked((byte)vx)).WriteByte(21, unchecked((byte)vy)).WriteByte(22, unchecked((byte)vz)).WriteByte(23, lifetime);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         while (count-- != 0);
         return new(frame, pool, 0);
@@ -120,7 +120,7 @@ public static partial class NativeBattleDuel212Controller
             task = task.WriteWord(18, unchecked((ushort)(Word(task, 18) + SignedByte(task, 24))));
             task = task.WriteWord(22, unchecked((ushort)(Word(task, 22) + SignedByte(task, 26))));
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, complete ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), complete ? 2 : 0);
     }
 
     private static NativeBattleDuel212Resources Resources(NativeBattleDuel212Frame frame) => frame.Memory.Duel212?.Resources ?? throw new NotSupportedException("Native Burning Rave requires original entered resources.");

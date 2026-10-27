@@ -84,7 +84,7 @@ public static partial class NativeBattleTheEnd85Controller
             throw new NotSupportedException("Native The End resource completion pointer is not a root byte.");
         }
         int slot = (int)(relative / pool.Stride);
-        return effect with { Pools = effect.Pools.SetItem(poolIndex, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x62, value)) }) };
+        return effect with { Pools = effect.Pools.SetItem(poolIndex, pool.WriteSlot(slot, pool.Slots[slot].WriteByte(0x62, value))) };
     }
 
     private static NativeBattleTheEnd85State RequireState(NativeBattleTheEnd85Frame frame)

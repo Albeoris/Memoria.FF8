@@ -329,7 +329,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         {
             bank = bank.Write(first, image.AsSpan(first, end - first));
         }
-        Textures = Textures with { VramRegions = bank.Regions };
+        Textures = Textures with { VramRegions = bank.Capture().Regions };
         imageChanged = false;
     }
 }

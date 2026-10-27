@@ -16,7 +16,7 @@ public sealed record NativeBattleChoco97IoBanks([property: JsonRequired] uint Ba
     public void Validate()
     {
         Bytes.Validate();
-        if (Length <= 0 || Length > NativeBattleEffectArena.Length || (ulong)BaseAddress + (uint)Length > uint.MaxValue || Bytes.Regions.Any(region => region.Offset > Length - region.Data.Length) || Bytes.UnknownRegions.Any(region => region.Offset > Length - region.Length))
+        if (Length <= 0 || Length > NativeBattleEffectArena.Length || (ulong)BaseAddress + (uint)Length > uint.MaxValue || Bytes.ExceedsExtent(Length))
         {
             throw new InvalidDataException("Native Choco IO external bytes require their supplied bounded absolute address span.");
         }

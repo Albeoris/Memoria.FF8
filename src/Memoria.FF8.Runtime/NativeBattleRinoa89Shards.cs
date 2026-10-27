@@ -21,7 +21,7 @@ public static partial class NativeBattleRinoa89Controller
         staging = staging.Write(temporary.Address + 28, BitConverter.GetBytes((short)160)).Write(temporary.Address + 30, BitConverter.GetBytes((short)108)).Write(temporary.Address + 32, new byte[2]).MarkUnknown(temporary.Address + 34, 2);
         byte[] lookup = staging.Read(0x14AF4E0, 512);
         ImmutableArray<ushort> squareRoots = Enumerable.Range(0, 256).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(lookup.AsSpan(index * 2))).ToImmutableArray();
-        NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
+        using NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
         for (int triangle = 0; triangle < count; triangle++)
         {
             NativeBattleVector[] points = new NativeBattleVector[3];
@@ -91,7 +91,7 @@ public static partial class NativeBattleRinoa89Controller
     public static NativeBattleRinoa89Frame AdvanceShards6FD100(NativeBattleRinoa89Frame frame, int distance)
     {
         NativeBattleEffectArena arena = RequireArena(frame);
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < 120; index++)
         {
             int offset = 24228 + index * 52;

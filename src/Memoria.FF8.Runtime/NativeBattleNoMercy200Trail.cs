@@ -9,7 +9,7 @@ public static partial class NativeBattleNoMercy200Controller
     public static NativeBattleNoMercy200ChildStep Begin63A220(NativeBattleNoMercy200Frame frame, NativeBattleEffectTaskPool pool)
     {
         (pool, int slot) = pool.Append(0x63A250);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 0)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 0));
         NativeBattleFileStaging staging = frame.Staging;
         for (uint address = 0x24FBCE8; address < 0x24FBD60; address += 20)
         {
@@ -90,7 +90,7 @@ public static partial class NativeBattleNoMercy200Controller
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, Word(task, 12) >= 152 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), Word(task, 12) >= 152 ? 2 : 0);
 
         NativeBattleFileStaging Spline(NativeBattleFileStaging current, uint points, uint output)
         {

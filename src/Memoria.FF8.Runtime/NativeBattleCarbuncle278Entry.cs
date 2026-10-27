@@ -29,7 +29,7 @@ public static class NativeBattleCarbuncle278Entry
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainBank, 0x14, 1);
         (pool, int slot) = pool.Append(MainCallback);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteDword(0xC, 0).WriteDword(0x10, 0);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
         int count = header.ReadByte(0x10);
         int sum = 0;

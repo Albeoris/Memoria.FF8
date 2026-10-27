@@ -16,7 +16,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         {
             if (advance)
             {
-                pool = pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(14, (ushort)(delay - 1))) };
+                pool = pool.WriteSlot(slot, task.WriteWord(14, (ushort)(delay - 1)));
             }
             return new(frame, pool, 0);
         }
@@ -32,7 +32,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, unchecked((short)task.ReadWord(12)) >= 10 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), unchecked((short)task.ReadWord(12)) >= 10 ? 2 : 0);
     }
 
     public static NativeBattleRenzokuken160ChildStep Advance57B520(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleSearchSpriteResource sprite, Func<byte, NativeBattleModuleAnchor> readAnchor, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
@@ -44,7 +44,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         {
             if (advance)
             {
-                pool = pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(14, (ushort)(delay - 1))) };
+                pool = pool.WriteSlot(slot, task.WriteWord(14, (ushort)(delay - 1)));
             }
             return new(frame, pool, 0);
         }
@@ -125,7 +125,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, survivors == 0 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), survivors == 0 ? 2 : 0);
 
         int Rand()
         {

@@ -213,7 +213,7 @@ public sealed partial class BattleSession
                 case NativeBattleDuel216BoundsUpdate bounds:
                     NativeBattleDuel216PreparationBounds measured = Bounds(current, bounds.Model);
                     NativeBattleEffectTaskPool main = Bank(measured.Frame, NativeBattleDuel216Controller.Main);
-                    main = main with { Slots = main.Slots.SetItem(bounds.Slot, main.Slots[bounds.Slot].WriteWord(6108, unchecked((ushort)measured.Maximum)).WriteWord(6110, unchecked((ushort)measured.Minimum))) };
+                    main = main.WriteSlot(bounds.Slot, main.Slots[bounds.Slot].WriteWord(6108, unchecked((ushort)measured.Maximum)).WriteWord(6110, unchecked((ushort)measured.Minimum)));
                     return StoreBank(measured.Frame, main);
                 case NativeBattleDuel216BodyDraw body:
                     Publish(current);
@@ -306,7 +306,7 @@ public sealed partial class BattleSession
                 BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(28), matrix.Z);
                 return (bytes, known);
             });
-            return StoreBank(current, main with { Slots = main.Slots.SetItem(slot, captured) });
+            return StoreBank(current, main.WriteSlot(slot, captured));
         }
     }
 }

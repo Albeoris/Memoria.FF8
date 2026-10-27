@@ -17,7 +17,7 @@ public static partial class NativeBattleBeamLaser134Controller
         ushort saved = inputs.ReadModel(caster).Flags0;
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8])) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
         frame = frame with { State = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(caster)).WriteDword(SavedCasterFlagsGlobal, saved), Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
         return inputs.Execute(frame, new NativeBattleBeamLaser134ActorFlags(caster, 8, 8));
     }
@@ -196,7 +196,7 @@ public static partial class NativeBattleBeamLaser134Controller
                     task = task.MarkPayloadUnknown(12 + index, 1);
                 }
             }
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
         }
         return pool;
     }
@@ -220,7 +220,7 @@ public static partial class NativeBattleBeamLaser134Controller
             NativeBattleEffectTaskPool pool = frame.Effect.Pools[index];
             if (address >= pool.BankAddress && address < pool.BankAddress + (uint)(pool.Stride * pool.Slots.Length) && (address - pool.BankAddress) % pool.Stride == 0)
             {
-                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(checked((int)((address - pool.BankAddress) / pool.Stride)), task) });
+                return WithPool(frame, index, pool.WriteSlot(checked((int)((address - pool.BankAddress) / pool.Stride)), task));
             }
         }
         throw new NotSupportedException("Beam Laser task write has no current physical owner.");

@@ -197,7 +197,7 @@ public static class NativeBattleChoco99Meteo
     }
     private static void Require(NativeBattleModulePoolTask task, uint callback, int size)
     {
-        if (task.Callback != callback || task.Payload.IsDefault || task.Payload.Length != size - 12)
+        if (task.Callback != callback || task.Payload.IsDefault || task.PayloadLength != size - 12)
         {
             throw new InvalidDataException("Native Choco99 auxiliary requires its complete original task and callback.");
         }

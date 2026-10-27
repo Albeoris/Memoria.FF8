@@ -6,47 +6,52 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleModulePoolTask
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableDictionary<int, NativeBattleResourcePointer>? ResourcePointers { get; init; }
+    public ImmutableDictionary<int, NativeBattleResourcePointer>? ResourcePointers { get => RequireSnapshotData().Pointers; init => RejectInitializer(); }
 
-    internal NativeBattleModulePoolTask WithoutResourcePointers(int offset, int length)
+    public IEnumerable<KeyValuePair<int, NativeBattleResourcePointer>> EnumerateResourcePointers()
     {
-        if (ResourcePointers is null || length == 0)
+        if (owner is null)
         {
-            return this;
-        }
-        ImmutableDictionary<int, NativeBattleResourcePointer> updated = ResourcePointers;
-        foreach ((int field, _) in ResourcePointers)
-        {
-            if (field < (long)offset + length && field + 4L > offset)
+            foreach (var entry in RequireSnapshotData().Pointers ?? ImmutableDictionary<int, NativeBattleResourcePointer>.Empty)
             {
-                updated = updated.Remove(field);
+                yield return entry;
+            }
+            yield break;
+        }
+        int start = Start;
+        using var pointerEntries = owner.Body.EnumerateResourcePointers();
+        while (pointerEntries.MoveNext())
+        {
+            (int offset, NativeBattleResourcePointer? pointer) = pointerEntries.Current;
+            if (offset >= start + 12 && offset + 4 <= start + owner.Stride)
+            {
+                yield return new(offset - start, pointer ?? throw new InvalidDataException("Native task pointer metadata lacks its physical source."));
             }
         }
-        return ReferenceEquals(updated, ResourcePointers) ? this : this with { ResourcePointers = updated.IsEmpty ? null : updated };
     }
 
     internal void ValidateResourcePointers()
     {
         ValidateUnknownPayloadRanges();
-        if (ResourcePointers is null)
+        if (owner is not null)
         {
             return;
         }
-        foreach ((int offset, NativeBattleResourcePointer pointer) in ResourcePointers)
+        foreach ((int offset, NativeBattleResourcePointer pointer) in EnumerateResourcePointers())
         {
-            RequirePointerRange(offset);
+            RequirePayloadRange(offset, 4);
             if (pointer is null || !pointer.HasValidOwner())
             {
                 throw new InvalidDataException("Native task resource pointer requires its actual physical source.");
             }
             if ((pointer.StagingAddress ?? pointer.Cpu?.PhysicalAddress) is uint numeric)
             {
-                if (this.ReadDword(offset) != numeric)
+                if (ReadDword(offset) != numeric)
                 {
                     throw new InvalidDataException("Native task resource pointer differs from its physical DWORD.");
                 }
             }
-            else if (UnknownPayloadRanges is not { } ranges || !ranges.Any(range => range.Offset <= offset && range.Offset + (long)range.Length >= offset + 4L))
+            else if (RequireSnapshotData().Unknown is not { } ranges || !ranges.Any(range => range.Offset <= offset && range.Offset + (long)range.Length >= offset + 4L))
             {
                 throw new InvalidDataException("Native task symbolic resource row must retain unknown numeric bytes.");
             }
@@ -55,22 +60,24 @@ public sealed partial record NativeBattleModulePoolTask
 
     public NativeBattleResourcePointer ReadResourcePointer(int offset)
     {
-        RequirePointerRange(offset);
+        RequirePayloadRange(offset, 4);
+        if (owner is not null)
+        {
+            return owner.Body.ReadResourcePointer(Start + offset) ?? throw new InvalidDataException("Native task pointer metadata lacks its source owner.");
+        }
         ValidateResourcePointers();
-        return ResourcePointers is not null && ResourcePointers.TryGetValue(offset, out NativeBattleResourcePointer? pointer) ? pointer : new(null, this.ReadDword(offset));
+        return RequireSnapshotData().Pointers is { } pointers && pointers.TryGetValue(offset, out NativeBattleResourcePointer? pointer) ? pointer : new(null, ReadDword(offset));
     }
 
     public NativeBattleModulePoolTask WriteResourcePointer(int offset, NativeBattleResourcePointer? pointer)
     {
-        RequirePointerRange(offset);
+        RequirePayloadRange(offset, 4);
         if (pointer is null || !pointer.HasValidOwner())
         {
             throw new NotSupportedException("Native task pointer write requires its actual source owner.");
         }
-        NativeBattleModulePoolTask current = (pointer.StagingAddress ?? pointer.Cpu?.PhysicalAddress) is uint numeric ? this.WriteDword(offset, numeric) : MarkPayloadUnknown(offset, 4);
-        current = current with { ResourcePointers = (current.ResourcePointers ?? ImmutableDictionary<int, NativeBattleResourcePointer>.Empty).SetItem(offset, pointer) };
-        current.ValidateResourcePointers();
-        return current;
+        RequireOwner().Body.SetResourcePointer(Start + offset, pointer);
+        return this;
     }
 
     public NativeBattleResourceRowReference ReadResourceRowReference(int offset)
@@ -83,16 +90,5 @@ public sealed partial record NativeBattleModulePoolTask
         return new(pointer.CpuRow, pointer.StagingAddress);
     }
 
-    public NativeBattleModulePoolTask WriteResourceRowReference(int offset, NativeBattleResourceRowReference row)
-    {
-        return WriteResourcePointer(offset, new(null, row.StagingAddress) { CpuRow = row.CpuRow });
-    }
-
-    private void RequirePointerRange(int offset)
-    {
-        if (Payload.IsDefault || offset < 12 || offset > Payload.Length + 8)
-        {
-            throw new InvalidDataException("Native task pointer access leaves its physical payload.");
-        }
-    }
+    public NativeBattleModulePoolTask WriteResourceRowReference(int offset, NativeBattleResourceRowReference row) => WriteResourcePointer(offset, new(null, row.StagingAddress) { CpuRow = row.CpuRow });
 }

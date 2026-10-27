@@ -184,10 +184,7 @@ public static class NativeBattleEffect60Act
     internal static NativeBattleEffectArena RequirePacked8(NativeBattleEffectArena arena)
     {
         arena.Validate();
-        if (arena.Regions.Any(region => region.Offset > 8 - region.Data.Length) || arena.UnknownRegions.Any(region => region.Offset > 8 - region.Length))
-        {
-            throw new InvalidDataException("Effect60 packed model field exceeds its actual eight bytes.");
-        }
+        arena.ValidateExtent(8);
         return arena;
     }
     internal static NativeBattleEffectArena WriteWord(NativeBattleEffectArena arena, int offset, int value)

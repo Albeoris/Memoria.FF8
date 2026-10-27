@@ -103,7 +103,7 @@ public static partial class NativeBattleGilgameshController
         {
             (int index, int slot) = Locate(address);
             NativeBattleEffectTaskPool pool = Frame.Effect.Pools[index];
-            Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) }) } };
+            Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(index, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback))) } };
         }
 
         private uint Append(uint callback, bool particle = false)
@@ -112,7 +112,7 @@ public static partial class NativeBattleGilgameshController
             NativeBattleEffectTaskPool pool = Frame.Effect.Pools[index];
             int slot;
             (pool, slot) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 0)) };
+            pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 0));
             Frame = Frame with { Effect = Frame.Effect with { Pools = Frame.Effect.Pools.SetItem(index, pool) } };
             return checked(pool.BankAddress + (uint)(slot * pool.Stride));
         }

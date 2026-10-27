@@ -86,7 +86,7 @@ public static class NativeBattleShivaModelParticles
         NativeBattleEffectTaskPool pool = frame.Pool;
         (pool, int slot) = pool.Append(0x5C5BE0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0x0C, 0).WriteWord(0x1C, 35).WriteWord(0x1E, 35).WriteWord(0x22, 1228);
-        return frame with { Pool = pool with { Slots = pool.Slots.SetItem(slot, task) } };
+        return frame with { Pool = pool.WriteSlot(slot, task) };
     }
 
     public static NativeBattleShivaEarlyTaskStep Advance5C5BE0(NativeBattleShivaEarlyTaskFrame frame, int slot, uint graphicsFlags, NativeBattleActionMatrix entryWorld, NativeBattleStaticMeshResource mesh, Func<NativeBattleShivaEarlyTaskFrame, int, int, NativeBattleVector> sampleBone502170, Func<NativeBattleShivaEarlyTaskFrame, NativeBattleShivaModelBillboardDraw, NativeBattleShivaEarlyTaskFrame> drawMesh)
@@ -129,7 +129,7 @@ public static class NativeBattleShivaModelParticles
             int speed = unchecked((short)task.ReadWord(0x22));
             task = task.WriteWord(0x1C, unchecked((ushort)(task.ReadWord(0x1C) + speed))).WriteWord(0x22, unchecked((ushort)(speed - speed / 8)));
         }
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Pool = frame.Pool.WriteSlot(slot, task) };
         return Finish(frame, slot, frame.Memory.Arena, 56, 0);
     }
 
@@ -239,7 +239,7 @@ public static class NativeBattleShivaModelParticles
     private static NativeBattleShivaEarlyTaskStep Finish(NativeBattleShivaEarlyTaskFrame frame, int slot, NativeBattleEffectArena? arena, int threshold, int alive)
     {
         NativeBattleModulePoolTask task = frame.Pool.Slots[slot].WriteWord(0x0C, unchecked((ushort)(frame.Pool.Slots[slot].ReadWord(0x0C) + 1)));
-        frame = frame with { Memory = frame.Memory with { Arena = arena }, Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Memory = frame.Memory with { Arena = arena }, Pool = frame.Pool.WriteSlot(slot, task) };
         return new(frame, unchecked((short)task.ReadWord(0x0C)) >= threshold && alive == 0 ? 2 : 0);
     }
 

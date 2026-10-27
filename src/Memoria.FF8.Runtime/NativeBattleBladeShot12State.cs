@@ -84,15 +84,27 @@ public sealed record NativeBattleBladeShot12State([property: JsonRequired] Nativ
     public NativeBattleBladeShot12State Write(uint address, ReadOnlySpan<byte> bytes)
     {
         (NativeBattleEffectArena arena, int offset) = Owner(address, bytes.Length);
-        return Replace(address, arena.Write(offset, bytes), bytes.Length);
+        arena.Write(offset, bytes);
+        return this;
     }
     public NativeBattleBladeShot12State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleBladeShot12State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleBladeShot12State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleBladeShot12State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleBladeShot12State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     public NativeBattleBladeShot12State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
         (NativeBattleEffectArena arena, int offset) = Owner(address, length);
-        return Replace(address, NativeBattleEffectNodeContextMemory.Copy(source, 0, arena, offset, length), length);
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, arena, offset, length);
+        return this;
     }
 
     private (NativeBattleEffectArena Arena, int Offset) Owner(uint address, int length)
@@ -111,18 +123,6 @@ public sealed record NativeBattleBladeShot12State([property: JsonRequired] Nativ
         }
         RequireRanges(address, length, GlobalRanges);
         return (Globals, checked((int)(address - BaseAddress)));
-    }
-    private NativeBattleBladeShot12State Replace(uint address, NativeBattleEffectArena arena, int length)
-    {
-        if (Contains(address, length, PacketBase, PacketBytes))
-        {
-            return this with { Packets = arena };
-        }
-        if (VertexRanges.Any(range => Contains(address, length, range.Address, range.Length)))
-        {
-            return this with { MutableVertices = arena };
-        }
-        return this with { Globals = arena };
     }
     private static NativeBattleEffectArena UnknownVertices() => NativeBattleEffectArena.Clear().MarkUnknown(0, MutableVerticesLength).MarkUnknown(checked((int)(MutableVerticesB - MutableVerticesA)), MutableVerticesLength);
     private static bool Contains(uint address, int length, uint start, int count) => length >= 0 && address >= start && (ulong)address + (uint)length <= (ulong)start + (uint)count;
@@ -143,11 +143,11 @@ public sealed record NativeBattleBladeShot12State([property: JsonRequired] Nativ
     private static void ValidateRanges(NativeBattleEffectArena arena, uint basis, (uint Address, int Length)[] ranges)
     {
         arena.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in arena.Regions)
+        foreach (NativeBattleEffectStorageRange region in arena.EnumerateDataRanges())
         {
-            RequireRanges(checked(basis + (uint)region.Offset), region.Data.Length, ranges);
+            RequireRanges(checked(basis + (uint)region.Offset), region.Length, ranges);
         }
-        foreach (NativeBattleEffectUnknownRegion region in arena.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in arena.EnumerateUnknownRanges())
         {
             RequireRanges(checked(basis + (uint)region.Offset), region.Length, ranges);
         }
@@ -155,9 +155,6 @@ public sealed record NativeBattleBladeShot12State([property: JsonRequired] Nativ
     private static void ValidateBounded(NativeBattleEffectArena arena, int length)
     {
         arena.Validate();
-        if (arena.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || arena.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Blade Shot retained physical bank exceeds its original allocation.");
-        }
+        arena.ValidateExtent(length);
     }
 }

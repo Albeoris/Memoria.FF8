@@ -54,7 +54,7 @@ public static partial class NativeBattleDuel215Controller
             if (phase == 0)
             {
                 NativeBattleEffectTaskPool particles = ParticlesPool();
-                ReplaceParticles(particles with { Head = null, Tail = null });
+                ReplaceParticles(particles.UpdateLinks(null, null));
                 Initialize(true, 392, 0x1160BB0, 392);
                 NativeBattleGraphicsModel model = services.ReadModel(actor);
                 NativeBattleModelTransform transform = Transform(model);
@@ -286,7 +286,7 @@ public static partial class NativeBattleDuel215Controller
         }
         void Store()
         {
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == Scene ? pool : bank).ToImmutableArray() } };
         }
         void Execute(NativeBattleDuel215SceneOperation operation)
@@ -323,7 +323,7 @@ public static partial class NativeBattleDuel215Controller
             NativeBattleModulePoolTask record = particles.Slots[child].WriteWord(12, unchecked((ushort)position.X)).WriteWord(14, unchecked((ushort)position.Y)).WriteWord(16, unchecked((ushort)position.Z)).WriteWord(18, unchecked((ushort)scale)).WriteDword(20, unchecked((uint)angle));
             NativeBattleGfAnimationWorkspace workspace = new(record.ReadBytes(24, size).ToImmutableArray());
             record = record.WriteBytes(24, workspace.Initialize7016B0(source, size).Data.AsSpan());
-            ReplaceParticles(particles with { Slots = particles.Slots.SetItem(child, record) });
+            ReplaceParticles(particles.WriteSlot(child, record));
             return true;
         }
         NativeBattleEffectTaskPool ParticlesPool() => frame.Effect.Pools.Single(bank => bank.DescriptorAddress == Particles);

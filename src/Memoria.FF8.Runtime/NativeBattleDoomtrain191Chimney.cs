@@ -98,7 +98,7 @@ public static class NativeBattleDoomtrain191Chimney
             result = 2;
         }
         pool = Pool(frame);
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(frame.Effect.Pools.IndexOf(pool), pool with { Slots = pool.Slots.SetItem(slot, task.WriteWord(0xC, age)) }) }, Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(frame.Effect.Pools.IndexOf(pool), pool.WriteSlot(slot, task.WriteWord(0xC, age))) }, Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } };
         return new(frame, result);
 
         short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));

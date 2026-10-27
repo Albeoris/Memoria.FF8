@@ -15,10 +15,7 @@ public sealed record NativeBattleScriptedEffectMemory([property: JsonRequired] N
     public void Validate()
     {
         Core.Validate();
-        if (Core.Regions.Any(region => region.Offset > Length - region.Data.Length) || Core.UnknownRegions.Any(region => region.Offset > Length - region.Length))
-        {
-            throw new InvalidDataException("Native scripted-effect core storage leaves its shared physical window.");
-        }
+        Core.ValidateExtent(Length);
     }
 
     public byte[] Read(uint address, int length)
@@ -36,13 +33,15 @@ public sealed record NativeBattleScriptedEffectMemory([property: JsonRequired] N
     public NativeBattleScriptedEffectMemory Write(uint address, ReadOnlySpan<byte> bytes)
     {
         Validate();
-        return this with { Core = Core.Write(Offset(address, bytes.Length), bytes) };
+        Core.Write(Offset(address, bytes.Length), bytes);
+        return this;
     }
 
     public NativeBattleScriptedEffectMemory MarkUnknown(uint address, int length)
     {
         Validate();
-        return this with { Core = Core.MarkUnknown(Offset(address, length), length) };
+        Core.MarkUnknown(Offset(address, length), length);
+        return this;
     }
 
     public NativeBattleWaterHeader ReadHeader()
@@ -69,30 +68,7 @@ public sealed record NativeBattleScriptedEffectMemory([property: JsonRequired] N
         return WriteSnapshot(destinationAddress, bytes, known);
     }
 
-    private (byte[] Bytes, bool[] Known) Snapshot(int offset, int length)
-    {
-        byte[] bytes = new byte[length];
-        bool[] known = Enumerable.Repeat(true, length).ToArray();
-        foreach (NativeBattleEffectMemoryRegion region in Core.Regions)
-        {
-            int first = Math.Max(offset, region.Offset);
-            int end = Math.Min(offset + length, region.Offset + region.Data.Length);
-            if (end > first)
-            {
-                region.Data.AsSpan().Slice(first - region.Offset, end - first).CopyTo(bytes.AsSpan(first - offset));
-            }
-        }
-        foreach (NativeBattleEffectUnknownRegion region in Core.UnknownRegions)
-        {
-            int first = Math.Max(offset, region.Offset);
-            int end = Math.Min(offset + length, region.Offset + region.Length);
-            if (end > first)
-            {
-                Array.Fill(known, false, first - offset, end - first);
-            }
-        }
-        return (bytes, known);
-    }
+    private (byte[] Bytes, bool[] Known) Snapshot(int offset, int length) => Core.ReadSnapshot(offset, length);
 
     public NativeBattleScriptedEffectMemory WithHeader(NativeBattleWaterHeader header)
     {

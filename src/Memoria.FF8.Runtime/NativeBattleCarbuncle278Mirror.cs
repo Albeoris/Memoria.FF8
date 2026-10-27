@@ -77,7 +77,7 @@ public static class NativeBattleCarbuncle278Mirror
             NativeBattlePrimitiveReference reference = new("20DFAB8", 0, cursor);
             int length = checked(4 + 4 * bytes[3]);
             ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(index * 4))).ToImmutableArray();
-            NativeBattleLogicalOrdering.Builder links = new(ordering);
+            using NativeBattleLogicalOrdering.Builder links = new(ordering);
             links.InvalidatePacketRange(reference, allocation);
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
             links.Prepend(17, reference, words, flags, [0, 0, 0, 0]);

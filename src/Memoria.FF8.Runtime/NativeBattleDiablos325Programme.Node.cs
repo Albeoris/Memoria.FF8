@@ -36,7 +36,7 @@ public static partial class NativeBattleDiablos325Programme
         {
             morphed = true;
             morph = NativeBattleGfMorphGeometry.MorphVertices701390(source.Data, geometry, node.Word40, node.Word42, node.Scalar38);
-            NativeBattleEffectArenaWriter writer = new(memory.Arena ?? throw new NotSupportedException("Native Diablos morph requires its current effect arena."));
+            using NativeBattleEffectArenaWriter writer = new(memory.Arena ?? throw new NotSupportedException("Native Diablos morph requires its current effect arena."));
             for (int vertex = 0; vertex < morph.Length; vertex++)
             {
                 byte[] xyz = new byte[6];

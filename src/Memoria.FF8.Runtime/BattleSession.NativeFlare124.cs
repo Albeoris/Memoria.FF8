@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures };
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(0x2521438, 0x25213E0, 20, 1);
         (roots, _) = roots.Append(0x6BBE40);
-        roots = roots with { Slots = roots.Slots.SetItem(0, roots.Slots[0].WriteDword(12, 0).WriteDword(16, 0)) };
+        roots = roots.WriteSlot(0, roots.Slots[0].WriteDword(12, 0).WriteDword(16, 0));
         return graphics with { OriginalEffect = effect with { Flare124 = new(0), Pools = [roots], ReturnedDescriptor = 0x2521438, DrawArenaOffset = null } };
     }
 
@@ -73,12 +73,12 @@ public sealed partial class BattleSession
                 else
                 {
                     (pools[1], int slot) = pools[1].Append(0x6BC040);
-                    NativeBattleModulePoolTask target = pools[1].Slots[slot] with { Payload = new byte[0xB38].ToImmutableArray() };
+                    NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0xB38);
                     NativeBattleModuleAnchor position = ReadNativeModelAnchor(graphics, actor);
                     target = WindStore(WindStore(target.WriteWord(14, (ushort)action).WriteDword(16, entity).WriteDword(36, color).WriteWord(26, unchecked((ushort)position.W)), 20, new(position.X, position.Y, position.Z)), 28, ReadNativeGraphicsBone(graphics, actor, 0xF0, 0));
                     target = Store(target, 44, new NativeBattleGfAnimationWorkspace(target.Payload.Slice(32, 0xA70)).Initialize7016B0(resources.Burst, 0xA70));
                     target = Store(target, 0xA9C, new NativeBattleGfAnimationWorkspace(target.Payload.Slice(0xA90, 0xA8)).Initialize7016B0(resources.Ring, 0xA8));
-                    pools[1] = pools[1] with { Slots = pools[1].Slots.SetItem(slot, target) };
+                    pools[1] = pools[1].WriteSlot(slot, target);
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));
                 }
             }
@@ -95,8 +95,8 @@ public sealed partial class BattleSession
                     pools[current] = pool;
                     NativeBattleModulePoolTask task = pool.Slots[slot];
                     int result = current == 1 ? Target(ref task) : Particle(ref task);
-                    task = task with { Next = pools[current].Slots[slot].Next };
-                    pools[current] = pools[current] with { Slots = pools[current].Slots.SetItem(slot, task) };
+                    task = task.UpdateHeader(task.Flags, task.State, pools[current].Slots[slot].Next, task.Callback);
+                    pools[current] = pools[current].WriteSlot(slot, task);
                     return new(pools[current], result);
                 });
                 pools[current] = step.Pool;
@@ -105,7 +105,7 @@ public sealed partial class BattleSession
         }
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Flare requires its actual stage.");
         NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)flash), ColorFlags = 0 }).ToImmutableArray() };
-        pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, root) };
+        pools[0] = pools[0].WriteSlot(0, root);
         if (survivors == 0)
         {
             pools[0] = pools[0].Advance((pool, _) => new(pool, 2)).Pool;
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
         else
         {
             int counter = WindWord(root, 12) + 1;
-            pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, root.WriteWord(12, unchecked((ushort)(counter >= 10 ? 0 : counter)))) };
+            pools[0] = pools[0].WriteSlot(0, root.WriteWord(12, unchecked((ushort)(counter >= 10 ? 0 : counter))));
         }
         nativeCrtRandom = random;
         return graphics with { OriginalEffect = effect with { Pools = pools.ToImmutableArray(), ReturnedDescriptor = survivors == 0 ? 0u : 0x2521438u } };
@@ -181,14 +181,14 @@ public sealed partial class BattleSession
                         break;
                     }
                     (pools[2], int slot) = pools[2].Append(0x6BD020);
-                    NativeBattleModulePoolTask particle = pools[2].Slots[slot] with { Payload = new byte[32].ToImmutableArray() };
+                    NativeBattleModulePoolTask particle = pools[2].Slots[slot].ClearPayload(32);
                     short radius = unchecked((short)(scale - (scale >> 2)));
                     particle = WindStore(particle.WriteWord(12, unchecked((ushort)radius)).WriteWord(14, unchecked((ushort)radius)).WriteWord(16, unchecked((ushort)(((Random() * 20) >> 15) - age + 4))).WriteWord(24, 1200), 18, anchor);
                     NativeBattleVector angles = new(unchecked((short)Random()), unchecked((short)Random()), unchecked((short)Random()));
                     NativeBattleVector velocity = NativeBattleGfMatrices.RotateShort56C4F0(NativeBattleGfMatrices.Euler56CD50(angles), new(0, 0, 50));
                     particle = WindStore(particle, 34, velocity);
                     particle = WindStore(particle, 26, new(unchecked((short)Random()), unchecked((short)Random()), unchecked((short)Random())));
-                    pools[2] = pools[2] with { Slots = pools[2].Slots.SetItem(slot, particle) };
+                    pools[2] = pools[2].WriteSlot(slot, particle);
                 }
             }
             if ((burst | ring) == 0)
@@ -291,9 +291,7 @@ public sealed partial class BattleSession
         }
         static NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, int offset, NativeBattleGfAnimationWorkspace workspace)
         {
-            byte[] bytes = task.Payload.ToArray();
-            workspace.Data.AsSpan().CopyTo(bytes.AsSpan(offset - 12));
-            return task with { Payload = bytes.ToImmutableArray() };
+            return task.WriteRetainedBytes(offset, workspace.Data.AsSpan());
         }
     }
 }

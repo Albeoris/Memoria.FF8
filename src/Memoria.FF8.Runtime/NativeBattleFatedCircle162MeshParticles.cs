@@ -135,7 +135,7 @@ public static partial class NativeBattleFatedCircle162Controller
                 }
                 else if (motes)
                 {
-                    staging = staging.Write(address + 8, task.Payload.AsSpan(4, 8));
+                    staging = staging.Write(address + 8, task.ReadRawPayloadSpan().Slice(4, 8));
                     int x = Rand() % 4096 - 2048;
                     int y = Rand() % 4096 - 2048;
                     int z = Rand() % 4096 - 2048;
@@ -167,7 +167,7 @@ public static partial class NativeBattleFatedCircle162Controller
             }
         }
         task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, Word(task, 12) < (streaks ? 3 : 8) || alive != 0 ? 0 : 2);
+        return new(frame, pool.WriteSlot(slot, task), Word(task, 12) < (streaks ? 3 : 8) || alive != 0 ? 0 : 2);
 
         int Rand()
         {

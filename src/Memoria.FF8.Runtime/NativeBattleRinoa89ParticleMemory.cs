@@ -6,7 +6,7 @@ public static partial class NativeBattleRinoa89Controller
 {
     public static NativeBattleRinoa89Frame ClearEmitters6FA2C0(NativeBattleRinoa89Frame frame)
     {
-        NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
+        using NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
         for (int index = 0; index < 128; index++)
         {
             writer.Write(16960 + index * 48, new byte[1]);
@@ -16,7 +16,7 @@ public static partial class NativeBattleRinoa89Controller
 
     public static NativeBattleRinoa89Frame ClearSparks6FA2F0(NativeBattleRinoa89Frame frame)
     {
-        NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
+        using NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
         for (int index = 0; index < 512; index++)
         {
             writer.Write(4672 + index * 24 + 10, new byte[2]);
@@ -26,7 +26,7 @@ public static partial class NativeBattleRinoa89Controller
 
     public static NativeBattleRinoa89Frame InitializeShardRotations6FA320(NativeBattleRinoa89Frame frame)
     {
-        NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
+        using NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
         for (int index = 0; index < 120; index++)
         {
             writer.Write(24228 + index * 52 + 6, new byte[2]);

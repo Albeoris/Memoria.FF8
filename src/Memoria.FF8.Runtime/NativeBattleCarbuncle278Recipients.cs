@@ -29,21 +29,19 @@ public static class NativeBattleCarbuncle278Recipients
         (pool, int index) = pool.Append(0x6822F0);
         uint actor = creature.ReadDword(checked(0x14 + 4 * target));
         NativeBattleModuleAnchor anchor = readAnchor(actor);
-        NativeBattleModulePoolTask task = pool.Slots[index] with { Payload = new byte[0x10C - 12].ToImmutableArray() };
+        NativeBattleModulePoolTask task = pool.Slots[index].ClearPayload(0x10C - 12);
         task = task.WriteDword(0x10, actor).WriteWord(0x5C, unchecked((ushort)anchor.X)).WriteWord(0x5E, 0).WriteWord(0x60, unchecked((ushort)anchor.Z)).WriteWord(0x62, unchecked((ushort)anchor.W)).WriteDword(0x28, unchecked((uint)anchor.X)).WriteDword(0x2C, unchecked((uint)anchor.Y)).WriteDword(0x30, unchecked((uint)anchor.Z));
         NativeBattleGfAnimationSource source = frame.Effect.Binding.Carbuncle278Resources?.RecipientProgramme ?? throw new NotSupportedException("Native Carbuncle recipients require their original programme.");
         if (source.Address != 0x10C1CD8)
         {
             throw new InvalidDataException("Native Carbuncle recipient source changed its original address.");
         }
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(0x64 - 12, 0xA8).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x64 - 12, 0xA8).ToArray().ToImmutableArray());
         workspace = workspace.Initialize7016B0(source, 0xA8);
-        byte[] bytes = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(bytes.AsSpan(0x64 - 12, 0xA8));
-        task = task with { Payload = bytes.ToImmutableArray() };
-        pool = pool with { Slots = pool.Slots.SetItem(index, task) };
+        task = task.WriteRetainedBytes(12 + (0x64 - 12), workspace.Data.AsSpan());
+        pool = pool.WriteSlot(index, task);
         int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 12);
-        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.Payload.AsSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
+        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }
 
     public static NativeBattleCarbuncle278Frame SpawnSparkle6822F0(NativeBattleCarbuncle278Frame frame, uint actor, Func<uint, int> readBoneCount, Func<uint, int, NativeBattleVector> readBone)
@@ -62,9 +60,9 @@ public static class NativeBattleCarbuncle278Recipients
         int count = readBoneCount(actor);
         NativeBattleVector point = readBone(actor, random * count >> 15);
         NativeBattleModulePoolTask task = pool.Slots[index].WriteWord(0xC, unchecked((ushort)point.X)).WriteWord(0xE, unchecked((ushort)point.Y)).WriteWord(0x10, unchecked((ushort)point.Z)).WriteWord(0x12, 0);
-        pool = pool with { Slots = pool.Slots.SetItem(index, task) };
+        pool = pool.WriteSlot(index, task);
         int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 12);
-        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.Payload.AsSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
+        return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }
 
     public static NativeBattleModulePoolTask Cache6DBCC0(NativeBattleModulePoolTask task, short yaw, short scale38, NativeBattleActionMatrix view)

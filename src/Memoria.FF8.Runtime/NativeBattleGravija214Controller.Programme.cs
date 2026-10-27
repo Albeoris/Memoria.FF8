@@ -13,7 +13,7 @@ public static partial class NativeBattleGravija214Controller
         {
             NativeBattleModulePoolTask current = Read(frame, address);
             current.RequireKnownPayload(0x30, 756);
-            return new(current.Payload.AsSpan().Slice(0x30 - 12).ToArray().ToImmutableArray());
+            return new(current.ReadRawPayloadSpan().Slice(0x30 - 12).ToArray().ToImmutableArray());
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(resources.Programme, 0, (current, node) =>
         {

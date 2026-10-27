@@ -75,6 +75,6 @@ public static class NativeBattleUltrasonic152
             throw new InvalidDataException("Native Ultrasonic Waves completion lost its live restore wait task.");
         }
         task = task.WriteWord(14, (ushort)((task.ReadWord(14) & 0xFF00) | value));
-        return effect with { Pools = effect.Pools.SetItem(0, pool with { Slots = pool.Slots.SetItem(slot, task) }) };
+        return effect with { Pools = effect.Pools.SetItem(0, pool.WriteSlot(slot, task)) };
     }
 }

@@ -12,7 +12,7 @@ public static partial class NativeBattleLionHeart165Controller
             SetTask(flash, 16, target.X);
             SetTask(flash, 18, target.Y);
             SetTask(flash, 20, target.Z);
-            pool = pool with { Slots = pool.Slots.SetItem(flash, pool.Slots[flash].MarkPayloadUnknown(22, 2)) };
+            pool = pool.WriteSlot(flash, pool.Slots[flash].MarkPayloadUnknown(22, 2));
             SetTask(flash, 24, Rand() % 1024 - 512);
             int speed = (Rand() % 4608 + 12288) / 3;
             SetTask(flash, 30, speed);
@@ -71,10 +71,10 @@ public static partial class NativeBattleLionHeart165Controller
             int created = Append(callback);
             NativeBattleFileStaging staging = CopyTaskToStaging(frame.Staging, 0x23C6930, pool.Slots[source], 16, 8);
             NativeBattleModulePoolTask copied = CopyStagingToTask(staging, 0x23C6930, pool.Slots[created], 16, 8);
-            pool = pool with { Slots = pool.Slots.SetItem(created, copied) };
+            pool = pool.WriteSlot(created, copied);
             return created;
         }
-        void SetTask(int created, int offset, int value) => pool = pool with { Slots = pool.Slots.SetItem(created, pool.Slots[created].WriteWord(offset, unchecked((ushort)value))) };
+        void SetTask(int created, int offset, int value) => pool = pool.WriteSlot(created, pool.Slots[created].WriteWord(offset, unchecked((ushort)value)));
         void Marker(int created)
         {
             int marker = ReadDword(frame.Staging, 0x23C6940);
@@ -133,7 +133,7 @@ public static partial class NativeBattleLionHeart165Controller
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
-            return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+            return new(frame, pool.WriteSlot(slot, task), 0);
         }
         if (counter <= 8)
         {
@@ -144,16 +144,16 @@ public static partial class NativeBattleLionHeart165Controller
             Append(0x5F0130);
             int spray = Copy(0x5EFCE0);
             int marker = ReadDword(frame.Staging, 0x23C6940);
-            pool = pool with { Slots = pool.Slots.SetItem(spray, pool.Slots[spray].WriteWord(14, unchecked((ushort)marker))) };
+            pool = pool.WriteSlot(spray, pool.Slots[spray].WriteWord(14, unchecked((ushort)marker)));
             frame = frame with { Staging = WriteDword(frame.Staging, 0x23C6940, unchecked((uint)(marker + 1))) };
             int ring = Copy(0x5EFFF0);
             frame = frame with { Random = frame.Random.Draw(out ushort value) };
             int speed = (value % 2048 + 8192) / 4;
-            pool = pool with { Slots = pool.Slots.SetItem(ring, pool.Slots[ring].WriteWord(30, (ushort)speed).WriteWord(28, (ushort)speed)) };
+            pool = pool.WriteSlot(ring, pool.Slots[ring].WriteWord(30, (ushort)speed).WriteWord(28, (ushort)speed));
             ushort old = unchecked((ushort)ReadWord(frame.Staging, 0x23C6738u + (uint)actor * 40));
             frame = inputs.Execute(frame, new NativeBattleLionHeart165ModelFlags(actor, old, old == 0 ? (ushort)0x20 : (ushort)0));
         }
-        task = task.WriteWord(12, unchecked((ushort)(counter + 1))) with { Next = pool.Slots[slot].Next };
+        task = task.WriteWord(12, unchecked((ushort)(counter + 1))).SetNext(pool.Slots[slot].Next);
         short next = Word(task, 12);
         if (next == 16)
         {
@@ -172,18 +172,18 @@ public static partial class NativeBattleLionHeart165Controller
         {
             frame = inputs.Execute(frame, new NativeBattleLionHeart165ModelFlags(actor, 0, 4));
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, next > 16 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), next > 16 ? 2 : 0);
 
         int Append(uint callback)
         {
             (pool, int created) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(created, pool.Slots[created].WriteWord(12, 0)) };
+            pool = pool.WriteSlot(created, pool.Slots[created].WriteWord(12, 0));
             return created;
         }
         int Copy(uint callback)
         {
             int created = Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(created, CopyStagingToTask(frame.Staging, 0x23C6938, pool.Slots[created], 16, 8)) };
+            pool = pool.WriteSlot(created, CopyStagingToTask(frame.Staging, 0x23C6938, pool.Slots[created], 16, 8));
             return created;
         }
     }

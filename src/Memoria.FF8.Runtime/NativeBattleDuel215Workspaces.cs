@@ -16,7 +16,7 @@ public static class NativeBattleDuel215Workspaces
         NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(offset, size).ToImmutableArray());
         workspace = workspace.Initialize7016B0(source, size);
         task = task.WriteBytes(offset, workspace.Data.AsSpan());
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         return Store(frame, pool);
     }
 
@@ -41,7 +41,7 @@ public static class NativeBattleDuel215Workspaces
         });
         pool = Scene(frame);
         task = pool.Slots[slot].WriteBytes(offset, advanced.Workspace.Data.AsSpan());
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         return new(Store(frame, pool), ordering, advanced.Remaining);
     }
 

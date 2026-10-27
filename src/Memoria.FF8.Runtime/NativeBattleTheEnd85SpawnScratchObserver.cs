@@ -10,10 +10,7 @@ internal sealed class NativeBattleTheEnd85SpawnScratchObserver
     internal NativeBattleTheEnd85SpawnScratchObserver(NativeBattleEffectArena view)
     {
         view.Validate();
-        if (view.Regions.Any(region => region.Offset > 180 - region.Data.Length) || view.UnknownRegions.Any(region => region.Offset > 180 - region.Length))
-        {
-            throw new InvalidDataException("Native The End spawn observation requires its bounded physical temporary view.");
-        }
+        view.ValidateExtent(180);
         View = view;
     }
 

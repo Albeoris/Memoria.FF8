@@ -11,7 +11,7 @@ public static class NativeBattleCarbuncle278Morph
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Carbuncle mirror morph requires its actual effect arena.");
         int count = BinaryPrimitives.ReadInt32LittleEndian(first.Bytes.AsSpan().Slice(4));
         ImmutableArray<NativeBattleVector> vertices = NativeBattleGfMorphGeometry.MorphVertices45E9D0(first.Bytes, 8, alternate, 0, count, ratio);
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < vertices.Length; index++)
         {
             NativeBattleVector vertex = vertices[index];

@@ -15,7 +15,7 @@ public static class NativeBattlePetrifyStare127Controller
         (textures, _) = textures.EnqueueArenaTim505E30(Arena(frame), tim);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8])) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
         NativeBattlePetrifyStare127State state = frame.State.WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, ModelAddress(Parameters(frame).Actor78));
         return frame with { State = state, Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
@@ -70,7 +70,7 @@ public static class NativeBattlePetrifyStare127Controller
                 NativeBattleGfAnimationWorkspace firstAct = new NativeBattleGfAnimationWorkspace(target.ReadBytes(0x24, 0x1C8).ToImmutableArray()).Initialize7016B0(resources.FirstAct, 0x1C8);
                 NativeBattleGfAnimationWorkspace secondAct = new NativeBattleGfAnimationWorkspace(target.ReadBytes(0x1EC, 0x2D0).ToImmutableArray()).Initialize7016B0(resources.SecondAct, 0x2D0);
                 target = target.WriteBytes(0x24, firstAct.Data.AsSpan()).WriteBytes(0x1EC, secondAct.Data.AsSpan());
-                frame = WithPool(frame, 1, targetPool with { Slots = targetPool.Slots.SetItem(targetSlot, target) });
+                frame = WithPool(frame, 1, targetPool.WriteSlot(targetSlot, target));
                 frame = Put(frame, 0, slot, frame.Effect.Pools[0].Slots[slot].WriteByte(14, unchecked((byte)(ordinal + 1))));
             }
         }
@@ -200,5 +200,5 @@ public static class NativeBattlePetrifyStare127Controller
     private static uint ModelAddress(int actor) => actor is >= 0 and < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new NotSupportedException("Petrify Stare selected an absent physical actor.");
     private static int Actor(uint pointer) => pointer >= 0x1D972C0 && pointer < 0x1D972C0 + 7 * 156 && (pointer - 0x1D972C0) % 156 == 0 ? checked((int)((pointer - 0x1D972C0) / 156)) : throw new NotSupportedException("Petrify Stare requires an actual physical actor pointer.");
     private static NativeBattlePetrifyStare127Frame WithPool(NativeBattlePetrifyStare127Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
-    private static NativeBattlePetrifyStare127Frame Put(NativeBattlePetrifyStare127Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool] with { Slots = frame.Effect.Pools[pool].Slots.SetItem(slot, task) });
+    private static NativeBattlePetrifyStare127Frame Put(NativeBattlePetrifyStare127Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task));
 }

@@ -21,7 +21,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25215C8, 0x25215A0, 20, 1);
         (root, _) = root.Append(0x6BF070);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0));
         return graphics with { OriginalEffect = effect with { Pools = [root], ReturnedDescriptor = 0x25215C8, DrawArenaOffset = null, Stop119 = new(0) } };
     }
 
@@ -55,14 +55,14 @@ public sealed partial class BattleSession
             {
                 NativeBattleEffectTaskPool pool = targets ?? throw new InvalidDataException("Native Stop lost its target pool.");
                 (pool, int slot) = pool.Append(0x6BF1B0);
-                NativeBattleModulePoolTask task = pool.Slots[slot] with { Payload = new byte[0x4F8].ToImmutableArray() };
+                NativeBattleModulePoolTask task = pool.Slots[slot].ClearPayload(0x4F8);
                 NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters.HeaderIndex7C + action];
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Stop requires the original selected contact.");
                 int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
                 task = WindStore(task.WriteWord(14, (ushort)action).WriteDword(16, checked(0x1D972C0u + (uint)target * 156)), 20, ReadNativeDefaultPosition571400(graphics, target));
                 NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x1C - 12, 0x4E8));
                 task = PublishWorkspace(task, 0x1C, workspace.Initialize7016B0(resources.Clock, 0x4E8));
-                targets = pool with { Slots = pool.Slots.SetItem(slot, task) };
+                targets = pool.WriteSlot(slot, task);
                 root = root.WriteByte(14, unchecked((byte)(action + 1)));
             }
         }
@@ -78,14 +78,14 @@ public sealed partial class BattleSession
                     throw new NotSupportedException("Native Stop selected an unrelated target callback.");
                 }
                 int result = Target(ref task);
-                task = task with { Next = targets.Slots[slot].Next };
-                targets = targets with { Slots = targets.Slots.SetItem(slot, task) };
+                task = task.UpdateHeader(task.Flags, task.State, targets.Slots[slot].Next, task.Callback);
+                targets = targets.WriteSlot(slot, task);
                 return new(targets, result);
             });
             targets = step.Pool;
             survivors = step.Survivors;
         }
-        roots = roots with { Slots = roots.Slots.SetItem(0, root) };
+        roots = roots.WriteSlot(0, root);
         if (survivors == 0)
         {
             roots = roots.Advance((pool, _) => new(pool, 2)).Pool;
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
         else
         {
             int counter = unchecked((short)root.ReadWord(12)) + 1;
-            roots = roots with { Slots = roots.Slots.SetItem(0, root.WriteWord(12, unchecked((ushort)(counter >= 20 ? 0 : counter)))) };
+            roots = roots.WriteSlot(0, root.WriteWord(12, unchecked((ushort)(counter >= 20 ? 0 : counter))));
         }
         nativeCrtRandom = random;
         return graphics with { OriginalEffect = effect with { Pools = targets is null ? [roots] : [roots, targets], ReturnedDescriptor = survivors == 0 ? 0u : 0x25215C8u } };

@@ -21,7 +21,7 @@ public static partial class NativeBattleBlastingZone164Controller
             throw new InvalidDataException("Native Blasting Zone completion requires its live texture task.");
         }
         task = task.WriteWord(14, (ushort)((task.ReadWord(14) & 0xFF00) | value));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         return effect with { Pools = effect.Pools.SetItem(effect.Pools.IndexOf(effect.Pools.Single(current => current.DescriptorAddress == 0x23C8F40)), pool) };
     }
 }

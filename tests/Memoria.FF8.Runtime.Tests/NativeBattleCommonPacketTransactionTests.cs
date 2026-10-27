@@ -39,9 +39,9 @@ public sealed class NativeBattleCommonPacketTransactionTests
         Assert.Equal(10000, total);
         Assert.True(allocated < 1_000_000, $"Physical packet reads allocated {allocated} bytes.");
         NativeBattleCommonPacketMemory memory = process.CommonPacketMemory!;
-        NativeBattleEffectArena invalid = memory.Bank070Buffer0! with { UnknownRegions = [] };
+        NativeBattleEffectArena invalid = NativeBattleStorageSnapshots.Capture(memory.Bank070Buffer0!) with { UnknownRegions = [] };
         Assert.Throws<InvalidDataException>(() => (process with { CommonPacketMemory = memory with { Bank070Buffer0 = invalid } }).ValidateCommonPacketMemory());
-        process = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(process))!;
+        process = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(SnapshotJson(process))!);
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, process.ReadCommonPacket(0, 4));
         using NativeBattleEffectArenaTransaction transaction = new(memory.Bank070Buffer0!);
         NativeBattlePrimitiveProcess borrowed = process with { CommonPacketMemory = memory with { Bank070Buffer0 = transaction.View } };
@@ -54,10 +54,11 @@ public sealed class NativeBattleCommonPacketTransactionTests
     public void ModelProducerStoresPublishOnceAndPreserveTheLatestRendererMetadata()
     {
         NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(0, Enumerable.Repeat((byte)0xA5, 65536).ToImmutableArray(), Known(65536));
-        string original = JsonSerializer.Serialize(source);
+        NativeBattlePrimitiveProcess original = NativeBattleStorageSnapshots.Capture(source);
+        string originalJson = SnapshotJson(original);
         ImmutableArray<NativeBattleCommonPacketStore> stores = [new(20, [1, 2, 3, 4], Known(4))];
         long before = GC.GetAllocatedBytesForCurrentThread();
-        NativeBattlePrimitiveProcess expected = source;
+        NativeBattlePrimitiveProcess expected = NativeBattleStorageSnapshots.Restore(original);
         for (int producer = 0; producer < 16; producer++)
         {
             expected = expected.ApplyCommonWrites(stores) with { ByteCursor = producer * 4 };
@@ -72,10 +73,12 @@ public sealed class NativeBattleCommonPacketTransactionTests
         }
         NativeBattlePrimitiveProcess frozen = transaction.Freeze(actual);
         long sharedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.True(sharedBytes < scalarBytes / 3, $"Shared producers allocated {sharedBytes} bytes versus {scalarBytes} bytes copying common banks.");
+        Assert.Same(source.CommonPacketMemory!.Bank070Buffer0, frozen.CommonPacketMemory!.Bank070Buffer0);
+        Assert.True(sharedBytes < 1_000_000, $"Bounded shared producers allocated {sharedBytes} bytes.");
+        Assert.True(scalarBytes < 1_000_000, $"Bounded scalar producers allocated {scalarBytes} bytes.");
         Assert.Throws<InvalidOperationException>(() => JsonSerializer.Serialize(actual));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(frozen));
-        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(SnapshotJson(expected), SnapshotJson(frozen));
+        Assert.Equal(originalJson, SnapshotJson(original));
         Assert.Equal(60, frozen.ByteCursor);
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, frozen.ReadCommonPacket(20, 4));
     }
@@ -103,8 +106,9 @@ public sealed class NativeBattleCommonPacketTransactionTests
     public void Ordered_masks_crossing_physical_slices_freeze_to_the_identical_immutable_representation(string bank, byte buffer, int capacity)
     {
         NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() with { PacketBank = bank, PacketBuffer = buffer };
-        string original = JsonSerializer.Serialize(source);
-        NativeBattlePrimitiveProcess expected = source;
+        NativeBattlePrimitiveProcess original = NativeBattleStorageSnapshots.Capture(source);
+        string originalJson = SnapshotJson(original);
+        NativeBattlePrimitiveProcess expected = NativeBattleStorageSnapshots.Restore(original);
         using NativeBattleCommonPacketTransaction transaction = new(source);
         NativeBattlePrimitiveProcess actual = transaction.View;
         Random random = new(37);
@@ -117,8 +121,8 @@ public sealed class NativeBattleCommonPacketTransactionTests
             expected = expected.ApplyCommonWrite(offset, bytes.ToImmutableArray(), mask);
             actual = actual.ApplyCommonWrite(offset, bytes.ToImmutableArray(), mask);
         }
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(transaction.Freeze(actual)));
-        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(SnapshotJson(expected), SnapshotJson(transaction.Freeze(actual)));
+        Assert.Equal(originalJson, SnapshotJson(original));
         Assert.Null(transaction.Freeze(actual).CommonTransaction);
     }
 
@@ -126,14 +130,16 @@ public sealed class NativeBattleCommonPacketTransactionTests
     public void Read_through_and_failed_callback_rollback_preserve_completed_stores_and_previous_snapshots()
     {
         NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(0, [1, 2, 3, 4], Known(4));
-        string original = JsonSerializer.Serialize(source);
+        NativeBattlePrimitiveProcess original = NativeBattleStorageSnapshots.Capture(source);
+        string originalJson = SnapshotJson(original);
         using NativeBattleCommonPacketTransaction transaction = new(source);
         NativeBattlePrimitiveProcess actual = transaction.View;
         transaction.BeginCheckpoint();
         actual = actual.ApplyCommonWrite(1, [7], Known(1));
         transaction.CommitCheckpoint();
         NativeBattlePrimitiveProcess completed = transaction.Freeze(actual);
-        string retained = JsonSerializer.Serialize(completed);
+        NativeBattlePrimitiveProcess retainedSnapshot = NativeBattleStorageSnapshots.Capture(completed);
+        string retained = SnapshotJson(retainedSnapshot);
         transaction.BeginCheckpoint();
         actual = actual.ApplyCommonWrite(0, [9], Known(1));
         Assert.Equal(new byte[] { 9, 7, 3, 4 }, actual.ReadCommonPacket(0, 4));
@@ -141,12 +147,66 @@ public sealed class NativeBattleCommonPacketTransactionTests
         Assert.Throws<NotSupportedException>(() => actual.ReadCommonPacket(0, 4));
         transaction.RollbackCheckpoint();
         Assert.Equal(new byte[] { 1, 7, 3, 4 }, actual.ReadCommonPacket(0, 4));
-        Assert.Equal(retained, JsonSerializer.Serialize(transaction.Freeze(actual)));
-        Assert.Equal(retained, JsonSerializer.Serialize(completed));
-        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(retained, SnapshotJson(transaction.Freeze(actual)));
+        Assert.Equal(retained, SnapshotJson(retainedSnapshot));
+        Assert.Equal(originalJson, SnapshotJson(original));
         transaction.Dispose();
         Assert.Throws<ObjectDisposedException>(() => actual.ReadCommonPacket(0, 1));
     }
+
+    [Fact]
+    public void Current_bank_selection_lazy_callback_banks_and_unpublished_suffix_are_isolated()
+    {
+        NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(0, [1, 2, 3, 4], Known(4));
+        NativeBattlePrimitiveProcess before = NativeBattleStorageSnapshots.Capture(source);
+        NativeBattlePrimitiveProcess published;
+        using (NativeBattleCommonPacketTransaction transaction = new(source))
+        {
+            NativeBattlePrimitiveProcess current = transaction.View;
+            transaction.BeginCheckpoint();
+            Assert.Throws<InvalidOperationException>(() => transaction.Freeze(current));
+            current = current.ApplyCommonWrite(0, [9], Known(1));
+            NativeBattlePrimitiveProcess other = current with { PacketBank = "off_B6D094", PacketBuffer = 1, ByteCursor = 31 };
+            other.ApplyCommonWrite(0, [8], Known(1));
+            Assert.Equal(new byte[] { 8 }, other.ReadCommonPacket(0, 1));
+            Assert.Equal(new byte[] { 1, 2, 3, 4 }, source.ReadCommonPacket(0, 4));
+            transaction.RollbackCheckpoint();
+            Assert.All(other.ReadCommonPacketSnapshot(0, 1).Known, value => Assert.False(value));
+            Assert.Null(transaction.Freeze(current).CommonPacketMemory!.Bank094Buffer1);
+            transaction.BeginCheckpoint();
+            other.ApplyCommonWrite(0, [7], Known(1));
+            transaction.CommitCheckpoint();
+            published = transaction.Freeze(other);
+            Assert.Equal(31, published.ByteCursor);
+            Assert.Equal("off_B6D094", published.PacketBank);
+            Assert.Equal((byte)1, published.PacketBuffer);
+            Assert.Equal(new byte[] { 7 }, published.ReadCommonPacket(0, 1));
+            other.ApplyCommonWrite(0, [99], Known(1));
+            Assert.Equal(new byte[] { 7 }, published.ReadCommonPacket(0, 1));
+        }
+        Assert.Equal(new byte[] { 7 }, published.ReadCommonPacket(0, 1));
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, before.ReadCommonPacket(0, 4));
+    }
+
+    [Fact]
+    public void Whole_batch_validation_precedes_overlay_mutation_and_unknown_retains_backing_bytes()
+    {
+        NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(0, [1, 2, 3, 4], Known(4));
+        using NativeBattleCommonPacketTransaction transaction = new(source);
+        NativeBattlePrimitiveProcess current = transaction.View;
+        Assert.Throws<InvalidDataException>(() => transaction.Append(current, [new(0, [9], Known(1)), new(int.MaxValue, [8], [(NativeBattleGfPacketByteState)255])]));
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, current.ReadCommonPacket(0, 4));
+        current.ApplyCommonWrite(1, [99], [NativeBattleGfPacketByteState.Unknown]);
+        (byte[] bytes, bool[] known) = current.ReadCommonPacketSnapshot(0, 4);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, bytes);
+        Assert.Equal(new[] { true, false, true, true }, known);
+        NativeBattlePrimitiveProcess accepted = transaction.Freeze(current);
+        Assert.Same(source.CommonPacketMemory!.Bank070Buffer0, accepted.CommonPacketMemory!.Bank070Buffer0);
+        Assert.Equal(bytes, accepted.ReadCommonPacketSnapshot(0, 4).Bytes);
+        Assert.Equal(known, accepted.ReadCommonPacketSnapshot(0, 4).Known);
+    }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 
     private static ImmutableArray<NativeBattleGfPacketByteState> Known(int count) => Enumerable.Repeat(NativeBattleGfPacketByteState.Known, count).ToImmutableArray();
 }

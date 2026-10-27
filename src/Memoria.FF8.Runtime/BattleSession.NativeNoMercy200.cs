@@ -98,7 +98,7 @@ public sealed partial class BattleSession
                 case 0x63B080:
                 case 0x63CEF0:
                     (pool, int slot) = pool.Append(callback);
-                    pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 0)) };
+                    pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 0));
                     born = new(current, pool, 0);
                     break;
                 default:

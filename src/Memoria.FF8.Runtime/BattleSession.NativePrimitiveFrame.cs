@@ -43,7 +43,7 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native callback primitive submission requires its retained native packet bank.");
         string bank = process.PacketBank ?? throw new NotSupportedException("Native callback primitive submission has no allocated logical packet bank.");
         int cursor = process.ByteCursor ?? throw new NotSupportedException("Native callback primitive submission has no observed packet cursor.");
-        NativeBattleLogicalOrdering.Builder ordering = new(frame.Pending);
+        using NativeBattleLogicalOrdering.Builder ordering = new(frame.Pending);
         ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         foreach (NativeBattleGeometryPrimitive primitive in primitives)
         {

@@ -155,7 +155,7 @@ public static partial class NativeBattleChoco97ProgramDrawing
 
     private static void RequireTask(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleChocoProgramProfile profile)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != profile.TaskBytes - 12 || task.ReadDword(0x74) != source.Address)
+        if (task.PayloadLength != profile.TaskBytes - 12 || task.ReadDword(0x74) != source.Address)
         {
             throw new InvalidDataException("Native Choco program requires its complete task and retained source pointer.");
         }
@@ -169,7 +169,7 @@ public static partial class NativeBattleChoco97ProgramDrawing
         }
     }
 
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task, NativeBattleChocoProgramProfile profile) => new(task.Payload.AsSpan().Slice(0x94 - 12, profile.WorkspaceBytes).ToArray().ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task, NativeBattleChocoProgramProfile profile) => new(task.ReadRawPayloadSpan().Slice(0x94 - 12, profile.WorkspaceBytes).ToArray().ToImmutableArray());
 
     private static NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace, NativeBattleChocoProgramProfile profile)
     {
@@ -177,9 +177,7 @@ public static partial class NativeBattleChoco97ProgramDrawing
         {
             throw new InvalidDataException("Native Choco workspace leaves its caller's physical capacity.");
         }
-        byte[] bytes = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(bytes.AsSpan(0x94 - 12, profile.WorkspaceBytes));
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteRetainedBytes(12 + (0x94 - 12), workspace.Data.AsSpan());
     }
 
     private static int ReadInt(ImmutableArray<byte> source, int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(source, offset, 4));

@@ -60,9 +60,6 @@ public sealed record NativeBattleHoly175WarpState([property: JsonRequired] Nativ
     {
         ArgumentNullException.ThrowIfNull(owner);
         owner.Validate();
-        if (owner.Regions.Any(region => region.Offset > length - region.Data.Length) || owner.UnknownRegions.Any(region => region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Native Holy warp storage leaves its bounded physical owner.");
-        }
+        owner.ValidateExtent(length);
     }
 }

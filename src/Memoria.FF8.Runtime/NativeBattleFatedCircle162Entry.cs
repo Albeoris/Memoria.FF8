@@ -41,10 +41,10 @@ public static partial class NativeBattleFatedCircle162Controller
         }
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x23CE640, 0x23CE620, 16, 2);
         (main, int mainSlot) = main.Append(0x5FD090);
-        main = main with { Slots = main.Slots.SetItem(mainSlot, main.Slots[mainSlot].WriteWord(12, 0)) };
+        main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23CF430, 0x23CF440, 36, 100);
         (children, int childSlot) = children.Append(0x5F91D0);
-        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot].WriteWord(12, 0)) };
+        children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteWord(12, 0));
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native5F90F0 requires its actual texture owner.");
         textures = textures.Register5099A0(resources.StaticData, 0x1688);
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native5F90F0 requires its actual initializer texture.");

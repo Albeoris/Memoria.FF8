@@ -83,10 +83,7 @@ public sealed record NativeBattleHoly175State([property: JsonRequired] bool Cold
     private static void Bound(NativeBattleEffectArena owner, int length)
     {
         owner.Validate();
-        if (owner.Regions.Any(region => region.Offset > length - region.Data.Length) || owner.UnknownRegions.Any(region => region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Native Holy retained storage leaves its actual physical owner.");
-        }
+        owner.ValidateExtent(length);
     }
 }
 

@@ -6,7 +6,7 @@ public static partial class NativeBattleRinoa89Controller
 {
     public static NativeBattleRinoa89Frame InitializeStars6F9D80(NativeBattleRinoa89Frame frame)
     {
-        NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
+        using NativeBattleEffectArenaWriter writer = new(RequireArena(frame));
         NativeCrtRandomState random = frame.Random;
         NativeBattleFileStaging staging = frame.Staging;
         for (int group = 0; group < 8; group++)
@@ -52,7 +52,7 @@ public static partial class NativeBattleRinoa89Controller
     public static NativeBattleRinoa89Frame AdvanceStars6FCF70(NativeBattleRinoa89Frame frame)
     {
         NativeBattleEffectArena arena = RequireArena(frame);
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < 1024; index++)
         {
             int offset = 31748 + index * 16;
@@ -88,7 +88,7 @@ public static partial class NativeBattleRinoa89Controller
     public static NativeBattleRinoa89Frame AdvanceSparks6FCCF0(NativeBattleRinoa89Frame frame)
     {
         NativeBattleEffectArena arena = RequireArena(frame);
-        NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < 512; index++)
         {
             int offset = 4672 + index * 24;

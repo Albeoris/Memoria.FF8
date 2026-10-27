@@ -78,7 +78,7 @@ public static partial class NativeBattleFatedCircle162Controller
                 }
             }
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, complete ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), complete ? 2 : 0);
 
         int Rand()
         {
@@ -164,7 +164,7 @@ public static partial class NativeBattleFatedCircle162Controller
             }
         }
         task = task.WriteWord(20, unchecked((ushort)(Word(task, 20) - 580))).WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, ReadDword(frame.Staging, 0x23D0D80) == 0 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), ReadDword(frame.Staging, 0x23D0D80) == 0 ? 2 : 0);
 
         int Rand()
         {

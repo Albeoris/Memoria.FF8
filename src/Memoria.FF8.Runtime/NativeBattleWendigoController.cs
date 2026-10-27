@@ -166,7 +166,7 @@ public static partial class NativeBattleWendigoController
         }
 
         private NativeBattleModulePoolTask Read(uint address) => hierarchy.Read(address);
-        private void Store(uint address, NativeBattleModulePoolTask task) => hierarchy = hierarchy.Write(address, task.WriteByte(0x28, hierarchy.Read(address).ReadByte(0x28)) with { Next = hierarchy.Read(address).Next });
+        private void Store(uint address, NativeBattleModulePoolTask task) => hierarchy = hierarchy.Write(address, task.WriteByte(0x28, hierarchy.Read(address).ReadByte(0x28)).SetNext(hierarchy.Read(address).Next));
         private static int Stage(NativeBattleModulePoolTask task) => unchecked((sbyte)task.ReadByte(0x29));
         private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
         private static NativeBattleModulePoolTask Next(NativeBattleModulePoolTask task) => task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));

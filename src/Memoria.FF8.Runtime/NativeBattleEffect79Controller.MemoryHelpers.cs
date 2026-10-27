@@ -11,7 +11,7 @@ public static partial class NativeBattleEffect79Controller
     public static NativeBattleEffect79Frame Write(NativeBattleEffect79Frame frame, uint address, NativeBattleModulePoolTask task)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, task with { Next = hierarchy.Read(address).Next }).Pools } };
+        return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, task.UpdateHeader(task.Flags, task.State, hierarchy.Read(address).Next, task.Callback)).Pools } };
     }
 
     public static (NativeBattleEffect79Frame Frame, uint Address) AppendHierarchy(NativeBattleEffect79Frame frame, int index, uint callback, int length, uint parent, NativeBattleEffect79Inputs inputs)
@@ -161,7 +161,7 @@ public static partial class NativeBattleEffect79Controller
 
     public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(offset - 12, length));
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
         foreach (NativeBattleEffectUnknownRegion range in task.UnknownPayloadRanges ?? [])
         {
             int first = Math.Max(offset, range.Offset);

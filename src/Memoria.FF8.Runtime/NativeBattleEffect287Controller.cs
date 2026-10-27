@@ -105,8 +105,8 @@ public static partial class NativeBattleEffect287Controller
         {
             throw new InvalidDataException("Effect287 requires its mesh pool at the native unlink.");
         }
-        NativeBattleEffectTaskPool pool = frame.Effect.Pools[index] with { Tail = null };
-        pool = pool with { Head = null };
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools[index].UpdateLinks(frame.Effect.Pools[index].Head, null);
+        pool = pool.UpdateLinks(null, pool.Tail);
         frame = WithPool(frame, index, pool);
         return DetachCommonBank(frame, MeshDescriptor);
     }

@@ -12,7 +12,7 @@ public static class NativeBattleMoogle96TextureMotion
 {
     public static NativeBattleMoogle96TextureStep Advance739890(NativeBattleModulePoolTask task, NativeBattleMoogle96TextureProgram? program, NativeBattleMoogle96TextureTable? table)
     {
-        if (task.Payload.IsDefault || task.Payload.Length < 0x134 - 12)
+        if (task.Payload.IsDefault || task.PayloadLength < 0x134 - 12)
         {
             throw new InvalidDataException("Native Moogle texture motion requires its complete retained model task fields.");
         }

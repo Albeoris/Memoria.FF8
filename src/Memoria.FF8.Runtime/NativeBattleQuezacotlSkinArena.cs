@@ -16,8 +16,8 @@ public static class NativeBattleQuezacotlSkinArena
         {
             throw new InvalidDataException("Native6C6770 final physical packet cursors leave their actual allocated banks.");
         }
-        NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native6C6770 requires its actual effect arena."));
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native6C6770 requires its actual effect arena."));
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         ImmutableArray<NativeBattleCommonPacketStore>.Builder commonStores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         foreach (NativeBattleQuezacotlSkinWrite write in batch.Writes)
         {

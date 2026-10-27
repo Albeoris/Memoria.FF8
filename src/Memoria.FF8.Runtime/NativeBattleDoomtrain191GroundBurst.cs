@@ -88,7 +88,7 @@ public static class NativeBattleDoomtrain191GroundBurst
             return new(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, 0);
         }
         pool = Pool(frame);
-        frame = PutPool(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0xC, unchecked((ushort)(task.ReadWord(0xC) + 1)))) });
+        frame = PutPool(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0xC, unchecked((ushort)(task.ReadWord(0xC) + 1)))));
         return new(frame, survivors == 0 ? 2 : 0);
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));

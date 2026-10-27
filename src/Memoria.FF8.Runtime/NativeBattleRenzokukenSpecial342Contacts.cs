@@ -32,7 +32,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             NativeBattleModulePoolTask created = pool.Slots[child].WriteWord(12, 0).WriteWord(14, (ushort)contact);
             ushort scale = (ushort)(Rand() % 640 + 1024);
             created = created.WriteWord(28, scale).WriteWord(30, scale);
-            pool = pool with { Slots = pool.Slots.SetItem(child, created) };
+            pool = pool.WriteSlot(child, created);
             NativeBattleRenzokuken160State state = ReadState(frame).Core;
             NativeBattleRenzokukenContactOrigin origin = ContactOrigin(state, contact);
             int impact = contact * 156;
@@ -100,12 +100,12 @@ public static partial class NativeBattleRenzokukenSpecialController
             if (contact is > 0 and < 7)
             {
                 (pool, int extra) = pool.Append(0x5790D0);
-                pool = pool with { Slots = pool.Slots.SetItem(extra, pool.Slots[extra].WriteWord(12, 0).WriteWord(14, (ushort)contact)) };
+                pool = pool.WriteSlot(extra, pool.Slots[extra].WriteWord(12, 0).WriteWord(14, (ushort)contact));
             }
         }
         frame = WriteState(frame, ReadState(frame).Core with { Sparks = sparks.ToImmutableArray(), Debris = debris.ToImmutableArray(), ImpactStates = impacts.ToImmutableArray() });
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) }, unchecked((short)task.ReadWord(12)) >= ReadState(frame).Core.Duration - 1 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), unchecked((short)task.ReadWord(12)) >= ReadState(frame).Core.Duration - 1 ? 2 : 0);
 
         NativeBattleRenzokukenContactOrigin ContactOrigin(NativeBattleRenzokuken160State state, int contact)
         {

@@ -61,9 +61,9 @@ public static class NativeBattleAuraController
                 else if (Available(1))
                 {
                     (pools[1], int slot) = pools[1].Append(0x6CDB60);
-                    NativeBattleModulePoolTask task = pools[1].Slots[slot] with { Payload = new byte[0x354].ToImmutableArray() };
+                    NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x354);
                     task = task.WriteWord(14, checked((ushort)action)).WriteDword(16, pointer);
-                    NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(8, 0x34C).ToArray().ToImmutableArray());
+                    NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(8, 0x34C).ToArray().ToImmutableArray());
                     task = StoreWorkspace(task, workspace.Initialize7016B0(resources.Layout, 0x34C));
                     Store(1, slot, task);
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));
@@ -88,7 +88,7 @@ public static class NativeBattleAuraController
                     NativeBattleVector feet = Bone(actor);
                     NativeBattleActionMatrix local = new([scale, 0, 0, 0, scale, 0, 0, 0, scale], feet.X, transform.Angle36, feet.Z, 4096);
                     NativeBattleActionMatrix placement = NativeBattleGfMatrices.Compose56C2F0(inputs.Projection.View ?? throw new NotSupportedException("Native Aura requires its current camera matrix."), local);
-                    NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(8, 0x34C).ToArray().ToImmutableArray());
+                    NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(8, 0x34C).ToArray().ToImmutableArray());
                     NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Layout, 0, (owner, node) =>
                     {
                         current = NativeBattleAuraDrawing.Part(current, resources, node, placement, inputs);
@@ -110,7 +110,7 @@ public static class NativeBattleAuraController
                         {
                             (pools[2], int child) = pools[2].Append(0x6CE020);
                             NativeBattleVector position = Bone(actor) with { Y = unchecked((short)(transform.Angle36 - 600)) };
-                            NativeBattleModulePoolTask flame = pools[2].Slots[child] with { Payload = new byte[20].ToImmutableArray() };
+                            NativeBattleModulePoolTask flame = pools[2].Slots[child].ClearPayload(20);
                             flame = flame.WriteWord(16, unchecked((ushort)position.X)).WriteWord(18, unchecked((ushort)position.Y)).WriteWord(20, unchecked((ushort)position.Z)).WriteWord(22, checked((ushort)((Roll() & 1023) + 800))).WriteWord(24, unchecked((ushort)angle)).WriteWord(26, unchecked((ushort)speed)).WriteWord(28, checked((ushort)((Roll() & 2047) + 2048)));
                             Store(2, child, flame);
                         }
@@ -180,7 +180,7 @@ public static class NativeBattleAuraController
         return current with { Effect = current.Effect with { Pools = pools.ToImmutableArray(), ReturnedDescriptor = finished ? 0u : RootDescriptor } };
 
         bool Available(int index) => pools[index].Slots.Any(task => (task.Flags & 1) == 0);
-        void Store(int index, int slot, NativeBattleModulePoolTask task) => pools[index] = pools[index] with { Slots = pools[index].Slots.SetItem(slot, task) };
+        void Store(int index, int slot, NativeBattleModulePoolTask task) => pools[index] = pools[index].WriteSlot(slot, task);
         NativeBattleVector Bone(int actor) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), 0xF1, 0);
         ushort Roll()
         {
@@ -194,8 +194,6 @@ public static class NativeBattleAuraController
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] bytes = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(bytes.AsSpan(8));
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteRetainedBytes(12 + (8), workspace.Data.AsSpan());
     }
 }

@@ -246,7 +246,7 @@ public static class NativeBattleCurse47Controller
     }
 
     public static NativeBattleModulePoolTask Read(NativeBattleCurse47Frame frame, uint address) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-    public static NativeBattleCurse47Frame Write(NativeBattleCurse47Frame frame, uint address, NativeBattleModulePoolTask task) => frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task with { Next = Read(frame, address).Next }).Pools } };
+    public static NativeBattleCurse47Frame Write(NativeBattleCurse47Frame frame, uint address, NativeBattleModulePoolTask task) => frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task.UpdateHeader(task.Flags, task.State, Read(frame, address).Next, task.Callback)).Pools } };
     public static NativeBattleCurse47Frame Append(NativeBattleCurse47Frame frame, int pool, uint callback, int bytes, uint parent, NativeBattleActionPacketsState packets)
     {
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Curse child selection requires its captured action parameters.");

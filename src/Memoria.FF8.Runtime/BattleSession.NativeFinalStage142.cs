@@ -101,7 +101,7 @@ public sealed partial class BattleSession
         NativeBattleFinalStage142OverlayStep drawn = NativeBattleFinalStage142Overlay.Build(state, command, buffer == 0 ? environments.Buffer1 : environments.Buffer0, color.PackedRgb);
         state = drawn.State;
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native5127B0 requires its initialized ordering table.");
-        NativeBattleLogicalOrdering.Builder links = new(frame.Pending);
+        using NativeBattleLogicalOrdering.Builder links = new(frame.Pending);
         foreach (NativeBattleFinalStage142OverlayPacket packet in drawn.Packets)
         {
             int wordCount = checked(packet.Bytes[3] + 1);

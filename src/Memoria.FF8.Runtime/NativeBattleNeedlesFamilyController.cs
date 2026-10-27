@@ -15,10 +15,10 @@ public static class NativeBattleNeedlesFamilyController
         int source = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.InitializerGlobal)?.ArenaOffset ?? throw new NotSupportedException("Needles requires its executed texture initializer.");
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(profile.RootDescriptor, profile.RootBank, 16, 1);
         (root, int rootSlot) = root.Append(profile.RootCallback);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(profile.ChildDescriptor, profile.ChildBank, 36, 100);
         (children, int scheduler) = children.Append(profile.SchedulerCallback);
-        children = children with { Slots = children.Slots.SetItem(scheduler, children.Slots[scheduler].WriteWord(12, 0)) };
+        children = children.WriteSlot(scheduler, children.Slots[scheduler].WriteWord(12, 0));
         NativeBattleNeedlesFamilyState state = frame.State.WriteDword(profile.BaseAddress, inputs.Packets.ReadContact(contact).Primary.ActorIndex).WriteDword(profile.ParametersGlobal, 0x1D99A78).WriteDword(profile.CasterGlobal, parameters.Actor78).WriteDword(profile.InitializerGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)source));
         for (int index = 0; index < NativeBattleNeedlesFamilyProfile.RecordCount; index++)
         {
@@ -94,7 +94,7 @@ public static class NativeBattleNeedlesFamilyController
             }
             (pool, int child) = pool.Append(profile.MainCallback);
             NativeBattleModulePoolTask main = pool.Slots[child].WriteWord(12, 0).WriteDword(0x10, task.ReadDword(0x10)).WriteDword(0x14, task.ReadDword(0x14));
-            pool = pool with { Slots = pool.Slots.SetItem(child, main) };
+            pool = pool.WriteSlot(child, main);
             frame = WithPool(frame, 1, pool);
         }
         if (age == (profile.Effect == 177 ? 50 : 85))
@@ -333,7 +333,7 @@ public static class NativeBattleNeedlesFamilyController
         return frame;
     }
     private static NativeBattleNeedlesFamilyFrame WithPool(NativeBattleNeedlesFamilyFrame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
-    private static NativeBattleNeedlesFamilyFrame Put(NativeBattleNeedlesFamilyFrame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool] with { Slots = frame.Effect.Pools[pool].Slots.SetItem(slot, task) });
+    private static NativeBattleNeedlesFamilyFrame Put(NativeBattleNeedlesFamilyFrame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task));
     private static (NativeBattleNeedlesFamilyFrame Frame, uint Address) Allocate(NativeBattleNeedlesFamilyFrame frame, int length)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Needles requires its actual temporary arena."), length);

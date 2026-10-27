@@ -1,6 +1,3 @@
-using System.Buffers.Binary;
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleTemporaryAllocation(NativeBattleFileStaging Staging, uint Address);
@@ -17,7 +14,7 @@ public static class NativeBattleTemporaryMemory
     public static NativeBattleTemporaryAllocation Allocate5082B0(NativeBattleFileStaging staging, int size)
     {
         int length = Aligned(size);
-        uint address = BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(Cursor, 4));
+        uint address = staging.ReadUInt32(Cursor);
         if (address < Address || address > uint.MaxValue - (uint)length)
         {
             throw new InvalidDataException("Native5082B0 requires its initialized physical cursor.");
@@ -28,7 +25,7 @@ public static class NativeBattleTemporaryMemory
     public static NativeBattleFileStaging Release5082D0(NativeBattleFileStaging staging, int size)
     {
         int length = Aligned(size);
-        uint cursor = BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(Cursor, 4));
+        uint cursor = staging.ReadUInt32(Cursor);
         if (cursor < Address || cursor - Address < length)
         {
             throw new InvalidDataException("Native5082D0 cannot release below its physical scratch origin.");
@@ -43,21 +40,22 @@ public static class NativeBattleTemporaryMemory
             throw new ArgumentOutOfRangeException(nameof(length));
         }
         staging.Validate();
-        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleEffectArena.Length);
+        NativeBattleEffectArena result = NativeBattleEffectArena.CreateUnknown(length);
         (byte[] data, bool[] known) = staging.ReadSnapshot(address, length);
+        result.Write(0, data);
         for (int index = 0; index < length;)
         {
-            if (!known[index])
+            if (known[index])
             {
                 index++;
                 continue;
             }
             int first = index++;
-            while (index < length && known[index])
+            while (index < length && !known[index])
             {
                 index++;
             }
-            result = result.Write(first, data.AsSpan(first, index - first));
+            result.MarkUnknown(first, index - first);
         }
         return result;
     }
@@ -69,23 +67,7 @@ public static class NativeBattleTemporaryMemory
             throw new ArgumentOutOfRangeException(nameof(length));
         }
         (byte[] data, bool[] known) = view.ReadSnapshot(0, length);
-        staging = staging.MarkUnknown(address, length);
-        int offset = 0;
-        while (offset < length)
-        {
-            if (!known[offset])
-            {
-                offset++;
-                continue;
-            }
-            int first = offset;
-            while (offset < length && known[offset])
-            {
-                offset++;
-            }
-            staging = staging.Write(checked(address + (uint)first), data.AsSpan(first, offset - first));
-        }
-        return staging;
+        return staging.WriteWithKnownness(address, data, known);
     }
 
     private static int Aligned(int size)
@@ -99,8 +81,6 @@ public static class NativeBattleTemporaryMemory
 
     private static NativeBattleFileStaging WriteCursor(NativeBattleFileStaging staging, uint cursor)
     {
-        byte[] bytes = new byte[4];
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes, cursor);
-        return staging.Write(Cursor, bytes);
+        return staging.WriteUInt32(Cursor, cursor);
     }
 }

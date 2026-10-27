@@ -33,7 +33,7 @@ public static partial class NativeBattleEffect54Controller
             if (offset >= 0 && offset < (long)pool.Stride * pool.Slots.Length && offset % pool.Stride == 0)
             {
                 int slot = (int)(offset / pool.Stride);
-                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) });
+                return WithPool(frame, index, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback)));
             }
         }
         throw new InvalidDataException("Effect54 task write leaves its physical banks.");
@@ -184,15 +184,11 @@ public static partial class NativeBattleEffect54Controller
     public static NativeBattleEffectArena CopyBytes(NativeBattleEffectArena source, int sourceOffset, NativeBattleEffectArena destination, int destinationOffset, int count)
     {
         destination = NativeBattleEffectNodeContextMemory.Copy(source, sourceOffset, destination, destinationOffset, count);
-        var pointers = source.Transaction is { } transaction ? transaction.ResourcePointers : source.ResourcePointers;
-        if (pointers is not null)
+        foreach ((int offset, NativeBattleResourcePointer? pointer) in source.EnumerateResourcePointers())
         {
-            foreach ((int offset, NativeBattleResourcePointer? pointer) in pointers)
+            if (offset >= sourceOffset && offset + 4 <= sourceOffset + count)
             {
-                if (offset >= sourceOffset && offset + 4 <= sourceOffset + count)
-                {
-                    destination = destination.WriteResourcePointer(destinationOffset + offset - sourceOffset, pointer);
-                }
+                destination = destination.WriteResourcePointer(destinationOffset + offset - sourceOffset, pointer);
             }
         }
         return destination;
@@ -251,7 +247,7 @@ public static partial class NativeBattleEffect54Controller
     }
     public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(offset - 12, length));
+        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
         foreach (NativeBattleEffectUnknownRegion range in task.UnknownPayloadRanges ?? [])
         {
             int first = Math.Max(offset, range.Offset);
@@ -274,15 +270,11 @@ public static partial class NativeBattleEffect54Controller
                 task = task.MarkPayloadUnknown(offset + index, 1);
             }
         }
-        var pointers = source.Transaction is { } transaction ? transaction.ResourcePointers : source.ResourcePointers;
-        if (pointers is not null)
+        foreach ((int field, NativeBattleResourcePointer? pointer) in source.EnumerateResourcePointers())
         {
-            foreach ((int field, NativeBattleResourcePointer? pointer) in pointers)
+            if (field >= 0 && field + 4 <= length)
             {
-                if (field >= 0 && field + 4 <= length)
-                {
-                    task = task.WriteResourcePointer(offset + field, pointer ?? throw new NotSupportedException("Effect54 task copies require an observed resource pointer."));
-                }
+                task = task.WriteResourcePointer(offset + field, pointer ?? throw new NotSupportedException("Effect54 task copies require an observed resource pointer."));
             }
         }
         return task;

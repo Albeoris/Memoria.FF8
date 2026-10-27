@@ -86,7 +86,7 @@ public static class NativeBattleDoomtrain191WheelTrail
             }
         }
         pool = Pool(frame);
-        frame = PutPool(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0xC, next)) });
+        frame = PutPool(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? arena } }, pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0xC, next)));
         return new(frame, result);
 
         NativeBattleModuleSpriteFrame Draw(int record)

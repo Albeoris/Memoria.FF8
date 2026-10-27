@@ -11,7 +11,7 @@ public static class NativeBattleScrollingMeshContext124
     {
         context.Validate();
         uint flags = Dword(context, 0x20);
-        if (Dword(context, 0) != mesh.Address || flags is not (0x33 or 0xF3) || depthShift > 31 || context.Regions.Any(region => region.Offset < 0 || region.Offset > 124 - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > 124 - region.Length))
+        if (Dword(context, 0) != mesh.Address || flags is not (0x33 or 0xF3) || depthShift > 31 || context.ExceedsExtent(124))
         {
             throw new InvalidDataException("Scrolling mesh requires its actual bounded caller context.");
         }

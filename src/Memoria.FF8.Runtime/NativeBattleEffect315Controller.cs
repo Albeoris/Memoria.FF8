@@ -25,8 +25,8 @@ public static partial class NativeBattleEffect315Controller
         NativeBattleEffectTaskPool children = RetainPayload(NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount), frame.State.ChildBankStorage);
         (root, int rootSlot) = root.Append(0x59B000);
         (children, int mainSlot) = children.Append(0x598E70);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(0xC, 0)) };
-        children = children with { Slots = children.Slots.SetItem(mainSlot, children.Slots[mainSlot].WriteWord(0xC, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(0xC, 0));
+        children = children.WriteSlot(mainSlot, children.Slots[mainSlot].WriteWord(0xC, 0));
         frame = frame with { Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null }, State = frame.State.WriteDword(TargetGlobal, target).WriteDword(ParametersGlobal, 0x1D99A78).WriteDword(CasterGlobal, Parameters(frame).Actor78).WriteDword(InitializerGlobal, checked(ArenaAddress + (uint)tim)).WriteDword(ArenaGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null } };
         for (int index = 0; index < ParticleCount; index++)
         {
@@ -134,7 +134,7 @@ public static partial class NativeBattleEffect315Controller
         {
             int length = pool.Stride - 12;
             NativeBattleEffectArena payload = NativeBattleEffectNodeContextMemory.Copy(storage, slot * pool.Stride + 12, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, CopyTask(pool.Slots[slot], 12, payload, length)) };
+            pool = pool.WriteSlot(slot, CopyTask(pool.Slots[slot], 12, payload, length));
         }
         return pool;
     }

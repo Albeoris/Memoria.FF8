@@ -14,35 +14,13 @@ public sealed record NativeBattleResourceRowReference(int? CpuRow, uint? Staging
 
 public sealed partial record NativeBattleFileStaging
 {
-    public ImmutableDictionary<uint, NativeBattleResourcePointer?> ResourcePointers { get; init; } = ImmutableDictionary<uint, NativeBattleResourcePointer?>.Empty;
-
-    private void ValidateResourcePointers()
+    public ImmutableDictionary<uint, NativeBattleResourcePointer?> ResourcePointers
     {
-        if (ResourcePointers is null)
+        get => Transaction is { } transaction ? transaction.CapturePointers() : owner?.CapturePointers() ?? resourcePointers;
+        init
         {
-            throw new InvalidDataException("Native resource pointer fields require an explicit retained owner.");
-        }
-        foreach ((uint address, NativeBattleResourcePointer? pointer) in ResourcePointers)
-        {
-            if (address < BaseAddress || (ulong)address + 4 > (ulong)BaseAddress + int.MaxValue || pointer is not null && !pointer.HasValidOwner())
-            {
-                throw new InvalidDataException("Native resource pointer field has an invalid physical address or source reference.");
-            }
-            if (pointer?.StagingAddress is uint numeric)
-            {
-                if (BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4)) != numeric)
-                {
-                    throw new InvalidDataException("Native resource pointer metadata differs from its actual shared staging DWORD.");
-                }
-            }
-            else
-            {
-                int first = checked((int)(address - BaseAddress));
-                if (IntersectsLoaderZero(address, 4) || KnownRanges.Any(range => range.Offset < first + 4 && range.Offset + range.Data.Length > first))
-                {
-                    throw new InvalidDataException("A symbolic or unknown native pointer cannot also own fabricated numeric bytes.");
-                }
-            }
+            RequireInitializer();
+            resourcePointers = value;
         }
     }
 
@@ -52,68 +30,49 @@ public sealed partial record NativeBattleFileStaging
         {
             throw new ArgumentOutOfRangeException(nameof(length));
         }
-        if (length == 0 || ResourcePointers.IsEmpty)
+        RequireWritableRange(address, length);
+        if (Transaction is { } transaction)
         {
-            return this;
+            transaction.InvalidatePointers(address, length);
         }
-        ImmutableDictionary<uint, NativeBattleResourcePointer?> pointers = ResourcePointers;
-        foreach (var entry in ResourcePointers)
+        else
         {
-            if ((ulong)entry.Key < (ulong)address + (uint)length && (ulong)entry.Key + 4 > address)
-            {
-                pointers = pointers.Remove(entry.Key);
-            }
+            RequireOwner().InvalidatePointers(address, length);
         }
-        return ReferenceEquals(pointers, ResourcePointers) ? this : this with { ResourcePointers = pointers };
+        return this;
     }
 
     public NativeBattleResourcePointer? ReadResourcePointer(uint address)
     {
-        if (ResourcePointers.TryGetValue(address, out NativeBattleResourcePointer? pointer))
-        {
-            return pointer;
-        }
-        return new(null, BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4)));
+        RequireOffsetRange(address, 4);
+        NativeBattleResourcePointer? pointer;
+        bool present = Transaction is { } transaction ? transaction.TryGetPointer(address, out pointer) : snapshot ? resourcePointers.TryGetValue(address, out pointer) : RequireOwner().TryGetPointer(address, out pointer);
+        return present ? pointer : new(null, ReadUInt32(address));
     }
 
     public NativeBattleFileStaging WriteResourcePointer(uint address, NativeBattleResourcePointer? pointer)
     {
-        NativeBattleFileStaging current = address < BaseAddress ? Rebase(address) : this;
+        RequireWritableRange(address, 4);
+        if (pointer is not null && !pointer.HasValidOwner())
+        {
+            throw new InvalidDataException("Native staging pointer has an invalid source owner.");
+        }
         if (pointer?.StagingAddress is uint numeric)
         {
-            byte[] bytes = new byte[4];
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes, numeric);
-            current = current.Write(address, bytes);
+            WriteUInt32(address, numeric);
         }
         else
         {
-            if (current.Transaction is not null)
-            {
-                current = current.MarkUnknown(address, 4);
-                return current with { ResourcePointers = current.ResourcePointers.SetItem(address, pointer) };
-            }
-            int first = checked((int)(address - current.BaseAddress));
-            int end = checked(first + 4);
-            ImmutableArray<NativeBattleEffectMemoryRegion>.Builder ranges = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
-            foreach (NativeBattleEffectMemoryRegion range in current.KnownRanges)
-            {
-                int rangeEnd = checked(range.Offset + range.Data.Length);
-                if (rangeEnd <= first || range.Offset >= end)
-                {
-                    ranges.Add(range);
-                    continue;
-                }
-                if (range.Offset < first)
-                {
-                    ranges.Add(new(range.Offset, NativeBattleTelemetry.Slice(1030, range.Data, 0, first - range.Offset)));
-                }
-                if (rangeEnd > end)
-                {
-                    ranges.Add(new(end, NativeBattleTelemetry.Slice(1031, range.Data, end - range.Offset, rangeEnd - end)));
-                }
-            }
-            current = (current with { KnownRanges = ranges.ToImmutable() }).ForgetLoaderZero(address, 4).InvalidateResourcePointers(address, 4);
+            MarkUnknown(address, 4);
         }
-        return current with { ResourcePointers = current.ResourcePointers.SetItem(address, pointer) };
+        if (Transaction is { } transaction)
+        {
+            transaction.SetPointerMetadata(address, pointer);
+        }
+        else
+        {
+            RequireOwner().SetPointerMetadata(address, true, pointer);
+        }
+        return this;
     }
 }

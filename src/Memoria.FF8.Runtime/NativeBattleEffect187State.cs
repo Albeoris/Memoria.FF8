@@ -35,10 +35,39 @@ public sealed record NativeBattleEffect187State([property: JsonRequired] NativeB
     public byte[] ReadBytes(uint address, int length) => Read(address, length);
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
-    public NativeBattleEffect187State Write(uint address, ReadOnlySpan<byte> bytes) => WriteView(address, NativeBattleEffectArena.Clear().Write(0, bytes), bytes.Length);
+    public NativeBattleEffect187State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        if (InRange(address, bytes.Length, NativeBattleEffect187Model.Address, 0x90))
+        {
+            NativeBattleCactuarRawModelState model = Model ?? throw new NotSupportedException("Effect187 lacks its actual retained model owner.");
+            byte[] data = model.Model.ToArray();
+            bytes.CopyTo(data.AsSpan(checked((int)(address - NativeBattleEffect187Model.Address))));
+            return this with { Model = model with { Model = data.ToImmutableArray() } };
+        }
+        if (InRange(address, bytes.Length, NativeBattleEffect187Model.ControlAddress, 0x34))
+        {
+            NativeBattleCactuarRawModelState model = Model ?? throw new NotSupportedException("Effect187 lacks its actual retained model control owner.");
+            byte[] data = model.Control.ToArray();
+            bytes.CopyTo(data.AsSpan(checked((int)(address - NativeBattleEffect187Model.ControlAddress))));
+            return this with { Model = model with { Control = data.ToImmutableArray() } };
+        }
+        int offset = Require(address, bytes.Length);
+        Storage.Write(offset, bytes);
+        return this;
+    }
     public NativeBattleEffect187State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
-    public NativeBattleEffect187State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleEffect187State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect187State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleEffect187State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
 
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
@@ -73,7 +102,8 @@ public sealed record NativeBattleEffect187State([property: JsonRequired] NativeB
             return this with { Model = model with { Control = bytes.ToImmutableArray() } };
         }
         int offset = Require(address, length);
-        return this with { Storage = NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, offset, length) };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, offset, length);
+        return this;
     }
 
     public NativeBattleEffectArena ReadBank(int index) => ReadBank(BankAddress(index));
@@ -122,14 +152,14 @@ public sealed record NativeBattleEffect187State([property: JsonRequired] NativeB
         }
         Storage.Validate();
         int storageLength = OwnedRanges.Sum(range => range.Length);
-        foreach (NativeBattleEffectMemoryRegion region in Storage.Regions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateDataRanges())
         {
-            if (region.Offset < 0 || region.Offset > storageLength - region.Data.Length)
+            if (region.Offset < 0 || region.Offset > storageLength - region.Length)
             {
                 throw new InvalidDataException("Effect187 stored bytes leave their mapped physical owners.");
             }
         }
-        foreach (NativeBattleEffectUnknownRegion region in Storage.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Storage.EnumerateUnknownRanges())
         {
             if (region.Offset < 0 || region.Offset > storageLength - region.Length)
             {
@@ -185,9 +215,6 @@ public sealed record NativeBattleEffect187State([property: JsonRequired] NativeB
     private static void ValidateBank(NativeBattleEffectArena bank, int length)
     {
         bank.Validate();
-        if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect187 retained bytes leave their physical bank allocation.");
-        }
+        bank.ValidateExtent(length);
     }
 }

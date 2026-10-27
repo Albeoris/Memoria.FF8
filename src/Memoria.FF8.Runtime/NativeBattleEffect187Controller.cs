@@ -22,11 +22,11 @@ public static partial class NativeBattleEffect187Controller
         NativeBattleEffectTaskPool root = InitializeBank(frame, 0);
         NativeBattleEffectTaskPool children = InitializeBank(frame, 1);
         (root, int rootSlot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         (children, int mainSlot) = children.Append(MainCallback);
-        children = children with { Slots = children.Slots.SetItem(mainSlot, children.Slots[mainSlot].WriteWord(12, 0)) };
+        children = children.WriteSlot(mainSlot, children.Slots[mainSlot].WriteWord(12, 0));
         frame = frame with { State = frame.State.DetachBank(0).DetachBank(1), Effect = frame.Effect with { Pools = [root, children], ReturnedDescriptor = RootDescriptor } };
-        NativeBattleEffectArenaWriter arena = new(frame.Memory.Arena ?? throw new NotSupportedException("Effect187 requires its actual COMMON owner."));
+        using NativeBattleEffectArenaWriter arena = new(frame.Memory.Arena ?? throw new NotSupportedException("Effect187 requires its actual COMMON owner."));
         for (int bank = 0; bank < 3; bank++)
         {
             for (int slot = 0; slot < 150; slot++)

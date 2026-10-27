@@ -10,10 +10,10 @@ public static partial class NativeBattleAdditional181Controller
         frame = Dword(frame, 0x2307D8C, NativeBattleEffectNodeMemory.ArenaAddress);
         NativeBattleEffectTaskPool roots = ResetPool(frame, 0x23065F0, 0x23065E0, 16, 1);
         (roots, int root) = roots.Append(0x5CC7D0);
-        roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) };
+        roots = roots.WriteSlot(root, roots.Slots[root].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = ResetPool(frame, 0x2306F60, 0x2306F70, 36, 100);
         (children, int main) = children.Append(0x5CB610);
-        children = children with { Slots = children.Slots.SetItem(main, children.Slots[main].WriteWord(12, 0).WriteWord(14, 5)) };
+        children = children.WriteSlot(main, children.Slots[main].WriteWord(12, 0).WriteWord(14, 5));
         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Additional requires its actual first contact pointer.");
         frame = Dword(Dword(Dword(frame, 0x23065D8, inputs.Packets.ReadContact(first).Primary.ActorIndex), 0x2307D84, Parameters(frame).Actor78), 0x2307D80, 0x1D99A78);

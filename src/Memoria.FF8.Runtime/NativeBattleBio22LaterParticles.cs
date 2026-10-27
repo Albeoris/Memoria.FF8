@@ -109,7 +109,7 @@ public static class NativeBattleBio22LaterParticles
 
     private static void Require(NativeBattleModulePoolTask task, uint callback)
     {
-        if (task.Callback != callback || task.Payload.IsDefault || task.Payload.Length != 0x70 - 12)
+        if (task.Callback != callback || task.Payload.IsDefault || task.PayloadLength != 0x70 - 12)
         {
             throw new InvalidDataException("Native Bio later particle requires its actual callback and hierarchy extent.");
         }

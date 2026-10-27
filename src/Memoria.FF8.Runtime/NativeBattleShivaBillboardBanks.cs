@@ -17,7 +17,7 @@ public static class NativeBattleShivaBillboardBanks
         ValidatePool(frame.Pool);
         (NativeBattleEffectTaskPool pool, int slot) = frame.Pool.Append(0x5C71B0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0x0C, 0).WriteWord(0x10, 0).WriteWord(0x12, 0).WriteWord(0x14, unchecked((ushort)-2500));
-        return frame with { Pool = pool with { Slots = pool.Slots.SetItem(slot, task) } };
+        return frame with { Pool = pool.WriteSlot(slot, task) };
     }
 
     public static NativeBattleModulePacketBatch Emit571C80(NativeBattleShivaLateSpriteDraw draw, NativeBattleCameraProjection projection, short cameraRoll)
@@ -133,7 +133,7 @@ public static class NativeBattleShivaBillboardBanks
             task = frame.Pool.Slots[slot];
             int speed = Word(task, 0x1A);
             task = task.WriteWord(0x18, unchecked((ushort)(task.ReadWord(0x18) - task.ReadWord(0x1A)))).WriteWord(0x1A, unchecked((ushort)(speed - (speed >> 4))));
-            frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+            frame = frame with { Pool = frame.Pool.WriteSlot(slot, task) };
         }
         int end = kind switch { 0 => 16, 1 => 22, 2 => 18, _ => 26 };
         if (counter >= 0 && counter <= end)
@@ -186,7 +186,7 @@ public static class NativeBattleShivaBillboardBanks
             }
         }
         task = frame.Pool.Slots[slot].WriteWord(0x0C, unchecked((ushort)(frame.Pool.Slots[slot].ReadWord(0x0C) + 1)));
-        frame = frame with { Memory = frame.Memory with { Arena = bank.Arena }, Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Memory = frame.Memory with { Arena = bank.Arena }, Pool = frame.Pool.WriteSlot(slot, task) };
         return new(frame, Word(task, 0x0C) >= 4 && alive == 0 ? 2 : 0);
     }
 

@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native6652F0 requires its actual camera owner.")).RegisterControlResource(textures.Animation);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25073F8, 0x25073C0, 20, 1);
         (root, _) = root.Append(0x665380);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0] with { Payload = ImmutableArray.CreateRange(new byte[8]) }) };
+        root = root.WriteSlot(0, root.Slots[0].ClearPayload(8));
         return graphics with { OriginalEffect = effect with { Pools = [root], ReturnedDescriptor = root.DescriptorAddress, Gravija = new(resources.Read(0x101B0E8, 0x1DD0)), DrawArenaOffset = null } };
     }
 
@@ -39,8 +39,8 @@ public sealed partial class BattleSession
             root = root.WriteByte(15, 1);
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x25073E8, 0x20DFAB8 + 0x700, 840, 1);
             (main, _) = main.Append(0x665550);
-            NativeBattleModulePoolTask task = main.Slots[0] with { Payload = ImmutableArray.CreateRange(new byte[828]) };
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(72, 756).ToArray().ToImmutableArray());
+            NativeBattleModulePoolTask task = main.Slots[0].ClearPayload(828);
+            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(72, 756).ToArray().ToImmutableArray());
             workspace = workspace.Initialize7016B0(resources.Hierarchy, 756);
             task = StoreEffect311Workspace(task, workspace);
             NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
@@ -64,7 +64,7 @@ public sealed partial class BattleSession
                 z = unchecked((short)(z + anchor.Z));
             }
             task = task.WriteWord(76, unchecked((ushort)(x / count))).WriteWord(78, unchecked((ushort)(y / count))).WriteWord(80, unchecked((ushort)(z / count)));
-            main = main with { Slots = main.Slots.SetItem(0, task) };
+            main = main.WriteSlot(0, task);
             pools = [pools[0], main, NativeBattleEffectTaskPool.Initialize(0x25073D8, 0x20DFAB8, 28, 64)];
         }
         int mainSurvivors = -1;
@@ -75,7 +75,7 @@ public sealed partial class BattleSession
                 pools[1] = pool;
                 NativeBattleModulePoolTask task = pool.Slots[slot];
                 int result = AdvanceMain(ref task);
-                return new(pools[1] with { Slots = pools[1].Slots.SetItem(slot, task) }, result);
+                return new(pools[1].WriteSlot(slot, task), result);
             });
             pools[1] = mainStep.Pool;
             mainSurvivors = mainStep.Survivors;
@@ -92,7 +92,7 @@ public sealed partial class BattleSession
         {
             root = root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)));
         }
-        pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, root) };
+        pools[0] = pools[0].WriteSlot(0, root);
         if (complete)
         {
             pools[0] = pools[0].Advance((pool, _) => new(pool, 2)).Pool;
@@ -108,7 +108,7 @@ public sealed partial class BattleSession
             NativeBattleVector center = Effect107Vector(task, 76);
             if (frame < 74)
             {
-                NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(72, 756).ToArray().ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(72, 756).ToArray().ToImmutableArray());
                 NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Hierarchy, 0, (current, node) =>
                 {
                     DrawNativeEffect311Hierarchy(ref graphics, ref effect, resources, node, center);
@@ -233,9 +233,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleModulePoolTask StoreEffect311Workspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] bytes = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(bytes.AsSpan(72));
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteRetainedBytes(12 + (72), workspace.Data.AsSpan());
     }
 
     private bool TryWriteNativeEffect311Completion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)
@@ -260,7 +258,7 @@ public sealed partial class BattleSession
         NativeBattleOriginalEffectState Write(NativeBattleOriginalEffectState effect)
         {
             NativeBattleEffectTaskPool main = effect.Pools[1];
-            return effect with { Pools = effect.Pools.SetItem(1, main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteByte(18, value)) }) };
+            return effect with { Pools = effect.Pools.SetItem(1, main.WriteSlot(0, main.Slots[0].WriteByte(18, value))) };
         }
     }
 }

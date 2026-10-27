@@ -23,11 +23,11 @@ public sealed record NativeBattleEffect183State([property: JsonRequired] NativeB
     {
         Globals.Validate();
         ValidateBounded(Packets, PacketBytes);
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Globals.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateUnknownRanges())
         {
             Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
@@ -43,12 +43,29 @@ public sealed record NativeBattleEffect183State([property: JsonRequired] NativeB
 
     public byte[] Read(uint address, int length) => Globals.Read(Require(address, length), length);
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
-    public NativeBattleEffect183State Write(uint address, ReadOnlySpan<byte> bytes) => this with { Globals = Globals.Write(Require(address, bytes.Length), bytes) };
-    public NativeBattleEffect183State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect183State Write(uint address, ReadOnlySpan<byte> bytes)
+    {
+        Globals.Write(Require(address, bytes.Length), bytes);
+        return this;
+    }
+    public NativeBattleEffect183State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     public NativeBattleEffectArena ReadView(uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(Globals, Require(address, length), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
-    public NativeBattleEffect183State WriteView(uint address, NativeBattleEffectArena source, int length) => this with { Globals = NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length) };
+    public NativeBattleEffect183State WriteView(uint address, NativeBattleEffectArena source, int length)
+    {
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length);
+        return this;
+    }
     public byte[] ReadPacket(uint address, int length) => Packets.Read(PacketOffset(address, length), length);
-    public NativeBattleEffect183State WritePacket(uint address, ReadOnlySpan<byte> bytes) => this with { Packets = Packets.Write(PacketOffset(address, bytes.Length), bytes) };
+    public NativeBattleEffect183State WritePacket(uint address, ReadOnlySpan<byte> bytes)
+    {
+        Packets.Write(PacketOffset(address, bytes.Length), bytes);
+        return this;
+    }
 
     private static int PacketOffset(uint address, int length)
     {
@@ -72,9 +89,6 @@ public sealed record NativeBattleEffect183State([property: JsonRequired] NativeB
     private static void ValidateBounded(NativeBattleEffectArena arena, int length)
     {
         arena.Validate();
-        if (arena.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || arena.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect183 retained task bank bytes leave their single physical owner.");
-        }
+        arena.ValidateExtent(length);
     }
 }

@@ -126,7 +126,7 @@ internal static class NativeBattleZantetsukenTasks
     {
         (int index, int slot) = Locate(frame, address);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[index];
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) }) } };
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool.WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, pool.Slots[slot].Next, task.Callback))) } };
     }
 
     internal static (NativeBattleGilgameshFrame Frame, uint Address) Append(NativeBattleGilgameshFrame frame, uint callback)
@@ -141,7 +141,7 @@ internal static class NativeBattleZantetsukenTasks
 
     internal static NativeBattleModulePoolTask CopyAnchor(NativeBattleModulePoolTask destination, NativeBattleModulePoolTask source)
     {
-        NativeBattleModulePoolTask result = destination.WriteBytes(0x10, source.Payload.AsSpan().Slice(4, 8));
+        NativeBattleModulePoolTask result = destination.WriteBytes(0x10, source.ReadRawPayloadSpan().Slice(4, 8));
         if (source.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)

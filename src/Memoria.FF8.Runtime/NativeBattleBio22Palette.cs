@@ -73,7 +73,7 @@ public static class NativeBattleBio22PaletteTask
 {
     public static NativeBattleBio22PaletteStep Advance89CA70(NativeBattleModulePoolTask task, NativeBattleModulePoolTask primary, NativeBattleBio22Palette palette, NativeBattleBio22Resources resources, NativeCrtRandomState random)
     {
-        if (task.Callback != 0x89CA70 || task.Payload.Length != 0x38 - 12)
+        if (task.Callback != 0x89CA70 || task.PayloadLength != 0x38 - 12)
         {
             throw new InvalidDataException("Native Bio palette callback requires its actual38-byte hierarchy task.");
         }

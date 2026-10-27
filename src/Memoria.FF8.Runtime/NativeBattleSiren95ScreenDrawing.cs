@@ -13,7 +13,7 @@ public static class NativeBattleSiren95ScreenDrawing
         NativeBattleModulePoolTask task = ReadTask(frame, address);
         using NativeBattleEffectArenaTransaction? owned = state.Globals.Transaction is null ? new(state.Globals) : null;
         NativeBattleEffectArena currentBytes = owned?.View ?? state.Globals;
-        NativeBattleEffectArenaWriter writer = new(currentBytes);
+        using NativeBattleEffectArenaWriter writer = new(currentBytes);
         bool published = false;
         short count = unchecked((short)(Half(row + 0xCC) + 1));
         count = count > 10 ? (short)10 : count;

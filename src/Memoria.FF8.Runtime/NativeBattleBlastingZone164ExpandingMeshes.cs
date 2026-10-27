@@ -18,8 +18,8 @@ public static partial class NativeBattleBlastingZone164Controller
         {
             Spawn(0x5F1970, 1843, 896, 65, 25, false);
         }
-        task = task.WriteWord(12, unchecked((ushort)(counter + 1))) with { Next = pool.Slots[slot].Next };
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= 48 ? 2 : 0);
+        task = task.WriteWord(12, unchecked((ushort)(counter + 1))).SetNext(pool.Slots[slot].Next);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= 48 ? 2 : 0);
 
         void Spawn(uint callback, int scale, int height, int divisor, int minimum, bool verticalSpeed)
         {
@@ -33,7 +33,7 @@ public static partial class NativeBattleBlastingZone164Controller
             {
                 child = child.WriteWord(34, (ushort)height);
             }
-            pool = pool with { Slots = pool.Slots.SetItem(created, child) };
+            pool = pool.WriteSlot(created, child);
         }
     }
 
@@ -62,6 +62,6 @@ public static partial class NativeBattleBlastingZone164Controller
             task = Damp(task, 32, 34, 10);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= (first ? 14 : 12) ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= (first ? 14 : 12) ? 2 : 0);
     }
 }

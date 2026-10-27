@@ -127,7 +127,7 @@ public static partial class NativeBattleEffect289Controller
             {
                 int offset = checked((int)(pool.BankAddress - ArenaAddress) + slot * pool.Stride + 12);
                 NativeBattleEffectArena retained = NativeBattleEffectNodeContextMemory.Copy(arena, offset, NativeBattleEffectArena.Clear().MarkUnknown(0, pool.Stride - 12), 0, pool.Stride - 12);
-                pool = pool with { Slots = pool.Slots.SetItem(slot, CopyTask(pool.Slots[slot], 12, retained, pool.Stride - 12)) };
+                pool = pool.WriteSlot(slot, CopyTask(pool.Slots[slot], 12, retained, pool.Stride - 12));
             }
             reset.Add(pool);
         }

@@ -25,7 +25,7 @@ public static class NativeBattleEffect187Director
 {
     public static NativeBattleEffect187DirectorStep Advance6474C0(NativeBattleModulePoolTask task, NativeBattleEffect187DirectorInputs inputs)
     {
-        if (task.Callback != NativeBattleEffect187Profile.MainCallback || task.Payload.IsDefault || task.Payload.Length != 24)
+        if (task.Callback != NativeBattleEffect187Profile.MainCallback || task.Payload.IsDefault || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Effect187 director requires its original 36-byte task.");
         }

@@ -26,7 +26,7 @@ public static partial class NativeBattleDiablos325Programme
         _ = projection.View ?? throw new NotSupportedException("Native Diablos programme requires its current camera view.");
         short fade = counter < 17 ? checked((short)(256 + (17 - counter) * 512)) : counter >= 514 ? checked((short)(256 + (counter - 514) * 512)) : (short)0;
         NativeBattleEffectMemory memory = frame.Memory;
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x264 - 12, 0xE0));
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x264 - 12, 0xE0).ToArray().ToImmutableArray());
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.OpeningProgramme, unchecked((int)state.Pause5180), (current, node) =>
@@ -37,9 +37,7 @@ public static partial class NativeBattleDiablos325Programme
             allocated = checked(allocated + drawn.Packets.AllocationBytes);
             return current;
         });
-        byte[] payload = task.Payload.ToArray();
-        advanced.Workspace.Data.AsSpan().CopyTo(payload.AsSpan(0x264 - 12, 0xE0));
-        return new(memory, task with { Payload = payload.ToImmutableArray() }, new(attempts.ToImmutable(), allocated));
+        return new(memory, task.WriteRetainedBytes(12 + (0x264 - 12), advanced.Workspace.Data.AsSpan()), new(attempts.ToImmutable(), allocated));
     }
 
     public static NativeBattleActionMatrix Compose656B70(NativeBattleGfAnimationNode node, NativeBattleVector position, NativeBattleActionMatrix view, NativeBattleVector? contextScale = null, NativeBattleActionMatrix? effectCamera = null)

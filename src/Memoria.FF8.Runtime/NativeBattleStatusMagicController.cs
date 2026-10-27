@@ -67,7 +67,7 @@ public static class NativeBattleStatusMagicController
                 if (available)
                 {
                     (targets, int slot) = targets.Append(resources.TargetCallback);
-                    NativeBattleModulePoolTask target = targets.Slots[slot] with { Payload = ImmutableArray.CreateRange(new byte[resources.TargetStride - 12]) };
+                    NativeBattleModulePoolTask target = targets.Slots[slot].ClearPayload(resources.TargetStride - 12);
                     int first = inputs.Packets.Headers[checked(parameters.HeaderIndex7C + action)].FirstContactIndex ?? throw new NotSupportedException("Native status spawn requires its action's first target.");
                     byte model = inputs.Packets.ReadContact(first).Primary.ActorIndex;
                     target = target.WriteWord(14, checked((ushort)action)).WriteDword(resources.Effect == 120 ? 32 : 16, checked(0x1D972C0u + model * 156u));
@@ -81,7 +81,7 @@ public static class NativeBattleStatusMagicController
                         inputs.WriteFlags(model, (ushort)(inputs.ReadModel(model).Flags0 | 0x2000));
                         target = InitializeWorkspace(target, 20, 0x498, resources.Layouts[0]);
                     }
-                    targets = targets with { Slots = targets.Slots.SetItem(slot, target) };
+                    targets = targets.WriteSlot(slot, target);
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));
                 }
             }
@@ -167,7 +167,7 @@ public static class NativeBattleStatusMagicController
         {
             root = root.WriteWord(12, (ushort)((root.ReadWord(12) + 1) % 10));
         }
-        rootPool = rootPool with { Slots = rootPool.Slots.SetItem(0, root) };
+        rootPool = rootPool.WriteSlot(0, root);
         if (complete)
         {
             rootPool = rootPool.Advance((pool, _) => new(pool, 2)).Pool;
@@ -184,7 +184,7 @@ public static class NativeBattleStatusMagicController
 
         NativeBattleModulePoolTask Play(NativeBattleModulePoolTask task, int offset, int length, NativeBattleGfAnimationSource source, NativeBattleVector anchor, int depth)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(offset - 12, length).ToArray().ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(offset - 12, length).ToArray().ToImmutableArray());
             NativeBattleGfAnimationAdvance step = workspace.Advance701970(source, 0, (owner, node) =>
             {
                 current = NativeBattleStatusMagicDrawing.Draw(current, resources, source, node, anchor, depth, inputs);
@@ -221,15 +221,13 @@ public static class NativeBattleStatusMagicController
 
     private static NativeBattleModulePoolTask InitializeWorkspace(NativeBattleModulePoolTask task, int offset, int length, NativeBattleGfAnimationSource source)
     {
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.AsSpan().Slice(offset - 12, length).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(offset - 12, length).ToArray().ToImmutableArray());
         return StoreWorkspace(task, offset, workspace.Initialize7016B0(source, length));
     }
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, int offset, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] bytes = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(bytes.AsSpan(offset - 12));
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task.WriteRetainedBytes(offset, workspace.Data.AsSpan());
     }
 
     private static NativeBattleVector Vector(NativeBattleModulePoolTask task, int offset) => new(unchecked((short)task.ReadWord(offset)), unchecked((short)task.ReadWord(offset + 2)), unchecked((short)task.ReadWord(offset + 4)));

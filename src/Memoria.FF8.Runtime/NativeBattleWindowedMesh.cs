@@ -10,7 +10,7 @@ public static class NativeBattleWindowedMesh
     public static NativeBattleWindowedMeshStep Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource source, NativeBattleEffectArena context, NativeBattleCameraProjection projection, NativeBattleWindowedMeshLayout layout, Func<uint, (NativeBattleVector Vertex, short? W)> readVertex, int tableBaseBucket = 17, byte depthShift = 2)
     {
         context.Validate();
-        if (source.Bytes.IsDefault || source.Bytes.Length < 8 || Dword(context, 0) != source.Address || depthShift > 31 || context.Regions.Any(region => region.Offset < 0 || region.Offset > layout.ContextBytes - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > layout.ContextBytes - region.Length))
+        if (source.Bytes.IsDefault || source.Bytes.Length < 8 || Dword(context, 0) != source.Address || depthShift > 31 || context.ExceedsExtent(layout.ContextBytes))
         {
             throw new InvalidDataException("Windowed mesh requires its actual bounded mesh,typed context and ordering shift.");
         }

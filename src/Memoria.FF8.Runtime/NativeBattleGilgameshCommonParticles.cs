@@ -138,7 +138,7 @@ public static partial class NativeBattleGilgameshCommonParticles
 
     private static void ValidateTask(NativeBattleModulePoolTask task)
     {
-        if (task is null || task.Payload.IsDefault || task.Payload.Length != 24)
+        if (task is null || task.Payload.IsDefault || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native Gilgamesh common callbacks require their raw0x24-byte task.");
         }

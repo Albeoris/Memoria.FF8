@@ -64,7 +64,7 @@ public static class NativeBattleThundaga105Fragments
                 Word(mesh, offset + axis * 2, Signed(mesh, offset + axis * 2) - center[axis]);
             }
         }
-        NativeBattleModulePoolTask task = allocatedTask with { Payload = new byte[0x30].ToImmutableArray() };
+        NativeBattleModulePoolTask task = allocatedTask.ClearPayload(0x30);
         random = random.Draw(out ushort countdown);
         random = random.Draw(out ushort accelerationY);
         random = random.Draw(out ushort velocityY);
@@ -180,7 +180,7 @@ public static class NativeBattleThundaga105Fragments
     private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static void RequireTask(NativeBattleModulePoolTask task)
     {
-        if (task.Callback != 0x6D5AD0 || task.Payload.IsDefault || task.Payload.Length != 0x30)
+        if (task.Callback != 0x6D5AD0 || task.Payload.IsDefault || task.PayloadLength != 0x30)
         {
             throw new InvalidDataException("Native Thundaga fragment requires its actual secondary task.");
         }

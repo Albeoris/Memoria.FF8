@@ -52,7 +52,7 @@ public static class NativeBattleFatedCircle162Capture
             int length = checked(4 + header[3] * 4);
             byte[] bytes = frame.Staging.Read(address, length);
             ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
-            NativeBattleLogicalOrdering.Builder links = new(ordering);
+            using NativeBattleLogicalOrdering.Builder links = new(ordering);
             NativeBattlePrimitiveReference reference = new(PacketBank, 0, checked((int)address));
             links.InvalidatePacketRange(reference, length);
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;

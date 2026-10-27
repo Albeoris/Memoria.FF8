@@ -73,7 +73,7 @@ public static class NativeBattleRush91Controller
             throw new NotSupportedException("Native Rush91 completion pointer is not a root BYTE62 owner.");
         }
         int slot = (int)(delta / pool.Stride);
-        return effect with { Pools = effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x62, value)) }) };
+        return effect with { Pools = effect.Pools.SetItem(index, pool.WriteSlot(slot, pool.Slots[slot].WriteByte(0x62, value))) };
     }
 
     public static NativeBattleRush91Frame Advance759510(NativeBattleRush91Frame frame, NativeBattleRush91Inputs inputs, NativeBattleRush91Resources resources)
@@ -695,8 +695,7 @@ public static class NativeBattleRush91Controller
         }
         void Store(uint address, NativeBattleModulePoolTask task)
         {
-            NativeBattleModulePoolTask current = state.Read(address);
-            state = state.Write(address, current with { Payload = task.Payload.SetItem(0x28 - 12, current.ReadByte(0x28)) });
+            state = state.Write(address, task);
         }
         int Finish(uint address)
         {
@@ -736,7 +735,7 @@ public static class NativeBattleRush91Controller
     private static NativeBattleModulePoolTask Next(NativeBattleModulePoolTask task) => task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
     private static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, unchecked((ushort)(Word(task, offset) + value)));
     private static NativeBattleModulePoolTask Position(NativeBattleModulePoolTask task, int offset, NativeBattleVector vector) => task.WriteWord(offset, unchecked((ushort)vector.X)).WriteWord(offset + 2, unchecked((ushort)vector.Y)).WriteWord(offset + 4, unchecked((ushort)vector.Z));
-    private static ImmutableArray<byte> Slice(NativeBattleModulePoolTask task, int offset, int count) => task.Payload.AsSpan().Slice(offset - 12, count).ToArray().ToImmutableArray();
+    private static ImmutableArray<byte> Slice(NativeBattleModulePoolTask task, int offset, int count) => task.ReadRawPayloadSpan().Slice(offset - 12, count).ToArray().ToImmutableArray();
     private static ImmutableArray<byte> MatrixBytes(NativeBattleActionMatrix matrix)
     {
         matrix.Validate();

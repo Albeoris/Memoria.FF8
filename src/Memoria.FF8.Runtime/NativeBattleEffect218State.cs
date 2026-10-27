@@ -66,9 +66,30 @@ public sealed record NativeBattleEffect218State([property: JsonRequired] NativeB
     public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(ReadView(address, 4).Read(0, 4));
     public byte ReadByte(uint address) => ReadView(address, 1).Read(0, 1)[0];
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(ReadView(address, 2).Read(0, 2));
-    public NativeBattleEffect218State WriteByte(uint address, byte value) => WriteView(address, NativeBattleEffectArena.Clear().Write(0, [value]), 1);
-    public NativeBattleEffect218State WriteDword(uint address, uint value) => WriteView(address, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(value)), 4);
-    public NativeBattleEffect218State WriteWord(uint address, ushort value) => WriteView(address, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(value)), 2);
+    public NativeBattleEffect218State WriteByte(uint address, byte value)
+    {
+        (NativeBattleEffectArena storage, int offset, _) = Locate(address, 1);
+        Span<byte> encoded = stackalloc byte[1];
+        encoded[0] = value;
+        storage.Write(offset, encoded);
+        return this;
+    }
+    public NativeBattleEffect218State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        (NativeBattleEffectArena storage, int offset, _) = Locate(address, 4);
+        storage.Write(offset, encoded);
+        return this;
+    }
+    public NativeBattleEffect218State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        (NativeBattleEffectArena storage, int offset, _) = Locate(address, 2);
+        storage.Write(offset, encoded);
+        return this;
+    }
 
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
@@ -79,15 +100,8 @@ public sealed record NativeBattleEffect218State([property: JsonRequired] NativeB
     public NativeBattleEffect218State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
         (NativeBattleEffectArena storage, int offset, int owner) = Locate(address, length);
-        storage = NativeBattleEffectNodeContextMemory.Copy(source, 0, storage, offset, length);
-        return owner switch
-        {
-            0 => this with { Globals = storage },
-            1 => this with { ParticleGlobals = storage },
-            2 => this with { EmbeddedSkeleton = storage },
-            3 => this with { CaptureQuad = storage },
-            _ => throw new InvalidDataException("Effect218 memory has an unsupported physical owner.")
-        };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, storage, offset, length);
+        return this;
     }
 
     private (NativeBattleEffectArena Storage, int Offset, int Owner) Locate(uint address, int length)
@@ -118,9 +132,6 @@ public sealed record NativeBattleEffect218State([property: JsonRequired] NativeB
     private static void Require(NativeBattleEffectArena arena, int length)
     {
         arena.Validate();
-        if (arena.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || arena.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > length - region.Length))
-        {
-            throw new InvalidDataException("Effect218 retained memory leaves its actual physical owner.");
-        }
+        arena.ValidateExtent(length);
     }
 }

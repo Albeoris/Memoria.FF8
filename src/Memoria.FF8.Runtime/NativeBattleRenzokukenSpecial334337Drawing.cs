@@ -27,7 +27,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             BinaryPrimitives.WriteInt32LittleEndian(bank.AsSpan(task.ReadWord(14) * 32), 0);
             frame = Store(frame, ReadState(frame) with { ExtraStorage = bank.ToImmutableArray() });
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, ended ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), ended ? 2 : 0);
     }
 
     private static NativeBattleRenzokuken160ChildStep GroupLateMesh(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleRenzokuken160Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
@@ -80,7 +80,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, unchecked((short)task.ReadWord(12)) >= 8 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), unchecked((short)task.ReadWord(12)) >= 8 ? 2 : 0);
     }
 
     private static NativeBattleRenzokuken160ChildStep AdvanceGroupRadialSprites(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleSearchSpriteResource sprite, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
@@ -150,7 +150,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, alive == 0 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), alive == 0 ? 2 : 0);
 
         int Rand()
         {

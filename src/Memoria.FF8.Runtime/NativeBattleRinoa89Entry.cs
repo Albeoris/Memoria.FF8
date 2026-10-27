@@ -32,7 +32,7 @@ public static partial class NativeBattleRinoa89Controller
         frame = frame with { Staging = Dword(frame.Staging, 0x2556588, ModelAddress(parameters.Actor78)) };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Root, 0x25565D8, 20, 1);
         (root, int slot) = root.Append(0x6F9D80);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteWord(12, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteWord(12, 0));
         return frame with { Memory = frame.Memory with { Rinoa89 = state with { GlobalsPublished = true, Resources = resources }, Textures = textures }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = Root, DrawArenaOffset = 0 } };
     }
 
@@ -47,7 +47,7 @@ public static partial class NativeBattleRinoa89Controller
         bool prior = task.ReadDword(16) != 0;
         frame = frame with { Staging = Dword(frame.Staging, 0x25565EC, ArenaAddress + (prior ? 108684u : 174220u)) };
         frame = frame with { Staging = Dword(frame.Staging, 0x25565F0, ArenaAddress + (prior ? 174220u : 239756u)) };
-        root = root with { Slots = root.Slots.SetItem(slot, task.WriteDword(16, prior ? 0u : 1u)) };
+        root = root.WriteSlot(slot, task.WriteDword(16, prior ? 0u : 1u));
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(frame.Effect.Pools.IndexOf(frame.Effect.Pools.Single(pool => pool.DescriptorAddress == Root)), root) } };
     }
 

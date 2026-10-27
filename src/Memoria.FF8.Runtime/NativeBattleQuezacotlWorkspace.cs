@@ -69,7 +69,7 @@ public static class NativeBattleQuezacotlWorkspace
         }
         NativeBattleEffectTaskPool child = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         NativeBattleEffectArena arena = (memory.Arena ?? throw new NotSupportedException("Native Quezacotl701970 requires its actual child-task arena bytes.")).Write(Offset, workspace.Data.AsSpan());
-        child = child with { Slots = child.Slots.SetItem(0, child.Slots[0] with { Payload = arena.Read(12, child.Stride - 12).ToImmutableArray() }) };
+        child = child.WriteSlot(0, child.Slots[0].WriteRetainedBytes(12, arena.Read(12, child.Stride - 12)));
         return new(memory with { Arena = arena }, effect with { Pools = effect.Pools.Select(pool => pool.DescriptorAddress == child.DescriptorAddress ? child : pool).ToImmutableArray() });
     }
 
@@ -83,7 +83,7 @@ public static class NativeBattleQuezacotlWorkspace
     {
         NativeBattleEffectTaskPool child = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         ushort phase = unchecked((ushort)(child.Slots[0].ReadWord(12) + 1));
-        child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteWord(12, phase)) };
+        child = child.WriteSlot(0, child.Slots[0].WriteWord(12, phase));
         NativeBattleEffectArena arena = (memory.Arena ?? throw new NotSupportedException("Native6C51F1 requires its actual child phase WORD.")).Write(12, [unchecked((byte)phase), (byte)(phase >> 8)]);
         return new(memory with { Arena = arena }, effect with { Pools = effect.Pools.Select(pool => pool.DescriptorAddress == child.DescriptorAddress ? child : pool).ToImmutableArray() });
     }

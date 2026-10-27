@@ -118,7 +118,7 @@ public static class NativeBattleDoomtrain191Rigs
         void Write(int index, NativeBattleModulePoolTask value)
         {
             NativeBattleEffectTaskPool current = Pool();
-            Save(current with { Slots = current.Slots.SetItem(index, value) });
+            Save(current.WriteSlot(index, value));
         }
     }
 }

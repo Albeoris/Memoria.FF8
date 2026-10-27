@@ -18,7 +18,7 @@ public static class NativeBattleShivaFinalShatter
         NativeBattleEffectTaskPool pool = frame.Pool;
         (pool, int slot) = pool.Append(0x5C77C0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0x0C, 0).WriteWord(0x10, 0).WriteWord(0x12, 700).WriteWord(0x14, unchecked((ushort)-7000));
-        frame = frame with { Pool = pool with { Slots = pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Pool = pool.WriteSlot(slot, task) };
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva final fragments require their retained physical arena.");
         NativeCrtRandomState random = frame.Random;
         Initialize(meshA, 0x20000);
@@ -101,7 +101,7 @@ public static class NativeBattleShivaFinalShatter
             return new(frame, common, 0);
         }
         task = frame.Pool.Slots[slot].WriteWord(0x0C, unchecked((ushort)(frame.Pool.Slots[slot].ReadWord(0x0C) + 1)));
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Pool = frame.Pool.WriteSlot(slot, task) };
         return new(frame, common, unchecked((short)task.ReadWord(0x0C)) >= 64 ? 2 : 0);
 
         NativeBattleGfGeometryBatch Draw(NativeBattleStaticMeshResource mesh, int start, uint flags, int shift)

@@ -9,10 +9,7 @@ public static class NativeBattleShockwavePulsar260BodyPreparation
     public static NativeBattleShockwavePulsar260BodyPreparationStep Prepare693170(NativeBattleEffectArena retained92, NativeBattleActionMatrix modelWorld, NativeBattlePackedMatrix32 camera, NativeBattleEffectArena rotation8, NativeBattleEffectArena offset8, short scale, uint projectedScratch, NativeBattleEffectArena primitiveFlags4, uint modelColor, uint objectMask)
     {
         retained92.Validate();
-        if (retained92.Regions.Any(region => region.Offset < 0 || region.Data.Length > 92 - region.Offset) || retained92.UnknownRegions.Any(region => region.Offset < 0 || region.Length > 92 - region.Offset))
-        {
-            throw new InvalidDataException("Shockwave Pulsar body requires its physical92-byte allocation.");
-        }
+        retained92.ValidateExtent(92);
         NativeBattleVector rotation = Vector(rotation8);
         NativeBattleVector offset = Vector(offset8);
         NativeBattleActionMatrix local = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(rotation), scale, scale, scale) with { X = offset.X, Y = offset.Y, Z = offset.Z };

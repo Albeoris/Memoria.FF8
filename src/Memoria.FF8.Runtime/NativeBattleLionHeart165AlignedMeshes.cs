@@ -16,7 +16,7 @@ public static partial class NativeBattleLionHeart165Controller
             {
                 task = task.WriteWord(14, unchecked((ushort)(Word(task, 14) - 1)));
             }
-            return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+            return new(frame, pool.WriteSlot(slot, task), 0);
         }
         NativeBattleActionMatrix matrix;
         uint mesh;
@@ -80,7 +80,7 @@ public static partial class NativeBattleLionHeart165Controller
             task = task.WriteWord(28, unchecked((ushort)(Word(task, 28) + speed))).WriteWord(30, unchecked((ushort)(speed - speed / (callback == 0x5ECB40 ? 4 : 24))));
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= (callback == 0x5EDC10 ? 40 : 10) ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= (callback == 0x5EDC10 ? 40 : 10) ? 2 : 0);
     }
 
     public static NativeBattleLionHeart165ChildStep AdvanceWindowedMesh(NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleLionHeart165Inputs inputs, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
@@ -122,6 +122,6 @@ public static partial class NativeBattleLionHeart165Controller
             task = task.WriteWord(32, unchecked((ushort)(Word(task, 32) + speed))).WriteWord(34, unchecked((ushort)(speed - speed / 32)));
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= (common ? 28 : 60) ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= (common ? 28 : 60) ? 2 : 0);
     }
 }

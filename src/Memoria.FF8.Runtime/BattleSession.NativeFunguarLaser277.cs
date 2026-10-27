@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory with { Textures = textures, FunguarLaser277 = process with { BufferOffset = memory.Cursor } };
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2508268, 0x2508210, 20, 1);
         (root, _) = root.Append(0x683FC0);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteDword(12, 0).WriteDword(16, 0));
         return graphics with { OriginalEffect = effect with { Pools = [root], ReturnedDescriptor = 0x2508268, DrawArenaOffset = null } };
     }
 
@@ -66,7 +66,7 @@ public sealed partial class BattleSession
                 }
                 else if (Allocate(1, 0x6841F0, out int slot))
                 {
-                    NativeBattleModulePoolTask beam = pools[1].Slots[slot] with { Payload = new byte[0x658].ToImmutableArray() };
+                    NativeBattleModulePoolTask beam = pools[1].Slots[slot].ClearPayload(0x658);
                     beam = LaserStore(beam.WriteWord(14, (ushort)action).WriteDword(16, pointer), 20, ReadNativeGraphicsBone(graphics, target, 0xF1, 0));
                     beam = Initialize(beam, 0x1C, 0x3B0, resources.Muzzle);
                     beam = Initialize(beam, 0x3CC, 0xE8, resources.Ray);
@@ -94,7 +94,7 @@ public sealed partial class BattleSession
                         0x684C40 => Hit(ref task),
                         _ => throw new NotSupportedException("Native Funguar Laser selected an unrelated callback.")
                     };
-                    task = task with { Next = pools[current].Slots[slot].Next };
+                    task = task.UpdateHeader(task.Flags, task.State, pools[current].Slots[slot].Next, task.Callback);
                     Put(current, slot, task);
                     return new(pools[current], result);
                 });
@@ -331,7 +331,7 @@ public sealed partial class BattleSession
             random = random.Draw(out ushort value);
             return value;
         }
-        void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank] with { Slots = pools[bank].Slots.SetItem(slot, task) };
+        void Put(int bank, int slot, NativeBattleModulePoolTask task) => pools[bank] = pools[bank].WriteSlot(slot, task);
     }
 
     private static short LaserWord(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

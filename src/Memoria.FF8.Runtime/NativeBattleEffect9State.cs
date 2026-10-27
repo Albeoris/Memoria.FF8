@@ -36,11 +36,11 @@ public sealed record NativeBattleEffect9State([property: JsonRequired] NativeBat
     {
         ArgumentNullException.ThrowIfNull(Globals);
         Globals.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            RequireRange(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            RequireRange(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Globals.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateUnknownRanges())
         {
             RequireRange(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
@@ -56,7 +56,8 @@ public sealed record NativeBattleEffect9State([property: JsonRequired] NativeBat
     public NativeBattleEffect9State Write(uint address, ReadOnlySpan<byte> bytes)
     {
         RequireRange(address, bytes.Length);
-        return this with { Globals = Globals.Write(checked((int)(address - BaseAddress)), bytes) };
+        Globals.Write(checked((int)(address - BaseAddress)), bytes);
+        return this;
     }
 
     public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));

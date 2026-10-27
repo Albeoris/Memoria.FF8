@@ -26,6 +26,6 @@ public static partial class NativeBattleRenzokukenVariantController
         }
         short speed = unchecked((short)task.ReadWord(30));
         task = task.WriteWord(28, unchecked((ushort)(task.ReadWord(28) + speed))).WriteWord(12, unchecked((ushort)(counter + 1))).WriteWord(30, unchecked((ushort)(speed - speed / 4)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= 14 ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= 14 ? 2 : 0);
     }
 }

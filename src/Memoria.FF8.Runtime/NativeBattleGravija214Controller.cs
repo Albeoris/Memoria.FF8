@@ -89,7 +89,7 @@ public static partial class NativeBattleGravija214Controller
             throw new InvalidDataException("Gravija completion byte leaves its actual main task.");
         }
         NativeBattleEffectTaskPool pool = effect.Pools[index];
-        return effect with { Pools = effect.Pools.SetItem(index, pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteByte(18, value)) }) };
+        return effect with { Pools = effect.Pools.SetItem(index, pool.WriteSlot(0, pool.Slots[0].WriteByte(18, value))) };
     }
 
     public static NativeBattleGravija214Frame ClearDwords701200(NativeBattleGravija214Frame frame, uint address, int count) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, new byte[checked(count * 4)]), checked(count * 4));

@@ -165,14 +165,14 @@ public static partial class NativeBattleBlastingZone164Controller
         int Append(uint callback)
         {
             (pool, int created) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(created, pool.Slots[created].WriteWord(12, 0)) };
+            pool = pool.WriteSlot(created, pool.Slots[created].WriteWord(12, 0));
             return created;
         }
         int AtRetained(uint callback)
         {
             int created = Append(callback);
             NativeBattleModulePoolTask task = TaskDword(TaskDword(pool.Slots[created], 16, unchecked((uint)ReadDword(frame.Staging, 0x23C9D98))), 20, unchecked((uint)ReadDword(frame.Staging, 0x23C9D9C)));
-            pool = pool with { Slots = pool.Slots.SetItem(created, task) };
+            pool = pool.WriteSlot(created, task);
             return created;
         }
         int AtTip(uint callback, int y)
@@ -187,7 +187,7 @@ public static partial class NativeBattleBlastingZone164Controller
         int TipZ() => ReadWord(frame.Staging, 0x23C9D9C);
         void Set(int targetSlot, int offset, int value)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(targetSlot, pool.Slots[targetSlot].WriteWord(offset, unchecked((ushort)value))) };
+            pool = pool.WriteSlot(targetSlot, pool.Slots[targetSlot].WriteWord(offset, unchecked((ushort)value)));
         }
         int Rand()
         {

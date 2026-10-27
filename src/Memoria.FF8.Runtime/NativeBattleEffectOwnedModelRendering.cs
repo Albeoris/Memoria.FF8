@@ -153,7 +153,7 @@ public static partial class NativeBattleEffectOwnedModelRendering
 
     public static NativeBattlePackedMatrix32 CaptureTaskMatrix(NativeBattleModulePoolTask task, int offset)
     {
-        byte[] bytes = task.Payload.AsSpan().Slice(offset - 12, 32).ToArray();
+        byte[] bytes = task.ReadRawPayloadSpan().Slice(offset - 12, 32).ToArray();
         bool[] known = Enumerable.Range(offset, 32).Select(index => task.UnknownPayloadRanges is not { } ranges || !ranges.Any(range => index >= range.Offset && index < range.Offset + range.Length)).ToArray();
         return new(bytes.ToImmutableArray(), known.ToImmutableArray());
     }

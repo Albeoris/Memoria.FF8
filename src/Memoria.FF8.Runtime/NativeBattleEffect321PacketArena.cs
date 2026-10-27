@@ -41,8 +41,8 @@ public static class NativeBattleEffect321PacketArena
             (byte[] bytes, bool[] known) = arena.ReadSnapshot(offset, 1);
             return (bytes[0], known[0]);
         });
-        NativeBattleEffectArenaWriter writer = new(arena);
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleEffectArenaWriter writer = new(arena);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         NativeBattleEffectPacketArena.AppendAttempts(writer, links, cursor, resolved, flags, bank: address == FirstAddress ? FirstBank : SecondBank, capacity: BankLength);
         state = state.WriteView(address, writer.Freeze(), BankLength).WriteDword(CursorAddress, checked(physicalCursor + (uint)batch.AllocationBytes));
         return new(state, links.ToImmutable());

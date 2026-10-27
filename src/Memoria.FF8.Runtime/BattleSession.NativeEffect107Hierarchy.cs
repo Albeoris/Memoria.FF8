@@ -23,7 +23,7 @@ public sealed partial class BattleSession
                     {
                         if (Allocate(3, 0x6D2990, out int slot))
                         {
-                            NativeBattleModulePoolTask child = pools[3].Slots[slot] with { Payload = ImmutableArray.CreateRange(new byte[20]) };
+                            NativeBattleModulePoolTask child = pools[3].Slots[slot].ClearPayload(20);
                             child = child.WriteDword(16, workspacePointer).WriteWord(12, (ushort)(Roll() * 9 >> 15)).WriteWord(20, Roll()).WriteWord(24, Roll()).WriteWord(26, Roll()).WriteWord(28, Roll()).WriteWord(22, (ushort)((Roll() & 1023) + 1500));
                             Store(3, slot, child);
                         }
@@ -36,7 +36,7 @@ public sealed partial class BattleSession
                     {
                         if (Roll() < threshold && Allocate(4, 0x6D2910, out int slot))
                         {
-                            NativeBattleModulePoolTask child = pools[4].Slots[slot] with { Payload = ImmutableArray.CreateRange(new byte[16]) };
+                            NativeBattleModulePoolTask child = pools[4].Slots[slot].ClearPayload(16);
                             uint address = (Roll() & 1) == 0 ? 0x12EC414u : 0x12EC574u;
                             int first = unchecked((short)Roll());
                             int second = unchecked((short)Roll());
@@ -149,6 +149,6 @@ public sealed partial class BattleSession
             (pools[index], slot) = pools[index].Append(callback);
             return true;
         }
-        void Store(int index, int slot, NativeBattleModulePoolTask task) => pools[index] = pools[index] with { Slots = pools[index].Slots.SetItem(slot, task) };
+        void Store(int index, int slot, NativeBattleModulePoolTask task) => pools[index] = pools[index].WriteSlot(slot, task);
     }
 }

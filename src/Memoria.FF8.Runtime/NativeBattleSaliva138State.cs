@@ -38,14 +38,11 @@ public sealed record NativeBattleSaliva138State([property: JsonRequired] NativeB
     public void Validate()
     {
         Globals.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Globals.Regions)
+        foreach (NativeBattleEffectStorageRange region in Globals.EnumerateDataRanges())
         {
-            Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+            Require(checked(BaseAddress + (uint)region.Offset), region.Length);
         }
-        if (Globals.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > GlobalsLength - region.Length))
-        {
-            throw new InvalidDataException("Saliva unknown globals leave their scalar owner.");
-        }
+        Globals.ValidateExtent(GlobalsLength);
         if (Mesh is { } mesh)
         {
             RequireMesh(mesh);
@@ -53,10 +50,7 @@ public sealed record NativeBattleSaliva138State([property: JsonRequired] NativeB
         if (ScaleMatrix32 is { } matrix)
         {
             matrix.Validate();
-            if (matrix.Regions.Any(region => region.Offset < 0 || region.Offset > 32 - region.Data.Length) || matrix.UnknownRegions.Any(region => region.Offset < 0 || region.Length < 0 || region.Offset > 32 - region.Length))
-            {
-                throw new InvalidDataException("Saliva scale matrix leaves its single physical owner.");
-            }
+            matrix.ValidateExtent(32);
         }
     }
 
@@ -70,10 +64,21 @@ public sealed record NativeBattleSaliva138State([property: JsonRequired] NativeB
             NativeBattleEffectArena matrix = ScaleMatrix32 ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 32);
             return this with { ScaleMatrix32 = matrix.Write(checked((int)(address - MatrixAddress)), bytes) };
         }
-        return this with { Globals = Globals.Write(Require(address, bytes.Length), bytes) };
+        Globals.Write(Require(address, bytes.Length), bytes);
+        return this;
     }
-    public NativeBattleSaliva138State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
-    public NativeBattleSaliva138State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleSaliva138State WriteDword(uint address, uint value)
+    {
+        Span<byte> encoded = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
+    public NativeBattleSaliva138State WriteWord(uint address, ushort value)
+    {
+        Span<byte> encoded = stackalloc byte[2];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(encoded, value);
+        return Write(address, encoded);
+    }
     public NativeBattleEffectArena ReadView(uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(IsMatrix(address, length) ? RequireMatrix() : Globals, IsMatrix(address, length) ? checked((int)(address - MatrixAddress)) : Require(address, length), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
     public NativeBattleSaliva138State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
@@ -81,7 +86,8 @@ public sealed record NativeBattleSaliva138State([property: JsonRequired] NativeB
         {
             return this with { ScaleMatrix32 = NativeBattleEffectNodeContextMemory.Copy(source, 0, ScaleMatrix32 ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 32), checked((int)(address - MatrixAddress)), length) };
         }
-        return this with { Globals = NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length) };
+        NativeBattleEffectNodeContextMemory.Copy(source, 0, Globals, Require(address, length), length);
+        return this;
     }
     private NativeBattleEffectArena RequireMatrix() => ScaleMatrix32 ?? throw new NotSupportedException("Saliva requires its current mutable scale matrix.");
     private static bool IsMatrix(uint address, int length) => length >= 0 && address >= MatrixAddress && (ulong)address + (uint)length <= MatrixAddress + 32;

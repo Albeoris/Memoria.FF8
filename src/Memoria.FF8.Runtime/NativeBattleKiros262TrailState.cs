@@ -20,7 +20,7 @@ public sealed record NativeBattleKiros262TrailState([property: JsonRequired] Nat
             throw new InvalidDataException("Native trail requires its retained process bytes.");
         }
         Memory.Validate();
-        if (Memory.Regions.Any(region => !Contains(region.Offset, region.Data.Length)) || Memory.UnknownRegions.Any(region => !Contains(region.Offset, region.Length)))
+        if (Memory.EnumerateDataRanges().Any(region => !Contains(region.Offset, region.Length)) || Memory.EnumerateUnknownRanges().Any(region => !Contains(region.Offset, region.Length)))
         {
             throw new InvalidDataException("Native trail process bytes intersect the adjacent callback bank or leave their actual workspace.");
         }

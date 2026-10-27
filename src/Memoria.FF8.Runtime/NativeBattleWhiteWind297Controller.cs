@@ -28,7 +28,7 @@ public static class NativeBattleWhiteWind297Controller
         frame = inputs.Execute(frame, new NativeBattleWhiteWind297RingSequence(parameters.Actor78, 1));
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0));
         textures = (frame.Memory.Textures ?? throw new NotSupportedException("Blue Magic White Wind binding lost its texture queue.")).Register5099A0(resources.Camera);
         return frame with { Memory = frame.Memory with { Textures = textures }, Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = RootDescriptor, DrawArenaOffset = null } };
     }
@@ -73,7 +73,7 @@ public static class NativeBattleWhiteWind297Controller
             NativeBattleEffectTaskPool scene = NativeBattleEffectTaskPool.Initialize(SceneDescriptor, working + SceneOffset, 0x33C, 1);
             NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(TargetDescriptor, working, 0x290, 3);
             (scene, int index) = scene.Append(SceneCallback);
-            scene = scene with { Slots = scene.Slots.SetItem(index, scene.Slots[index].WriteWord(12, 0)) };
+            scene = scene.WriteSlot(index, scene.Slots[index].WriteWord(12, 0));
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], scene, targets] } };
             frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [scene, targets]) };
         }
@@ -243,7 +243,7 @@ public static class NativeBattleWhiteWind297Controller
     }
     private static NativeBattleModulePoolTask Task(NativeBattleWhiteWind297Frame frame, int pool, int slot) => frame.Effect.Pools[pool].Slots[slot];
     private static NativeBattleWhiteWind297Frame WithPool(NativeBattleWhiteWind297Frame frame, int pool, NativeBattleEffectTaskPool value) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(pool, value) } };
-    private static NativeBattleWhiteWind297Frame Put(NativeBattleWhiteWind297Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool] with { Slots = frame.Effect.Pools[pool].Slots.SetItem(slot, task with { Next = Task(frame, pool, slot).Next }) });
+    private static NativeBattleWhiteWind297Frame Put(NativeBattleWhiteWind297Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, Task(frame, pool, slot).Next, task.Callback)));
     private static NativeBattleEffectParameters Parameters(NativeBattleWhiteWind297Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Blue Magic White Wind requires its captured action parameters.");
     private static NativeBattleActionHeaderSlot Header(NativeBattleWhiteWind297Frame frame, NativeBattleWhiteWind297Inputs inputs)
     {

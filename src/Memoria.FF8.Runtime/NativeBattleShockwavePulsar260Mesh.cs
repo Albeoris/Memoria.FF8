@@ -11,7 +11,7 @@ public static class NativeBattleShockwavePulsar260Mesh
     public static NativeBattleShockwavePulsar260MeshStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, int geometryOffset, NativeBattleEffectArena context88, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<int, NativeBattleVector>? readVertex = null, Func<int, short?>? readW = null, int tableBaseBucket = 17, byte depthShift = 2)
     {
         context88.Validate();
-        if (context88.Regions.Any(region => region.Offset > 88 - region.Data.Length) || context88.UnknownRegions.Any(region => region.Offset > 88 - region.Length) || depthShift > 31)
+        if (context88.ExceedsExtent(88) || depthShift > 31)
         {
             throw new InvalidDataException("Shockwave Pulsar requires its actual physical88-byte context and ordering shift.");
         }

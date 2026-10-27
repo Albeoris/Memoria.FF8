@@ -55,7 +55,7 @@ public sealed partial class BattleSession
         NativeBattleStageSpecializedPacketStep packets = NativeBattleStageSpecializedPackets.Build(NativeStage.Specialized!, overlay.Callback, buffer, color.PackedRgb);
         NativeBattleStageSpecializedState state = packets.State;
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native stage color overlay requires its initialized ordering table.");
-        NativeBattleLogicalOrdering.Builder links = new(frame.Pending);
+        using NativeBattleLogicalOrdering.Builder links = new(frame.Pending);
         foreach (NativeBattleStageSpecializedPacket packet in packets.Packets)
         {
             ImmutableArray<uint> words = Enumerable.Range(0, packet.Bytes.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(packet.Bytes.AsSpan().Slice(index * 4))).ToImmutableArray();

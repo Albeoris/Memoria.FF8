@@ -11,7 +11,7 @@ public static class NativeBattleGilgameshModelA
 {
     public static NativeBattleGilgameshModelAStep Step595EE0(NativeBattleGilgameshModelMemory modelMemory, NativeBattleEffectArena arena, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, uint graphicsFlags)
     {
-        if (task.Payload.IsDefault || task.Payload.Length != 24)
+        if (task.Payload.IsDefault || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native595EE0 requires its original raw0x24-byte task.");
         }

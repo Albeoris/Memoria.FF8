@@ -57,11 +57,12 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
     {
         (int poolIndex, int slot) = Resolve(address);
         NativeBattleEffectTaskPool pool = Pools[poolIndex];
-        if (task.Payload.IsDefault || task.Payload.Length != pool.Stride - 12)
+        if (task.PayloadLength != pool.Stride - 12)
         {
             throw new InvalidDataException("Native hierarchy task write changes its physical stride.");
         }
-        return this with { Pools = Pools.SetItem(poolIndex, pool with { Slots = pool.Slots.SetItem(slot, task) }) };
+        pool.WriteSlot(slot, task);
+        return this;
     }
 
     public NativeBattleEffectHierarchyAppend Append8DC540(int poolIndex, uint callback, int requestedBytes, uint parentAddress = 0, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors>? selectActors = null)
@@ -77,33 +78,82 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
             //508360 returns null;8DC540 returns without touching a parent or its child count.
             return new(this, 0);
         }
+        int available = Enumerable.Range(0, pool.Slots.Length).First(index => (pool.Slots[index].Flags & 1) == 0);
+        uint address = Address(poolIndex, available);
+        NativeBattleModulePoolTask candidate = pool.Slots[available];
+        int clearBytes = (requestedBytes - 12) / 4 * 4;
+        candidate.RequirePayloadRange(12, clearBytes);
+        candidate.RequirePayloadRange(0x10, 12);
+        NativeBattleModulePoolTask? parent = null;
+        uint firstLevel = 0;
+        uint parameterAddress = 0;
+        uint rootAddress = address;
+        uint parentField1C = 0;
+        uint parentField20 = 0;
+        byte headerOffset = 0;
+        byte targetOffset = 0;
+        byte field2E = 0;
+        byte field2F = 0;
+        byte parentChildren = 0;
+        NativeBattleEffectTaskActors? actors = null;
+        if (parentAddress != 0)
+        {
+            candidate.RequirePayloadRange(0x0C, 0x24);
+            parent = Read(parentAddress);
+            byte ReadParentByte(int offset)
+            {
+                //An inactive parent alias can be the selected allocation itself; preserve the native clear prefix.
+                return ReferenceEquals(parent, candidate) && offset < 12 + clearBytes ? (byte)0 : parent.ReadByte(offset);
+            }
+            uint ReadParentDword(int offset)
+            {
+                uint value = 0;
+                for (int lane = 0; lane < 4; lane++)
+                {
+                    value |= (uint)ReadParentByte(offset + lane) << (lane * 8);
+                }
+                return value;
+            }
+            firstLevel = ReadParentDword(0x14);
+            parameterAddress = ReadParentDword(0x0C);
+            rootAddress = ReadParentDword(0x10);
+            parentField1C = ReadParentDword(0x1C);
+            parentField20 = ReadParentDword(0x20);
+            headerOffset = ReadParentByte(0x2A);
+            targetOffset = ReadParentByte(0x2B);
+            field2E = ReadParentByte(0x2E);
+            field2F = ReadParentByte(0x2F);
+            parentChildren = ReadParentByte(0x28);
+            //Selection observes the unpublished allocation prefix, before shared bank mutation.
+            actors = (selectActors ?? throw new NotSupportedException("Native8DC540 requires its parameter/header/contact owner."))(parameterAddress, unchecked((sbyte)headerOffset), unchecked((sbyte)targetOffset));
+        }
+        //Reserve the whole local operation before any store when borrowing an outer journal.
+        NativeBattleTaskBankOwner bank = pool.RequireOwner();
+        if (bank.HasCheckpoint)
+        {
+            bank.Storage.ReserveCheckpointCapacity(checked(clearBytes + 96), checked(bank.Storage.ResourcePointerCount + 16));
+        }
+        if (parent is not null && !ReferenceEquals(parent.RequireOwner(), bank) && parent.RequireOwner().HasCheckpoint)
+        {
+            parent.RequireOwner().Storage.ReserveCheckpointCapacity(1, parent.RequireOwner().Storage.ResourcePointerCount);
+        }
         (pool, int slot) = pool.Append(callback);
-        uint address = Address(poolIndex, slot);
-        NativeBattleEffectHierarchy hierarchy = this with { Pools = Pools.SetItem(poolIndex, pool) };
-        NativeBattleModulePoolTask child = hierarchy.Read(address);
-        byte[] bytes = child.Payload.ToArray();
-        //IDIV-style division is exact here because the admitted allocation size is at least12.
-        bytes.AsSpan(0, (requestedBytes - 12) / 4 * 4).Clear();
-        child = (child with { Payload = bytes.ToImmutableArray() }).WithoutResourcePointers(12, (requestedBytes - 12) / 4 * 4).WithoutUnknownPayload(12, (requestedBytes - 12) / 4 * 4);
+        NativeBattleEffectHierarchy hierarchy = this;
+        NativeBattleModulePoolTask child = pool.Slots[slot];
+        child.WriteBytes(12, new byte[clearBytes]);
         if (parentAddress == 0)
         {
-            child = child.WriteDword(0x18, 0).WriteDword(0x14, 0).WriteDword(0x10, address);
+            child.WriteDword(0x18, 0).WriteDword(0x14, 0).WriteDword(0x10, address);
         }
         else
         {
-            NativeBattleModulePoolTask parent = hierarchy.Read(parentAddress);
-            uint firstLevel = parent.ReadDword(0x14);
-            uint parameterAddress = parent.ReadDword(0x0C);
-            sbyte headerOffset = unchecked((sbyte)parent.ReadByte(0x2A));
-            sbyte targetOffset = unchecked((sbyte)parent.ReadByte(0x2B));
-            NativeBattleEffectTaskActors actors = (selectActors ?? throw new NotSupportedException("Native8DC540 requires its parameter/header/contact owner."))(parameterAddress, headerOffset, targetOffset);
-            child = child.WriteDword(0x14, firstLevel == 0 ? address : firstLevel).WriteDword(0x10, parent.ReadDword(0x10)).WriteDword(0x0C, parameterAddress).WriteDword(0x1C, parent.ReadDword(0x1C)).WriteDword(0x20, parent.ReadDword(0x20)).WriteDword(0x18, parentAddress);
-            child = child.WriteByte(0x2A, unchecked((byte)headerOffset)).WriteByte(0x2B, unchecked((byte)targetOffset)).WriteByte(0x2E, parent.ReadByte(0x2E)).WriteByte(0x2F, parent.ReadByte(0x2F)).WriteByte(0x2C, actors.Actor).WriteByte(0x2D, actors.Target);
-            //Read after Append so a same-pool parent retains508360's new Next link.
-            parent = parent.WriteByte(0x28, unchecked((byte)(parent.ReadByte(0x28) + 1)));
-            hierarchy = hierarchy.Write(parentAddress, parent);
+            child.WriteDword(0x14, firstLevel == 0 ? address : firstLevel).WriteDword(0x10, rootAddress).WriteDword(0x0C, parameterAddress).WriteDword(0x1C, parentField1C).WriteDword(0x20, parentField20).WriteDword(0x18, parentAddress);
+            child.WriteByte(0x2A, headerOffset).WriteByte(0x2B, targetOffset).WriteByte(0x2E, field2E).WriteByte(0x2F, field2F).WriteByte(0x2C, actors!.Actor).WriteByte(0x2D, actors.Target);
+            //Reread after Append so a same-pool parent retains508360's new Next link.
+            parent = hierarchy.Read(parentAddress);
+            parent.WriteByte(0x28, unchecked((byte)(parentChildren + 1)));
         }
-        return new(hierarchy.Write(address, child), address);
+        return new(hierarchy, address);
     }
 
     public NativeBattleEffectHierarchy Complete8DC530(uint address)
@@ -122,12 +172,18 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
         NativeBattleEffectHierarchy hierarchy = this;
         NativeBattleEffectTaskStep step = Pools[poolIndex].Advance((pool, slot) =>
         {
-            hierarchy = hierarchy with { Pools = hierarchy.Pools.SetItem(poolIndex, pool) };
+            if (!ReferenceEquals(hierarchy.Pools[poolIndex].RequireOwner(), pool.RequireOwner()))
+            {
+                throw new InvalidDataException("Native hierarchy callback replaced its pool authority.");
+            }
             NativeBattleEffectHierarchyCallback result = callback(hierarchy, hierarchy.Address(poolIndex, slot));
             hierarchy = result.Hierarchy;
             return new(hierarchy.Pools[poolIndex], result.Result);
         });
-        hierarchy = hierarchy with { Pools = hierarchy.Pools.SetItem(poolIndex, step.Pool) };
+        if (!ReferenceEquals(hierarchy.Pools[poolIndex].RequireOwner(), step.Pool.RequireOwner()))
+        {
+            throw new InvalidDataException("Native hierarchy pass replaced its pool authority.");
+        }
         hierarchy.Validate();
         return new(hierarchy, step.Survivors);
     }
@@ -149,31 +205,8 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
 
 public static class NativeBattleEffectTaskPayload
 {
-    public static byte ReadByte(this NativeBattleModulePoolTask task, int offset)
-    {
-        task.RequireKnownPayload(offset, 1);
-        return task.Payload[offset - 12];
-    }
-
-    public static uint ReadDword(this NativeBattleModulePoolTask task, int offset)
-    {
-        task.RequireKnownPayload(offset, 4);
-        return BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(offset - 12));
-    }
-
-    public static NativeBattleModulePoolTask WriteByte(this NativeBattleModulePoolTask task, int offset, byte value)
-    {
-        task.RequirePayloadRange(offset, 1);
-        byte[] bytes = task.Payload.ToArray();
-        bytes[offset - 12] = value;
-        return (task with { Payload = ImmutableCollectionsMarshal.AsImmutableArray(bytes) }).WithoutResourcePointers(offset, 1).WithoutUnknownPayload(offset, 1);
-    }
-
-    public static NativeBattleModulePoolTask WriteDword(this NativeBattleModulePoolTask task, int offset, uint value)
-    {
-        task.RequirePayloadRange(offset, 4);
-        byte[] bytes = task.Payload.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset - 12), value);
-        return (task with { Payload = ImmutableCollectionsMarshal.AsImmutableArray(bytes) }).WithoutResourcePointers(offset, 4).WithoutUnknownPayload(offset, 4);
-    }
+    public static byte ReadByte(this NativeBattleModulePoolTask task, int offset) => task.ReadByte(offset);
+    public static uint ReadDword(this NativeBattleModulePoolTask task, int offset) => task.ReadDword(offset);
+    public static NativeBattleModulePoolTask WriteByte(this NativeBattleModulePoolTask task, int offset, byte value) => task.WriteByte(offset, value);
+    public static NativeBattleModulePoolTask WriteDword(this NativeBattleModulePoolTask task, int offset, uint value) => task.WriteDword(offset, value);
 }

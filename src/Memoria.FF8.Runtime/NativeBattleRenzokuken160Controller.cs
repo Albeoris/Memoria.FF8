@@ -36,10 +36,10 @@ public static partial class NativeBattleRenzokuken160Controller
         NativeBattleRenzokuken160State state = retained.Enter(parameters.Actor78, parameters.HeaderIndex7C, target, initial) with { RetainedResources = resources };
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x23D4230, 0x23D4220, 16, 1);
         (main, int mainSlot) = main.Append(0x600930);
-        main = main with { Slots = main.Slots.SetItem(mainSlot, main.Slots[mainSlot].WriteWord(12, 0)) };
+        main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23D4778, 0x23D4788, 36, 100);
         (children, int childSlot) = children.Append(0x5FF180);
-        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot].WriteWord(12, 0)) };
+        children = children.WriteSlot(childSlot, children.Slots[childSlot].WriteWord(12, 0));
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native5FF080 requires its actual505E30 texture owner.");
         textures = textures.Register5099A0(resources.Animation);
         NativeBattleEffectInitializerAsset tim = effect.Binding.InitializerAsset ?? throw new NotSupportedException("Native5FF080 requires its original initializer TIM asset.");
@@ -152,7 +152,7 @@ public static partial class NativeBattleRenzokuken160Controller
             ushort flags = inputs.ReadModel(state.Actor).Flags0;
             Execute(new NativeBattleRenzokuken160ActorFlags((ushort)(task.ReadWord(14) | (flags & 0xF7FF))));
         }
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) }, result);
+        return new(frame, pool.WriteSlot(slot, task), result);
 
         void Execute(NativeBattleRenzokuken160Operation operation)
         {
@@ -161,7 +161,7 @@ public static partial class NativeBattleRenzokuken160Controller
         void Append(uint callback, Func<NativeBattleModulePoolTask, NativeBattleModulePoolTask> initialize)
         {
             (pool, int child) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(child, initialize(pool.Slots[child])) };
+            pool = pool.WriteSlot(child, initialize(pool.Slots[child]));
         }
     }
 }

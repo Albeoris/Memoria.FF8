@@ -6,7 +6,7 @@ public static class NativeBattleGilgameshMasamuneProjection
 {
     public static NativeBattleGilgameshMasamuneProjectionStep Project(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, short? cameraPadding)
     {
-        if (task.Callback != 0x590790 || task.Payload.IsDefault || task.Payload.Length != 24)
+        if (task.Callback != 0x590790 || task.Payload.IsDefault || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Masamune projection requires its actual raw flare task.");
         }

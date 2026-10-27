@@ -40,11 +40,11 @@ public sealed record NativeBattleMeltingBubble43State([property: JsonRequired] N
     public void Validate()
     {
         Channels.Validate();
-        foreach (NativeBattleEffectMemoryRegion region in Channels.Regions)
+        foreach (NativeBattleEffectStorageRange region in Channels.EnumerateDataRanges())
         {
-            RequireRelativeRange(region.Offset, region.Data.Length);
+            RequireRelativeRange(region.Offset, region.Length);
         }
-        foreach (NativeBattleEffectUnknownRegion region in Channels.UnknownRegions)
+        foreach (NativeBattleEffectStorageRange region in Channels.EnumerateUnknownRanges())
         {
             RequireRelativeRange(region.Offset, region.Length);
         }

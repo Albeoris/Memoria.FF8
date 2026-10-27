@@ -100,13 +100,11 @@ public static class NativeBattleRinoa86Program
 
     private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task)
     {
-        return new(task.Payload.AsSpan().Slice(148 - 12).ToArray().ToImmutableArray());
+        return new(task.ReadRawPayloadSpan().Slice(148 - 12).ToArray().ToImmutableArray());
     }
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] payload = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(payload.AsSpan(148 - 12));
-        return task with { Payload = payload.ToImmutableArray() };
+        return task.WriteRetainedBytes(148, workspace.Data.AsSpan());
     }
 }

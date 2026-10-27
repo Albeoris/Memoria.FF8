@@ -12,10 +12,10 @@ public static partial class NativeBattleEffect183Controller
         }
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(0x22F33E0, 0x22F33D0, 16, 1);
         (roots, int root) = roots.Append(0x5C9F80);
-        roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) };
+        roots = roots.WriteSlot(root, roots.Slots[root].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x22F33F0, 0x22F3400, 36, 100);
         (children, int director) = children.Append(0x5C9AE0);
-        children = children with { Slots = children.Slots.SetItem(director, children.Slots[director].WriteWord(12, 0)) };
+        children = children.WriteSlot(director, children.Slots[director].WriteWord(12, 0));
         int first = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Effect183 requires its first captured contact.");
         int tim = frame.Effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == 0x22F4218)?.ArenaOffset ?? throw new NotSupportedException("Effect183 requires its executed texture initializer.");
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect183 requires its actual texture queue.");

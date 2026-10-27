@@ -24,9 +24,9 @@ public static partial class NativeBattleEffect167Controller
         NativeBattleEffectTaskPool root = InitializeBank(frame, 0);
         NativeBattleEffectTaskPool child = InitializeBank(frame, 1);
         (root, int rootSlot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+        root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteWord(12, 0));
         (child, int mainSlot) = child.Append(MainCallback);
-        child = child with { Slots = child.Slots.SetItem(mainSlot, child.Slots[mainSlot].WriteWord(12, 0)) };
+        child = child.WriteSlot(mainSlot, child.Slots[mainSlot].WriteWord(12, 0));
         frame = frame with { State = frame.State.DetachBank(0).DetachBank(1), Effect = frame.Effect with { Pools = [root, child], ReturnedDescriptor = RootDescriptor } };
         for (int index = 0; index < FirstRecordCount; index++)
         {

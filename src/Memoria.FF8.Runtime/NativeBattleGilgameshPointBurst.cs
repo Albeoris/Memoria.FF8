@@ -37,7 +37,7 @@ public static class NativeBattleGilgameshPointBurst
 {
     public static NativeBattleGilgameshPointStep Step593E80(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshPointResources resources, uint graphicsFlags, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project45FAA0)
     {
-        if (task.Callback != 0x593E80 || task.Payload.IsDefault || task.Payload.Length != 24)
+        if (task.Callback != 0x593E80 || task.Payload.IsDefault || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native593E80 requires its actual raw task.");
         }

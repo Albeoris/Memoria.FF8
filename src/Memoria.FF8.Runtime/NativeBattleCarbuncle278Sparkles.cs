@@ -26,9 +26,9 @@ public static class NativeBattleCarbuncle278Sparkles
             int count = executable.Read(NativeBattleCarbuncleExecutableMemory.Address, 1)[0];
             NativeBattleVector point = NativeBattleCarbuncle278Anchors.ReadBone502170(creature, executable, random * count >> 15, 0);
             NativeBattleModulePoolTask task = pool.Slots[index].WriteWord(0xC, unchecked((ushort)point.X)).WriteWord(0xE, unchecked((ushort)point.Y)).WriteWord(0x10, unchecked((ushort)point.Z)).WriteWord(0x12, 0);
-            pool = pool with { Slots = pool.Slots.SetItem(index, task) };
+            pool = pool.WriteSlot(index, task);
             int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 12);
-            frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.Payload.AsSpan()) } };
+            frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) } };
         }
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };
     }

@@ -17,7 +17,7 @@ public static partial class NativeBattleRoughDivide163Controller
             {
                 task = task.WriteWord(14, unchecked((ushort)(Word(task, 14) - 1)));
             }
-            return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+            return new(frame, pool.WriteSlot(slot, task), 0);
         }
         short counter = Word(task, 12);
         uint address;
@@ -127,7 +127,7 @@ public static partial class NativeBattleRoughDivide163Controller
                 break;
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        return new(frame, pool with { Slots = pool.Slots.SetItem(slot, task) }, task.ReadWord(12) >= lifetime ? 2 : 0);
+        return new(frame, pool.WriteSlot(slot, task), task.ReadWord(12) >= lifetime ? 2 : 0);
     }
 
     private static NativeBattleActionMatrix TaskWorld(NativeBattleModulePoolTask task)

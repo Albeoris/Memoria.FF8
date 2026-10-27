@@ -67,7 +67,7 @@ public static class NativeBattleHoly175CapturePackets
 
         int blackOffset = buffer * 24;
         byte[] black = retained.BlackPackets.AsSpan().Slice(blackOffset, 24).ToArray();
-        NativeBattleLogicalOrdering.Builder blackLinks = new(ordering);
+        using NativeBattleLogicalOrdering.Builder blackLinks = new(ordering);
         NativeBattlePrimitiveReference blackReference = new(NativeBattleHoly175CaptureMemory.PacketBank, buffer, blackOffset);
         blackLinks.InvalidatePacketRange(blackReference, 24);
         bool blackLinked = blackLinks.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
@@ -90,7 +90,7 @@ public static class NativeBattleHoly175CapturePackets
             int cursor = process.ByteCursor ?? throw new NotSupportedException("Native Holy capture requires its actual common packet cursor.");
             string bank = process.PacketBank ?? throw new NotSupportedException("Native Holy capture requires its actual common packet bank.");
             int packetLength = checked(4 + 4 * bytes[3]);
-            NativeBattleLogicalOrdering.Builder links = new(ordering);
+            using NativeBattleLogicalOrdering.Builder links = new(ordering);
             NativeBattlePrimitiveReference reference = new(bank, process.PacketBuffer, cursor);
             links.InvalidatePacketRange(reference, allocationBytes);
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;

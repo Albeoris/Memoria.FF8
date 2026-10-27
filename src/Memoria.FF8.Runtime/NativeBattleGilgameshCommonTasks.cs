@@ -59,7 +59,7 @@ public static class NativeBattleGilgameshCommonTasks
         {
             NativeBattleModulePoolTask updated = texture508630(checked(arenaBase + 0xE000), checked(taskAddress + 0x0E), task);
             ValidateTask(updated);
-            if (updated.Flags != task.Flags || updated.State != task.State || updated.Next != task.Next || updated.Callback != task.Callback || !updated.Payload.AsSpan().Slice(0, 2).SequenceEqual(task.Payload.AsSpan().Slice(0, 2)) || !updated.Payload.AsSpan().Slice(3).SequenceEqual(task.Payload.AsSpan().Slice(3)))
+            if (updated.Flags != task.Flags || updated.State != task.State || updated.Next != task.Next || updated.Callback != task.Callback || !updated.ReadRawPayloadSpan().Slice(0, 2).SequenceEqual(task.ReadRawPayloadSpan().Slice(0, 2)) || !updated.ReadRawPayloadSpan().Slice(3).SequenceEqual(task.ReadRawPayloadSpan().Slice(3)))
             {
                 throw new InvalidDataException("Native508630 may update only its actual completion BYTE in the supplied task.");
             }
@@ -96,7 +96,7 @@ public static class NativeBattleGilgameshCommonTasks
         {
             task = task.WriteWord(0x18, 2048);
         }
-        return pool with { Slots = pool.Slots.SetItem(slot, task) };
+        return pool.WriteSlot(slot, task);
     }
 
     private static NativeBattleGilgameshCommonStep Advance(NativeBattleModulePoolTask task, uint graphicsFlags)
@@ -113,7 +113,7 @@ public static class NativeBattleGilgameshCommonTasks
 
     private static void ValidateTask(NativeBattleModulePoolTask task)
     {
-        if (task is null || task.Payload.IsDefault || task.Payload.Length != 24)
+        if (task is null || task.Payload.IsDefault || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native Gilgamesh common tasks require their original raw0x24-byte task.");
         }

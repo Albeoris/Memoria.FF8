@@ -156,7 +156,7 @@ public static class NativeBattleSiren95Programme
         uint address = Camera(frame);
         NativeBattleSiren95State state = State(frame);
         int padding = checked((int)(address - NativeBattleSiren95State.GlobalAddress + 0x5A));
-        bool known = !state.Globals.UnknownRegions.Any(region => region.Offset < padding + 2 && region.Offset + region.Length > padding);
+        bool known = !state.Globals.EnumerateUnknownRanges().Any(region => region.Offset < padding + 2 && region.Offset + region.Length > padding);
         byte[] data = new byte[0xEC];
         state.Read(address, 0x5A).CopyTo(data, 0);
         state.Read(unchecked(address + 0x5C), 0x90).CopyTo(data, 0x5C);

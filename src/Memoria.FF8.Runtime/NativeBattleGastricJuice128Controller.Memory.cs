@@ -35,7 +35,7 @@ public static partial class NativeBattleGastricJuice128Controller
     private static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)actor * 156) : throw new InvalidDataException("Gastric Juice actor leaves the native model bank.");
     private static NativeBattleModulePoolTask Task(NativeBattleGastricJuice128Frame frame, int pool, int slot) => frame.Effect.Pools[pool].Slots[slot];
     private static NativeBattleGastricJuice128Frame WithPool(NativeBattleGastricJuice128Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
-    private static NativeBattleGastricJuice128Frame Put(NativeBattleGastricJuice128Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool] with { Slots = frame.Effect.Pools[pool].Slots.SetItem(slot, task with { Next = Task(frame, pool, slot).Next }) });
+    private static NativeBattleGastricJuice128Frame Put(NativeBattleGastricJuice128Frame frame, int pool, int slot, NativeBattleModulePoolTask task) => WithPool(frame, pool, frame.Effect.Pools[pool].WriteSlot(slot, task.UpdateHeader(task.Flags, task.State, Task(frame, pool, slot).Next, task.Callback)));
     public static NativeBattleModulePoolTask Read(NativeBattleGastricJuice128Frame frame, uint address)
     {
         foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)
@@ -107,7 +107,7 @@ public static partial class NativeBattleGastricJuice128Controller
     public static NativeBattleGastricJuice128Frame PublishContext(NativeBattleGastricJuice128Frame frame, uint address, NativeBattleEffectArena context, int length) => frame with { Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), address, context, length) };
     public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(offset - 12, length));
+        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
         if (task.UnknownPayloadRanges is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)

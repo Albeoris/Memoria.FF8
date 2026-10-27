@@ -11,7 +11,7 @@ public static class NativeBattleEffect80Programme
     public static NativeBattleEffect80Frame Initialize7016B0(NativeBattleEffect80Frame frame, uint taskAddress, uint sourceAddress, int sizeBytes, NativeBattleEffect80Resources resources)
     {
         NativeBattleModulePoolTask task = Read(frame, taskAddress);
-        if (task.Payload.Length + 12 != 384 || task.ReadDword(0x74) != sourceAddress || unchecked((int)task.ReadDword(0x78)) != sizeBytes)
+        if (task.PayloadLength + 12 != 384 || task.ReadDword(0x74) != sourceAddress || unchecked((int)task.ReadDword(0x78)) != sizeBytes)
         {
             throw new InvalidDataException("Effect80 programme initialization requires its current source and actual task workspace clear size.");
         }

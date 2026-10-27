@@ -630,7 +630,7 @@ public static class NativeBattleHoly175Controller
 
     private static NativeBattleEffectArena ClearActive(NativeBattleEffectArena owner, int count)
     {
-        NativeBattleEffectArenaWriter writer = new(owner);
+        using NativeBattleEffectArenaWriter writer = new(owner);
         for (int index = 0; index < count; index++)
         {
             writer.Write(index * 24, new byte[4]);
@@ -663,7 +663,7 @@ public static class NativeBattleHoly175Controller
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), task.ReadDword(0x14));
         return bytes.ToImmutableArray();
     }
-    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) };
+    private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool.WriteSlot(slot, task);
     private static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, U(S(task, offset) + value));
     private static ushort U(int value) => unchecked((ushort)value);
     private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

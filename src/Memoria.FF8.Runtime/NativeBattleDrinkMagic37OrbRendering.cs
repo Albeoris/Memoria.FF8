@@ -29,10 +29,7 @@ public static class NativeBattleDrinkMagic37OrbRendering
             throw new InvalidDataException("Drink Magic orb drawing requires its visible original geometry task.");
         }
         retained104.Validate();
-        if (retained104.Regions.Any(region => region.Offset > 104 - region.Data.Length) || retained104.UnknownRegions.Any(region => region.Offset > 104 - region.Length))
-        {
-            throw new InvalidDataException("Drink Magic orb drawing leaves its original 104-byte temporary context.");
-        }
+        retained104.ValidateExtent(104);
         NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.Identity8DD770();
         ImmutableArray<NativeBattleDrawStock15ParticleOperation>.Builder operations = ImmutableArray.CreateBuilder<NativeBattleDrawStock15ParticleOperation>();
         Rotate('Y', Signed(task, 0x46));
