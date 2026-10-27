@@ -68,8 +68,28 @@ public sealed class NativeBattleStorageGraphTests
                 source["ResourcePointers"] = new JsonObject();
                 break;
         }
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(saved.ToJsonString())!;
-        Assert.Throws<InvalidOperationException>(() => BattleSession.Restore(snapshot));
+        InvalidDataException failure = Assert.Throws<InvalidDataException>((Action)(() =>
+        {
+            BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(saved.ToJsonString())!;
+            _ = BattleSession.Restore(snapshot);
+        }));
+        if (corruption == "knownness")
+        {
+            Assert.Contains("unknown numeric bytes", failure.Message, StringComparison.Ordinal);
+        }
+        else
+        {
+            InvalidOperationException cause = Assert.IsType<InvalidOperationException>(failure.InnerException);
+            string detail = corruption switch
+            {
+                "range" => "physical range",
+                "data" => "data disagrees",
+                "footprint" => "footprint",
+                "provenance" => "provenance",
+                _ => throw new InvalidOperationException("Unexpected corruption case.")
+            };
+            Assert.Contains(detail, cause.Message, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -138,7 +158,13 @@ public sealed class NativeBattleStorageGraphTests
     {
         JsonObject saved = JsonNode.Parse(JsonSerializer.Serialize(SessionWithStaging().Capture()))!.AsObject();
         saved["NativeEffectMemory"]!["Rinoa88"]!["NodeData"]!["Data"]![4] = 93;
-        Assert.Throws<InvalidOperationException>(() => BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved.ToJsonString())!));
+        InvalidDataException failure = Assert.Throws<InvalidDataException>((Action)(() =>
+        {
+            BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(saved.ToJsonString())!;
+            _ = BattleSession.Restore(snapshot);
+        }));
+        InvalidOperationException cause = Assert.IsType<InvalidOperationException>(failure.InnerException);
+        Assert.Contains("staging authority", cause.Message, StringComparison.Ordinal);
     }
 
     private static BattleSession SessionWithStaging()
@@ -155,6 +181,19 @@ public sealed class NativeBattleStorageGraphTests
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, memory);
         return session;
     }
+
+    [Fact]
+    public void Full_owner_borrow_keeps_overlay_routing_after_in_memory_restore()
+    {
+        NativeBattleEffectArena main = NativeBattleEffectArena.CreateUnknown(64).Write(0, new byte[64]);
+        ArenaAliases restored = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(new ArenaAliases(main, NativeBattleEffectArena.BorrowWorking(main.Working, 0, 64))));
+        using NativeBattleEffectArenaTransaction transaction = new(restored.Main);
+        transaction.Write(0, [97]);
+        Assert.Equal((byte)97, restored.Borrow.ReadByte(0));
+        Assert.Equal((byte)0, restored.Main.ReadByte(0));
+    }
+
+    private sealed record ArenaAliases(NativeBattleEffectArena Main, NativeBattleEffectArena Borrow);
 
     private sealed record ChocoAliases(NativeBattleChoco97IoState Io, NativeBattleGfAnimationSource Source);
 

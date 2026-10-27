@@ -7,6 +7,9 @@ public static partial class NativeBattleMagmaBreath48Controller
 {
     public static NativeBattleMagmaBreath48Frame Initialize(NativeBattleMagmaBreath48Frame frame, NativeBattleMagmaBreath48Resources resources, NativeBattleMagmaBreath48Inputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
+        AdmitNodeStorage(frame.State);
         RequireBinding(frame);
         frame.State.Validate();
         resources.Validate();
@@ -32,15 +35,18 @@ public static partial class NativeBattleMagmaBreath48Controller
             (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Magma Breath requires its loaded COMMON arena."), tim);
             memory = memory with { Textures = textures };
         }
-        return frame with { Memory = memory, State = state, Effect = frame.Effect with { Pools = hierarchy.Pools, ReturnedDescriptor = 0x26482A8, DrawArenaOffset = null } };
+        return NativeBattleTaskOperation.CompleteStandalone(operation, frame with { Memory = memory, State = state, Effect = frame.Effect with { Pools = hierarchy.Pools, ReturnedDescriptor = 0x26482A8, DrawArenaOffset = null } });
     }
 
     public static NativeBattleMagmaBreath48Frame Advance(NativeBattleMagmaBreath48Frame frame, NativeBattleMagmaBreath48Resources resources, NativeBattleMagmaBreath48Inputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
+        AdmitNodeStorage(frame.State);
         RequireBinding(frame);
         if (frame.Effect.ReturnedDescriptor == 0)
         {
-            return frame;
+            return NativeBattleTaskOperation.CompleteStandalone(operation, frame);
         }
         if (frame.Effect.Pools.Length != 6 || frame.State.InactiveBanks.Length != 6 || frame.State.InactiveBanks.Any(bank => bank is not null))
         {
@@ -57,7 +63,7 @@ public static partial class NativeBattleMagmaBreath48Controller
         }
         (frame, int survivors) = AdvancePool(frame, 0, resources, inputs);
         frame = frame with { Effect = frame.Effect with { ReturnedDescriptor = survivors == 0 ? 0u : 0x26482A8u } };
-        return survivors == 0 ? DetachBanks(frame) : frame;
+        return NativeBattleTaskOperation.CompleteStandalone(operation, survivors == 0 ? DetachBanks(frame) : frame);
     }
 
     private static (NativeBattleMagmaBreath48Frame Frame, int Survivors) AdvancePool(NativeBattleMagmaBreath48Frame frame, int pool, NativeBattleMagmaBreath48Resources resources, NativeBattleMagmaBreath48Inputs inputs)

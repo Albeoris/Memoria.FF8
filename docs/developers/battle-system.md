@@ -20,6 +20,12 @@ Source entry points are [BattleSession](../../src/Memoria.FF8.Runtime/BattleSess
 
 ## Live combat and settings
 
+Battle-effect bytes have one mutable runtime owner across callbacks. Arena, task, staging and node views preserve native address aliases, unknown bytes and resource-pointer provenance. Ordinary writes change the selected range; they do not capture a battle or replace the containing bank. Operation journals preserve existing publication boundaries: a failed private suffix rolls back, while an already published native prefix remains accepted.
+
+`BattleSession.Capture()` produces detached persistence state. `BattleSession.Restore()` creates independent working owners and restores aliases within that session. Capture is appropriate for saves and speculative isolation. Use `ReadDefinition()` for encounter metadata and `GameSession.SetLiveBattle()` for current battle synchronization; neither requires capturing live effect storage.
+
+Rendering consumes `PreparedPresentation`, composed after host and immediate UI publication. Commands, UI data and published texture versions remain stable while later callbacks modify working storage. Scoped resource readers preserve their selected source contents until disposal; they must not escape the callback. Bulk copies remain necessary for explicit capture/restore, native copy operations, cold initialization and decoder-owned presentation payloads.
+
 The Debug Room's Battle settings control combat policy, random encounters and ATB mode. Changes apply through the active game owner. Random encounter changes affect future encounters and preserve an already pending encounter. The full combat policy uses interactive encounters. The instant victory policy can complete a pending/active interactive battle and selects the automatic backend for future scripted battles. The automatic backend has an explicit AP-only reward policy; debug victory produces no combat rewards. These policies are distinct from winning a normal battle.
 
 The Battle laboratory is an isolated scenario editor. Its party, opponents and stage configure a debug battle rather than replacing the running encounter's ownership. `battle-close` can discard an isolated scenario; a game-owned battle must complete through its result/return owner. See [Debug Room](../players/debug-room.md).

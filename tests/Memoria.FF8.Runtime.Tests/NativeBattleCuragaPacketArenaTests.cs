@@ -36,8 +36,8 @@ public sealed class NativeBattleCuragaPacketArenaTests
         Assert.Equal(new byte[] { 0xA5, 0xA5 }, result.Memory.Arena!.Read(176, 2));
         Assert.Throws<NotSupportedException>(() => result.Memory.Arena.Read(178, 1));
         Assert.Equal(new byte[] { 0xA5 }, result.Memory.Arena.Read(179, 1));
-        NativeBattleEffectPacketWrite clone = JsonSerializer.Deserialize<NativeBattleEffectPacketWrite>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(clone));
+        NativeBattleEffectPacketWrite clone = RoundTrip(result);
+        Assert.Equal(SnapshotJson(result), SnapshotJson(clone));
     }
 
     [Fact]
@@ -51,4 +51,7 @@ public sealed class NativeBattleCuragaPacketArenaTests
         attempt = attempt with { Primitive = new(17, [0x03000000, 0xE1000220, 0, 0], [0, 0, 0, 0]) };
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectPacketArena.Append(memory, 0, NativeBattleLogicalOrdering.Clear(), new([attempt], 12)));
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

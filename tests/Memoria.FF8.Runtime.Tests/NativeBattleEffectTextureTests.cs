@@ -8,25 +8,23 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffectTextureTests
 {
     [Fact]
-    public void Multirow_rectangle_keeps_scalar_region_layout_and_freezes_the_destination_once()
+    public void Multirow_rectangle_keeps_scalar_region_layout_with_bounded_page_publication()
     {
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, new byte[NativeBattleEffectArena.Length]);
         byte[] data = new byte[128 * 128 * 2];
         new Random(505).NextBytes(data);
-        NativeBattleEffectTextureState queued = (NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = source.Regions }).EnqueueRectangle505DF0(new(32, 64, 128, 128), new("rectangle", data.ToImmutableArray()));
-        NativeBattleEffectArena scalar = source;
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        NativeBattleEffectTextureState queued = (NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = source.Capture().Regions }).PublishVramSpan(0, []).EnqueueRectangle505DF0(new(32, 64, 128, 128), new("rectangle", data.ToImmutableArray()));
+        NativeBattleEffectArena scalar = NativeBattleStorageSnapshots.Restore(source.Capture());
         for (int row = 0; row < 128; row++)
         {
             scalar = scalar.Write(2 * ((64 + row) * 1024 + 32), data.AsSpan(row * 256, 256));
         }
-        long scalarBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        before = GC.GetAllocatedBytesForCurrentThread();
+        long before = GC.GetAllocatedBytesForCurrentThread();
         NativeBattleEffectTextureDrain drained = queued.Drain505D20();
         long batchedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.Equal(JsonSerializer.Serialize(scalar.Regions), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drained.State).VramRegions));
+        Assert.Equal(JsonSerializer.Serialize(scalar.Capture().Regions), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drained.State).VramRegions));
         Assert.Equal(data, drained.Uploads.Single().Bytes);
-        Assert.True(batchedBytes < scalarBytes / 10, $"Scalar {scalarBytes}; batched {batchedBytes}");
+        Assert.True(batchedBytes < 2097152, $"A warm rectangle publication allocated {batchedBytes} bytes.");
         Assert.All(source.Read(0, NativeBattleEffectArena.Length), value => Assert.Equal(0, value));
     }
 

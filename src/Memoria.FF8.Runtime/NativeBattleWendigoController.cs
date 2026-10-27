@@ -11,6 +11,7 @@ public static partial class NativeBattleWendigoController
 
     public static NativeBattleWendigoFrame Initialize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, NativeBattleWendigoResources resources, NativeCrtRandomState random)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(memory, effect);
         bool shoot = resources.Effect == 42;
         if (resources.Effect is not (41 or 42) || effect.RequestedEffect != resources.Effect || effect.Binding.Entry != (shoot ? 0x83ECC0u : 0x8465C0u) || effect.Parameters is not { } parameters)
         {
@@ -23,7 +24,7 @@ public static partial class NativeBattleWendigoController
             {
                 throw new InvalidDataException("Native Wendigo pending cold source already contains mutable bytes.");
             }
-            state = state with { ActorBank = resources.ActorBank, PendingColdSources = false };
+            state = state with { ActorBank = NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(new NativeBattleNodeSource(resources.ActorBank)), PendingColdSources = false };
         }
         NativeBattleEffectTaskPool[] pools = [
             NativeBattleEffectTaskPool.Initialize(shoot ? 0x266CB60u : 0x268F288u, shoot ? 0x266CA98u : 0x268F1C0u, 0x64, 2),
@@ -58,10 +59,15 @@ public static partial class NativeBattleWendigoController
         }
         state = state with { Source = source };
         memory = shoot ? memory with { Shoot42 = state } : memory with { Dribble41 = state };
-        return new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = pools[0].DescriptorAddress }, random);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, new NativeBattleWendigoFrame(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = pools[0].DescriptorAddress }, random));
     }
 
-    public static NativeBattleWendigoFrame Advance(NativeBattleWendigoFrame frame, NativeBattleWendigoResources resources, NativeBattleWendigoInputs inputs) => frame.Effect.ReturnedDescriptor == 0 ? frame : new Execution(frame, resources, inputs).Advance();
+    public static NativeBattleWendigoFrame Advance(NativeBattleWendigoFrame frame, NativeBattleWendigoResources resources, NativeBattleWendigoInputs inputs)
+    {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        NativeBattleWendigoFrame result = frame.Effect.ReturnedDescriptor == 0 ? frame : new Execution(frame, resources, inputs).Advance();
+        return NativeBattleTaskOperation.CompleteStandalone(operation, result);
+    }
 
     private sealed partial class Execution
     {

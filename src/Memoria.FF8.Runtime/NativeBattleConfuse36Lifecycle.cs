@@ -9,13 +9,19 @@ public static class NativeBattleConfuse36Lifecycle
 {
     public static NativeBattleConfuse36PresentationStep AdvanceAndDraw(NativeBattleConfuse36Frame frame, NativeBattleConfuse36Resources resources, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        using NativeBattleLogicalOrderingTransaction? orderingOperation = NativeBattleTaskOperation.ProtectOrdering(ordering);
+        ordering = orderingOperation?.View ?? ordering;
         using NativeBattleConfuse36NodeMemory memory = new(frame, contextTask);
-        NativeBattleEffectNodeBank bank = new(0x15D97FC, frame.Memory.Confuse36Executable ?? throw new NotSupportedException("Native Confuse requires its executed original actor context initialization."), resources.ReadConstantChannel);
+        NativeBattleNodeSource nodeSource = frame.Memory.Confuse36Executable ?? throw new NotSupportedException("Native Confuse requires its executed original actor context initialization.");
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(nodeSource.Arena);
+        using NativeBattleEffectNodeBank bank = new(0x15D97FC, nodeSource, resources.ReadConstantChannel);
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, readModel, AllocateEmitter, AllocateGeometry);
         NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
         NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh);
         NativeBattleConfuse36Frame result = memory.Flush();
-        result = result with { Memory = result.Memory with { Confuse36Executable = bank.Data } };
+        bank.Publish();
+        result = result with { Memory = result.Memory with { Confuse36Executable = bank.Source } };
         if (!batch.Attempts.IsEmpty)
         {
             int cursor = result.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native Confuse36 drawing requires its actual primary packet cursor.");
@@ -23,7 +29,7 @@ public static class NativeBattleConfuse36Lifecycle
             result = result with { Memory = packets.Memory, State = result.State with { PrimaryDrawCursor = packets.Cursor } };
             ordering = packets.Ordering;
         }
-        return new(result, random, ordering, batch);
+        return NativeBattleTaskOperation.CompleteStandalone<NativeBattleConfuse36PresentationStep>(operation, new(result, random, NativeBattleTaskOperation.CompleteOrdering(orderingOperation, ordering), batch));
 
         int? AllocateEmitter(uint parent, sbyte source, sbyte target)
         {

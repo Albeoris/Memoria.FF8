@@ -86,8 +86,8 @@ public sealed class NativeBattleCuragaControllerTests
         Assert.Equal(0u, sound.Flags);
         Assert.Equal((byte)128, sound.Pan);
         Assert.Equal(127u, sound.Volume);
-        NativeBattleCuragaFrame independent = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCuragaController.Advance87DC50(frame, fixture.Inputs, Resources(), Leaf)), JsonSerializer.Serialize(NativeBattleCuragaController.Advance87DC50(independent, fixture.Inputs, Resources(), Leaf)));
+        NativeBattleCuragaFrame independent = RoundTrip(frame);
+        Assert.Equal(SnapshotJson(NativeBattleCuragaController.Advance87DC50(frame, fixture.Inputs, Resources(), Leaf)), SnapshotJson(NativeBattleCuragaController.Advance87DC50(independent, fixture.Inputs, Resources(), Leaf)));
     }
 
     [Fact]
@@ -127,11 +127,11 @@ public sealed class NativeBattleCuragaControllerTests
         NativeBattleEffectTimUpload copy = Assert.IsType<NativeBattleEffectTimUpload>(frame.Memory.Textures!.Slots[0]);
         Assert.Equal((byte)3, copy.Kind);
         Assert.Equal(new NativeBattleEffectVramCopy(1, 2, 3, 4, 5, 6), copy.Copy);
-        NativeBattleCuragaFrame independent = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleCuragaFrame independent = RoundTrip(frame);
         NativeBattleCuragaLeafStep Leaf(NativeBattleCuragaFrame current, uint _) => new(current, 0);
         NativeBattleCuragaControllerStep actual = NativeBattleCuragaController.Advance87DC50(frame, inputs, Resources(), Leaf);
         NativeBattleCuragaControllerStep restored = NativeBattleCuragaController.Advance87DC50(independent, inputs, Resources(), Leaf);
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+        Assert.Equal(SnapshotJson(actual), SnapshotJson(restored));
         Assert.Empty(actual.Contacts);
         Assert.Equal(1, actual.Frame.Memory.Textures!.Count);
 
@@ -196,4 +196,7 @@ public sealed class NativeBattleCuragaControllerTests
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
         return (frame, new(packets, camera, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source));
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

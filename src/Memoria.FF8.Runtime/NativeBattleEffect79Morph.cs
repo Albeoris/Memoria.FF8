@@ -13,7 +13,22 @@ public static class NativeBattleEffect79Morph
         {
             return new(frame, bank);
         }
-        byte[] bytes = bank.ToArray();
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
+        NativeBattleNodeSource source = new(bank);
+        using NativeBattleEffectNodeBank current = new(sourceAddress, source);
+        NativeBattleEffect79Frame result = Execute7BA230(frame, current, mesh, firstShape, secondShape, ratioChannel);
+        current.Publish();
+        var completed = new NativeBattleEffect79MorphStep(result, System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsImmutableArray(source.Read(0, source.Length)));
+        return NativeBattleTaskOperation.CompleteStandalone(operation, completed);
+    }
+
+    internal static NativeBattleEffect79Frame Execute7BA230(NativeBattleEffect79Frame frame, NativeBattleEffectNodeBank bank, uint mesh, uint firstShape, uint secondShape, uint ratioChannel)
+    {
+        if (firstShape == 0 || secondShape == 0)
+        {
+            return frame;
+        }
         NativeBattleTemporaryAllocation allocated = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect79 morph requires its current temporary owner."), 8);
         short index = BinaryPrimitives.ReadInt16LittleEndian(Read(secondShape + 0x1CA, 2));
         short ratio = BinaryPrimitives.ReadInt16LittleEndian(Read(unchecked(ratioChannel + (uint)(index * 2)), 2));
@@ -33,22 +48,22 @@ public static class NativeBattleEffect79Morph
             int destination = Offset(mesh + offset, 6);
             for (int axis = 0; axis < 3; axis++)
             {
-                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(destination + axis * 2), unchecked((short)registers.Colors.Ir[axis]!.Value));
+                bank.WriteUInt16(destination + axis * 2, unchecked((ushort)(short)registers.Colors.Ir[axis]!.Value));
             }
         }
         staging = NativeBattleTemporaryMemory.Release5082D0(staging, 8);
         frame = frame with { Staging = staging, Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
-        return new(frame, bytes.ToImmutableArray());
+        return frame;
 
         int Offset(uint address, int length)
         {
-            long offset = (long)address - sourceAddress;
-            if (offset < 0 || length < 0 || offset > bytes.Length - length)
+            long offset = (long)address - bank.Address;
+            if (offset < 0 || length < 0 || offset > bank.Length - length)
             {
                 throw new InvalidDataException("Effect79 morph read leaves its current addressed source bank.");
             }
             return (int)offset;
         }
-        ReadOnlySpan<byte> Read(uint address, int length) => bytes.AsSpan(Offset(address, length), length);
+        ReadOnlySpan<byte> Read(uint address, int length) => bank.Read(address, length);
     }
 }

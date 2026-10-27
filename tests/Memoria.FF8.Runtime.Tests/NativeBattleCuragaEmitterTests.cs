@@ -87,7 +87,7 @@ public sealed class NativeBattleCuragaEmitterTests
 
     internal static NativeBattleCuragaFrame Source(NativeBattleCuragaFrame frame, Action<byte[]> update)
     {
-        byte[] bytes = frame.Memory.CuragaExecutable!.Data!.Value.ToArray();
+        byte[] bytes = NativeBattleStorageSnapshots.Capture(frame.Memory.CuragaExecutable!.Data!).Data.ToArray();
         byte[] source = bytes.AsSpan(0x104, 0x158).ToArray();
         update(source);
         source.CopyTo(bytes, 0x104);

@@ -6875,8 +6875,8 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 if (effectId == 56 && !absorbBankRestored && current.NativeEffectMemory!.Absorb56Bank?.Data is { } absorbBank)
                 {
                     Assert.Equal(0x4258, absorbBank.Length);
-                    Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(absorbBank.AsSpan().Slice(0x4154)));
-                    Assert.Equal(0x15A1F10u, BinaryPrimitives.ReadUInt32LittleEndian(absorbBank.AsSpan().Slice(0x4158)));
+                    Assert.Equal(1u, absorbBank.ReadUInt32(0x4154));
+                    Assert.Equal(0x15A1F10u, absorbBank.ReadUInt32(0x4158));
                     ColdNext("addressed-bank-initialized", current);
                     absorbBankRestored = true;
                 }

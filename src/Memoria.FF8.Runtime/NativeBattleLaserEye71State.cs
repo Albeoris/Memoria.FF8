@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleLaserEye71State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] ImmutableArray<byte>? ExecutableBytes, [property: JsonRequired] bool ColdSourcePending)
+public sealed record NativeBattleLaserEye71State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] NativeBattleNodeSource? ExecutableBytes, [property: JsonRequired] bool ColdSourcePending)
 {
     public const uint BaseAddress = 0x25FA408;
     public const int Length = 0x29D0;
@@ -33,7 +33,7 @@ public sealed record NativeBattleLaserEye71State([property: JsonRequired] Native
     {
         if (ExecutableBytes is { } bytes)
         {
-            return BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan());
+            return bytes.ReadUInt32(0);
         }
         return ColdSourcePending ? 0u : throw new NotSupportedException("Laser Eye requires its retained executable source bytes.");
     }
@@ -49,8 +49,31 @@ public sealed record NativeBattleLaserEye71State([property: JsonRequired] Native
         return this with { ExecutableBytes = resources.Executable.Data, ColdSourcePending = false };
     }
 
-    public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Require(address, 4), 4));
-    public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Globals.Read(Require(address, 2), 2));
+    internal NativeBattleNodeInitialization<NativeBattleLaserEye71State> PrepareInitializeSource(NativeBattleLaserEye71Resources resources)
+    {
+        NativeBattleLaserEye71State state = SeedColdSource(resources);
+        NativeBattleNodeSource bytes = state.ExecutableBytes ?? throw new NotSupportedException("Laser Eye nodes require their current executable source bytes.");
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(bytes.Arena ?? throw new InvalidDataException("Laser Eye executable requires its addressed arena owner."));
+        if (bytes.ReadUInt32(0) != 0)
+        {
+            return new(state, null);
+        }
+        NativeBattleNodeBankOperation operation = new(bytes);
+        try
+        {
+            NativeBattleEffectNodeBankFixups.Relocate(operation, NativeBattleLaserEye71Profile.SourceAddress);
+            operation.WriteUInt32(0, 1);
+            return new(state, operation);
+        }
+        catch
+        {
+            operation.Dispose();
+            throw;
+        }
+    }
+
+    public uint ReadDword(uint address) => Globals.ReadUInt32(Require(address, 4));
+    public ushort ReadWord(uint address) => Globals.ReadUInt16(Require(address, 2));
     public NativeBattleLaserEye71State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

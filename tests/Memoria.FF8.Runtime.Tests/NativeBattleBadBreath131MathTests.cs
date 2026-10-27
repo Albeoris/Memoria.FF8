@@ -78,6 +78,11 @@ public sealed class NativeBattleBadBreath131MathTests
         Assert.Null(actual.GeometryRegisters!.Sxy[2]);
         Assert.Null(actual.ScriptedColorRegisters.Material);
         Assert.Throws<NotSupportedException>(() => actual.Arena.Read(destination + 164 * 8 + 6, 2));
+        for (int index = 0; index < 165; index++)
+        {
+            Assert.Equal(new byte[] { 2, 0, 250, 255, 10, 0 }, actual.Arena.Read(destination + index * 8, 6));
+            Assert.All(actual.Arena.ReadSnapshot(destination + index * 8 + 6, 2).Known, known => Assert.False(known));
+        }
     }
 
     private static byte[] Mesh()

@@ -36,13 +36,13 @@ public sealed record NativeBattleDrain39State([property: JsonRequired] int Sourc
     public ushort? PassGeometryCount { get; init; }
 }
 public sealed record NativeBattleDrain39Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleDrain39State State);
-public sealed record NativeBattleDrain39BankState([property: JsonRequired] ImmutableArray<byte>? Data)
+public sealed record NativeBattleDrain39BankState([property: JsonRequired, JsonConverter(typeof(NativeBattleNodeSource.Converter))] NativeBattleNodeSource? Data)
 {
     public static NativeBattleDrain39BankState FromColdProcess() => new(Data: null);
 
     public void Validate()
     {
-        if (Data is { } bytes && (bytes.IsDefault || bytes.Length != NativeBattleDrain39Nodes.BankLength || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice((int)(NativeBattleDrain39Nodes.DirectoryAddress - NativeBattleDrain39Nodes.BankAddress))) != 1))
+        if (Data is { } bytes && (bytes.Length != NativeBattleDrain39Nodes.BankLength || bytes.ReadUInt32((int)(NativeBattleDrain39Nodes.DirectoryAddress - NativeBattleDrain39Nodes.BankAddress)) != 1))
         {
             throw new InvalidDataException("Native Drain retained bank requires its complete absolute-pointer source and initialized directory DWORD.");
         }

@@ -11,7 +11,7 @@ public sealed record NativeBattleDeathResources(NativeBattleEffectHeapAllocation
     [JsonIgnore]
     public NativeBattleDeathFamilyProfile Profile => NativeBattleDeathFamilyProfile.ForEffect(Effect);
 }
-public sealed record NativeBattleDeathState([property: JsonRequired] NativeBattleEffectArena Module, [property: JsonRequired] ImmutableArray<byte>? AuraActors, [property: JsonRequired] ImmutableArray<byte>? DarkActors, [property: JsonRequired] bool PendingColdSources, [property: JsonRequired] ImmutableArray<NativeBattleEffectOwnedModelState> Models, [property: JsonRequired] int? Source, [property: JsonRequired] int? Cursor, [property: JsonRequired] int? Emitters, [property: JsonRequired] int? Geometry, [property: JsonRequired] ushort EmitterScan, [property: JsonRequired] ushort GeometryScan, [property: JsonRequired] ushort PassEmitters, [property: JsonRequired] ushort PassGeometry)
+public sealed record NativeBattleDeathState([property: JsonRequired] NativeBattleEffectArena Module, [property: JsonRequired] NativeBattleNodeSource? AuraActors, [property: JsonRequired] NativeBattleNodeSource? DarkActors, [property: JsonRequired] bool PendingColdSources, [property: JsonRequired] ImmutableArray<NativeBattleEffectOwnedModelState> Models, [property: JsonRequired] int? Source, [property: JsonRequired] int? Cursor, [property: JsonRequired] int? Emitters, [property: JsonRequired] int? Geometry, [property: JsonRequired] ushort EmitterScan, [property: JsonRequired] ushort GeometryScan, [property: JsonRequired] ushort PassEmitters, [property: JsonRequired] ushort PassGeometry)
 {
     public static NativeBattleDeathState FromColdProcess() => new(NativeBattleEffectArena.Clear().MarkUnknown(4, 4), null, null, true, [], null, 0, null, null, 0, 0, 0, 0);
 }

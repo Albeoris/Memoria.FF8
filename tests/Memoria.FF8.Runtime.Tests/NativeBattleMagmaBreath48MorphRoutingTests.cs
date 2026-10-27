@@ -16,10 +16,10 @@ public sealed class NativeBattleMagmaBreath48MorphRoutingTests
         frame = NativeBattleCuragaSpawnTests.Channel(frame, 0x138, 2048);
         NativeBattleCuragaNodeMemory memory = new(frame, fixture.Task);
         memory.ContextDword(0x230, NativeBattleCuragaExecutableState.Address + 0xC4);
-        byte[] bytes = frame.Memory.CuragaExecutable!.Data!.Value.ToArray();
+        byte[] bytes = NativeBattleStorageSnapshots.Capture(frame.Memory.CuragaExecutable!.Data!).Data.ToArray();
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(0xC4), 0x40000000);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(0xC8), 0x40001000);
-        NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, bytes.ToImmutableArray(), (_, _) => throw new InvalidOperationException("External morph must use its current addressed store hook."));
+        using NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, bytes.ToImmutableArray(), (_, _) => throw new InvalidOperationException("External morph must use its current addressed store hook."));
         List<string> order = [];
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException())
         {

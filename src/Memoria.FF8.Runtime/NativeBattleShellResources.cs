@@ -11,9 +11,9 @@ public sealed record NativeBattleShellResources(NativeBattleEffectHeapAllocation
     public const uint ChannelAddress = 0x26C30EC;
     public const int ChannelLength = 0x7A4;
 }
-public sealed record NativeBattleShellState([property: JsonRequired] ImmutableArray<byte> Blend, [property: JsonRequired] ImmutableArray<byte> ActorBank, [property: JsonRequired] bool PendingColdActorBank, [property: JsonRequired] ImmutableArray<byte> Channels, [property: JsonRequired] int? Source, [property: JsonRequired] int? Cursor, [property: JsonRequired] int? SecondaryCursor, [property: JsonRequired] int? Emitters, [property: JsonRequired] int? Geometry, [property: JsonRequired] ushort EmitterScan, [property: JsonRequired] ushort GeometryScan, [property: JsonRequired] ushort PassEmitters, [property: JsonRequired] ushort PassGeometry, [property: JsonRequired] uint ContextTask)
+public sealed record NativeBattleShellState([property: JsonRequired] ImmutableArray<byte> Blend, [property: JsonRequired, JsonConverter(typeof(NativeBattlePendingNodeSourceConverter))] NativeBattleNodeSource? ActorBank, [property: JsonRequired] bool PendingColdActorBank, [property: JsonRequired] ImmutableArray<byte> Channels, [property: JsonRequired] int? Source, [property: JsonRequired] int? Cursor, [property: JsonRequired] int? SecondaryCursor, [property: JsonRequired] int? Emitters, [property: JsonRequired] int? Geometry, [property: JsonRequired] ushort EmitterScan, [property: JsonRequired] ushort GeometryScan, [property: JsonRequired] ushort PassEmitters, [property: JsonRequired] ushort PassGeometry, [property: JsonRequired] uint ContextTask)
 {
-    public static NativeBattleShellState FromColdProcess() => new(new byte[0x2E0].ToImmutableArray(), [], true, new byte[NativeBattleShellResources.ChannelLength].ToImmutableArray(), null, 0, 0, null, null, 0, 0, 0, 0, 0);
+    public static NativeBattleShellState FromColdProcess() => new(new byte[0x2E0].ToImmutableArray(), null, true, new byte[NativeBattleShellResources.ChannelLength].ToImmutableArray(), null, 0, 0, null, null, 0, 0, 0, 0, 0);
 }
 public sealed partial record NativeBattleEffectMemory
 {

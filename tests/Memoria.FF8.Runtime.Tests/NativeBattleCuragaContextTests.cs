@@ -11,7 +11,8 @@ public sealed class NativeBattleCuragaContextTests
     {
         var fixture = Fixture();
         NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
-        NativeBattleModulePoolTask task = hierarchy.Read(fixture.Address) with { Callback = NativeBattleRaldo19Profile.GenericCallback };
+        NativeBattleModulePoolTask task = hierarchy.Read(fixture.Address);
+        task.UpdateHeader(task.Flags, task.State, task.Next, NativeBattleRaldo19Profile.GenericCallback);
         task = task.WriteDword(0x30, NativeBattleRaldo19Profile.ExecutableAddress).WriteWord(0x29C, 4).WriteWord(0x290, 7).WriteWord(0x292, unchecked((ushort)-768)).WriteWord(0x294, 9);
         hierarchy = hierarchy.Write(fixture.Address, task);
         NativeBattleCuragaFrame frame = fixture.Frame with { Memory = fixture.Frame.Memory with { Raldo19Executable = NativeBattleCuragaExecutableState.FromColdProcess(19), Parameter80 = 0 }, Effect = fixture.Frame.Effect with { RequestedEffect = 19, Binding = new(19, NativeBattleRaldo19Profile.Entry, NativeBattleRaldo19Profile.Initializer), Pools = hierarchy.Pools } };
@@ -59,8 +60,8 @@ public sealed class NativeBattleCuragaContextTests
         Assert.Equal(NativeBattleCuragaExecutableState.Address + 4, task.ReadDword(0x34 + 0x224));
         Assert.Equal(1u, initialized.Memory.CuragaExecutable!.InitializationFlag);
         Assert.Equal(0u, fixture.Frame.Memory.CuragaExecutable!.InitializationFlag);
-        NativeBattleCuragaFrame independent = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(fixture.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(initialized), JsonSerializer.Serialize(NativeBattleCuragaContext.Initialize87E230(independent, fixture.Address, Resources(), fixture.Inputs)));
+        NativeBattleCuragaFrame independent = RoundTrip(fixture.Frame);
+        Assert.Equal(SnapshotJson(initialized), SnapshotJson(NativeBattleCuragaContext.Initialize87E230(independent, fixture.Address, Resources(), fixture.Inputs)));
     }
 
     [Theory]
@@ -144,4 +145,7 @@ public sealed class NativeBattleCuragaContextTests
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
         return (frame, child.Address, new(packets, camera, Model, _ => source));
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

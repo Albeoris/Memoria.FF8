@@ -79,14 +79,14 @@ public sealed class NativeBattleCuragaSimpleParticleTests
         List<uint> colors = [];
         for (int index = 0; index < 5; index++)
         {
-            NativeBattleCuragaFrame clone = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleCuragaFrame clone = RoundTrip(frame);
             NativeBattleCuragaLeafStep step = NativeBattleCuragaParticles.AdvanceSimple(frame, fixture.Address, resources, (current, operation) =>
             {
                 colors.Add(Assert.IsType<NativeBattleCuragaPacketOperation>(operation).Batch.Primitives[0].Primitive.Words[1]);
                 return current;
             });
             NativeBattleCuragaLeafStep restored = NativeBattleCuragaParticles.AdvanceSimple(clone, fixture.Address, resources, (current, _) => current);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(restored));
+            Assert.Equal(SnapshotJson(step), SnapshotJson(restored));
             frame = step.Frame;
         }
         Assert.Equal(new uint[] { 0x2A112233, 0x2A112233, 0x2A112233, 0x2A445566, 0x2A445566 }, colors);
@@ -112,4 +112,7 @@ public sealed class NativeBattleCuragaSimpleParticleTests
         }
         return (frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } }, appended.Address);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

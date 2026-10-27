@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime.Tests;
+namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleNodeStagingSourceTests
 {
@@ -48,13 +48,13 @@ public sealed class NativeBattleNodeStagingSourceTests
         operation.WriteUInt32(0, 2);
         scope.View.WriteUInt32(Address + 4, 3);
         Assert.Equal(2u, operation.ReadUInt32(0));
-        Assert.Equal(1u, reader.ReadUInt32(0));
+        Assert.Equal(1u, reader.UInt(0));
         Assert.Equal(0u, operation.ReadUInt32(4));
         operation.Publish();
         Assert.Equal(2u, source.ReadUInt32(0));
         Assert.Equal(3u, source.ReadUInt32(4));
         Assert.Equal(1u, staging.ReadUInt32(Address));
-        Assert.Equal(1u, reader.ReadUInt32(0));
+        Assert.Equal(1u, reader.UInt(0));
     }
 
     [Fact]

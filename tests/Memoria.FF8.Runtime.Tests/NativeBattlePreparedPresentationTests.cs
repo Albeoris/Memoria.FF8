@@ -6,6 +6,40 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattlePreparedPresentationTests
 {
     [Fact]
+    public void Paused_geometry_accepts_new_ui_and_texture_publications_without_changing_the_retained_frame()
+    {
+        BattleSession battle = new(new BattleDefinition
+        {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.Normal);
+        NativeBattleEffectMemory memory = battle.NativeEffectMemory!.BeginLoad(0);
+        NativeBattlePcUiFrame firstUi = new([], [], [1], 640, 480);
+        memory = memory with { Textures = memory.Textures!.Upload45BD30(0, 0, 1, 1, [11, 0]), UiImmediateFrame = firstUi };
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(battle, memory);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, new NativeBattleGraphicsState([], [], 0, 0) { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() });
+        battle.RefreshPreparedPresentation();
+        NativeBattlePreparedPresentation first = Assert.IsType<NativeBattlePreparedPresentation>(battle.PreparedPresentation);
+        long captures = memory.Arena!.Working.CaptureBytes;
+
+        NativeBattlePcUiFrame secondUi = new([], [], [2], 640, 480);
+        memory = memory with { Textures = memory.Textures.Upload45BD30(0, 0, 1, 1, [12, 0]), UiImmediateFrame = secondUi };
+        memory.Arena.WriteUInt32(16, 123);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(battle, memory);
+        battle.RefreshPreparedPresentation();
+        NativeBattlePreparedPresentation second = Assert.IsType<NativeBattlePreparedPresentation>(battle.PreparedPresentation);
+
+        Assert.Same(first.Primitives, second.Primitives);
+        Assert.Same(firstUi, first.UiFrame);
+        Assert.Same(secondUi, second.UiFrame);
+        Assert.Equal((ushort)11, first.Textures!.ReadVramWord(0, 0));
+        Assert.Equal((ushort)12, second.Textures!.ReadVramWord(0, 0));
+        Assert.Equal(first.Frame, second.Frame);
+        Assert.True(second.Version > first.Version);
+        Assert.Equal(captures, memory.Arena.Working.CaptureBytes);
+    }
+
+    [Fact]
     public void Prepared_commands_do_not_retain_pending_packet_authority()
     {
         NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 20), 1, 0x68, [0x68010203, 0x00020001], 0, [], null);

@@ -98,7 +98,6 @@ public sealed partial class GameAssets
         bool nativePlanes = source.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash;
         NativeFieldTexturePlanes? planes = nativePlanes ? animations?.Planes ?? throw new NotSupportedException("Registered Remastered field textures require their retained native plane state.") : null;
         planes?.Validate();
-        byte[] bank = textures.ReadVram();
         TexturePageMember[] members = registration.Resources.SelectMany(resource => resource.Textures.Select((texture, ordinal) =>
         {
             FieldModel model = field.Models[resource.ModelId];
@@ -173,7 +172,7 @@ public sealed partial class GameAssets
             {
                 throw new InvalidDataException("Native registered texture sampling leaves shared VRAM.");
             }
-            return BinaryPrimitives.ReadUInt16LittleEndian(bank.AsSpan((y * 1024 + x) * 2, 2));
+            return textures.ReadVramWord(x, y);
         }
     }
 

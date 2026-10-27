@@ -56,6 +56,7 @@ public sealed class NativeBattleCuragaNodeEngineTests
     {
         var fixture = Fixture([(0, 0, true), (1, -1, false), (4, 0, false), (3, 0, false), (0, 0, false), (1, 0, true)]);
         NativeBattleCuragaFrame frame = Write(fixture.Frame, fixture.Task, task => task.WriteWord(0x34 + 0x1C, 2).WriteWord(0x34 + 0x22, 1 << 4));
+        NativeBattleCuragaFrame beforeBirth = NativeBattleStorageSnapshots.Capture(frame);
         NativeBattleCuragaFrame result = NativeBattleCuragaNodeEngine.Birth882E20(frame, fixture.Task);
         Assert.Equal((ushort)5, Task(result, fixture.Task).ReadWord(0x34 + 0x14));
         Assert.Equal(new byte[] { 0, 0 }, result.Memory.Arena!.Read(First + 0x6A, 2));
@@ -63,7 +64,7 @@ public sealed class NativeBattleCuragaNodeEngineTests
         Assert.Equal(new byte[] { 2, 0 }, result.Memory.Arena.Read(First + 216 + 0x6A, 2));
         Assert.Equal(new byte[] { 5, 0 }, result.Memory.Arena.Read(First + 324 + 0x6A, 2));
         Assert.Equal(new byte[] { 5, 1 }, result.Memory.Arena.Read(First + 432 + 0x6A, 2));
-        frame = Write(frame, fixture.Task, task => task.WriteWord(0x34 + 0x18, 65535).WriteWord(0x34 + 0x1C, 65535));
+        frame = Write(NativeBattleStorageSnapshots.Restore(beforeBirth), fixture.Task, task => task.WriteWord(0x34 + 0x18, 65535).WriteWord(0x34 + 0x1C, 65535));
         result = NativeBattleCuragaNodeEngine.Birth882E20(frame, fixture.Task);
         Assert.Equal((ushort)1, Task(result, fixture.Task).ReadWord(0x34 + 0x14));
         Assert.Equal(new byte[] { 1, 0 }, result.Memory.Arena!.Read(First + 0x6A, 2));
@@ -74,7 +75,7 @@ public sealed class NativeBattleCuragaNodeEngineTests
     {
         var fixture = Fixture();
         NativeBattleCuragaFrame frame = NativeBattleCuragaNodes.AllocateEmitter881700(fixture.Frame, fixture.Task, 0, 5, 0).Frame;
-        NativeBattleCuragaFrame clone = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleCuragaFrame clone = RoundTrip(frame);
         List<string> calls = [];
         NativeBattleCuragaFrame actual = NativeBattleCuragaNodeEngine.AdvanceList8804D0(frame, fixture.Task, Emitter, Geometry);
         Assert.Equal(new[] { "emitter", "geometry" }, calls);
@@ -84,7 +85,7 @@ public sealed class NativeBattleCuragaNodeEngineTests
         calls.Clear();
         NativeBattleCuragaFrame restored = NativeBattleCuragaNodeEngine.AdvanceList8804D0(clone, fixture.Task, Emitter, Geometry);
         Assert.Equal(new[] { "emitter", "geometry" }, calls);
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+        Assert.Equal(SnapshotJson(actual), SnapshotJson(restored));
 
         NativeBattleCuragaFrame Emitter(NativeBattleCuragaFrame current, uint context, int node)
         {
@@ -169,4 +170,7 @@ public sealed class NativeBattleCuragaNodeEngineTests
         frame = Write(frame, child.Address, task => task.WriteDword(0x34 + 0x224, Base + 4));
         return (frame, child.Address);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

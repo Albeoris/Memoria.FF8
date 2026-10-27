@@ -72,7 +72,7 @@ public sealed class NativeBattleShellActorScaleTests
     {
         NativeBattleCuragaNodeMemory memory = new(frame, task);
         NativeBattleCuragaExecutableState executable = frame.Memory.CuragaExecutable!;
-        NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, Assert.IsType<ImmutableArray<byte>>(executable.Data), executable.Read);
+        NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, Assert.IsType<NativeBattleNodeSource>(executable.Data), executable.Read);
         ushort cursor = 0;
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, _ => throw new InvalidOperationException("No model selector is reached."), (_, _, _) => throw new InvalidOperationException("No new emitter is requested."), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, frame.State.Auxiliary16F80!.Value, 140, ref cursor, emitter, source)) { ActorScale = new(8192, 2048, 4096) };
         return (memory, bank, new(memory, bank, inputs));

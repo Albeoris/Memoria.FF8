@@ -9,7 +9,6 @@ public static partial class NativeBattleEffectTextureReader
     public static PixelImage ApplyModelReplacements(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, NativeBattlePcTextureWindowPixels? retainedPixels, IReadOnlyList<NativeBattleTextureReplacement> replacements, string? textureSourceOwner = null)
     {
         List<(NativeBattleTextureReplacement Replacement, int Left, int Top, int Right, int Bottom)> selected = [];
-        byte[] bank = Banks.GetValue(state, key => key.ReadVram());
         int densityWidth = 1;
         int densityLogicalWidth = 1;
         int densityHeight = 1;
@@ -81,7 +80,13 @@ public static partial class NativeBattleEffectTextureReader
             int paletteSize = depth == 0 ? 16 : depth == 1 ? 256 : 0;
             int paletteX = (clut & 63) * 16;
             int paletteY = (clut & 0x7FFF) >> 6;
-            if (replacement.PaletteWords.Length != paletteSize * 2 || paletteX + paletteSize > 1024 || !bank.AsSpan(2 * (paletteY * 1024 + paletteX), paletteSize * 2).SequenceEqual(replacement.PaletteWords.AsSpan()))
+            Span<byte> palette = stackalloc byte[512];
+            if (replacement.PaletteWords.Length != paletteSize * 2 || paletteX + paletteSize > 1024)
+            {
+                return false;
+            }
+            state.ReadVramInto(2 * (paletteY * 1024 + paletteX), palette[..(paletteSize * 2)]);
+            if (!palette[..(paletteSize * 2)].SequenceEqual(replacement.PaletteWords.AsSpan()))
             {
                 return false;
             }
@@ -94,7 +99,7 @@ public static partial class NativeBattleEffectTextureReader
                 {
                     int x = pageX + column / pixelsPerWord;
                     int y = pageY + row;
-                    ushort actual = retainedPixels is null ? BinaryPrimitives.ReadUInt16LittleEndian(bank.AsSpan(2 * (y * 1024 + x))) : retainedPixels.ReadWord(x, y);
+                    ushort actual = retainedPixels is null ? state.ReadVramWord(x, y) : retainedPixels.ReadWord(x, y);
                     int expectedOffset = 2 * ((row - replacement.V) * replacement.WordWidth + (column - replacement.U) / pixelsPerWord);
                     if (actual != BinaryPrimitives.ReadUInt16LittleEndian(replacement.PixelWords.AsSpan()[expectedOffset..]))
                     {

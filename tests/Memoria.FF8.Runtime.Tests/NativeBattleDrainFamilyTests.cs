@@ -140,7 +140,7 @@ public sealed class NativeBattleDrainFamilyTests
         NativeBattleDrain39Frame frame = fixture.Frame with { Memory = NativeBattleDrainFamilyProfile.ForEffect(effect == 39 ? (ushort)56 : (ushort)39).WithBank(fixture.Frame.Memory, new(resources.NodeBank)) };
         NativeBattleDrain39BankState other = NativeBattleDrainFamilyProfile.ForEffect(effect == 39 ? (ushort)56 : (ushort)39).RequireBank(frame.Memory);
         NativeBattleDrain39NodeStep step = NativeBattleDrain39Nodes.Advance(frame, fixture.Address, resources, fixture.Inputs, new(123), new(fixture.Inputs.Camera, 320, 160, 112), 0, NativeBattleLogicalOrdering.Clear(), new(0, 0xFFFFFF, 4096, 0));
-        Assert.Equal(resources.NodeBank.ToArray(), profile.RequireBank(step.Frame.Memory).Data!.Value.ToArray());
+        Assert.Equal(resources.NodeBank.ToArray(), NativeBattleStorageSnapshots.Capture(profile.RequireBank(step.Frame.Memory).Data!).Data.ToArray());
         Assert.Null(profile.RequireBank(fixture.Frame.Memory).Data);
         Assert.Same(other, NativeBattleDrainFamilyProfile.ForEffect(effect == 39 ? (ushort)56 : (ushort)39).RequireBank(step.Frame.Memory));
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(step.Frame.Effect.Pools).Read(fixture.Address);

@@ -107,10 +107,30 @@ public sealed class NativeBattleEffect30ControllerTests
         Fixture fixture = new();
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect30State.FromUnknown().InitializeSource(fixture.Resources));
         NativeBattleEffect30State initialized = NativeBattleEffect30State.FromColdProcess().InitializeSource(fixture.Resources);
-        Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(initialized.ExecutableBytes!.Value.AsSpan()));
-        NativeBattleEffect30State warm = initialized with { ExecutableBytes = initialized.ExecutableBytes!.Value.SetItem(0x200, 0x77) };
-        Assert.Equal((byte)0x77, warm.InitializeSource(fixture.Resources).ExecutableBytes!.Value[0x200]);
+        Assert.Equal(1u, initialized.ExecutableBytes!.ReadUInt32(0));
+        NativeBattleEffect30State warm = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(initialized));
+        warm.ExecutableBytes!.Arena!.Write(0x200, [0x77]);
+        Assert.Equal((byte)0x77, warm.InitializeSource(fixture.Resources).ExecutableBytes!.ReadByte(0x200));
         Assert.False(initialized.ColdSourcePending);
+    }
+
+    [Fact]
+    public void Prepared_fixups_remain_private_until_context_initialization_accepts_them()
+    {
+        Fixture fixture = new();
+        NativeBattleNodeSource bytes = new(fixture.Resources.Executable.Data);
+        NativeBattleEffect30State state = NativeBattleEffect30State.FromColdProcess() with { ExecutableBytes = bytes, ColdSourcePending = false };
+        uint directory = bytes.ReadUInt32(4);
+        using (NativeBattleNodeInitialization<NativeBattleEffect30State> abandoned = state.PrepareInitializeSource(fixture.Resources))
+        {
+            Assert.Equal(0u, bytes.ReadUInt32(0));
+            Assert.Equal(directory, bytes.ReadUInt32(4));
+        }
+        Assert.Equal(0u, bytes.ReadUInt32(0));
+        using NativeBattleNodeInitialization<NativeBattleEffect30State> accepted = state.PrepareInitializeSource(fixture.Resources);
+        NativeBattleEffect30State result = accepted.Publish();
+        Assert.Same(bytes, result.ExecutableBytes);
+        Assert.Equal(1u, bytes.ReadUInt32(0));
     }
 
     private sealed class Fixture

@@ -114,7 +114,7 @@ public sealed class NativeBattleCuragaMotionTests
     private static NativeBattleCuragaFrame Channels(NativeBattleCuragaFrame frame, short[] values)
     {
         int[] fields = [0xD8, 0xDC, 0xE0, 0x13C, 0x140, 0x144];
-        byte[] bytes = frame.Memory.CuragaExecutable!.Data!.Value.ToArray();
+        byte[] bytes = NativeBattleStorageSnapshots.Capture(frame.Memory.CuragaExecutable!.Data!).Data.ToArray();
         for (int index = 0; index < fields.Length; index++)
         {
             int offset = 0x400 + index * 16;

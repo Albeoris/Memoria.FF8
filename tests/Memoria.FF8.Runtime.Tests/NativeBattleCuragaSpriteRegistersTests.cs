@@ -16,7 +16,7 @@ public sealed class NativeBattleCuragaSpriteRegistersTests
         INativeBattleCuragaSpriteGeometry geometry = memory.ProjectedSpriteGeometry(NativeBattleCuragaSpawnTests.Node, 0x1000000, resource, 0, Projection);
         NativeBattleGfGeometryBatch batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, 0, Matrix, Projection, 0, 17, 2, geometry: geometry);
         NativeBattleGfGeometryBatch plain = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, 0, Matrix, Projection, 0, 17, 2);
-        Assert.Equal(JsonSerializer.Serialize(plain), JsonSerializer.Serialize(batch));
+        Assert.Equal(SnapshotJson(plain), SnapshotJson(batch));
         NativeBattleEffectMemory state = memory.FlushStorage().Memory;
         NativeBattleGeometryRegisters gte = state.GeometryRegisters!;
         Assert.Equal(new uint?[] { 1000, 1000, 1000, 1000 }, gte.Sz);
@@ -96,8 +96,8 @@ public sealed class NativeBattleCuragaSpriteRegistersTests
         Assert.All(state.GeometryRegisters.V2.Skip(6), value => Assert.Null(value));
         Assert.All(state.GeometryRegisters.Rotation20.Skip(18), value => Assert.Null(value));
         NativeBattleGeometryRegisterStep registers = new(state.GeometryRegisters, state.ScriptedColorRegisters);
-        NativeBattleGeometryRegisterStep restored = JsonSerializer.Deserialize<NativeBattleGeometryRegisterStep>(JsonSerializer.Serialize(registers))!;
-        Assert.Equal(JsonSerializer.Serialize(registers), JsonSerializer.Serialize(restored));
+        NativeBattleGeometryRegisterStep restored = RoundTrip(registers);
+        Assert.Equal(SnapshotJson(registers), SnapshotJson(restored));
     }
 
     [Fact]
@@ -165,4 +165,7 @@ public sealed class NativeBattleCuragaSpriteRegistersTests
             return 400;
         }
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

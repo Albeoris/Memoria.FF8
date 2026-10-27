@@ -97,10 +97,10 @@ public sealed class NativeBattleRecover93ControllerTests
         for (int callback = 0; callback < 160; callback++)
         {
             frame = ResetFramePackets(frame);
-            NativeBattleRecover93Frame restored = JsonSerializer.Deserialize<NativeBattleRecover93Frame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleRecover93Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRecover93Frame>(SnapshotJson(frame))!);
             NativeBattleRecover93Frame next = NativeBattleRecover93Controller.Advance74E520(frame, inputs, resources);
             NativeBattleRecover93Frame coldNext = NativeBattleRecover93Controller.Advance74E520(restored, inputs, resources);
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(coldNext));
+            Assert.Equal(SnapshotJson(next), SnapshotJson(coldNext));
             if (callback is 20 or 50 or 80 or 110)
             {
                 boundaries++;
@@ -112,7 +112,7 @@ public sealed class NativeBattleRecover93ControllerTests
         Assert.Equal((byte)8, frame.Effect.Pools[0].Slots[0].ReadByte(0x29));
         Assert.NotNull(profile.Read(frame.Memory)!.PublishedModelMatrix);
         Assert.Equal(0x970, profile.Read(frame.Memory)!.ProjectedScratch!.Value.Length);
-        Assert.Equal(profile.SourceLength, profile.Read(frame.Memory)!.Nodes.Data!.Value.Length);
+        Assert.Equal(profile.SourceLength, profile.Read(frame.Memory)!.Nodes.Data!.Length);
     }
 
     [Fact]
@@ -132,8 +132,8 @@ public sealed class NativeBattleRecover93ControllerTests
             frame = NativeBattleRecover93Controller.Advance74E520(ResetFramePackets(frame), firstInputs, recoverResources);
         }
         Assert.Equal(1u, recover.Read(frame.Memory)!.Nodes.InitializationFlag);
-        string retained = JsonSerializer.Serialize(recover.Read(frame.Memory));
-        string originalJson = JsonSerializer.Serialize(frame);
+        string retained = SnapshotJson(recover.Read(frame.Memory));
+        string originalJson = SnapshotJson(frame);
         Assert.Contains("\"Recover93\":", originalJson);
         Assert.DoesNotContain("\"Reverse94\":", originalJson);
         var second = Fixture(reverseResources, reverse);
@@ -145,9 +145,9 @@ public sealed class NativeBattleRecover93ControllerTests
         {
             frame = NativeBattleRecover93Controller.Advance74E520(ResetFramePackets(frame), secondInputs, reverseResources);
         }
-        Assert.Equal(retained, JsonSerializer.Serialize(recover.Read(frame.Memory)));
+        Assert.Equal(retained, SnapshotJson(recover.Read(frame.Memory)));
         Assert.Equal(1u, reverse.Read(frame.Memory)!.Nodes.InitializationFlag);
-        Assert.Equal(0x2C00, reverse.Read(frame.Memory)!.Nodes.Data!.Value.Length);
+        Assert.Equal(0x2C00, reverse.Read(frame.Memory)!.Nodes.Data!.Length);
         Assert.Equal(0x10CA8, reverse.Read(frame.Memory)!.Nodes.Geometry);
         Assert.Throws<InvalidDataException>(() => reverse.Read(frame.Memory)!.Nodes.Validate(recover));
         Assert.Throws<InvalidDataException>(() => reverse.Global(0x1D8E054));
@@ -217,4 +217,6 @@ public sealed class NativeBattleRecover93ControllerTests
         Assert.SkipUnless(Directory.Exists(directory), "An installed original resource source is required.");
         return new(directory);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 
@@ -60,6 +61,43 @@ internal sealed class NativeBattleVramVersion
         }
     }
 
+    internal ushort ReadWord(int offset)
+    {
+        if (pages.TryGetValue(offset / PageLength, out ImmutableArray<byte> page) && offset % PageLength <= PageLength - 2)
+        {
+            return BinaryPrimitives.ReadUInt16LittleEndian(page.AsSpan(offset % PageLength, 2));
+        }
+        return (ushort)(ReadByte(offset) | ReadByte(offset + 1) << 8);
+    }
+
+    private byte ReadByte(int offset)
+    {
+        if (pages.TryGetValue(offset / PageLength, out ImmutableArray<byte> page))
+        {
+            return page[offset % PageLength];
+        }
+        int first = 0;
+        int last = initial.Length - 1;
+        while (first <= last)
+        {
+            int middle = first + (last - first) / 2;
+            NativeBattleEffectMemoryRegion region = initial[middle];
+            if (offset < region.Offset)
+            {
+                last = middle - 1;
+            }
+            else if (offset >= region.Offset + region.Data.Length)
+            {
+                first = middle + 1;
+            }
+            else
+            {
+                return region.Data[offset - region.Offset];
+            }
+        }
+        return 0;
+    }
+
     internal NativeBattleVramVersion PublishChangedPages(NativeBattleEffectArena arena, HashSet<int> changedPages, List<(int Offset, int Length)> writes)
     {
         if (changedPages.Count == 0)
@@ -110,6 +148,10 @@ internal sealed class NativeBattleVramVersion
             if (first + count < offset)
             {
                 continue;
+            }
+            if (first <= offset && first + count >= end)
+            {
+                return ranges;
             }
             offset = Math.Min(offset, first);
             end = Math.Max(end, first + count);

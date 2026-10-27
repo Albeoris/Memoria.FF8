@@ -14,15 +14,15 @@ public sealed class NativeBattleCurse47NodeTests
         Assert.Null(cold.NodeProgram.Data);
         NativeBattleCuragaExecutableSource source = new(new byte[6544].ToImmutableArray()) { ResourceAddress = NativeBattleCurse47Nodes.SourceAddress };
         NativeBattleCuragaExecutableState bank = cold.NodeProgram.Initialize87EA20(source);
-        byte[] current = bank.Data!.Value.ToArray();
+        byte[] current = NativeBattleStorageSnapshots.Capture(bank.Data!).Data.ToArray();
         current[^1] = 0xA5;
         NativeBattleCurse47State state = cold with { NodeProgram = bank with { Data = current.ToImmutableArray() } };
-        NativeBattleCurse47State restored = JsonSerializer.Deserialize<NativeBattleCurse47State>(JsonSerializer.Serialize(state))!;
+        NativeBattleCurse47State restored = RoundTrip(state);
         NativeBattleCuragaExecutableState warm = restored.NodeProgram!.Initialize87EA20(source);
         Assert.Equal(6544, warm.ByteLength);
         Assert.Equal(1u, warm.InitializationFlag);
-        Assert.Equal((byte)0xA5, warm.Data!.Value[^1]);
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal((byte)0xA5, NativeBattleStorageSnapshots.Capture(warm.Data!).Data[^1]);
+        Assert.Equal(SnapshotJson(state), SnapshotJson(restored));
         Assert.Null(NativeBattleCurse47State.FromUnknown().NodeProgram);
         Assert.Throws<NotSupportedException>(() => (new NativeBattleCuragaExecutableState(1, null) { ResourceAddress = NativeBattleCurse47Nodes.SourceAddress }).Initialize87EA20(source));
         Assert.Throws<InvalidDataException>(() => (cold with { NodeProgram = new(0, null) }).Validate());
@@ -63,7 +63,7 @@ public sealed class NativeBattleCurse47NodeTests
         Assert.Equal(unchecked((ushort)-1), fixture.Task(step.Frame).ReadWord(0x24));
         Assert.Equal((byte)0, fixture.Task(step.Frame).ReadByte(0x29));
         Assert.Null(step.Frame.State.NodeProgram);
-        Assert.Equal(JsonSerializer.Serialize(frame.Random), JsonSerializer.Serialize(step.Frame.Random));
+        Assert.Equal(SnapshotJson(frame.Random), SnapshotJson(step.Frame.Random));
     }
 
     [Theory]
@@ -103,11 +103,11 @@ public sealed class NativeBattleCurse47NodeTests
         Assert.Equal((byte)2, fixture.Task(waiting.Frame).ReadByte(0x29));
         Assert.Equal((byte)1, NativeBattleCurse47Controller.Read(waiting.Frame, fixture.Parent).ReadByte(0x28));
         frame = fixture.Write(waiting.Frame, fixture.Task(waiting.Frame).WriteByte(0x28, 0));
-        NativeBattleCurse47Frame restored = JsonSerializer.Deserialize<NativeBattleCurse47Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleCurse47Frame restored = RoundTrip(frame);
         NativeBattleCurse47Step done = fixture.Step(frame);
         Assert.Equal(2, done.Result);
         Assert.Equal((byte)0, NativeBattleCurse47Controller.Read(done.Frame, fixture.Parent).ReadByte(0x28));
-        Assert.Equal(JsonSerializer.Serialize(done), JsonSerializer.Serialize(fixture.Step(restored)));
+        Assert.Equal(SnapshotJson(done), SnapshotJson(fixture.Step(restored)));
     }
 
     [Fact]
@@ -145,4 +145,7 @@ public sealed class NativeBattleCurse47NodeTests
         public NativeBattleCurse47Frame Write(NativeBattleCurse47Frame frame, NativeBattleModulePoolTask task) => NativeBattleCurse47Controller.Write(frame, address, task);
         public NativeBattleCurse47Step Step(NativeBattleCurse47Frame frame) => NativeBattleCurse47Nodes.Advance82DF60(frame, address, new(new byte[NativeBattleCurse47Nodes.SourceLength].ToImmutableArray()) { ResourceAddress = NativeBattleCurse47Nodes.SourceAddress }, new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), _ => throw new InvalidOperationException("Unreached model"), _ => throw new InvalidOperationException("Unreached pose"), new(null, 100, 160, 108), 0, (_, _) => throw new InvalidOperationException("Unreached draw")));
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

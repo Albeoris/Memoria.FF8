@@ -83,6 +83,14 @@ internal sealed partial class NativeBattleTaskOperation
         {
             return;
         }
+        ValidateStagingPublication(owner, false);
+        ExceptionDispatchInfo? failure = null;
+        AcceptStagingPublication(owner, ref failure);
+        failure?.Throw();
+    }
+
+    private static void ValidateStagingPublication(NativeBattleFileStagingWorkingOwner owner, bool requireAllAutomatic)
+    {
         int expected = owner.CheckpointDepth;
         for (NativeBattleTaskOperation? operation = current; operation is not null; operation = operation.parent)
         {
@@ -92,10 +100,16 @@ internal sealed partial class NativeBattleTaskOperation
                 throw new InvalidOperationException("Published staging prefix crosses an unfinished owner journal.");
             }
         }
-        ExceptionDispatchInfo? failure = null;
-        current.CommitPublishedStaging(owner, ref failure);
-        current.ReopenPublishedStaging(owner);
-        failure?.Throw();
+        if (requireAllAutomatic && expected != 0)
+        {
+            throw new InvalidOperationException("Published staging prefix has an unfinished native owner journal.");
+        }
+    }
+
+    private static void AcceptStagingPublication(NativeBattleFileStagingWorkingOwner owner, ref ExceptionDispatchInfo? failure)
+    {
+        current?.CommitPublishedStaging(owner, ref failure);
+        current?.ReopenPublishedStaging(owner);
     }
 
     private void CommitPublishedStaging(NativeBattleFileStagingWorkingOwner owner, ref ExceptionDispatchInfo? failure)

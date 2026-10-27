@@ -11,6 +11,8 @@ public static class NativeBattleEffect31Nodes
 
     public static NativeBattleEffect31Step Advance(NativeBattleEffect31Frame frame, uint address, NativeBattleEffect31Resources resources, NativeBattleEffect31Inputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
         NativeBattleModulePoolTask task = Read(frame, address);
         if (task.Callback != Callback)
         {
@@ -34,7 +36,7 @@ public static class NativeBattleEffect31Nodes
                 }
                 break;
         }
-        return Finish(frame, address);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, Finish(frame, address));
     }
 
     private static NativeBattleEffect31Frame Initialize(NativeBattleEffect31Frame frame, uint address, NativeBattleEffect31Resources resources, NativeBattleEffect31Inputs inputs)
@@ -68,7 +70,7 @@ public static class NativeBattleEffect31Nodes
     private static NativeBattleEffect31Frame AdvanceNodes(NativeBattleEffect31Frame frame, uint address, NativeBattleEffect31Resources resources, NativeBattleEffect31Inputs inputs)
     {
         uint resource = Read(frame, address).ReadDword(0x30);
-        ImmutableArray<byte> directory = Directory(frame, resource, resources);
+        NativeBattleNodeSource directory = Directory(frame, resource, resources);
         if (frame.State.ReadDword(ContextGlobal) != checked(address + 0x34) || frame.State.ReadDword(ScratchCursorGlobal) != 0x2793E58)
         {
             throw new NotSupportedException("Effect31 custom nodes require their current context and shared descending temporary cursor.");
@@ -79,7 +81,8 @@ public static class NativeBattleEffect31Nodes
         {
             SpawnScratchObserver = new(NativeBattleEffectNodeContextMemory.Capture(frame.Memory))
         };
-        NativeBattleEffectNodeBank bank = new(resource, directory, ReadCurrent, pointer => resources.ReadSprite(pointer).Bytes);
+        NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(directory);
+        using NativeBattleEffectNodeBank bank = new(resource, directory, ReadCurrent, pointer => resources.ReadSprite(pointer).Bytes);
         ushort emitterCursor = frame.State.ReadWord(EmitterIndexGlobal);
         ushort particleCursor = frame.State.ReadWord(ParticleIndexGlobal);
         NativeBattlePackedMatrix32 camera = Packed(ReadBytes(frame, frame.State.ReadDword(ViewGlobal), 32));
@@ -149,9 +152,18 @@ public static class NativeBattleEffect31Nodes
 
         byte[] ReadCurrent(uint pointer, int length)
         {
-            if (MutableStreamRanges.Any(range => pointer >= range.Address && (ulong)pointer + (uint)length <= (ulong)range.Address + (uint)range.Length))
+            foreach ((uint start, int count) in MutableStreamRanges)
             {
-                return ReadBytes(frame, pointer, length).Read(0, length);
+                if (pointer >= start && (ulong)pointer + (uint)length <= (ulong)start + (uint)count)
+                {
+                    if (length == 0)
+                    {
+                        return [];
+                    }
+                    byte[] bytes = new byte[length];
+                    frame.State.Storage.ReadInto(checked((int)(pointer - BaseAddress)), bytes);
+                    return bytes;
+                }
             }
             return resources.ReadStatic(pointer, length);
         }
@@ -163,22 +175,25 @@ public static class NativeBattleEffect31Nodes
         }
     }
 
-    private static ImmutableArray<byte> Directory(NativeBattleEffect31Frame frame, uint address, NativeBattleEffect31Resources resources)
+    private static NativeBattleNodeSource Directory(NativeBattleEffect31Frame frame, uint address, NativeBattleEffect31Resources resources)
     {
         if (address != CustomDirectoryAddress)
         {
             throw new NotSupportedException("Effect31 custom nodes require their selected source directory.");
         }
-        byte[] bytes = ReadBytes(frame, address, 0x104).Read(0, 0x104);
+        NativeBattleFileStaging staging = RequireStaging(frame);
+        NativeBattleNodeSource source = staging.Transaction is { } transaction && !transaction.ActiveOverlay.IsPublicLayer ? NativeBattleNodeSource.BorrowPrivateView(staging, address, 0x104) : NativeBattleNodeSource.Borrow(staging, address, 0x104);
+        Span<byte> bytes = stackalloc byte[0x104];
+        source.ReadInto(0, bytes);
         if (BinaryPrimitives.ReadUInt32LittleEndian(bytes) != 1)
         {
             throw new NotSupportedException("Effect31 custom resource relocation requires its current writable source owner.");
         }
-        if (!bytes.AsSpan().SequenceEqual(resources.ReadStatic(address, 0x104)))
+        if (!bytes.SequenceEqual(resources.ReadStatic(address, 0x104)))
         {
             throw new NotSupportedException("Effect31 custom directory differs from its selected sprite resource contract.");
         }
-        return bytes.ToImmutableArray();
+        return source;
     }
 
     private static void PublishDrawableRegisters(NativeBattleEffectNodeMemory memory, int node, NativeBattlePackedMatrix32 camera)

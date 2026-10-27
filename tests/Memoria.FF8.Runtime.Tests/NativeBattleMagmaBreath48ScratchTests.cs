@@ -73,7 +73,7 @@ public sealed class NativeBattleMagmaBreath48ScratchTests
         NativeBattleEffectNodeMemory memory = new(process, source.Effect, fixture.Task, emitter, 20 * 108, geometry, 100 * 672, useSharedScratch: true) { SpawnScratchObserver = observer };
         ushort cursor = 0;
         NativeBattleEffectNodeInputs inputs = new(source.State.CopiedCamera, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (owner, index) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, geometry, 100, ref cursor, owner, index));
-        NativeBattleEffectNodeLifecycle lifecycle = new(memory, new(NativeBattleCuragaExecutableState.Address, source.Memory.CuragaExecutable!.Data!.Value), inputs);
+        NativeBattleEffectNodeLifecycle lifecycle = new(memory, new(NativeBattleCuragaExecutableState.Address, source.Memory.CuragaExecutable!.Data!), inputs);
         NativeCrtRandomState random = new(1);
         _ = lifecycle.Spawn(emitter, 1, lifecycle.ReadSource(0), ref random);
         NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();

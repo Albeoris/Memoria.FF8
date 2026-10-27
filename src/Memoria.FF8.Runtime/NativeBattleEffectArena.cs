@@ -458,7 +458,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         if (capturedAuthority is { } authority)
         {
             NativeBattleWorkingMemory restored = context.GetOrAddOwner(authority, () => NativeBattleWorkingMemory.Restore(authority));
-            NativeBattleEffectArena arena = new(restored, capturedOffset, capturedBound, capturedOffset != 0 || capturedBound != authority.LogicalLength);
+            NativeBattleEffectArena arena = new(restored, capturedOffset, capturedBound, CapturedBorrowed);
             return arena;
         }
         return context.GetOrAddOwner(this, () => new NativeBattleEffectArena(initialRegions, bound) { UnknownRegions = initialUnknown, ResourcePointers = initialPointers });

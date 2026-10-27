@@ -15,13 +15,13 @@ public static class NativeBattleShellController
         NativeBattleShellState owner = memory.Shell33 ?? throw new NotSupportedException("Native Shell requires its retained module owner; migrate an authenticated standalone source.");
         if (owner.PendingColdActorBank)
         {
-            if (!owner.ActorBank.IsEmpty)
+            if (owner.ActorBank is not null)
             {
                 throw new InvalidDataException("Native Shell pending cold bank already has mutable resource bytes.");
             }
             owner = owner with { ActorBank = resources.ActorBank, PendingColdActorBank = false };
         }
-        if (owner.ActorBank.Length != NativeBattleShellResources.ActorBankLength || owner.Channels.Length != NativeBattleShellResources.ChannelLength || owner.Blend.Length != 0x2E0)
+        if (owner.ActorBank is null || owner.ActorBank.Length != NativeBattleShellResources.ActorBankLength || owner.Channels.Length != NativeBattleShellResources.ChannelLength || owner.Blend.Length != 0x2E0)
         {
             throw new InvalidDataException("Native Shell requires its complete current executable and channel owners.");
         }

@@ -38,7 +38,15 @@ public sealed record NativeBattleSigh46State([property: JsonRequired] NativeBatt
             return this;
         }
         resources.Validate();
-        return this with { SourceHeader = SourceHeader.Write(0, resources.Executable.Data.AsSpan()), MutablePe = MutablePe.Write(0, resources.ReadMesh(MeshAAddress).Bytes.AsSpan()).Write(MeshLength, resources.ReadMesh(MeshBAddress).Bytes.AsSpan()), SourcesLoaded = true };
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(SourceHeader);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(MutablePe);
+        using NativeBattleEffectArenaTransaction header = new(SourceHeader);
+        using NativeBattleEffectArenaTransaction meshes = new(MutablePe);
+        header.View.Write(0, resources.Executable.Data.AsSpan());
+        meshes.View.Write(0, resources.ReadMesh(MeshAAddress).Bytes.AsSpan());
+        meshes.View.Write(MeshLength, resources.ReadMesh(MeshBAddress).Bytes.AsSpan());
+        NativeBattleEffectArenaTransaction.CommitGroup([header, meshes]);
+        return this with { SourcesLoaded = true };
     }
 
     public void Validate()
@@ -63,7 +71,7 @@ public sealed record NativeBattleSigh46State([property: JsonRequired] NativeBatt
         }
         ValidateBounded(SourceHeader, SourceLength);
         ValidateBounded(MutablePe, MutablePeLength);
-        if (SourcesLoaded == true && BinaryPrimitives.ReadUInt32LittleEndian(SourceHeader.Read(0, 4)) != 1)
+        if (SourcesLoaded == true && SourceHeader.ReadUInt32(0) != 1)
         {
             throw new InvalidDataException("Sigh requires its retained original flag-one absolute source header.");
         }

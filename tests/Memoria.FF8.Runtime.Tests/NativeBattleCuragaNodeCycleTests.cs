@@ -56,8 +56,9 @@ public sealed class NativeBattleCuragaNodeCycleTests
     {
         var fixture = NativeBattleCuragaSpawnTests.Fixture();
         NativeBattleCuragaFrame frame = NativeBattleCuragaEmitterTests.Source(fixture.Frame, source => source[0x36] = 0);
+        NativeBattleCuragaFrame beforeProbe = NativeBattleStorageSnapshots.Capture(frame);
         NativeBattleCuragaNodeKinematics.AdvanceList8804D0(frame, fixture.Task, new(1), _ => throw new InvalidOperationException());
-        frame = EmitOnce(frame, 1);
+        frame = EmitOnce(NativeBattleStorageSnapshots.Restore(beforeProbe), 1);
         Assert.Throws<InvalidDataException>(() => NativeBattleCuragaNodeKinematics.AdvanceList8804D0(frame, fixture.Task, new(1), _ => throw new InvalidOperationException()));
     }
 

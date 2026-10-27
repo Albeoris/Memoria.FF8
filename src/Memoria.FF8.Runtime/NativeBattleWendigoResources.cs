@@ -25,7 +25,7 @@ public sealed record NativeBattleWendigoResources(ushort Effect, uint ActorBankA
         return ConstantChannels.AsSpan(checked((int)(address - start)), count).ToArray();
     }
 }
-public sealed record NativeBattleWendigoState([property: JsonRequired] NativeBattleEffectArena Module, [property: JsonRequired] ImmutableArray<byte>? ActorBank, [property: JsonRequired] bool PendingColdSources, [property: JsonRequired] int? Source, [property: JsonRequired] int? PrimaryCursor, [property: JsonRequired] int? SecondaryCursor, [property: JsonRequired] int? Emitters, [property: JsonRequired] int? Geometry, [property: JsonRequired] ushort EmitterScan, [property: JsonRequired] ushort GeometryScan, [property: JsonRequired] ushort PassEmitters, [property: JsonRequired] ushort PassGeometry)
+public sealed record NativeBattleWendigoState([property: JsonRequired] NativeBattleEffectArena Module, [property: JsonRequired] NativeBattleNodeSource? ActorBank, [property: JsonRequired] bool PendingColdSources, [property: JsonRequired] int? Source, [property: JsonRequired] int? PrimaryCursor, [property: JsonRequired] int? SecondaryCursor, [property: JsonRequired] int? Emitters, [property: JsonRequired] int? Geometry, [property: JsonRequired] ushort EmitterScan, [property: JsonRequired] ushort GeometryScan, [property: JsonRequired] ushort PassEmitters, [property: JsonRequired] ushort PassGeometry)
 {
     public static NativeBattleWendigoState FromColdProcess() => new(NativeBattleEffectArena.Clear(), null, true, null, null, null, null, null, 0, 0, 0, 0);
 }

@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -130,16 +129,14 @@ public static partial class NativeBattleWendigoController
                 {
                     return;
                 }
-                ImmutableArray<byte> actorBank = State.ActorBank ?? throw new NotSupportedException("Native Wendigo requires its retained executable actor source.");
+                NativeBattleNodeSource actorBank = State.ActorBank ?? throw new NotSupportedException("Native Wendigo requires its retained executable actor source.");
                 int directory = checked((int)(resources.ActorDirectory - resources.ActorBankAddress));
-                if (BinaryPrimitives.ReadUInt32LittleEndian(actorBank.AsSpan().Slice(directory)) == 0)
+                using (NativeBattleNodeInitialization<NativeBattleNodeSource> initialization = NativeBattleActorBankInitialization.Prepare(actorBank, resources.ActorBankAddress, directory))
                 {
-                    byte[] relocated = NativeBattleEffectNodeBankFixups.Relocate(actorBank, resources.ActorBankAddress, directory);
-                    BinaryPrimitives.WriteUInt32LittleEndian(relocated.AsSpan(directory), 1);
-                    SetState(State with { ActorBank = relocated.ToImmutableArray() });
+                    task = NativeBattleEffectNodeContext.Initialize(task, Read(task.ReadDword(0x10)), current.Effect.Parameters!, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, resources.ActorDirectory);
+                    Store(address, task);
+                    SetState(State with { ActorBank = initialization.Publish() });
                 }
-                task = NativeBattleEffectNodeContext.Initialize(task, Read(task.ReadDword(0x10)), current.Effect.Parameters!, inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, resources.ActorDirectory);
-                Store(address, task);
                 _ = AdvanceActors(address);
                 Store(address, Next(Read(address)));
             }
@@ -184,7 +181,8 @@ public static partial class NativeBattleWendigoController
                 int emitters = owner.Emitters ?? throw new NotSupportedException("Native Wendigo requires its cleared emitter pool.");
                 int geometry = owner.Geometry ?? throw new NotSupportedException("Native Wendigo requires its cleared geometry pool.");
                 using NativeBattleEffectNodeMemory memory = new(current.Memory, current.Effect with { Pools = hierarchy.Pools }, address, emitters, shoot ? 0x438 : 0x870, geometry, shoot ? 0x4EC0 : 0x8340, true);
-                NativeBattleEffectNodeBank bank = new(resources.ActorBankAddress, owner.ActorBank ?? throw new NotSupportedException("Native Wendigo lost its actor data."), ReadExternal);
+                NativeBattleNodeSource actorBank = NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(owner.ActorBank ?? throw new NotSupportedException("Native Wendigo lost its actor data."));
+                using NativeBattleEffectNodeBank bank = new(resources.ActorBankAddress, actorBank, ReadExternal);
                 ushort emitterScan = owner.EmitterScan;
                 ushort geometryScan = owner.GeometryScan;
                 NativeBattleEffectNodeInputs nodeInputs = new(inputs.Projection.View, inputs.ReadModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, emitters, shoot ? 10 : 20, ref emitterScan, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, geometry, shoot ? 30 : 50, ref geometryScan, emitter, source));
@@ -194,7 +192,8 @@ public static partial class NativeBattleWendigoController
                 NativeBattleEffectNodeMemoryWrite flushed = memory.FlushStorage();
                 current = current with { Memory = flushed.Memory, Effect = flushed.Effect, Random = random };
                 hierarchy = new(current.Effect.Pools);
-                SetState(State with { ActorBank = bank.Data, EmitterScan = emitterScan, GeometryScan = geometryScan });
+                bank.Publish();
+                SetState(State with { ActorBank = bank.Source, EmitterScan = emitterScan, GeometryScan = geometryScan });
                 Emit(new NativeBattleWendigoPackets(batch, false));
 
                 NativeBattleEffectNodeMeshInstance Prepare(int node, byte[] descriptor)

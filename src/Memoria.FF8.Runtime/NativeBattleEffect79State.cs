@@ -5,9 +5,9 @@ using static Memoria.FF8.Runtime.NativeBattleEffect79Profile;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffect79State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> FixedBanks, [property: JsonRequired] ImmutableDictionary<uint, ImmutableArray<byte>> NodeBanks, [property: JsonRequired] ImmutableArray<byte>? ProgramData, [property: JsonRequired] bool ColdSourceOrigin)
+public sealed record NativeBattleEffect79State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> FixedBanks, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleNodeSource> NodeBanks, [property: JsonRequired] ImmutableArray<byte>? ProgramData, [property: JsonRequired] bool ColdSourceOrigin)
 {
-    public static NativeBattleEffect79State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), ImmutableDictionary<uint, ImmutableArray<byte>>.Empty, null, true);
+    public static NativeBattleEffect79State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), ImmutableDictionary<uint, NativeBattleNodeSource>.Empty, null, true);
 
     public static NativeBattleEffect79State FromUnknown()
     {
@@ -16,7 +16,7 @@ public sealed record NativeBattleEffect79State([property: JsonRequired] NativeBa
         {
             storage = storage.MarkUnknown(checked((int)(address - BaseAddress)), length);
         }
-        return new(storage, Pools.ToImmutableDictionary(pool => pool.Bank, pool => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear().MarkUnknown(0, checked(pool.Stride * pool.Capacity))), ImmutableDictionary<uint, ImmutableArray<byte>>.Empty, null, false);
+        return new(storage, Pools.ToImmutableDictionary(pool => pool.Bank, pool => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear().MarkUnknown(0, checked(pool.Stride * pool.Capacity))), ImmutableDictionary<uint, NativeBattleNodeSource>.Empty, null, false);
     }
 
     public NativeBattleEffect79State BindProgram(NativeBattleEffect79Resources resources)
@@ -41,9 +41,9 @@ public sealed record NativeBattleEffect79State([property: JsonRequired] NativeBa
 
     public NativeBattleEffect79State BindNodeSource(NativeBattleEffect79Resources resources, uint address) => BindNodeSource(address, resources);
 
-    public ImmutableArray<byte> ReadNodeBank(uint address) => NodeBanks.TryGetValue(address, out ImmutableArray<byte> data) ? data : throw new NotSupportedException("Effect79 requires its selected current node source to be explicitly bound.");
+    public NativeBattleNodeSource ReadNodeBank(uint address) => NodeBanks.TryGetValue(address, out NativeBattleNodeSource? data) ? data : throw new NotSupportedException("Effect79 requires its selected current node source to be explicitly bound.");
 
-    public NativeBattleEffect79State ReplaceNodeBank(uint address, ImmutableArray<byte> bytes)
+    public NativeBattleEffect79State ReplaceNodeBank(uint address, NativeBattleNodeSource bytes)
     {
         if (!NodeBanks.ContainsKey(address) || !NodeSourceLengths.TryGetValue(address, out int length) || bytes.IsDefault || bytes.Length != length)
         {
@@ -70,7 +70,7 @@ public sealed record NativeBattleEffect79State([property: JsonRequired] NativeBa
         {
             if (InSource(source, sourceLength, address, length))
             {
-                return ReadNodeBank(source).AsSpan().Slice(checked((int)(address - source)), length).ToArray();
+                return ReadNodeBank(source).Read(checked((int)(address - source)), length);
             }
         }
         return Storage.Read(Require(address, length), length);
@@ -92,9 +92,8 @@ public sealed record NativeBattleEffect79State([property: JsonRequired] NativeBa
         {
             if (InSource(source, sourceLength, address, bytes.Length))
             {
-                byte[] data = ReadNodeBank(source).ToArray();
-                bytes.CopyTo(data.AsSpan(checked((int)(address - source))));
-                return ReplaceNodeBank(source, data.ToImmutableArray());
+                ReadNodeBank(source).Write(checked((int)(address - source)), bytes);
+                return this;
             }
         }
         Storage.Write(Require(address, bytes.Length), bytes);
@@ -183,7 +182,7 @@ public sealed record NativeBattleEffect79State([property: JsonRequired] NativeBa
                 ValidateBank(bank, shape.Stride * shape.Capacity);
             }
         }
-        foreach ((uint address, ImmutableArray<byte> bytes) in NodeBanks)
+        foreach ((uint address, NativeBattleNodeSource bytes) in NodeBanks)
         {
             if (!NodeSourceLengths.TryGetValue(address, out int length) || bytes.IsDefault || bytes.Length != length)
             {

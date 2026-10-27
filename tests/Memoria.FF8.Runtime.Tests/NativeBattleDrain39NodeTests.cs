@@ -11,6 +11,8 @@ public sealed class NativeBattleDrain39NodeTests
     {
         var fixture = Fixture();
         NativeBattleDrain39Resources resources = Resources();
+        NativeBattleDrain39Frame frozen = NativeBattleStorageSnapshots.Capture(fixture.Frame);
+        NativeBattleDrain39Frame independent = NativeBattleStorageSnapshots.Restore(frozen);
         NativeBattleDrain39NodeStep step = Advance(fixture.Frame, fixture.Address, resources, fixture.Inputs);
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(step.Frame.Effect.Pools).Read(fixture.Address);
         Assert.Equal(NativeBattleDrain39Nodes.DirectoryAddress + 4, task.ReadDword(0x34 + 0x224));
@@ -21,12 +23,12 @@ public sealed class NativeBattleDrain39NodeTests
         Assert.Equal(3u, task.ReadDword(0x34 + 4));
         Assert.Equal(4u, task.ReadDword(0x34 + 8));
         Assert.Equal((ushort)1, task.ReadWord(0x34 + 0x20));
-        Assert.Equal(resources.NodeBank.ToArray(), step.Frame.Memory.Drain39Bank!.Data!.Value.ToArray());
-        Assert.Equal(0x12345678u, BinaryPrimitives.ReadUInt32LittleEndian(step.Frame.Memory.Drain39Bank.Data.Value.AsSpan()));
+        Assert.Equal(resources.NodeBank.ToArray(), NativeBattleStorageSnapshots.Capture(step.Frame.Memory.Drain39Bank!.Data!).Data.ToArray());
+        Assert.Equal(0x12345678u, step.Frame.Memory.Drain39Bank!.Data!.ReadUInt32(0));
         Assert.Null(fixture.Frame.Memory.Drain39Bank!.Data);
-        NativeBattleDrain39Frame independent = JsonSerializer.Deserialize<NativeBattleDrain39Frame>(JsonSerializer.Serialize(fixture.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Advance(independent, fixture.Address, resources, fixture.Inputs)));
-        Assert.Throws<NotSupportedException>(() => Advance(fixture.Frame with { Memory = fixture.Frame.Memory with { Drain39Bank = null } }, fixture.Address, resources, fixture.Inputs));
+        Assert.Equal(SnapshotJson(step), SnapshotJson(Advance(independent, fixture.Address, resources, fixture.Inputs)));
+        NativeBattleDrain39Frame missing = NativeBattleStorageSnapshots.Restore(frozen);
+        Assert.Throws<NotSupportedException>(() => Advance(missing with { Memory = missing.Memory with { Drain39Bank = null } }, fixture.Address, resources, fixture.Inputs));
     }
 
     [Fact]
@@ -58,7 +60,7 @@ public sealed class NativeBattleDrain39NodeTests
         NativeBattleDrain39BankState state = JsonSerializer.Deserialize<NativeBattleDrain39BankState>("{\"Data\":null}")!;
         state.Validate();
         Assert.Null(state.Data);
-        Assert.Throws<InvalidDataException>(() => new NativeBattleDrain39BankState([]).Validate());
+        Assert.Throws<InvalidDataException>(() => new NativeBattleDrain39BankState(ImmutableArray<byte>.Empty).Validate());
         byte[] bytes = Resources().NodeBank.ToArray();
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan((int)(NativeBattleDrain39Nodes.DirectoryAddress - NativeBattleDrain39Nodes.BankAddress)), 0);
         Assert.Throws<InvalidDataException>(() => new NativeBattleDrain39BankState(bytes.ToImmutableArray()).Validate());
@@ -94,6 +96,29 @@ public sealed class NativeBattleDrain39NodeTests
             Assert.Equal(new uint[] { 0x02000000, 0xE100002A, 0 }, batch.Primitives[1].Primitive.Words);
         }
     }
+
+    [Theory]
+    [InlineData(39)]
+    [InlineData(56)]
+    public void Failed_context_callback_rolls_back_retained_memory_and_task_without_publishing_a_bank(ushort effect)
+    {
+        var fixture = Fixture(effect);
+        NativeBattleEffectArena main = fixture.Frame.Memory.Arena!;
+        string before = SnapshotJson(fixture.Frame);
+        NativeBattleDrain39ControllerInputs inputs = fixture.Inputs with
+        {
+            ReadModel = _ =>
+            {
+                main.Write(0, [0xAA, 0xBB, 0xCC, 0xDD]);
+                throw new InvalidOperationException("model failure");
+            }
+        };
+        Assert.Throws<InvalidOperationException>(() => Advance(fixture.Frame, fixture.Address, Resources(effect), inputs));
+        Assert.Equal(before, SnapshotJson(fixture.Frame));
+        Assert.Null(NativeBattleDrainFamilyProfile.ForEffect(effect).RequireBank(fixture.Frame.Memory).Data);
+    }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 
     private static NativeBattleDrain39NodeStep Advance(NativeBattleDrain39Frame frame, uint address, NativeBattleDrain39Resources resources, NativeBattleDrain39ControllerInputs inputs) => NativeBattleDrain39Nodes.Advance(frame, address, resources, inputs, new(123), new(inputs.Camera, 320, 160, 112), 0, NativeBattleLogicalOrdering.Clear(), new(0, 0xFFFFFF, 4096, 0));
 

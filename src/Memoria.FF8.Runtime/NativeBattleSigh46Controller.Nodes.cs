@@ -8,10 +8,13 @@ public static partial class NativeBattleSigh46Controller
 {
     public static (NativeBattleSigh46Frame Frame, int Result) AdvanceEngine832BE0(NativeBattleSigh46Frame frame, uint address, NativeBattleSigh46Resources resources, NativeBattleSigh46Inputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
+        AdmitNodeStorage(frame.State);
         frame = Dword(frame, 0x26527B0, checked(address + 0x34));
         var result = NativeBattleEffectNodeLifecycle.AdvanceContext(() => Read(frame, address), value => frame = Write(frame, address, value), AdvanceNodes);
         frame = Word(Word(frame, 0x265279A, unchecked(frame.State.ReadWord(0x265279A) + result.EmitterCount)), 0x265278A, unchecked(frame.State.ReadWord(0x265278A) + result.GeometryCount));
-        return (frame, result.Complete ? 1 : 0);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, (Frame: frame, Result: result.Complete ? 1 : 0));
 
         void AdvanceNodes()
         {
@@ -19,7 +22,8 @@ public static partial class NativeBattleSigh46Controller
             int geometry = checked((int)(frame.State.ReadDword(GeometryPointerGlobal) - NativeBattleEffectNodeMemory.ArenaAddress));
             NativeBattleTheEnd85SpawnScratchObserver spawnScratch = new(NativeBattleEffectNodeContextMemory.Capture(frame.Memory));
             using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterStorageLength, geometry, GeometryStorageLength, useSharedScratch: true) { SpawnScratchObserver = spawnScratch };
-            NativeBattleEffectNodeBank bank = new(SourceAddress, frame.State.Read(SourceAddress, SourceLength).ToImmutableArray(), ReadExternal, ReadResource);
+            NativeBattleNodeSource source = NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(NativeBattleNodeSource.Borrow(frame.State.SourceHeader, 0, SourceLength));
+            using NativeBattleEffectNodeBank bank = new(SourceAddress, source, ReadExternal, ReadResource);
             ushort emitterCursor = frame.State.ReadWord(EmitterScanCursorGlobal);
             ushort geometryCursor = frame.State.ReadWord(GeometryScanCursorGlobal);
             NativeBattleEffectNodeInputs nodeInputs = new(inputs.ReadView(frame).ReadMatrix(), actorIndex => inputs.ReadModel(frame, actorIndex), (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, emitters, 20, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, geometry, 100, ref geometryCursor, emitter, source));
@@ -44,7 +48,8 @@ public static partial class NativeBattleSigh46Controller
                 }
             });
             NativeBattleEffectNodeMemoryWrite final = memory.FlushStorage();
-            frame = frame with { Memory = final.Memory, Effect = final.Effect, Random = random, State = frame.State.WriteWord(EmitterScanCursorGlobal, emitterCursor).WriteWord(GeometryScanCursorGlobal, geometryCursor).Write(SourceAddress, bank.Data.AsSpan()) };
+            bank.Publish();
+            frame = frame with { Memory = final.Memory, Effect = final.Effect, Random = random, State = frame.State.WriteWord(EmitterScanCursorGlobal, emitterCursor).WriteWord(GeometryScanCursorGlobal, geometryCursor) };
 
             byte[] ReadExternal(uint pointer, int length)
             {
@@ -61,4 +66,11 @@ public static partial class NativeBattleSigh46Controller
         }
     }
 
+    private static void AdmitNodeStorage(NativeBattleSigh46State state)
+    {
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(state.Globals);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(state.SourceHeader);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(state.Channels);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(state.MutablePe);
+    }
 }

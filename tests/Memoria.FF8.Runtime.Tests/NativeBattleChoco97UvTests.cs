@@ -86,10 +86,10 @@ public sealed class NativeBattleChoco97UvTests
         NativeBattleCuragaSpawnStep firstSpawn = NativeBattleCuragaNodeKinematics.Spawn8818A0(fixture.Frame, fixture.Task, NativeBattleCuragaSpawnTests.Emitter, 1, new(1));
         NativeBattleCuragaSpawnStep spawn = NativeBattleCuragaNodeKinematics.Spawn8818A0(firstSpawn.Frame, fixture.Task, NativeBattleCuragaSpawnTests.Emitter, 1, firstSpawn.Random);
         NativeBattleCuragaNodeMemory memory = new(spawn.Frame, fixture.Task);
-        byte[] bytes = spawn.Frame.Memory.CuragaExecutable!.Data!.Value.ToArray();
+        byte[] bytes = NativeBattleStorageSnapshots.Capture(spawn.Frame.Memory.CuragaExecutable!.Data!).Data.ToArray();
         var mesh = Mesh(3, false, [0, 16, 32, 48]);
         mesh.Bytes.AsSpan().CopyTo(bytes.AsSpan(0x400));
-        NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, bytes.ToImmutableArray());
+        using NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, bytes.ToImmutableArray());
         NativeBattleEffectNodeInputs inputs = new(spawn.Frame.State.CopiedCamera, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException())
         {
             ResourceUpdate = update ? NativeBattleChoco97Uv.UpdateDrawableResource : null
@@ -115,7 +115,7 @@ public sealed class NativeBattleChoco97UvTests
     public void Nonzero_source_indices_do_not_scroll_and_unproved_kind5_is_rejected()
     {
         var fixture = Mesh(3, false, [0, 16, 32, 48]);
-        NativeBattleEffectNodeBank bank = new(0x1000, fixture.Bytes);
+        using NativeBattleEffectNodeBank bank = new(0x1000, fixture.Bytes);
         Assert.Equal(bank.Data, NativeBattleChoco97Uv.UpdateDrawableResource(bank, bank.Address, 4, 2));
         Assert.Equal(bank.Data, NativeBattleChoco97Uv.UpdateDrawableResource(bank, bank.Address, 4, 3));
         Assert.Throws<NotSupportedException>(() => NativeBattleChoco97Uv.UpdateDrawableResource(bank, bank.Address, 5, 0));
@@ -197,6 +197,27 @@ public sealed class NativeBattleChoco97UvTests
             NativeBattleChoco97Uv.MutateDrawableResource(bank, bank.Address, 4, 0);
         }
         Assert.Equal(NativeBattleChoco97Uv.Scroll72DF60(fixture.Bytes, -8), source.Arena.Read(0, source.Length));
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void Bounded_Magma_scroll_matches_scalar_and_preserves_adjacent_physical_bytes(int group)
+    {
+        var fixture = Mesh(group, true, [0, 10, 20, 30]);
+        byte[] initial = new byte[] { 91, 92 }.Concat(fixture.Bytes).Concat(new byte[] { 93, 94 }).ToArray();
+        NativeBattleEffectArena owner = NativeBattleEffectArena.CreateUnknown(initial.Length).Write(0, initial);
+        NativeBattleEffectArena resource = NativeBattleEffectArena.BorrowWorking(owner.Working, 2, fixture.Bytes.Length);
+        using (NativeBattleEffectArenaTransaction mutation = NativeBattleEffectArenaTransaction.CreatePrivateChild(resource))
+        {
+            NativeBattleChoco97Uv.Scroll7311C0(mutation.View, -8);
+            Assert.Equal(initial, owner.Read(0, initial.Length));
+            mutation.Freeze();
+        }
+        byte[] expected = new byte[] { 91, 92 }.Concat(NativeBattleChoco97Uv.Scroll7311C0(fixture.Bytes, -8)).Concat(new byte[] { 93, 94 }).ToArray();
+        Assert.Equal(expected, owner.Read(0, initial.Length));
     }
 
     private static (ImmutableArray<byte> Bytes, int[] Corners) Mesh(int selected, bool vertical, byte[] values)

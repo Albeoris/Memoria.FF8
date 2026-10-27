@@ -40,6 +40,10 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native effect callbacks require their retained physical memory.");
         using NativeBattleTaskOperation operation = new(memory, effect);
         operation.AdmitStaging(NativeFileStaging);
+        if (!NativeBattleTaskCallerOperation.IsActive)
+        {
+            operation.AdmitOrdering(graphics.PrimitiveFrame?.Pending);
+        }
         NativeBattleGraphicsState result = AdvanceNativeOriginalEffectTaskCore(graphics);
         operation.Commit();
         return result;

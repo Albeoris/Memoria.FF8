@@ -20,10 +20,10 @@ public sealed class NativeBattleRecover93NodeTests
         Assert.Equal(0x10000 + profile.EmitterBytes, frame.State.Geometry);
         Assert.Equal(new byte[profile.EmitterBytes + profile.GeometryBytes], frame.Memory.Arena!.Read(0x10000, profile.EmitterBytes + profile.GeometryBytes));
         Assert.Equal(1u, frame.State.InitializationFlag);
-        Assert.Equal(profile.SourceAddress + (profile.Effect == 93 ? 0x1B10u : 0x23F0u), U32(frame.State.Data!.Value, 4));
-        Assert.Equal(profile.SourceAddress + 0x104, U32(frame.State.Data.Value, profile.Effect == 93 ? 0x44 + 12 : 0x44));
+        Assert.Equal(profile.SourceAddress + (profile.Effect == 93 ? 0x1B10u : 0x23F0u), frame.State.Data!.ReadUInt32(4));
+        Assert.Equal(profile.SourceAddress + 0x104, frame.State.Data!.ReadUInt32(profile.Effect == 93 ? 0x44 + 12 : 0x44));
         NativeBattleRecover93NodeFrame again = NativeBattleRecover93Nodes.Initialize74EC00(frame, fixture.TaskAddress, fixture.Resource, fixture.Packets, fixture.ReadModel, _ => fixture.PoseSource);
-        Assert.Equal(frame.State.Data.Value.ToArray(), again.State.Data!.Value.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(frame.State.Data!).Data.ToArray(), NativeBattleStorageSnapshots.Capture(again.State.Data!).Data.ToArray());
         Assert.Throws<NotSupportedException>(() => NativeBattleRecover93Nodes.ClearStorage(frame, NativeBattleEffectArena.Length - 0x10000));
         Assert.Throws<NotSupportedException>(() => (frame.State with { InitializationFlag = 1, Data = null }).Validate(profile));
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
@@ -50,10 +50,10 @@ public sealed class NativeBattleRecover93NodeTests
         {
             frame = frame with { Memory = frame.Memory with { PrimitiveProcess = frame.Memory.PrimitiveProcess!.Initialize500400() } };
             frame = NativeBattleRecover93Nodes.BeginPass(frame, view, 0x30000);
-            NativeBattleRecover93NodeFrame restored = JsonSerializer.Deserialize<NativeBattleRecover93NodeFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleRecover93NodeFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRecover93NodeFrame>(SnapshotJson(frame))!);
             NativeBattleRecover93NodeStep step = NativeBattleRecover93Nodes.Advance74F6E0(frame, fixture.TaskAddress, fixture.ReadModel, projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
             NativeBattleRecover93NodeStep coldStep = NativeBattleRecover93Nodes.Advance74F6E0(restored, fixture.TaskAddress, fixture.ReadModel, projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(coldStep));
+            Assert.Equal(SnapshotJson(step), SnapshotJson(coldStep));
             Assert.Equal(0x30000 + step.PrivateSprites.Sum(batch => batch.AllocationBytes), step.Frame.State.PrivateDrawCursor);
             Assert.Equal(step.CommonMeshes.Sum(batch => batch.AllocationBytes), step.Frame.Memory.PrimitiveProcess!.ByteCursor);
             Assert.Equal(0, step.Frame.Effect.Pools[1].Slots[0].ReadWord(0x34 + 0x2A));
@@ -101,4 +101,6 @@ public sealed class NativeBattleRecover93NodeTests
         Assert.SkipUnless(Directory.Exists(directory), "An installed original resource source is required.");
         return new(directory);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

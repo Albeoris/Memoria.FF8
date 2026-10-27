@@ -33,6 +33,8 @@ public static class NativeBattleDoom8Nodes
 
     public static NativeBattleDoom8Step Advance8C88D0(NativeBattleDoom8Frame frame, uint address, NativeBattleCuragaExecutableSource source, NativeBattleDoom8NodeInputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(frame.State.Globals);
         Require(frame, address);
         NativeBattleModulePoolTask task = NativeBattleDoom8Controller.Read(frame, address);
         switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -41,10 +43,11 @@ public static class NativeBattleDoom8Nodes
                 if (unchecked((short)task.ReadWord(0x24)) >= unchecked((short)task.ReadWord(0x298)))
                 {
                     NativeBattleCuragaExecutableState program = frame.State.NodeProgram ?? throw new NotSupportedException("Doom nodes require their actual retained executable bank.");
-                    program = program.Initialize87EA20(source);
-                    frame = frame with { State = frame.State with { NodeProgram = program } };
+                    using NativeBattleNodeInitialization<NativeBattleCuragaExecutableState> initialization = program.Prepare87EA20(source);
                     task = NativeBattleEffectNodeContext.Initialize(task, NativeBattleDoom8Controller.Read(frame, task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Doom nodes require their actual captured action parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, SourceAddress, dogOrigins: new(SharedVector(frame.State, 0), SharedVector(frame.State, 8)));
                     frame = NativeBattleDoom8Controller.Write(frame, address, task);
+                    program = initialization.Publish();
+                    frame = frame with { State = frame.State with { NodeProgram = program } };
                     frame = AdvanceContext(frame, address, inputs).Frame;
                     task = NativeBattleDoom8Controller.Read(frame, address);
                     frame = NativeBattleDoom8Controller.Write(frame, address, task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1))));
@@ -64,7 +67,7 @@ public static class NativeBattleDoom8Nodes
             default:
                 throw new InvalidDataException("Doom node phase leaves its original three-entry table.");
         }
-        return NativeBattleDoom8Controller.Finish(frame, address);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, NativeBattleDoom8Controller.Finish(frame, address));
     }
 
     private static (NativeBattleDoom8Frame Frame, bool Complete) AdvanceContext(NativeBattleDoom8Frame frame, uint address, NativeBattleDoom8NodeInputs inputs)
@@ -80,7 +83,8 @@ public static class NativeBattleDoom8Nodes
             NativeBattleCuragaExecutableState program = frame.State.NodeProgram ?? throw new NotSupportedException("Doom node program is unknown.");
             program.Validate();
             using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterBytes, geometry, GeometryBytes, useSharedScratch: true);
-            NativeBattleEffectNodeBank bank = new(SourceAddress, program.Data ?? throw new NotSupportedException("Doom nodes require their current materialized source bytes."), inputs.ReadExternal ?? ((pointer, count) => frame.State.Read(pointer, count)));
+            NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(program.Data ?? throw new NotSupportedException("Native nodes require their retained executable source."));
+            using NativeBattleEffectNodeBank bank = new(SourceAddress, program.Data ?? throw new NotSupportedException("Doom nodes require their current materialized source bytes."), inputs.ReadExternal ?? ((pointer, count) => frame.State.Read(pointer, count)));
             ushort emitterScan = frame.State.ReadWord(0x275ABD8);
             ushort geometryScan = frame.State.ReadWord(0x275F508);
             NativeBattleActionMatrix camera = (frame.Memory.SharedEffectView2793E58 ?? throw new NotSupportedException("Doom nodes require their actual copied packed camera.")).ReadMatrix();
@@ -89,7 +93,8 @@ public static class NativeBattleDoom8Nodes
             NativeCrtRandomState random = frame.Random;
             _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
-            frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { NodeProgram = program with { Data = bank.Data } } };
+            bank.Publish();
+            frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random };
             frame = frame with { State = frame.State.WriteWord(0x275ABD8, emitterScan).WriteWord(0x275F508, geometryScan) };
 
             NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] descriptor)
@@ -123,7 +128,9 @@ public static class NativeBattleDoom8Nodes
 
             void Deliver(bool common, NativeBattleGfGeometryBatch batch)
             {
-                frame = inputs.Execute(frame with { Memory = memory.CaptureProcessMemory(), State = frame.State with { NodeProgram = program with { Data = bank.Data } } }, new NativeBattleDoom8NodePackets(common, batch));
+                NativeBattleEffectMemory live = memory.CaptureProcessMemory();
+                bank.Publish();
+                frame = inputs.Execute(frame with { Memory = live }, new NativeBattleDoom8NodePackets(common, batch));
                 memory.PublishProcessMemory(frame.Memory);
             }
         }

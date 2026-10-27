@@ -13,6 +13,7 @@ public static class NativeBattleLaserEye71Nodes
 {
     public static NativeBattleLaserEye71TaskStep Advance(NativeBattleLaserEye71Frame frame, uint address, NativeBattleLaserEye71Resources resources, NativeBattleLaserEye71NodeInputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         Require(frame, address);
         NativeBattleModulePoolTask task = NativeBattleLaserEye71Controller.Read(frame, address);
         switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -20,17 +21,11 @@ public static class NativeBattleLaserEye71Nodes
             case 0:
                 if (unchecked((short)task.ReadWord(0x24)) >= unchecked((short)task.ReadWord(0x298)))
                 {
-                    NativeBattleLaserEye71State state = frame.State.SeedColdSource(resources);
-                    ImmutableArray<byte> bytes = state.ExecutableBytes ?? throw new NotSupportedException("Laser Eye nodes require their current executable source bytes.");
-                    if (BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) == 0)
-                    {
-                        byte[] relocated = NativeBattleEffectNodeBankFixups.Relocate(bytes, SourceAddress);
-                        BinaryPrimitives.WriteUInt32LittleEndian(relocated, 1);
-                        state = state with { ExecutableBytes = relocated.ToImmutableArray() };
-                    }
-                    frame = frame with { State = state.WriteDword(0x25FCDD4, address + 0x34) };
+                    using NativeBattleNodeInitialization<NativeBattleLaserEye71State> initialization = frame.State.PrepareInitializeSource(resources);
+                    frame = frame with { State = frame.State.WriteDword(0x25FCDD4, address + 0x34) };
                     task = NativeBattleEffectNodeContext.Initialize(task, NativeBattleLaserEye71Controller.Read(frame, task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Laser Eye nodes require their captured action parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, SourceAddress, observeBone: (actor, selector) => frame = (inputs.ObserveBone ?? throw new NotSupportedException("Laser Eye node initialization requires its reached bone-anchor publication."))(frame, actor, selector));
                     frame = NativeBattleLaserEye71Controller.Write(frame, address, task);
+                    frame = frame with { State = initialization.Publish() };
                     frame = AdvanceContext(frame, address, inputs).Frame;
                     task = NativeBattleLaserEye71Controller.Read(frame, address);
                     frame = NativeBattleLaserEye71Controller.Write(frame, address, task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1))));
@@ -50,7 +45,7 @@ public static class NativeBattleLaserEye71Nodes
             default:
                 throw new InvalidDataException("Laser Eye node phase leaves its original three-entry table.");
         }
-        return NativeBattleLaserEye71Controller.Finish(frame, address);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, NativeBattleLaserEye71Controller.Finish(frame, address));
     }
 
     private static (NativeBattleLaserEye71Frame Frame, bool Complete) AdvanceContext(NativeBattleLaserEye71Frame frame, uint address, NativeBattleLaserEye71NodeInputs inputs)
@@ -65,7 +60,9 @@ public static class NativeBattleLaserEye71Nodes
             int emitters = ArenaOffset(frame.State.ReadDword(0x25FCD8C), EmitterBytes);
             int geometry = ArenaOffset(frame.State.ReadDword(0x25FCDC8), GeometryBytes);
             using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterBytes, geometry, GeometryBytes, useSharedScratch: true);
-            NativeBattleEffectNodeBank bank = new(SourceAddress, frame.State.ExecutableBytes ?? throw new NotSupportedException("Laser Eye nodes require their materialized executable source."));
+            NativeBattleNodeSource nodeSource = frame.State.ExecutableBytes ?? throw new NotSupportedException("Native nodes require their current executable source.");
+            NativeBattleTaskOperation.AdmitCurrentRetainedArena(nodeSource.Arena ?? throw new InvalidDataException("Native executable requires its addressed arena owner."));
+            using NativeBattleEffectNodeBank bank = new(SourceAddress, nodeSource);
             ushort emitterScan = frame.State.ReadWord(0x25FAAE0);
             ushort geometryScan = frame.State.ReadWord(0x25FCD98);
             NativeBattleActionMatrix camera = (frame.Memory.SharedEffectView2793E58 ?? throw new NotSupportedException("Laser Eye nodes require their actual copied packed camera.")).ReadMatrix();
@@ -78,7 +75,8 @@ public static class NativeBattleLaserEye71Nodes
             NativeCrtRandomState random = frame.Random;
             _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
-            frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { ExecutableBytes = bank.Data } };
+            bank.Publish();
+            frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { ExecutableBytes = nodeSource } };
             frame = frame with { State = frame.State.WriteWord(0x25FAAE0, emitterScan).WriteWord(0x25FCD98, geometryScan) };
 
             void Look(NativeBattleEffectNodeMemory owner, int destination, NativeBattleVector direction, NativeBattleVector up)
@@ -144,7 +142,8 @@ public static class NativeBattleLaserEye71Nodes
             void Deliver(bool mesh, NativeBattleGfGeometryBatch batch)
             {
                 NativeBattleEffectNodeMemoryWrite current = memory.FlushStorage();
-                frame = inputs.DeliverPrivate(frame with { Memory = current.Memory, Effect = current.Effect, State = frame.State with { ExecutableBytes = bank.Data } }, batch);
+                bank.Publish();
+                frame = inputs.DeliverPrivate(frame with { Memory = current.Memory, Effect = current.Effect, State = frame.State with { ExecutableBytes = nodeSource } }, batch);
                 memory.PublishProcessMemory(frame.Memory);
             }
         }

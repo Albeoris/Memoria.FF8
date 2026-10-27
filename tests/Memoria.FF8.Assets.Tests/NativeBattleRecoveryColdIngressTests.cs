@@ -33,7 +33,7 @@ public sealed class NativeBattleRecoveryColdIngressTests
         Assert.All(channels, value => Assert.Equal((byte)0, value));
         Assert.Equal(1u, cold.InitializationFlag);
         Assert.Same(cold, cold.Initialize(resources.Executable));
-        Assert.Equal(resources.Executable.Data.ToArray(), cold.Data.ToArray());
+        Assert.Equal(resources.Executable.Data.ToArray(), NativeBattleStorageSnapshots.Capture(cold.Data!).Data.ToArray());
         Assert.Throws<InvalidDataException>(() => cold.Read(address - 1, 1));
         Assert.Throws<InvalidDataException>(() => cold.Read(end, 1));
         Assert.Throws<InvalidDataException>(() => cold.Read(end - 1, 2));
@@ -51,13 +51,13 @@ public sealed class NativeBattleRecoveryColdIngressTests
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(effect);
         ImmutableArray<byte> channels = Assert.IsType<ImmutableArray<byte>>(cold.Channels);
         NativeBattleRecoveryExecutableState current = cold with { Channels = channels.SetItem(0, 0xA5).SetItem(channels.Length - 1, 0x5A) };
-        NativeBattleRecoveryExecutableState restored = JsonSerializer.Deserialize<NativeBattleRecoveryExecutableState>(JsonSerializer.Serialize(current))!;
+        NativeBattleRecoveryExecutableState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRecoveryExecutableState>(SnapshotJson(current))!);
         Assert.Same(restored, restored.Initialize(resources.Executable));
         Assert.Equal(new byte[] { 0xA5 }, restored.Read(profile.ChannelAddress, 1));
         Assert.Equal(new byte[] { 0x5A }, restored.Read(profile.ChannelAddress + (uint)profile.ChannelLength - 1, 1));
-        var oldJson = JsonSerializer.SerializeToNode(current)!.AsObject();
+        var oldJson = JsonSerializer.SerializeToNode(NativeBattleStorageSnapshots.Capture(current))!.AsObject();
         Assert.True(oldJson.Remove(nameof(NativeBattleRecoveryExecutableState.Channels)));
-        NativeBattleRecoveryExecutableState old = JsonSerializer.Deserialize<NativeBattleRecoveryExecutableState>(oldJson)!;
+        NativeBattleRecoveryExecutableState old = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRecoveryExecutableState>(oldJson)!);
         Assert.Null(old.Channels);
         Assert.Same(old, old.Initialize(resources.Executable));
         Assert.Throws<NotSupportedException>(() => old.Read(profile.ChannelAddress, 1));
@@ -111,4 +111,6 @@ public sealed class NativeBattleRecoveryColdIngressTests
         executable[^1] ^= 1;
         Assert.Throws<NotSupportedException>(() => NativeBattleRecoveryResourcesReader.ReadColdProcessState(executable, 53));
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

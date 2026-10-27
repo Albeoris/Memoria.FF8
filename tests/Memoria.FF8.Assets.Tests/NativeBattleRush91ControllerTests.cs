@@ -70,10 +70,10 @@ public sealed class NativeBattleRush91ControllerTests
         for (int callback = 0; callback < 300 && operations.All(operation => operation is not NativeBattleRush91CommonTextureLoad); callback++)
         {
             frame = Reset(frame);
-            NativeBattleRush91Frame restored = JsonSerializer.Deserialize<NativeBattleRush91Frame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleRush91Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRush91Frame>(SnapshotJson(frame))!);
             NativeBattleRush91Frame next = NativeBattleRush91Controller.Advance759510(frame, inputs, resources);
             NativeBattleRush91Frame coldNext = NativeBattleRush91Controller.Advance759510(restored, coldInputs, resources);
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(coldNext));
+            Assert.Equal(SnapshotJson(next), SnapshotJson(coldNext));
             restoredCallbacks++;
             if (next.Effect.Pools[3].Head is not null)
             {
@@ -92,7 +92,7 @@ public sealed class NativeBattleRush91ControllerTests
         Assert.True(nodePrivate > 0);
         Assert.True(nodeCommon > 0);
         Assert.Equal(1u, frame.Memory.Rush91!.Nodes.InitializationFlag);
-        Assert.Equal(0xEF0, frame.Memory.Rush91.Nodes.Data!.Value.Length);
+        Assert.Equal(0xEF0, frame.Memory.Rush91.Nodes.Data!.Length);
         Assert.Equal(0x5A0, frame.Memory.Rush91MorphScratch!.Value.Length);
         Assert.Equal(0x970, frame.Memory.Rush91.ProjectedScratch!.Value.Length);
         Assert.Equal((byte)8, frame.Effect.Pools[0].Slots[0].ReadByte(0x29));
@@ -185,4 +185,6 @@ public sealed class NativeBattleRush91ControllerTests
         Assert.SkipUnless(Directory.Exists(directory), "An installed original resource source is required.");
         return new(directory);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

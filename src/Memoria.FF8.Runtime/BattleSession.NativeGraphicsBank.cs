@@ -13,17 +13,17 @@ public sealed partial class BattleSession
         {
             if (!ReferenceEquals(nativeGraphics?.OriginalEffect, value?.OriginalEffect))
             {
-                AcceptNativeEffectPublication(value?.OriginalEffect);
+                AcceptNativeEffectPublication(value?.OriginalEffect, value?.PrimitiveFrame?.Pending);
             }
             nativeGraphics = value;
         }
     }
 
-    private void AcceptNativeEffectPublication(NativeBattleOriginalEffectState? effect)
+    private void AcceptNativeEffectPublication(NativeBattleOriginalEffectState? effect, NativeBattleLogicalOrdering? ordering = null)
     {
         if (effect is not null && NativeBattleTaskOperation.IsActive && !NativeBattleTaskCallerOperation.IsActive)
         {
-            NativeBattleTaskOperation.AcceptPublishedEffect(effect, NativeEffectMemory);
+            NativeBattleTaskOperation.AcceptPublishedEffect(effect, NativeEffectMemory, ordering);
         }
     }
     public bool NativeEntryReady => NativeGraphics?.EntryReady ?? true;

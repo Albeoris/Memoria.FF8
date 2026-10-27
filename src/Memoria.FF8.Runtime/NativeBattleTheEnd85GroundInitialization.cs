@@ -16,28 +16,43 @@ public static class NativeBattleTheEnd85GroundInitialization
 
     public static NativeBattleTheEnd85Frame Initialize788C20(NativeBattleTheEnd85Frame frame, uint taskAddress, NativeBattleTheEnd85NodeServices services)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, Initialize788C20Core(frame, taskAddress, services));
+    }
+
+    private static NativeBattleTheEnd85Frame Initialize788C20Core(NativeBattleTheEnd85Frame frame, uint taskAddress, NativeBattleTheEnd85NodeServices services)
+    {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(taskAddress);
         uint source = task.ReadDword(48);
         NativeBattleTheEnd85State state = State(frame);
-        ImmutableArray<byte> data = state.ModelData ?? services.Resources.Read(ModelBankAddress, ModelBankLength).ToImmutableArray();
+        NativeBattleNodeSource data = state.ModelData ?? new NativeBattleNodeSource(services.Resources.Read(ModelBankAddress, ModelBankLength).ToImmutableArray());
+        NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(data);
         int directory = checked((int)(source - ModelBankAddress));
         if (directory < 0 || directory > data.Length - 0x104)
         {
             throw new InvalidDataException("Native The End grounded source leaves its retained executable model bank.");
         }
-        if (BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan().Slice(directory)) == 0)
+        using NativeBattleNodeBankOperation initialization = new(data);
+        if (initialization.ReadUInt32(directory) == 0)
         {
-            byte[] relocated = NativeBattleEffectNodeBankFixups.Relocate(data, ModelBankAddress, directory);
-            BinaryPrimitives.WriteUInt32LittleEndian(relocated.AsSpan(directory), 1);
-            data = relocated.ToImmutableArray();
+            NativeBattleEffectNodeBankFixups.Relocate(initialization, ModelBankAddress, directory);
+            initialization.WriteUInt32(directory, 1);
         }
         task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(16)), frame.Effect.Parameters ?? throw new NotSupportedException("Native The End grounded initializer requires its current action parameters."), services.Packets, services.ReadModel, services.ReadPoseSource, source, dogOrigins: services.Mode2Origins);
         state = (state with { ModelData = data }).WriteDword(0x25C21DC, checked(taskAddress + 52));
-        return frame with { Memory = frame.Memory with { TheEnd85 = state }, Effect = frame.Effect with { Pools = hierarchy.Write(taskAddress, task).Pools } };
+        hierarchy = hierarchy.Write(taskAddress, task);
+        initialization.Publish(false);
+        return frame with { Memory = frame.Memory with { TheEnd85 = state }, Effect = frame.Effect with { Pools = hierarchy.Pools } };
     }
 
     public static NativeBattleTheEnd85NodeStep Advance789700(NativeBattleTheEnd85Frame frame, uint taskAddress, NativeBattleTheEnd85NodeServices services)
+    {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, Advance789700Core(frame, taskAddress, services));
+    }
+
+    private static NativeBattleTheEnd85NodeStep Advance789700Core(NativeBattleTheEnd85Frame frame, uint taskAddress, NativeBattleTheEnd85NodeServices services)
     {
         NativeBattleTheEnd85State state = State(frame).WriteDword(0x25C21DC, checked(taskAddress + 52));
         frame = frame with { Memory = frame.Memory with { TheEnd85 = state } };
@@ -48,7 +63,9 @@ public static class NativeBattleTheEnd85GroundInitialization
             int second = ArenaOffset(state.Dword(0x25C21D0));
             NativeBattleTheEnd85SpawnScratchObserver scratch = new(NativeBattleEffectNodeContextMemory.Capture(frame.Memory));
             using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, taskAddress, first, 1944, second, 40320, useSharedScratch: true) { SpawnScratchObserver = scratch };
-            NativeBattleEffectNodeBank bank = new(ModelBankAddress, state.ModelData ?? throw new NotSupportedException("Native The End grounded nodes require their initialized mutable model bank."), services.Resources.Read);
+            NativeBattleNodeSource bankSource = state.ModelData ?? throw new NotSupportedException("Native The End grounded nodes require their initialized mutable model bank.");
+            NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(bankSource);
+            using NativeBattleEffectNodeBank bank = new(ModelBankAddress, bankSource, services.Resources.Read);
             ushort emitterCursor = state.Word(0x25BC890);
             ushort geometryCursor = state.Word(0x25C1CC4);
             NativeBattleEffectNodeInputs inputs = new(services.CopiedCamera, services.ReadModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, first, 18, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, second, 60, ref geometryCursor, emitter, source));
@@ -57,7 +74,8 @@ public static class NativeBattleTheEnd85GroundInitialization
             lifecycle.Birth();
             lifecycle.AdvanceList(ref random);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
-            state = (state with { ModelData = bank.Data }).Write(0x25BC890, BitConverter.GetBytes(emitterCursor)).Write(0x25C1CC4, BitConverter.GetBytes(geometryCursor));
+            bank.Publish();
+            state = (state with { ModelData = bankSource }).Write(0x25BC890, BitConverter.GetBytes(emitterCursor)).Write(0x25C1CC4, BitConverter.GetBytes(geometryCursor));
             frame = new(NativeBattleEffectNodeContextMemory.Publish(written.Memory, scratch.View) with { TheEnd85 = state }, written.Effect, random);
             Draw(false);
             Draw(true);
@@ -109,10 +127,10 @@ public static class NativeBattleTheEnd85GroundInitialization
         }
         byte[] ReadModel(uint address, int length)
         {
-            ImmutableArray<byte> data = State(frame).ModelData!.Value;
+            NativeBattleNodeSource data = State(frame).ModelData!;
             if (address >= ModelBankAddress && (ulong)address - ModelBankAddress + (uint)length <= (uint)data.Length)
             {
-                return data.AsSpan().Slice(checked((int)(address - ModelBankAddress)), length).ToArray();
+                return data.Read(checked((int)(address - ModelBankAddress)), length);
             }
             return services.Resources.Read(address, length);
         }

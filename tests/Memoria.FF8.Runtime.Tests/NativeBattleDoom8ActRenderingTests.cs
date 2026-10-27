@@ -84,6 +84,42 @@ public sealed class NativeBattleDoom8ActRenderingTests
         });
     }
 
+    [Theory]
+    [InlineData((short)0)]
+    [InlineData((short)2048)]
+    public void Borrowed_staging_ACT_matches_catalog_and_preserves_the_active_source_lifetime_on_failure(short ratio)
+    {
+        NativeBattleGfAnimationSource catalog = Source();
+        var fixture = Fixture();
+        NativeBattleFileStaging staging = fixture.Frame.Staging!.Write(catalog.Address, catalog.Data.AsSpan());
+        NativeBattleDoom8Frame original = fixture.Frame with { Staging = staging };
+        NativeBattleDoom8Frame expected = Draw(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(original)), catalog);
+        NativeBattleGfAnimationSource borrowed = NativeBattleGfAnimationSource.Borrow(catalog.Address, staging, catalog.Length);
+        Assert.Throws<InvalidOperationException>(() => borrowed.Data);
+        NativeBattleDoom8Frame actual = Draw(original, borrowed);
+        Assert.Equal(SnapshotJson(expected), SnapshotJson(actual));
+        Assert.Null(borrowed.ActiveReader);
+
+        using (NativeBattleGfSourceReader retained = borrowed.OpenReader())
+        {
+            staging.WriteWithKnownness(catalog.Address + 8, catalog.Data.AsSpan().Slice(8, 4), new bool[4]);
+            // A nested draw consumes the original selected source even after an overlapping callback store.
+            NativeBattleDoom8Frame preserved = Draw(actual, borrowed);
+            Assert.NotNull(preserved.Memory.GeometryRegisters);
+            Assert.Same(retained, borrowed.ActiveReader);
+        }
+        Assert.Null(borrowed.ActiveReader);
+        Assert.Throws<NotSupportedException>(() => Draw(actual, borrowed));
+        Assert.Null(borrowed.ActiveReader);
+        staging.Write(catalog.Address + 8, catalog.Data.AsSpan().Slice(8, 4));
+        Assert.NotNull(Draw(actual, borrowed).Memory.GeometryRegisters);
+        Assert.Null(borrowed.ActiveReader);
+
+        NativeBattleDoom8Frame Draw(NativeBattleDoom8Frame frame, NativeBattleGfAnimationSource source) => NativeBattleDoom8ActRendering.DrawNode8C5B10(frame, source, Context(), Node(0x200, ratio), new(null, 100, 160, 108), Constants, (current, _) => current);
+    }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+
     private static NativeBattleEffectArena Context()
     {
         NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null);

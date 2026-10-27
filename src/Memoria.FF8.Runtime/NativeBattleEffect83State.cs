@@ -5,7 +5,7 @@ using static Memoria.FF8.Runtime.NativeBattleEffect83Profile;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffect83State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableArray<NativeBattleEffectArena?> BankStorage, [property: JsonRequired] ImmutableArray<byte>? NodeData, [property: JsonRequired] bool ColdSourceOrigin)
+public sealed record NativeBattleEffect83State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableArray<NativeBattleEffectArena?> BankStorage, [property: JsonRequired] NativeBattleNodeSource? NodeData, [property: JsonRequired] bool ColdSourceOrigin)
 {
     [JsonRequired]
     public ImmutableDictionary<uint, NativeBattleEffectOwnedModelState> OwnedModels { get; init; } = ImmutableDictionary<uint, NativeBattleEffectOwnedModelState>.Empty;
@@ -39,7 +39,7 @@ public sealed record NativeBattleEffect83State([property: JsonRequired] NativeBa
         return this with { NodeData = resources.Nodes.Data };
     }
 
-    public NativeBattleEffect83State ReplaceNodeBank(ImmutableArray<byte> bytes)
+    public NativeBattleEffect83State ReplaceNodeBank(NativeBattleNodeSource bytes)
     {
         if (NodeData is null || bytes.IsDefault || bytes.Length != NodeSourceLength)
         {
@@ -52,8 +52,8 @@ public sealed record NativeBattleEffect83State([property: JsonRequired] NativeBa
     {
         if (InNodeSource(address, length))
         {
-            ImmutableArray<byte> data = NodeData ?? throw new NotSupportedException("Effect83 requires its explicitly bound current node source.");
-            return data.AsSpan().Slice(checked((int)(address - NodeSourceAddress)), length).ToArray();
+            NativeBattleNodeSource data = NodeData ?? throw new NotSupportedException("Effect83 requires its explicitly bound current node source.");
+            return data.Read(checked((int)(address - NodeSourceAddress)), length);
         }
         return Storage.Read(Require(address, length), length);
     }
@@ -66,9 +66,8 @@ public sealed record NativeBattleEffect83State([property: JsonRequired] NativeBa
     {
         if (InNodeSource(address, bytes.Length))
         {
-            byte[] data = (NodeData ?? throw new NotSupportedException("Effect83 requires its bound current node source before writes.")).ToArray();
-            bytes.CopyTo(data.AsSpan(checked((int)(address - NodeSourceAddress))));
-            return ReplaceNodeBank(data.ToImmutableArray());
+            (NodeData ?? throw new NotSupportedException("Effect83 requires its bound current node source before writes.")).Write(checked((int)(address - NodeSourceAddress)), bytes);
+            return this;
         }
         Storage.Write(Require(address, bytes.Length), bytes);
         return this;

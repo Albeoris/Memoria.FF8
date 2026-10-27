@@ -102,7 +102,7 @@ public sealed class NativeBattleTheEnd85SpawnScratchObserverTests
         NativeBattleEffectMemory memoryOwner = NativeBattleEffectNodeContextMemory.Publish(current.Memory with { Arena = arena }, initial);
         NativeBattleTheEnd85SpawnScratchObserver observer = new(initial);
         NativeBattleEffectNodeMemory memory = new(memoryOwner, current.Effect, fixture.Task, NativeBattleCuragaSpawnTests.Emitter, 0x25F8, NativeBattleCuragaSpawnTests.Node, 0x16F80, useSharedScratch: true) { SpawnScratchObserver = observer };
-        NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, current.Memory.CuragaExecutable!.Data!.Value);
+        using NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, current.Memory.CuragaExecutable!.Data!);
         ushort cursor = 0;
         NativeBattleEffectNodeInputs inputs = new(current.State.CopiedCamera, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, NativeBattleCuragaSpawnTests.Node, 140, ref cursor, emitter, source));
         NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);

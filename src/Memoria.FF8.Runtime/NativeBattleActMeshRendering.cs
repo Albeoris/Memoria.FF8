@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -29,8 +30,9 @@ public static class NativeBattleActMeshRendering
         {
             throw new InvalidOperationException("ACT mesh callback allocation requires a visible ACT node.");
         }
-        int geometry = Int(source.Data, checked(8 + node.GeometryIndex * 4));
-        int count = Int(source.Data, checked(geometry + 4));
+        using NativeBattleGfSourceReader resource = source.OpenReader();
+        int geometry = resource.Int(checked(8 + node.GeometryIndex * 4));
+        int count = resource.Int(checked(geometry + 4));
         if (count < 0 || count > rules.MorphScratchLength / 8)
         {
             throw new InvalidDataException("ACT mesh shape exceeds its original vertex owner.");
@@ -45,8 +47,8 @@ public static class NativeBattleActMeshRendering
         {
             for (int vertex = 0; vertex < count; vertex++)
             {
-                NativeBattleVector a = Vector(source.Data, checked(first + vertex * 8));
-                NativeBattleVector b = Vector(source.Data, checked(second + vertex * 8));
+                NativeBattleVector a = Vector(resource, checked(first + vertex * 8));
+                NativeBattleVector b = Vector(resource, checked(second + vertex * 8));
                 registers = registers with { Colors = registers.Colors with { Ir0 = unchecked((uint)(4096 - ratio)), Ir = [(int)unchecked((ushort)a.X), (int)unchecked((ushort)a.Y), (int)unchecked((ushort)a.Z)] } };
                 registers = NativeBattleRaldo19BallRendering.Weighted(registers, false, constants);
                 registers = registers with { Colors = registers.Colors with { Ir0 = unchecked((uint)ratio), Ir = [(int)unchecked((ushort)b.X), (int)unchecked((ushort)b.Y), (int)unchecked((ushort)b.Z)] } };
@@ -60,7 +62,7 @@ public static class NativeBattleActMeshRendering
         }
         else
         {
-            _ = Slice(source.Data, selected, checked(count * 8));
+            resource.RequireExtent(selected, checked(count * 8));
             selectedAddress = checked(source.Address + (uint)selected);
         }
         NativeBattleActionMatrix matrix = rules.AlternateEulerFromHeader && (node.Header & 0x400) != 0 ? NativeBattleGfMatrices.Euler701430(node.Vector16) : NativeBattleGfMatrices.Euler701310(node.Vector16);
@@ -114,18 +116,19 @@ public static class NativeBattleActMeshRendering
         {
             temporary = Word(temporary, offset, 256);
         }
-        int end = checked(geometry + Int(source.Data, geometry));
+        int end = checked(geometry + resource.Int(geometry));
         int[] sizes = [12, 12, 20, 24, 20, 24, 28, 36];
         for (int group = 0; group < 8; group++)
         {
-            int faces = Int(source.Data, end);
+            int faces = resource.Int(end);
             if (faces < 0)
             {
                 throw new InvalidDataException("ACT mesh shape contains a negative group count.");
             }
             end = checked(end + 4 + faces * sizes[group]);
         }
-        ImmutableArray<byte> mesh = Slice(source.Data, geometry, checked(end - geometry)).ToArray().ToImmutableArray();
+        // The packet decoder owns this bounded geometry record, independently of the live ACT source.
+        ImmutableArray<byte> mesh = ImmutableCollectionsMarshal.AsImmutableArray(resource.ReadBytes(geometry, checked(end - geometry)));
         NativeBattleEffectArena currentMorph = morph;
         NativeBattleActorWaveMeshStep drawn = NativeBattleActorWaveMesh.EmitBatch(mesh, shapeAddress, matrix, projection, temporary, registers, farControls, dqa, dqb, zsf4, constants, null, zsf3, selectedVerticesAddress: selectedAddress, readSelectedVertex: ReadVertex);
         return new(drawn.Batch, drawn.Context104, morph, drawn.Registers, drawn.FarControls);
@@ -139,7 +142,7 @@ public static class NativeBattleActMeshRendering
             if (!interpolate)
             {
                 int at = checked(selected + offset);
-                return (Vector(source.Data, at), BinaryPrimitives.ReadInt16LittleEndian(Slice(source.Data, at + 6, 2)));
+                return (Vector(resource, at), resource.Short(at + 6));
             }
             byte[] xyz = currentMorph.Read(offset, 6);
             (byte[] padding, bool[] known) = currentMorph.ReadSnapshot(offset + 6, 2);
@@ -147,16 +150,7 @@ public static class NativeBattleActMeshRendering
         }
     }
 
-    private static int Int(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadInt32LittleEndian(Slice(bytes, offset, 4));
-    private static NativeBattleVector Vector(ImmutableArray<byte> bytes, int offset) => new(BinaryPrimitives.ReadInt16LittleEndian(Slice(bytes, offset, 2)), BinaryPrimitives.ReadInt16LittleEndian(Slice(bytes, offset + 2, 2)), BinaryPrimitives.ReadInt16LittleEndian(Slice(bytes, offset + 4, 2)));
-    private static ReadOnlySpan<byte> Slice(ImmutableArray<byte> bytes, int offset, int length)
-    {
-        if (bytes.IsDefault || offset < 0 || length < 0 || offset > bytes.Length - length)
-        {
-            throw new InvalidDataException("ACT mesh rendering read leaves its original ACT source.");
-        }
-        return bytes.AsSpan().Slice(offset, length);
-    }
+    private static NativeBattleVector Vector(NativeBattleGfSourceReader source, int offset) => new(source.Short(offset), source.Short(checked(offset + 2)), source.Short(checked(offset + 4)));
     private static NativeBattleEffectArena Dword(NativeBattleEffectArena arena, int offset, uint value)
     {
         byte[] bytes = new byte[4];

@@ -86,7 +86,7 @@ public static class NativeBattleRinoa87Nodes
             NativeBattleNodeSource data = frame.State.NodeData ?? new NativeBattleNodeSource(resources.Data);
             if (frame.State.NodeData is not null)
             {
-                NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(data);
+                NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(data);
             }
             using NativeBattleNodeBankOperation bank = new(data);
             uint flag = bank.ReadUInt32(0);
@@ -99,7 +99,7 @@ public static class NativeBattleRinoa87Nodes
             task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(16)), frame.Effect.Parameters ?? throw new NotSupportedException("Native779130 requires its original action parameters."), controller.Packets, controller.ReadModel, controller.ReadPoseSource, NativeBattleRinoa87NodeResources.Address);
             Store();
             bank.Publish(false);
-            NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(data);
+            NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(data);
             frame = frame with { State = frame.State with { NodeData = data } };
         }
         bool AdvanceContext()

@@ -194,6 +194,7 @@ internal sealed partial class NativeBattleTaskOperation : IDisposable
         System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
         try
         {
+            CompleteOrdering(false, ref failure);
             CompleteStaging(false, ref failure);
             for (int index = scopes.Count - 1; index >= 0; index--)
             {
@@ -234,6 +235,7 @@ internal sealed partial class NativeBattleTaskOperation : IDisposable
         System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
         try
         {
+            CompleteOrdering(true, ref failure);
             CompleteStaging(true, ref failure);
             for (int index = scopes.Count - 1; index >= 0; index--)
             {
@@ -265,6 +267,7 @@ internal sealed partial class NativeBattleTaskOperation : IDisposable
 
     private void Preflight()
     {
+        PreflightOrdering();
         PreflightStaging();
         foreach ((NativeBattleWorkingMemory storage, int depth) in scopes)
         {

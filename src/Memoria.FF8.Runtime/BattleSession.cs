@@ -329,6 +329,8 @@ public sealed partial class BattleSession
         CompleteBattleIfNeeded();
     }
 
+    public BattleDefinition ReadDefinition() => CloneDefinition(definition);
+
     public BattleSnapshot Capture()
     {
         return NativeBattleStorageSnapshots.Capture(new BattleSnapshot

@@ -11,7 +11,7 @@ public sealed class NativeBattleCuragaAnimatedAnchorTests
     {
         var fixture = NativeBattleCuragaNodeEngineTests.Fixture([(4, 0, false)]);
         NativeBattleCuragaFrame frame = fixture.Frame;
-        byte[] bank = frame.Memory.CuragaExecutable!.Data!.Value.ToArray();
+        byte[] bank = NativeBattleStorageSnapshots.Capture(frame.Memory.CuragaExecutable!.Data!).Data.ToArray();
         uint address = NativeBattleCuragaExecutableState.Address;
         int[] fields = [0x100, 0x108, 0x104, 0x10C, 0x110, 0x114, 0x118, 0x11C, 0x120, 0x124, 0x128];
         for (int index = 0; index < fields.Length; index++)
@@ -31,7 +31,10 @@ public sealed class NativeBattleCuragaAnimatedAnchorTests
         frame = NativeBattleCuragaNodeKinematics.InitializeEmitter882990(frame, fixture.Task, node, _ => throw new InvalidOperationException());
         Assert.Equal(new uint[] { 100u << 16, 200u << 16, 300u << 16, 0xDEADBEEF }, Enumerable.Range(0, 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena!.Read(node + 0x4C + index * 4, 4))));
         Assert.Throws<NotSupportedException>(() => frame.Memory.Arena!.Read(node + 0x2C + 18, 2));
-        NativeBattleCuragaFrame clone = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCuragaNodeKinematics.FollowAnimatedAnchor8822A0(frame, fixture.Task, node)), JsonSerializer.Serialize(NativeBattleCuragaNodeKinematics.FollowAnimatedAnchor8822A0(clone, fixture.Task, node)));
+        NativeBattleCuragaFrame clone = RoundTrip(frame);
+        Assert.Equal(SnapshotJson(NativeBattleCuragaNodeKinematics.FollowAnimatedAnchor8822A0(frame, fixture.Task, node)), SnapshotJson(NativeBattleCuragaNodeKinematics.FollowAnimatedAnchor8822A0(clone, fixture.Task, node)));
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

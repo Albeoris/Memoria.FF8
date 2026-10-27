@@ -8,6 +8,9 @@ public static partial class NativeBattleMagmaBreath48Controller
 {
     public static (NativeBattleMagmaBreath48Frame Frame, int Result) AdvanceEngine825E90(NativeBattleMagmaBreath48Frame frame, uint address, NativeBattleMagmaBreath48Resources resources, NativeBattleMagmaBreath48Inputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
+        AdmitNodeStorage(frame.State);
         frame = Dword(frame, 0x26495E8, checked(address + 0x34));
         NativeBattleModulePoolTask task = Read(frame, address);
         if (Signed(task, 0x58) == 2)
@@ -22,7 +25,7 @@ public static partial class NativeBattleMagmaBreath48Controller
         frame = WriteMouth(second.Frame, address, 0x204, second.Point8, true);
         var result = NativeBattleEffectNodeLifecycle.AdvanceContext(() => Read(frame, address), value => frame = Write(frame, address, value), AdvanceNodes);
         frame = Word(Word(frame, 0x26495D2, unchecked(frame.State.ReadWord(0x26495D2) + result.EmitterCount)), 0x26495C2, unchecked(frame.State.ReadWord(0x26495C2) + result.GeometryCount));
-        return (frame, result.Complete ? 1 : 0);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, (Frame: frame, Result: result.Complete ? 1 : 0));
 
         void AdvanceNodes()
         {
@@ -30,19 +33,19 @@ public static partial class NativeBattleMagmaBreath48Controller
             int geometry = checked((int)(frame.State.ReadDword(GeometryPointerGlobal) - NativeBattleEffectNodeMemory.ArenaAddress));
             NativeBattleTheEnd85SpawnScratchObserver spawnScratch = new(NativeBattleEffectNodeContextMemory.Capture(frame.Memory));
             using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterStorageLength, geometry, GeometryStorageLength, useSharedScratch: true) { SpawnScratchObserver = spawnScratch };
-            NativeBattleEffectNodeBank bank = new(SourceAddress, frame.State.Read(SourceAddress, SourceLength).ToImmutableArray(), ReadExternal, ReadResource);
+            NativeBattleNodeSource source = NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(NativeBattleNodeSource.Borrow(frame.State.SourceHeader, 0, SourceLength));
+            using NativeBattleEffectNodeBank bank = new(SourceAddress, source, ReadExternal, ReadResource);
             ushort emitterCursor = frame.State.ReadWord(EmitterScanCursorGlobal);
             ushort geometryCursor = frame.State.ReadWord(GeometryScanCursorGlobal);
             NativeBattleEffectNodeInputs nodeInputs = new(inputs.ReadView(frame).ReadMatrix(), actorIndex => inputs.ReadModel(frame, actorIndex), (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, emitters, 20, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, geometry, 100, ref geometryCursor, emitter, source))
             {
                 MorphResource = (mesh, firstShape, secondShape, ratio) => frame = MorphResource(frame, resources, mesh, firstShape, secondShape, ratio),
-                ResourceUpdate = (currentBank, resource, kind, sourceIndex) =>
+                MutateResource = (currentBank, resource, kind, sourceIndex) =>
                 {
                     if (sourceIndex == 0 && kind is 4 or 5)
                     {
                         frame = ScrollResource(frame, resources, resource);
                     }
-                    return currentBank.Data;
                 }
             };
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, nodeInputs);
@@ -66,7 +69,8 @@ public static partial class NativeBattleMagmaBreath48Controller
                 }
             });
             NativeBattleEffectNodeMemoryWrite final = memory.FlushStorage();
-            frame = frame with { Memory = final.Memory, Effect = final.Effect, Random = random, State = frame.State.WriteWord(EmitterScanCursorGlobal, emitterCursor).WriteWord(GeometryScanCursorGlobal, geometryCursor).Write(SourceAddress, bank.Data.AsSpan()) };
+            bank.Publish();
+            frame = frame with { Memory = final.Memory, Effect = final.Effect, Random = random, State = frame.State.WriteWord(EmitterScanCursorGlobal, emitterCursor).WriteWord(GeometryScanCursorGlobal, geometryCursor) };
 
             byte[] ReadExternal(uint pointer, int length)
             {
@@ -120,27 +124,21 @@ public static partial class NativeBattleMagmaBreath48Controller
     internal static NativeBattleMagmaBreath48Frame ScrollResource(NativeBattleMagmaBreath48Frame frame, NativeBattleMagmaBreath48Resources resources, uint mesh)
     {
         NativeBattleStaticMeshResource seed = resources.ReadMesh(mesh);
-        NativeBattleEffectArena current = frame.State.ReadView(mesh, seed.Bytes.Length);
-        (byte[] bytes, _) = current.ReadSnapshot(0, seed.Bytes.Length);
-        ImmutableArray<byte> scrolled = NativeBattleChoco97Uv.Scroll7311C0(bytes.ToImmutableArray(), -8);
-        int directory = BinaryPrimitives.ReadInt32LittleEndian(current.Read(0, 4));
-        int cursor = directory / 4 * 4;
-        int[] strides = [12, 12, 20, 24, 20, 24, 28, 36];
-        for (int group = 0; group < 8; group++)
-        {
-            int count = BinaryPrimitives.ReadInt32LittleEndian(current.Read(cursor, 4));
-            cursor = checked(cursor + 4);
-            int[] corners = group is 2 or 6 ? [11, 13, 17] : group is 3 or 7 ? [13, 17, 21, 23] : [];
-            for (int face = 0; face < count; face++)
-            {
-                foreach (int lane in corners)
-                {
-                    _ = current.Read(cursor + lane, 1);
-                    frame = frame with { State = frame.State.Write(checked(mesh + (uint)(cursor + lane)), scrolled.AsSpan().Slice(cursor + lane, 1)) };
-                }
-                cursor = checked(cursor + strides[group]);
-            }
-        }
+        int offset = checked((int)(mesh - MeshAAddress));
+        frame.State.MutablePe.RequireRange(offset, seed.Bytes.Length);
+        NativeBattleEffectArena resource = NativeBattleEffectArena.BorrowWorking(frame.State.MutablePe.Working, checked(frame.State.MutablePe.WorkingOffset + offset), seed.Bytes.Length);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(resource);
+        using NativeBattleEffectArenaTransaction mutation = NativeBattleEffectArenaTransaction.CreatePrivateChild(resource);
+        NativeBattleChoco97Uv.Scroll7311C0(mutation.View, -8);
+        mutation.Freeze();
         return frame;
+    }
+
+    private static void AdmitNodeStorage(NativeBattleMagmaBreath48State state)
+    {
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(state.Globals);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(state.SourceHeader);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(state.Channels);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(state.MutablePe);
     }
 }

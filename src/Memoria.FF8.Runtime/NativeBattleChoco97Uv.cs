@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -32,6 +32,8 @@ public static class NativeBattleChoco97Uv
         mutation.Commit();
         return owner;
     }
+
+    internal static void Scroll7311C0(NativeBattleEffectArena resource, int deltaV) => ScrollWorking(resource, 0, deltaV, true);
 
     private static void ScrollWorking(NativeBattleEffectArena output, int resourceOffset, int delta, bool vertical)
     {

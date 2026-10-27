@@ -13,6 +13,7 @@ public static class NativeBattleEffect30Nodes
 {
     public static NativeBattleEffect30TaskStep Advance(NativeBattleEffect30Frame frame, uint address, NativeBattleEffect30Resources resources, NativeBattleEffect30NodeInputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         Require(frame, address);
         NativeBattleModulePoolTask task = NativeBattleEffect30Controller.Read(frame, address);
         switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -20,10 +21,11 @@ public static class NativeBattleEffect30Nodes
             case 0:
                 if (unchecked((short)task.ReadWord(0x24)) >= unchecked((short)task.ReadWord(0x298)))
                 {
-                    NativeBattleEffect30State state = frame.State.InitializeSource(resources);
-                    frame = frame with { State = state.WriteDword(0x26D6A38, address + 0x34) };
+                    using NativeBattleNodeInitialization<NativeBattleEffect30State> initialization = frame.State.PrepareInitializeSource(resources);
+                    frame = frame with { State = frame.State.WriteDword(0x26D6A38, address + 0x34) };
                     task = NativeBattleEffectNodeContext.Initialize(task, NativeBattleEffect30Controller.Read(frame, task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Effect30 nodes require their captured action parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, SourceAddress, observeBone: (actor, selector) => frame = (inputs.ObserveBone ?? throw new NotSupportedException("Effect30 node initialization requires its reached bone-anchor publication."))(frame, actor, selector));
                     frame = NativeBattleEffect30Controller.Write(frame, address, task);
+                    frame = frame with { State = initialization.Publish() };
                     frame = AdvanceContext(frame, address, inputs).Frame;
                     task = NativeBattleEffect30Controller.Read(frame, address);
                     frame = NativeBattleEffect30Controller.Write(frame, address, task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1))));
@@ -43,7 +45,7 @@ public static class NativeBattleEffect30Nodes
             default:
                 throw new InvalidDataException("Effect30 node phase leaves its original three-entry table.");
         }
-        return NativeBattleEffect30Controller.Finish(frame, address);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, NativeBattleEffect30Controller.Finish(frame, address));
     }
 
     private static (NativeBattleEffect30Frame Frame, bool Complete) AdvanceContext(NativeBattleEffect30Frame frame, uint address, NativeBattleEffect30NodeInputs inputs)
@@ -58,7 +60,9 @@ public static class NativeBattleEffect30Nodes
             int emitters = ArenaOffset(frame.State.ReadDword(0x26D6A14), EmitterBytes);
             int geometry = ArenaOffset(frame.State.ReadDword(0x26D6A2C), GeometryBytes);
             using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterBytes, geometry, GeometryBytes, useSharedScratch: true);
-            NativeBattleEffectNodeBank bank = new(SourceAddress, frame.State.ExecutableBytes ?? throw new NotSupportedException("Effect30 nodes require their materialized executable source."));
+            NativeBattleNodeSource nodeSource = frame.State.ExecutableBytes ?? throw new NotSupportedException("Native nodes require their current executable source.");
+            NativeBattleTaskOperation.AdmitCurrentRetainedArena(nodeSource.Arena ?? throw new InvalidDataException("Native executable requires its addressed arena owner."));
+            using NativeBattleEffectNodeBank bank = new(SourceAddress, nodeSource);
             ushort emitterScan = frame.State.ReadWord(0x26D4768);
             ushort geometryScan = frame.State.ReadWord(0x26D6A20);
             NativeBattleActionMatrix camera = (frame.Memory.SharedEffectView2793E58 ?? throw new NotSupportedException("Effect30 nodes require their actual copied packed camera.")).ReadMatrix();
@@ -71,7 +75,8 @@ public static class NativeBattleEffect30Nodes
             NativeCrtRandomState random = frame.Random;
             _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
-            frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { ExecutableBytes = bank.Data } };
+            bank.Publish();
+            frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { ExecutableBytes = nodeSource } };
             frame = frame with { State = frame.State.WriteWord(0x26D4768, emitterScan).WriteWord(0x26D6A20, geometryScan) };
 
             void Look(NativeBattleEffectNodeMemory owner, int destination, NativeBattleVector direction, NativeBattleVector up)
@@ -137,7 +142,8 @@ public static class NativeBattleEffect30Nodes
             void Deliver(bool mesh, NativeBattleGfGeometryBatch batch)
             {
                 NativeBattleEffectNodeMemoryWrite current = memory.FlushStorage();
-                frame = inputs.DeliverPrivate(frame with { Memory = current.Memory, Effect = current.Effect, State = frame.State with { ExecutableBytes = bank.Data } }, batch);
+                bank.Publish();
+                frame = inputs.DeliverPrivate(frame with { Memory = current.Memory, Effect = current.Effect, State = frame.State with { ExecutableBytes = nodeSource } }, batch);
                 memory.PublishProcessMemory(frame.Memory);
             }
         }

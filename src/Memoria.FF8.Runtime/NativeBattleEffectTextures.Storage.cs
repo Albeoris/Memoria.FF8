@@ -43,7 +43,19 @@ public sealed partial record NativeBattleEffectTextureState
         }
     }
 
+    [JsonIgnore]
+    public object VramPublicationIdentity => VramVersion;
+
     public void ReadVramInto(int offset, Span<byte> destination) => VramVersion.ReadInto(offset, destination);
+
+    public ushort ReadVramWord(int x, int y)
+    {
+        if (x is < 0 or >= 1024 || y is < 0 or >= 512)
+        {
+            throw new InvalidDataException("Native texture sampling leaves its physical VRAM extent.");
+        }
+        return VramVersion.ReadWord(2 * (y * 1024 + x));
+    }
 
     public NativeBattleEffectTextureState PublishVramSpan(int offset, ReadOnlySpan<byte> bytes)
     {
@@ -73,7 +85,12 @@ public sealed partial record NativeBattleEffectTextureState
         return CreateSnapshot(Slots, Count, Animation, VramVersion.CaptureRegions(), VramReadTail);
     }
 
-    object INativeBattleStorageNode.RestoreOwned(NativeBattleStorageRestoreContext context) => new NativeBattleEffectTextureState(Slots, Count, Animation, snapshotRegions) { VramReadTail = VramReadTail };
+    object INativeBattleStorageNode.RestoreOwned(NativeBattleStorageRestoreContext context)
+    {
+        NativeBattleEffectTextureState result = new(Slots, Count, Animation, snapshotRegions) { VramReadTail = VramReadTail };
+        _ = result.vramOwner.Arena.Working;
+        return result;
+    }
 
     internal static NativeBattleEffectTextureState CreateSnapshot(ImmutableArray<NativeBattleEffectTimUpload?> slots, int count, NativeBattleEffectAnimationRegisters? animation, ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<byte>? tail)
     {

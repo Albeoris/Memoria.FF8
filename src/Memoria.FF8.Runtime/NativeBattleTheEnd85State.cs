@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleTheEnd85State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] ImmutableArray<byte>? Script, [property: JsonRequired] ImmutableArray<byte>? ModelData)
+public sealed record NativeBattleTheEnd85State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] ImmutableArray<byte>? Script, [property: JsonRequired] NativeBattleNodeSource? ModelData)
 {
     public const uint GlobalAddress = 0x25BC390;
     public const int GlobalLength = 0x5FBC;

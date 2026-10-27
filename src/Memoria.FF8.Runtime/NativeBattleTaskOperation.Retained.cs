@@ -150,18 +150,19 @@ internal sealed partial class NativeBattleTaskOperation
 
     internal static void AcceptPublishedPools(ImmutableArray<NativeBattleEffectTaskPool> pools, NativeBattleEffectMemory? memory) => AcceptPublication(memory, pools, false, null);
 
-    internal static void AcceptPublishedEffect(NativeBattleOriginalEffectState effect, NativeBattleEffectMemory? memory)
+    internal static void AcceptPublishedEffect(NativeBattleOriginalEffectState effect, NativeBattleEffectMemory? memory, NativeBattleLogicalOrdering? ordering = null)
     {
         NativeBattleRetainedEffectStorage.AdmitEffect(effect);
-        AcceptPublication(memory, effect.Pools, true, effect.RetainedAuthority);
+        AcceptPublication(memory, effect.Pools, true, effect.RetainedAuthority, ordering);
     }
 
-    private static void AcceptPublication(NativeBattleEffectMemory? memory, ImmutableArray<NativeBattleEffectTaskPool> pools, bool includeRetained, NativeBattleRetainedStorageAuthority? publishedEffectAuthority)
+    private static void AcceptPublication(NativeBattleEffectMemory? memory, ImmutableArray<NativeBattleEffectTaskPool> pools, bool includeRetained, NativeBattleRetainedStorageAuthority? publishedEffectAuthority, NativeBattleLogicalOrdering? ordering = null)
     {
         if (current is null)
         {
             return;
         }
+        PreflightPublishedOrdering(ordering);
         NativeBattleWorkingMemory? main = memory?.Arena is { IsSnapshot: false } arena ? arena.Working : null;
         bool deferMain = main is not null && (memory!.Arena!.Transaction is not null || NativeBattleEffectArenaTransaction.HasUnpublishedChanges(main));
         NativeBattleRetainedStorageAuthority? authority = publishedEffectAuthority ?? (includeRetained ? memory?.RetainedAuthority : null);
@@ -189,6 +190,7 @@ internal sealed partial class NativeBattleTaskOperation
                 }
             }
         }
+        RememberPublishedOrdering(ordering);
         failure?.Throw();
     }
 

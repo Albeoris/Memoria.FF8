@@ -46,7 +46,8 @@ public sealed class NativeBattleEffectTextureCopyTests
         byte[] memory = new byte[NativeBattleEffectArena.Length];
         new Random(50520).NextBytes(memory);
         NativeBattleEffectArena source = new([new(0, memory.ToImmutableArray())]);
-        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = source.Regions };
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = source.Capture().Regions };
+        state = state.PublishVramSpan(0, []);
         const short width = 8;
         const short height = 64;
         const short destinationX = 16;
@@ -60,17 +61,15 @@ public sealed class NativeBattleEffectTextureCopyTests
         long before = GC.GetAllocatedBytesForCurrentThread();
         NativeBattleEffectTextureDrain drained = state.Drain505D20();
         long transferBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        before = GC.GetAllocatedBytesForCurrentThread();
-        NativeBattleEffectArena scalar = source;
+        NativeBattleEffectArena scalar = NativeBattleStorageSnapshots.Restore(source.Capture());
         for (int row = 0; row < height; row++)
         {
             scalar = scalar.Write(2 * ((destinationY + row) * 1024 + destinationX), transferred.AsSpan(2 * row * width, 2 * width));
         }
-        long scalarBytes = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state with { Count = 0, VramRegions = scalar.Capture().Regions })), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drained.State)));
         Assert.Equal(transferred, Assert.Single(drained.Uploads).Bytes.ToArray());
         Assert.Equal(memory, state.ReadVram().AsSpan(0, memory.Length).ToArray());
-        Assert.True(transferBytes < scalarBytes / 8, $"Scalar allocated {scalarBytes} bytes; transfer allocated {transferBytes} bytes.");
+        Assert.True(transferBytes < 1048576, $"A warm bounded transfer allocated {transferBytes} bytes.");
     }
 
     [Fact]

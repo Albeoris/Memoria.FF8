@@ -28,16 +28,16 @@ public sealed class NativeBattleCuragaSharedLifecycleTests
             }
         });
         NativeBattleCuragaFrame clone = NativeBattleCuragaSpawnTests.Clone(frame);
-        string esuna = JsonSerializer.Serialize(frame.Memory.EsunaExecutable);
-        string fullLife = JsonSerializer.Serialize(frame.Memory.FullLifeExecutable);
+        string esuna = SnapshotJson(frame.Memory.EsunaExecutable);
+        string fullLife = SnapshotJson(frame.Memory.FullLifeExecutable);
         NativeBattleCuragaFrame actual = NativeBattleCuragaNodeKinematics.AdvanceDrawable880DB0(frame, fixture.Task, NativeBattleCuragaSpawnTests.Node);
         NativeBattleCuragaFrame restored = NativeBattleCuragaNodeKinematics.AdvanceDrawable880DB0(clone, fixture.Task, NativeBattleCuragaSpawnTests.Node);
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+        Assert.Equal(SnapshotJson(actual), SnapshotJson(restored));
         byte[] vertex = actual.Memory.CuragaExecutable!.Read(NativeBattleCuragaExecutableState.Address + 0x408, 8);
         Assert.Equal(new short[] { 200, 300, 400 }, Enumerable.Range(0, 3).Select(axis => BinaryPrimitives.ReadInt16LittleEndian(vertex.AsSpan(axis * 2))).ToArray());
         Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(vertex.AsSpan(6)));
-        Assert.Equal(esuna, JsonSerializer.Serialize(actual.Memory.EsunaExecutable));
-        Assert.Equal(fullLife, JsonSerializer.Serialize(actual.Memory.FullLifeExecutable));
+        Assert.Equal(esuna, SnapshotJson(actual.Memory.EsunaExecutable));
+        Assert.Equal(fullLife, SnapshotJson(actual.Memory.FullLifeExecutable));
     }
 
     [Fact]
@@ -63,4 +63,7 @@ public sealed class NativeBattleCuragaSharedLifecycleTests
         Assert.Equal((ushort)0, new NativeBattleEffectHierarchy(actual.Effect.Pools).Read(fixture.Task).ReadWord(0x34 + 0x14));
         Assert.Equal(new byte[] { 0 }, actual.Memory.Arena!.Read(node + 0x69, 1));
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

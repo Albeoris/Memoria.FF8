@@ -27,8 +27,8 @@ public sealed class NativeBattleRestorationExecutableTests
         Assert.Equal(address, Read(0x10CC));
         Assert.Equal(1u, state.InitializationFlag);
         Assert.Same(state, state.Initialize(source));
-        NativeBattleRestorationExecutableState restored = JsonSerializer.Deserialize<NativeBattleRestorationExecutableState>(JsonSerializer.Serialize(state))!;
-        Assert.Equal(state.Data!.Value.ToArray(), restored.Initialize(source).Data!.Value.ToArray());
+        NativeBattleRestorationExecutableState restored = RoundTrip(state);
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(state.Data!).Data.ToArray(), NativeBattleStorageSnapshots.Capture(restored.Initialize(source).Data!).Data.ToArray());
         Assert.Throws<InvalidDataException>(() => state.Read(address - 1, 4));
         Assert.Throws<NotSupportedException>(() => new NativeBattleRestorationExecutableState(effect, 1, null).Initialize(source));
         Assert.Throws<InvalidDataException>(() => state.Initialize(source with { Effect = effect == 24 ? (ushort)27 : (ushort)24 }));
@@ -42,12 +42,15 @@ public sealed class NativeBattleRestorationExecutableTests
         NativeBattleEffectMemory cold = NativeBattleEffectMemory.FromColdProcess();
         Assert.Equal(NativeBattleRestorationExecutableState.FromColdProcess(24), cold.EsunaExecutable);
         Assert.Equal(NativeBattleRestorationExecutableState.FromColdProcess(27), cold.FullLifeExecutable);
-        var json = JsonSerializer.SerializeToNode(cold)!.AsObject();
+        var json = JsonSerializer.SerializeToNode(NativeBattleStorageSnapshots.Capture(cold))!.AsObject();
         Assert.True(json.Remove(nameof(NativeBattleEffectMemory.EsunaExecutable)));
         Assert.True(json.Remove(nameof(NativeBattleEffectMemory.FullLifeExecutable)));
-        NativeBattleEffectMemory old = JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!;
+        NativeBattleEffectMemory old = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!);
         Assert.Null(old.BeginLoad(23).EsunaExecutable);
         Assert.Null(old.BeginLoad(26).FullLifeExecutable);
         Assert.Throws<InvalidDataException>(() => (cold with { EsunaExecutable = cold.FullLifeExecutable }).Validate());
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

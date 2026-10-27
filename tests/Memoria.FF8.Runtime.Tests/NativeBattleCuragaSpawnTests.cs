@@ -170,7 +170,7 @@ public sealed class NativeBattleCuragaSpawnTests
 
     internal static NativeBattleCuragaFrame Bank(NativeBattleCuragaFrame frame, Action<byte[]> update)
     {
-        byte[] bytes = frame.Memory.CuragaExecutable!.Data!.Value.ToArray();
+        byte[] bytes = NativeBattleStorageSnapshots.Capture(frame.Memory.CuragaExecutable!.Data!).Data.ToArray();
         update(bytes);
         return frame with { Memory = frame.Memory with { CuragaExecutable = new(1, bytes.ToImmutableArray()) } };
     }
@@ -181,5 +181,8 @@ public sealed class NativeBattleCuragaSpawnTests
         return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, update(hierarchy.Read(address))).Pools } };
     }
 
-    internal static NativeBattleCuragaFrame Clone(NativeBattleCuragaFrame frame) => JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
+    internal static NativeBattleCuragaFrame Clone(NativeBattleCuragaFrame frame) => RoundTrip(frame);
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

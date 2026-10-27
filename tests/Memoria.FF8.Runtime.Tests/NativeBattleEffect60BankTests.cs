@@ -30,9 +30,9 @@ public sealed class NativeBattleEffect60BankTests
         Assert.Equal(primary.ExecutableAddress + 24u, Read(first, 0x10C8));
         Assert.Equal(secondary.ExecutableAddress + 24u, Read(second, 0x12C8));
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(secondSource.Data.AsSpan()));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        Assert.Equal(first.Data!.Value.ToArray(), primary.RequireExecutable(restored).Data!.Value.ToArray());
-        Assert.Equal(second.Data!.Value.ToArray(), secondary.RequireExecutable(restored).Data!.Value.ToArray());
+        NativeBattleEffectMemory restored = RoundTrip(memory);
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(first.Data!).Data.ToArray(), NativeBattleStorageSnapshots.Capture(primary.RequireExecutable(restored).Data!).Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(second.Data!).Data.ToArray(), NativeBattleStorageSnapshots.Capture(secondary.RequireExecutable(restored).Data!).Data.ToArray());
         Assert.Same(second, second.Initialize87EA20(secondSource));
     }
 
@@ -61,4 +61,7 @@ public sealed class NativeBattleEffect60BankTests
     {
         return BinaryPrimitives.ReadUInt32LittleEndian(bank.Read(bank.ResourceAddress + (uint)offset, 4));
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

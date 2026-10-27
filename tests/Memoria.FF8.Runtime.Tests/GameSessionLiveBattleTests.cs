@@ -79,6 +79,24 @@ public sealed class GameSessionLiveBattleTests
         Assert.True(session.HasActiveBattle);
     }
 
+    [Fact]
+    public void Reading_definition_copies_catalog_metadata_without_capturing_live_effect_storage()
+    {
+        BattleSession battle = CreateBattle();
+        NativeBattleEffectMemory memory = battle.NativeEffectMemory!.BeginLoad(0);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(battle, memory);
+        long captures = memory.Arena!.Working.CaptureBytes;
+
+        BattleDefinition first = battle.ReadDefinition();
+        BattleDefinition second = battle.ReadDefinition();
+
+        Assert.NotSame(first.Combatants, second.Combatants);
+        Assert.NotSame(first.Combatants[0], second.Combatants[0]);
+        Assert.Equal(first.Combatants[0].Id, second.Combatants[0].Id);
+        Assert.Equal(captures, memory.Arena.Working.CaptureBytes);
+        Assert.Null(first.NativeRetainedMemory?.EffectMemory?.Arena);
+    }
+
     private static BattleSession CreateBattle() => new(new BattleDefinition
     {
         NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),

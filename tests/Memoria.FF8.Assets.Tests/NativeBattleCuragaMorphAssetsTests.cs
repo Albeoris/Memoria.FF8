@@ -27,7 +27,7 @@ public sealed class NativeBattleCuragaMorphAssetsTests
         int shapeB = checked((int)(second - NativeBattleCuragaExecutableState.Address + 8));
         Assert.True(target + count * 8 <= shapeA);
         Assert.True(target + count * 8 <= shapeB);
-        var original = bank.Data!.Value;
+        var original = NativeBattleStorageSnapshots.Capture(bank.Data!).Data;
         var result = NativeBattleGfMorphGeometry.Morph45E9D0(original, shapeA, original, shapeB, count, 0, original, target);
         for (int vertex = 0; vertex < count; vertex++)
         {
@@ -38,9 +38,11 @@ public sealed class NativeBattleCuragaMorphAssetsTests
         Assert.Equal(original.Skip(target + count * 8), result.Skip(target + count * 8));
         NativeBattleCuragaExecutableState changed = bank with { Data = result };
         changed.Validate();
-        NativeBattleCuragaExecutableState clone = JsonSerializer.Deserialize<NativeBattleCuragaExecutableState>(JsonSerializer.Serialize(changed))!;
-        Assert.Equal(result.ToArray(), clone.Data!.Value.ToArray());
+        NativeBattleCuragaExecutableState clone = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCuragaExecutableState>(SnapshotJson(changed))!);
+        Assert.Equal(result.ToArray(), NativeBattleStorageSnapshots.Capture(clone.Data!).Data.ToArray());
 
         uint Pointer(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(bank.Read(NativeBattleCuragaExecutableState.Address + (uint)offset, 4));
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

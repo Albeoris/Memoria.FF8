@@ -10,7 +10,7 @@ public sealed class NativeBattleAngelWing84NodeTests
         var fixture = NativeBattleCuragaSpawnTests.Fixture();
         NativeBattleCuragaFrame frame = NativeBattleCuragaEmitterTests.Dwords(fixture.Frame, NativeBattleCuragaSpawnTests.Emitter + 0x4C, [0, 0, 0, 0xDEADBEEF]);
         NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, fixture.Task, NativeBattleCuragaSpawnTests.Emitter, 0x25F8, NativeBattleCuragaSpawnTests.Node, 0x16F80, useSharedScratch: true);
-        NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, frame.Memory.CuragaExecutable!.Data!.Value);
+        using NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, frame.Memory.CuragaExecutable!.Data!);
         int calls = 0;
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => NativeBattleCuragaSpawnTests.Node)
         {

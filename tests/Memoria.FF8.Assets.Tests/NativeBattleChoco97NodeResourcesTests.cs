@@ -19,8 +19,8 @@ public sealed class NativeBattleChoco97NodeResourcesTests
         Assert.All(resources, resource => Assert.Equal(0u, U32(resource.Data, 0)));
         Assert.Equal(new uint[] { 0x2BB0, 0x2D08, 0x2E60, 0x2FB8, 0, 0x3110 }, Enumerable.Range(0, 6).Select(index => U32(resources[0].Data, 4 + index * 4)));
         Assert.Equal(new byte[] { 4, 0, 0, 4, 4, 4, 0, 0 }, Enumerable.Range(0, 8).Select(index => resources[1].Data[checked((int)U32(resources[1].Data, 4 + index * 4) + 0x16)]));
-        string json = JsonSerializer.Serialize(resources);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<ImmutableArray<NativeBattleChoco97NodeResource>>(json)));
+        string json = SnapshotJson(resources);
+        Assert.Equal(json, SnapshotJson(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<ImmutableArray<NativeBattleChoco97NodeResource>>(json))));
     }
 
     [Fact]
@@ -107,13 +107,13 @@ public sealed class NativeBattleChoco97NodeResourcesTests
         NativeBattleEffectNodeDogOrigins origins = new(new(-200, -400, 100), new(200, -768, 1000));
         NativeBattleChoco97NodeFrame Initialize(NativeBattleChoco97NodeFrame current, int index) => NativeBattleChoco97Nodes.InitializeContext(current, contexts[index], resources[index], packets, Model, _ => throw new InvalidOperationException("Mode2 consumes explicit origins."), origins);
         frame = Initialize(frame, 0);
-        ImmutableArray<byte> staticData = frame.State.StaticData!.Value;
+        ImmutableArray<byte> staticData = NativeBattleStorageSnapshots.Capture(frame.State.StaticData!).Data;
         Assert.Equal(1u, U32(staticData, 0));
         Assert.Equal(resources[1].Data, frame.Io!.Banks.Read(0x19DFEF8, 0x4A60));
-        NativeBattleChoco97NodeFrame cold = JsonSerializer.Deserialize<NativeBattleChoco97NodeFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleChoco97NodeFrame cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleChoco97NodeFrame>(SnapshotJson(frame))!);
         NativeBattleChoco97NodeFrame loaded = Initialize(frame, 1);
-        Assert.Equal(JsonSerializer.Serialize(loaded), JsonSerializer.Serialize(Initialize(cold, 1)));
-        Assert.Equal(staticData, loaded.State.StaticData!.Value);
+        Assert.Equal(SnapshotJson(loaded), SnapshotJson(Initialize(cold, 1)));
+        Assert.Equal(staticData, NativeBattleStorageSnapshots.Capture(loaded.State.StaticData!).Data);
         byte[] relocated = loaded.Io!.Banks.Read(0x19DFEF8, 0x4A60);
         Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(relocated));
         Assert.Equal(0x19DFEF8u + U32(resources[1].Data, 4), BinaryPrimitives.ReadUInt32LittleEndian(relocated.AsSpan(4)));
@@ -124,7 +124,7 @@ public sealed class NativeBattleChoco97NodeResourcesTests
             ImmutableArray<byte> original = Assert.Single(ioResources.Files, file => file.FileId == ids[index]).Data;
             Assert.Equal(original, loaded.Io!.Banks.Read(addresses[index], original.Length));
         }
-        Assert.Equal(JsonSerializer.Serialize(loaded), JsonSerializer.Serialize(Initialize(loaded, 1)));
+        Assert.Equal(SnapshotJson(loaded), SnapshotJson(Initialize(loaded, 1)));
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         NativeBattleActionMatrix view = identity with { Z = 16384 };
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
@@ -142,9 +142,9 @@ public sealed class NativeBattleChoco97NodeResourcesTests
                 NativeBattleChoco97NodeStep step = NativeBattleChoco97Nodes.AdvanceContext(frame, contexts[sourceIndex], Model, projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
                 if (callback % 17 == 0)
                 {
-                    NativeBattleChoco97NodeFrame restored = JsonSerializer.Deserialize<NativeBattleChoco97NodeFrame>(JsonSerializer.Serialize(frame))!;
+                    NativeBattleChoco97NodeFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleChoco97NodeFrame>(SnapshotJson(frame))!);
                     NativeBattleChoco97NodeStep next = NativeBattleChoco97Nodes.AdvanceContext(restored, contexts[sourceIndex], Model, projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
-                    Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(next));
+                    Assert.Equal(SnapshotJson(step), SnapshotJson(next));
                     coldBoundaries++;
                 }
                 privatePackets += step.PrivateSprites.Sum(batch => batch.Attempts.Count(attempt => attempt.Primitive is not null));
@@ -161,7 +161,7 @@ public sealed class NativeBattleChoco97NodeResourcesTests
             Assert.True(coldBoundaries > 1);
             Assert.Equal((ushort)0, frame.State.Work.PassEmitterCount);
             Assert.Equal((ushort)0, frame.State.Work.PassGeometryCount);
-            Assert.Equal(staticData, frame.State.StaticData!.Value);
+            Assert.Equal(staticData, NativeBattleStorageSnapshots.Capture(frame.State.StaticData!).Data);
         }
         Assert.False(relocated.AsSpan().SequenceEqual(frame.Io!.Banks.Read(0x19DFEF8, 0x4A60)));
         foreach (int index in new[] { 0, 2, 3 })
@@ -172,4 +172,5 @@ public sealed class NativeBattleChoco97NodeResourcesTests
     }
 
     private static uint U32(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(offset));
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

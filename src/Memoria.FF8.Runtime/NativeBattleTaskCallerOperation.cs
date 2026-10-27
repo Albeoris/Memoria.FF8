@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Runtime.ExceptionServices;
 
 namespace Memoria.FF8.Runtime;
@@ -137,16 +137,18 @@ internal sealed class NativeBattleTaskCallerOperation : IDisposable
         NativeBattleTaskBankOwner.RegisterCallerCheckpoint(storage);
     }
 
-    internal void AcceptPrefix()
+    internal void AcceptPrefix(NativeBattleLogicalOrdering? ordering = null, NativeBattleFileStaging? staging = null)
     {
         RequireCurrent();
         Preflight();
+        NativeBattleTaskOperation.PreflightCallerDomains(ordering, staging);
         if (!prepared)
         {
             AcceptOverlay();
         }
         ExceptionDispatchInfo? failure = CommitKernels();
         AcceptAutomaticAncestors(ref failure);
+        NativeBattleTaskOperation.AcceptCallerDomains(ordering, staging, ref failure);
         prepared = false;
         AcceptedPrefixes++;
         ReopenKernels();
@@ -155,10 +157,11 @@ internal sealed class NativeBattleTaskCallerOperation : IDisposable
         failure?.Throw();
     }
 
-    internal void Complete()
+    internal void Complete(NativeBattleLogicalOrdering? ordering = null, NativeBattleFileStaging? staging = null)
     {
         RequireCurrent();
         Preflight();
+        NativeBattleTaskOperation.PreflightCallerDomains(ordering, staging);
         if (!prepared)
         {
             AcceptOverlay();
@@ -168,6 +171,7 @@ internal sealed class NativeBattleTaskCallerOperation : IDisposable
         {
             failure = CommitKernels();
             AcceptAutomaticAncestors(ref failure);
+            NativeBattleTaskOperation.AcceptCallerDomains(ordering, staging, ref failure);
             prepared = false;
             AcceptedPrefixes++;
         }

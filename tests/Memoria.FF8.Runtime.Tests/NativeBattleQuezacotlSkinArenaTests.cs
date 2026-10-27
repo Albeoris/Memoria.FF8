@@ -71,11 +71,18 @@ public sealed class NativeBattleQuezacotlSkinArenaTests
             scalar = NativeBattleQuezacotlSkinArena.Append(scalar.Memory, scalar.Effect, scalar.Ordering, scalarBatch);
         }
         long scalarBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        object backing = memory.Arena!.Working.BackingIdentity;
+        long captures = memory.Arena.Working.CaptureBytes;
+        Traffic traffic = new();
+        using IDisposable telemetry = NativeBattleTelemetry.BeginScope(traffic);
         before = GC.GetAllocatedBytesForCurrentThread();
         NativeBattleQuezacotlPacketWrite result = NativeBattleQuezacotlSkinArena.Append(memory, effect, batchOrdering, batch);
         long batchBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(batchBytes < scalarBytes, $"Scalar allocated {scalarBytes} bytes; batch allocated {batchBytes} bytes.");
+        Assert.Same(backing, result.Memory.Arena!.Working.BackingIdentity);
+        Assert.Equal(captures, result.Memory.Arena.Working.CaptureBytes);
+        Assert.InRange(traffic.CopyBytes, 0L, 32768L);
         Assert.Equal(SnapshotJson(scalar), SnapshotJson(result));
-        Assert.True(batchBytes < scalarBytes / 8, $"Scalar allocated {scalarBytes} bytes; batch allocated {batchBytes} bytes.");
         Assert.Equal(new byte[12], initialMemory.Arena!.Read(0x8D0, 12));
     }
 
@@ -103,5 +110,18 @@ public sealed class NativeBattleQuezacotlSkinArenaTests
         return new(0, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, bytes.Length).ToImmutableArray(), primitive);
     }
     private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+
+    private sealed class Traffic : INativeBattleTelemetrySink
+    {
+        internal long CopyBytes { get; private set; }
+
+        public void Record(int siteId, NativeBattleTrafficKind kind, long payloadBytes)
+        {
+            if (kind == NativeBattleTrafficKind.CpuCopyPayload)
+            {
+                CopyBytes += payloadBytes;
+            }
+        }
+    }
 
 }

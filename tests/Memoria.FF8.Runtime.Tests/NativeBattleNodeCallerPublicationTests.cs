@@ -15,7 +15,7 @@ public sealed class NativeBattleNodeCallerPublicationTests
         NativeBattleModulePoolTask originalTask = new NativeBattleEffectHierarchy(prepared.Effect.Pools).Read(fixture.Task);
         NativeBattleEffectNodeCallerPolicy policy = new(NativeBattleCuragaExecutableState.Address, source.Length, originalTask.Callback, 90, 140, false);
         NativeBattleRecover93NodeState state = new(1, source, NativeBattleCuragaSpawnTests.Emitter, NativeBattleCuragaSpawnTests.Node, 0, 0, 0, 0, prepared.State.CopiedCamera, 0, null, null);
-        NativeBattleRecover93NodeFrame frame = new(prepared.Memory, prepared.Effect, state, prepared.Random);
+        NativeBattleRecover93NodeFrame frame = new(prepared.Memory, prepared.Effect, state, new(1));
         const int auxOffset = NativeBattleCuragaSpawnTests.Node + 0x200;
         var originalAux = prepared.Memory.Arena!.ReadSnapshot(auxOffset, 4);
         byte[] originalContext = new byte[4];

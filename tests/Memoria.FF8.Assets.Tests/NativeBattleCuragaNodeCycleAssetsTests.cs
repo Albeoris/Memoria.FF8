@@ -21,12 +21,12 @@ public sealed class NativeBattleCuragaNodeCycleAssetsTests
         uint mesh = BinaryPrimitives.ReadUInt32LittleEndian(step.Frame.Memory.Arena.Read(Geometry + 0x170, 4));
         Assert.Equal(Pointer(step.Frame, 0x84 + 5 * 4), mesh);
         Assert.Equal(4, BinaryPrimitives.ReadInt32LittleEndian(step.Frame.Memory.CuragaExecutable!.Read(mesh + 4, 4)));
-        NativeBattleCuragaFrame restored = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(step.Frame))!;
+        NativeBattleCuragaFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCuragaFrame>(SnapshotJson(step.Frame))!);
         NativeBattleCuragaNodeCycleStep next = Advance(step.Frame, step.Random, false);
         NativeBattleCuragaNodeCycleStep cloneNext = Advance(restored, step.Random, false);
         Assert.Equal(next.Random, cloneNext.Random);
-        Assert.Equal(JsonSerializer.Serialize(next.Frame.Memory.Arena), JsonSerializer.Serialize(cloneNext.Frame.Memory.Arena));
-        Assert.Equal(next.Frame.Memory.CuragaExecutable!.Data!.Value.ToArray(), cloneNext.Frame.Memory.CuragaExecutable!.Data!.Value.ToArray());
+        Assert.Equal(SnapshotJson(next.Frame.Memory.Arena), SnapshotJson(cloneNext.Frame.Memory.Arena));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(next.Frame.Memory.CuragaExecutable!.Data!).Data.ToArray(), NativeBattleStorageSnapshots.Capture(cloneNext.Frame.Memory.CuragaExecutable!.Data!).Data.ToArray());
 
         NativeBattleCuragaNodeCycleStep Advance(NativeBattleCuragaFrame frame, NativeCrtRandomState random, bool birth) => NativeBattleCuragaNodeKinematics.AdvanceList8804D0(frame, fixture.Task, random, _ => throw new InvalidOperationException(), birth);
     }
@@ -76,4 +76,5 @@ public sealed class NativeBattleCuragaNodeCycleAssetsTests
     }
 
     private static uint Pointer(NativeBattleCuragaFrame frame, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.CuragaExecutable!.Read(NativeBattleCuragaExecutableState.Address + (uint)offset, 4));
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

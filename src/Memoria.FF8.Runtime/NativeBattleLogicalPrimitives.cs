@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
@@ -347,6 +347,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
 
     private sealed class Checkpoint
     {
+        internal bool Automatic;
         internal int Tables;
         internal int ProxiesUndo;
         internal int PacketsUndo;
@@ -373,7 +374,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         internal bool Duplicate;
     }
 
-    private sealed class Owner : INativeBattleOrderingCollectionScope
+    private sealed partial class Owner : INativeBattleOrderingCollectionScope
     {
         internal NativeBattleLogicalOrdering Root = null!;
         private List<NativeBattlePrimitiveLink> table;

@@ -10,6 +10,7 @@ public static partial class NativeBattleDeathController
 
     public static NativeBattleDeathFrame Initialize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets, NativeBattleDeathResources resources, NativeCrtRandomState random)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(memory, effect);
         NativeBattleDeathFamilyProfile profile = NativeBattleDeathFamilyProfile.ForEffect(effect.Binding.Effect);
         if (effect.Binding.Entry != profile.Entry || resources.Effect != profile.Effect || effect.Parameters is not { } parameters)
         {
@@ -22,7 +23,7 @@ public static partial class NativeBattleDeathController
             {
                 throw new InvalidDataException("Native Death pending cold sources already contain mutable bytes.");
             }
-            state = state with { AuraActors = resources.AuraActors, DarkActors = resources.DarkActors, PendingColdSources = false };
+            state = state with { AuraActors = NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(new NativeBattleNodeSource(resources.AuraActors)), DarkActors = NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(new NativeBattleNodeSource(resources.DarkActors)), PendingColdSources = false };
         }
         int source = effect.ResourcePointers.SingleOrDefault(pointer => pointer.GlobalAddress == profile.ModuleBase)?.ArenaOffset ?? throw new NotSupportedException("Native Death requires its executed initializer allocation.");
         if (source < 0 || source > NativeBattleEffectArena.Length - 0x265F0)
@@ -45,12 +46,14 @@ public static partial class NativeBattleDeathController
         }
         state = state with { Source = source };
         state = state with { Module = state.Module.Write(profile.ModuleOffset(0x274286C), new byte[4]).Write(profile.ModuleOffset(0x273B53C), new byte[4]) };
-        return new(profile.WithState(memory, state), effect with { Pools = hierarchy.Pools, ReturnedDescriptor = profile.RootDescriptor }, random);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, new NativeBattleDeathFrame(profile.WithState(memory, state), effect with { Pools = hierarchy.Pools, ReturnedDescriptor = profile.RootDescriptor }, random));
     }
 
     public static NativeBattleDeathFrame Advance(NativeBattleDeathFrame frame, NativeBattleDeathResources resources, NativeBattleDeathInputs inputs)
     {
-        return frame.Effect.ReturnedDescriptor == 0 ? frame : new Execution(frame, resources, inputs).Advance();
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        NativeBattleDeathFrame result = frame.Effect.ReturnedDescriptor == 0 ? frame : new Execution(frame, resources, inputs).Advance();
+        return NativeBattleTaskOperation.CompleteStandalone(operation, result);
     }
 
     public static NativeBattleOriginalEffectState WriteCompletionByte(NativeBattleOriginalEffectState effect, uint pointer, byte value)

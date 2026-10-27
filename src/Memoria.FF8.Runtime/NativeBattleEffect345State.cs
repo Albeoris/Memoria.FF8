@@ -5,7 +5,7 @@ using static Memoria.FF8.Runtime.NativeBattleEffect345Profile;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffect345State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableArray<NativeBattleEffectArena?> BankStorage, [property: JsonRequired] ImmutableDictionary<uint, ImmutableArray<byte>>? NodeData, [property: JsonRequired] bool ColdSourceOrigin)
+public sealed record NativeBattleEffect345State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableArray<NativeBattleEffectArena?> BankStorage, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleNodeSource>? NodeData, [property: JsonRequired] bool ColdSourceOrigin)
 {
     [JsonRequired]
     public ImmutableDictionary<uint, NativeBattleEffectOwnedModelState> OwnedModels { get; init; } = ImmutableDictionary<uint, NativeBattleEffectOwnedModelState>.Empty;
@@ -36,10 +36,10 @@ public sealed record NativeBattleEffect345State([property: JsonRequired] NativeB
             throw new NotSupportedException("Effect345 unknown node sources require an explicit original-owner migration.");
         }
         resources.Validate();
-        return this with { NodeData = resources.Nodes.ToImmutableDictionary(bank => bank.Address, bank => bank.Data) };
+        return this with { NodeData = resources.Nodes.ToImmutableDictionary(bank => bank.Address, bank => new NativeBattleNodeSource(bank.Data)) };
     }
 
-    public NativeBattleEffect345State ReplaceNodeBank(uint address, ImmutableArray<byte> bytes)
+    public NativeBattleEffect345State ReplaceNodeBank(uint address, NativeBattleNodeSource bytes)
     {
         if (NodeData is null || !NodeData.ContainsKey(address) || bytes.IsDefault || bytes.Length != NodeLength(address))
         {
@@ -52,8 +52,8 @@ public sealed record NativeBattleEffect345State([property: JsonRequired] NativeB
     {
         if (TryNodeSource(address, length, out uint nodeAddress))
         {
-            ImmutableArray<byte> data = NodeData is not null && NodeData.TryGetValue(nodeAddress, out ImmutableArray<byte> current) ? current : throw new NotSupportedException("Effect345 requires its explicitly bound current node source.");
-            return data.AsSpan().Slice(checked((int)(address - nodeAddress)), length).ToArray();
+            NativeBattleNodeSource data = NodeData is not null && NodeData.TryGetValue(nodeAddress, out NativeBattleNodeSource? current) ? current : throw new NotSupportedException("Effect345 requires its explicitly bound current node source.");
+            return data.Read(checked((int)(address - nodeAddress)), length);
         }
         return Storage.Read(Require(address, length), length);
     }
@@ -66,9 +66,8 @@ public sealed record NativeBattleEffect345State([property: JsonRequired] NativeB
     {
         if (TryNodeSource(address, bytes.Length, out uint nodeAddress))
         {
-            byte[] data = (NodeData is not null && NodeData.TryGetValue(nodeAddress, out ImmutableArray<byte> current) ? current : throw new NotSupportedException("Effect345 requires its bound current node source before writes.")).ToArray();
-            bytes.CopyTo(data.AsSpan(checked((int)(address - nodeAddress))));
-            return ReplaceNodeBank(nodeAddress, data.ToImmutableArray());
+            (NodeData is not null && NodeData.TryGetValue(nodeAddress, out NativeBattleNodeSource? current) ? current : throw new NotSupportedException("Effect345 requires its bound current node source before writes.")).Write(checked((int)(address - nodeAddress)), bytes);
+            return this;
         }
         Storage.Write(Require(address, bytes.Length), bytes);
         return this;
@@ -151,7 +150,7 @@ public sealed record NativeBattleEffect345State([property: JsonRequired] NativeB
             {
                 throw new InvalidDataException("Effect345 requires both current node source owners.");
             }
-            foreach ((uint address, ImmutableArray<byte> data) in NodeData)
+            foreach ((uint address, NativeBattleNodeSource data) in NodeData)
             {
                 if (data.IsDefault || data.Length != NodeLength(address))
                 {

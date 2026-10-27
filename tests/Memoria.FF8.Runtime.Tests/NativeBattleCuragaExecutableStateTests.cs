@@ -25,7 +25,7 @@ public sealed class NativeBattleCuragaExecutableStateTests
         Assert.Equal(new byte[] { 0xA5 }, memory.Read(NativeBattleCuragaExecutableState.Address + 0x1020, 1));
         Assert.Same(memory, memory.Initialize87EA20(source));
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(source.Data.AsSpan()));
-        NativeBattleCuragaExecutableState restored = JsonSerializer.Deserialize<NativeBattleCuragaExecutableState>(JsonSerializer.Serialize(memory))!;
+        NativeBattleCuragaExecutableState restored = RoundTrip(memory);
         Assert.Equal(memory.Read(NativeBattleCuragaExecutableState.Address, NativeBattleCuragaExecutableState.Length), restored.Initialize87EA20(source).Read(NativeBattleCuragaExecutableState.Address, NativeBattleCuragaExecutableState.Length));
     }
 
@@ -48,4 +48,7 @@ public sealed class NativeBattleCuragaExecutableStateTests
 
     private static void Write(byte[] data, int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(offset), value);
     private static uint Read(NativeBattleCuragaExecutableState memory, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(NativeBattleCuragaExecutableState.Address + (uint)offset, 4));
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

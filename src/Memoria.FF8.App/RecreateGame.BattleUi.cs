@@ -250,7 +250,7 @@ internal sealed partial class RecreateGame
         {
             DisposeBattleTextures();
             presentedBattle = active;
-            battleScene = preparedScene ?? new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
+            battleScene = preparedScene ?? new BattleScenePresentation(PresentationBattleResources, active.ReadDefinition(), debugBattle is null);
             battleGuardianForceLearning.Clear();
             MenuData? rewardNames = debugBattle is null ? ReadLiveMenuData() : null;
             battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input), () => debugBattle is null && world?.IsDiagnosticBattle != true ? world!.PreviewBattleRewards() : null, id => rewardNames?.GuardianForces.FirstOrDefault(guardian => guardian.Id == $"gf-{id}")?.Name ?? liveMenuCatalog?.GuardianForceName(id) ?? $"GF {id}", id => liveMenuCatalog?.ItemName(id) ?? $"Item {id}", id => liveMenuCatalog?.CardName(id) ?? $"Card {id}", world?.Events.Scene.Names);
@@ -436,7 +436,7 @@ internal sealed partial class RecreateGame
         battleDebugReturnDemo = gameMenus?.IsDemo == true;
         battleDebugReturnFixture = gameMenus?.IsFixtureContext == true;
         BattleDebugCatalog catalog = ReadBattleDebugCatalog();
-        BattleDefinition? activeEncounter = world?.Battle?.Capture().Definition;
+        BattleDefinition? activeEncounter = world?.Battle?.ReadDefinition();
         BattleCombatantDefinition? lastEnemy = activeEncounter?.Combatants.FirstOrDefault(actor => !actor.IsPlayer);
         int stageId = activeEncounter?.StageId ?? catalog.StageIds.First();
         if (lastEnemy is null && events?.Scene.NativeBattleCompletions?.LastOrDefault(completion => !completion.Suppressed) is { } completion)

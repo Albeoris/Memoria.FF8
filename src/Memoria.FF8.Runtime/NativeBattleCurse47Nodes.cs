@@ -34,6 +34,8 @@ public static class NativeBattleCurse47Nodes
 
     public static NativeBattleCurse47Step Advance82DF60(NativeBattleCurse47Frame frame, uint address, NativeBattleCuragaExecutableSource source, NativeBattleCurse47NodeInputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(frame.State.Globals);
         Require(frame, address);
         NativeBattleModulePoolTask task = NativeBattleCurse47Controller.Read(frame, address);
         switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -43,13 +45,14 @@ public static class NativeBattleCurse47Nodes
                 {
                     frame = frame with { State = frame.State.WriteDword(0x264EAEC, checked(address + 0x34)) };
                     NativeBattleCuragaExecutableState program = frame.State.NodeProgram ?? throw new NotSupportedException("Curse nodes require their actual retained executable bank.");
-                    program = program.Initialize87EA20(source);
-                    frame = frame with { State = frame.State with { NodeProgram = program } };
+                    using NativeBattleNodeInitialization<NativeBattleCuragaExecutableState> initialization = program.Prepare87EA20(source);
                     task = NativeBattleEffectNodeContext.Initialize(task, NativeBattleCurse47Controller.Read(frame, task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Curse nodes require their actual captured action parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, SourceAddress, observeBone: (actor, selector) =>
                     {
                         frame = (inputs.ObserveBone ?? throw new NotSupportedException("Curse context initialization requires its reached native bone-transform observer."))(frame, actor, selector);
                     });
                     frame = NativeBattleCurse47Controller.Write(frame, address, task);
+                    program = initialization.Publish();
+                    frame = frame with { State = frame.State with { NodeProgram = program } };
                     frame = AdvanceContext(frame, address, inputs).Frame;
                     task = NativeBattleCurse47Controller.Read(frame, address);
                     frame = NativeBattleCurse47Controller.Write(frame, address, task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1))));
@@ -69,7 +72,7 @@ public static class NativeBattleCurse47Nodes
             default:
                 throw new InvalidDataException("Curse node phase leaves its original three-entry table.");
         }
-        return NativeBattleCurse47Controller.Finish(frame, address);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, NativeBattleCurse47Controller.Finish(frame, address));
     }
 
     private static (NativeBattleCurse47Frame Frame, bool Complete) AdvanceContext(NativeBattleCurse47Frame frame, uint address, NativeBattleCurse47NodeInputs inputs)
@@ -86,7 +89,8 @@ public static class NativeBattleCurse47Nodes
             NativeBattleCuragaExecutableState program = frame.State.NodeProgram ?? throw new NotSupportedException("Curse node program is unknown.");
             program.Validate();
             using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterBytes, geometry, GeometryBytes, useSharedScratch: true);
-            NativeBattleEffectNodeBank bank = new(SourceAddress, program.Data ?? throw new NotSupportedException("Curse nodes require their current materialized source bytes."), inputs.ReadExternal ?? ((pointer, count) => frame.State.Read(pointer, count)));
+            NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(program.Data ?? throw new NotSupportedException("Native nodes require their retained executable source."));
+            using NativeBattleEffectNodeBank bank = new(SourceAddress, program.Data ?? throw new NotSupportedException("Curse nodes require their current materialized source bytes."), inputs.ReadExternal ?? ((pointer, count) => frame.State.Read(pointer, count)));
             ushort emitterScan = frame.State.ReadWord(0x264D828);
             ushort geometryScan = frame.State.ReadWord(0x264E714);
             NativeBattleActionMatrix camera = (frame.Memory.SharedEffectView2793E58 ?? throw new NotSupportedException("Curse nodes require their actual copied packed camera.")).ReadMatrix();
@@ -95,7 +99,8 @@ public static class NativeBattleCurse47Nodes
             NativeCrtRandomState random = frame.Random;
             _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
-            frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { NodeProgram = program with { Data = bank.Data } } };
+            bank.Publish();
+            frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random };
             frame = frame with { State = frame.State.WriteWord(0x264D828, emitterScan).WriteWord(0x264E714, geometryScan) };
 
             NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] descriptor)
@@ -105,7 +110,9 @@ public static class NativeBattleCurse47Nodes
 
             void Deliver(bool common, NativeBattleGfGeometryBatch batch)
             {
-                frame = inputs.Execute(frame with { Memory = memory.CaptureProcessMemory(), State = frame.State with { NodeProgram = program with { Data = bank.Data } } }, new NativeBattleCurse47NodePackets(true, batch));
+                NativeBattleEffectMemory live = memory.CaptureProcessMemory();
+                bank.Publish();
+                frame = inputs.Execute(frame with { Memory = live }, new NativeBattleCurse47NodePackets(true, batch));
                 memory.PublishProcessMemory(frame.Memory);
             }
         }

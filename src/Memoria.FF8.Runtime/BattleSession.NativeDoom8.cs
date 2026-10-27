@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -128,7 +128,7 @@ public sealed partial class BattleSession
                 if (pointer == BinaryPrimitives.ReadUInt32LittleEndian(current.State.ReadIo().Control.AsSpan().Slice(index * 4)))
                 {
                     NativeBattleEffectFileAsset file = resources.File(id);
-                    return new(pointer, RequireDoom8Staging(current).Read(pointer, file.Data.Length).ToImmutableArray());
+                    return NativeBattleGfAnimationSource.Borrow(pointer, RequireDoom8Staging(current), file.Data.Length);
                 }
             }
             throw new NotSupportedException("Doom ACT requires a loaded source selected by its actual IO directory.");

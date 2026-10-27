@@ -115,11 +115,11 @@ public sealed partial class BattleSession
             {
                 if (final)
                 {
-                    caller.Complete();
+                    caller.Complete(pending, files);
                 }
                 else
                 {
-                    caller.AcceptPrefix();
+                    caller.AcceptPrefix(pending, files);
                 }
             }
             finally

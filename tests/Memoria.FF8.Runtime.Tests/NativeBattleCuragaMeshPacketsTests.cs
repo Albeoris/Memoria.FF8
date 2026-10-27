@@ -242,8 +242,8 @@ public sealed class NativeBattleCuragaMeshPacketsTests
         NativeBattleModuleProjectedVertex[] corners = Corners();
         corners[0] = corners[0] with { Flags = 0x80040000 };
         NativeBattleGfGeometryBatch batch = NativeBattleCuragaMeshPackets.EmitFt4_87F6C0(Face(), index => corners[index], Context, byteOffset: 120);
-        NativeBattleGfGeometryBatch restored = JsonSerializer.Deserialize<NativeBattleGfGeometryBatch>(JsonSerializer.Serialize(batch))!;
-        Assert.Equal(JsonSerializer.Serialize(batch), JsonSerializer.Serialize(restored));
+        NativeBattleGfGeometryBatch restored = RoundTrip(batch);
+        Assert.Equal(SnapshotJson(batch), SnapshotJson(restored));
         Assert.Equal(120, restored.Attempts[0].ByteOffsetRelative);
     }
 
@@ -302,4 +302,7 @@ public sealed class NativeBattleCuragaMeshPacketsTests
     {
         return (ushort)x | unchecked((uint)(ushort)y << 16);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

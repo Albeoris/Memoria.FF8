@@ -260,7 +260,13 @@ public sealed partial class BattleSession
         static NativeBattleGfAnimationSource ReadProgram(NativeBattleChoco100Frame current, uint address, int length)
         {
             NativeBattleChoco100IoState io = Shared(current).Io ?? throw new NotSupportedException("Native Choco requires its current program IO owner.");
-            return new(address, io.Banks.Read(address, length).ToImmutableArray());
+            io.Banks.Validate();
+            long offset = (long)address - io.Banks.BaseAddress;
+            if (length < 0 || offset < 0 || offset > io.Banks.Length - length)
+            {
+                throw new NotSupportedException("Native Choco program leaves its current IO bank.");
+            }
+            return NativeBattleGfAnimationSource.Borrow(address, io.Banks.Bytes, checked((int)offset), length);
         }
 
         static NativeBattleChoco100State Shared(NativeBattleChoco100Frame current) => current.Memory.Choco100 ?? throw new NotSupportedException("Native Choco lost its retained process owners.");

@@ -19,7 +19,7 @@ public sealed class NativeBattleCuragaProjectedSpritesTests
         NativeBattleGfGeometryBatch batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, 0, input, Projection, 0, 17, 2, observeQuadMatrix: observed.Add);
         NativeBattleActionMatrix actual = Assert.Single(observed);
         NativeBattleActionMatrix expected = NativeBattlePoseMatrices.ModuleSpriteQuadCamera(input, quad);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(SnapshotJson(expected), SnapshotJson(actual));
         Assert.All(batch.Attempts, attempt => Assert.Null(attempt.Primitive));
     }
 
@@ -152,8 +152,8 @@ public sealed class NativeBattleCuragaProjectedSpritesTests
     public void Exact_attempt_JSON_round_trip_preserves_reserved_and_rejected_store_masks()
     {
         NativeBattleGfGeometryBatch source = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(Resource(true, Quad()), 0, Matrix, Projection, 0, 17, 2);
-        NativeBattleGfGeometryBatch restored = JsonSerializer.Deserialize<NativeBattleGfGeometryBatch>(JsonSerializer.Serialize(source))!;
-        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(restored));
+        NativeBattleGfGeometryBatch restored = RoundTrip(source);
+        Assert.Equal(SnapshotJson(source), SnapshotJson(restored));
     }
 
     internal static byte[] Quad()
@@ -185,4 +185,7 @@ public sealed class NativeBattleCuragaProjectedSpritesTests
     {
         return (ushort)x | unchecked((uint)(ushort)y << 16);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

@@ -37,8 +37,8 @@ public sealed class NativeBattleRestorationVariantResourcesTests
             uint original = BinaryPrimitives.ReadUInt32LittleEndian(resources.OriginalExecutableDirectory.AsSpan().Slice(4 + 4 * index));
             Assert.Equal(original == 0 ? 0u : profile.ExecutableAddress + original, BinaryPrimitives.ReadUInt32LittleEndian(initialized.Read(profile.ExecutableAddress + 4u + 4u * (uint)index, 4)));
         }
-        NativeBattleRestorationExecutableState restored = JsonSerializer.Deserialize<NativeBattleRestorationExecutableState>(JsonSerializer.Serialize(initialized))!;
-        Assert.Equal(initialized.Data!.Value.ToArray(), restored.Data!.Value.ToArray());
+        NativeBattleRestorationExecutableState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRestorationExecutableState>(SnapshotJson(initialized))!);
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(initialized.Data!).Data.ToArray(), NativeBattleStorageSnapshots.Capture(restored.Data!).Data.ToArray());
         Assert.Throws<InvalidDataException>(() => retained.Initialize(game.ReadNativeRestorationResources(24).Executable!));
     }
 
@@ -76,10 +76,10 @@ public sealed class NativeBattleRestorationVariantResourcesTests
         }
         else
         {
-            Assert.Equal(JsonSerializer.Serialize(memory.Textures), JsonSerializer.Serialize(frame.Memory.Textures));
+            Assert.Equal(SnapshotJson(memory.Textures), SnapshotJson(frame.Memory.Textures));
         }
-        NativeBattleRestorationFrame clone = JsonSerializer.Deserialize<NativeBattleRestorationFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(clone));
+        NativeBattleRestorationFrame clone = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRestorationFrame>(SnapshotJson(frame))!);
+        Assert.Equal(SnapshotJson(frame), SnapshotJson(clone));
     }
 
     [Fact]
@@ -123,7 +123,9 @@ public sealed class NativeBattleRestorationVariantResourcesTests
         Assert.Equal(20, batch.Attempts.Length);
         Assert.Equal(20 * 40, batch.AllocationBytes);
         Assert.All(batch.Attempts, attempt => Assert.NotNull(attempt.Primitive));
-        NativeBattleRestorationExecutableState restored = JsonSerializer.Deserialize<NativeBattleRestorationExecutableState>(JsonSerializer.Serialize(bank))!;
-        Assert.Equal(JsonSerializer.Serialize(batch), JsonSerializer.Serialize(NativeBattleRestorationMeshPackets.EmitBatch88E240(NativeBattleRestorationMeshAssetsTests.ReadMesh(restored, 6), matrix, projection, context)));
+        NativeBattleRestorationExecutableState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRestorationExecutableState>(SnapshotJson(bank))!);
+        Assert.Equal(SnapshotJson(batch), SnapshotJson(NativeBattleRestorationMeshPackets.EmitBatch88E240(NativeBattleRestorationMeshAssetsTests.ReadMesh(restored, 6), matrix, projection, context)));
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

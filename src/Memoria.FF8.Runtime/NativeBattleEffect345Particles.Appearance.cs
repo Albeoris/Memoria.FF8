@@ -13,7 +13,8 @@ public static partial class NativeBattleEffect345Particles
             return frame;
         }
         NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
-        frame = frame with { Memory = written.Memory, Effect = written.Effect, State = frame.State.ReplaceNodeBank(bank.Address, bank.Data) };
+        bank.Publish();
+        frame = frame with { Memory = written.Memory, Effect = written.Effect, State = frame.State.ReplaceNodeBank(bank.Address, bank.Source) };
         memory.PublishProcessMemory(frame.Memory);
         NativeBattlePackedMatrix32 copiedCamera = Packed(ReadBytes(frame, frame.State.ReadDword(0x2557208), 32));
         int selector = unchecked((sbyte)memory.Byte(particle + 0x1D6));

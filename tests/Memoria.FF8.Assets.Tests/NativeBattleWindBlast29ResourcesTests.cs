@@ -25,7 +25,7 @@ public sealed class NativeBattleWindBlast29ResourcesTests
         NativeBattleCuragaExecutableState initialized = cold.Initialize87EA20(resources.Executable);
         Assert.Equal(1u, initialized.InitializationFlag);
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(resources.Executable.Data.AsSpan()));
-        Assert.Equal(14192, initialized.Data!.Value.Length);
+        Assert.Equal(14192, initialized.Data!.Length);
         for (int table = 0; table < 4; table++)
         {
             for (int index = 0; index < 16; index++)
@@ -49,9 +49,9 @@ public sealed class NativeBattleWindBlast29ResourcesTests
                 cursor += 4 + count * strides[group];
             }
         }
-        NativeBattleWindBlast29Resources restored = JsonSerializer.Deserialize<NativeBattleWindBlast29Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleWindBlast29Resources restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWindBlast29Resources>(SnapshotJson(resources))!);
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(SnapshotJson(resources), SnapshotJson(restored));
         Assert.Throws<InvalidDataException>(() => (resources with { Executable = resources.Executable with { ResourceAddress = 0x17D5F4C } }).Validate());
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([29])[28];
         Assert.Equal(0x8794A0u, binding.Entry);
@@ -59,4 +59,6 @@ public sealed class NativeBattleWindBlast29ResourcesTests
         Assert.Equal(166432, binding.InitializerAsset.Data.Length);
         Assert.NotNull(binding.WindBlast29Resources);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

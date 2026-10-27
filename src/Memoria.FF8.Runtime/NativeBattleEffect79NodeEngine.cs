@@ -11,6 +11,13 @@ public static class NativeBattleEffect79NodeEngine
 {
     public static NativeBattleEffect79Frame Initialize7B8350(NativeBattleEffect79Frame frame, uint address, NativeBattleEffect79Resources resources, NativeBattleEffect79Inputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, Initialize7B8350Core(frame, address, resources, inputs));
+    }
+
+    private static NativeBattleEffect79Frame Initialize7B8350Core(NativeBattleEffect79Frame frame, uint address, NativeBattleEffect79Resources resources, NativeBattleEffect79Inputs inputs)
+    {
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
         if (task.Callback != 0x7B82C0 || task.ReadWord(0x29C) != 0)
         {
@@ -18,19 +25,28 @@ public static class NativeBattleEffect79NodeEngine
         }
         uint sourceAddress = task.ReadDword(0x30);
         frame = frame with { State = frame.State.BindNodeSource(resources, sourceAddress) };
-        ImmutableArray<byte> bank = frame.State.ReadNodeBank(sourceAddress);
-        if (BinaryPrimitives.ReadUInt32LittleEndian(bank.AsSpan()) == 0)
+        NativeBattleNodeSource source = frame.State.ReadNodeBank(sourceAddress);
+        NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(source);
+        using NativeBattleNodeBankOperation initialization = new(source);
+        if (initialization.ReadUInt32(0) == 0)
         {
-            byte[] relocated = NativeBattleEffectNodeBankFixups.Relocate(bank, sourceAddress);
-            BinaryPrimitives.WriteUInt32LittleEndian(relocated, 1);
-            frame = frame with { State = frame.State.ReplaceNodeBank(sourceAddress, relocated.ToImmutableArray()) };
+            NativeBattleEffectNodeBankFixups.Relocate(initialization, sourceAddress);
+            initialization.WriteUInt32(0, 1);
         }
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Effect79 node context requires its actual action parameters."), inputs.ReadPackets(frame), actor => inputs.ReadModel(frame, actor), actor => inputs.ReadPoseSource(frame, actor), sourceAddress, observeBone: (actor, selector) => frame = inputs.Execute(frame, new NativeBattleEffect79ObserveBone(actor, selector)));
+        initialization.Publish(false);
         return frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, task).Pools }, State = frame.State.WriteDword(0x25EB3BC, checked(address + 0x34)) };
     }
 
     public static NativeBattleEffect79NodeStep Advance7B8E30(NativeBattleEffect79Frame frame, uint address, NativeBattleEffect79Resources resources, NativeBattleEffect79Inputs inputs)
+    {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, Advance7B8E30Core(frame, address, resources, inputs));
+    }
+
+    private static NativeBattleEffect79NodeStep Advance7B8E30Core(NativeBattleEffect79Frame frame, uint address, NativeBattleEffect79Resources resources, NativeBattleEffect79Inputs inputs)
     {
         uint sourceAddress = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address).ReadDword(0x30);
         frame = frame with { State = frame.State.WriteDword(0x25EB3BC, checked(address + 0x34)) };
@@ -39,7 +55,8 @@ public static class NativeBattleEffect79NodeEngine
             int first = NativeBattleWaterExecutionFields.ArenaOffset(frame.State.ReadDword(0x25EAF34), 0x870);
             int second = NativeBattleWaterExecutionFields.ArenaOffset(frame.State.ReadDword(0x25EB3B0), 0x9D80);
             using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, 0x870, second, 0x9D80, useSharedScratch: true);
-            NativeBattleEffectNodeBank bank = new(sourceAddress, frame.State.ReadNodeBank(sourceAddress));
+            NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(frame.State.ReadNodeBank(sourceAddress));
+            using NativeBattleEffectNodeBank bank = new(sourceAddress, frame.State.ReadNodeBank(sourceAddress));
             ushort emitterCursor = frame.State.ReadWord(0x25E8950);
             ushort geometryCursor = frame.State.ReadWord(0x25EAF40);
             NativeBattleActionMatrix camera = inputs.ReadView(frame).ReadMatrix();
@@ -68,9 +85,7 @@ public static class NativeBattleEffect79NodeEngine
                 SelectedMorph = (mesh, firstShape, secondShape, channel) =>
                 {
                     frame = frame with { Memory = memory.CaptureProcessMemory() };
-                    NativeBattleEffect79MorphStep morphed = NativeBattleEffect79Morph.Execute7BA230(frame, sourceAddress, bank.Data, mesh, firstShape, secondShape, channel);
-                    frame = morphed.Frame;
-                    bank.ReplaceData(morphed.Bank);
+                    frame = NativeBattleEffect79Morph.Execute7BA230(frame, bank, mesh, firstShape, secondShape, channel);
                     memory.PublishProcessMemory(frame.Memory);
                 }
             };
@@ -86,7 +101,8 @@ public static class NativeBattleEffect79NodeEngine
                 deliveries.Add((common, batch));
             });
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
-            frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State.ReplaceNodeBank(sourceAddress, bank.Data).WriteWord(0x25E8950, emitterCursor).WriteWord(0x25EAF40, geometryCursor) };
+            bank.Publish();
+            frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State.ReplaceNodeBank(sourceAddress, bank.Source).WriteWord(0x25E8950, emitterCursor).WriteWord(0x25EAF40, geometryCursor) };
             foreach ((bool common, NativeBattleGfGeometryBatch batch) in deliveries)
             {
                 frame = inputs.Execute(frame, new NativeBattleEffect79DeliverBatch(batch, common ? 0x1D8E054u : 0x25DF33Cu));

@@ -80,7 +80,7 @@ public sealed class NativeBattleMightyGuardResourcesTests
         Assert.Equal(new[] { 6, 1, 4, 0 }, counts);
         NativeBattleMightyGuardState fixedBank = NativeBattleMightyGuardState.FromColdProcess(effect).InitializeSource(resources);
         Assert.Equal(1u, fixedBank.InitializationFlag);
-        Assert.Equal(sourceAddress + Read(4 + 3 * 4), BinaryPrimitives.ReadUInt32LittleEndian(fixedBank.Executable!.Value.AsSpan().Slice(4 + 3 * 4)));
+        Assert.Equal(sourceAddress + Read(4 + 3 * 4), fixedBank.Executable!.ReadUInt32(4 + 3 * 4));
         if (effect == 73)
         {
             Assert.Equal(0x1B74, resources.CasterDat!.Value.Length);

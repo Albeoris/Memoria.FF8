@@ -136,7 +136,7 @@ public sealed class NativeBattleEffectNodeScratchTests
         NativeBattleEffectNodeMemoryWrite Spawn(NativeBattleCuragaFrame current)
         {
             NativeBattleEffectNodeMemory memory = new(current.Memory, current.Effect, fixture.Task, NativeBattleCuragaSpawnTests.Emitter, 0x25F8, NativeBattleCuragaSpawnTests.Node, 0x16F80, useSharedScratch: true);
-            NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, current.Memory.CuragaExecutable!.Data!.Value);
+            using NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, current.Memory.CuragaExecutable!.Data!);
             NativeBattleEffectNodeInputs inputs = new(current.State.CopiedCamera, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => NativeBattleCuragaSpawnTests.Node);
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
             NativeCrtRandomState random = new(1);

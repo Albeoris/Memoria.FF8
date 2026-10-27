@@ -8,14 +8,21 @@ public static partial class NativeBattleEffect345Particles
 {
     public static NativeBattleEffect345Frame Initialize706B10(NativeBattleEffect345Frame frame, uint address, NativeBattleEffect345Resources resources, NativeBattleEffect345Inputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, Initialize706B10Core(frame, address, resources, inputs));
+    }
+
+    private static NativeBattleEffect345Frame Initialize706B10Core(NativeBattleEffect345Frame frame, uint address, NativeBattleEffect345Resources resources, NativeBattleEffect345Inputs inputs)
+    {
         frame = frame with { State = frame.State.BindNodeSources(resources) };
         NativeBattleModulePoolTask task = Read(frame, address);
         uint source = task.ReadDword(0x30);
-        if (frame.State.NodeData is null || !frame.State.NodeData.TryGetValue(source, out ImmutableArray<byte> data))
+        if (frame.State.NodeData is null || !frame.State.NodeData.TryGetValue(source, out NativeBattleNodeSource? data))
         {
             throw new NotSupportedException("Effect345 particle initialization requires its selected current node source.");
         }
-        frame = Relocate707370(frame, source);
+        using NativeBattleNodeInitialization<NativeBattleNodeSource> initialization = PrepareRelocate(frame, source);
         frame = frame with { State = frame.State.WriteDword(0x255EA94, checked(address + 0x34)) };
         NativeBattleEffectNodeDogOrigins? origins = null;
         if (task.ReadWord(0x29C) == 2)
@@ -25,28 +32,61 @@ public static partial class NativeBattleEffect345Particles
             origins = new(Vector(view, 0), Vector(view, 8));
         }
         task = NativeBattleEffectNodeContext.Initialize(task, Read(frame, task.ReadDword(0x10)), Parameters(frame), inputs.ReadPackets(frame), actor => inputs.ReadModel(frame, actor), actor => inputs.ReadPoseSource(frame, actor), source, singleSelectedTarget: true, dogOrigins: origins, observeBone: (actor, selector) => frame = inputs.Point502170(frame, checked(0x1D972C0u + (uint)(actor * 0x9C)), selector, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 8)).Frame);
-        return Write(frame, address, task);
+        frame = Write(frame, address, task);
+        initialization.Publish();
+        return frame;
     }
 
     public static NativeBattleEffect345Frame Relocate707370(NativeBattleEffect345Frame frame, uint address)
     {
-        ImmutableArray<byte> data = frame.State.NodeData is not null && frame.State.NodeData.TryGetValue(address, out ImmutableArray<byte> current) ? current : throw new NotSupportedException("Effect345 relocation requires its bound current node source.");
-        if (BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan()) != 0)
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, Relocate707370Core(frame, address));
+    }
+
+    private static NativeBattleEffect345Frame Relocate707370Core(NativeBattleEffect345Frame frame, uint address)
+    {
+        using NativeBattleNodeInitialization<NativeBattleNodeSource> initialization = PrepareRelocate(frame, address);
+        initialization.Publish();
+        return frame;
+    }
+
+    private static NativeBattleNodeInitialization<NativeBattleNodeSource> PrepareRelocate(NativeBattleEffect345Frame frame, uint address)
+    {
+        NativeBattleNodeSource data = frame.State.NodeData is not null && frame.State.NodeData.TryGetValue(address, out NativeBattleNodeSource? current) ? current : throw new NotSupportedException("Effect345 relocation requires its bound current node source.");
+        NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(data);
+        if (data.ReadUInt32(0) != 0)
         {
-            return frame;
+            return new(data, null);
         }
-        byte[] relocated = NativeBattleEffectNodeBankFixups.Relocate(data, address);
-        BinaryPrimitives.WriteUInt32LittleEndian(relocated, 1);
-        return frame with { State = frame.State.ReplaceNodeBank(address, relocated.ToImmutableArray()) };
+        NativeBattleNodeBankOperation operation = new(data);
+        try
+        {
+            NativeBattleEffectNodeBankFixups.Relocate(operation, address);
+            operation.WriteUInt32(0, 1);
+            return new(data, operation);
+        }
+        catch
+        {
+            operation.Dispose();
+            throw;
+        }
     }
 
     public static NativeBattleEffect345Step Advance7075D0(NativeBattleEffect345Frame frame, uint address, NativeBattleEffect345Resources resources, NativeBattleEffect345Inputs inputs)
+    {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, Advance7075D0Core(frame, address, resources, inputs));
+    }
+
+    private static NativeBattleEffect345Step Advance7075D0Core(NativeBattleEffect345Frame frame, uint address, NativeBattleEffect345Resources resources, NativeBattleEffect345Inputs inputs)
     {
         frame = frame with { State = frame.State.WriteDword(0x255EA94, checked(address + 0x34)) };
         var context = NativeBattleEffectNodeLifecycle.AdvanceContext(() => Read(frame, address), task => frame = Write(frame, address, task), () =>
         {
             uint source = Read(frame, address).ReadDword(0x30);
-            ImmutableArray<byte> current = frame.State.NodeData is not null && frame.State.NodeData.TryGetValue(source, out ImmutableArray<byte> data) ? data : throw new NotSupportedException("Effect345 particles require their current relocated source.");
+            NativeBattleNodeSource current = frame.State.NodeData is not null && frame.State.NodeData.TryGetValue(source, out NativeBattleNodeSource? data) ? data : throw new NotSupportedException("Effect345 particles require their current relocated source.");
             int first = NativeBattleWaterExecutionFields.ArenaOffset(frame.State.ReadDword(0x255EA44), 0x870);
             int second = NativeBattleWaterExecutionFields.ArenaOffset(frame.State.ReadDword(0x255EA88), 0x9D80);
             if (frame.State.ReadDword(0x255EA84) - 0x50 != NativeBattleEffectNodeContextMemory.Address + 100)
@@ -55,7 +95,8 @@ public static partial class NativeBattleEffect345Particles
             }
             NativeBattleTheEnd85SpawnScratchObserver spawnScratch = new(NativeBattleEffectNodeContextMemory.Capture(frame.Memory));
             using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, 0x870, second, 0x9D80, useSharedScratch: true) { SpawnScratchObserver = spawnScratch };
-            NativeBattleEffectNodeBank bank = new(source, current);
+            NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(current);
+            using NativeBattleEffectNodeBank bank = new(source, current);
             ushort emitterCursor = frame.State.ReadWord(0x2557758);
             ushort particleCursor = frame.State.ReadWord(0x255EA50);
             NativeBattleActionMatrix camera = Packed(ReadBytes(frame, frame.State.ReadDword(0x2557208), 32)).ReadMatrix();
@@ -64,8 +105,7 @@ public static partial class NativeBattleEffect345Particles
                 SelectedMorph = (mesh, firstShape, secondShape, channel) =>
                 {
                     Flush();
-                    (frame, ImmutableArray<byte> morphed) = Morph70ABF0(frame, bank.Address, bank.Data, mesh, firstShape, secondShape, channel);
-                    bank.ReplaceData(morphed);
+                    frame = Morph70ABF0(frame, bank, mesh, firstShape, secondShape, channel);
                     memory.PublishProcessMemory(frame.Memory);
                 },
                 GeometryAdvanced = (particle, complete) =>
@@ -95,7 +135,8 @@ public static partial class NativeBattleEffect345Particles
             void Flush()
             {
                 NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
-                frame = frame with { Memory = written.Memory, Effect = written.Effect, State = frame.State.ReplaceNodeBank(bank.Address, bank.Data) };
+                bank.Publish();
+                frame = frame with { Memory = written.Memory, Effect = written.Effect, State = frame.State.ReplaceNodeBank(bank.Address, bank.Source) };
                 memory.PublishProcessMemory(frame.Memory);
             }
 

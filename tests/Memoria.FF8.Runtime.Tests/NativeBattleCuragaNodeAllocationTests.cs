@@ -35,8 +35,8 @@ public sealed class NativeBattleCuragaNodeAllocationTests
         Assert.Equal(0u, Dword(unlinked, Second));
         Assert.Equal(ArenaAddress + Second, Dword(unlinked, First + 4));
         Assert.Equal((ushort)1, task.ReadWord(0x34 + 0x14));
-        NativeBattleCuragaFrame clone = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(unlinked))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCuragaNodes.Unlink882960(unlinked, fixture.Address, Second)), JsonSerializer.Serialize(NativeBattleCuragaNodes.Unlink882960(clone, fixture.Address, Second)));
+        NativeBattleCuragaFrame clone = RoundTrip(unlinked);
+        Assert.Equal(SnapshotJson(NativeBattleCuragaNodes.Unlink882960(unlinked, fixture.Address, Second)), SnapshotJson(NativeBattleCuragaNodes.Unlink882960(clone, fixture.Address, Second)));
     }
 
     [Fact]
@@ -118,4 +118,7 @@ public sealed class NativeBattleCuragaNodeAllocationTests
         frame = frame with { Effect = frame.Effect with { Pools = child.Hierarchy.Pools }, State = frame.State with { Auxiliary25F8 = First, Auxiliary16F80 = Second, Counter26D76C0 = 0, Counter26D82E8 = 0 } };
         return (frame, child.Address);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

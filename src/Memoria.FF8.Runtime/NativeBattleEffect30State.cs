@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffect30State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] ImmutableArray<byte>? ExecutableBytes, [property: JsonRequired] bool ColdSourcePending)
+public sealed record NativeBattleEffect30State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] NativeBattleNodeSource? ExecutableBytes, [property: JsonRequired] bool ColdSourcePending)
 {
     public const uint BaseAddress = 0x26D40B8;
     public const int Length = 0x2988;
@@ -25,20 +25,37 @@ public sealed record NativeBattleEffect30State([property: JsonRequired] NativeBa
 
     public NativeBattleEffect30State InitializeSource(NativeBattleEffect30Resources resources)
     {
-        Validate();
-        resources.Validate();
-        ImmutableArray<byte> bytes = ExecutableBytes ?? (ColdSourcePending ? resources.Executable.Data : throw new NotSupportedException("Effect30 requires its retained node bank before first-use fixups."));
-        if (BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) != 0)
-        {
-            return this with { ExecutableBytes = bytes, ColdSourcePending = false };
-        }
-        byte[] relocated = NativeBattleEffectNodeBankFixups.Relocate(bytes, NativeBattleEffect30Profile.SourceAddress);
-        BinaryPrimitives.WriteUInt32LittleEndian(relocated, 1);
-        return this with { ExecutableBytes = relocated.ToImmutableArray(), ColdSourcePending = false };
+        using NativeBattleNodeInitialization<NativeBattleEffect30State> initialization = PrepareInitializeSource(resources);
+        return initialization.Publish();
     }
 
-    public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Globals.Read(Require(address, 4), 4));
-    public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Globals.Read(Require(address, 2), 2));
+    internal NativeBattleNodeInitialization<NativeBattleEffect30State> PrepareInitializeSource(NativeBattleEffect30Resources resources)
+    {
+        Validate();
+        resources.Validate();
+        NativeBattleNodeSource bytes = ExecutableBytes ?? (ColdSourcePending ? new(resources.Executable.Data) : throw new NotSupportedException("Effect30 requires its retained node bank before first-use fixups."));
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(bytes.Arena ?? throw new InvalidDataException("Effect30 executable requires its addressed arena owner."));
+        NativeBattleEffect30State initialized = this with { ExecutableBytes = bytes, ColdSourcePending = false };
+        if (bytes.ReadUInt32(0) != 0)
+        {
+            return new(initialized, null);
+        }
+        NativeBattleNodeBankOperation operation = new(bytes);
+        try
+        {
+            NativeBattleEffectNodeBankFixups.Relocate(operation, NativeBattleEffect30Profile.SourceAddress);
+            operation.WriteUInt32(0, 1);
+            return new(initialized, operation);
+        }
+        catch
+        {
+            operation.Dispose();
+            throw;
+        }
+    }
+
+    public uint ReadDword(uint address) => Globals.ReadUInt32(Require(address, 4));
+    public ushort ReadWord(uint address) => Globals.ReadUInt16(Require(address, 2));
     public NativeBattleEffect30State WriteDword(uint address, uint value)
     {
         Span<byte> encoded = stackalloc byte[4];

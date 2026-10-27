@@ -59,7 +59,7 @@ internal static class NativeBattleEffectNodeCaller
         NativeBattleNodeSource source = retained.Data ?? new(resource.Data);
         if (retained.Data is not null)
         {
-            NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(source);
+            NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(source);
         }
         using NativeBattleNodeBankOperation bank = new(source);
         if (retained.InitializationFlag == 0)
@@ -70,7 +70,7 @@ internal static class NativeBattleEffectNodeCaller
         task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native Recover requires its actual action parameters."), packets, readModel, readPoseSource, profile.SourceAddress, dogOrigins: dogOrigins);
         hierarchy = hierarchy.Write(taskAddress, task);
         bank.Publish(false);
-        NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(source);
+        NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(source);
         NativeBattleRecover93NodeFrame initialized = frame with { State = retained with { InitializationFlag = bank.ReadUInt32(0), Data = source }, Effect = frame.Effect with { Pools = hierarchy.Pools } };
         operation?.Commit();
         return initialized;
@@ -92,7 +92,7 @@ internal static class NativeBattleEffectNodeCaller
             throw new NotSupportedException("Native node current-source initialization requires a closed placement mode.");
         }
         NativeBattleNodeSource current = frame.State.Data ?? throw new NotSupportedException("Native node initialization requires its actual mutable source bytes.");
-        NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(current);
+        NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(current);
         using NativeBattleNodeBankOperation bank = new(current);
         uint flag = bank.ReadUInt32(0);
         if (flag != frame.State.InitializationFlag)
@@ -130,7 +130,7 @@ internal static class NativeBattleEffectNodeCaller
             int second = frame.State.Geometry ?? throw new NotSupportedException("Native Recover geometry storage has not been cleared.");
             using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, taskAddress, first, profile.EmitterBytes, second, profile.GeometryBytes, useSharedScratch: true);
             NativeBattleNodeSource bankSource = frame.State.Data ?? throw new NotSupportedException("Native Recover has no fixed mutable node bank.");
-            NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(bankSource);
+            NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(bankSource);
             using NativeBattleEffectNodeBank bank = new(profile.SourceAddress, bankSource);
             ushort emitterCursor = frame.State.EmitterScanCursor ?? throw new NotSupportedException("Native Recover emitter scan WORD is unknown.");
             ushort geometryCursor = frame.State.GeometryScanCursor ?? throw new NotSupportedException("Native Recover geometry scan WORD is unknown.");

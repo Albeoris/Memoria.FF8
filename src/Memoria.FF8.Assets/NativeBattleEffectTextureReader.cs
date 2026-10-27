@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-using System.Runtime.CompilerServices;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Runtime;
 
@@ -8,8 +6,6 @@ namespace Memoria.FF8.Assets;
 /// <summary>Material sampling of the shared native VRAM owner, preserving texture-page depth and CLUT selection.</summary>
 public static partial class NativeBattleEffectTextureReader
 {
-    private static readonly ConditionalWeakTable<NativeBattleEffectTextureState, byte[]> Banks = new();
-
     /// <summary>Compare the raw texture words and palette used by an already decoded PC material.</summary>
     public static bool HasSamePcRegionSource(NativeBattleEffectTextureState previous, NativeBattleEffectTextureState current, ushort texturePage, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? pixelWords = null)
     {
@@ -23,8 +19,6 @@ public static partial class NativeBattleEffectTextureReader
             throw new NotSupportedException("Native texture page pixel depth3 is reserved.");
         }
         pixelWords?.Validate();
-        byte[] before = Banks.GetValue(previous, key => key.ReadVram());
-        byte[] after = Banks.GetValue(current, key => key.ReadVram());
         if (depth < 2)
         {
             int paletteX = (clut & 63) * 16;
@@ -34,7 +28,7 @@ public static partial class NativeBattleEffectTextureReader
                 return false;
             }
             int paletteOffset = 2 * (((clut & 0x7FFF) >> 6) * 1024 + paletteX);
-            if (!before.AsSpan(paletteOffset, paletteWords * 2).SequenceEqual(after.AsSpan(paletteOffset, paletteWords * 2)))
+            if (!HasSameVramRange(previous, current, paletteOffset, paletteWords * 2))
             {
                 return false;
             }
@@ -52,15 +46,41 @@ public static partial class NativeBattleEffectTextureReader
             int line = 2 * ((pageY + ((v + row) & 255)) * 1024 + pageX);
             int firstWord = u / pixelsPerWord;
             int endWord = (u + firstPixels + pixelsPerWord - 1) / pixelsPerWord;
-            if (!before.AsSpan(line + firstWord * 2, (endWord - firstWord) * 2).SequenceEqual(after.AsSpan(line + firstWord * 2, (endWord - firstWord) * 2)))
+            if (!HasSameVramRange(previous, current, line + firstWord * 2, (endWord - firstWord) * 2))
             {
                 return false;
             }
             int wrappedWords = (width - firstPixels + pixelsPerWord - 1) / pixelsPerWord;
-            if (!before.AsSpan(line, wrappedWords * 2).SequenceEqual(after.AsSpan(line, wrappedWords * 2)))
+            if (!HasSameVramRange(previous, current, line, wrappedWords * 2))
             {
                 return false;
             }
+        }
+        return true;
+    }
+
+    private static bool HasSameVramRange(NativeBattleEffectTextureState previous, NativeBattleEffectTextureState current, int offset, int length)
+    {
+        if (offset < 0 || length < 0 || offset > NativeBattleEffectArena.Length - length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset));
+        }
+        if (ReferenceEquals(previous.VramPublicationIdentity, current.VramPublicationIdentity))
+        {
+            return true;
+        }
+        Span<byte> before = stackalloc byte[512];
+        Span<byte> after = stackalloc byte[512];
+        for (int copied = 0; copied < length;)
+        {
+            int count = Math.Min(before.Length, length - copied);
+            previous.ReadVramInto(offset + copied, before[..count]);
+            current.ReadVramInto(offset + copied, after[..count]);
+            if (!before[..count].SequenceEqual(after[..count]))
+            {
+                return false;
+            }
+            copied += count;
         }
         return true;
     }
@@ -91,7 +111,6 @@ public static partial class NativeBattleEffectTextureReader
         {
             throw new NotSupportedException("Native texture page pixel depth3 is reserved.");
         }
-        byte[] bank = Banks.GetValue(state, key => key.ReadVram());
         int pageX = (texturePage & 15) * 64;
         int pageY = (texturePage & 16) * 16;
         int paletteX = (clut & 63) * 16;
@@ -142,7 +161,7 @@ public static partial class NativeBattleEffectTextureReader
             {
                 throw new InvalidDataException("Native texture page or CLUT sample leaves1024x512 word VRAM.");
             }
-            return BinaryPrimitives.ReadUInt16LittleEndian(bank.AsSpan(2 * (y * 1024 + x), 2));
+            return state.ReadVramWord(x, y);
         }
     }
 }

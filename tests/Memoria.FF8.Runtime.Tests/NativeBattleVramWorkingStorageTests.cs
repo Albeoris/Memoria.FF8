@@ -76,6 +76,21 @@ public sealed class NativeBattleVramWorkingStorageTests
         Assert.Equal((ushort)2, Word(state, 1023, 511));
     }
 
+    [Fact]
+    public void Queue_metadata_keeps_publication_identity_and_sparse_word_reads_match_bulk_reads()
+    {
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(3, [0x12]), new(4095, [0x34, 0x56])] };
+        NativeBattleEffectTextureState queued = state.EnqueueRectangle505DF0(new(0, 0, 1, 1), new("pixel", [1, 0]));
+        Assert.Same(state.VramPublicationIdentity, queued.VramPublicationIdentity);
+        Assert.Equal((ushort)0x1200, state.ReadVramWord(1, 0));
+        Assert.Equal((ushort)0x3400, state.ReadVramWord(1023, 1));
+        Assert.Equal((ushort)0x0056, state.ReadVramWord(0, 2));
+        NativeBattleEffectTextureState changed = queued.Drain505D20().State;
+        Assert.NotSame(state.VramPublicationIdentity, changed.VramPublicationIdentity);
+        Assert.Equal((ushort)0x1200, state.ReadVramWord(1, 0));
+        Assert.Equal((ushort)1, changed.ReadVramWord(0, 0));
+    }
+
     private static ushort Word(NativeBattleEffectTextureState state, int x, int y)
     {
         Span<byte> bytes = stackalloc byte[2];

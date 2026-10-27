@@ -107,7 +107,7 @@ internal static class BattlePreview
         {
             session.Tick();
         }
-        BattleDefinition definition = session.Capture().Definition;
+        BattleDefinition definition = session.ReadDefinition();
         using BattleAssets assets = new(gameDirectory);
         BattleScenePresentation scene = new(assets, definition, scenario?.UseEncounter ?? (definition.EncounterId is not null));
         using SKBitmap output = new(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);

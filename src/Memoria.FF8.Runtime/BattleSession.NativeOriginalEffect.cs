@@ -44,6 +44,10 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native effect entry requires its retained physical memory.");
         using NativeBattleTaskOperation operation = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native effect entry requires its selected module."));
         operation.AdmitStaging(NativeFileStaging);
+        if (!NativeBattleTaskCallerOperation.IsActive)
+        {
+            operation.AdmitOrdering(graphics.PrimitiveFrame?.Pending);
+        }
         NativeBattleGraphicsState entered = InvokeNativeOriginalEffectEntry(graphics);
         if (entered.OriginalEffect is { } effect)
         {
