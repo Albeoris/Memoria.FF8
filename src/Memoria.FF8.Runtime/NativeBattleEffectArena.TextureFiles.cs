@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleTextureFileSource(int Offset, int Length, NativeBattleTextureFileIdentity Identity, string Sha256);
 
-public sealed partial record NativeBattleEffectArena
+public partial record NativeBattleEffectArena
 {
     private ImmutableArray<NativeBattleTextureFileSource>? initialTextureFiles;
 
