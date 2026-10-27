@@ -16,6 +16,7 @@ public sealed class NativeBattleCinematicTextureMetadataTests
         NativeBattleCinematicResources resources = Resources();
         resources.Validate();
         Assert.Equal(201, NativeBattleCinematicProfile.ForInitializationAddress(resources.TextureProfile.InitializationAddress).Effect);
+        Assert.Equal(201, ((INativeBattleScriptedTextureProfile)resources).BindingEffect);
         Assert.Equal((byte)9, resources.Source(22, false));
         Assert.Equal((byte)9, resources.Source(22, true));
         Assert.Equal((byte)127, resources.Source(21, false));
@@ -35,6 +36,8 @@ public sealed class NativeBattleCinematicTextureMetadataTests
         NativeBattleWaterExecutionFrame frame = Frame();
         NativeBattleCinematicTextureSelection pixel = NativeBattleCinematicTextureMetadata.ResolvePixelB664A0(frame, resources, 22);
         NativeBattleCinematicTextureSelection clut = NativeBattleCinematicTextureMetadata.ResolveClutB66560(frame, resources, 22);
+        Assert.Equal("mag200_b.09", pixel.Origin!.Owner);
+        Assert.Equal("mag200_b.09", clut.Origin!.Owner);
         Assert.Equal(Arena + 0x5060, pixel.SourceAddress);
         Assert.Equal(Arena + 0x5180, clut.SourceAddress);
         Assert.Equal((byte)0x89, pixel.SourceMapByte);

@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public interface INativeBattleScriptedTextureProfile
 {
-    int Effect { get; }
+    int BindingEffect { get; }
     int TextureCount { get; }
     uint InitializationAddress { get; }
     uint OwnerDirectoryAddress { get; }
@@ -28,7 +28,7 @@ public sealed record NativeBattleCinematicResources([property: JsonRequired] uin
     public ImmutableArray<NativeBattleArchiveFile> Files { get; init; } = [];
 
     int INativeBattleScriptedTextureProfile.TextureCount => TextureProfile.Count;
-    int INativeBattleScriptedTextureProfile.Effect => NativeBattleCinematicProfile.ForInitializationAddress(TextureProfile.InitializationAddress).Effect;
+    int INativeBattleScriptedTextureProfile.BindingEffect => NativeBattleCinematicProfile.ForInitializationAddress(TextureProfile.InitializationAddress).Effect;
     uint INativeBattleScriptedTextureProfile.InitializationAddress => TextureProfile.InitializationAddress;
     uint INativeBattleScriptedTextureProfile.OwnerDirectoryAddress => TextureProfile.OwnerDirectoryAddress;
 

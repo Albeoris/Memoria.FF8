@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleWater222Profile([property: JsonRequired] NativeBattleEffectHeapAllocation Tables, [property: JsonRequired] NativeBattleEffectHeapAllocation InitializationDirectory, [property: JsonRequired] NativeBattleEffectHeapAllocation OwnerDirectory) : INativeBattleScriptedTextureProfile
 {
-    int INativeBattleScriptedTextureProfile.Effect => 222;
+    int INativeBattleScriptedTextureProfile.BindingEffect => 222;
     int INativeBattleScriptedTextureProfile.TextureCount => 5;
     uint INativeBattleScriptedTextureProfile.InitializationAddress => 0x186C84C;
     uint INativeBattleScriptedTextureProfile.OwnerDirectoryAddress => 0x186C944;
@@ -154,7 +154,8 @@ public static class NativeBattleWater222TexturePair
         {
             throw new InvalidDataException("Native Water transfer leaves its current source file.");
         }
-        NativeBattleTextureOrigin? origin = rectangle.Width > 0 && rectangle.Height > 0 ? new($"mag{profile.Effect:000}_b.{source:00}", textureIndex, clut ? NativeBattleTextureRole.Clut : NativeBattleTextureRole.Pixels, profile.BitsPerPixel(textureIndex), rectangle.Width, rectangle.Height) : null;
+        int effectIndex = NativeBattleEffectIdentity.IndexFromBindingEffect(profile.BindingEffect);
+        NativeBattleTextureOrigin? origin = rectangle.Width > 0 && rectangle.Height > 0 ? new($"mag{effectIndex:000}_b.{source:00}", textureIndex, clut ? NativeBattleTextureRole.Clut : NativeBattleTextureRole.Pixels, profile.BitsPerPixel(textureIndex), rectangle.Width, rectangle.Height) : null;
         return new(source, checked((int)offset), rectangle) { Origin = origin };
     }
 

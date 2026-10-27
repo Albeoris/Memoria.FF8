@@ -81,8 +81,8 @@ public sealed class NativeBattleTextureProvenanceTests
         ImmutableArray<NativeBattleEffectHeapAllocation> files = [new("first", file.ToImmutableArray()), new("second", file.ToImmutableArray())];
         NativeBattleWater222UploadPlan pixels = NativeBattleWater222TexturePair.Resolve(profile, files, 2, false);
         NativeBattleWater222UploadPlan clut = NativeBattleWater222TexturePair.Resolve(profile, files, 2, true);
-        Assert.Equal("mag222_b.01", pixels.Origin!.Owner);
-        Assert.Equal("mag222_b.00", clut.Origin!.Owner);
+        Assert.Equal("mag221_b.01", pixels.Origin!.Owner);
+        Assert.Equal("mag221_b.00", clut.Origin!.Owner);
         Assert.Equal(2, pixels.Origin.Member);
         Assert.Equal(8, pixels.Origin.BitsPerPixel);
         Assert.Equal(NativeBattleTextureRole.Clut, clut.Origin.Role);

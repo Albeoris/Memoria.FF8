@@ -47,7 +47,8 @@ public static class NativeBattleCinematicTextureMetadata
         uint directory = unchecked(file + ArenaDword(unchecked(file + (clut ? 8u : 0x14u))));
         uint relative = ArenaDword(unchecked(directory + (uint)index * 4));
         uint source = unchecked(directory + (clut ? relative : relative & 0xFFFFFF));
-        NativeBattleTextureOrigin? origin = rectangle.Width > 0 && rectangle.Height > 0 ? new($"mag{profile.Effect:000}_b.{sourceIndex:00}", index, clut ? NativeBattleTextureRole.Clut : NativeBattleTextureRole.Pixels, profile.BitsPerPixel(index), rectangle.Width, rectangle.Height) : null;
+        int effectIndex = NativeBattleEffectIdentity.IndexFromBindingEffect(profile.BindingEffect);
+        NativeBattleTextureOrigin? origin = rectangle.Width > 0 && rectangle.Height > 0 ? new($"mag{effectIndex:000}_b.{sourceIndex:00}", index, clut ? NativeBattleTextureRole.Clut : NativeBattleTextureRole.Pixels, profile.BitsPerPixel(index), rectangle.Width, rectangle.Height) : null;
         return new(rectangleAddress, rectangle, source, map, null) { Origin = origin };
 
         uint Directory(uint managerOffset, int descriptorOffset)
