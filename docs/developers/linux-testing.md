@@ -20,13 +20,13 @@ wsl --install -d Ubuntu-24.04
 
 Restart if Windows requests it, launch Ubuntu once, and create its Linux user. Confirm `wsl --list --verbose` reports version 2. The testing script does not enable Windows features, install a distro, update graphics drivers, restart WSL or change Windows settings.
 
-The Windows checkout needs the repository's .NET SDK, PowerShell 7 and Git. The distro needs Python 3 and ordinary desktop runtime libraries. To explicitly authorize installing Ubuntu runtime and diagnostic packages from its configured standard repositories:
+The Windows checkout needs the repository's .NET SDK, PowerShell 7 and Git. The distro needs a .NET 10 SDK on PATH and ordinary desktop runtime libraries. The SDK runs the staged test modules through `dotnet test`; Python is not required. Install the SDK using the supported instructions for your distribution before running this workflow. To explicitly authorize installing Ubuntu runtime and diagnostic packages from its configured standard repositories:
 
 ```powershell
 pwsh ./tools/Test-Linux.ps1 -SetupDependencies
 ```
 
-This asks `sudo apt-get` to install Python, DejaVu/Noto core and CJK fonts, X11/font/audio/GTK libraries, standard desktop-portal services, Vulkan tools, Mesa utilities and the standard `mesa-vulkan-drivers` package containing Lavapipe. It does not add repositories, experimental packages or vendor GPU drivers. Later runs reuse these packages. Without this flag the script performs no package installation.
+This asks `sudo apt-get` to install DejaVu/Noto core and CJK fonts, X11/font/audio/GTK libraries, standard desktop-portal services, Vulkan tools, Mesa utilities and the standard `mesa-vulkan-drivers` package containing Lavapipe. It does not install the .NET SDK or add repositories, experimental packages or vendor GPU drivers. Later runs reuse these packages. Without this flag the script performs no package installation.
 
 Create optional local settings, which Git ignores:
 
@@ -47,18 +47,18 @@ pwsh ./tools/Test-Linux.ps1 -GameDirectory $env:MEMORIA_FF8_GAME_DIR
 | Command | Behavior |
 | --- | --- |
 | `pwsh ./tools/Test-Linux.ps1` | Detect, build/reuse, deploy, portable tests and interactive launch. |
-| `pwsh ./tools/Test-Linux.ps1 -Phase Diagnostics` | Gather available Linux graphics/system diagnostics without requiring a build. |
+| `pwsh ./tools/Test-Linux.ps1 -Phase Diagnostics` | Build/reuse the small .NET helper and gather available Linux graphics/system diagnostics without building the application. |
 | `pwsh ./tools/Test-Linux.ps1 -Phase Build` | Build/verify Linux payload from Windows; no installed WSL/SSH target required. |
 | `pwsh ./tools/Test-Linux.ps1 -Phase Deploy` | Deploy a matching previously built payload. |
 | `pwsh ./tools/Test-Linux.ps1 -Phase Test` | Verify/deploy a matching cache and run tests plus a 15-second smoke. |
 | `pwsh ./tools/Test-Linux.ps1 -Phase Launch` | Verify/deploy and open the application for manual interaction until exit or timeout. |
 | `pwsh ./tools/Test-Linux.ps1 -Component Audio` | Play explicit `DlsPath`/`SgtPath` fixtures through the common audio harness. |
 
-Build identity hashes tracked and untracked nonignored working files, deleted files, dependency pins, scripts, capability declarations and the SDK version. Source identity is checked again before sealing the build receipt; edits during publishing cannot produce a falsely verified cache. Reuse additionally verifies every payload file against its SHA-256 manifest. A corrupted cache is retained under a separate diagnostic name. Current launcher builds and test publishes use an isolated reusable output tree. Four self-contained Linux test executables are staged: Platform, Audio, Launcher and Presentation. Successful portable test results are reused on the same target only for the same verified build fingerprint; failures are not cached as successes. Optional original-resource tests retain their explicit fixture requirements and skip when absent. No battle-effect test project is selected.
+Build identity hashes tracked and untracked nonignored working files, deleted files, dependency pins, scripts, capability declarations and the SDK version. Source identity is checked again before sealing the build receipt; edits during publishing cannot produce a falsely verified cache. Reuse additionally verifies every payload file against its SHA-256 manifest. A corrupted cache is retained under a separate diagnostic name. Current launcher builds and test publishes use an isolated reusable output tree. Five Linux test modules are staged: Platform, Audio, Launcher, Presentation and LinuxTesting. The target runs them with `dotnet test --root-directory <module-directory> --test-modules <module-name>.dll --results-directory <results-directory> --no-progress`, using the staged `global.json` to select Microsoft Testing Platform. Successful portable test results are reused on the same target only for the same verified build fingerprint; failures are not cached as successes. Optional original-resource tests retain their explicit fixture requirements and skip when absent. No battle-effect test project is selected.
 
 Evidence is stored under `artifacts/linux-test/runs/<run-id>/`: orchestration/build/transport logs, per-project portable test logs, `result.json`, system information, Vulkan ICD descriptors, full Vulkan surface/device information and presentation-probe results. Process stdout/stderr and nonzero exit status are preserved. The console prints target failures and structured status. Configuration, cache and test state are separate from ordinary launcher/player data. The source tree never contains copied original game assets or credentials.
 
-Smoke success means the requested process survived its interval. A launcher that exits early, even with exit code zero, does not pass the smoke. Manual launch preserves the actual exit code; its timeout returns 124. Cancellation retains process-group ownership independently of the leader, terminates owned descendants and escalates TERM-ignoring members to KILL after a bounded grace period, then attempts evidence retrieval. Group membership and per-group ownership tokens protect unrelated processes. The script never kills an existing game, desktop, streaming server or other user process.
+Smoke success means the requested process survived its interval. A launcher that exits early, even with exit code zero, does not pass the smoke. Manual launch preserves the actual exit code; its timeout returns 124. The .NET helper uses standard `Process` APIs and `Kill(entireProcessTree: true)` on timeout or cancellation, followed by bounded cleanup and evidence retrieval. Remote cancellation writes `stop.request` in the owned run directory; the helper observes it during tests, diagnostics and smoke execution, then writes `result.json`. Cleanup applies to a running process tree; detached descendants whose parent has already exited are outside this contract. There is no custom process-group manager, `/proc` traversal or application P/Invoke.
 
 Screenshots use an already installed `grim`, `spectacle` or `gnome-screenshot`, or an explicitly configured `ScreenshotCommand` argument array with `{output}` for the output filename. If no suitable command exists, the result records screenshots as unavailable. A screenshot still needs human inspection.
 
@@ -73,7 +73,7 @@ pwsh ./tools/Test-Linux.ps1 -Mode Hardware -Target SteamDeck -Vulkan Hardware
 
 ## Steam Deck or another native Linux host
 
-The target must already have an x64 Linux graphical session, OpenSSH access, Python 3 and the required runtime libraries. Windows needs OpenSSH `ssh` and `scp` supporting SFTP (`-s`). Configure authentication and host-key trust using normal OpenSSH configuration first. The script uses batch authentication and does not store passwords, alter host keys, unlock SteamOS, install packages or start a streaming server.
+The target must already have an x64 Linux graphical session, OpenSSH access, a .NET 10 SDK on PATH and the required runtime libraries. Windows needs OpenSSH `ssh` and `scp` supporting SFTP (`-s`). Configure authentication and host-key trust using normal OpenSSH configuration first. The script uses batch authentication and does not store passwords, alter host keys, unlock SteamOS, install packages or start a streaming server.
 
 Add entries under `Targets` in local settings. `-Target SteamDeck` selects `Targets.SteamDeck`; another name selects that exact entry. Each entry may set `SshHost` (an SSH alias), `TargetDirectory`, `HardwareGameDirectory`, `HardwareDlsPath`, `HardwareSgtPath`, `GraphicalEnvironment`, `StreamCommand` and `ScreenshotCommand`. The sample has no machine-specific account or path.
 
@@ -101,9 +101,9 @@ Run orchestration tests without an installed distro or SSH target:
 
 ```powershell
 pwsh ./tools/linux-testing/tests/Orchestration.Tests.ps1
-python -m unittest discover -s ./tools/linux-testing/tests -p test_target.py
+dotnet test --project ./tests/Memoria.FF8.LinuxTesting.Tests -c Release --no-progress
 ```
 
-These validate quoting, Windows drive conversion, named-target selection, dirty-source/dependency/script cache invalidation, tamper detection, incremental transfer plans, data preservation, cancellation cleanup and Vulkan classification using mocks. They do not establish an actual WSLg, Steam Deck, Intel Mac or native Linux runtime pass.
+These validate quoting, Windows drive conversion, named-target selection, dirty-source/dependency/script cache invalidation, tamper detection, incremental transfer plans, data preservation, process timeout/cancellation and Vulkan classification. They do not establish an actual WSLg, Steam Deck, Intel Mac or native Linux runtime pass.
 
-CI runs the mocked orchestration contracts and Python `TargetTests` on Windows, Linux and macOS. The `LinuxTargetIntegrationTests` class requires Linux `/proc` and real process-group signals: it has a platform skip marker for local discovery and runs in a separate Linux-only CI step. Select these groups with unittest's `-k TargetTests` or `-k LinuxTargetIntegrationTests`. Mark tests that require native host facilities with an explicit platform skip condition; tests of mocked Linux commands or portable file operations remain portable.
+CI runs the PowerShell orchestration checks and .NET tests on Windows, Linux and macOS. Tests requiring native Linux fixtures carry `Trait("Platform", "Linux")` and explicitly skip on other hosts. Portable file operations and mocked Linux command contracts run on every host. The Linux helper is built from [Memoria.FF8.LinuxTesting](../../tools/Memoria.FF8.LinuxTesting/Memoria.FF8.LinuxTesting.csproj); there is no Python runner. Existing recognized deployment ownership markers and pending deployment journals remain compatible.

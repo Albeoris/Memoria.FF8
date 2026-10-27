@@ -54,12 +54,12 @@ GitHub Actions builds the Windows package on pushes to `main` and on `v*` tags. 
 
 ## Focused tests
 
-Tests use executable runners. Most projects use xUnit; `Memoria.FF8.Events.Tests` has its own console scenario runner. Select the project closest to the changed contract:
+Most test projects use xUnit with Microsoft Testing Platform, selected in `global.json`. Run them through `dotnet test`; their executable entry points also remain available. `Memoria.FF8.Events.Tests` has its own console scenario runner. Select the project closest to the changed contract:
 
 ```powershell
-dotnet run --project tests/Memoria.FF8.Ui.Tests -c Release
-dotnet run --project tests/Memoria.FF8.Runtime.Tests -c Release -- --filter-class '*NativePcSaveCompressionTests'
-dotnet run --project tests/Memoria.FF8.App.Tests -c Release -- --filter-class '*MediaToolsInstallationTests'
+dotnet test --project tests/Memoria.FF8.Ui.Tests -c Release --no-progress
+dotnet test --project tests/Memoria.FF8.Runtime.Tests -c Release --no-progress --filter-class '*NativePcSaveCompressionTests'
+dotnet test --project tests/Memoria.FF8.App.Tests -c Release --no-progress --filter-class '*MediaToolsInstallationTests'
 ```
 
 | Project | Main responsibility |

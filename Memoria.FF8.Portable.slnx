@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="tools/Memoria.FF8.LinuxTesting/Memoria.FF8.LinuxTesting.csproj" />
+  <Project Path="tests/Memoria.FF8.LinuxTesting.Tests/Memoria.FF8.LinuxTesting.Tests.csproj" />
   <Project Path="tests/Memoria.FF8.Bootstrap.Tests/Memoria.FF8.Bootstrap.Tests.csproj" />
   <Project Path="src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj" />
   <Project Path="vendor/Topten.RichTextKit.Bidi/Memoria.FF8.Text.Unicode.csproj" />

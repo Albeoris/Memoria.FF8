@@ -4,24 +4,81 @@ function ConvertTo-ShellLiteral([string]$Value) {
     return "'" + $Value.Replace("'", "'" + '"' + "'" + '"' + "'") + "'"
 }
 
-function Get-StagingInitializationCode {
-    return @'
-import pathlib, sys
-p = pathlib.Path(sys.argv[1])
-m = p / ".memoria-linux-test-owner"
-if p.is_symlink() or m.is_symlink():
-    raise ValueError("Staging root/ownership marker cannot be a symlink")
-if p.exists() and any(p.iterdir()) and not m.is_file():
-    raise ValueError("Existing nonempty staging directory has no ownership marker; select a fresh directory")
-if m.exists() and m.read_text() != "memoria-linux-test-v1":
-    raise ValueError("Staging ownership marker is unrecognized")
-for name in ("target.py", "request.json", "sync.json", "payload-manifest.json", "payload", "state", "runs", "test-results", "deployment.json", "deployment-staging", "deployment-backup", "inbox"):
-    candidate = p / name
-    if candidate.is_symlink() or (candidate.is_dir() and any(item.is_symlink() for item in candidate.rglob("*"))):
-        raise ValueError("Staging control/state paths cannot contain symlinks")
-p.mkdir(parents=True, exist_ok=True)
-m.write_text("memoria-linux-test-v1")
-'@
+function Get-LinuxHostProbeCommand {
+    return @('sh', '-c', 'uname -m && uname -r && printf ''%s\n'' "$HOME" && dotnet --list-sdks')
+}
+
+function ConvertFrom-LinuxHostProbe([string]$Output) {
+    $lines = @($Output.TrimEnd().Split("`n") | ForEach-Object { $_.TrimEnd("`r") })
+    if ($lines.Count -lt 4 -or !(@($lines | Select-Object -Skip 3) -match '^10\.\d+\.\d+\s+\[')) {
+        throw 'The Linux target requires an existing .NET 10 SDK on PATH. Install a supported .NET 10 SDK using your distribution/vendor instructions, then retry. SDK installation is never performed by this workflow.'
+    }
+    if (!$lines[2].StartsWith('/')) {
+        throw 'The Linux target did not report an absolute home directory.'
+    }
+    return [pscustomobject]@{ machine = $lines[0]; release = $lines[1]; home = $lines[2] }
+}
+
+function Get-LinuxTestingBootstrap([string]$ProductRoot, [string]$LogDirectory) {
+    $fingerprint = Get-SourceFingerprint $ProductRoot
+    $cache = Join-Path $ProductRoot "artifacts/linux-test/bootstrap/$fingerprint"
+    $helper = Join-Path $cache 'Memoria.FF8.LinuxTesting'
+    $receiptPath = Join-Path $cache 'bootstrap.json'
+    if ((Test-Path -LiteralPath $helper -PathType Leaf) -and (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
+        try {
+            $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+            if ($receipt.fingerprint -ceq $fingerprint -and $receipt.sha256 -ceq (Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant()) {
+                return $helper
+            }
+        }
+        catch {
+            # An incomplete cache is rebuilt and verified before use.
+        }
+    }
+    New-Item -ItemType Directory -Force -Path $cache | Out-Null
+    $build = Invoke-TestProcess dotnet @('publish', (Join-Path $ProductRoot 'tools/Memoria.FF8.LinuxTesting/Memoria.FF8.LinuxTesting.csproj'), '--artifacts-path', (Join-Path $ProductRoot 'artifacts/linux-test/bootstrap-build'), '-c', 'Release', '-r', 'linux-x64', '--self-contained', 'false', '-p:PublishSingleFile=true', '-o', $cache)
+    ($build.Output + $build.Error) | Set-Content -LiteralPath (Join-Path $LogDirectory 'bootstrap-build.log') -Encoding utf8
+    Assert-UnchangedBuildSource $ProductRoot $fingerprint
+    if (!(Test-Path -LiteralPath $helper -PathType Leaf)) {
+        throw 'Linux testing helper publish did not produce its apphost.'
+    }
+    @{ fingerprint = $fingerprint; sha256 = (Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant() } | ConvertTo-Json | Set-Content -LiteralPath $receiptPath -Encoding utf8
+    return $helper
+}
+
+function Invoke-LinuxTarget([string]$Mode, $Settings, [string[]]$Command, [switch]$AllowFailure, [int]$TimeoutSeconds = 1800) {
+    if ($Mode -eq 'Wsl') {
+        return Invoke-WslCommand $Settings.Distro $Command -AllowFailure:$AllowFailure -TimeoutSeconds $TimeoutSeconds
+    }
+    return Invoke-SshCommand $Settings.SshHost $Command -AllowFailure:$AllowFailure -TimeoutSeconds $TimeoutSeconds
+}
+
+function Initialize-LinuxTestingTarget([string]$Mode, $Settings, [string]$Helper, [string]$TargetRoot) {
+    $temporary = (Invoke-LinuxTarget $Mode $Settings @('mktemp', '-d', '/tmp/memoria-linux-test.XXXXXXXXXX')).Output.Trim()
+    if ($temporary -cnotmatch '^/tmp/memoria-linux-test\.[A-Za-z0-9]{10}$') {
+        throw 'The Linux target returned an unexpected bootstrap temporary directory.'
+    }
+    $temporaryHelper = "$temporary/Memoria.FF8.LinuxTesting"
+    $targetHelper = "$TargetRoot/Memoria.FF8.LinuxTesting"
+    try {
+        if ($Mode -eq 'Wsl') {
+            $source = ConvertTo-WslPath $Settings.Distro $Helper
+            [void](Invoke-LinuxTarget $Mode $Settings @('cp', '--', $source, $temporaryHelper))
+        }
+        else {
+            [void](Invoke-TestProcess scp @('-s', '-o', 'BatchMode=yes', '--', $Helper, "$($Settings.SshHost):$temporaryHelper"))
+        }
+        [void](Invoke-LinuxTarget $Mode $Settings @('chmod', '700', '--', $temporaryHelper))
+        # Verify ownership and control paths before copying anything into staging.
+        [void](Invoke-LinuxTarget $Mode $Settings @($temporaryHelper, 'init', $TargetRoot))
+        [void](Invoke-LinuxTarget $Mode $Settings @('cp', '--', $temporaryHelper, $targetHelper))
+        [void](Invoke-LinuxTarget $Mode $Settings @('chmod', '700', '--', $targetHelper))
+        return $targetHelper
+    }
+    finally {
+        [void](Invoke-LinuxTarget $Mode $Settings @('rm', '-f', '--', $temporaryHelper) -AllowFailure -TimeoutSeconds 15)
+        [void](Invoke-LinuxTarget $Mode $Settings @('rmdir', '--', $temporary) -AllowFailure -TimeoutSeconds 15)
+    }
 }
 
 function Invoke-TestProcess {

@@ -32,17 +32,17 @@ if ($Scope -ne 'Distribution') {
         if ($Scope -eq 'Portable') {
             Invoke-DotNet @('build', 'Memoria.FF8.Portable.slnx', '-c', $Configuration, '-p:TargetFramework=net10.0', '-m:1')
             if ($Test) {
-                foreach ($project in @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Bootstrap.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.Launcher.Tests')) {
-                    Invoke-DotNet @('run', '--project', "tests/$project", '-c', $Configuration)
+                foreach ($project in @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Bootstrap.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.Launcher.Tests', 'Memoria.FF8.LinuxTesting.Tests')) {
+                    Invoke-DotNet @('test', '--project', "tests/$project", '-c', $Configuration, '--no-progress')
                 }
-                Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration, '--', '--filter-class', '*SteamAchievementBackendTests')
+                Invoke-DotNet @('test', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration, '--no-progress', '--filter-class', '*SteamAchievementBackendTests')
             }
         }
         else {
             $destination = Join-Path $root "artifacts/launcher/$RuntimeIdentifier"
             Invoke-DotNet @('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:PublishTrimmed=false', '-o', $destination)
             if ($Test) {
-                Invoke-DotNet @('run', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration)
+                Invoke-DotNet @('test', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration, '--no-progress')
             }
             Write-Host "Launcher-only payload (game host supplied separately): $destination"
         }

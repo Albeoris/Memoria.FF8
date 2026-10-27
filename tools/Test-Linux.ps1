@@ -66,39 +66,36 @@ try {
             }
             $settings.Distro = Select-WslDistribution $inventory.Output $settings.Distro
             Write-Host "Selected WSL2 distribution: $($settings.Distro)"
-            $probe = Invoke-WslCommand $settings.Distro @('python3', '-c', 'import json,os,platform; print(json.dumps({"machine":platform.machine(),"release":platform.release(),"wslg":os.path.isdir("/mnt/wslg"),"display":os.environ.get("DISPLAY"),"wayland":os.environ.get("WAYLAND_DISPLAY")}))') -AllowFailure -TimeoutSeconds 30
+            $probe = Invoke-WslCommand $settings.Distro (Get-LinuxHostProbeCommand) -AllowFailure -TimeoutSeconds 30
             ($probe.Output + $probe.Error) | Set-Content -LiteralPath (Join-Path $localRun 'host-probe.txt') -Encoding utf8
             if ($probe.ExitCode -ne 0) {
-                throw "Distro '$($settings.Distro)' is unavailable or lacks Python 3. Install Ubuntu-24.04 with WSL2 and complete its first-run setup. See docs/developers/linux-testing.md."
+                throw "Distro '$($settings.Distro)' is unavailable or lacks a .NET 10 SDK on PATH. Complete the distro setup and install a supported .NET 10 SDK, then retry. See docs/developers/linux-testing.md."
             }
-            $hostInfo = $probe.Output.Trim() | ConvertFrom-Json
+            $hostInfo = ConvertFrom-LinuxHostProbe $probe.Output
             if ($hostInfo.machine -ne 'x86_64' -or $hostInfo.release -notmatch '(?i)microsoft.*wsl2') {
                 throw 'This workflow requires an x86_64 WSL2 distro, not WSL1 or ARM emulation.'
             }
             if ($SetupDependencies) {
                 Write-Host 'Explicit setup: installing ordinary Ubuntu runtime/diagnostic packages from configured distro repositories. sudo may request your Linux password.'
                 # Sudo runs interactively; credentials are never captured by this script.
-                & wsl.exe --distribution $settings.Distro --exec sh -c 'sudo apt-get update && sudo apt-get install -y python3 fonts-dejavu-core fonts-noto-core fonts-noto-cjk libx11-6 libice6 libsm6 libfontconfig1 libfreetype6 libxcb1 libxkbcommon0 libgl1 libegl1 libgtk-3-0t64 dbus-user-session xdg-desktop-portal xdg-desktop-portal-gtk libasound2t64 libpulse0 libvulkan1 vulkan-tools mesa-utils mesa-vulkan-drivers'
+                & wsl.exe --distribution $settings.Distro --exec sh -c 'sudo apt-get update && sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-cjk libx11-6 libice6 libsm6 libfontconfig1 libfreetype6 libxcb1 libxkbcommon0 libgl1 libegl1 libgtk-3-0t64 dbus-user-session xdg-desktop-portal xdg-desktop-portal-gtk libasound2t64 libpulse0 libvulkan1 vulkan-tools mesa-utils mesa-vulkan-drivers'
                 if ($LASTEXITCODE -ne 0) {
                     throw 'Explicit Ubuntu dependency setup failed. Review apt output; no external repository or graphics driver was requested.'
                 }
             }
-            $homeResult = Invoke-WslCommand $settings.Distro @('python3', '-c', 'from pathlib import Path; print(Path.home()/".local/share/memoria-linux-test")')
-            $targetRoot = $homeResult.Output.Trim()
-            $targetRunner = "$targetRoot/target.py"
-            $initialize = Get-StagingInitializationCode
-            [void](Invoke-WslCommand $settings.Distro @('python3', '-c', $initialize, $targetRoot))
-            $runnerSource = ConvertTo-WslPath $settings.Distro (Join-Path $PSScriptRoot 'linux-testing/target.py')
-            [void](Invoke-WslCommand $settings.Distro @('cp', '--', $runnerSource, $targetRunner))
+            $targetRoot = $hostInfo.home.TrimEnd('/') + '/.local/share/memoria-linux-test'
         }
         else {
             Assert-SshHost $settings.SshHost
             if ($SetupDependencies) {
-                throw 'Hardware setup does not install packages or change SteamOS. Configure existing Python 3/OpenSSH and a graphical session; use the target vendor supported setup.'
+                throw 'Hardware setup does not install packages or change SteamOS. Configure an existing .NET 10 SDK/OpenSSH and a graphical session; use the target vendor supported setup.'
             }
-            $probe = Invoke-SshCommand $settings.SshHost @('python3', '-c', 'import json,os,platform; print(json.dumps({"machine":platform.machine(),"release":platform.release(),"home":os.path.expanduser("~")}))') -TimeoutSeconds 30
-            $probe.Output | Set-Content -LiteralPath (Join-Path $localRun 'host-probe.txt') -Encoding utf8
-            $hostInfo = $probe.Output.Trim() | ConvertFrom-Json
+            $probe = Invoke-SshCommand $settings.SshHost (Get-LinuxHostProbeCommand) -AllowFailure -TimeoutSeconds 30
+            ($probe.Output + $probe.Error) | Set-Content -LiteralPath (Join-Path $localRun 'host-probe.txt') -Encoding utf8
+            if ($probe.ExitCode -ne 0) {
+                throw 'The hardware target is unavailable or lacks a .NET 10 SDK on PATH. Check SSH access and install a supported .NET 10 SDK using your vendor instructions, then retry. See docs/developers/linux-testing.md.'
+            }
+            $hostInfo = ConvertFrom-LinuxHostProbe $probe.Output
             if ($hostInfo.machine -ne 'x86_64') {
                 throw 'Hardware testing requires an x86_64 Linux target.'
             }
@@ -106,22 +103,22 @@ try {
             if ($targetRoot -eq '/' -or $targetRoot.TrimEnd('/') -eq $hostInfo.home -or $targetRoot -match '(^|/)\.\.(/|$)' -or $targetRoot.Contains(':')) {
                 throw 'Select a dedicated target staging directory below the home directory, not a home root or traversal path.'
             }
-            $targetRunner = "$targetRoot/target.py"
-            $initialize = Get-StagingInitializationCode
-            [void](Invoke-SshCommand $settings.SshHost @('python3', '-c', $initialize, $targetRoot))
-            [void](Invoke-TestProcess scp @('-s', '-o', 'BatchMode=yes', '--', (Join-Path $PSScriptRoot 'linux-testing/target.py'), "$($settings.SshHost):$targetRunner"))
         }
+        $helper = Get-LinuxTestingBootstrap $product $localRun
+        $targetRunner = Initialize-LinuxTestingTarget $Mode $settings $helper $targetRoot
+        $probe = Invoke-LinuxTarget $Mode $settings @($targetRunner, 'probe') -TimeoutSeconds 30
+        $probe.Output | Set-Content -LiteralPath (Join-Path $localRun 'host-probe.json') -Encoding utf8
     }
     if ($Phase -eq 'Diagnostics') {
         $requestPath = Join-Path $localRun 'request.json'
         @{ root = $targetRoot; runId = $runId; mode = $Mode; component = $selectedComponent; diagnosticsOnly = $true; vulkan = $Vulkan; graphicalEnvironment = $settings.GraphicalEnvironment } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $requestPath -Encoding utf8
         $started = $true
         if ($Mode -eq 'Wsl') {
-            $diagnostics = Invoke-WslCommand $settings.Distro @('python3', $targetRunner, 'run', (ConvertTo-WslPath $settings.Distro $requestPath)) -AllowFailure -TimeoutSeconds 90
+            $diagnostics = Invoke-WslCommand $settings.Distro @($targetRunner, 'run', (ConvertTo-WslPath $settings.Distro $requestPath)) -AllowFailure -TimeoutSeconds 90
         }
         else {
             [void](Invoke-TestProcess scp @('-s', '-o', 'BatchMode=yes', '--', $requestPath, "$($settings.SshHost):$targetRoot/request.json"))
-            $diagnostics = Invoke-SshCommand $settings.SshHost @('python3', $targetRunner, 'run', "$targetRoot/request.json") -AllowFailure -TimeoutSeconds 90
+            $diagnostics = Invoke-SshCommand $settings.SshHost @($targetRunner, 'run', "$targetRoot/request.json") -AllowFailure -TimeoutSeconds 90
         }
         Write-Host $diagnostics.Output
         Write-Host $diagnostics.Error
@@ -165,10 +162,11 @@ try {
         }
         $audio = Invoke-TestProcess dotnet @('publish', (Join-Path $product 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj'), '--artifacts-path', $isolatedBuild, '-c', 'Release', '-r', 'linux-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-o', (Join-Path $payload 'audio'))
         ($audio.Output + $audio.Error) | Set-Content -LiteralPath (Join-Path $localRun 'audio-build.log') -Encoding utf8
-        foreach ($testProject in @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.Launcher.Tests', 'Memoria.FF8.Presentation.Tests')) {
+        foreach ($testProject in @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.Launcher.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.FF8.LinuxTesting.Tests')) {
             $testBuild = Invoke-TestProcess dotnet @('publish', (Join-Path $product "tests/$testProject/$testProject.csproj"), '--artifacts-path', $isolatedBuild, '-c', 'Release', '-r', 'linux-x64', '--self-contained', 'true', '-p:PublishSingleFile=false', '-o', (Join-Path $payload "tests/$testProject"))
             ($testBuild.Output + $testBuild.Error) | Set-Content -LiteralPath (Join-Path $localRun "$testProject-build.log") -Encoding utf8
         }
+        Copy-Item -LiteralPath (Join-Path $product 'global.json') -Destination (Join-Path $payload 'global.json')
         if ((Get-SourceFingerprint $product) -cne $fingerprint) {
             throw 'Source files changed during the build. Partial output was preserved; rerun after edits settle to create a verified current build.'
         }
@@ -192,12 +190,12 @@ try {
     if ($Mode -eq 'Wsl') {
         $sync.source = ConvertTo-WslPath $settings.Distro $payload
         $sync | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $syncPath -Encoding utf8
-        [void](Invoke-WslCommand $settings.Distro @('python3', $targetRunner, 'sync', (ConvertTo-WslPath $settings.Distro $syncPath)))
+        [void](Invoke-WslCommand $settings.Distro @($targetRunner, 'sync', (ConvertTo-WslPath $settings.Distro $syncPath)))
     }
     else {
         $sync | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $syncPath -Encoding utf8
         [void](Invoke-TestProcess scp @('-s', '-o', 'BatchMode=yes', '--', $syncPath, "$($settings.SshHost):$targetRoot/sync.json"))
-        $remote = Invoke-SshCommand $settings.SshHost @('python3', $targetRunner, 'plan', "$targetRoot/sync.json")
+        $remote = Invoke-SshCommand $settings.SshHost @($targetRunner, 'plan', "$targetRoot/sync.json")
         $remoteManifest = $remote.Output.Trim() | ConvertFrom-Json -AsHashtable
         $changed = @(Get-ChangedPayloadFiles $manifest $remoteManifest)
         Write-Host "Deploy phase: transferring $($changed.Count) changed payload files."
@@ -207,9 +205,9 @@ try {
             [void](Invoke-SshCommand $settings.SshHost @('mkdir', '-p', '--', "$targetRoot/inbox"))
             $remoteArchive = "$targetRoot/inbox/$runId.zip"
             [void](Invoke-TestProcess scp @('-s', '-o', 'BatchMode=yes', '--', $archivePath, "$($settings.SshHost):$remoteArchive"))
-            [void](Invoke-SshCommand $settings.SshHost @('python3', $targetRunner, 'accept', "$targetRoot/sync.json", '--archive', $remoteArchive))
+            [void](Invoke-SshCommand $settings.SshHost @($targetRunner, 'accept', "$targetRoot/sync.json", '--archive', $remoteArchive))
         }
-        [void](Invoke-SshCommand $settings.SshHost @('python3', $targetRunner, 'commit', "$targetRoot/sync.json"))
+        [void](Invoke-SshCommand $settings.SshHost @($targetRunner, 'commit', "$targetRoot/sync.json"))
     }
     if ($SyncGameAssets) {
         if ($Mode -ne 'Hardware') {
@@ -263,11 +261,11 @@ try {
     }
     $started = $true
     if ($Mode -eq 'Wsl') {
-        $run = Invoke-WslCommand $settings.Distro @('python3', $targetRunner, 'run', (ConvertTo-WslPath $settings.Distro $requestPath)) -AllowFailure -TimeoutSeconds ($TimeoutSeconds + 660)
+        $run = Invoke-WslCommand $settings.Distro @($targetRunner, 'run', (ConvertTo-WslPath $settings.Distro $requestPath)) -AllowFailure -TimeoutSeconds ($TimeoutSeconds + 1080)
     }
     else {
         [void](Invoke-TestProcess scp @('-s', '-o', 'BatchMode=yes', '--', $requestPath, "$($settings.SshHost):$targetRoot/request.json"))
-        $run = Invoke-SshCommand $settings.SshHost @('python3', $targetRunner, 'run', "$targetRoot/request.json") -AllowFailure -TimeoutSeconds ($TimeoutSeconds + 660)
+        $run = Invoke-SshCommand $settings.SshHost @($targetRunner, 'run', "$targetRoot/request.json") -AllowFailure -TimeoutSeconds ($TimeoutSeconds + 1080)
     }
     ($run.Output + $run.Error) | Set-Content -LiteralPath (Join-Path $localRun 'transport.log') -Encoding utf8
     Write-Host $run.Output
@@ -283,12 +281,12 @@ finally {
     if ($started) {
         try {
             if ($Mode -eq 'Wsl') {
-                [void](Invoke-WslCommand $settings.Distro @('python3', $targetRunner, 'stop', "$targetRoot/runs/$runId") -AllowFailure -TimeoutSeconds 15)
+                [void](Invoke-WslCommand $settings.Distro @($targetRunner, 'stop', "$targetRoot/runs/$runId") -AllowFailure -TimeoutSeconds 15)
                 $destination = ConvertTo-WslPath $settings.Distro $localRun
                 [void](Invoke-WslCommand $settings.Distro @('cp', '-a', '--', "$targetRoot/runs/$runId/.", $destination) -AllowFailure -TimeoutSeconds 30)
             }
             else {
-                [void](Invoke-SshCommand $settings.SshHost @('python3', $targetRunner, 'stop', "$targetRoot/runs/$runId") -AllowFailure -TimeoutSeconds 15)
+                [void](Invoke-SshCommand $settings.SshHost @($targetRunner, 'stop', "$targetRoot/runs/$runId") -AllowFailure -TimeoutSeconds 15)
                 [void](Invoke-TestProcess scp @('-s', '-o', 'BatchMode=yes', '-r', '--', "$($settings.SshHost):$targetRoot/runs/$runId/.", $localRun) -AllowFailure -TimeoutSeconds 30)
             }
         }

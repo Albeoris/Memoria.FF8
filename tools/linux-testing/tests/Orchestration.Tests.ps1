@@ -31,6 +31,12 @@ Assert-True ((Select-WslDistribution "  Ubuntu-22.04 Остановлено 2`n 
 Assert-True ((Select-WslDistribution "* Debian Stopped 2" '') -eq 'Debian') 'Generic existing WSL2 distributions should be reusable.'
 Assert-True ((Select-WslDistribution '' 'Explicit distro') -eq 'Explicit distro') 'Explicit distro selection is validated by its actual host probe.'
 Assert-Throws { Select-WslDistribution 'Ubuntu Stopped 1' '' } 'A WSL1-only installation must not pass WSL2 detection.'
+$hostProbe = ConvertFrom-LinuxHostProbe "x86_64`n6.6-microsoft-standard-WSL2`n/home/test user`n9.0.100 [/usr/share/dotnet/sdk]`n10.0.100 [/usr/share/dotnet/sdk]`n"
+Assert-True ($hostProbe.machine -eq 'x86_64' -and $hostProbe.home -eq '/home/test user') 'Shell host probing must preserve architecture and home path spaces.'
+Assert-Throws { ConvertFrom-LinuxHostProbe "x86_64`n6.6`n/home/test`n9.0.100 [/usr/share/dotnet/sdk]" } 'The target must have a .NET 10 SDK, not only an older SDK.'
+Assert-Throws { ConvertFrom-LinuxHostProbe "x86_64`n6.6`n/home/test`n" } 'An absent SDK must fail before bootstrap.'
+Assert-Throws { ConvertFrom-LinuxHostProbe "x86_64`n6.6`nrelative-home`n10.0.100 [/usr/share/dotnet/sdk]" } 'A relative target home path must fail.'
+Assert-True (((Get-LinuxHostProbeCommand) -join ' ').Contains('dotnet --list-sdks')) 'The shell bootstrap probe must check the installed SDK.'
 $changed = Get-ChangedPayloadFiles @{ 'same' = 'a'; 'changed' = 'new'; 'new file' = 'c' } @{ 'same' = 'a'; 'changed' = 'old' }
 Assert-True (($changed -join ',') -eq 'changed,new file') 'Only changed payload files should transfer.'
 $cache = Join-Path $temp 'cache'
@@ -57,6 +63,11 @@ function Invoke-TestProcess {
         return [pscustomobject]@{ ExitCode = 0; Output = "source.cs`0Directory.Packages.props`0tools/test.ps1`0"; Error = '' }
     }
     if ($Executable -eq 'dotnet') {
+        if ($Arguments[0] -eq 'publish') {
+            $outputIndex = [Array]::IndexOf($Arguments, '-o') + 1
+            Set-Content -LiteralPath (Join-Path $Arguments[$outputIndex] 'Memoria.FF8.LinuxTesting') -Value 'synthetic helper'
+            return [pscustomobject]@{ ExitCode = 0; Output = 'published'; Error = '' }
+        }
         return [pscustomobject]@{ ExitCode = 0; Output = '10.0.test'; Error = '' }
     }
     return [pscustomobject]@{ ExitCode = 0; Output = '/mnt/w/Game files'; Error = '' }
@@ -66,9 +77,9 @@ Assert-True ($converted -eq '/mnt/w/Game files') 'Mapped drives must use wslpath
 $last = $script:commands[$script:commands.Count - 1]
 Assert-True ($last.arguments[3] -eq 'wslpath') 'Path conversion must invoke wslpath.'
 Assert-True ($last.arguments[-1].EndsWith('W:\Game files')) 'Spaces/drive letters must stay one argument.'
-[void](Invoke-SshCommand 'deck' @('python3', '/path with spaces/target.py', 'probe'))
+[void](Invoke-SshCommand 'deck' @('/path with spaces/Memoria.FF8.LinuxTesting', 'probe'))
 $last = $script:commands[$script:commands.Count - 1]
-Assert-True ($last.arguments[-1].Contains("'/path with spaces/target.py'")) 'SSH arguments must be individually quoted.'
+Assert-True ($last.arguments[-1].Contains("'/path with spaces/Memoria.FF8.LinuxTesting'")) 'SSH helper arguments must be individually quoted.'
 New-Item -ItemType Directory -Path (Join-Path $temp 'tools') -Force | Out-Null
 Set-Content -LiteralPath (Join-Path $temp 'source.cs') -Value 'first'
 Set-Content -LiteralPath (Join-Path $temp 'Directory.Packages.props') -Value 'pins'
@@ -84,6 +95,19 @@ Set-Content -LiteralPath (Join-Path $temp 'tools/test.ps1') -Value 'changed orch
 Assert-True ($beforeScript -cne (Get-SourceFingerprint $temp)) 'Scripts must change cache identity.'
 Assert-UnchangedBuildSource $temp (Get-SourceFingerprint $temp)
 Assert-Throws { Assert-UnchangedBuildSource $temp $beforeScript } 'A source change during publishing must prevent sealing a verified build receipt.'
+$helper = Get-LinuxTestingBootstrap $temp $temp
+$publishes = @($script:commands | Where-Object { $_.executable -eq 'dotnet' -and $_.arguments[0] -eq 'publish' })
+Assert-True ($publishes.Count -eq 1) 'The bootstrap helper must publish once on a cache miss.'
+Assert-True ($publishes[0].arguments -contains '-p:PublishSingleFile=true') 'The bootstrap helper must be a single-file publish.'
+$selfContainedIndex = [Array]::IndexOf($publishes[0].arguments, '--self-contained')
+Assert-True ($selfContainedIndex -ge 0 -and $publishes[0].arguments[$selfContainedIndex + 1] -eq 'false') 'The bootstrap helper must use the required target .NET SDK runtime instead of embedding another runtime.'
+Assert-True ((Get-LinuxTestingBootstrap $temp $temp) -ceq $helper) 'A verified bootstrap cache must be reused.'
+$publishes = @($script:commands | Where-Object { $_.executable -eq 'dotnet' -and $_.arguments[0] -eq 'publish' })
+Assert-True ($publishes.Count -eq 1) 'A verified bootstrap helper must not rebuild.'
+Add-Content -LiteralPath $helper -Value 'tampered'
+[void](Get-LinuxTestingBootstrap $temp $temp)
+$publishes = @($script:commands | Where-Object { $_.executable -eq 'dotnet' -and $_.arguments[0] -eq 'publish' })
+Assert-True ($publishes.Count -eq 2) 'A corrupted bootstrap helper must be rebuilt.'
 $named = Get-TestSettings (Join-Path $temp 'absent.json')
 $named.Targets = @{ SteamDeck = @{ SshHost = 'deck'; TargetDirectory = '.local/share/deck-tests' }; Desktop = @{ SshHost = 'linux-desktop' } }
 Assert-True ((Select-HardwareTarget $named 'SteamDeck').SshHost -eq 'deck') 'SteamDeck must select its named settings.'
@@ -107,5 +131,38 @@ foreach ($count in @(0, 1, 2)) {
         $archive.Dispose()
     }
 }
+$script:targetCommands = [Collections.Generic.List[object]]::new()
+$script:rejectInitialization = $false
+function Invoke-LinuxTarget {
+    param([string]$Mode, $Settings, [string[]]$Command, [switch]$AllowFailure, [int]$TimeoutSeconds = 1800)
+    $script:targetCommands.Add($Command)
+    if ($Command[0] -eq 'mktemp') {
+        return [pscustomobject]@{ ExitCode = 0; Output = '/tmp/memoria-linux-test.A1b2C3d4E5'; Error = '' }
+    }
+    if ($Command[1] -eq 'init' -and $script:rejectInitialization) {
+        throw 'Synthetic staging ownership rejection'
+    }
+    return [pscustomobject]@{ ExitCode = 0; Output = ''; Error = '' }
+}
+$targetHelper = Initialize-LinuxTestingTarget 'Wsl' $defaults $helper '/home/test/staging'
+Assert-True ($targetHelper -eq '/home/test/staging/Memoria.FF8.LinuxTesting') 'Bootstrap must return the staged helper executable.'
+$initIndex = -1
+$copyIndex = -1
+for ($index = 0; $index -lt $script:targetCommands.Count; $index++) {
+    $command = $script:targetCommands[$index]
+    if ($command[1] -eq 'init') {
+        $initIndex = $index
+    }
+    if ($command[0] -eq 'cp' -and $command[-1] -eq $targetHelper) {
+        $copyIndex = $index
+    }
+}
+Assert-True ($initIndex -ge 0 -and $copyIndex -gt $initIndex) 'Ownership initialization must finish before copying into staging.'
+Assert-True ($script:targetCommands[-2][0] -eq 'rm' -and $script:targetCommands[-1][0] -eq 'rmdir') 'Bootstrap must remove only its transferred helper and temporary directory.'
+$script:targetCommands.Clear()
+$script:rejectInitialization = $true
+Assert-Throws { Initialize-LinuxTestingTarget 'Hardware' (@{ SshHost = 'deck' }) $helper '/home/test/staging' } 'A rejected ownership check must abort bootstrap.'
+Assert-True (@($script:targetCommands | Where-Object { $_[0] -eq 'cp' -and $_[-1] -eq $targetHelper }).Count -eq 0) 'Ownership rejection must prevent copying into staging.'
+Assert-True ($script:targetCommands[-1][0] -eq 'rmdir') 'Bootstrap temporary cleanup must run after ownership rejection.'
 Write-Host "$assertions orchestration assertions passed; no WSL/SSH connection or installation performed."
 # Keep the tiny synthetic fixture directory for inspection; no game/user data is used.
