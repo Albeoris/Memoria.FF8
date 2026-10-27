@@ -1,7 +1,8 @@
 <Project>
   <PropertyGroup>
     <MemoriaPsfSourceDirectory>$(MSBuildThisFileDirectory)</MemoriaPsfSourceDirectory>
-    <MemoriaPsfBuildDirectory>$([System.IO.Path]::GetFullPath('$(BaseIntermediateOutputPath)native-psf', '$(MSBuildProjectDirectory)'))</MemoriaPsfBuildDirectory>
+    <MemoriaPsfBuildKey>$([MSBuild]::StableStringHash('$(MSBuildProjectDirectory)|$(MemoriaTargetRuntime)'))</MemoriaPsfBuildKey>
+    <MemoriaPsfBuildDirectory Condition="'$(MemoriaPsfBuildDirectory)' == ''">$([System.IO.Path]::GetTempPath())Memoria.FF8/psf/$(MemoriaPsfBuildKey)</MemoriaPsfBuildDirectory>
     <MemoriaPsfDecoderDirectory Condition="'$(MemoriaPsfDecoderDirectory)' == ''">$(MemoriaPsfBuildDirectory)/install</MemoriaPsfDecoderDirectory>
     <MemoriaPsfExecutable Condition="'$(MemoriaTargetRuntime)' == 'win-x64'">Memoria.PsfDecoder.exe</MemoriaPsfExecutable>
     <MemoriaPsfExecutable Condition="'$(MemoriaTargetRuntime)' != 'win-x64'">Memoria.PsfDecoder</MemoriaPsfExecutable>
