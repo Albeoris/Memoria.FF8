@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Buffers.Binary;
 using Albeoris.Games.FF8.MngrpBin.Abstractions;
 using Memoria.FF8.Assets;
@@ -44,10 +43,7 @@ public sealed partial class LiveMenuCatalog
 
     private void ReadMagazines(byte[] bytes, MngrpStringTable text, NativeWeaponShopDefinitions weapons, byte[] imageIndex, byte[] paperTexture, byte[] itemIconKinds)
     {
-        if (bytes.Length != 4692 || Convert.ToHexString(SHA256.HashData(bytes)) != "0D9D48BB57F25CBFD4A626A121B1C24FCE37F2EE2ED11884757166B3C995905A" || text.Entries.Count != 111)
-        {
-            throw new InvalidDataException("Magazine viewing requires the original mmag page rows and English section87 text.");
-        }
+        NativeMagazineDataReader.ValidateInventoryPages(bytes, fieldItems, text, weapons, kernel.ZellLimits.Count, imageIndex, itemIconKinds);
         var paper = NativeMagazineArtwork.GetPaperColor(paperTexture);
         if (itemIconKinds.Length != 22)
         {
