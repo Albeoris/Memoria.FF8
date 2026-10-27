@@ -57,10 +57,25 @@ public sealed class JunctionTextResourceTests
     [Theory]
     [InlineData("DIRECT\\EXE\\CARD_NAMES.MSD", "text/exe/card_names")]
     [InlineData("direct/exe/menu_labels.msd", "text/exe/menu_labels")]
+    [InlineData("exe/menu_labels.msd", "text/exe/menu_labels")]
+    [InlineData("EXE\\CARD_NAMES.MSD", "text/exe/card_names")]
     [InlineData("mods/textures/cardgame/cards.png", null)]
     public void AddressBindsAnyExecutableMsdWithoutPackageNames(string path, string? expected)
     {
         Assert.Equal(expected, StaticTextResource.Address(path)?.Path);
+    }
+
+    [Fact]
+    public void NativeSpeedZeroTerminatesStaticTextWithoutASeparateEndByte()
+    {
+        ModFile raw = new("controls", ModFormat.Junction, "direct/exe/control_text.msd", 1, () => [4, 0, 0, 0, 8, 0]);
+        Assert.True(JunctionTextResources.TryPrepare(new(1, [], [raw]), out var texts, out var diagnostics));
+        Assert.Empty(diagnostics);
+        Assert.Equal("", Assert.Single(texts).Texts[0]);
+        ModFile tags = File("controls", "direct/exe/control_text.msd", ["Before{Speed 0}After", "Before{End}After{Speed 0}", "A{Speed 32}B"]);
+        Assert.True(JunctionTextResources.TryPrepare(new(2, [], [tags]), out texts, out diagnostics));
+        Assert.Empty(diagnostics);
+        Assert.Equal(["Before", "Before", "A{Speed 32}B"], Assert.Single(texts).Texts);
     }
 
     private static ModFile File(string package, string path, IEnumerable<string> texts)

@@ -78,6 +78,27 @@ public sealed class FfnxMenuArtworkTests
         Assert.Equal(new Rgba32(20, 30, 40, 50), replacement.Image[128, 0]);
     }
 
+    [Fact]
+    public void NativeMenuImagesUseTheirAtlasAndSplitPageAddresses()
+    {
+        ModFile magazineImage = Page("unused", 0, 512, new(10, 20, 30, 255));
+        ModFile magazine = new("menu", ModFormat.Junction, "menu/mag12.tex.png", 1, magazineImage.ReadBytes);
+        ModFile iconImage = Page("unused", 0, 128, new(20, 30, 40, 255));
+        ModFile icon = new("menu", ModFormat.Junction, "menu/hires/iconfl01_03.png", 1, iconImage.ReadBytes);
+        FfnxTextureResolver resolver = new(new(1, [], [magazine, icon]));
+        TextureReplacement atlas = Assert.IsType<TextureReplacement>(resolver.Resolve(Context("menu/mag12.tex", 0)));
+        Assert.Equal(512, atlas.Image.Width);
+        Assert.Equal(256, atlas.LogicalWidth);
+        Assert.Equal(new Rgba32(10, 20, 30, 255), atlas.Image[0, 0]);
+        TextureReplacement icons = Assert.IsType<TextureReplacement>(resolver.Resolve(Context("menu/icon.tex", 3)));
+        Assert.Equal(new Rgba32(20, 30, 40, 255), icons.Image[128, 0]);
+        Assert.Contains("menu", FfnxTextureResolver.Inspect(Source(), new(1, [], [magazine, icon])).UsablePackageIds);
+        ModFile unreachable = new("menu", ModFormat.Junction, "menu/hires/iconfl01_23.png", 1, icon.ReadBytes);
+        DemasterInspection inspection = FfnxTextureResolver.Inspect(Source(), new(1, [], [unreachable]));
+        Assert.Empty(inspection.UsablePackageIds);
+        Assert.Equal(unreachable.RelativePath, Assert.Single(inspection.Diagnostics).RelativePath);
+    }
+
     private static TextureBuildContext Context(string owner, int palette) => new(new(new(owner), "atlas", palette), Source(), 1, "native-artwork", 256, 256, () =>
     {
         PixelImage image = new(256, 256);

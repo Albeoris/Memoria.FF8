@@ -12,7 +12,11 @@ public sealed record StaticTextResource(ResourceKey Key, ImmutableArray<string> 
     public static ResourceKey? Address(string path)
     {
         string normalized = path.Replace('\\', '/').ToLowerInvariant();
-        const string prefix = "direct/exe/";
+        if (normalized.StartsWith("direct/", StringComparison.Ordinal))
+        {
+            normalized = normalized[7..];
+        }
+        const string prefix = "exe/";
         if (!normalized.StartsWith(prefix, StringComparison.Ordinal) || !normalized.EndsWith(".msd", StringComparison.Ordinal))
         {
             return null;

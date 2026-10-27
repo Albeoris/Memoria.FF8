@@ -101,6 +101,26 @@ public sealed class JunctionMovieStreamingTests(ITestOutputHelper output) : IDis
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void FlatNativeMoviesKeepTheirOwnCameraAndStreamWithoutExtraction(bool ownCamera)
+    {
+        string movies = Path.Combine(root, "Data", "movies");
+        Directory.CreateDirectory(movies);
+        File.WriteAllText(Path.Combine(movies, "disc00_00.cam"), "native camera");
+        Package(("Assets/movies/disc00_00.cam", 0, "unrelated camera"u8.ToArray()));
+        List<(string Name, int Flags, byte[] Content)> files = [("Assets/disc00_00h.avi", 0, "flat selected video"u8.ToArray())];
+        if (ownCamera)
+        {
+            files.Add(("Assets/disc00_00.cam", 0, "flat selected camera"u8.ToArray()));
+        }
+        Package(files.ToArray());
+        using GameResourceHost host = Host();
+        Assert.StartsWith("subfile,", host.ResolveGameFile("movies/disc00_00h.avi"));
+        Assert.Equal(ownCamera ? "flat selected camera" : "native camera", File.ReadAllText(host.ResolveGameFile("movies/disc00_00.cam")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ChangedArchiveIsRejectedAtEveryResolutionAndRefreshIndexesTheNewVersion(bool resolveBeforeChange)
     {
         string archivePath = Package(("Assets/movies/opening.avi", 0, "old movie"u8.ToArray()));

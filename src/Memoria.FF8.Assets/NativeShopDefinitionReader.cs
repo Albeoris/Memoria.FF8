@@ -28,10 +28,11 @@ public static class NativeShopDefinitionReader
     {
         string executableHash = memory.SourceHash;
         string kernelHash = Convert.ToHexString(SHA256.HashData(kernel));
-        if (!NativeFieldRuntimeProfile.IsSupportedImage(executableHash) || shops.Length != 640 || prices.Length != 796 || kernelHash is not ("E378FB8F198EDE3DAE858F0DED6670F9BA423AA79ABFFF7237E701DFC7F9E7F6" or "6A9E9AA4B99B98AEC966D42537E9E119BF1BC1AF668CE8B791E7EAD00934397B"))
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(executableHash) || shops.Length != 640 || prices.Length != 796)
         {
-            throw new NotSupportedException("Native shop definitions require the authenticated English executable/kernel and complete menu catalogs/prices.");
+            throw new NotSupportedException("Native shop definitions require the authenticated English executable and complete menu catalogs/prices.");
         }
+        int[] sections = NativeKernelDirectory.Read(kernel);
         ImmutableArray<ImmutableArray<NativeShopCatalogEntry>>.Builder catalogs = ImmutableArray.CreateBuilder<ImmutableArray<NativeShopCatalogEntry>>(20);
         for (int row = 0; row < 20; row++)
         {
@@ -40,7 +41,7 @@ public static class NativeShopDefinitionReader
         ImmutableArray<NativeShopPrice>.Builder definitions = ImmutableArray.CreateBuilder<NativeShopPrice>(199);
         for (int item = 0; item < 199; item++)
         {
-            definitions.Add(new NativeShopPrice(BinaryPrimitives.ReadUInt16LittleEndian(prices.AsSpan(item * 4)), prices[item * 4 + 2], prices[item * 4 + 3], ReadItemName(kernel, item)));
+            definitions.Add(new NativeShopPrice(BinaryPrimitives.ReadUInt16LittleEndian(prices.AsSpan(item * 4)), prices[item * 4 + 2], prices[item * 4 + 3], ReadItemName(kernel, sections, item)));
         }
         //4EBBA0 maps the BYTE argument throughB88918. Retain the complete
         //physical BYTE-index read domain, not an inferred '&31' logical table.
@@ -49,7 +50,7 @@ public static class NativeShopDefinitionReader
         return result;
     }
 
-    private static string? ReadItemName(byte[] kernel, int item)
+    private static string? ReadItemName(byte[] kernel, int[] sections, int item)
     {
         //Original47EA30: item<33 uses WORD1CF7778[12*id]/kernel38;
         //others use WORD1CF7A0C[2*id]/kernel39.47EA90 is description,
@@ -57,8 +58,8 @@ public static class NativeShopDefinitionReader
         int recordSection = item < 33 ? 7 : 8;
         int recordSize = item < 33 ? 24 : 4;
         int recordIndex = item < 33 ? item : item - 33;
-        int recordStart = BinaryPrimitives.ReadInt32LittleEndian(kernel.AsSpan(4 + recordSection * 4));
-        int recordEnd = BinaryPrimitives.ReadInt32LittleEndian(kernel.AsSpan(8 + recordSection * 4));
+        int recordStart = sections[recordSection];
+        int recordEnd = sections[recordSection + 1];
         if (recordStart < 228 || recordEnd > kernel.Length || recordEnd - recordStart != recordSize * (item < 33 ? 33 : 166))
         {
             throw new InvalidDataException("Native shop item rows lie outside their kernel section.");
@@ -70,8 +71,8 @@ public static class NativeShopDefinitionReader
             return null;
         }
         int section = item < 33 ? 38 : 39;
-        int start = BinaryPrimitives.ReadInt32LittleEndian(kernel.AsSpan(4 + section * 4));
-        int end = BinaryPrimitives.ReadInt32LittleEndian(kernel.AsSpan(8 + section * 4));
+        int start = sections[section];
+        int end = sections[section + 1];
         if (start < 228 || end <= start || end > kernel.Length)
         {
             throw new InvalidDataException("Native shop item text section bounds are invalid.");

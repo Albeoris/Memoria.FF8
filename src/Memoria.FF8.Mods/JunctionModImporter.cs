@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Mods;
 
@@ -398,7 +399,7 @@ public static partial class JunctionModImporter
 
     private static bool IsMetadata(string path, string resourcePath, HashSet<string> previews)
     {
-        bool resource = resourcePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("textures/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("movies/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("music/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("field/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("battle/", StringComparison.OrdinalIgnoreCase);
+        bool resource = resourcePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("textures/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("movies/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("music/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("field/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("battle/", StringComparison.OrdinalIgnoreCase) || FfnxTextureResolver.IsNativeMenuArtworkFamilyPath(resourcePath) || JunctionEncodedResources.Address(resourcePath) is not null || StaticTextResource.Address(resourcePath) is not null || !resourcePath.Contains('/') && Path.GetExtension(resourcePath).ToLowerInvariant() is ".avi" or ".cam";
         return path.Equals("mod.xml", StringComparison.OrdinalIgnoreCase) || path.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || path.Equals("Readme.txt", StringComparison.OrdinalIgnoreCase) || !resource && (path.StartsWith("Preview/", StringComparison.OrdinalIgnoreCase) || previews.Contains(path));
     }
 

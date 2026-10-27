@@ -54,6 +54,7 @@ public static partial class JunctionEncodedResources
                 acceptedFieldMembers.Add(resource.Key);
             }
         }
+        PrepareDataGroups(catalog, selected, encountered, failures, notices);
         foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Junction))
         {
             try
@@ -64,7 +65,7 @@ public static partial class JunctionEncodedResources
                     continue;
                 }
                 string? field = FieldGroup(key);
-                if (field is not null || !encountered.Add(key))
+                if (field is not null || NativeDataResourceFiles.Group(key) is not null || !encountered.Add(key))
                 {
                     continue;
                 }
@@ -92,6 +93,10 @@ public static partial class JunctionEncodedResources
         if (StaticFileAddress(parts, start) is ResourceKey staticFile)
         {
             return staticFile;
+        }
+        if (DataFileAddress(parts, start) is ResourceKey dataFile)
+        {
+            return dataFile;
         }
         if (parts.Length - start == 4 && parts[start] == "field" && parts[start + 1] == "mapdata")
         {
@@ -164,7 +169,7 @@ public static partial class JunctionEncodedResources
             path = path[7..];
         }
         string name = Path.GetFileName(path).ToLowerInvariant();
-        return path.StartsWith("save/", StringComparison.OrdinalIgnoreCase) || name is "license" or "license.txt" or "license.md" or "copying" or "copying.txt" or "copying.md";
+        return path.StartsWith("save/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("menu/temp/", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(name) == ".csv" || name is "license" or "license.txt" or "license.md" or "copying" or "copying.txt" or "copying.md";
     }
 
     private static bool IsFieldName(string name) => name.Length >= 2 && name.All(character => char.IsAsciiLetterOrDigit(character) || character == '_');

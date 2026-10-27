@@ -26,6 +26,9 @@ public enum TextTagCode
     /// <summary>References a <see cref="TextTagColor"/> parameter.</summary>
     Color = 0x06,
 
+    /// <summary>Changes native text reveal speed; a zero parameter follows the native end path.</summary>
+    Speed = 0x08,
+
     /// <summary>Pauses the text with a numeric duration parameter.</summary>
     Pause = 0x09,
 

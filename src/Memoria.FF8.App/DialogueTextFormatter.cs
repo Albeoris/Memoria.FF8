@@ -89,6 +89,17 @@ internal static partial class DialogueTextFormatter
                 case "Next":
                     FinishPage(DialoguePageBoundary.Next);
                     break;
+                case "Speed":
+                    if (!byte.TryParse(parameter, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out byte speed) || speed is > 0 and < 32)
+                    {
+                        throw new NotSupportedException($"Dialogue Speed parameter '{parameter}' is unsupported.");
+                    }
+                    if (speed == 0)
+                    {
+                        FinishPage(DialoguePageBoundary.Initial);
+                        return Decorate(pages);
+                    }
+                    break;
                 case "End":
                 case "Pause":
                     break;

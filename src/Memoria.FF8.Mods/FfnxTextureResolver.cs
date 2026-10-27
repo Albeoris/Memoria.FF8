@@ -17,7 +17,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         }
         if (context.Layout == "classic-field-tile")
         {
-            return ResolveFieldBackground(context);
+            return ResolveFieldBackground(context) ?? ResolveLooseFieldBackground(context);
         }
         if (context.Layout == "native-artwork")
         {
@@ -64,14 +64,48 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         Dictionary<ResourceKey, int?> battleCounts = [];
         Dictionary<ResourceKey, int?> menuPalettes = [];
         Dictionary<ResourceKey, string?> fieldBackgrounds = [];
-        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Junction && file.RelativePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase)))
+        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Junction && (file.RelativePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase) || IsNativeFieldBackgroundFamilyPath(file.RelativePath) || IsNativeMenuArtworkFamilyPath(file.RelativePath))))
         {
             string extension = Path.GetExtension(file.RelativePath);
             if (!extension.Equals(".dds", StringComparison.OrdinalIgnoreCase) && !extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
-            string target = file.RelativePath[14..^extension.Length];
+            if (IsNativeFieldBackgroundFamilyPath(file.RelativePath))
+            {
+                if (!IsNativeFieldBackgroundPath(file.RelativePath))
+                {
+                    diagnostics.Add(new("ffnx-unsupported-native-target", $"Texture '{file.RelativePath}' requires an unsupported field page or variant selection contract and remains unused.", file.PackageId, file.RelativePath));
+                }
+                else if (source.Layouts.Contains("classic-ffnx", StringComparer.Ordinal))
+                {
+                    usable.Add(file.PackageId);
+                }
+                else
+                {
+                    diagnostics.Add(new("ffnx-unsupported-target", $"Texture '{file.RelativePath}' has no native texture consumer in source '{source.Id}'.", file.PackageId, file.RelativePath));
+                }
+                continue;
+            }
+            bool nativeMenu = IsNativeMenuArtworkFamilyPath(file.RelativePath);
+            if (nativeMenu && file.RelativePath.Contains(".tex.", StringComparison.OrdinalIgnoreCase))
+            {
+                ResourceKey key = new(file.RelativePath[..^extension.Length]);
+                if (nativeSource is not null && nativeSource.Find(key) is null)
+                {
+                    diagnostics.Add(new("ffnx-unused-native-target", $"Texture '{file.RelativePath}' has no corresponding menu atlas in the selected original source and remains unused.", file.PackageId, file.RelativePath));
+                }
+                else if (source.Layouts.Contains("classic-ffnx", StringComparer.Ordinal) && source.Language is null or "en")
+                {
+                    usable.Add(file.PackageId);
+                }
+                else
+                {
+                    diagnostics.Add(new("ffnx-unsupported-target", $"Texture '{file.RelativePath}' has no native texture consumer in source '{source.Id}'.", file.PackageId, file.RelativePath));
+                }
+                continue;
+            }
+            string target = nativeMenu ? "data/eng/" + file.RelativePath[..^extension.Length] : file.RelativePath[14..^extension.Length];
             if (nativeSource is not null && UnusedMenuTarget(nativeSource, target, menuPalettes) is string unusedMenu)
             {
                 diagnostics.Add(new("ffnx-unused-native-target", $"Texture '{file.RelativePath}' remains unused. {unusedMenu}", file.PackageId, file.RelativePath));

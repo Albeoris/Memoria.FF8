@@ -45,7 +45,18 @@ public sealed record NativeWorldTextState([property: JsonRequired] ImmutableArra
             else if (code is 5 or 6 or 8 or 9)
             {
                 lineBytes++;
-                if (++index >= Bytes.Length - 1 || Bytes[index] < 32)
+                if (++index >= Bytes.Length)
+                {
+                    throw new InvalidDataException("World text control requires its complete parameter.");
+                }
+                if (code == 8 && Bytes[index] == 0)
+                {
+                    if (index != Bytes.Length - 1)
+                    {
+                        throw new InvalidDataException("World text has bytes after its speed-control terminator.");
+                    }
+                }
+                else if (index >= Bytes.Length - 1 || Bytes[index] < 32)
                 {
                     throw new InvalidDataException("World text control requires its original nonzero parameter.");
                 }
@@ -105,6 +116,10 @@ public sealed record NativeWorldTextState([property: JsonRequired] ImmutableArra
                     else if (code is 5 or 6 or 8 or 9)
                     {
                         byte parameter = state.Bytes[state.Position];
+                        if (code == 8 && parameter == 0)
+                        {
+                            return state with { Phase = 7, TextComplete = true };
+                        }
                         state = state with { Position = state.Position + 1 };
                         if (code == 8)
                         {

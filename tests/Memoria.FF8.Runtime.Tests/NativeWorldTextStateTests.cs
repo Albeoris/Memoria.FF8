@@ -56,6 +56,40 @@ public sealed class NativeWorldTextStateTests
     }
 
     [Fact]
+    public void SpeedZeroParameterEndsBeforeChangingTheSpeedOrReadingAnotherToken()
+    {
+        NativeWorldTextState state = NativeWorldTextState.Create([8, 0], 4096);
+        for (int index = 0; index < 8; index++)
+        {
+            state = state.Advance();
+        }
+        Assert.True(state.TextComplete);
+        Assert.Equal(1, state.Position);
+        Assert.Equal(4096, state.Speed);
+        state.Validate();
+        NativeWorldTextState restored = JsonSerializer.Deserialize<NativeWorldTextState>(JsonSerializer.Serialize(state))!;
+        restored.Validate();
+        Assert.Equal(state, state.Advance());
+        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Throws<InvalidDataException>(() => NativeWorldTextState.Create([8, 0, 64, 0], 4096));
+    }
+
+    [Theory]
+    [InlineData(32, 4096)]
+    [InlineData(33, 0)]
+    [InlineData(35, 2048)]
+    public void ValidSpeedParametersPreserveTheirNativeAccumulatorContract(byte parameter, short expected)
+    {
+        NativeWorldTextState state = NativeWorldTextState.Create([8, parameter, 64, 64, 0], 4096);
+        for (int index = 0; index < 8; index++)
+        {
+            state = state.Advance();
+        }
+        Assert.Equal(expected, state.Speed);
+        Assert.Equal(parameter == 33, state.TextComplete);
+    }
+
+    [Fact]
     public void PauseCountsActualTicksAndResumesWithoutInventingAGlyphBudget()
     {
         NativeWorldTextState state = NativeWorldTextState.Create([9, 34, 64, 0], 4096);

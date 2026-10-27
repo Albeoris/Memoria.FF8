@@ -4,6 +4,7 @@ using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tim;
+using Albeoris.Games.FF8.Imaging.Tex;
 
 namespace Memoria.FF8.Assets;
 
@@ -131,6 +132,10 @@ public sealed class NativeTutorialArtwork
         using IFlArchive menu = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
         byte[] Read(string name)
         {
+            if (resources is not null)
+            {
+                return resources.Read(new ResourceKey("menu/" + name));
+            }
             using Stream source = menu.Entries.Single(entry => Path.GetFileName(entry.RelativePath).Equals(name, StringComparison.OrdinalIgnoreCase)).OpenForRead();
             using MemoryStream result = new();
             source.CopyTo(result);
@@ -165,7 +170,23 @@ public sealed class NativeTutorialArtwork
             }
             PixelImage canvas = new(256, 256);
             original.Pixels.CopyTo(canvas.Pixels, 0);
-            PixelImage resolved = NativeArtworkTexture.Resolve(provider, new ResourceKey($"menu/mag{atlas:00}.tex"), canvas, resources: resources);
+            ResourceKey atlasKey = new($"menu/mag{atlas:00}.tex");
+            if (resources is not null)
+            {
+                using Stream originalStream = (provider.Find(atlasKey) ?? throw new FileNotFoundException($"Original tutorial atlas {atlasKey} is unavailable.")).OpenRead();
+                using MemoryStream originalTexture = new();
+                originalStream.CopyTo(originalTexture);
+                byte[] selected = resources.Read(atlasKey);
+                if (!selected.AsSpan().SequenceEqual(originalTexture.ToArray()))
+                {
+                    canvas = TexFile.Read(selected).Decode();
+                    if (canvas.Width != 256 || canvas.Height != 256)
+                    {
+                        throw new InvalidDataException("Selected tutorial atlas must preserve its native 256 by 256 canvas.");
+                    }
+                }
+            }
+            PixelImage resolved = NativeArtworkTexture.Resolve(provider, atlasKey, canvas, resources: resources);
             TextureKey nativeKey = new(new ResourceKey("menu/mngrp.bin"), $"slot{page.ContentResource:000}");
             if (resources?.Localization.Artwork.ContainsKey(nativeKey) == true)
             {

@@ -5,6 +5,9 @@ namespace Memoria.FF8.Mods;
 
 public sealed partial class FfnxTextureResolver
 {
+    /// <summary>Recognizes native menu image addresses separately from the external texture directory.</summary>
+    public static bool IsNativeMenuArtworkFamilyPath(string path) => System.Text.RegularExpressions.Regex.IsMatch(path, @"^menu/(?:mag[0-9]{2}\.tex|hires/iconfl0[0-3]_[0-9]{2})\.(?:png|dds)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     private static bool IsSupportedMenuArtworkTarget(string stem) => System.Text.RegularExpressions.Regex.IsMatch(stem, @"^data/eng/menu/(hires/((face_b|gf_big)0[01]_00|iconfl0[0-3]_(0[0-9]|1[0-5]))|icon_(0[0-9]|1[0-5]))$");
 
     private TextureReplacement? ResolveArtwork(TextureBuildContext context)
@@ -13,6 +16,20 @@ public sealed partial class FfnxTextureResolver
         string part = context.Key.Subresource;
         if (part == "atlas" && context.Source.Language is null or "en")
         {
+            if (System.Text.RegularExpressions.Regex.IsMatch(owner, @"^menu/mag[0-9]{2}\.tex$"))
+            {
+                ModFile? file = new[] { ".dds", ".png" }.SelectMany(extension => catalog.FindAll(ModFormat.Junction, owner + extension)).FirstOrDefault();
+                if (file is not null)
+                {
+                    DecodedModImage decoded = ModImageDecoder.Decode(file);
+                    PixelImage image = decoded.Image;
+                    if (context.LogicalWidth != 256 || context.LogicalHeight != 256 || image.Width < 256 || image.Width % 256 != 0 || image.Height != image.Width)
+                    {
+                        throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Native menu atlas images must preserve their 256 by 256 canvas at a uniform integer scale."));
+                    }
+                    return new(image, $"{file.PackageId}/{file.RelativePath}@{file.Revision}", 256, 256, decoded.MipLevels);
+                }
+            }
             if (owner is "menu/face_b00.tex" or "menu/face_b01.tex" or "menu/gf_big00.tex" or "menu/gf_big01.tex")
             {
                 return ResolveMenuPortrait(context, owner[5..^4]);
@@ -121,5 +138,5 @@ public sealed partial class FfnxTextureResolver
         return new(image, $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, decoded.MipLevels);
     }
 
-    private ModFile? FindMenuArtwork(string name, int palette) => new[] { ".dds", ".png" }.SelectMany(extension => new[] { "mods/textures/eng/", "mods/textures/" }.SelectMany(root => catalog.FindAll(ModFormat.Junction, $"{root}data/eng/menu/hires/{name}_{palette:00}{extension}"))).FirstOrDefault();
+    private ModFile? FindMenuArtwork(string name, int palette) => new[] { ".dds", ".png" }.SelectMany(extension => new[] { "mods/textures/eng/data/eng/menu/hires/", "mods/textures/data/eng/menu/hires/", "menu/hires/" }.SelectMany(root => catalog.FindAll(ModFormat.Junction, $"{root}{name}_{palette:00}{extension}"))).FirstOrDefault();
 }

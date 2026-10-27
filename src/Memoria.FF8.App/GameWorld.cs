@@ -337,7 +337,7 @@ internal sealed partial class GameWorld : IDisposable
             return next.Walkmesh.TryPosition(arrival.X, arrival.Y, out Vector3 position, out int triangle, locked) ? new WalkmeshPosition(position, triangle) : null;
         };
         Events.InitInputAxisDirection = next.Information?.ControlDirection ?? 0;
-        ushort? inheritedPlaceId = !restoreDeparting && snapshot is null && HasWorldPlaceArrival(Events.Scene, session.State) ? unchecked((ushort)(worldLocations ??= WorldMapLocations.ReadInstalled(assets.GameDirectory)).GetPlaceId(session.State.DepartingWorldState!.X, session.State.DepartingWorldState.Z)) : null;
+        ushort? inheritedPlaceId = !restoreDeparting && snapshot is null && HasWorldPlaceArrival(Events.Scene, session.State) ? unchecked((ushort)(worldLocations ??= WorldMapLocations.Read(assets.Resources)).GetPlaceId(session.State.DepartingWorldState!.X, session.State.DepartingWorldState.Z)) : null;
         NativeFieldLoadContext? loadContext = snapshot is null ? session.State.FieldLoadContext : null;
         if (loadContext is not null)
         {

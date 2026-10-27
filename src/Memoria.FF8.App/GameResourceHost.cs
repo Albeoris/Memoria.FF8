@@ -109,32 +109,45 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     private ModFile? FindJunctionFile(string relative)
     {
         ModCatalogSnapshot catalog = Mods.Catalog;
-        if (relative.StartsWith("movies/", StringComparison.OrdinalIgnoreCase) && relative.EndsWith(".cam", StringComparison.OrdinalIgnoreCase))
+        if (IsMovieDirectoryPath(relative) && relative.EndsWith(".cam", StringComparison.OrdinalIgnoreCase))
         {
             ModFile? video = FindJunctionFile(Path.ChangeExtension(relative, null) + "h.avi");
             if (video is not null)
             {
                 // A lower-priority video's CAM may have a different frame cadence.
                 // Video-only replacements retain the original native camera timeline.
-                return catalog.FindAll(ModFormat.Junction, relative).FirstOrDefault(file => file.PackageId.Equals(video.PackageId, StringComparison.OrdinalIgnoreCase));
+                ModFile[] companions = catalog.Files.Where(file => file.Format == ModFormat.Junction && file.PackageId.Equals(video.PackageId, StringComparison.OrdinalIgnoreCase)).ToArray();
+                return FindMoviePath(companions, relative);
             }
         }
-        if (!relative.StartsWith("movies/", StringComparison.OrdinalIgnoreCase) || !relative.EndsWith(".avi", StringComparison.OrdinalIgnoreCase))
+        if (!IsMovieDirectoryPath(relative) || !relative.EndsWith(".avi", StringComparison.OrdinalIgnoreCase))
         {
-            return catalog.FindAll(ModFormat.Junction, relative).FirstOrDefault();
+            ModFile[] candidates = catalog.Files.Where(file => file.Format == ModFormat.Junction).ToArray();
+            return IsMovieDirectoryPath(relative) && relative.EndsWith(".cam", StringComparison.OrdinalIgnoreCase) ? FindMoviePath(candidates, relative) : catalog.FindAll(ModFormat.Junction, relative).FirstOrDefault();
         }
         Dictionary<string, ModPackage> packages = catalog.Packages.Where(package => package.Format == ModFormat.Junction).ToDictionary(package => package.Id, StringComparer.OrdinalIgnoreCase);
         foreach (IGrouping<string, ModFile> files in catalog.Files.Where(file => file.Format == ModFormat.Junction).GroupBy(file => file.PackageId, StringComparer.OrdinalIgnoreCase))
         {
             string extension = packages[files.Key].JunctionMetadata?.VideoExtension ?? "avi";
             string candidate = Path.ChangeExtension(relative, extension);
-            ModFile? selected = files.FirstOrDefault(file => file.RelativePath.Equals(candidate, StringComparison.OrdinalIgnoreCase));
+            ModFile? selected = FindMoviePath(files, candidate);
             if (selected is not null)
             {
                 return selected;
             }
         }
         return null;
+    }
+
+    private static bool IsMovieDirectoryPath(string path)
+    {
+        return path.StartsWith("movies/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("data/movies/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("lang-", StringComparison.OrdinalIgnoreCase) && path.IndexOf("/movies/", StringComparison.OrdinalIgnoreCase) == 7;
+    }
+
+    private static ModFile? FindMoviePath(IEnumerable<ModFile> files, string relative)
+    {
+        ModFile[] candidates = files.ToArray();
+        return candidates.FirstOrDefault(file => file.RelativePath.Equals(relative, StringComparison.OrdinalIgnoreCase)) ?? candidates.FirstOrDefault(file => !file.RelativePath.Contains('/') && file.RelativePath.Equals(Path.GetFileName(relative), StringComparison.OrdinalIgnoreCase));
     }
 
     public bool Pump(bool force = false)
@@ -165,7 +178,10 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             return new ModPreparationResult(false, Diagnostics: encodedDiagnostics);
         }
         List<ModDiagnostic> staticFileDiagnostics = [];
-        foreach (EncodedResource resource in encodedResources)
+        ResourceService dataCandidate = new(source);
+        dataCandidate.Prepare(null, encodedResources: encodedResources).Commit();
+        using NativeDataResourceValidator dataValidator = new(dataCandidate);
+        foreach (EncodedResource resource in encodedResources.OrderBy(resource => NativeDataResourceFiles.Classify(resource.Key) == NativeDataResourceKind.Kernel ? 0 : NativeDataResourceFiles.Classify(resource.Key) == NativeDataResourceKind.Enemy ? 2 : 1))
         {
             ModFile owner = catalog.Files.First(file => file.Format == ModFormat.Junction && $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance);
             try
@@ -174,9 +190,26 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 {
                     continue;
                 }
-                ResourceContent original = source.Find(resource.Key) ?? throw new NotSupportedException($"The selected game source does not provide resource {resource.Key}.");
-                if (JunctionEncodedResources.IsStaticFileResource(resource.Key))
+                ResourceContent? original = source.Find(resource.Key);
+                if (NativeDataResourceFiles.Classify(resource.Key) is NativeDataResourceKind kind)
                 {
+                    if (original is null && kind is not (NativeDataResourceKind.Texture or NativeDataResourceKind.CompressedImage))
+                    {
+                        throw new NotSupportedException($"The selected game source does not provide resource {resource.Key}.");
+                    }
+                    dataValidator.Validate(resource.Content, original);
+                    if (kind == NativeDataResourceKind.CompressedImage || kind == NativeDataResourceKind.Texture && !Path.GetFileName(resource.Key.Path).StartsWith("mag", StringComparison.Ordinal))
+                    {
+                        staticFileDiagnostics.Add(new("resource-unused", $"Resource {resource.Key} was validated and published, but the current interface does not display this native image.", owner.PackageId, owner.RelativePath));
+                    }
+                    else if (original is null)
+                    {
+                        staticFileDiagnostics.Add(new("resource-unused", $"Resource {resource.Key} was validated and published, but the selected source provides no original image target.", owner.PackageId, owner.RelativePath));
+                    }
+                }
+                else if (JunctionEncodedResources.IsStaticFileResource(resource.Key))
+                {
+                    original = original ?? throw new NotSupportedException($"The selected game source does not provide resource {resource.Key}.");
                     if (!original.Format.Equals(resource.Content.Format, StringComparison.OrdinalIgnoreCase))
                     {
                         throw new NotSupportedException($"The selected game source does not provide the registered file format for {resource.Key}.");
@@ -189,12 +222,15 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 }
                 else
                 {
+                    original = original ?? throw new NotSupportedException($"The selected game source does not provide resource {resource.Key}.");
                     BattleAssets.ValidateBattleModelResource(resource.Content, original);
                 }
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or NotSupportedException or OverflowException or UnauthorizedAccessException)
             {
-                return new ModPreparationResult(false, Diagnostics: [new("Junction.InvalidEncodedResource", exception.Message, owner.PackageId, owner.RelativePath)]);
+                string? group = NativeDataResourceFiles.Group(resource.Key);
+                ModFile[] relatedOwners = group is null ? [owner] : encodedResources.Where(member => NativeDataResourceFiles.Group(member.Key) == group).Select(member => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == member.Content.Provenance)).ToArray();
+                return new ModPreparationResult(false, Diagnostics: relatedOwners.Select(related => new ModDiagnostic("Junction.InvalidEncodedResource", exception.Message, related.PackageId, related.RelativePath)).ToArray());
             }
         }
         IReadOnlyList<ModDiagnostic> fieldResourceDiagnostics = ValidateFieldReplacementResources(catalog, encodedResources, out IReadOnlyList<EncodedResource> acceptedFieldResources);
@@ -252,7 +288,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         using ResourceSourceView candidateSource = new(source, encodedResources);
         DemasterInspection ffnx = FfnxTextureResolver.Inspect(source.Descriptor, catalog, candidateSource, source as IGameNativeMemorySource);
-        if (catalog.Files.Any(file => file.Format == ModFormat.Junction && file.RelativePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase)))
+        if (catalog.Files.Any(file => file.Format == ModFormat.Junction && (file.RelativePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase) || FfnxTextureResolver.IsNativeFieldBackgroundFamilyPath(file.RelativePath) || FfnxTextureResolver.IsNativeMenuArtworkFamilyPath(file.RelativePath))))
         {
             resolvers.Add(new FfnxTextureResolver(catalog));
             usable.AddRange(ffnx.UsablePackageIds);

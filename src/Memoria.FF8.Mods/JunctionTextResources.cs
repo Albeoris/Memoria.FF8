@@ -28,7 +28,7 @@ public static class JunctionTextResources
                 }
                 selected.Add(key, new StaticTextResource(key, texts, file.PackageId, file.RelativePath));
             }
-            catch (Exception exception) when (exception is InvalidDataException or IOException or ArgumentException or NotSupportedException or UnauthorizedAccessException)
+            catch (Exception exception) when (exception is InvalidDataException or IOException or ArgumentException or NotSupportedException or UnauthorizedAccessException or FormatException)
             {
                 failures.Add(new("Junction.InvalidTextResource", exception.Message, file.PackageId, file.RelativePath));
             }
@@ -41,6 +41,11 @@ public static class JunctionTextResources
     private static string WithoutTerminator(string text)
     {
         int end = text.IndexOf("{End}", StringComparison.Ordinal);
+        int speedEnd = text.IndexOf("{Speed 0}", StringComparison.Ordinal);
+        if (speedEnd >= 0 && (end < 0 || speedEnd < end))
+        {
+            end = speedEnd;
+        }
         return end < 0 ? text : text[..end];
     }
 }

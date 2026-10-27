@@ -30,6 +30,10 @@ public sealed class NativeMagazineArtwork
         using IFlArchive archive = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
         byte[] Read(string name)
         {
+            if (resources is not null)
+            {
+                return resources.Read(new ResourceKey("menu/" + name));
+            }
             IFlArchiveEntry entry = archive.Entries.Single(entry => Path.GetFileName(entry.RelativePath).Equals(name, StringComparison.OrdinalIgnoreCase));
             using Stream stream = entry.OpenForRead();
             using MemoryStream result = new();

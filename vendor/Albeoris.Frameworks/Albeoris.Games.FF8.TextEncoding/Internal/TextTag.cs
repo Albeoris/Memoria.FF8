@@ -102,6 +102,7 @@ internal sealed class TextTag
                 left -= 1;
                 return new TextTag(code);
 
+            case TextTagCode.Speed:
             case TextTagCode.Pause:
             case TextTagCode.Var:
             case TextTagCode.Item:
@@ -233,6 +234,7 @@ internal sealed class TextTag
                 }
                 return new TextTag(code, glyph);
 
+            case TextTagCode.Speed:
             case TextTagCode.Pause:
             case TextTagCode.Var:
             case TextTagCode.Item:

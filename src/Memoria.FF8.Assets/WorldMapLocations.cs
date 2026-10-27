@@ -1,6 +1,4 @@
 using Memoria.FF8.Resources;
-using Albeoris.Games.FF8.FlArchives;
-using Albeoris.Games.FF8.FlArchives.Abstractions;
 
 namespace Memoria.FF8.Assets;
 
@@ -22,12 +20,13 @@ public sealed class WorldMapLocations
     public static WorldMapLocations ReadInstalled(string gameDirectory)
     {
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
-        using IFlArchive archive = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("world");
-        IFlArchiveEntry entry = archive.Entries.Single(entry => Path.GetFileName(entry.RelativePath).Equals("wmsetus.obj", StringComparison.OrdinalIgnoreCase));
-        using Stream source = entry.OpenForRead();
-        using MemoryStream buffer = new();
-        source.CopyTo(buffer);
-        return new WorldMapLocations(buffer.ToArray());
+        return Read(new ResourceService(provider));
+    }
+
+    public static WorldMapLocations Read(ResourceService resources)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        return new WorldMapLocations(resources.Read(new ResourceKey("world/wmsetus.obj")));
     }
 
     public short GetPlaceId(int x, int rawZ)

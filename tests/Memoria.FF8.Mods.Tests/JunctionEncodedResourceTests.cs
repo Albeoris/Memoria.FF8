@@ -21,7 +21,7 @@ public sealed class JunctionEncodedResourceTests
     [InlineData("battle/dfc999.dat", "battle/dfc999.dat")]
     [InlineData("battle/dgc000.dat", null)]
     [InlineData("battle/d0w000.dat", null)]
-    [InlineData("battle/c0m000.dat", null)]
+    [InlineData("battle/c0m000.dat", "battle/c0m000.dat")]
     [InlineData("battle/a0stg000.x", null)]
     [InlineData("battle/d0c00.dat", null)]
     [InlineData("battle/d0c000.dat/extra", null)]

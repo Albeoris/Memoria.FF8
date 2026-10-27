@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.KernelBin;
 using Albeoris.Games.FF8.MngrpBin;
 using Albeoris.Games.FF8.MngrpBin.Abstractions;
@@ -448,15 +447,7 @@ public sealed partial class LiveMenuCatalog
     public static LiveMenuCatalog ReadInstalled(GameAssets assets)
     {
         ArgumentNullException.ThrowIfNull(assets);
-        using IFlArchive main = assets.OpenResourceArchive("main");
-        byte[] Read(string name)
-        {
-            IFlArchiveEntry entry = main.Entries.Single(entry => string.Equals(Path.GetFileName(entry.RelativePath), name, StringComparison.OrdinalIgnoreCase));
-            using Stream stream = entry.OpenForRead();
-            using MemoryStream buffer = new();
-            stream.CopyTo(buffer);
-            return buffer.ToArray();
-        }
+        byte[] Read(string name) => assets.ReadResource(new ResourceKey("main/" + name));
         byte[] initial = Read("init.out");
         if (initial.Length != 2812)
         {
@@ -471,15 +462,7 @@ public sealed partial class LiveMenuCatalog
         }).ToArray();
         byte[] kernelBytes = Read("kernel.bin");
         KernelData kernel = KernelData.ReadFromArray(kernelBytes, encoding);
-        using IFlArchive menu = assets.OpenResourceArchive("menu");
-        byte[] ReadMenu(string name)
-        {
-            IFlArchiveEntry entry = menu.Entries.Single(entry => string.Equals(Path.GetFileName(entry.RelativePath), name, StringComparison.OrdinalIgnoreCase));
-            using Stream stream = entry.OpenForRead();
-            using MemoryStream buffer = new();
-            stream.CopyTo(buffer);
-            return buffer.ToArray();
-        }
+        byte[] ReadMenu(string name) => assets.ReadResource(new ResourceKey("menu/" + name));
         MngrpArchive textArchive = MngrpArchive.Read(ReadMenu("mngrp.bin"), ReadMenu("mngrphd.bin"), encoding);
         MngrpTextRecordSection cardText = textArchive.GetSection<MngrpTextRecordSection>(192);
         if (cardText.Records.Count != NativeCardInventory.CardCount || cardText.Records.Where((record, id) => record.Payload[3] != id).Any())
@@ -497,7 +480,7 @@ public sealed partial class LiveMenuCatalog
         LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardDescriptions, fieldItems, itemIconKinds, tripleTriad);
         catalog.resources = assets.Resources;
         catalog.angeloMoves = NativeAngeloTrainingDefinitionReader.Read(ReadMenu("pet_exp.bin"), ReadMenu("pet_exp.msg"), encoding);
-        catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.ReadInstalled(assets.GameDirectory));
+        catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.Read(assets.Resources));
         catalog.solomonRing = assets.ReadNativeSolomonRingDefinition();
         catalog.ReadMagazines(ReadMenu("mmag.bin"), textArchive.GetSection<MngrpStringTableSection>(87).Table, assets.ReadNativeWeaponShopDefinitions(), textArchive.GetSection<MngrpOpaqueSection>(7).Content, ReadMenu("magita.TEX"), itemIconKinds);
         return catalog;
