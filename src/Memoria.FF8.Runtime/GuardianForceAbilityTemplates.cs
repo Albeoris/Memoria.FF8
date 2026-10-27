@@ -3,7 +3,11 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record GuardianForceAbilityTemplate(int Ability, bool InitialLearned, int RequiredPoints, int RequiredLevel = 1, int? PrerequisiteAbility = null, int? ExcludedAbility = null, int LearningPriority = 0, bool SupportedCondition = true);
+public sealed record GuardianForceAbilityTemplate(int Ability, bool InitialLearned, int RequiredPoints, int RequiredLevel = 1, int? PrerequisiteAbility = null, int? ExcludedAbility = null, int LearningPriority = 0, bool SupportedCondition = true)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public uint NativeLearningSlots { get; init; }
+}
 public sealed record GuardianForceAbilityProgress(int Ability, bool Learned, int EarnedPoints = 0, bool Forgotten = false, bool ItemTaught = false, bool Active = true);
 public sealed record GuardianForceProgression(bool Initialized, ImmutableArray<GuardianForceAbilityProgress> Abilities);
 
@@ -31,7 +35,7 @@ public sealed partial record NativeCharacterVitals
                     foreach (GuardianForceAbilityProgress entry in progression.Abilities)
                     {
                         int index = Array.FindIndex(MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == entry.Ability);
-                        if (!active.Contains(entry.Ability) && !entry.ItemTaught || entry.Learned != gf.LearnedBank.Has(entry.Ability) || index < 0 && (entry.EarnedPoints != 0 || entry.Forgotten) || index >= 0 && (entry.EarnedPoints != gf.AbilityProgress[index] || entry.Forgotten != ((gf.ForgottenAbilities & (1u << index)) != 0)))
+                        if (!active.Contains(entry.Ability) && !entry.ItemTaught || entry.Learned != gf.LearnedBank.Has(entry.Ability) || index < 0 && (entry.EarnedPoints != 0 || entry.Forgotten) || index >= 0 && (entry.EarnedPoints != gf.AbilityProgress[index] || entry.Forgotten != (!gf.LearnedBank.Has(entry.Ability) && NativeGuardianForceForgotten(id, entry.Ability))))
                         {
                             return true;
                         }
@@ -52,7 +56,6 @@ public sealed partial record NativeCharacterVitals
         {
             ImmutableArray<NativeGuardianForceLearningRule> rules = MenuDefinitions.Learning[id];
             List<GuardianForceAbilityTemplate> entries = [];
-            HashSet<int> ambiguous = rules.Where(rule => rule.Ability != 0).GroupBy(rule => (int)rule.Ability).Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet();
             for (int index = 0; index < rules.Length; index++)
             {
                 NativeGuardianForceLearningRule rule = rules[index];
@@ -60,9 +63,15 @@ public sealed partial record NativeCharacterVitals
                 {
                     continue;
                 }
-                entries.Add(new(rule.Ability, GuardianForces[id].LearnedBank.Has(rule.Ability), rule.Ability < MenuDefinitions.AbilityPoints.Length ? MenuDefinitions.AbilityPoints[rule.Ability] : 0,
-                    rule.Requirement <= 100 ? Math.Max(1, (int)rule.Requirement) : 1, rule.Requirement is >= 101 and <= 121 ? rules[rule.Requirement - 101].Ability : null,
-                    rule.Requirement is >= 101 and <= 121 && rule.Exclusion != 255 ? rules[rule.Exclusion].Ability : null, index, rule.Requirement <= 121 && rule.Ability < MenuDefinitions.AbilityPoints.Length && !ambiguous.Contains(rule.Ability)));
+                uint slots = 0;
+                for (int candidate = 0; candidate < rules.Length; candidate++)
+                {
+                    if (rules[candidate].Ability == rule.Ability)
+                    {
+                        slots |= 1u << candidate;
+                    }
+                }
+                entries.Add(new(rule.Ability, GuardianForces[id].LearnedBank.Has(rule.Ability), rule.Ability < MenuDefinitions.AbilityPoints.Length ? MenuDefinitions.AbilityPoints[rule.Ability] : 0, LearningPriority: index, SupportedCondition: rule.Ability < MenuDefinitions.AbilityPoints.Length) { NativeLearningSlots = slots });
             }
             for (int ability = 1; ability < MenuDefinitions.AbilityPoints.Length; ability++)
             {
@@ -77,6 +86,7 @@ public sealed partial record NativeCharacterVitals
 
     public NativeCharacterVitals ApplyGuardianForceTemplates(ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> templates)
     {
+        templates = templates.Select(row => row.Select(entry => entry.NativeLearningSlots != 0 && (entry.RequiredLevel != 1 || entry.PrerequisiteAbility is not null || entry.ExcludedAbility is not null || !entry.SupportedCondition) ? entry with { NativeLearningSlots = 0 } : entry).ToImmutableArray()).ToImmutableArray();
         NativeGuardianForceMenuDefinitions menu = MenuDefinitions with
         {
             Templates = templates
@@ -145,11 +155,28 @@ public sealed partial record NativeCharacterVitals
                 int index = Array.FindIndex(MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == ability);
                 if (gf.LearnedBank.Has(ability) || index >= 0)
                 {
-                    entries.Add(new(ability, gf.LearnedBank.Has(ability), index >= 0 ? gf.AbilityProgress[index] : 0, index >= 0 && (gf.ForgottenAbilities & (1u << index)) != 0, !templates.Any(entry => entry.Ability == ability)));
+                    entries.Add(new(ability, gf.LearnedBank.Has(ability), index >= 0 ? gf.AbilityProgress[index] : 0, index >= 0 && !gf.LearnedBank.Has(ability) && NativeGuardianForceForgotten(id, ability), !templates.Any(entry => entry.Ability == ability)));
                 }
             }
         }
         return new(initialized, entries.ToImmutableArray());
+    }
+
+    private bool NativeGuardianForceForgotten(int id, int ability)
+    {
+        bool found = false;
+        for (int index = 0; index < MenuDefinitions.Learning[id].Length; index++)
+        {
+            if (MenuDefinitions.Learning[id][index].Ability == ability)
+            {
+                found = true;
+                if ((GuardianForces[id].ForgottenAbilities & (1u << index)) == 0)
+                {
+                    return false;
+                }
+            }
+        }
+        return found;
     }
 
     private NativeGuardianForceVital SynchronizeGuardianForce(int id)
@@ -186,11 +213,14 @@ public sealed partial record NativeCharacterVitals
         for (int index = 0; index < MenuDefinitions.Learning[id].Length; index++)
         {
             GuardianForceAbilityProgress? entry = gf.Progression.Abilities.FirstOrDefault(entry => entry.Ability == MenuDefinitions.Learning[id][index].Ability);
-            if (entry is not null)
+            int ability = MenuDefinitions.Learning[id][index].Ability;
+            int owner = Array.FindIndex(MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == ability);
+            if (entry is not null && owner == index)
             {
                 nativeProgress = nativeProgress.SetItem(index, checked((byte)Math.Min(255, entry.EarnedPoints)));
             }
-            if (entry?.Forgotten == true)
+            GuardianForceAbilityTemplate? template = ResolveGuardianForceTemplates()[id].FirstOrDefault(candidate => candidate.Ability == ability);
+            if (template is { NativeLearningSlots: not 0 } ? (gf.ForgottenAbilities & (1u << index)) != 0 : entry?.Forgotten == true)
             {
                 forgotten |= 1u << index;
             }

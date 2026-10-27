@@ -51,12 +51,13 @@ public sealed partial record NativeCharacterVitals
             GuardianForceAbilityTemplate entry = templates[index];
             int nativeIndex = Array.FindIndex(MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == entry.Ability);
             GuardianForceAbilityProgress? progress = ledger?.GetValueOrDefault(entry.Ability);
-            bool forgotten = ledger is null ? nativeIndex >= 0 && (gf.ForgottenAbilities & (1u << nativeIndex)) != 0 : progress?.Forgotten == true;
-            bool eligible = entry.SupportedCondition && level >= entry.RequiredLevel && (entry.PrerequisiteAbility is null || result.TryGetValue(entry.PrerequisiteAbility.Value, out NativeGuardianForceAbility? prerequisite) && prerequisite.Learned) && (entry.ExcludedAbility is null || !result.TryGetValue(entry.ExcludedAbility.Value, out NativeGuardianForceAbility? excluded) || !excluded.Learned);
+            int selectedIndex = entry.NativeLearningSlots != 0 ? SelectNativeGuardianForceLearningIndex(id, entry, level, result) : nativeIndex;
+            bool forgotten = entry.NativeLearningSlots != 0 ? selectedIndex < 0 : ledger is null ? nativeIndex >= 0 && (gf.ForgottenAbilities & (1u << nativeIndex)) != 0 : progress?.Forgotten == true;
+            bool eligible = entry.SupportedCondition && (entry.NativeLearningSlots != 0 ? selectedIndex >= 0 : level >= entry.RequiredLevel && (entry.PrerequisiteAbility is null || result.TryGetValue(entry.PrerequisiteAbility.Value, out NativeGuardianForceAbility? prerequisite) && prerequisite.Learned) && (entry.ExcludedAbility is null || !result.TryGetValue(entry.ExcludedAbility.Value, out NativeGuardianForceAbility? excluded) || !excluded.Learned));
             if (eligible && !forgotten && !result.ContainsKey(entry.Ability))
             {
-                int points = ledger is null ? nativeIndex >= 0 ? gf.AbilityProgress[nativeIndex] : 0 : progress?.EarnedPoints ?? 0;
-                result.Add(entry.Ability, new(entry.Ability, false, index, points, entry.RequiredPoints));
+                int points = entry.NativeLearningSlots != 0 ? gf.AbilityProgress[selectedIndex] : ledger is null ? nativeIndex >= 0 ? gf.AbilityProgress[nativeIndex] : 0 : progress?.EarnedPoints ?? 0;
+                result.Add(entry.Ability, new(entry.Ability, false, entry.NativeLearningSlots != 0 ? selectedIndex : index, points, entry.RequiredPoints));
             }
         }
         List<NativeGuardianForceAbility> display = templates.Where(entry => result.ContainsKey(entry.Ability)).Select(entry => result[entry.Ability]).ToList();
@@ -66,6 +67,36 @@ public sealed partial record NativeCharacterVitals
             display.Insert(position < 0 ? display.Count : position, extra);
         }
         return display;
+    }
+
+    private int SelectNativeGuardianForceLearningIndex(int id, GuardianForceAbilityTemplate template, int level, IReadOnlyDictionary<int, NativeGuardianForceAbility> abilities)
+    {
+        ImmutableArray<NativeGuardianForceLearningRule> rules = MenuDefinitions.Learning[id];
+        for (int pass = 0; pass < 2; pass++)
+        {
+            for (int index = 0; index < rules.Length; index++)
+            {
+                if ((template.NativeLearningSlots & (1u << index)) == 0 || (GuardianForces[id].ForgottenAbilities & (1u << index)) != 0)
+                {
+                    continue;
+                }
+                NativeGuardianForceLearningRule rule = rules[index];
+                bool eligible;
+                if (pass == 0)
+                {
+                    eligible = rule.Requirement <= 100 && level >= rule.Requirement;
+                }
+                else
+                {
+                    eligible = rule.Requirement is >= 101 and <= 121 && abilities.TryGetValue(rules[rule.Requirement - 101].Ability, out NativeGuardianForceAbility? prerequisite) && prerequisite.Learned && (rule.Exclusion == 255 || !abilities.TryGetValue(rules[rule.Exclusion].Ability, out NativeGuardianForceAbility? excluded) || !excluded.Learned);
+                }
+                if (eligible)
+                {
+                    return index;
+                }
+            }
+        }
+        return -1;
     }
 
     public NativeCharacterVitals SelectGuardianForceLearning(int id, int ability)
@@ -98,9 +129,9 @@ public sealed partial record NativeCharacterVitals
         {
             return result;
         }
-        int earned = Math.Min(255, target.Progress + points);
         GuardianForceAbilityProgress[] ledger = gf.Progression!.Abilities.ToArray();
         int index = Array.FindIndex(ledger, entry => entry.Ability == target.Ability);
+        int earned = Math.Min(255, ledger[index].EarnedPoints + points);
         ledger[index] = ledger[index] with { EarnedPoints = earned, Learned = earned >= target.RequiredPoints };
         result.GuardianForces[id] = gf with
         {

@@ -29,6 +29,28 @@ public sealed record NativeGuardianForceMenuDefinitions([property: JsonRequired]
             {
                 throw new InvalidDataException("Managed GF templates require unique supported abilities and valid learning references.");
             }
+            for (int id = 0; id < Templates.Length; id++)
+            {
+                foreach (GuardianForceAbilityTemplate entry in Templates[id].Where(entry => entry.NativeLearningSlots != 0))
+                {
+                    if (Learning.IsDefault || Learning.Length != 16 || Learning[id].IsDefault || Learning[id].Length != 21 || (entry.NativeLearningSlots & ~0x1FFFFFu) != 0)
+                    {
+                        throw new InvalidDataException("Native GF learning bindings require their complete source table.");
+                    }
+                    uint slots = 0;
+                    for (int index = 0; index < Learning[id].Length; index++)
+                    {
+                        if (Learning[id][index].Ability == entry.Ability)
+                        {
+                            slots |= 1u << index;
+                        }
+                    }
+                    if (entry.NativeLearningSlots != slots || entry.RequiredLevel != 1 || entry.PrerequisiteAbility is not null || entry.ExcludedAbility is not null)
+                    {
+                        throw new InvalidDataException("Native GF learning bindings must preserve every matching source slot.");
+                    }
+                }
+            }
             foreach (ImmutableArray<GuardianForceAbilityTemplate> row in Templates)
             {
                 foreach (GuardianForceAbilityTemplate entry in row)

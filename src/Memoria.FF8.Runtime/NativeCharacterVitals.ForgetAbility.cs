@@ -14,7 +14,15 @@ public sealed partial record NativeCharacterVitals
         }
         NativeCharacterVitals result = ApplyGuardianForceTemplates(ResolveGuardianForceTemplates());
         NativeGuardianForceVital gf = result.GuardianForces[id];
-        result.GuardianForces[id] = gf with { Progression = gf.Progression! with { Abilities = gf.Progression.Abilities.Select(entry => entry.Ability == ability ? entry with { Learned = false, Forgotten = true } : entry).ToImmutableArray() } };
+        GuardianForceAbilityTemplate? template = result.ResolveGuardianForceTemplates()[id].FirstOrDefault(entry => entry.Ability == ability);
+        if (template is { NativeLearningSlots: not 0 })
+        {
+            int owner = Array.FindIndex(MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == ability);
+            gf = gf with { ForgottenAbilities = gf.ForgottenAbilities | (1u << owner) };
+            result.GuardianForces[id] = gf;
+        }
+        bool forgotten = template is { NativeLearningSlots: not 0 } ? result.NativeGuardianForceForgotten(id, ability) : true;
+        result.GuardianForces[id] = gf with { Progression = gf.Progression! with { Abilities = gf.Progression.Abilities.Select(entry => entry.Ability == ability ? entry with { Learned = false, Forgotten = forgotten } : entry).ToImmutableArray() } };
         result.GuardianForces[id] = result.SynchronizeGuardianForce(id);
         for (int row = 0; row < 8; row++)
         {
