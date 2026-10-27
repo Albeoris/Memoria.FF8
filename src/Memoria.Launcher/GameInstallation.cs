@@ -85,7 +85,7 @@ internal static class GameInstallationSelection
         return null;
     }
 
-    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null, Memoria.FF8.Platform.HostPlatform? hostPlatform = null, string? configurationDirectory = null)
+    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null, Memoria.FF8.Platform.HostPlatform? hostPlatform = null, string? configurationDirectory = null, string? resourceLanguage = null)
     {
         Memoria.FF8.Platform.HostPlatform platform = hostPlatform ?? Memoria.FF8.Platform.HostPlatforms.Current;
         string dataDirectory = Path.Combine(packageDirectory, "Data");
@@ -109,6 +109,11 @@ internal static class GameInstallationSelection
         {
             result.ArgumentList.Add("--graphics-backend");
             result.ArgumentList.Add(backend.ToString());
+        }
+        if (GameResourceLanguages.Normalize(resourceLanguage) is string language)
+        {
+            result.ArgumentList.Add("--resource-language");
+            result.ArgumentList.Add(language);
         }
         if (achievementsLocalOnly)
         {

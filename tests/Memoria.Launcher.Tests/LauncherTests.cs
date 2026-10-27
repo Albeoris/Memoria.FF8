@@ -107,6 +107,46 @@ public sealed class LauncherTests : IDisposable
     }
 
     [Fact]
+    public void ResourceLanguageSelectionSurvivesSettingsAndLaunch()
+    {
+        string settingsPath = Path.Combine(directory, "launcher.json");
+        new LauncherSettings(directory, true, "fr").Save(settingsPath);
+        LauncherSettings settings = LauncherSettings.Load(settingsPath);
+        Assert.Equal(directory, settings.LastGameDirectory);
+        Assert.True(settings.AchievementsLocalOnly);
+        Assert.Equal("fr", settings.ResourceLanguage);
+        ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(directory, directory, settings.AchievementsLocalOnly, graphicsBackend: GraphicsBackend.Vulkan, resourceLanguage: settings.ResourceLanguage);
+        int argument = start.ArgumentList.IndexOf("--resource-language");
+        Assert.True(argument >= 0);
+        Assert.Equal("fr", start.ArgumentList[argument + 1]);
+        Assert.Contains("--game-dir", start.ArgumentList);
+        Assert.Contains("--mods-dir", start.ArgumentList);
+        Assert.Contains("--media-tools", start.ArgumentList);
+        Assert.Contains("--graphics-backend", start.ArgumentList);
+        Assert.Contains("--achievements-local-only", start.ArgumentList);
+    }
+
+    [Fact]
+    public void OlderSettingsAndAutoKeepInstalledResourceLanguage()
+    {
+        string settingsPath = Path.Combine(directory, "launcher.json");
+        File.WriteAllText(settingsPath, "{\"AchievementsLocalOnly\":true}");
+        LauncherSettings settings = LauncherSettings.Load(settingsPath);
+        Assert.True(settings.AchievementsLocalOnly);
+        Assert.Null(settings.ResourceLanguage);
+        Assert.DoesNotContain("--resource-language", GameInstallationSelection.CreateStartInfo(directory, directory).ArgumentList);
+        Assert.DoesNotContain("--resource-language", GameInstallationSelection.CreateStartInfo(directory, directory, resourceLanguage: "auto").ArgumentList);
+    }
+
+    [Fact]
+    public void ResourceLanguageLaunchArgumentIsNormalizedAndValidated()
+    {
+        ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(directory, directory, resourceLanguage: "FR");
+        Assert.Equal("fr", start.ArgumentList[start.ArgumentList.IndexOf("--resource-language") + 1]);
+        Assert.Throws<ArgumentException>(() => GameInstallationSelection.CreateStartInfo(directory, directory, resourceLanguage: "unknown"));
+    }
+
+    [Fact]
     public void BackendOverridePreservesLaunchArguments()
     {
         ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(directory, directory, true, directory, Memoria.FF8.Platform.GraphicsBackend.Vulkan);

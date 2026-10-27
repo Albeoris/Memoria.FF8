@@ -6,6 +6,7 @@ public sealed record LaunchOptions
 {
     public static string ConfiguredGameDirectory => Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY") ?? string.Empty;
     public string GameDirectory { get; init; } = ConfiguredGameDirectory;
+    public string? ResourceLanguage { get; init; }
     public string? ModsDirectory { get; init; }
     public string? StatePath { get; init; }
     public string SavePath { get; init; } = ApplicationPaths.Current.DefaultCheckpoint;
@@ -50,6 +51,7 @@ public sealed record LaunchOptions
             options = argument switch
             {
                 "--game-dir" => options with { GameDirectory = Path.GetFullPath(Value()) },
+                "--resource-language" => options with { ResourceLanguage = GameResourceLanguages.Normalize(Value()) },
                 "--achievements-local-only" => options with { AchievementsLocalOnly = true },
                 "--mods-dir" => options with { ModsDirectory = Path.GetFullPath(Value()) },
                 "--state" => options with { StatePath = Path.GetFullPath(Value()) },
