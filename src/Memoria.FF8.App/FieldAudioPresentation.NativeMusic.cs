@@ -52,7 +52,14 @@ internal sealed partial class FieldAudioPresentation
 
     private void ExecuteMusicPlayback(NativeMusicPlaybackDecision? decision, int fieldId, int startPoint = 0, int finalDuration = 0, int? initialGain = null, uint? choiceMask = null, bool noIntro = false)
     {
-        DispatchNativeMusicPlayback(decision, StopMusicSlot, (slot, music, gain) => PlayMusic(music, slot, gain, fieldId, startPoint, forceRestart: true, identityResolved: true, noIntro: noIntro), (slot, gain) => SetMusicGain(slot, null, gain, finalDuration), () => RequireOrdinaryMusicOutput(choiceMask ?? throw new InvalidDataException("Native concert output requires its executed instrument-selection mask.")), initialGain);
+        DispatchNativeMusicPlayback(decision, StopMusicSlot, (slot, music, gain) => PlayMusic(music, slot, gain, fieldId, startPoint, forceRestart: true, identityResolved: true, noIntro: noIntro), (slot, gain) => SetMusicGain(slot, null, gain, finalDuration), () =>
+        {
+            uint mask = choiceMask ?? throw new InvalidDataException("Native concert output requires its executed instrument-selection mask.");
+            if (!TryPlayExternalConcert(mask))
+            {
+                RequireOrdinaryMusicOutput(mask);
+            }
+        }, initialGain);
     }
 
     internal static void DispatchNativeMusicPlayback(NativeMusicPlaybackDecision? decision, Action<int> stop, Action<int, int, int> play, Action<int, int> gain, Action concert, int? initialGain = null)

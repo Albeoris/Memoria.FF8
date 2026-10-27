@@ -6,6 +6,8 @@ The Unicode bidirectional-text source under `vendor/Topten.RichTextKit.Bidi` is 
 
 The shared reverb source under `src/Memoria.FF8.Audio/ThirdParty/MeltySynth` is derived from [MeltySynth](https://github.com/sinshu/meltysynth), revision `4ba079c9ee1453b03be7e164d254f48426f0aac3`, under its retained MIT license. Its Freeverb algorithm derives from Jezar's public-domain implementation. The source records the narrow adaptation and includes its license and provenance in published audio payloads.
 
+The standalone `Memoria.PsfDecoder` audio codec uses the GPLv3 Highly Experimental emulator. It runs as a separate process and is built from the retained source under [vendor/HighlyExperimental](vendor/HighlyExperimental/README.txt). Each game host ships the codec's complete corresponding source, build instructions, GPL license and OpenPSF integration notice in `licenses/psf-decoder-source/`. BIOS images and music are externally supplied resources and are not distributed with the product.
+
 Runtime packages are restored from NuGet at the versions in `Directory.Packages.props`. Their package metadata retains the authors, source and license declarations:
 
 | Component | Version | License and source |

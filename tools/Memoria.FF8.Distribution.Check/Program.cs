@@ -54,7 +54,7 @@ if (args.Length == 3 && args[0] == "--create-tar")
         }
         string relative = Path.GetRelativePath(root, path).Replace('\\', '/');
         using FileStream tarContent = File.OpenRead(path);
-        bool executable = Path.GetFileName(path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music";
+        bool executable = Path.GetFileName(path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" or "Memoria.PsfDecoder";
         PaxTarEntry entry = new(TarEntryType.RegularFile, relative) { DataStream = tarContent, Mode = (UnixFileMode)(executable ? 493 : 420) };
         writer.WriteEntry(entry);
     }

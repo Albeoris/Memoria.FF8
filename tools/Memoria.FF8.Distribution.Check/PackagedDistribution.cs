@@ -69,7 +69,7 @@ static class PackagedDistribution
             }
             if (rid != "win-x64")
             {
-                bool executable = Path.GetFileName(target) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music";
+                bool executable = Path.GetFileName(target) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" or "Memoria.PsfDecoder";
                 if (mode != (executable ? 493 : 420))
                 {
                     throw new InvalidDataException("Unexpected Unix package mode: " + name);
@@ -157,7 +157,7 @@ static class PackagedDistribution
             string path = Path.Combine(root, relative);
             if (rid != "win-x64")
             {
-                int requiredMode = Path.GetFileName(path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" ? 493 : 420;
+                int requiredMode = Path.GetFileName(path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" or "Memoria.PsfDecoder" ? 493 : 420;
                 if (file.GetProperty("UnixMode").GetInt32() != requiredMode || (!OperatingSystem.IsWindows() && (int)File.GetUnixFileMode(path) != requiredMode))
                 {
                     throw new InvalidDataException("Package executable modes do not match inventory: " + relative);
@@ -170,14 +170,14 @@ static class PackagedDistribution
             }
         }
         string extension = rid == "win-x64" ? ".exe" : "";
-        foreach (string path in new[] { "Memoria.Launcher" + extension, "Data/Memoria.FF8" + extension, "Data/audio-host/Memoria.FF8.Music" + extension, "Data/Game/vulkan/Memoria.FF8" + extension })
+        foreach (string path in new[] { "Memoria.Launcher" + extension, "Data/Memoria.FF8" + extension, "Data/audio-host/Memoria.FF8.Music" + extension, "Data/Game/vulkan/Memoria.FF8" + extension, "Data/Game/vulkan/Memoria.PsfDecoder" + extension })
         {
             if (!expected.Contains(prefix + path))
             {
                 throw new InvalidDataException("Package is missing a required process: " + path);
             }
         }
-        if (rid == "win-x64" && (!expected.Contains("Data/Game/dx11/Memoria.FF8.exe") || !expected.Contains("Data/Game/dx12/Memoria.FF8.exe")))
+        if (rid == "win-x64" && (!expected.Contains("Data/Game/dx11/Memoria.FF8.exe") || !expected.Contains("Data/Game/dx12/Memoria.FF8.exe") || !expected.Contains("Data/Game/dx11/Memoria.PsfDecoder.exe") || !expected.Contains("Data/Game/dx12/Memoria.PsfDecoder.exe")))
         {
             throw new InvalidDataException("The Windows archive must contain all three isolated backend hosts.");
         }

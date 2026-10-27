@@ -27,6 +27,17 @@ internal sealed class PcmAudioOutput : IDisposable
         return new Buffer(mixer.Create(pcm, rate, channels));
     }
 
+    internal void AddSource(IAudioSource source)
+    {
+        output?.ThrowIfFailed();
+        mixer.Add(source);
+    }
+
+    internal void RemoveSource(IAudioSource source)
+    {
+        mixer.Remove(source);
+    }
+
     public void ThrowIfFailed()
     {
         output?.ThrowIfFailed();

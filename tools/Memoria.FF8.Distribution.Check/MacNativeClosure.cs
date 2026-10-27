@@ -105,7 +105,7 @@ static class MacNativeClosure
 
     public static void Validate(string bundle)
     {
-        string[] paths = Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).Where(path => path.EndsWith(".dylib", StringComparison.Ordinal) || Path.GetFileName(path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music").ToArray();
+        string[] paths = Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).Where(path => path.EndsWith(".dylib", StringComparison.Ordinal) || Path.GetFileName(path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" or "Memoria.PsfDecoder").ToArray();
         foreach (string path in paths)
         {
             Image image = Read(path);

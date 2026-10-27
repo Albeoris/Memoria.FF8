@@ -84,6 +84,8 @@ public sealed class PcmStreamSource : IAudioSource, IDisposable
         Volatile.Read(ref failure)?.Throw();
     }
 
+    public bool HasBufferedFrame => Volatile.Read(ref readFrames) < Volatile.Read(ref writtenFrames);
+
     // Called by one audio render thread. The producer publishes only complete frames.
     public void RenderFrame(out double left, out double right)
     {

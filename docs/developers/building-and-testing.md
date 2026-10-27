@@ -6,6 +6,8 @@
 
 Use PowerShell 7 and the .NET 10 SDK pinned by `global.json`. Complete self-contained distributions target Windows x64, Linux x64 and Intel macOS; see [Cross-platform desktop migration](cross-platform.md) and [Linux testing from Windows](linux-testing.md). Run commands from the directory containing `Build.ps1` and `Memoria.FF8.slnx`. Package restore needs access to the configured public NuGet feeds.
 
+Game hosts also build the standalone PSF codec with CMake 3.20+ and a native C compiler (Visual Studio C++ tools on Windows). Its GPL source, build recipe and notices ship beside every host in `licenses/psf-decoder-source/`; no BIOS is bundled. For a cross-publish, supply a target-native codec directory through `MEMORIA_FF8_PSF_DECODER_DIRECTORY`; the publisher validates its target ABI. Otherwise build on the target OS. Ordinary C# audio-library and launcher-only builds do not require this codec build.
+
 ```powershell
 ./Build.ps1
 ./Build.ps1 -RuntimeIdentifier linux-x64

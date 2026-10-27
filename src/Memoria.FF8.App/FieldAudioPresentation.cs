@@ -475,7 +475,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         TryOutput(() =>
         {
             sound?.ThrowIfFailed();
-            foreach (ExternalMusicOutput? output in externalMusic)
+            foreach (IExternalMusicOutput? output in externalMusic)
             {
                 output?.Update();
             }

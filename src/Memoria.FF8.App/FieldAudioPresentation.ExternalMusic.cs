@@ -1,11 +1,12 @@
 using Memoria.FF8.Mods;
+using Memoria.FF8.Audio;
 using System.Diagnostics;
 
 namespace Memoria.FF8;
 
 internal sealed partial class FieldAudioPresentation
 {
-    private readonly ExternalMusicOutput?[] externalMusic = new ExternalMusicOutput?[3];
+    private readonly IExternalMusicOutput?[] externalMusic = new IExternalMusicOutput?[3];
     private ExternalMusicResolver? externalResolver;
     private ModCatalogSnapshot? externalCatalog;
 
@@ -43,6 +44,11 @@ internal sealed partial class FieldAudioPresentation
         }
         try
         {
+            if (Path.GetExtension(selection.File.RelativePath).Equals(".minipsf", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(selection.File.RelativePath).Equals(".psf", StringComparison.OrdinalIgnoreCase))
+            {
+                QueuePsfMusic(selection, kind, slot, track);
+                return true;
+            }
             Decoder.Queue(kind, async token =>
             {
                 byte[] encoded = selection.File.ReadBytes();
@@ -130,7 +136,7 @@ internal sealed partial class FieldAudioPresentation
 
     private void UpdateExternalGain(MusicKind kind, int volume)
     {
-        if (externalMusic[(int)kind] is ExternalMusicOutput output)
+        if (externalMusic[(int)kind] is IExternalMusicOutput output)
         {
             output.SetGain(ExternalGain(kind, volume, output.Volume));
         }
@@ -147,7 +153,7 @@ internal sealed partial class FieldAudioPresentation
 
     private void PauseExternalMusic(bool paused)
     {
-        foreach (ExternalMusicOutput? output in externalMusic)
+        foreach (IExternalMusicOutput? output in externalMusic)
         {
             if (output is not null)
             {
@@ -156,7 +162,15 @@ internal sealed partial class FieldAudioPresentation
         }
     }
 
-    private sealed class ExternalMusicOutput(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, int volume, double initialSeconds, int bytesPerSecond, int loopBytes) : IDisposable
+    private interface IExternalMusicOutput : IDisposable
+    {
+        int Volume { get; }
+        void Update();
+        void SetGain(int gain);
+        void Pause(bool paused);
+    }
+
+    private sealed class ExternalMusicOutput(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, int volume, double initialSeconds, int bytesPerSecond, int loopBytes) : IExternalMusicOutput
     {
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private bool loopStarted;

@@ -97,8 +97,11 @@ try {
         $hostBuild = Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/' + $backend.Directory)
         $hostAssets += Join-Path $hostBuild 'obj/Memoria.FF8.App/project.assets.json'
         $nativePublishArguments = @()
+        if ($env:MEMORIA_FF8_PSF_DECODER_DIRECTORY) {
+            $nativePublishArguments += @(('-p:MemoriaPsfDecoderDirectory=' + [IO.Path]::GetFullPath($env:MEMORIA_FF8_PSF_DECODER_DIRECTORY)), '-p:MemoriaPsfDecoderPrepared=true')
+        }
         if ($RuntimeIdentifier -eq 'win-x64' -and $backend.Name -eq 'Direct3D12') {
-            $nativePublishArguments = @(('-p:MemoriaNativeDirect3D12Directory=' + $nativeDirect3D12), '-p:MemoriaNativeDirect3D12Prepared=true')
+            $nativePublishArguments += @(('-p:MemoriaNativeDirect3D12Directory=' + $nativeDirect3D12), '-p:MemoriaNativeDirect3D12Prepared=true')
         }
         Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:SkipMusicHost=true', '-p:PublishSingleFile=false', '-m:1') + $nativePublishArguments + $publishArguments)
         if ($RuntimeIdentifier -eq 'win-x64' -and $backend.Name -eq 'Direct3D12') {
@@ -145,7 +148,7 @@ try {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration)
     }
 
-    foreach ($relative in @($executable, ('audio-host/Memoria.FF8.Music' + $extension)) + @($backends | ForEach-Object { 'Game/' + $_.Directory + '/' + $executable })) {
+    foreach ($relative in @($executable, ('audio-host/Memoria.FF8.Music' + $extension)) + @($backends | ForEach-Object { 'Game/' + $_.Directory + '/' + $executable; 'Game/' + $_.Directory + '/Memoria.PsfDecoder' + $extension })) {
         if (!(Test-Path -LiteralPath (Join-Path $data $relative) -PathType Leaf)) {
             throw "Incomplete distribution: Data/$relative is missing."
         }
@@ -207,7 +210,7 @@ try {
         }
     }
     if ($RuntimeIdentifier -ne 'win-x64') {
-        foreach ($path in @((Join-Path $payload $launcherName), (Join-Path $data $executable), (Join-Path $data ('audio-host/Memoria.FF8.Music' + $extension))) + @($backends | ForEach-Object { Join-Path $data ('Game/' + $_.Directory + '/' + $executable) })) {
+        foreach ($path in @((Join-Path $payload $launcherName), (Join-Path $data $executable), (Join-Path $data ('audio-host/Memoria.FF8.Music' + $extension))) + @($backends | ForEach-Object { Join-Path $data ('Game/' + $_.Directory + '/' + $executable); Join-Path $data ('Game/' + $_.Directory + '/Memoria.PsfDecoder' + $extension) })) {
             if (![OperatingSystem]::IsWindows()) {
                 [IO.File]::SetUnixFileMode($path, [IO.UnixFileMode]493)
             }

@@ -1,0 +1,22 @@
+<Project>
+  <PropertyGroup>
+    <MemoriaPsfSourceDirectory>$(MSBuildThisFileDirectory)</MemoriaPsfSourceDirectory>
+    <MemoriaPsfBuildDirectory>$([System.IO.Path]::GetFullPath('$(BaseIntermediateOutputPath)native-psf', '$(MSBuildProjectDirectory)'))</MemoriaPsfBuildDirectory>
+    <MemoriaPsfDecoderDirectory Condition="'$(MemoriaPsfDecoderDirectory)' == ''">$(MemoriaPsfBuildDirectory)/install</MemoriaPsfDecoderDirectory>
+    <MemoriaPsfExecutable Condition="'$(MemoriaTargetRuntime)' == 'win-x64'">Memoria.PsfDecoder.exe</MemoriaPsfExecutable>
+    <MemoriaPsfExecutable Condition="'$(MemoriaTargetRuntime)' != 'win-x64'">Memoria.PsfDecoder</MemoriaPsfExecutable>
+    <MemoriaPsfArchitectureArgument Condition="'$(MemoriaTargetRuntime)' == 'win-x64'">-A x64</MemoriaPsfArchitectureArgument>
+    <MemoriaPsfArchitectureArgument Condition="'$(MemoriaTargetRuntime)' == 'osx-x64'">-DCMAKE_OSX_ARCHITECTURES=x86_64</MemoriaPsfArchitectureArgument>
+    <MemoriaPsfBuildTypeArgument Condition="'$(MemoriaTargetRuntime)' != 'win-x64'">-DCMAKE_BUILD_TYPE=Release</MemoriaPsfBuildTypeArgument>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="$(MemoriaPsfDecoderDirectory)/$(MemoriaPsfExecutable)" Link="$(MemoriaPsfExecutable)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(MemoriaPsfSourceDirectory)**/*.c;$(MemoriaPsfSourceDirectory)**/*.h;$(MemoriaPsfSourceDirectory)CMakeLists.txt;$(MemoriaPsfSourceDirectory)*LICENSE*;$(MemoriaPsfSourceDirectory)*README*;$(MemoriaPsfSourceDirectory)PROVENANCE*" Link="licenses/psf-decoder-source/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <Target Name="BuildPsfDecoder" BeforeTargets="GetCopyToOutputDirectoryItems;CopyFilesToOutputDirectory;ComputeFilesToPublish" Condition="'$(DesignTimeBuild)' != 'true' And '$(MemoriaPsfDecoderPrepared)' != 'true'">
+    <Error Condition="($([MSBuild]::IsOSPlatform('Windows')) And '$(MemoriaTargetRuntime)' != 'win-x64') Or ($([MSBuild]::IsOSPlatform('Linux')) And '$(MemoriaTargetRuntime)' != 'linux-x64') Or ($([MSBuild]::IsOSPlatform('OSX')) And '$(MemoriaTargetRuntime)' != 'osx-x64')" Text="Cross-publishing PSF audio requires a target-native codec directory and MemoriaPsfDecoderPrepared=true. Build the retained CMake source on the target OS." />
+    <Exec Command="cmake -S &quot;$(MemoriaPsfSourceDirectory).&quot; -B &quot;$(MemoriaPsfBuildDirectory)&quot; $(MemoriaPsfArchitectureArgument) $(MemoriaPsfBuildTypeArgument)" />
+    <Exec Command="cmake --build &quot;$(MemoriaPsfBuildDirectory)&quot; --config Release" />
+    <Exec Command="cmake --install &quot;$(MemoriaPsfBuildDirectory)&quot; --config Release --prefix &quot;$(MemoriaPsfDecoderDirectory)&quot;" />
+  </Target>
+</Project>

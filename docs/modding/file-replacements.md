@@ -93,7 +93,11 @@ Reviewed startup selections are read when the application starts and remain fixe
 
 Selected `music/<track>.ogg` resources replace the corresponding native track. The track name comes from the native filename after its first hyphen, without the extension. Missing replacements retain native playback. Native track identities, slots, volume changes, pauses and stop operations remain authoritative.
 
-An optional `music/config.toml` supports global `volume` (0–100) and per-track `offset_seconds`, `intro_seconds` and `no_intro_track`. For a no-intro request, an alternate track takes precedence over the intro offset. Ogg Vorbis loop comments define the loop region. Invalid configuration fails the affected package with a diagnostic. Package changes apply when the next track starts; an already playing track retains its resources.
+Packages can declare `external_music_path`, `external_music_ext` (`ogg`, `minipsf` or `psf`) and `he_bios_path` through `FFNxConfig`. Paths are package-relative after removing an optional leading `data/`; libraries and BIOS resolve only inside the same selected package. PSF1 requires an externally supplied 512 KiB Highly Experimental BIOS. PSF version, CRC, decompression bounds, executable ranges and library graphs are validated; missing or cyclic dependencies fail explicitly. The separately licensed codec streams PCM through a bounded queue and never opens game or mod asset paths directly.
+
+PSF background music runs continuously, preserving the emulated sequencer's own loops rather than resetting at the `length`/`fade` tags. Offsets advance that sequencer. Native concert masks select instrument stems, prepared together and consumed on one mixer clock; solo previews suppress only opening exactly-zero frames, with a 30-second bound. Pause, gain changes, replacement and cancellation retain the same output ownership as other music. These replacements do not change the VM's deterministic music-status contract or establish an unsupported historical concert-resume selection.
+
+An optional `config.toml` under the selected music directory supports global `volume` (0–100) and per-track `offset_seconds`, `intro_seconds` and `no_intro_track`. For a no-intro request, an alternate track takes precedence over the intro offset. Ogg Vorbis loop comments define the loop region. Invalid configuration fails the affected package with a diagnostic. Package changes apply when the next track starts; an already playing track retains its resources.
 
 ## Field dialogue voices
 
