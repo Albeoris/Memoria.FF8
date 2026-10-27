@@ -99,7 +99,7 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
     }
 
     [Fact]
-    public void Phase302WaitsBeforeResettingOnlyThreeHeadsAndPreservesEveryPhysicalTaskAndUnrelatedDescriptor()
+    public void Phase302WaitsBeforeRetiringThreeTaskViewsAndPreservesTheirPhysicalBodiesForResourceReuse()
     {
         NativeBattleEffectMemory memory = Memory();
         memory = memory with { Arena = memory.Arena!.Write(64, [0, 1, 1, 0, 0]), QuezacotlSecondaryHeads = [11, 22, 33, 44, 55] };
@@ -110,34 +110,55 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
         Assert.True(ready.AdvancePhase);
         Assert.Equal(new uint[] { 0, 0, 0, 44, 55 }, ready.Memory.QuezacotlSecondaryHeads!.Value);
         Assert.Equal(new NativeBattleEffectFileRequest(527, 0x2108954, 0x6C3580), ready.Request);
-        NativeBattleEffectTaskPool ribbon = Pool(0x2521728);
-        NativeBattleEffectTaskPool particles = Pool(0x2521718);
-        NativeBattleEffectTaskPool paths = Pool(0x2521708);
-        NativeBattleEffectTaskPool unrelated = Pool(0x2521738);
+        NativeBattleEffectArena arena = ready.Memory.Arena!;
+        NativeBattleEffectTaskPool ribbon = Pool(0x2521728, 0x211B514, 0x80, 16);
+        NativeBattleEffectTaskPool particles = Pool(0x2521718, 0x211BD34, 0x3C, 32);
+        NativeBattleEffectTaskPool paths = Pool(0x2521708, 0x211ECB8, 0x20, 128);
+        NativeBattleEffectTaskPool unrelated = Pool(0x2521738, NativeBattleEffectNodeMemory.ArenaAddress + 0x1000, 32, 2);
         NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { Pools = [ribbon, particles, paths, unrelated] };
+        string before = SnapshotJson(arena);
         NativeBattleOriginalEffectState reset = NativeBattleQuezacotlFirstWindowIo.ResetPools6C4D3C(effect);
-        foreach (NativeBattleEffectTaskPool pool in reset.Pools.Take(3))
+        Assert.Equal(before, SnapshotJson(arena));
+        Assert.Same(unrelated, Assert.Single(reset.Pools));
+        unrelated.Validate();
+        foreach (NativeBattleEffectTaskPool retired in new[] { ribbon, particles, paths })
         {
-            Assert.Null(pool.Head);
-            Assert.Null(pool.Tail);
-            Assert.Equal(SnapshotJson(effect.Pools.Single(before => before.DescriptorAddress == pool.DescriptorAddress).Slots), SnapshotJson(pool.Slots));
-            Assert.Equal((ushort)1, pool.Slots[0].Flags);
-            pool.Validate();
+            Assert.Throws<ObjectDisposedException>(() => retired.Slots[0].ReadWord(12));
         }
-        Assert.Same(unrelated, reset.Pools[3]);
-        Assert.Equal(SnapshotJson(reset), SnapshotJson(JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(SnapshotJson(reset))));
-        Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlFirstWindowIo.ResetPools6C4D3C(effect with { Pools = [ribbon, paths] }));
+        Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlFirstWindowIo.ResetPools6C4D3C(reset));
 
-        static NativeBattleEffectTaskPool Pool(uint descriptor)
+        //Resource bytes now own the former task headers; their raw pointer-shaped words are not scheduler links.
+        arena.Write(checked((int)(ribbon.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress)), [0x87, 0x8F, 0x11, 0x22, 0x39, 0x32, 0x36, 0x36, 0x42, 0x35, 0x3E, 0x3A]);
+        arena.Write(checked((int)(particles.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress)), [0x8F, 0xA2, 0x33, 0x44, 0x43, 0x36, 0x39, 0x39, 0x46, 0x3A, 0x42, 0x3F]);
+        NativeBattleQuezacotlWorkspaceWrite captured = NativeBattleStorageSnapshots.Capture(new NativeBattleQuezacotlWorkspaceWrite(ready.Memory, reset));
+        string json = JsonSerializer.Serialize(captured);
+        NativeBattleQuezacotlWorkspaceWrite first = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlWorkspaceWrite>(json)!);
+        NativeBattleQuezacotlWorkspaceWrite second = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlWorkspaceWrite>(json)!);
+        Assert.Equal(json, SnapshotJson(first));
+        Assert.Equal(json, SnapshotJson(second));
+        Assert.Single(first.Effect.Pools).Validate();
+        int former = checked((int)(ribbon.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress));
+        NativeBattleEffectArena firstArena = first.Memory.Arena!;
+        NativeBattleEffectArena secondArena = second.Memory.Arena!;
+        Assert.Equal(0x36363239u, firstArena.ReadUInt32(former + 4));
+        firstArena.WriteUInt32(former + 4, 77);
+        Assert.Equal(0x36363239u, secondArena.ReadUInt32(former + 4));
+        Assert.Equal(0x36363239u, arena.ReadUInt32(former + 4));
+        NativeBattleEffectTaskPool reused = NativeBattleEffectTaskPool.Initialize(ribbon.DescriptorAddress, ribbon.BankAddress, ribbon.Stride, 16).BindArena(firstArena);
+        reused.Append(0x6C8850);
+        reused.Validate();
+        Assert.Equal((ushort)1, reused.Slots[0].Flags);
+        Assert.Equal(0x36363239u, secondArena.ReadUInt32(former + 4));
+
+        NativeBattleEffectTaskPool Pool(uint descriptor, uint bank, ushort stride, ushort capacity)
         {
-            NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor, 0x211ECB8, 32, 2);
-            (pool, _) = pool.Append(0x6C7800);
-            (pool, _) = pool.Append(0x6C7800);
+            NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor, bank, stride, capacity).BindArena(arena);
+            pool.Append(0x6C7800);
+            pool.Append(0x6C7800);
             pool.Slots[0].WriteWord(12, 0xA5A5);
             return pool;
         }
     }
-
     private static NativeBattleEffectMemory Memory()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectIo.Initialize534110(NativeBattleEffectMemory.FromColdProcess().BeginLoad(116), 64);

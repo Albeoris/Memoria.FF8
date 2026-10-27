@@ -358,9 +358,16 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
         catch (Exception error)
         {
-            NativeBattleRestorationPresentationTests.Publish(output, "before-failure", prior, null);
-            NativeBattleRestorationPresentationTests.Publish(output, "failed", battle.Capture(), null);
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", guardian, effectId, error = error.ToString(), prior.Frame, NativeCallback = prior.NativeGraphics?.Callback }));
+            NativeBattleRestorationPresentationTests.Publish(output, "before-failure", prior, null);
+            try
+            {
+                NativeBattleRestorationPresentationTests.Publish(output, "failed", battle.Capture(), null);
+            }
+            catch (Exception captureError)
+            {
+                File.WriteAllText(Path.Combine(output, "failed-capture-error.txt"), captureError.ToString());
+            }
             throw;
         }
 

@@ -142,6 +142,7 @@ internal sealed class NativeBattleCommonPacketTransaction : IDisposable
             return existing;
         }
         NativeBattleEffectArena arena = state.CommonArena(bank) ?? NativeBattlePrimitiveProcess.UnknownCommonArena(bank < 2 ? 114688 : 147456);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(arena);
         NativeBattleEffectArenaTransaction transaction = new(arena);
         if (checkpoint is not null)
         {

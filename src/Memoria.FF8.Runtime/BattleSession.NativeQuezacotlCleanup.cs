@@ -32,26 +32,30 @@ public sealed partial class BattleSession
     {
         NativeEffectMemory = memory;
         uint? pathOutlineDirection = null;
-        if (phase >= 87)
+        if (memory.QuezacotlSecondaryHeads is not { Length: 5 })
+        {
+            throw new NotSupportedException("Native6C3760 requires its five retained secondary descriptor heads.");
+        }
+        if (phase >= 87 && SecondaryHead(0) != 0)
         {
             (graphics, pathOutlineDirection) = AdvanceNativeQuezacotlRibbon(graphics with { OriginalEffect = effect }, depthTrace);
             memory = NativeEffectMemory!;
             effect = graphics.OriginalEffect!;
         }
-        if (phase >= 88)
+        if (phase >= 88 && SecondaryHead(1) != 0)
         {
             (graphics, uint? particleDirection) = AdvanceNativeQuezacotlParticles(graphics with { OriginalEffect = effect }, depthTrace);
             pathOutlineDirection = particleDirection ?? pathOutlineDirection;
             memory = NativeEffectMemory!;
             effect = graphics.OriginalEffect!;
         }
-        if (phase >= 257)
+        if (phase >= 257 && SecondaryHead(2) != 0)
         {
             graphics = AdvanceNativeQuezacotlPaths(graphics with { OriginalEffect = effect }, depthTrace, pathOutlineDirection);
             memory = NativeEffectMemory!;
             effect = graphics.OriginalEffect!;
         }
-        if (phase >= 303)
+        if (phase >= 303 && SecondaryHead(4) != 0)
         {
             graphics = AdvanceNativeQuezacotlFragments(graphics with { OriginalEffect = effect }, depthTrace);
             memory = NativeEffectMemory!;
@@ -60,5 +64,14 @@ public sealed partial class BattleSession
         effect = NativeBattleQuezacotlChild.FinishMain6C3760(memory, effect, phase >= 87, phase >= 88, phase >= 257, phase >= 303);
         NativeEffectMemory = memory;
         return graphics with { OriginalEffect = effect };
+
+        uint SecondaryHead(int index)
+        {
+            if (memory.QuezacotlSecondaryHeads is not { } heads || heads.Length != 5)
+            {
+                throw new NotSupportedException("Native6C3760 requires its five retained secondary descriptor heads.");
+            }
+            return heads[index];
+        }
     }
 }

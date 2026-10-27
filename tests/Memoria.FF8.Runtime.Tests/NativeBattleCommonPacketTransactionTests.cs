@@ -6,6 +6,31 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCommonPacketTransactionTests
 {
     [Fact]
+    public void Late_selected_existing_spill_banks_enlist_in_current_pass_before_public_overlays()
+    {
+        const int capacity = 147456;
+        NativeBattlePrimitiveProcess initial = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = initial };
+        NativeBattleOriginalEffectState effect = new(202, 201, new(202, 1, 0), null, null);
+        using NativeBattleTaskOperation parent = new(memory, effect);
+        NativeBattlePrimitiveProcess selected = (initial with { PacketBank = "off_B6D094", PacketBuffer = 0 }).ApplyCommonWrite(capacity - 4, [1, 2, 3, 4, 5, 6, 7, 8], Known(8));
+        NativeBattlePrimitiveProcess published;
+        using (NativeBattleTaskOperation callback = new(memory, effect))
+        {
+            using NativeBattleCommonPacketTransaction transaction = new(selected);
+            transaction.BeginCheckpoint();
+            NativeBattlePrimitiveProcess current = transaction.View.ApplyCommonWrite(capacity - 4, [9, 10, 11, 12, 13, 14, 15, 16], Known(8));
+            transaction.CommitCheckpoint();
+            published = transaction.Freeze(current);
+            Assert.Equal(new byte[] { 9, 10, 11, 12, 13, 14, 15, 16 }, published.ReadCommonPacket(capacity - 4, 8));
+            Assert.Same(selected.CommonPacketMemory!.Bank094Buffer0, published.CommonPacketMemory!.Bank094Buffer0);
+            Assert.Same(selected.CommonPacketMemory.Bank094Buffer1, published.CommonPacketMemory.Bank094Buffer1);
+        }
+        Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, published.ReadCommonPacket(capacity - 4, 8));
+        parent.Commit();
+    }
+
+    [Fact]
     public void WholeSliceStoresReuseImmutableReceiptsAndValidateMasksBeforeRanges()
     {
         NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
