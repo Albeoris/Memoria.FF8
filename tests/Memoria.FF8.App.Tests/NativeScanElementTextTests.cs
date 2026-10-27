@@ -25,7 +25,7 @@ public sealed class NativeScanElementTextTests
         NativeBattleScanTextFrame frame = Frame(255);
         frame = frame with { Windows = frame.Windows with { TextRows = frame.Windows.TextRows.SetItem(0, frame.Windows.Row(0).Write(0, new NativeBattleScanRect(16, 180, 296, 28).ToBytes())) } };
         string before = JsonSerializer.Serialize(frame);
-        IReadOnlyList<NativeScanWindowText> full = NativeScanWindowTextProjection.Project(frame, Services(source.ToArray()));
+        IReadOnlyList<NativeScanWindowText> full = NativeScanWindowTextProjection.Project(frame, Services(source.ToArray()), "en");
         Assert.True(Assert.Single(Assert.Single(full).Lines).FitWidth);
         SystemAdvanceCanvas canvas = new();
         NativeScanWindowDrawing.Draw(canvas, new UiTheme(), full, new UiRect(0, 0, 320, 224), 0, 1);
@@ -45,7 +45,7 @@ public sealed class NativeScanElementTextTests
         NativeBattleScanTextFrame prefix = frame with { Windows = frame.Windows with { TextRows = frame.Windows.TextRows.SetItem(0, frame.Windows.Row(0).WriteByte(0x20, 11)) } };
         string prefixBefore = JsonSerializer.Serialize(prefix);
         SystemAdvanceCanvas prefixCanvas = new();
-        NativeScanWindowDrawing.Draw(prefixCanvas, new UiTheme(), NativeScanWindowTextProjection.Project(prefix, Services(source.ToArray())), new UiRect(0, 0, 320, 224), 0, 1);
+        NativeScanWindowDrawing.Draw(prefixCanvas, new UiTheme(), NativeScanWindowTextProjection.Project(prefix, Services(source.ToArray()), "en"), new UiRect(0, 0, 320, 224), 0, 1);
         Assert.Equal("Resists: Fire", string.Concat(prefixCanvas.Runs.Select(run => run.Text)));
         Assert.All(prefixCanvas.Runs, run => Assert.Equal(16f, run.Size));
         Assert.Equal(prefixBefore, JsonSerializer.Serialize(prefix));
@@ -64,7 +64,7 @@ public sealed class NativeScanElementTextTests
     {
         NativeBattleScanTextFrame frame = Frame(2);
         string before = JsonSerializer.Serialize(frame);
-        NativeScanWindowText window = Assert.Single(NativeScanWindowTextProjection.Project(frame, Services([5, operand, 0])));
+        NativeScanWindowText window = Assert.Single(NativeScanWindowTextProjection.Project(frame, Services([5, operand, 0]), "en"));
         Assert.Equal(expected, window.Document.Text);
         Assert.Equal(before, JsonSerializer.Serialize(frame));
         Assert.Equal(new byte[128], frame.ExpandedContext128.Bytes.ToArray());
@@ -80,7 +80,7 @@ public sealed class NativeScanElementTextTests
         byte b = FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("B")[0];
         NativeBattleScanTextFrame frame = Frame((byte)maximum);
         string before = JsonSerializer.Serialize(frame);
-        NativeScanWindowText window = Assert.Single(NativeScanWindowTextProjection.Project(frame, Services([a, 5, 0x5D, b, 0])));
+        NativeScanWindowText window = Assert.Single(NativeScanWindowTextProjection.Project(frame, Services([a, 5, 0x5D, b, 0]), "en"));
         Assert.Equal(expected, window.Document.Text);
         Assert.Equal(before, JsonSerializer.Serialize(frame));
     }

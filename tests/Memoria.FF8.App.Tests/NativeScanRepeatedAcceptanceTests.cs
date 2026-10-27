@@ -137,7 +137,7 @@ public sealed class NativeScanRepeatedAcceptanceTests
                     {
                         Boundary("page-" + result.ReadWord(0x6C));
                     }
-                    IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(process.Text.ReadFrame(graphics.UiServices!.Flags942), battle.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224));
+                    IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(process.Text.ReadFrame(graphics.UiServices!.Flags942), battle.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224), game.Resources.Source.Language);
                     if (windows.Any(window => window.Index == 1 && window.Lines.Any(line => line.Line.Runs.Any(run => run.Text.Length > 0))))
                     {
                         resultText = true;

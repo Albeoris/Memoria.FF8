@@ -17,7 +17,7 @@ internal sealed record NativeScanWindowText(int Index, NativeBattleScanRect Oute
 /// <summary>Projects current native text progress into semantic runs for the system text renderer.</summary>
 internal static class NativeScanWindowTextProjection
 {
-    public static IReadOnlyList<NativeScanWindowText> ProjectForViewport(NativeBattleScanTextFrame frame, NativeBattleScanTextExpansionServices services, NativeBattleScanRect drawArea)
+    public static IReadOnlyList<NativeScanWindowText> ProjectForViewport(NativeBattleScanTextFrame frame, NativeBattleScanTextExpansionServices services, NativeBattleScanRect drawArea, string language)
     {
         NativeBattleScanTextWindows windows = frame.Windows;
         for (byte index = 0; index < 8; index++)
@@ -30,15 +30,15 @@ internal static class NativeScanWindowTextProjection
             (NativeBattleScanByteOwner clipped, bool visible) = NativeBattleScanDrawRectangles.ClipForPresentation4B6400(backend, drawArea);
             windows = windows with { BackendRows = windows.BackendRows.SetItem(index, clipped.WriteByte(0x35, visible ? (byte)1 : (byte)0)) };
         }
-        return Project(frame with { Windows = windows }, services);
+        return Project(frame with { Windows = windows }, services, language);
     }
 
-    public static IReadOnlyList<NativeScanWindowText> Project(NativeBattleScanTextFrame frame, NativeBattleScanTextExpansionServices services)
+    public static IReadOnlyList<NativeScanWindowText> Project(NativeBattleScanTextFrame frame, NativeBattleScanTextExpansionServices services, string language)
     {
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(services);
         List<NativeScanWindowText> windows = [];
-        FF8Encoding encoding = FF8Encoding.CreateEuropean(Albeoris.Games.FF8.TextEncoding.FF8TextLanguage.EN);
+        FF8Encoding encoding = Memoria.FF8.Assets.NativeTextEncoding.Create(language);
         for (int index = 0; index < 8; index++)
         {
             NativeBattleScanByteOwner row = frame.Windows.Row(index);

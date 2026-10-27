@@ -14,6 +14,10 @@ internal sealed class LocalizationNonFieldEncoding(FF8Encoding selected) : Encod
 
     private string Decode(byte[] bytes, int index, int count)
     {
+        if (encoding.Language is not FF8TextLanguage language || !Enum.IsDefined(language))
+        {
+            throw new InvalidOperationException("Non-field text decoding requires a valid native language.");
+        }
         byte[] bounded = bytes.AsSpan(index, count).ToArray();
         try
         {

@@ -13,8 +13,8 @@ public sealed class NativeScanViewportProjectionTests
     {
         NativeBattleScanTextFrame frame = Frame(new(170, 52, 136, 128));
         string before = JsonSerializer.Serialize(frame);
-        Assert.Empty(Assert.Single(NativeScanWindowTextProjection.Project(frame, Services())).Lines);
-        NativeScanWindowText window = Assert.Single(NativeScanWindowTextProjection.ProjectForViewport(frame, Services(), new(0, 0, 320, 224)));
+        Assert.Empty(Assert.Single(NativeScanWindowTextProjection.Project(frame, Services(), "en")).Lines);
+        NativeScanWindowText window = Assert.Single(NativeScanWindowTextProjection.ProjectForViewport(frame, Services(), new(0, 0, 320, 224), "en"));
         Assert.Equal("Sca", window.Document.Text);
         Assert.Equal(new NativeBattleScanRect(170, 52, 136, 128), window.Outer);
         Assert.Equal(new NativeBattleScanRect(176, 58, 124, 116), window.Inner);
@@ -29,7 +29,7 @@ public sealed class NativeScanViewportProjectionTests
     {
         NativeBattleScanTextFrame frame = Frame(new(-10, 20, 100, 80));
         string before = JsonSerializer.Serialize(frame);
-        NativeScanWindowText window = Assert.Single(NativeScanWindowTextProjection.ProjectForViewport(frame, Services(), new(0, 0, 320, 224)));
+        NativeScanWindowText window = Assert.Single(NativeScanWindowTextProjection.ProjectForViewport(frame, Services(), new(0, 0, 320, 224), "en"));
         Assert.Equal(new NativeBattleScanRect(0, 20, 90, 80), window.Outer);
         Assert.Equal(new NativeBattleScanRect(0, 26, 84, 68), window.Inner);
         Assert.Equal(new NativeBattleScanRect(-10, 20, 100, 80), window.OriginalRectangle);
@@ -44,7 +44,7 @@ public sealed class NativeScanViewportProjectionTests
     {
         NativeBattleScanTextFrame frame = Frame(new(330, 20, 100, 80));
         string before = JsonSerializer.Serialize(frame);
-        Assert.Empty(NativeScanWindowTextProjection.ProjectForViewport(frame, new(_ => throw new InvalidDataException(), _ => throw new InvalidDataException()), new(0, 0, 320, 224)));
+        Assert.Empty(NativeScanWindowTextProjection.ProjectForViewport(frame, new(_ => throw new InvalidDataException(), _ => throw new InvalidDataException()), new(0, 0, 320, 224), "en"));
         Assert.Equal((byte)1, frame.Windows.Backend(0).ReadByte(0x35));
         Assert.Equal(before, JsonSerializer.Serialize(frame));
     }

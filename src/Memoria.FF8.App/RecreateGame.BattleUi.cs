@@ -554,7 +554,7 @@ internal sealed partial class RecreateGame
         if (!SlotsModalBlocksGameplay && active.NativeEffectMemory?.Scan is { Text.Initialized: true } scan && active.NativeGraphics?.UiServices is { } services)
         {
             NativeBattleScanTextFrame text = scan.Text.ReadFrame(services.Flags942);
-            IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(text, active.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224));
+            IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(text, active.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224), (resourceHost ?? throw new InvalidOperationException("Native scan text requires its resource source.")).Resources.Source.Language);
             if (resourceHost is not null)
             {
                 windows = new LocalizationBattlePresentation(resourceHost.Resources).Scan(active, text, windows);

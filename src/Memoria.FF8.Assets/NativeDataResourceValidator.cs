@@ -169,7 +169,7 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
             case "menu/mtmag.bin":
             case "menu/mmag.bin":
                 IGameNativeMemorySource memory = candidate.GetSource<IGameNativeMemorySource>() ?? throw new NotSupportedException("Native tutorial metadata requires its authenticated executable descriptors.");
-                _ = NativeTutorialBrowserCatalog.Read(memory, candidate.Read(new ResourceKey("menu/mngrphd.bin")), candidate.Read(new ResourceKey("menu/mngrp.bin")), candidate.Read(new ResourceKey("menu/mtmag.bin")), candidate.Read(new ResourceKey("menu/mmag.bin")));
+                _ = NativeTutorialBrowserCatalog.Read(memory, candidate.Read(new ResourceKey("menu/mngrphd.bin")), candidate.Read(new ResourceKey("menu/mngrp.bin")), candidate.Read(new ResourceKey("menu/mtmag.bin")), candidate.Read(new ResourceKey("menu/mmag.bin")), candidate.Source.Language);
                 ValidateInventoryMagazines();
                 break;
             case "menu/cyocobo.bin":

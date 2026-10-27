@@ -85,7 +85,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
                     }
                     NativeBattleScanProcess process = current.NativeEffectMemory!.Scan!;
                     NativeBattleScanTextFrame frame = process.Text.ReadFrame(graphics.UiServices!.Flags942);
-                    IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(frame, battle.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224));
+                    IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(frame, battle.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224), game.Resources.Source.Language);
                     TextCanvas canvas = new();
                     NativeScanWindowDrawing.Draw(canvas, new UiTheme(), windows, new UiRect(0, 0, 320, 224), 0, 1);
                     Assert.Equal(0, canvas.ClipDepth);

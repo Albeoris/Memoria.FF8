@@ -33,10 +33,10 @@ public sealed class NativeTutorialBrowserCatalog
 
     public static NativeTutorialBrowserCatalog Read(byte[] executable, byte[] menuHeader, byte[] menuContent, byte[] ranges, byte[] metadata)
     {
-        return Read(new NativeExecutableMemory(executable), menuHeader, menuContent, ranges, metadata);
+        return Read(new NativeExecutableMemory(executable), menuHeader, menuContent, ranges, metadata, "en");
     }
 
-    public static NativeTutorialBrowserCatalog Read(IGameNativeMemorySource memory, byte[] menuHeader, byte[] menuContent, byte[] ranges, byte[] metadata)
+    public static NativeTutorialBrowserCatalog Read(IGameNativeMemorySource memory, byte[] menuHeader, byte[] menuContent, byte[] ranges, byte[] metadata, string language)
     {
         ArgumentNullException.ThrowIfNull(memory);
         if (menuHeader.Length != 256 * 8 || ranges.Length != 12 || metadata.Length % 68 != 0)
@@ -45,8 +45,8 @@ public sealed class NativeTutorialBrowserCatalog
         }
         byte[] descriptors = memory.Read(0xB88340, 7 * 4);
         int[] contentResourceBases = [28, 20, 24, 44, 48, 71, 180];
-        ImmutableArray<NativeTutorialText> tutorialLabels = NativeTutorialCatalog.ReadGroupedTexts(Resource(2), 13);
-        ImmutableArray<NativeTutorialText> mainLabels = NativeTutorialCatalog.ReadGroupedTexts(Resource(0), 0);
+        ImmutableArray<NativeTutorialText> tutorialLabels = NativeTutorialCatalog.ReadGroupedTexts(Resource(2), 13, language);
+        ImmutableArray<NativeTutorialText> mainLabels = NativeTutorialCatalog.ReadGroupedTexts(Resource(0), 0, language);
         ImmutableArray<NativeTutorialBrowserCategory>.Builder categories = ImmutableArray.CreateBuilder<NativeTutorialBrowserCategory>(7);
         for (int id = 0; id < 7; id++)
         {
@@ -86,7 +86,7 @@ public sealed class NativeTutorialBrowserCatalog
                     int resourceBase = contentResourceBases[group];
                     int contentResource = pageRow[23] + resourceBase;
                     ImmutableArray<byte> textBytes = Resource(textResource);
-                    ImmutableArray<NativeTutorialText> texts = NativeTutorialCatalog.ReadTexts(textBytes);
+                    ImmutableArray<NativeTutorialText> texts = NativeTutorialCatalog.ReadTexts(textBytes, language);
                     ImmutableArray<NativeTutorialPageText>.Builder placements = ImmutableArray.CreateBuilder<NativeTutorialPageText>();
                     for (int slot = 0; slot < 4; slot++)
                     {
@@ -141,6 +141,6 @@ public sealed partial class GameAssets
             return nativeTutorialBrowser;
         }
         using IFlArchive menu = OpenArchive("menu");
-        return nativeTutorialBrowser = NativeTutorialBrowserCatalog.Read(ReadNativeMemory(), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), Read(menu, "mtmag.bin"), Read(menu, "mmag.bin"));
+        return nativeTutorialBrowser = NativeTutorialBrowserCatalog.Read(ReadNativeMemory(), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), Read(menu, "mtmag.bin"), Read(menu, "mmag.bin"), resources.Source.Language);
     }
 }

@@ -24,9 +24,11 @@ public sealed partial class NativeTutorialCatalog
 {
     private readonly byte[] initial;
     private readonly byte[] kernel;
+    private readonly string language;
 
-    private NativeTutorialCatalog(string executableHash, string resourceHash, ImmutableArray<NativeTutorialDefinition> tutorials, ImmutableArray<NativeTutorialText> statusLabels, ImmutableArray<NativeTutorialText> switchLabels, byte[] initial, byte[] kernel)
+    private NativeTutorialCatalog(string executableHash, string resourceHash, ImmutableArray<NativeTutorialDefinition> tutorials, ImmutableArray<NativeTutorialText> statusLabels, ImmutableArray<NativeTutorialText> switchLabels, byte[] initial, byte[] kernel, string language)
     {
+        this.language = language;
         ExecutableHash = executableHash;
         ResourceHash = resourceHash;
         Tutorials = tutorials;
@@ -86,10 +88,10 @@ public sealed partial class NativeTutorialCatalog
 
     public static NativeTutorialCatalog Read(byte[] executable, byte[] menuHeader, byte[] menuContent, byte[] initial, byte[] kernel)
     {
-        return Read(new NativeExecutableMemory(executable), menuHeader, menuContent, initial, kernel);
+        return Read(new NativeExecutableMemory(executable), menuHeader, menuContent, initial, kernel, "en");
     }
 
-    public static NativeTutorialCatalog Read(IGameNativeMemorySource memory, byte[] menuHeader, byte[] menuContent, byte[] initial, byte[] kernel)
+    public static NativeTutorialCatalog Read(IGameNativeMemorySource memory, byte[] menuHeader, byte[] menuContent, byte[] initial, byte[] kernel, string language)
     {
         ArgumentNullException.ThrowIfNull(memory);
         NativeInitialData.Validate(initial);
@@ -98,7 +100,7 @@ public sealed partial class NativeTutorialCatalog
             throw new InvalidDataException("Native tutorials require the complete original menu directory and initialization template.");
         }
         byte[] descriptors = memory.Read(0xB88360, 9 * 12);
-        ImmutableArray<NativeTutorialText> titles = ReadGroupedTexts(Resource(2), 13);
+        ImmutableArray<NativeTutorialText> titles = ReadGroupedTexts(Resource(2), 13, language);
         ImmutableArray<NativeTutorialDefinition>.Builder tutorials = ImmutableArray.CreateBuilder<NativeTutorialDefinition>(9);
         for (int id = 0; id < 9; id++)
         {
@@ -113,12 +115,12 @@ public sealed partial class NativeTutorialCatalog
                 throw new InvalidDataException("Native tutorial resource cannot supply its complete initialization records or WORD inputs.");
             }
             ImmutableArray<ushort> words = Enumerable.Range(0, inputs.Length / 2).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(inputs.AsSpan(index * 2, 2))).ToImmutableArray();
-            tutorials.Add(new NativeTutorialDefinition(descriptor, texts, inputs, characters, guardianForces, ReadTexts(texts), words) { Title = titles[descriptor.TitleIndex * 2].Value, Help = titles[descriptor.TitleIndex * 2 + 1].Value });
+            tutorials.Add(new NativeTutorialDefinition(descriptor, texts, inputs, characters, guardianForces, ReadTexts(texts, language), words) { Title = titles[descriptor.TitleIndex * 2].Value, Help = titles[descriptor.TitleIndex * 2 + 1].Value });
         }
         using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         hash.AppendData(menuHeader);
         hash.AppendData(menuContent);
-        return new NativeTutorialCatalog(memory.SourceHash, Convert.ToHexString(hash.GetHashAndReset()), tutorials.MoveToImmutable(), ReadGroupedTexts(Resource(2), 7), ReadGroupedTexts(Resource(2), 4), initial.ToArray(), kernel.ToArray());
+        return new NativeTutorialCatalog(memory.SourceHash, Convert.ToHexString(hash.GetHashAndReset()), tutorials.MoveToImmutable(), ReadGroupedTexts(Resource(2), 7, language), ReadGroupedTexts(Resource(2), 4, language), initial.ToArray(), kernel.ToArray(), language);
 
         ImmutableArray<byte> Resource(int slot)
         {
@@ -132,7 +134,7 @@ public sealed partial class NativeTutorialCatalog
         }
     }
 
-    internal static ImmutableArray<NativeTutorialText> ReadGroupedTexts(ImmutableArray<byte> bytes, int table)
+    internal static ImmutableArray<NativeTutorialText> ReadGroupedTexts(ImmutableArray<byte> bytes, int table, string language)
     {
         int count = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan());
         if (table < 0 || table >= count || count > (bytes.Length - 2) / 2)
@@ -154,10 +156,10 @@ public sealed partial class NativeTutorialCatalog
         {
             throw new InvalidDataException("Native menu text table is vacant or outside its group.");
         }
-        return ReadTexts(ImmutableArray.CreateRange(bytes.AsSpan(offset, end - offset).ToArray()));
+        return ReadTexts(ImmutableArray.CreateRange(bytes.AsSpan(offset, end - offset).ToArray()), language);
     }
 
-    internal static ImmutableArray<NativeTutorialText> ReadTexts(ImmutableArray<byte> bytes)
+    internal static ImmutableArray<NativeTutorialText> ReadTexts(ImmutableArray<byte> bytes, string language)
     {
         int count = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan());
         if (count > (bytes.Length - 2) / 2)
@@ -201,7 +203,7 @@ public sealed partial class NativeTutorialCatalog
                 textLength = terminator < 0 ? reserved.Length : searchStart + terminator;
             }
             ImmutableArray<byte> encoded = ImmutableArray.CreateRange(reserved[..textLength].ToArray());
-            result.Add(new NativeTutorialText(index, offset, FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(encoded.AsSpan()), encoded));
+            result.Add(new NativeTutorialText(index, offset, NativeTextEncoding.Create(language).GetString(encoded.AsSpan()), encoded));
             previous = offset;
         }
         return result.MoveToImmutable();
@@ -220,6 +222,6 @@ public sealed partial class GameAssets
         }
         using IFlArchive menu = OpenArchive("menu");
         using IFlArchive main = OpenArchive("main");
-        return nativeTutorials = NativeTutorialCatalog.Read(ReadNativeMemory(), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), Read(main, "init.out"), Read(main, "kernel.bin"));
+        return nativeTutorials = NativeTutorialCatalog.Read(ReadNativeMemory(), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), Read(main, "init.out"), Read(main, "kernel.bin"), resources.Source.Language);
     }
 }

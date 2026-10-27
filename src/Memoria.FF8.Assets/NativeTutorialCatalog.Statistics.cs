@@ -10,5 +10,5 @@ public sealed partial class NativeTutorialCatalog
 
     public BattlePlayerStats ReadStatistics(NativeCharacterVitals party, int row) => new BattlePlayerStatReader(kernel).Read(party, row);
     public BattleNativePlayerStatRules ReadStatRules(NativeCharacterVitals party, int row) => new BattlePlayerStatReader(kernel).ReadRules(party, row);
-    public KernelData ReadStatusKernel() => statusKernel ??= KernelData.ReadFromArray(kernel, FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
+    public KernelData ReadStatusKernel() => statusKernel ??= KernelData.ReadFromArray(kernel, NativeTextEncoding.Create(language));
 }
