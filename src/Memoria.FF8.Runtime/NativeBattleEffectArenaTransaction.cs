@@ -66,11 +66,23 @@ internal sealed partial class NativeBattleEffectArenaTransaction : IDisposable
                 transactions[index].writer.OwnedOverlay.PublishPrepared();
             }
         }
-        catch
+        catch (Exception failure)
         {
+            List<Exception>? rollbackFailures = null;
             for (int index = opened - 1; index >= 0; index--)
             {
-                transactions[index].writer.OwnedOverlay.RollbackPublication();
+                try
+                {
+                    transactions[index].writer.OwnedOverlay.RollbackPublication();
+                }
+                catch (Exception rollbackFailure)
+                {
+                    (rollbackFailures ??= []).Add(rollbackFailure);
+                }
+            }
+            if (rollbackFailures is not null)
+            {
+                failure.Data["NativeBattleEffectArenaTransaction.RollbackFailures"] = rollbackFailures.ToArray();
             }
             throw;
         }

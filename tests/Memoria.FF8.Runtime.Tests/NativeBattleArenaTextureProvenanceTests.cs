@@ -123,6 +123,36 @@ public sealed class NativeBattleArenaTextureProvenanceTests
     }
 
     [Fact]
+    public void Group_rollback_diagnostic_failure_still_restores_every_owner_and_preserves_primary_failure()
+    {
+        NativeBattleEffectArena first = NativeBattleEffectArena.Clear();
+        NativeBattleEffectArena second = NativeBattleEffectArena.Clear();
+        Load(first, 32, 1, "first.tim");
+        Load(second, 32, 2, "second.tim");
+        using NativeBattleEffectArenaTransaction firstWrites = new(first);
+        using NativeBattleEffectArenaTransaction secondWrites = new(second);
+        Load(firstWrites.View, 32, 3, "new-first.tim");
+        Load(secondWrites.View, 32, 4, "new-second.tim");
+        DoubleFault traffic = new();
+        using (NativeBattleTelemetry.BeginScope(traffic))
+        {
+            InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => NativeBattleEffectArenaTransaction.CommitGroup([firstWrites, secondWrites]));
+            Assert.Same(traffic.Primary, failure);
+            Exception[] rollback = Assert.IsType<Exception[]>(failure.Data["NativeBattleEffectArenaTransaction.RollbackFailures"]);
+            Assert.Same(traffic.Rollback, Assert.Single(rollback));
+        }
+        Assert.False(first.Working.HasCheckpoint);
+        Assert.False(second.Working.HasCheckpoint);
+        Assert.Equal("first.tim", Assert.Single(first.TextureFiles!.Value).Identity.Name);
+        Assert.Equal("second.tim", Assert.Single(second.TextureFiles!.Value).Identity.Name);
+        Assert.NotNull(first.FindTextureFile(32, Payload(1)));
+        Assert.NotNull(second.FindTextureFile(32, Payload(2)));
+        NativeBattleEffectArenaTransaction.CommitGroup([firstWrites, secondWrites]);
+        Assert.NotNull(first.FindTextureFile(32, Payload(3)));
+        Assert.NotNull(second.FindTextureFile(32, Payload(4)));
+    }
+
+    [Fact]
     public void Detached_json_preserves_identity_and_hash_while_independent_restores_do_not_alias()
     {
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear();
@@ -184,6 +214,29 @@ public sealed class NativeBattleArenaTextureProvenanceTests
     {
         byte[] bytes = Payload(value);
         return arena.Write(offset, bytes).RememberTextureFile(offset, bytes, new(name, domain));
+    }
+
+    private sealed class DoubleFault : INativeBattleTelemetrySink
+    {
+        private int records;
+        internal InvalidOperationException Primary { get; } = new("Second bank application failed.");
+        internal InvalidOperationException Rollback { get; } = new("Second bank rollback diagnostic failed.");
+        public void Record(int siteId, NativeBattleTrafficKind kind, long payloadBytes)
+        {
+            if (siteId != 1005 || kind != NativeBattleTrafficKind.CpuCopyPayload)
+            {
+                return;
+            }
+            records++;
+            if (records == 3)
+            {
+                throw Primary;
+            }
+            if (records == 4)
+            {
+                throw Rollback;
+            }
+        }
     }
 
     private sealed class FailSecondBank : INativeBattleTelemetrySink
