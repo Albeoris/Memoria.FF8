@@ -87,12 +87,35 @@ Push-Location $root
 try {
     & (Join-Path $root 'tools/Update-Shaders.ps1') -Check
     Invoke-DotNet @('build', 'Memoria.FF8.Native.slnx', '-c', $Configuration, ('-p:MemoriaTargetRuntime=' + $RuntimeIdentifier), '-p:MemoriaGraphicsBackend=Vulkan', '-p:TargetFramework=net10.0', '-p:SkipMusicHost=true', '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/graph')), '-m:1')
+    $nativeDirect3D12 = Join-Path $artifacts 'native-dx12'
+    if ($RuntimeIdentifier -eq 'win-x64') {
+        & (Join-Path $root 'tools/Build-NativeDirect3D12.ps1') -OutputDirectory $nativeDirect3D12
+    }
     $publishArguments = @('-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false')
     foreach ($backend in $backends) {
         $hostOutput = Join-Path $data ('Game/' + $backend.Directory)
         $hostBuild = Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/' + $backend.Directory)
         $hostAssets += Join-Path $hostBuild 'obj/Memoria.FF8.App/project.assets.json'
-        Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:SkipMusicHost=true', '-p:PublishSingleFile=false', '-m:1') + $publishArguments)
+        $nativePublishArguments = @()
+        if ($RuntimeIdentifier -eq 'win-x64' -and $backend.Name -eq 'Direct3D12') {
+            $nativePublishArguments = @(('-p:MemoriaNativeDirect3D12Directory=' + $nativeDirect3D12), '-p:MemoriaNativeDirect3D12Prepared=true')
+        }
+        Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:SkipMusicHost=true', '-p:PublishSingleFile=false', '-m:1') + $nativePublishArguments + $publishArguments)
+        if ($RuntimeIdentifier -eq 'win-x64' -and $backend.Name -eq 'Direct3D12') {
+            $nativeReceipt = Get-Content -LiteralPath (Join-Path $nativeDirect3D12 'native-runtime.json') -Raw | ConvertFrom-Json
+            $nativeLock = Get-Content -LiteralPath (Join-Path $root 'vendor/MonoGame.Native.DX12/native-runtime-lock.json') -Raw | ConvertFrom-Json
+            $runtimeFile = @($nativeReceipt.files | Where-Object path -CEQ 'mgruntime.dll')
+            if ($nativeReceipt.schemaVersion -ne 1 -or $nativeReceipt.runtimeIdentifier -cne 'win-x64' -or $nativeReceipt.backend -cne 'Direct3D12' -or $nativeReceipt.version -cne $nativeLock.version -or $nativeReceipt.upstream.commit -cne $nativeLock.upstream.commit -or $nativeReceipt.patchSha256 -cne $nativeLock.patchSha256 -or $runtimeFile.Count -ne 1) {
+                throw 'The patched Direct3D 12 runtime receipt does not match the locked source recipe.'
+            }
+            if ((Get-FileHash -LiteralPath (Join-Path $nativeDirect3D12 'mgruntime.dll') -Algorithm SHA256).Hash.ToLowerInvariant() -cne $runtimeFile[0].sha256) {
+                throw 'The patched Direct3D 12 runtime does not match its build receipt.'
+            }
+            Copy-Item -LiteralPath (Join-Path $nativeDirect3D12 'mgruntime.dll'), (Join-Path $nativeDirect3D12 'native-runtime.json') -Destination $hostOutput -Force
+            $nativeNotices = Join-Path $data 'licenses/MonoGame.Native.DX12'
+            New-Item -ItemType Directory -Force -Path $nativeNotices | Out-Null
+            Get-ChildItem -LiteralPath (Join-Path $nativeDirect3D12 'licenses') -Force | Copy-Item -Destination $nativeNotices -Recurse -Force
+        }
         if ($RuntimeIdentifier -eq 'osx-x64') {
             & (Join-Path $root 'tools/Get-MoltenVK.ps1') -Destination $hostOutput
         }

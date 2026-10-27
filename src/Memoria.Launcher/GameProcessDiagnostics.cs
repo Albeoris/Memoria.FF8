@@ -1,7 +1,28 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
+using System.Security.Cryptography;
 
 namespace Memoria.Launcher;
+
+internal sealed record GraphicsRestartRecovery(string StatePath, string Sha256)
+{
+    internal void ApplyTo(ProcessStartInfo start)
+    {
+        if (!Path.IsPathFullyQualified(StatePath) || Path.GetExtension(StatePath) != ".ff8state" || Sha256.Length != 64 || !Sha256.All(Uri.IsHexDigit))
+        {
+            throw new InvalidDataException("The preserved graphics restart save has an invalid path or hash.");
+        }
+        UpdateInstaller.RejectLinks(StatePath);
+        using FileStream stream = File.OpenRead(StatePath);
+        if (stream.Length == 0 || !Convert.ToHexString(SHA256.HashData(stream)).Equals(Sha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("The preserved graphics restart save changed. Select a known save manually; the current file has been retained.");
+        }
+        start.ArgumentList.Add("--state");
+        start.ArgumentList.Add(StatePath);
+    }
+}
 
 internal sealed class GameProcessDiagnostics : IDisposable
 {
@@ -11,6 +32,17 @@ internal sealed class GameProcessDiagnostics : IDisposable
     private readonly StringBuilder outputTail = new();
     private readonly StringBuilder readinessLine = new();
     private string? graphicsReady;
+    private GraphicsRestartRecovery? restartRecovery;
+    public GraphicsRestartRecovery? RestartRecovery
+    {
+        get
+        {
+            lock (gate)
+            {
+                return restartRecovery;
+            }
+        }
+    }
     public string? GraphicsReady
     {
         get
@@ -110,6 +142,27 @@ internal sealed class GameProcessDiagnostics : IDisposable
                     if (line.StartsWith("Graphics ready: requested=", StringComparison.Ordinal) && line.Contains(" actual=", StringComparison.Ordinal))
                     {
                         graphicsReady = line;
+                        restartRecovery = null;
+                    }
+                    const string recoveryPrefix = "Graphics restart recovery: ";
+                    if (line.StartsWith(recoveryPrefix, StringComparison.Ordinal))
+                    {
+                        graphicsReady = null;
+                        restartRecovery = null;
+                        try
+                        {
+                            using JsonDocument document = JsonDocument.Parse(line[recoveryPrefix.Length..]);
+                            string? state = document.RootElement.GetProperty("statePath").GetString();
+                            string? hash = document.RootElement.GetProperty("sha256").GetString();
+                            if (state is not null && Path.IsPathFullyQualified(state) && Path.GetExtension(state) == ".ff8state" && hash is { Length: 64 } && hash.All(Uri.IsHexDigit))
+                            {
+                                restartRecovery = new GraphicsRestartRecovery(state, hash);
+                            }
+                        }
+                        catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException)
+                        {
+                            WriteLog("launcher", "Invalid graphics restart recovery information: " + exception.Message);
+                        }
                     }
                     readinessLine.Clear();
                 }

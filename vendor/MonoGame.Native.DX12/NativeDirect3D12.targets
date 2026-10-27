@@ -1,0 +1,24 @@
+<Project>
+  <PropertyGroup Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'">
+    <MemoriaNativeDirect3D12Directory Condition="'$(MemoriaNativeDirect3D12Directory)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../artifacts/native-dx12'))</MemoriaNativeDirect3D12Directory>
+  </PropertyGroup>
+  <Target Name="BuildNativeDirect3D12Runtime" BeforeTargets="CopyFilesToOutputDirectory" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'">
+    <Exec Condition="'$(MemoriaNativeDirect3D12Prepared)' != 'true'" Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)../../tools/Build-NativeDirect3D12.ps1&quot; -OutputDirectory &quot;$(MemoriaNativeDirect3D12Directory)&quot;" />
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)../../tools/Test-NativeDirect3D12.ps1&quot; -OutputDirectory &quot;$(MemoriaNativeDirect3D12Directory)&quot;" />
+  </Target>
+  <Target Name="CopyNativeDirect3D12Runtime" AfterTargets="CopyFilesToOutputDirectory" DependsOnTargets="BuildNativeDirect3D12Runtime" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'">
+    <ItemGroup>
+      <NativeDirect3D12Notice Include="$(MemoriaNativeDirect3D12Directory)/licenses/*" />
+    </ItemGroup>
+    <Copy SourceFiles="$(MemoriaNativeDirect3D12Directory)/mgruntime.dll;$(MemoriaNativeDirect3D12Directory)/native-runtime.json" DestinationFolder="$(TargetDir)" />
+    <Copy SourceFiles="$(MemoriaNativeDirect3D12Directory)/mgruntime.dll" DestinationFolder="$(TargetDir)runtimes/win-x64/native/" Condition="Exists('$(TargetDir)runtimes/win-x64/native/mgruntime.dll')" />
+    <Copy SourceFiles="@(NativeDirect3D12Notice)" DestinationFolder="$(TargetDir)licenses/MonoGame.Native.DX12/" />
+  </Target>
+  <Target Name="PublishNativeDirect3D12Runtime" AfterTargets="Publish" DependsOnTargets="BuildNativeDirect3D12Runtime" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'">
+    <ItemGroup>
+      <NativeDirect3D12PublishNotice Include="$(MemoriaNativeDirect3D12Directory)/licenses/*" />
+    </ItemGroup>
+    <Copy SourceFiles="$(MemoriaNativeDirect3D12Directory)/mgruntime.dll;$(MemoriaNativeDirect3D12Directory)/native-runtime.json" DestinationFolder="$(PublishDir)" />
+    <Copy SourceFiles="@(NativeDirect3D12PublishNotice)" DestinationFolder="$(PublishDir)licenses/MonoGame.Native.DX12/" />
+  </Target>
+</Project>

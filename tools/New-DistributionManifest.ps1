@@ -20,6 +20,12 @@ if ($env:GITHUB_ACTIONS -eq 'true') {
     }
 }
 $prefix = if ($RuntimeIdentifier -eq 'osx-x64') { 'Contents/MacOS/' } else { '' }
+if ($RuntimeIdentifier -eq 'osx-x64') {
+    & dotnet run --project (Join-Path $PSScriptRoot 'Memoria.FF8.Distribution.Check') -c Release -- --set-mac-bundle-version (Join-Path $root 'Contents/Info.plist') $version
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The macOS bundle version could not be stamped before inventory generation.'
+    }
+}
 $manifestPath = Join-Path $root ($prefix + 'Data/distribution.json')
 $files = @(Get-ChildItem -LiteralPath $root -File -Recurse | Where-Object FullName -ne $manifestPath)
 $inventory = @($files | Sort-Object FullName | ForEach-Object {

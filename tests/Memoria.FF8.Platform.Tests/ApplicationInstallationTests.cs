@@ -13,4 +13,15 @@ public sealed class ApplicationInstallationTests
         Assert.Equal(host, ApplicationInstallation.Resolve(host, null));
         Assert.Throws<InvalidDataException>(() => ApplicationInstallation.Resolve(host, "relative/Data"));
     }
+    [Theory]
+    [InlineData(HostPlatform.Windows)]
+    [InlineData(HostPlatform.Linux)]
+    [InlineData(HostPlatform.MacOS)]
+    public void UserModsUseConfigurationOutsideMacBundlesAndPackageDirectoryElsewhere(HostPlatform platform)
+    {
+        string package = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "Memoria.FF8.app", "Contents", "MacOS"));
+        string configuration = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "user configuration"));
+        string expectedRoot = platform == HostPlatform.MacOS ? configuration : package;
+        Assert.Equal(Path.Combine(expectedRoot, "Mods"), ApplicationInstallation.ResolveModsDirectory(package, platform, configuration));
+    }
 }

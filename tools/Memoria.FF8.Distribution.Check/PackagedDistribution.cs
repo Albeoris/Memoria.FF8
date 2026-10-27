@@ -142,6 +142,10 @@ static class PackagedDistribution
         {
             throw new InvalidDataException("Package descriptor RID/schema mismatch.");
         }
+        if (rid == "osx-x64")
+        {
+            MacBundleVersion.Validate(File.ReadAllBytes(Path.Combine(root, "Contents", "Info.plist")), manifest.GetProperty("Version").GetString()!);
+        }
         HashSet<string> expected = new(StringComparer.Ordinal) { prefix + "Data/distribution.json" };
         foreach (JsonElement file in manifest.GetProperty("Files").EnumerateArray())
         {

@@ -76,6 +76,12 @@ public static class GraphicsDispatcher
             {
                 return result.ExitCode;
             }
+            string statePath = Option(result.RestartArguments, "--state")!;
+            using (FileStream state = File.OpenRead(statePath))
+            {
+                string sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(state)).ToLowerInvariant();
+                await output.WriteLineAsync("Graphics restart recovery: " + JsonSerializer.Serialize(new { statePath, sha256 }));
+            }
             await output.WriteLineAsync("Graphics restart: resuming the preserved standalone game in a new host.");
             current = result.RestartArguments;
         }

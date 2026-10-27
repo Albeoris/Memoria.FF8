@@ -10,6 +10,18 @@ using System.Reflection.Metadata;
 using System.Security.Cryptography;
 using System.Text.Json;
 
+if (args.Length == 3 && args[0] == "--set-mac-bundle-version")
+{
+    File.WriteAllBytes(args[1], MacBundleVersion.Stamp(File.ReadAllBytes(args[1]), args[2]));
+    return;
+}
+
+if (args.Length == 3 && args[0] == "--validate-mac-bundle-version")
+{
+    MacBundleVersion.Validate(File.ReadAllBytes(args[1]), args[2]);
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--mac-imports")
 {
     Console.WriteLine(JsonSerializer.Serialize(MacNativeClosure.Read(args[1])));

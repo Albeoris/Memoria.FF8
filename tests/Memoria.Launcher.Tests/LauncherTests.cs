@@ -1,3 +1,4 @@
+using Memoria.FF8.Platform;
 using System.Diagnostics;
 using System.Net.Http;
 using Memoria.FF8;
@@ -45,12 +46,13 @@ public sealed class LauncherTests : IDisposable
     }
 
     [Fact]
-    public void PlatformCapabilitiesDoNotOfferWindowsPackagesOnUnix()
+    public void PlatformCapabilitiesRequireASupportedX64Desktop()
     {
-        Assert.Equal(OperatingSystem.IsWindows(), LauncherCapabilities.CanUpdate);
-        Assert.Equal(OperatingSystem.IsWindows(), LauncherCapabilities.CanLaunchGame);
-        Assert.Contains("unavailable", LauncherCapabilities.GameStatus);
-        Assert.Contains("Windows update packages cannot be installed", LauncherCapabilities.UpdateStatus);
+        bool supported = (OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()) && System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.X64;
+        Assert.Equal(supported, LauncherCapabilities.CanUpdate);
+        Assert.Equal(supported, LauncherCapabilities.CanLaunchGame);
+        Assert.Contains("x64", LauncherCapabilities.GameStatus);
+        Assert.Contains("another operating system cannot be installed", LauncherCapabilities.UpdateStatus);
     }
 
     [Fact]
@@ -226,11 +228,11 @@ public sealed class LauncherTests : IDisposable
 
         ProcessStartInfo result = GameInstallationSelection.CreateStartInfo(package, game);
 
-        Assert.Equal(Path.Combine(package, "Data", "Memoria.FF8.exe"), result.FileName);
+        Assert.Equal(Path.Combine(package, "Data", Memoria.FF8.Platform.HostPlatforms.Current.ExecutableName("Memoria.FF8")), result.FileName);
         Assert.Equal(Path.Combine(package, "Data"), result.WorkingDirectory);
-        Assert.Equal(new[] { "--game-dir", game, "--mods-dir", Path.Combine(package, "Mods"), "--media-tools", MediaToolsInstallation.ResolveDirectory() }, result.ArgumentList);
+        Assert.Equal(new[] { "--game-dir", game, "--mods-dir", ApplicationInstallation.ResolveModsDirectory(package, HostPlatforms.Current, ApplicationPaths.Current.Configuration), "--media-tools", MediaToolsInstallation.ResolveDirectory() }, result.ArgumentList);
         string nextPackage = Path.Combine(directory, "Next release");
-        Assert.Equal(Path.Combine(nextPackage, "Mods"), GameInstallationSelection.CreateStartInfo(nextPackage, game).ArgumentList[3]);
+        Assert.Equal(ApplicationInstallation.ResolveModsDirectory(nextPackage, HostPlatforms.Current, ApplicationPaths.Current.Configuration), GameInstallationSelection.CreateStartInfo(nextPackage, game).ArgumentList[3]);
         Assert.False(result.UseShellExecute);
         Assert.True(result.RedirectStandardOutput);
         Assert.True(result.RedirectStandardError);
@@ -312,5 +314,18 @@ public sealed class LauncherTests : IDisposable
         {
             throw new InvalidOperationException("Installed tools must not access the network.");
         }
+    }
+    [Theory]
+    [InlineData(HostPlatform.Windows, "Memoria.FF8.exe")]
+    [InlineData(HostPlatform.Linux, "Memoria.FF8")]
+    [InlineData(HostPlatform.MacOS, "Memoria.FF8")]
+    public void LaunchFactoryUsesPlatformExecutableAndWritableModPolicy(HostPlatform platform, string executable)
+    {
+        string package = Path.Combine(directory, "package.app", "Contents", "MacOS");
+        string configuration = Path.Combine(directory, "user configuration");
+        ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(package, directory, hostPlatform: platform, configurationDirectory: configuration);
+        Assert.Equal(Path.Combine(package, "Data", executable), start.FileName);
+        Assert.Equal(Path.Combine(platform == HostPlatform.MacOS ? configuration : package, "Mods"), start.ArgumentList[3]);
+        Assert.Equal(Path.Combine(package, "Data"), start.WorkingDirectory);
     }
 }

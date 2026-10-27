@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "package": "MonoGame.Runtime.Windows.DX12",
+  "version": "3.8.5.1",
+  "upstream": {
+    "repository": "https://github.com/MonoGame/MonoGame.git",
+    "commit": "5e9fe9b100ffa67026dff97cc8adffae1414534e"
+  },
+  "dependencies": [
+    {
+      "path": "native/monogame/external/sdl2",
+      "repository": "https://github.com/MonoGame/MonoGame.Library.SDL.git",
+      "commit": "9f64afcc0c04d1714c412f8be2704d47096a6b9e"
+    },
+    {
+      "path": "native/monogame/external/sdl2/sdl",
+      "repository": "https://github.com/libsdl-org/SDL.git",
+      "commit": "5d249570393f7a37e037abf22cd6012a4cc56a71"
+    },
+    {
+      "path": "external/stb",
+      "repository": "https://github.com/nothings/stb.git",
+      "commit": "f58f558c120e9b32c217290b80bad1a0729fbb2c"
+    }
+  ],
+  "shaderCompiler": {
+    "package": "dotnet-mgfxc",
+    "version": "3.8.5.1",
+    "profile": "DirectX_12"
+  },
+  "patchSha256": "906d94bcbecaf4255935a9e5fad578a68ab6a84d3172aea831a468defa006c62",
+  "referencePackageSha512": "KpgsYp1OQQqojrBpD+pAN2AeZ54l4/3Q0C9UrTAvC8SUCCJjaNcon6AuxKceR2xzYfzbSbv7gVAYq0Emu8Vexg=="
+}

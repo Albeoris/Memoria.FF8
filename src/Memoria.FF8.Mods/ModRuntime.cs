@@ -81,6 +81,12 @@ public sealed partial class ModRuntime : IModService, IDisposable
     {
         string applicationDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(applicationBaseDirectory, ".")));
         string? packageDirectory = Path.GetDirectoryName(applicationDirectory);
+        string? contentsDirectory = packageDirectory is null ? null : Path.GetDirectoryName(packageDirectory);
+        string? bundleDirectory = contentsDirectory is null ? null : Path.GetDirectoryName(contentsDirectory);
+        if (HostPlatforms.Current == HostPlatform.MacOS && Path.GetFileName(applicationDirectory) == "Data" && Path.GetFileName(packageDirectory) == "MacOS" && Path.GetFileName(contentsDirectory) == "Contents" && bundleDirectory?.EndsWith(".app", StringComparison.Ordinal) == true)
+        {
+            return ApplicationInstallation.ResolveModsDirectory(packageDirectory ?? applicationDirectory, HostPlatform.MacOS, ApplicationPaths.Current.Configuration);
+        }
         string launcher = HostPlatforms.Current.ExecutableName("Memoria.Launcher");
         if (Path.GetFileName(applicationDirectory).Equals("Data", StringComparison.OrdinalIgnoreCase) && packageDirectory is not null && File.Exists(Path.Combine(packageDirectory, launcher)) && Directory.Exists(Path.Combine(packageDirectory, "Mods")))
         {

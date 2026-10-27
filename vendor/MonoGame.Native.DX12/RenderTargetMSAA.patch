@@ -1,0 +1,136 @@
+diff --git a/native/monogame/directx12/CommandContext.cpp b/native/monogame/directx12/CommandContext.cpp
+index 992d898..aaf6b17 100644
+--- a/native/monogame/directx12/CommandContext.cpp
++++ b/native/monogame/directx12/CommandContext.cpp
+@@ -168,7 +168,7 @@ void CommandContext::SetRenderTarget(Texture** colorTargets, int32_t* slices, si
+     m_currentDepthStencil = depthTarget;
+ }
+ 
+-void CommandContext::ResolveResource(Texture* source, Texture* dest) {
++void CommandContext::ResolveResource(Texture* source, Texture* dest, UINT sourceSubresource, UINT destinationSubresource) {
+     CommandList* cmdResolve = cmd;
+     if (!cmd)
+         cmdResolve = m_deviceRes->BeginCommandList(); // we might want to Resolve outside of Draw (to read the back buffer for example), so we create a blocking command list for that purpose
+@@ -181,7 +181,7 @@ void CommandContext::ResolveResource(Texture* source, Texture* dest) {
+ 
+     DXGI_FORMAT resolveFormat = dest->GetFormat();
+     if (resolveFormat == DXGI_FORMAT_D24_UNORM_S8_UINT) resolveFormat = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+-    cmdResolve->Get()->ResolveSubresource(dest->Get(), 0, source->Get(), 0, resolveFormat);
++    cmdResolve->Get()->ResolveSubresource(dest->Get(), destinationSubresource, source->Get(), sourceSubresource, resolveFormat);
+ 
+     if (!cmd) cmdResolve->Close(true);
+ }
+diff --git a/native/monogame/directx12/CommandContext.h b/native/monogame/directx12/CommandContext.h
+index 0677f2e..581c20e 100644
+--- a/native/monogame/directx12/CommandContext.h
++++ b/native/monogame/directx12/CommandContext.h
+@@ -56,7 +56,7 @@ public:
+     uint64_t Close();
+ 
+     void SetRenderTarget(Texture** colorTargets, int32_t* slices, size_t numColorTargets, Texture* depthTarget);
+-    void ResolveResource(Texture* source, Texture* dest);
++    void ResolveResource(Texture* source, Texture* dest, UINT sourceSubresource = 0, UINT destinationSubresource = 0);
+     void GenerateMipmap(Texture* source);
+     void Clear(MGClearOptions options, float r, float g, float b, float a, float depth, int stencil);
+ 
+diff --git a/native/monogame/directx12/MGG_DX12.cpp b/native/monogame/directx12/MGG_DX12.cpp
+index 8791468..0ab9247 100644
+--- a/native/monogame/directx12/MGG_DX12.cpp
++++ b/native/monogame/directx12/MGG_DX12.cpp
+@@ -168,6 +168,7 @@ struct MGG_GraphicsDevice
+ 	MGG_Shader* currentShader[2] = { nullptr, nullptr };
+ 
+ 	Texture* depthTexture = nullptr;
++	std::vector<MGG_Texture*> renderTargets;
+ 
+ 	MGG_InputLayout* layout = nullptr;
+ 
+@@ -235,6 +236,7 @@ struct MGG_Texture
+ 
+ 	MGSurfaceFormat format;
+ 	Texture* texture = nullptr;
++	Texture* multisampleTexture = nullptr;
+ 
+ 	Texture* depthTexture = nullptr;
+ };
+@@ -591,20 +593,20 @@ void MGG_GraphicsDevice_ResolveRenderTargets(MGG_GraphicsDevice* device)
+ 	if (!device->is_recording)
+ 		return;
+ 
+-	auto& currentRT = device->context->m_currentRT;
+-	if (currentRT.size() == 0)
+-		return;
+-
+-	// We resolve MSAA and mips to the active command buffer.
+-
+-	for (int i = 0; i < currentRT.size(); ++i)
++	for (auto target : device->renderTargets)
+ 	{
+-		auto renderTarget = currentRT[i];
+-		if (renderTarget->GetMipLevels() <= 1)
+-			continue;
+-
+-		device->context->GenerateMipmap(renderTarget);
++		if (target->multisampleTexture)
++		{
++			for (UINT slice = 0; slice < target->texture->GetDepthOrArraySize(); slice++)
++				device->context->ResolveResource(target->multisampleTexture, target->texture, slice, slice * target->texture->GetMipLevels());
++			std::vector<D3D12_RESOURCE_BARRIER> batch;
++			target->texture->TransitionBatched(batch, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
++			Texture::SendTransitionBatch(batch, device->context->GetCommandList());
++		}
++		if (target->texture->GetMipLevels() > 1)
++			device->context->GenerateMipmap(target->texture);
+ 	}
++
+ }
+ 
+ void MGG_GraphicsDevice_ResizeSwapchain(
+@@ -729,6 +731,10 @@ static void MGDX_DestroyFrameResources(MGG_GraphicsDevice* device, FrameCounter
+ 				texture->texture->FreeDescriptors(device->resources);
+ 				delete texture->texture;
+ 			}
++			if (texture->multisampleTexture) {
++				texture->multisampleTexture->FreeDescriptors(device->resources);
++				delete texture->multisampleTexture;
++			}
+ 			if (texture->depthTexture) {
+ 				texture->depthTexture->FreeDescriptors(device->resources);
+ 				delete texture->depthTexture;
+@@ -866,6 +872,7 @@ void MGG_GraphicsDevice_SetRenderTargets(MGG_GraphicsDevice* device, MGG_Texture
+ {
+ 	assert(device != nullptr);
+ 
++	device->renderTargets.clear();
+ 	if (targets == nullptr || count == 0)
+ 	{
+ 		device->context->SetRenderTarget(nullptr, nullptr, 0, device->depthTexture);
+@@ -875,7 +882,8 @@ void MGG_GraphicsDevice_SetRenderTargets(MGG_GraphicsDevice* device, MGG_Texture
+ 		std::vector<Texture*> colorTargets;
+ 		colorTargets.reserve(count);
+ 		for (size_t i = 0; i < count; i++) {
+-			colorTargets.push_back(targets[i]->texture);
++			device->renderTargets.push_back(targets[i]);
++			colorTargets.push_back(targets[i]->multisampleTexture ? targets[i]->multisampleTexture : targets[i]->texture);
+ 			targets[i]->frame = device->frame;
+ 		}
+ 
+@@ -1922,9 +1930,18 @@ MGG_Texture* MGG_RenderTarget_Create(
+ 	texture->texture = new Texture(SurfaceType::RenderTarget, (TextureDimension)type, width, height, depthOrArray, mipmaps, format);
+ 	texture->texture->Create(device->resources);
+ 
++	if (multiSampleCount > 1)
++	{
++		texture->multisampleTexture = new Texture(SurfaceType::RenderTarget, (TextureDimension)type, width, height, depthOrArray, 1, format);
++		texture->multisampleTexture->SetMSAA(multiSampleCount);
++		texture->multisampleTexture->Create(device->resources);
++	}
++
+ 	if (depthFormat != MGDepthFormat::None)
+ 	{
+ 		texture->depthTexture = new Texture(width, height, depthFormat);
++		if (multiSampleCount > 1)
++			texture->depthTexture->SetMSAA(multiSampleCount);
+ 		texture->depthTexture->Create(device->resources);
+ 	}
+ 

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Memoria.FF8.Platform;
 using Memoria.FF8;
 using Memoria.FF8.Resources;
 
@@ -84,10 +85,11 @@ internal static class GameInstallationSelection
         return null;
     }
 
-    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null)
+    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null, Memoria.FF8.Platform.HostPlatform? hostPlatform = null, string? configurationDirectory = null)
     {
+        Memoria.FF8.Platform.HostPlatform platform = hostPlatform ?? Memoria.FF8.Platform.HostPlatforms.Current;
         string dataDirectory = Path.Combine(packageDirectory, "Data");
-        ProcessStartInfo result = new(Path.Combine(dataDirectory, "Memoria.FF8.exe"))
+        ProcessStartInfo result = new(Path.Combine(dataDirectory, platform.ExecutableName("Memoria.FF8")))
         {
             WorkingDirectory = dataDirectory,
             UseShellExecute = false,
@@ -100,7 +102,7 @@ internal static class GameInstallationSelection
         result.ArgumentList.Add("--game-dir");
         result.ArgumentList.Add(Path.GetFullPath(gameDirectory));
         result.ArgumentList.Add("--mods-dir");
-        result.ArgumentList.Add(Path.GetFullPath(Path.Combine(packageDirectory, "Mods")));
+        result.ArgumentList.Add(ApplicationInstallation.ResolveModsDirectory(Path.GetFullPath(packageDirectory), platform, configurationDirectory ?? ApplicationPaths.Current.Configuration));
         result.ArgumentList.Add("--media-tools");
         result.ArgumentList.Add(MediaToolsInstallation.ResolveDirectory(mediaToolsDirectory));
         if (graphicsBackend is Memoria.FF8.Platform.GraphicsBackend backend)

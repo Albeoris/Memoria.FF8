@@ -19,6 +19,8 @@ internal sealed partial class LauncherWindow : Window
     private GraphicsBackend requestedGraphicsBackend;
     private bool loadingGraphicsBackend;
     private bool savingGraphicsBackend;
+    private GraphicsRestartRecovery? pendingGraphicsRecovery;
+    private UpdateResume? pendingGraphicsRecoveryResume;
     private bool graphicsPreferenceReadFailed;
     private readonly Button browse = new() { Content = "Browse…", MinWidth = 92, Margin = new Thickness(10, 0, 0, 0) };
     private readonly Button mediaSetup = new() { Content = "Set up FFmpeg", MinWidth = 130, MinHeight = 32 };
@@ -96,7 +98,7 @@ internal sealed partial class LauncherWindow : Window
         achievementsLocalOnly.IsCheckedChanged += (_, _) => SaveSelection();
         graphicsBackend.ItemsSource = GraphicsBackendSelection.Available(HostPlatforms.Current);
         graphicsBackend.SelectionChanged += async (_, _) => await SaveGraphicsBackendAsync();
-        tryAuto.Click += (_, _) => graphicsBackend.SelectedItem = GraphicsBackend.Auto;
+        tryAuto.Click += async (_, _) => await TryAutoAsync();
         mediaSetup.Click += async (_, _) => await RunSetupAsync();
         play.Click += async (_, _) => await PlayAsync();
         Opened += async (_, _) => await InitializeAsync();
@@ -371,8 +373,30 @@ internal sealed partial class LauncherWindow : Window
         }
     }
 
-    private async Task PlayAsync(UpdateResume? resume = null)
+    private async Task TryAutoAsync()
     {
+        if (runningGame is not null)
+        {
+            return;
+        }
+        try
+        {
+            await Task.Run(() => GraphicsBackendPreferences.Write(GraphicsBackendPreferences.DefaultPath, GraphicsBackend.Auto));
+            await PlayAsync(pendingGraphicsRecoveryResume, pendingGraphicsRecovery);
+        }
+        catch (Exception exception)
+        {
+            await ShowErrorAsync("Could not resume the preserved game with Auto.", exception);
+        }
+    }
+
+    private async Task PlayAsync(UpdateResume? resume = null, GraphicsRestartRecovery? graphicsRecovery = null)
+    {
+        if (graphicsRecovery is null)
+        {
+            pendingGraphicsRecovery = null;
+            pendingGraphicsRecoveryResume = null;
+        }
         if (!LauncherCapabilities.CanLaunchGame)
         {
             status.Text = LauncherCapabilities.GameStatus;
@@ -409,7 +433,7 @@ internal sealed partial class LauncherWindow : Window
             ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, graphicsBackend: requestedGraphicsBackend);
             if (!File.Exists(start.FileName))
             {
-                throw new FileNotFoundException("The engine is missing. Extract the complete Memoria archive, keeping its Data folder beside Memoria.Launcher.exe.", start.FileName);
+                throw new FileNotFoundException("The engine is missing. Extract the complete Memoria package, keeping its Data folder beside the launcher executable.", start.FileName);
             }
             if (!await EnsureMediaAsync())
             {
@@ -420,7 +444,11 @@ internal sealed partial class LauncherWindow : Window
             GameUpdateSession control = new();
             start.ArgumentList.Add("--update-control-dir");
             start.ArgumentList.Add(control.ControlDirectory);
-            if (resume is not null)
+            if (graphicsRecovery is not null)
+            {
+                graphicsRecovery.ApplyTo(start);
+            }
+            else if (resume is not null)
             {
                 start.ArgumentList.Add("--state");
                 start.ArgumentList.Add(resume.SavePath);
@@ -441,13 +469,17 @@ internal sealed partial class LauncherWindow : Window
                 {
                     graphicsStatus.Text = currentReady;
                 }
+                else if (diagnostics.RestartRecovery is not null)
+                {
+                    graphicsStatus.Text = "Waiting for the restarted graphics host. The current game has been preserved.";
+                }
                 if (!remembered && diagnostics.GraphicsReady is string ready)
                 {
                     graphicsStatus.Text = ready;
                     Remember(selected.Directory);
                     remembered = true;
                     WindowState = WindowState.Minimized;
-                    if (resume is not null)
+                    if (resume is not null && graphicsRecovery is null)
                     {
                         if (UpdateResume.TryDelete(AppContext.BaseDirectory) is string warning)
                         {
@@ -460,6 +492,13 @@ internal sealed partial class LauncherWindow : Window
             await process.WaitForExitAsync();
             await capture;
             string completion = diagnostics.Complete(process.ExitCode);
+            pendingGraphicsRecovery = diagnostics.RestartRecovery ?? (diagnostics.GraphicsReady is null ? graphicsRecovery : null);
+            pendingGraphicsRecoveryResume = pendingGraphicsRecovery is null ? null : new UpdateResume(selected.Directory, pendingGraphicsRecovery.StatePath, localOnly);
+            if (pendingGraphicsRecovery is not null)
+            {
+                graphicsStatus.Text = "The restarted graphics host did not initialize. Select Try Auto to resume the preserved game.";
+                completion += Environment.NewLine + "Preserved game: " + pendingGraphicsRecovery.StatePath + Environment.NewLine + "Select Try Auto to resume this exact game with an available graphics backend.";
+            }
             if (!updating)
             {
                 WindowState = WindowState.Normal;
@@ -474,7 +513,7 @@ internal sealed partial class LauncherWindow : Window
                 }
                 if (diagnostics.GraphicsReady is null)
                 {
-                    tryAuto.IsVisible = requestedGraphicsBackend != GraphicsBackend.Auto;
+                    tryAuto.IsVisible = pendingGraphicsRecovery is not null || requestedGraphicsBackend != GraphicsBackend.Auto;
                     status.Text = "The host exited without confirming graphics initialization." + Environment.NewLine + completion;
                 }
                 else
@@ -484,7 +523,7 @@ internal sealed partial class LauncherWindow : Window
             }
             else
             {
-                tryAuto.IsVisible = diagnostics.GraphicsReady is null && requestedGraphicsBackend != GraphicsBackend.Auto;
+                tryAuto.IsVisible = pendingGraphicsRecovery is not null || diagnostics.GraphicsReady is null && requestedGraphicsBackend != GraphicsBackend.Auto;
                 status.Text = completion + (resume is null ? string.Empty : Environment.NewLine + "Automatic update save retained at: " + resume.SavePath);
                 await LauncherDialogs.ShowAsync(this, "Memoria", status.Text);
             }

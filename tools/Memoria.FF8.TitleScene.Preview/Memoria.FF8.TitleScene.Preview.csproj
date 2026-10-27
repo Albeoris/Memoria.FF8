@@ -10,4 +10,5 @@
     <PackageReference Include="MonoGame.Runtime.Linux.Vulkan" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' And '$(MemoriaTargetRuntime)' == 'linux-x64'" />
     <PackageReference Include="MonoGame.Runtime.Mac.Vulkan" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' And '$(MemoriaTargetRuntime)' == 'osx-x64'" />
   </ItemGroup>
+  <Import Project="../../vendor/MonoGame.Native.DX12/NativeDirect3D12.targets" />
 </Project>

@@ -194,6 +194,77 @@ public sealed class GameProcessDiagnosticsTests : IDisposable
         Assert.Equal("Graphics ready: requested=Direct3D12 actual=Direct3D12 process=11", diagnostics.GraphicsReady);
     }
 
+    [Fact]
+    public void FailedRestartOffersTheValidatedStandaloneStateUntilAnotherHostBecomesReady()
+    {
+        string state = Path.Combine(directory, "restart.ff8state");
+        File.WriteAllText(state, "standalone current game");
+        string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(state))).ToLowerInvariant();
+        using GameProcessDiagnostics diagnostics = new(directory);
+        diagnostics.RecordReadiness("Graphics ready: requested=Auto actual=Vulkan\n");
+        string recovery = "Graphics restart recovery: " + System.Text.Json.JsonSerializer.Serialize(new { statePath = state, sha256 = hash }) + "\n";
+        diagnostics.RecordReadiness(recovery[..17]);
+        diagnostics.RecordReadiness(recovery[17..]);
+        Assert.Null(diagnostics.GraphicsReady);
+        GraphicsRestartRecovery resume = Assert.IsType<GraphicsRestartRecovery>(diagnostics.RestartRecovery);
+        ProcessStartInfo retry = new("fake-host");
+        retry.ArgumentList.Add("--graphics-backend");
+        retry.ArgumentList.Add("Auto");
+        resume.ApplyTo(retry);
+        Assert.Equal(["--graphics-backend", "Auto", "--state", state], retry.ArgumentList);
+        Assert.True(File.Exists(state));
+        diagnostics.RecordReadiness("Graphics ready: requested=Auto actual=Direct3D11\n");
+        Assert.Null(diagnostics.RestartRecovery);
+        diagnostics.RecordReadiness("gameplay crash after readiness\n");
+        Assert.Null(diagnostics.RestartRecovery);
+    }
+
+    [Theory]
+    [InlineData("relative.ff8state", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    [InlineData("/tmp/state.ff8state", "bad-hash")]
+    public void MalformedRecoveryLineDoesNotEnableAnUnvalidatedResume(string statePath, string sha256)
+    {
+        using GameProcessDiagnostics diagnostics = new(directory);
+        diagnostics.RecordReadiness("Graphics restart recovery: " + System.Text.Json.JsonSerializer.Serialize(new { statePath, sha256 }) + "\n");
+        Assert.Null(diagnostics.RestartRecovery);
+    }
+
+    [Fact]
+    public void ChangedRecoveryStateIsRejectedBeforeStateArgumentsAreAdded()
+    {
+        string state = Path.Combine(directory, "restart.ff8state");
+        File.WriteAllText(state, "original current game");
+        string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(state)));
+        GraphicsRestartRecovery recovery = new(state, hash);
+        File.WriteAllText(state, "changed contents");
+        ProcessStartInfo retry = new("fake-host");
+        Assert.Throws<InvalidDataException>(() => recovery.ApplyTo(retry));
+        Assert.Empty(retry.ArgumentList);
+        Assert.Equal("changed contents", File.ReadAllText(state));
+    }
+
+    [Fact]
+    public async Task FailedNewHostRecoverySurvivesTheActualStdoutCaptureWithoutColdStartArguments()
+    {
+        string state = Path.Combine(directory, "restart.ff8state");
+        await File.WriteAllTextAsync(state, "preserved gameplay", TestContext.Current.CancellationToken);
+        string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(state)));
+        string line = "Graphics restart recovery: " + System.Text.Json.JsonSerializer.Serialize(new { statePath = state, sha256 = hash });
+        string script = Path.Combine(directory, "failed-restart.ps1");
+        string encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(line));
+        await File.WriteAllTextAsync(script, "[Console]::Out.WriteLine([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + encoded + "'))); [Console]::Error.WriteLine('synthetic new backend initialization failure'); exit 19", TestContext.Current.CancellationToken);
+        using GameProcessDiagnostics diagnostics = new(directory);
+        using Process process = Start(script);
+        Task capture = diagnostics.CaptureAsync(process);
+        await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+        await capture;
+        Assert.Equal(19, process.ExitCode);
+        Assert.Null(diagnostics.GraphicsReady);
+        ProcessStartInfo retry = new("fake-host");
+        Assert.IsType<GraphicsRestartRecovery>(diagnostics.RestartRecovery).ApplyTo(retry);
+        Assert.Equal(["--state", state], retry.ArgumentList);
+    }
+
     private sealed class FailingConsole(bool disposed) : StringWriter
     {
         public override void Write(string? value)
