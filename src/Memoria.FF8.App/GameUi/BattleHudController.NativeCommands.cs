@@ -78,10 +78,10 @@ public sealed partial class BattleHudController
         if (command == BattleAbility.LimitBreak && SelectedActor is { } actor)
         {
             string original = session.GetNativeLimitCommandName(actor.Id);
-            return localizedCommandName?.Invoke(command, actor, original) ?? original;
+            return FormatBattleText(localizedCommandName?.Invoke(command, actor, original) ?? original);
         }
         string label = command == BattleAbility.GuardianForce ? "GF" : command.ToString();
-        return localizedCommandName?.Invoke(command, SelectedActor, label) ?? label;
+        return FormatBattleText(localizedCommandName?.Invoke(command, SelectedActor, label) ?? label);
     }
 
     private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetNativeShot(actor.Id) is not null);
@@ -91,7 +91,7 @@ public sealed partial class BattleHudController
     private BattleCombatant? NativeRenzokukenActor => session.Combatants.FirstOrDefault(actor => session.GetNativeRenzokuken(actor.Id) is not null);
     private bool NativeTimedLimitActive => NativeShotActor is not null || NativeDuelActor is not null || NativeRenzokukenActor is not null;
     public Func<ushort, string> NativeButtonBindingHint { get; set; } = new KeyboardInput().NativeButtonBindingHint;
-    private IReadOnlyList<string>? NativeDuelChoiceLabels => NativeDuelState is not null ? NativeDuelChoices.Select(choice => choice.Name + "  " + string.Join(" ", choice.Buttons.Select(button => ButtonPromptText.Mark(NativeButtonBindingHint(button))))).ToArray() : null;
+    private IReadOnlyList<string>? NativeDuelChoiceLabels => NativeDuelState is not null ? NativeDuelChoices.Select(choice => FormatBattleText(choice.Name) + "  " + string.Join(" ", choice.Buttons.Select(button => ButtonPromptText.Mark(NativeButtonBindingHint(button))))).ToArray() : null;
 
     private void PresentNativeShot()
     {

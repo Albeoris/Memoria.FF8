@@ -10,6 +10,10 @@ public sealed partial class LiveMenuCatalog
         {
             return;
         }
+        if (names is not null)
+        {
+            SetTextNames(names);
+        }
         byte command = kernel.Characters[id].LimitId;
         character.NativeLimitCommand = command;
         character.LimitBreak = CommandName(command) ?? "Unavailable";
@@ -36,7 +40,7 @@ public sealed partial class LiveMenuCatalog
             for (int index = 0; index < 8; index++)
             {
                 var definition = AngeloMove(index);
-                MenuLimitMove move = LimitMove(index, FormatText(LocalizedTable("names_angelo_abilities", index, definition.Name), names, terms), FormatText(LocalizedTable("descriptions_angelo_abilities", index, definition.Description), names, terms), progress is null ? null : (progress.AngeloFlags & (1 << index)) != 0);
+                MenuLimitMove move = LimitMove(index, LocalizedTable("names_angelo_abilities", index, definition.Name), LocalizedTable("descriptions_angelo_abilities", index, definition.Description), progress is null ? null : (progress.AngeloFlags & (1 << index)) != 0);
                 if (progress is not null)
                 {
                     move.TrainingProgress = AngeloTrainingProgress(definition.TrainingTotal, progress.TrainingCounters[index], move.Learned == true);
@@ -56,7 +60,7 @@ public sealed partial class LiveMenuCatalog
             for (int index = 0; index < 6; index++)
             {
                 var move = kernel.MagicSpells[51 + index];
-                character.LimitMoves.Add(LimitMove(index, MagicName(51 + index), MagicDescription(51 + index), progress?.SpecialMagicFlags is not byte flags ? null : (flags & (1 << index)) != 0));
+                character.LimitMoves.Add(LimitMove(index, LocalizedKernel(nameof(kernel.MagicSpells), "Name", 51 + index, move.Name), LocalizedKernel(nameof(kernel.MagicSpells), "Description", 51 + index, move.Description), progress?.SpecialMagicFlags is not byte flags ? null : (flags & (1 << index)) != 0));
             }
         }
         else if (command == 14)
@@ -92,7 +96,7 @@ public sealed partial class LiveMenuCatalog
             character.LimitMoves.Add(new MenuLimitMove
             {
                 Id = $"finisher-{index}",
-                Name = LocalizedKernel(nameof(kernel.SquallLimits), "Name", index, move.Name) ?? throw new InvalidDataException("Renzokuken finisher has no original name."),
+                Name = FormatDescription(LocalizedKernel(nameof(kernel.SquallLimits), "Name", index, move.Name)) ?? throw new InvalidDataException("Renzokuken finisher has no original name."),
                 Description = FormatDescription(LocalizedKernel(nameof(kernel.SquallLimits), "Description", index, move.Description)) ?? "",
                 Learned = (finishers & (1 << index)) != 0
             });
@@ -117,7 +121,7 @@ public sealed partial class LiveMenuCatalog
         return new MenuLimitMove
         {
             Id = $"limit-{index}",
-            Name = name ?? throw new InvalidDataException("Limit move has no original name."),
+            Name = FormatDescription(name) ?? throw new InvalidDataException("Limit move has no original name."),
             Description = FormatDescription(description) ?? "",
             Learned = learned
         };

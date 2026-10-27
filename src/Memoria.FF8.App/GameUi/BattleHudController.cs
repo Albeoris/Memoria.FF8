@@ -513,7 +513,7 @@ public sealed partial class BattleHudController
             return;
         }
         BattleSmartAttackPreview? smartPreview = SelectedCommand == BattleAbility.Attack ? ConfirmedAttackPreview() : null;
-        string name = smartPreview?.Name ?? (SelectedCommand == BattleAbility.Attack ? "Attack" : SelectedAction!.Name);
+        string name = smartPreview is not null ? FormatBattleText(smartPreview.Name) : SelectedCommand == BattleAbility.Attack ? CommandLabel(BattleAbility.Attack) : ChoiceLabel(SelectedAction!);
         CursorSelection cursor = CaptureCursorSelection(actor);
         try
         {
@@ -600,7 +600,7 @@ public sealed partial class BattleHudController
     private string ChoiceLabel(BattleActionDefinition action)
     {
         string label = localizedActionName?.Invoke(action) ?? action.DisplayName ?? action.Name;
-        return label;
+        return FormatBattleText(label);
     }
 
     public void SelectParty(string actorId)

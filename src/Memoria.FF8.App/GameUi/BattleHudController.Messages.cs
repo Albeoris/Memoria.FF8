@@ -36,24 +36,7 @@ public sealed partial class BattleHudController
             string bindings = DialogueTextFormatter.ExpandButtonBindings(displayed, NativeButtonBindingHint);
             if (!ReferenceEquals(message, formattedBattleMessageEvent) || bindings != formattedBattleMessageBindings)
             {
-                Dictionary<int, string> names = battleNames?.ToDictionary(pair => pair.Key, pair => pair.Value) ?? [];
-                foreach (BattleCombatant actor in session.Combatants.Where(actor => actor.IsPlayer && actor.ModelId is >= 0 and <= 10))
-                {
-                    names[GameNames.CharacterSubject(actor.ModelId)] = actor.Name;
-                }
-                for (int id = 0; id < 16; id++)
-                {
-                    int subject = GameNames.GuardianForceSubject(id);
-                    if (hasGuardianForceNames)
-                    {
-                        names[subject] = guardianForceName(id);
-                    }
-                    else if (!names.ContainsKey(subject))
-                    {
-                        names[subject] = GameNames.DefaultName(subject);
-                    }
-                }
-                formattedBattleMessage = DialogueTextFormatter.Parse(displayed, names, buttonBindingHint: NativeButtonBindingHint);
+                formattedBattleMessage = DialogueTextFormatter.Parse(displayed, TextNames(), buttonBindingHint: NativeButtonBindingHint);
                 formattedBattleMessageEvent = message;
                 formattedBattleMessageBindings = bindings;
             }
@@ -61,10 +44,34 @@ public sealed partial class BattleHudController
         }
     }
 
+    private Dictionary<int, string> TextNames()
+    {
+        Dictionary<int, string> names = battleNames?.ToDictionary(pair => pair.Key, pair => pair.Value) ?? [];
+        foreach (BattleCombatant actor in session.Combatants.Where(actor => actor.IsPlayer && actor.ModelId is >= 0 and <= 10))
+        {
+            names[GameNames.CharacterSubject(actor.ModelId)] = actor.Name;
+        }
+        for (int id = 0; id < 16; id++)
+        {
+            int subject = GameNames.GuardianForceSubject(id);
+            if (hasGuardianForceNames)
+            {
+                names[subject] = guardianForceName(id);
+            }
+            else if (!names.ContainsKey(subject))
+            {
+                names[subject] = GameNames.DefaultName(subject);
+            }
+        }
+        return names;
+    }
+
+    private string FormatBattleText(string encoded) => DialogueTextFormatter.FormatWithPrompts(encoded, TextNames(), buttonBindingHint: NativeButtonBindingHint);
+
     private void ShowCommandError(string message)
     {
         Message = message;
-        commandError = DialogueTextFormatter.Parse(message, new Dictionary<int, string>());
+        commandError = DialogueTextFormatter.Parse(message, TextNames(), buttonBindingHint: NativeButtonBindingHint);
         commandErrorUntil = battlePresentationSeconds + 5;
     }
 

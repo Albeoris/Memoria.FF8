@@ -18,6 +18,8 @@ public static class LiveMenuData
         ArgumentNullException.ThrowIfNull(state);
         string Text(string id, string original) => catalog?.SystemText(id, original) ?? original;
         string Format(string id, string original, params object?[] values) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(Text(id, original), original, values);
+        IReadOnlyDictionary<int, string> textNames = TextNames(state, names);
+        catalog?.SetTextNames(textNames);
         MenuData result = new()
         {
             SharedMagicStock = state.CharacterVitals?.MagicSystem.SharedMagicStock == true,
@@ -27,7 +29,6 @@ public static class LiveMenuData
             SourceDescription = Text("projection.session.source", "Live session: native inventory, party and junction records"),
             UnavailableReason = Text("projection.action.unsupported", "The current engine does not support this native menu action.")
         };
-        IReadOnlyDictionary<int, string> textNames = TextNames(state, names);
         if (state.LimitProgress?.PetPalsFlags is not null)
         {
             result.SupportedActions.Add("angelo-learn");
@@ -485,26 +486,31 @@ public sealed partial class LiveMenuCatalog
 
     public NativeAngeloTrainingDefinition AngeloMove(int index) => (uint)index < angeloMoves.Length ? angeloMoves[index] : throw new ArgumentOutOfRangeException(nameof(index));
 
-    public string? CharacterName(int id) => (uint)id < kernel.Characters.Count ? LocalizedKernel(nameof(kernel.Characters), "Name", id, kernel.Characters[id].Name) : null;
-    public string? GuardianForceName(int id) => (uint)id < guardianForceNames.Length ? LocalizedTable("defaults_guardians", id, guardianForceNames[id]) : null;
-    public string? CardName(int id) => (uint)id < tripleTriad.Cards.Length ? LocalizedTable("names_cards", id, tripleTriad.Name(id)) : null;
+    public string? CharacterName(int id) => FormatDescription((uint)id < kernel.Characters.Count ? LocalizedKernel(nameof(kernel.Characters), "Name", id, kernel.Characters[id].Name) : null);
+    public string? GuardianForceName(int id) => FormatDescription((uint)id < guardianForceNames.Length ? LocalizedTable("defaults_guardians", id, guardianForceNames[id]) : null);
+    public string? CardName(int id) => FormatDescription((uint)id < tripleTriad.Cards.Length ? LocalizedTable("names_cards", id, tripleTriad.Name(id)) : null);
     public string? CardDescription(int id) => (uint)id < cardDescriptions.Length ? FormatDescription(LocalizedTable("mngrp_slot192_records", id, cardDescriptions[id])) : null;
     public TripleTriadCard? CardDefinition(int id) => (uint)id < tripleTriad.Cards.Length ? tripleTriad.Cards[id] : null;
     public TripleTriadRefinement? CardRefinement(int id) => tripleTriad.Refinements.FirstOrDefault(recipe => recipe.CardId == id);
-    public string? MagicName(int id) => (uint)id < kernel.MagicSpells.Count ? LocalizedKernel(nameof(kernel.MagicSpells), "Name", id, kernel.MagicSpells[id].Name) : null;
+    public string? MagicName(int id) => FormatDescription((uint)id < kernel.MagicSpells.Count ? LocalizedKernel(nameof(kernel.MagicSpells), "Name", id, kernel.MagicSpells[id].Name) : null);
     public bool IsFieldMagic(int id) => (uint)id < kernel.MagicSpells.Count && kernel.MagicSpells[id].AttackType is 3 or 5 or 6;
     public string? MagicDescription(int id) => (uint)id < kernel.MagicSpells.Count ? FormatDescription(LocalizedKernel(nameof(kernel.MagicSpells), "Description", id, kernel.MagicSpells[id].Description)) : null;
-    public string? WeaponName(int id) => (uint)id < kernel.Weapons.Count ? LocalizedKernel(nameof(kernel.Weapons), "Name", id, kernel.Weapons[id].Name) : null;
-    public string? CommandName(int id) => (uint)id < kernel.BattleCommands.Count ? LocalizedKernel(nameof(kernel.BattleCommands), "Name", id, kernel.BattleCommands[id].Name) : null;
-    public string? ItemName(int id) => (uint)id < kernel.BattleItems.Count ? LocalizedKernel(nameof(kernel.BattleItems), "Name", id, kernel.BattleItems[id].Name) : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? LocalizedKernel(nameof(kernel.FieldItems), "Name", id - kernel.BattleItems.Count, kernel.FieldItems[id - kernel.BattleItems.Count].Name) : null;
+    public string? WeaponName(int id) => FormatDescription((uint)id < kernel.Weapons.Count ? LocalizedKernel(nameof(kernel.Weapons), "Name", id, kernel.Weapons[id].Name) : null);
+    public string? CommandName(int id) => FormatDescription((uint)id < kernel.BattleCommands.Count ? LocalizedKernel(nameof(kernel.BattleCommands), "Name", id, kernel.BattleCommands[id].Name) : null);
+    public string? ItemName(int id) => FormatDescription(EncodedItemName(id));
+    internal string? EncodedItemName(int id) => (uint)id < kernel.BattleItems.Count ? LocalizedKernel(nameof(kernel.BattleItems), "Name", id, kernel.BattleItems[id].Name) : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? LocalizedKernel(nameof(kernel.FieldItems), "Name", id - kernel.BattleItems.Count, kernel.FieldItems[id - kernel.BattleItems.Count].Name) : null;
     public string? ItemDescription(int id) => FormatDescription((uint)id < kernel.BattleItems.Count ? LocalizedKernel(nameof(kernel.BattleItems), "Description", id, kernel.BattleItems[id].Description) : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? LocalizedKernel(nameof(kernel.FieldItems), "Description", id - kernel.BattleItems.Count, kernel.FieldItems[id - kernel.BattleItems.Count].Description) : null);
 
     internal static string? FormatText(string? encoded, IReadOnlyDictionary<int, string>? names = null, ITextTermSource? terms = null) => encoded is null ? null : DialogueTextFormatter.Format(encoded, names, terms: terms).Replace('\n', ' ');
 
-    private string? FormatDescription(string? encoded) => FormatText(encoded, terms: terms);
+    private IReadOnlyDictionary<int, string>? textNames;
+
+    internal void SetTextNames(IReadOnlyDictionary<int, string> names) => textNames = names;
+
+    private string? FormatDescription(string? encoded) => FormatText(encoded, textNames, terms);
     public string? AbilityName(int id)
     {
-        return (uint)id < abilityNames.Length && AbilityIdentity(id) is { } identity ? LocalizedKernel(identity.Collection, "Name", identity.Ordinal, abilityNames[id]) : null;
+        return (uint)id < abilityNames.Length && AbilityIdentity(id) is { } identity ? FormatDescription(LocalizedKernel(identity.Collection, "Name", identity.Ordinal, abilityNames[id])) : null;
     }
 
     public string? AbilityDescription(int id)

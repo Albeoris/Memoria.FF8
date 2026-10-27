@@ -18,7 +18,7 @@ internal sealed partial class RecreateGame
         if (display.Text.Contains("{Item ", StringComparison.Ordinal))
         {
             EnsureLiveMenuCatalog();
-            display = display with { Text = DialogueTextFormatter.ExpandItemNames(display.Text, liveMenuCatalog!.ItemName) };
+            display = display with { Text = DialogueTextFormatter.ExpandItemNames(display.Text, liveMenuCatalog!.EncodedItemName) };
         }
         DialogueWindow? window = dialogue.X == 0 && dialogue.Y == 0 ? events!.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
         window = LocalizedWindow(dialogue, window);
