@@ -142,4 +142,3 @@ public sealed class NativeGuardianForceLearningIndexTests
         return source with { MenuDefinitions = source.MenuDefinitions with { Templates = templates, SourceTemplates = templates, InitialStates = source.GuardianForces.Select(gf => new NativeGuardianForceInitialState(gf.LearnedBank, gf.AbilityProgress, gf.Learning, gf.ForgottenAbilities)).ToImmutableArray() } };
     }
 }
-
