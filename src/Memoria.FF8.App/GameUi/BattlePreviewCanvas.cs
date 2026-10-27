@@ -12,6 +12,7 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
     private readonly SKCanvas graphics;
     private readonly Stack<int> clips = [];
     private readonly string gameDirectory;
+    private readonly ResourceService? resources;
     private SKBitmap? menuPointer;
     private readonly MenuArtworkProvider artwork;
     private readonly Dictionary<UiImageSource, SKBitmap> images = [];
@@ -27,6 +28,7 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
     public BattlePreviewCanvas(SKBitmap bitmap, string? gameDirectory = null, ResourceService? resources = null)
     {
         this.gameDirectory = gameDirectory ?? LaunchOptions.ConfiguredGameDirectory;
+        this.resources = resources;
         artwork = new MenuArtworkProvider(this.gameDirectory, resources);
         graphics = new SKCanvas(bitmap);
         graphics.Clear(SKColors.Black);
@@ -40,7 +42,7 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         }
         if (menuPointer is null)
         {
-            var image = NativeMenuPointer.Read(gameDirectory).Image;
+            var image = NativeMenuPointer.Read(gameDirectory, resources).Image;
             menuPointer = BitmapFromRgba(image.Pixels.SelectMany(color => new[] { color.R, color.G, color.B, color.A }).ToArray(), image.Width, image.Height);
         }
         float scale = Math.Min(bounds.Width / menuPointer.Width, bounds.Height / menuPointer.Height);

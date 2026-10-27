@@ -1,7 +1,5 @@
 using Memoria.FF8.Resources;
 using System.Buffers.Binary;
-using Albeoris.Games.FF8.FlArchives;
-using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tex;
 
@@ -14,14 +12,17 @@ public sealed record NativeMenuPointer(PixelImage Image, int SourceX, int Source
 
     public float AspectRatio => (float)Image.Width / Image.Height;
 
-    public static NativeMenuPointer Read(string gameDirectory)
+    public static NativeMenuPointer Read(string gameDirectory, ResourceService? resources = null)
     {
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
-        using IFlArchive menu = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
-        byte[] texture = ReadEntry(menu, "icon.tex");
+        resources ??= new(provider);
+        byte[] texture = resources.Read(new ResourceKey("menu/icon.tex"));
+        byte[] index = resources.Read(new ResourceKey("menu/icon.sp1"));
+        NativeMenuArtworkDataReader.ValidateTexture(new ResourceKey("menu/icon.tex"), texture);
+        NativeMenuArtworkDataReader.ValidateIconDirectory(index);
         PixelImage original = TexFile.Read(texture).Decode(Palette);
-        PixelImage atlas = NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/icon.tex"), original, Palette);
-        return DecodeAtlas(atlas, ReadEntry(menu, "icon.sp1"));
+        PixelImage atlas = NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/icon.tex"), original, Palette, resources: resources);
+        return DecodeAtlas(atlas, index);
     }
 
     public static NativeMenuPointer Decode(ReadOnlySpan<byte> texture, ReadOnlySpan<byte> index)
@@ -63,14 +64,5 @@ public sealed record NativeMenuPointer(PixelImage Image, int SourceX, int Source
         }
 
         return new NativeMenuPointer(image, x, y, unchecked((sbyte)entry[5]), unchecked((sbyte)entry[7]));
-    }
-
-    private static byte[] ReadEntry(IFlArchive menu, string basename)
-    {
-        IFlArchiveEntry entry = menu.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(basename, StringComparison.OrdinalIgnoreCase));
-        using Stream source = entry.OpenForRead();
-        using MemoryStream result = new(checked((int)entry.Size));
-        source.CopyTo(result);
-        return result.ToArray();
     }
 }

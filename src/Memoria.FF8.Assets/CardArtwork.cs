@@ -1,6 +1,4 @@
 using Memoria.FF8.Resources;
-using Albeoris.Games.FF8.FlArchives;
-using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tex;
 
@@ -40,17 +38,15 @@ public sealed class CardArtwork
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
-        using IFlArchive archive = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
+        resources ??= new(provider);
         PixelImage[] fronts = new PixelImage[CardCount];
         PixelImage? back = null;
         for (int atlasIndex = 0; atlasIndex < CardCount / CardsPerAtlas; atlasIndex++)
         {
             string name = $"mc{atlasIndex:00}.TEX";
-            IFlArchiveEntry entry = archive.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(name, StringComparison.OrdinalIgnoreCase));
-            using Stream input = entry.OpenForRead();
-            using MemoryStream content = new();
-            input.CopyTo(content);
-            PixelImage atlas = TexFile.Read(content.ToArray()).Decode();
+            byte[] bytes = resources.Read(new ResourceKey("menu/" + name));
+            NativeMenuArtworkDataReader.ValidateTexture(new ResourceKey("menu/" + name), bytes);
+            PixelImage atlas = TexFile.Read(bytes).Decode();
             if (atlas.Width != AtlasSize || atlas.Height != AtlasSize)
             {
                 throw new NotSupportedException($"Original Triple Triad atlas {name} must be {AtlasSize}x{AtlasSize}, but is {atlas.Width}x{atlas.Height}.");

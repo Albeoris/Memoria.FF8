@@ -1,8 +1,6 @@
 using Memoria.FF8.Resources;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using Albeoris.Games.FF8.FlArchives;
-using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tex;
 using Memoria.FF8.Runtime;
@@ -93,20 +91,21 @@ public sealed class NativeMenuArtwork
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
-        using IFlArchive menu = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
-        byte[] faces = ReadEntry(menu, "face.sp2");
-        PixelImage[] characterAtlases = [ReadPortraitAtlas(provider, menu, resources, "Face_b00.TEX"), ReadPortraitAtlas(provider, menu, resources, "Face_b01.TEX")];
-        PixelImage[] guardianForceAtlases = [ReadPortraitAtlas(provider, menu, resources, "Gf_big00.TEX"), ReadPortraitAtlas(provider, menu, resources, "Gf_big01.TEX")];
+        resources ??= new(provider);
+        byte[] faces = resources.Read(new ResourceKey("menu/face.sp2"));
+        NativeMenuArtworkDataReader.ValidateFaceDirectory(faces);
+        byte[] icons = resources.Read(new ResourceKey("menu/icon.sp1"));
+        NativeMenuArtworkDataReader.ValidateIconDirectory(icons);
+        PixelImage[] characterAtlases = [ReadPortraitAtlas(provider, resources, "Face_b00.TEX"), ReadPortraitAtlas(provider, resources, "Face_b01.TEX")];
+        PixelImage[] guardianForceAtlases = [ReadPortraitAtlas(provider, resources, "Gf_big00.TEX"), ReadPortraitAtlas(provider, resources, "Gf_big01.TEX")];
         PixelImage[] characters = Enumerable.Range(0, CharacterCount).Select(id => DecodePortrait(characterAtlases, faces, id)).ToArray();
         PixelImage[] guardianForces = Enumerable.Range(0, GuardianForceCount).Select(id => DecodePortrait(guardianForceAtlases, faces, 32 + id)).ToArray();
-        TexFile texture = TexFile.Read(ReadEntry(menu, "icon.TEX"));
-        if (texture.Header.Width != 256 || texture.Header.Height != 256 || texture.Palettes.Count != 16)
-        {
-            throw new InvalidDataException("Original menu icon texture requires a 256x256 atlas and sixteen palettes.");
-        }
+        byte[] iconTexture = resources.Read(new ResourceKey("menu/icon.tex"));
+        NativeMenuArtworkDataReader.ValidateTexture(new ResourceKey("menu/icon.tex"), iconTexture);
+        TexFile texture = TexFile.Read(iconTexture);
         PixelImage[] originals = Enumerable.Range(0, texture.Palettes.Count).Select(texture.Decode).ToArray();
         PixelImage[] palettes = Enumerable.Range(0, texture.Palettes.Count).Select(palette => NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/icon.tex"), originals[palette], palette, resources: resources)).ToArray();
-        return new NativeMenuArtwork(characters, guardianForces, DecodePortrait(characterAtlases, faces, 15), palettes, ReadEntry(menu, "icon.sp1")) { HasControllerArtwork = resources?.Source.Layouts.Contains("classic-ffnx", StringComparer.Ordinal) == true && !ReferenceEquals(originals[4], palettes[4]) };
+        return new NativeMenuArtwork(characters, guardianForces, DecodePortrait(characterAtlases, faces, 15), palettes, icons) { HasControllerArtwork = resources.Source.Layouts.Contains("classic-ffnx", StringComparer.Ordinal) && !ReferenceEquals(originals[4], palettes[4]) };
     }
 
     /// <summary>Formats the original current ICON.SP1 parts for the separate native PC UI-immediate path.</summary>
@@ -226,22 +225,16 @@ public sealed class NativeMenuArtwork
         return (int)count;
     }
 
-    private static PixelImage ReadPortraitAtlas(IResourceSource provider, IFlArchive menu, ResourceService? resources, string name)
+    private static PixelImage ReadPortraitAtlas(IResourceSource provider, ResourceService resources, string name)
     {
-        TexFile texture = TexFile.Read(ReadEntry(menu, name));
-        if (texture.Palettes.Count != 0 || texture.Header.BytesPerPixel != 2 || texture.Header.RedMask != 0x1F || texture.Header.GreenMask != 0x3E0 || texture.Header.BlueMask != 0x7C00 || texture.Header.AlphaMask != 0x8000)
-        {
-            throw new InvalidDataException($"Original PC portrait atlas {name} must use the native PSX BGR555 direct-color format.");
-        }
+        byte[] bytes = resources.Read(new ResourceKey("menu/" + name));
+        NativeMenuArtworkDataReader.ValidateTexture(new ResourceKey("menu/" + name), bytes);
+        TexFile texture = TexFile.Read(bytes);
         PixelImage image = new(texture.Header.Width, texture.Header.Height);
         for (int index = 0; index < image.Pixels.Length; index++)
         {
             // The original opaque menu sprite uses PSX display colors: bit15 is STP, not an ordinary alpha channel.
             image.Pixels[index] = Rgba32.FromPsxBgr555Display(BinaryPrimitives.ReadUInt16LittleEndian(texture.Pixels.AsSpan(index * 2)));
-        }
-        if (image.Width != 256 || image.Height != 256)
-        {
-            throw new InvalidDataException($"Original PC portrait atlas {name} must be 256x256.");
         }
         return NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/" + name), image, resources: resources);
     }
@@ -254,14 +247,5 @@ public sealed class NativeMenuArtwork
             source.Pixels.AsSpan((y + row) * source.Width + x, width).CopyTo(result.Pixels.AsSpan(row * width, width));
         }
         return result;
-    }
-
-    private static byte[] ReadEntry(IFlArchive menu, string basename)
-    {
-        IFlArchiveEntry entry = menu.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(basename, StringComparison.OrdinalIgnoreCase));
-        using Stream source = entry.OpenForRead();
-        using MemoryStream result = new(checked((int)entry.Size));
-        source.CopyTo(result);
-        return result.ToArray();
     }
 }

@@ -189,7 +189,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         }
         if (menuPointer is null)
         {
-            var image = NativeMenuPointer.Read(gameDirectory).Image;
+            var image = NativeMenuPointer.Read(gameDirectory, resources).Image;
             menuPointer = new Texture2D(device, image.Width, image.Height);
             menuPointer.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
         }
