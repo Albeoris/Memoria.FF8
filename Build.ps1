@@ -127,10 +127,11 @@ try {
             throw "Incomplete distribution: Data/$relative is missing."
         }
     }
-    New-Item -ItemType Directory -Force -Path (Join-Path $data 'Steam') | Out-Null
-    $steamNative = switch ($RuntimeIdentifier) { 'win-x64' { 'win64/steam_api64.dll' } 'linux-x64' { 'linux64/libsteam_api.so' } 'osx-x64' { 'osx/libsteam_api.dylib' } }
-    Copy-Item -LiteralPath (Join-Path $root ('vendor/Steamworks/redistributable_bin/' + $steamNative)) -Destination (Join-Path $data 'Steam')
-    Copy-Item -LiteralPath (Join-Path $root 'vendor/Steamworks/README.md') -Destination (Join-Path $data 'Steam/NOTICE.md')
+    if ($RuntimeIdentifier -eq 'win-x64') {
+        New-Item -ItemType Directory -Force -Path (Join-Path $data 'Steam') | Out-Null
+        Copy-Item -LiteralPath (Join-Path $root 'vendor/Steamworks/redistributable_bin/win64/steam_api64.dll') -Destination (Join-Path $data 'Steam')
+        Copy-Item -LiteralPath (Join-Path $root 'vendor/Steamworks/README.md') -Destination (Join-Path $data 'Steam/NOTICE.md')
+    }
     $launcherExecutable = Join-Path $launcher $launcherName
     if (!(Test-Path -LiteralPath $launcherExecutable -PathType Leaf)) {
         throw "The launcher publish did not produce $launcherName."

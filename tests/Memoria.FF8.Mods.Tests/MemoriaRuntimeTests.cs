@@ -1,4 +1,5 @@
 using Memoria.FF8.Resources;
+using Memoria.FF8.Platform;
 
 namespace Memoria.FF8.Mods.Tests;
 
@@ -90,7 +91,7 @@ public sealed class MemoriaRuntimeTests : IDisposable
         }
         if (hasLauncher)
         {
-            File.WriteAllText(Path.Combine(root, "Memoria.Launcher.exe"), "launcher");
+            File.WriteAllText(Path.Combine(root, HostPlatforms.Current.ExecutableName("Memoria.Launcher")), "launcher");
         }
         using ModRuntime runtime = new(application, watch: false);
         Publish(runtime);
@@ -105,7 +106,7 @@ public sealed class MemoriaRuntimeTests : IDisposable
         string custom = Path.Combine(root, "Custom");
         Write(root, "Memoria/Package/fields/sample.json", "package");
         Write(custom, "Memoria/Explicit/fields/sample.json", "custom");
-        File.WriteAllText(Path.Combine(root, "Memoria.Launcher.exe"), "launcher");
+        File.WriteAllText(Path.Combine(root, HostPlatforms.Current.ExecutableName("Memoria.Launcher")), "launcher");
         using ModRuntime runtime = new(application, watch: false, modsDirectory: Path.Combine(custom, "Mods"));
         Publish(runtime);
         Assert.Equal(Path.Combine(custom, "Mods"), Assert.Single(runtime.ModsDirectories));
@@ -125,7 +126,7 @@ public sealed class MemoriaRuntimeTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, "bundled");
         Directory.CreateDirectory(Path.Combine(root, "Mods"));
-        File.WriteAllText(Path.Combine(root, "Memoria.Launcher.exe"), "launcher");
+        File.WriteAllText(Path.Combine(root, HostPlatforms.Current.ExecutableName("Memoria.Launcher")), "launcher");
         using ModRuntime runtime = new(application, watch: false, additionalBaseDirectories: [game], modsDirectory: explicitRoot ? Path.Combine(selected, "Mods") : null);
         Publish(runtime);
         Assert.Equal("bundled", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));

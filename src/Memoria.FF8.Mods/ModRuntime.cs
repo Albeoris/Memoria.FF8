@@ -1,3 +1,5 @@
+using Memoria.FF8.Platform;
+
 namespace Memoria.FF8.Mods;
 
 /// <summary>Owns mod discovery and publication. File watcher callbacks only request a later transaction.</summary>
@@ -79,7 +81,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
     {
         string applicationDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(applicationBaseDirectory, ".")));
         string? packageDirectory = Path.GetDirectoryName(applicationDirectory);
-        if (Path.GetFileName(applicationDirectory).Equals("Data", StringComparison.OrdinalIgnoreCase) && packageDirectory is not null && File.Exists(Path.Combine(packageDirectory, "Memoria.Launcher.exe")) && Directory.Exists(Path.Combine(packageDirectory, "Mods")))
+        string launcher = HostPlatforms.Current.ExecutableName("Memoria.Launcher");
+        if (Path.GetFileName(applicationDirectory).Equals("Data", StringComparison.OrdinalIgnoreCase) && packageDirectory is not null && File.Exists(Path.Combine(packageDirectory, launcher)) && Directory.Exists(Path.Combine(packageDirectory, "Mods")))
         {
             return Path.Combine(packageDirectory, "Mods");
         }

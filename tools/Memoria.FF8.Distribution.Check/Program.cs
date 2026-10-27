@@ -109,15 +109,30 @@ if (content.Length == 0 || content[0] != 42)
     throw new InvalidDataException("The published menu catalog failed an archive round trip.");
 }
 
-Console.WriteLine("Published dependency resources: all codepages, Japanese field characters and menu catalog loaded successfully.");
+Console.WriteLine("Published dependency resources: all codepages, Japanese field characters and menu catalog loaded from shipped product assemblies using the build-host framework. Target native ABI is validated separately; this resource exercise does not execute the target runtime.");
 
-// No project references: resolve only the assemblies actually shipped in Data.
+// Product assemblies come from the payload. Framework assemblies use the host's
+// trusted runtime closure because another RID's framework can contain native R2R code.
 sealed class DistributionAssemblies(string directory) : AssemblyLoadContext(isCollectible: true), IDisposable
 {
+    private static readonly IReadOnlyDictionary<string, string> HostFramework = GetHostFramework();
+
     protected override Assembly? Load(AssemblyName assemblyName)
     {
+        if (assemblyName.Name is not null && HostFramework.TryGetValue(assemblyName.Name, out string? frameworkPath))
+        {
+            return Default.LoadFromAssemblyPath(frameworkPath);
+        }
         string path = Path.Combine(directory, assemblyName.Name + ".dll");
         return File.Exists(path) ? LoadFromAssemblyPath(path) : null;
+    }
+
+    private static IReadOnlyDictionary<string, string> GetHostFramework()
+    {
+        string runtimeDirectory = Path.GetDirectoryName(typeof(object).Assembly.Location) ?? throw new InvalidOperationException("Cannot locate the build-host framework.");
+        string trusted = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? throw new InvalidOperationException("The build-host trusted assembly closure is unavailable.");
+        StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return trusted.Split(Path.PathSeparator).Where(path => string.Equals(Path.GetDirectoryName(path), runtimeDirectory, comparison)).DistinctBy(path => Path.GetFileNameWithoutExtension(path)!, StringComparer.OrdinalIgnoreCase).ToDictionary(path => Path.GetFileNameWithoutExtension(path)!, path => path, StringComparer.OrdinalIgnoreCase);
     }
 
     public void Dispose()
