@@ -67,6 +67,10 @@ public static class NativeBattleScriptedMeshPreparation
             source = frame.ReadTemporaryDword(0x74);
             normalSource = frame.ReadTemporaryDword(0x78);
         }
+        using NativeBattleEffectArenaTransaction? arenaTransaction = frame.Arena.Transaction is null ? new(frame.Arena) : null;
+        using NativeBattleEffectArenaTransaction? depthTransaction = depthOwner.Transaction is null ? new(depthOwner) : null;
+        frame = frame with { Arena = arenaTransaction?.View ?? frame.Arena };
+        depthOwner = depthTransaction?.View ?? depthOwner;
         if (prepared.LocalClip is { } clip)
         {
             frame = ApplyLocalClip(frame, clip, vertices);
@@ -132,6 +136,14 @@ public static class NativeBattleScriptedMeshPreparation
                 uint color = registers.Rgb[2] ?? throw new NotSupportedException("Native cinematic normal shader did not publish RGB2.");
                 frame = frame with { Arena = frame.Arena.Write(ArenaOffset(unchecked(normalWork + (uint)(index * 8)), 4), BitConverter.GetBytes(color)) };
             }
+        }
+        if (arenaTransaction is not null)
+        {
+            frame = frame with { Arena = arenaTransaction.Freeze() };
+        }
+        if (depthTransaction is not null)
+        {
+            depthOwner = depthTransaction.Freeze();
         }
         return new(frame, depthOwner, lighting, registers) { DepthScaleBits1877DA8 = depthScaleBits, Geometry = step.Geometry };
 

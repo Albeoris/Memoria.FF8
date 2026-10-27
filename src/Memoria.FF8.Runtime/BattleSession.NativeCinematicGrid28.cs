@@ -8,7 +8,16 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicGrid28(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleCinematicResources resources, NativeBattleGraphicsState graphics, uint? selectedHandler = null)
     {
+        using NativeBattleEffectArenaTransaction? arenaTransaction = frame.Arena.Transaction is null ? new(frame.Arena) : null;
+        frame = frame with { Arena = arenaTransaction?.View ?? frame.Arena };
+        NativeBattlePrimitiveFrame primitiveFrame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic grid requires its current ordering table.");
+        using NativeBattleLogicalOrderingTransaction? orderingTransaction = primitiveFrame.Pending.Transaction is null ? new(primitiveFrame.Pending) : null;
+        if (orderingTransaction is not null)
+        {
+            graphics = graphics with { PrimitiveFrame = primitiveFrame with { Pending = orderingTransaction.View } };
+        }
         NativeBattleActionMatrix? matrix = null;
+        NativeBattleCommonPacketTransaction? commonTransaction = null;
         NativeBattleCinematicGrid28Services services = new((current, texture) => NativeBattleWaterTextureMetadata.SelectTPageB665C0(current, resources, texture), (current, texture) => new(current, NativeBattleWaterTextureMetadata.ReadClutB66640(current, resources, texture)), (current, selector) =>
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
@@ -74,20 +83,81 @@ public sealed partial class BattleSession
             return new(current, projected.Projected.Depth >> 2);
         }, (current, output, ordering, batch) =>
         {
-            ushort flags = selectedHandler is 0xAAB290 or 0xAAB6D0 ? (ushort)1 : (ushort)0;
-            var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics, flags);
-            graphics = written.Graphics;
-            return written.Frame;
+            NativeBattleEffectMemory previousMemory = RequireWaterMemory();
+            bool common = !(output >= NativeBattleEffectNodeMemory.ArenaAddress && output - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length);
+            if (common && commonTransaction is null && previousMemory.PrimitiveProcess is { CommonTransaction: null } process)
+            {
+                commonTransaction = new(process);
+                NativeEffectMemory = previousMemory with { PrimitiveProcess = commonTransaction.View };
+            }
+            arenaTransaction?.BeginCheckpoint();
+            if (common)
+            {
+                commonTransaction?.BeginCheckpoint();
+            }
+            try
+            {
+                ushort flags = selectedHandler is 0xAAB290 or 0xAAB6D0 ? (ushort)1 : (ushort)0;
+                var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics, flags);
+                arenaTransaction?.CommitCheckpoint();
+                if (common)
+                {
+                    commonTransaction?.CommitCheckpoint();
+                }
+                graphics = written.Graphics;
+                return written.Frame;
+            }
+            catch
+            {
+                arenaTransaction?.RollbackCheckpoint();
+                if (common)
+                {
+                    commonTransaction?.RollbackCheckpoint();
+                }
+                NativeEffectMemory = previousMemory;
+                throw;
+            }
         });
-        NativeBattleWaterExecutionFrame drawn = selectedHandler switch
+        NativeBattleEffectArena? publishedArena = null;
+        try
         {
-            null => NativeBattleCinematicGrid28.Draw(frame, services),
-            0xAAB290 => NativeBattleApocalypse221Grid.Draw51(frame, services),
-            0xAAB6D0 => NativeBattleApocalypse221Grid.Draw68(frame, services, resources.ReadStatic(0x186D4FC, 17).ToArray().ToImmutableArray()),
-            0xAC2230 => NativeBattleCinematicGrid28.DrawEnemy67(frame, services),
-            _ => throw new NotSupportedException("Native cinematic grid requires its authenticated selected spacing and UV directory.")
-        };
-        return (drawn, graphics);
+            NativeBattleWaterExecutionFrame drawn = selectedHandler switch
+            {
+                null => NativeBattleCinematicGrid28.Draw(frame, services),
+                0xAAB290 => NativeBattleApocalypse221Grid.Draw51(frame, services),
+                0xAAB6D0 => NativeBattleApocalypse221Grid.Draw68(frame, services, resources.ReadStatic(0x186D4FC, 17).ToArray().ToImmutableArray()),
+                0xAC2230 => NativeBattleCinematicGrid28.DrawEnemy67(frame, services),
+                _ => throw new NotSupportedException("Native cinematic grid requires its authenticated selected spacing and UV directory.")
+            };
+            if (arenaTransaction is not null)
+            {
+                publishedArena = arenaTransaction.Freeze();
+                drawn = drawn with { Arena = publishedArena };
+            }
+            if (orderingTransaction is not null)
+            {
+                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = orderingTransaction.Freeze() } };
+            }
+            return (drawn, graphics);
+        }
+        finally
+        {
+            try
+            {
+                if (arenaTransaction is not null && NativeEffectMemory is { } memory && ReferenceEquals(memory.Arena?.Transaction, arenaTransaction))
+                {
+                    NativeEffectMemory = memory with { Arena = publishedArena ?? arenaTransaction.Freeze() };
+                }
+                if (commonTransaction is not null && NativeEffectMemory?.PrimitiveProcess is { } process && ReferenceEquals(process.CommonTransaction, commonTransaction))
+                {
+                    NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = commonTransaction.Freeze(process) };
+                }
+            }
+            finally
+            {
+                commonTransaction?.Dispose();
+            }
+        }
     }
 
     private static byte[] ReadNativeGridTemporary(NativeBattleWaterExecutionFrame frame, uint address, int length)

@@ -94,6 +94,151 @@ public sealed class NativeBattleCinematicGrid28Tests
         Assert.Equal(2, emitted);
     }
 
+    [Theory]
+    [InlineData(-1, false)]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(-1, true)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    public void Batched_grid_matches_scalar_packets_and_preserves_last_publication_when_a_cell_fails(int failingCell, bool commonPackets)
+    {
+        NativeBattleWaterExecutionFrame original = Fixture(3, 2);
+        original = original with { Arena = original.Arena.WriteResourcePointer(0x7000, new(null, 123)).MarkUnknown(0x5000, 52 * 6) };
+        NativeBattlePrimitiveProcess sourceProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() with { ByteCursor = 0x40 };
+        if (commonPackets)
+        {
+            original = WaterSchedulerFixture.CoreDword(original, 0x2797690 + 0x7C, 0x40);
+        }
+        NativeBattleLogicalOrdering seed = NativeBattleLogicalOrdering.Clear().Prepend(20, new(commonPackets ? sourceProcess.PacketBank! : "20DFAB8", sourceProcess.PacketBuffer, commonPackets ? 0x40 : 0x5000), [0x04000000, 0x20010203, 1, 2, 3], 0, []);
+        string originalFrame = JsonSerializer.Serialize(original);
+        string originalOrdering = JsonSerializer.Serialize(seed);
+        string originalProcess = JsonSerializer.Serialize(sourceProcess);
+        var scalar = Run(false);
+        var batched = Run(true);
+        Assert.Equal(JsonSerializer.Serialize(scalar.Frame), JsonSerializer.Serialize(batched.Frame));
+        Assert.Equal(JsonSerializer.Serialize(scalar.Published), JsonSerializer.Serialize(batched.Published));
+        Assert.Equal(JsonSerializer.Serialize(scalar.Ordering), JsonSerializer.Serialize(batched.Ordering));
+        Assert.Equal(JsonSerializer.Serialize(scalar.Process), JsonSerializer.Serialize(batched.Process));
+        Assert.Equal(scalar.Calls, batched.Calls);
+        Assert.Equal(originalFrame, JsonSerializer.Serialize(original));
+        Assert.Equal(originalOrdering, JsonSerializer.Serialize(seed));
+        Assert.Equal(originalProcess, JsonSerializer.Serialize(sourceProcess));
+        Assert.Null(batched.Published.Transaction);
+        Assert.Null(batched.Ordering.Transaction);
+        Assert.Null(batched.Process.CommonTransaction);
+        Assert.Equal(original.Arena.ReadResourcePointer(0x7000), batched.Published.ReadResourcePointer(0x7000));
+        if (failingCell == 0)
+        {
+            Assert.Equal(JsonSerializer.Serialize(original.Arena), JsonSerializer.Serialize(batched.Published));
+        }
+        else
+        {
+            Assert.Throws<NotSupportedException>(() => batched.Published.Read(0x4006, 2));
+            Assert.Throws<NotSupportedException>(() => batched.Published.Read(0x5026, 2));
+        }
+        if (commonPackets)
+        {
+            Assert.Equal(0x40 + (failingCell < 0 ? 6 : failingCell) * 52, batched.Process.ByteCursor);
+            Assert.Throws<NotSupportedException>(() => batched.Process.ReadCommonPacket(0x40 + 0x26, 2));
+        }
+
+        (NativeBattleWaterExecutionFrame? Frame, NativeBattleEffectArena Published, NativeBattleLogicalOrdering Ordering, NativeBattlePrimitiveProcess Process, string[] Calls) Run(bool batchWrites)
+        {
+            using NativeBattleEffectArenaTransaction? arena = batchWrites ? new(original.Arena) : null;
+            using NativeBattleLogicalOrderingTransaction? links = batchWrites ? new(seed) : null;
+            NativeBattleLogicalOrdering ordering = links?.View ?? seed;
+            NativeBattleEffectArena published = original.Arena;
+            NativeBattlePrimitiveProcess process = sourceProcess;
+            NativeBattleCommonPacketTransaction? common = null;
+            List<string> calls = [];
+            int projections = 0;
+            int cells = 0;
+            NativeBattleCinematicGrid28Services services = Services(calls, (current, _, _, _, screen, color, _) =>
+            {
+                int index = projections++;
+                current = ArenaDword(ArenaDword(current, screen, unchecked((uint)(0x10000 + index))), color, 0x00030201);
+                return new(current.WriteTemporaryDword(0xFC, unchecked((uint)index)), 256 + index * 4);
+            }, (current, output, _, packets) =>
+            {
+                NativeBattlePrimitiveProcess previousProcess = process;
+                if (commonPackets && batchWrites && common is null)
+                {
+                    common = new(process);
+                    process = common.View;
+                }
+                arena?.BeginCheckpoint();
+                common?.BeginCheckpoint();
+                try
+                {
+                    if (cells++ == failingCell)
+                    {
+                        packets = packets with { Attempts = [.. packets.Attempts, new(0, [], [], null)] };
+                    }
+                    if (commonPackets)
+                    {
+                        Assert.Equal(output, unchecked((uint)process.ByteCursor!.Value));
+                        NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, ordering, packets);
+                        process = written.Process;
+                        ordering = written.Ordering;
+                        published = current.Arena;
+                    }
+                    else
+                    {
+                        NativeBattleEffectMemory memory = new(current.Arena, 0, 0, [], 0, 0, 0, 0);
+                        NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, checked((int)(output - NativeBattleEffectNodeMemory.ArenaAddress)), ordering, packets);
+                        published = written.Memory.Arena!;
+                        ordering = written.Ordering;
+                    }
+                    arena?.CommitCheckpoint();
+                    common?.CommitCheckpoint();
+                    return current with { Arena = published };
+                }
+                catch
+                {
+                    arena?.RollbackCheckpoint();
+                    common?.RollbackCheckpoint();
+                    process = previousProcess;
+                    throw;
+                }
+            });
+            NativeBattleWaterExecutionFrame? drawn = null;
+            try
+            {
+                drawn = NativeBattleCinematicGrid28.Draw(original with { Arena = arena?.View ?? original.Arena }, services);
+                Assert.Equal(-1, failingCell);
+                if (arena is not null)
+                {
+                    drawn = drawn with { Arena = arena.Freeze() };
+                }
+                ordering = links?.Freeze() ?? ordering;
+            }
+            catch (InvalidDataException) when (failingCell >= 0)
+            {
+                ordering = seed;
+            }
+            finally
+            {
+                try
+                {
+                    if (arena is not null && ReferenceEquals(published.Transaction, arena))
+                    {
+                        published = drawn?.Arena ?? arena.Freeze();
+                    }
+                    if (common is not null && ReferenceEquals(process.CommonTransaction, common))
+                    {
+                        process = common.Freeze(process);
+                    }
+                }
+                finally
+                {
+                    common?.Dispose();
+                }
+            }
+            return (drawn, published, ordering, process, calls.ToArray());
+        }
+    }
+
     private static NativeBattleCinematicGrid28Services Services(List<string> calls, Func<NativeBattleWaterExecutionFrame, uint, uint, uint, uint, uint, uint, NativeBattleCinematicGridProjection> project, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> append) => new((frame, index) =>
     {
         calls.Add("page");
