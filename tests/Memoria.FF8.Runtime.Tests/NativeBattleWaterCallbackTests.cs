@@ -108,6 +108,8 @@ public sealed class NativeBattleWaterCallbackTests
                 return current;
             }
         };
+        NativeBattleWaterExecutionFrame skipped = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
+        skipped = WaterSchedulerFixture.CoreWord(skipped, Manager, 0);
         NativeBattleWaterCallbackResult result = NativeBattleWaterCallback.RunA9B870(frame, Input(1), services);
         Assert.Equal(1, clears);
         Assert.Equal(0x60000Cu, WaterSchedulerFixture.ReadCoreDword(result.Frame, 0x27975D8 + 0x2C));
@@ -118,7 +120,6 @@ public sealed class NativeBattleWaterCallbackTests
         Assert.Equal(0xFFFFFF80u, WaterSchedulerFixture.ReadCoreDword(result.Frame, 0x2797770));
         Assert.Equal(0xFFFFFF00u, WaterSchedulerFixture.ReadCoreDword(result.Frame, 0x2797774));
         Assert.Equal(0xFFFFFEE0u, WaterSchedulerFixture.ReadCoreDword(result.Frame, 0x2797778));
-        NativeBattleWaterExecutionFrame skipped = WaterSchedulerFixture.CoreWord(frame, Manager, 0);
         NativeBattleWaterCallbackResult withoutBranch = NativeBattleWaterCallback.RunA9B870(skipped, Input(1), Services());
         Assert.Equal(0x80u, WaterSchedulerFixture.ReadCoreDword(withoutBranch.Frame, 0x2797770));
         Assert.Equal((ushort)0xFFF0, Word(withoutBranch.Frame, 0x2797782));
@@ -241,16 +242,17 @@ public sealed class NativeBattleWaterCallbackTests
     {
         NativeBattleWaterExecutionFrame frame = Create();
         frame = frame with { Core = frame.Core.Write(0x2797554, [0, 0xFF]) };
-        NativeBattleWaterExecutionFrame cold = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame before = NativeBattleStorageSnapshots.Capture(frame);
+        NativeBattleWaterExecutionFrame cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame));
         NativeBattleWaterCallbackResult first = NativeBattleWaterCallback.RunA9B870(frame, Input(1), Services());
         NativeBattleWaterCallbackResult restored = NativeBattleWaterCallback.RunA9B870(cold, Input(1), Services());
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(restored));
-        NativeBattleWaterCallbackResult changedCommand = NativeBattleWaterCallback.RunA9B870(frame, Input(1), Services() with
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(restored));
+        NativeBattleWaterCallbackResult changedCommand = NativeBattleWaterCallback.RunA9B870(NativeBattleStorageSnapshots.Restore(before), Input(1), Services() with
         {
             DrawSlot = (current, _) => WaterSchedulerFixture.CoreWord(current, 0x2797628 + 0xA, 0)
         });
         Assert.Equal(2u, changedCommand.TaskResult);
-        Assert.Throws<NotSupportedException>(() => NativeBattleWaterCallback.RunA9B870(frame, Input(1), Services() with
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterCallback.RunA9B870(NativeBattleStorageSnapshots.Restore(before), Input(1), Services() with
         {
             DrawSlot = (_, selector) => throw new NotSupportedException($"Unowned selected draw {selector}")
         }));

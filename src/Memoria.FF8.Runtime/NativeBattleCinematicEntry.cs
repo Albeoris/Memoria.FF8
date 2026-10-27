@@ -40,7 +40,7 @@ public static class NativeBattleCinematicEntry
         NativeBattleWaterInitializationResult initialized = NativeBattleWaterInitialization.InitializeScriptedEntry(core, arena, directories, inputs, new(profile.QueueAddress, profile.BankAddress, 0x10, 1, profile.Callback), checked((short)profile.SourceBase));
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.QueueAddress, profile.BankAddress, 0x10, 1);
         (pool, _) = pool.Append(profile.Callback);
-        return new(memory with { Arena = initialized.Arena, ScriptedEffects = initialized.Core, Cinematic = new(profile.Effect, initialized.TemporaryFrame.Bytes[0x145]) }, effect with { Pools = [pool], ReturnedDescriptor = pool.DescriptorAddress }, initialized.SlotBank, initialized.TemporaryFrame, initialized.CurrentHeaderIndex);
+        return new(memory with { Arena = initialized.Arena, ScriptedEffects = initialized.Core, Cinematic = new(profile.Effect, initialized.TemporaryFrame.ReadByte(0x145)) }, effect with { Pools = [pool], ReturnedDescriptor = pool.DescriptorAddress }, initialized.SlotBank, initialized.TemporaryFrame, initialized.CurrentHeaderIndex);
 
         void RequireResource(uint publication, NativeBattleWaterInitializationResource resource)
         {

@@ -31,8 +31,8 @@ public sealed class NativeBattleEffect233OffscreenTests
         frame = frame with
         {
             Arena = frame.Arena.MarkUnknown(0x1006, 4),
-            TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xD4, false).SetItem(0xD5, false).SetItem(0xD6, false).SetItem(0xD7, false) }
         };
+        frame.TemporaryFrame.MarkUnknown(0xD4, 4);
         List<NativeBattleCinematicOffscreenStageRequest> draws = [];
         List<(uint Address, int Entries)> clears = [];
         List<(uint Ordering, uint Packet)> inserts = [];
@@ -50,6 +50,7 @@ public sealed class NativeBattleEffect233OffscreenTests
             ReadCurrentEffect = _ => throw new InvalidOperationException("The selected capture does not query the other mode's effect-specific flag.")
         };
         NativeBattleWaterScriptProgram program = new(0x1000, 6, 0x80001000);
+        NativeBattleWaterExecutionFrame original = NativeBattleStorageSnapshots.Capture(frame);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicOffscreen.Execute(frame, program, services);
         Assert.Equal(1, debug);
         Assert.Equal((ushort)256, focal);
@@ -65,7 +66,7 @@ public sealed class NativeBattleEffect233OffscreenTests
         Assert.Equal(unchecked((uint)-90), result.ReadTemporaryDword(0xC8));
         Assert.Equal(17u, result.ReadTemporaryDword(0xCC));
         Assert.Equal((ushort)0xBEEF, result.ReadTemporaryWord(0xC2));
-        Assert.False(result.TemporaryFrame.Known[0xD4]);
+        Assert.False(result.TemporaryFrame.IsKnown(0xD4, 1));
         Assert.Equal(0x01000100u, Dword(result, Start + 0x54));
         Assert.Equal((ushort)352, Word(result, Start + 0x58));
         Assert.Equal((ushort)256, Word(result, Start + 0x5A));
@@ -78,9 +79,9 @@ public sealed class NativeBattleEffect233OffscreenTests
         Assert.Equal((Start + 0xEC, 1024), Assert.Single(clears));
         Assert.Equal(Start + 0xEC + 0xFFC, Assert.Single(executes));
         Assert.Equal(new[] { (Start + 0xEC + 0x40, Start + 0xAC), (Start + 0xEC + 0xFC0, Start + 0x6C) }, inserts);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(original))!);
         NativeBattleWaterExecutionFrame restoredResult = NativeBattleCinematicOffscreen.Execute(restored, program, services);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restoredResult));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restoredResult)));
     }
 
     private static NativeBattleCinematicOffscreenServices Services(List<NativeBattleCinematicOffscreenStageRequest> draws, List<(uint Address, int Entries)> clears, List<(uint Ordering, uint Packet)> inserts, List<uint> executes, Action debug)

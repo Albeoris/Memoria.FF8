@@ -11,7 +11,7 @@ public sealed class NativeBattleEffect238AnchorStateTests
     {
         NativeBattleGeometryRegisterStep incoming = NativeBattleActorAnchorRegisterFixture.Registers();
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryByte(0xC6, 0xA5);
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xC7, false) } };
+        frame.TemporaryFrame.MarkUnknown(0xC7, 1);
         NativeBattleActionMatrix basis = new([0, -4096, 0, 4096, 0, 0, 0, 0, 4096], 40000, -50000, 60000, 731);
         NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, Skeleton(), [Identity, Identity with { X = 10, Y = 20, Z = 30 }], 1, 4096, basis, incoming);
         Assert.Equal(new NativeBattleFullMacVertex(39980, -49990, 60130, 0x81C00000), result.Anchor);
@@ -22,13 +22,13 @@ public sealed class NativeBattleEffect238AnchorStateTests
         Assert.Equal(result.Anchor.Flags, result.Frame.ReadTemporaryDword(0xFC));
         for (int index = 0; index < 18; index++)
         {
-            Assert.Equal((byte?)result.Frame.TemporaryFrame.Bytes[0xD0 + index], result.Registers.Geometry.Rotation20[index]);
+            Assert.Equal((byte?)NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Bytes[0xD0 + index], result.Registers.Geometry.Rotation20[index]);
         }
         Assert.Null(result.Registers.Geometry.Rotation20[18]);
         Assert.Null(result.Registers.Geometry.Rotation20[19]);
-        Assert.False(result.Frame.TemporaryFrame.Known[0xE2]);
-        Assert.False(result.Frame.TemporaryFrame.Known[0xE3]);
-        Assert.Equal(new byte[] { 0, 0, 0, 0, 100, 0, 0xA5, frame.TemporaryFrame.Bytes[0xC7] }, result.Registers.Colors.NormalInput!.Value);
+        Assert.False(result.Frame.TemporaryFrame.IsKnown(0xE2, 1));
+        Assert.False(result.Frame.TemporaryFrame.IsKnown(0xE3, 1));
+        Assert.Equal(new byte[] { 0, 0, 0, 0, 100, 0, 0xA5, NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Bytes[0xC7] }, result.Registers.Colors.NormalInput!.Value);
         Assert.Equal(new bool[] { true, true, true, true, true, true, true, false }, result.Registers.Colors.NormalInputKnown!.Value);
         Assert.Equal(incoming.Geometry.V1, result.Registers.Geometry.V1);
         Assert.Equal(incoming.Geometry.V2, result.Registers.Geometry.V2);
@@ -101,12 +101,12 @@ public sealed class NativeBattleEffect238AnchorStateTests
     public void AnchorStateAndUnknownPaddingContinueAfterIndependentJsonRestore()
     {
         NativeBattleWaterActorAnchorResult first = NativeBattleWaterActorAnchor.EvaluateB66B80(WaterSchedulerFixture.Create(), Skeleton(), [Identity, Identity with { X = 10 }], 1, 4096, Identity, NativeBattleActorAnchorRegisterFixture.Registers());
-        NativeBattleWaterActorAnchorResult restored = JsonSerializer.Deserialize<NativeBattleWaterActorAnchorResult>(JsonSerializer.Serialize(first))!;
+        NativeBattleWaterActorAnchorResult restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterActorAnchorResult>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         NativeBattleWaterActorAnchorResult expected = NativeBattleWaterActorAnchor.EvaluateB66B80(first.Frame, Skeleton(), [Identity, Identity with { X = -20 }], 0xF1, -2048, Identity, first.Registers);
         NativeBattleWaterActorAnchorResult actual = NativeBattleWaterActorAnchor.EvaluateB66B80(restored.Frame, Skeleton(), [Identity, Identity with { X = -20 }], 0xF1, -2048, Identity, restored.Registers);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
         Assert.Null(actual.Registers.Geometry.Rotation20[18]);
-        Assert.False(actual.Frame.TemporaryFrame.Known[0xE2]);
+        Assert.False(actual.Frame.TemporaryFrame.IsKnown(0xE2, 1));
     }
 
     [Fact]

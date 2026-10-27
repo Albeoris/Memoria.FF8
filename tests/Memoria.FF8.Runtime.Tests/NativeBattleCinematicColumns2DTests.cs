@@ -129,12 +129,12 @@ public sealed class NativeBattleCinematicColumns2DTests
     public void SnapshotPreservesTheSameNextFrameAndUnconsumedPadding()
     {
         NativeBattleWaterExecutionFrame frame = Warm(true, 0);
-        frame = frame with { Arena = frame.Arena.MarkUnknown(0x4012, 2), TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xEE, false) } };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x4012, 2), TemporaryFrame = frame.TemporaryFrame.MarkUnknown(0xEE, 1) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicColumns2D.Draw(restored, (current, _, _, _) => current);
-        Assert.False(result.TemporaryFrame.Known[0xEE]);
+        Assert.False(result.TemporaryFrame.IsKnown(0xEE, 1));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x4012, 1));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCinematicColumns2D.Draw(frame, (current, _, _, _) => current)), JsonSerializer.Serialize(result));
+        Assert.Equal(SnapshotJson(NativeBattleCinematicColumns2D.Draw(frame, (current, _, _, _) => current)), SnapshotJson(result));
     }
 
     private static NativeBattleWaterExecutionFrame Warm(bool paused, ushort status)
@@ -174,4 +174,6 @@ public sealed class NativeBattleCinematicColumns2DTests
     private static uint Address(int offset) => NativeBattleEffectNodeMemory.ArenaAddress + (uint)offset;
     private static ushort Word(NativeBattleWaterExecutionFrame frame, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(offset, 2));
     private static uint Dword(NativeBattleWaterExecutionFrame frame, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(offset, 4));
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

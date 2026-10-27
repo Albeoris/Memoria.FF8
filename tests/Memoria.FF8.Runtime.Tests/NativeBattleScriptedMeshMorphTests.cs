@@ -69,6 +69,7 @@ public sealed class NativeBattleScriptedMeshMorphTests
             frame = Word(frame, 0x20100 + 2 * lane, -1);
         }
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x60006, 2).MarkUnknown(0x10106, 2).MarkUnknown(0x20106, 2) };
+        NativeBattleWaterExecutionFrame inputSnapshot = NativeBattleStorageSnapshots.Capture(frame);
         NativeBattleWaterExecutionFrame result = NativeBattleScriptedMeshMorph.Morph(frame, Services);
         Assert.Equal((short)-1, Read(result, 0x50000));
         Assert.Equal((short)0, Read(result, 0x60000));
@@ -76,8 +77,8 @@ public sealed class NativeBattleScriptedMeshMorphTests
         Assert.Equal(Base + 0x10070, result.ReadTemporaryDword(0xF0));
         Assert.Equal(1u, result.ReadTemporaryDword(0xF8));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x60006, 2));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleScriptedMeshMorph.Morph(restored, Services)));
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(inputSnapshot);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleScriptedMeshMorph.Morph(restored, Services))));
     }
 
     [Fact]
@@ -118,7 +119,7 @@ public sealed class NativeBattleScriptedMeshMorphTests
         Assert.Equal(0x11111111u, result.ReadTemporaryDword(0xF0));
         Assert.Equal(0x22222222u, result.ReadTemporaryDword(0xF4));
         Assert.Equal(0x33333333u, result.ReadTemporaryDword(0xF8));
-        Assert.Equal(JsonSerializer.Serialize(frame.Arena), JsonSerializer.Serialize(result.Arena));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Arena)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Arena)));
     }
 
     [Fact]
@@ -150,11 +151,12 @@ public sealed class NativeBattleScriptedMeshMorphTests
     }
 
     [Fact]
-    public void Morph_publishes_an_immutable_arena_and_resolvers_receive_the_original_frame()
+    public void Morph_publishes_its_retained_arena_and_resolvers_receive_the_original_frame()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(2, 2);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x50006, 2) };
-        string original = JsonSerializer.Serialize(frame);
+        NativeBattleWaterExecutionFrame originalSnapshot = NativeBattleStorageSnapshots.Capture(frame);
+        string original = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(originalSnapshot));
         NativeBattleScriptedMeshMorphServices services = new((current, selector) =>
         {
             Assert.Same(frame, current);
@@ -168,10 +170,11 @@ public sealed class NativeBattleScriptedMeshMorphTests
         NativeBattleWaterExecutionFrame result = NativeBattleScriptedMeshMorph.Morph(frame, services);
 
         Assert.Null(result.Arena.Transaction);
+        Assert.Same(frame.Arena.Working, result.Arena.Working);
         Assert.Equal((short)10, Read(result, 0x50000));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x50006, 2));
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(result))!;
+        Assert.Equal(original, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(originalSnapshot)));
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.Equal((short)11, Read(restored, 0x50008));
     }
 
@@ -179,8 +182,9 @@ public sealed class NativeBattleScriptedMeshMorphTests
     public void Morph_reuses_an_active_transaction_and_reads_its_pending_aliasing_stores()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(1, 2).WriteTemporaryDword(0x7C, Base + 0x10072);
-        string original = JsonSerializer.Serialize(frame);
-        NativeBattleWaterExecutionFrame expectedFrame = frame;
+        NativeBattleWaterExecutionFrame originalSnapshot = NativeBattleStorageSnapshots.Capture(frame);
+        string original = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(originalSnapshot));
+        NativeBattleWaterExecutionFrame expectedFrame = NativeBattleStorageSnapshots.Restore(originalSnapshot);
         for (int lane = 0; lane < 3; lane++)
         {
             expectedFrame = Word(expectedFrame, 0x4094 + 2 * lane, 128);
@@ -198,21 +202,23 @@ public sealed class NativeBattleScriptedMeshMorphTests
         Assert.Same(transaction.View, result.Arena);
         Assert.Equal(new short[] { 5, 6, 7 }, Enumerable.Range(0, 3).Select(lane => Read(result, 0x10072 + 2 * lane)));
         NativeBattleEffectArena published = transaction.Freeze();
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result with { Arena = published }));
+        NativeBattleEffectArena publishedSnapshot = NativeBattleStorageSnapshots.Capture(published);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result with { Arena = published })));
         Word(result, 0x10072, 99);
         Assert.Equal((short)99, Read(result, 0x10072));
-        Assert.Equal((short)5, BinaryPrimitives.ReadInt16LittleEndian(published.Read(0x10072, 2)));
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal((short)5, BinaryPrimitives.ReadInt16LittleEndian(publishedSnapshot.Read(0x10072, 2)));
+        Assert.Equal(original, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(originalSnapshot)));
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Failed_morph_preserves_immutable_input_and_leaves_ordered_stores_in_its_callers_transaction(bool activeTransaction)
+    public void Failed_morph_preserves_arena_input_and_leaves_ordered_stores_in_its_callers_transaction(bool activeTransaction)
     {
         NativeBattleWaterExecutionFrame frame = Fixture(1, 2);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x10074, 2) };
-        string original = JsonSerializer.Serialize(frame);
+        NativeBattleWaterExecutionFrame originalSnapshot = NativeBattleStorageSnapshots.Capture(frame);
+        string original = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(originalSnapshot));
         using NativeBattleEffectArenaTransaction? transaction = activeTransaction ? new(frame.Arena) : null;
         NativeBattleWaterExecutionFrame current = transaction is null ? frame : frame with { Arena = transaction.View };
         Exception expected = Assert.Throws<NotSupportedException>(() => frame.Arena.Read(0x10074, 2));
@@ -220,14 +226,17 @@ public sealed class NativeBattleScriptedMeshMorphTests
         Exception actual = Assert.Throws<NotSupportedException>(() => NativeBattleScriptedMeshMorph.Morph(current, Services));
 
         Assert.Equal(expected.Message, actual.Message);
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(originalSnapshot)));
         if (transaction is not null)
         {
             Assert.Equal((short)10, Read(current, 0x50000));
             Assert.Equal((short)0, Read(current, 0x50002));
             Word(current, 0x50002, 99);
             Assert.Equal((short)99, Read(current, 0x50002));
+            transaction.Dispose();
         }
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(originalSnapshot.Arena)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Arena)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(originalSnapshot.Core)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Core)));
     }
 
     private static NativeBattleWaterExecutionFrame Fixture(int count, uint flags)

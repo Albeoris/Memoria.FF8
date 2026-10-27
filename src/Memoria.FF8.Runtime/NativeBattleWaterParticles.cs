@@ -370,7 +370,7 @@ public static class NativeBattleWaterParticles
         short? padding = known[18] && known[19] ? BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(18)) : null;
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, basis, true, true, padding) };
         NativeBattleVector point = new(unchecked((short)frame.ReadTemporaryWord(0xA0)), unchecked((short)frame.ReadTemporaryWord(0xA2)), unchecked((short)frame.ReadTemporaryWord(0xA4)));
-        short? pointW = frame.TemporaryFrame.Known[0xA6] && frame.TemporaryFrame.Known[0xA7] ? unchecked((short)frame.ReadTemporaryWord(0xA6)) : null;
+        short? pointW = frame.TemporaryFrame.IsKnown(0xA6, 2) ? unchecked((short)frame.ReadTemporaryWord(0xA6)) : null;
         registers = NativeBattleGeometry.LoadVector(registers, 0, point, pointW);
         registers = NativeBattleGeometry.Transform(registers);
         registers = registers with { Geometry = registers.Geometry with { Translation = registers.Colors.Mac } };

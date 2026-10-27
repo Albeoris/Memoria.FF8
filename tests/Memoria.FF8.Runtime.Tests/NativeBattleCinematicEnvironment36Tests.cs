@@ -79,14 +79,14 @@ public sealed class NativeBattleCinematicEnvironment36Tests
     public void SnapshotRetainsUnwrittenPacketAndScratchBytes()
     {
         NativeBattleWaterExecutionFrame frame = Fixture();
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xEE, false) } };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame.MarkUnknown(0xEE, 1) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleCinematicEnvironment36Services services = new(_ => 0, (_, _) => Environment(0), (current, _, _, _) => current);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicEnvironment36.Draw(restored, services);
-        Assert.False(result.TemporaryFrame.Known[0xEE]);
+        Assert.False(result.TemporaryFrame.IsKnown(0xEE, 1));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x4000, 1));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x501C, 1));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCinematicEnvironment36.Draw(frame, services)), JsonSerializer.Serialize(result));
+        Assert.Equal(SnapshotJson(NativeBattleCinematicEnvironment36.Draw(frame, services)), SnapshotJson(result));
     }
 
     private static void CheckMask(NativeBattleGfGeometryAttempt attempt, int written)
@@ -124,4 +124,6 @@ public sealed class NativeBattleCinematicEnvironment36Tests
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(6), 320);
         return frame with { Arena = frame.Arena.Write(0x3000, payload).MarkUnknown(0x4000, 0x1200) };
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

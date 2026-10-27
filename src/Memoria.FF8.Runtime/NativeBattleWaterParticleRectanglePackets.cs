@@ -19,8 +19,8 @@ public static class NativeBattleWaterParticleRectanglePackets
         {
             throw new NotSupportedException("Native particle rectangle negative record counts are unsupported.");
         }
-        byte[] temporary = frame.TemporaryFrame.Bytes.ToArray();
-        bool[] temporaryKnown = frame.TemporaryFrame.Known.ToArray();
+        using NativeBattleWaterTemporaryFrame.PrivateWrite temporaryWrite = frame.TemporaryFrame.BeginPrivateWrite();
+        NativeBattleWaterTemporaryFrame temporary = temporaryWrite.View;
         foreach (int offset in new[] { 0xE4, 0xEC, 0xF4, 0xFC })
         {
             TemporaryWord(offset, 0);
@@ -63,7 +63,7 @@ public static class NativeBattleWaterParticleRectanglePackets
             for (int corner = 0; corner < 3; corner++)
             {
                 int at = 0xE0 + corner * 8;
-                short? w = temporaryKnown[at + 6] && temporaryKnown[at + 7] ? BinaryPrimitives.ReadInt16LittleEndian(temporary.AsSpan(at + 6)) : null;
+                short? w = temporary.IsKnown(at + 6, 2) ? unchecked((short)temporary.ReadUInt16(at + 6)) : null;
                 registers = NativeBattleGeometry.LoadVector(registers, corner, points[corner], w);
             }
             registers = NativeBattleGeometry.ProjectTriple(registers, projection, dqa, dqb);
@@ -73,7 +73,7 @@ public static class NativeBattleWaterParticleRectanglePackets
             }
             registers = NativeBattleGeometry.Average45E5C0(registers, zsf3);
             uint average = registers.Geometry.Otz!.Value;
-            short? fourthW = temporaryKnown[0xFE] && temporaryKnown[0xFF] ? BinaryPrimitives.ReadInt16LittleEndian(temporary.AsSpan(0xFE)) : null;
+            short? fourthW = temporary.IsKnown(0xFE, 2) ? unchecked((short)temporary.ReadUInt16(0xFE)) : null;
             registers = NativeBattleGeometry.LoadVector(registers, 0, points[3], fourthW);
             registers = NativeBattleGeometry.ProjectSingle(registers, projection, dqa, dqb);
             projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
@@ -125,20 +125,18 @@ public static class NativeBattleWaterParticleRectanglePackets
             }
         }
         cursor = unchecked(cursor + (uint)allocated);
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Bytes = temporary.ToImmutableArray(), Known = temporaryKnown.ToImmutableArray() } };
+        frame = frame with { TemporaryFrame = temporaryWrite.Publish() };
         frame = WriteCoreDword(frame, checked(manager + 0x7C), cursor);
         return new(frame, new(attempts.ToImmutable(), allocated), cursor, registers);
 
         void TemporaryWord(int offset, ushort value)
         {
-            BinaryPrimitives.WriteUInt16LittleEndian(temporary.AsSpan(offset), value);
-            Array.Fill(temporaryKnown, true, offset, 2);
+            temporary.WriteUInt16(offset, value);
         }
 
         void TemporaryDword(int offset, uint value)
         {
-            BinaryPrimitives.WriteUInt32LittleEndian(temporary.AsSpan(offset), value);
-            Array.Fill(temporaryKnown, true, offset, 4);
+            temporary.WriteUInt32(offset, value);
         }
     }
 }

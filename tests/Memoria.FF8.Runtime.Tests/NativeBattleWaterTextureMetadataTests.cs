@@ -67,9 +67,9 @@ public sealed class NativeBattleWaterTextureMetadataTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(-1);
         frame = frame with { Core = frame.Core.MarkUnknown(Manager + 0x98, 16) };
-        bool[] known = frame.TemporaryFrame.Known.ToArray();
+        bool[] known = NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Known.ToArray();
         Array.Fill(known, false, 0xF8, 8);
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutableArray() } };
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame.SetKnownness(0, known) };
         NativeBattleWaterExecutionFrame result = NativeBattleWaterTextureMetadata.Execute52AA3A60(frame, null!);
         Assert.Equal((ushort)0, SlotWord(result, 0x92));
         Assert.Equal((ushort)0, SlotWord(result, 0x9A));
@@ -137,10 +137,10 @@ public sealed class NativeBattleWaterTextureMetadataTests
     {
         NativeBattleWater222Profile profile = Profile(704, 256, 0x80);
         NativeBattleWaterExecutionFrame first = NativeBattleWaterTextureMetadata.Execute52AA3A60(Fixture(), profile);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(first))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first))!;
         first = CoreDword(first, 0x2797450, ArenaBase + Instruction);
         restored = CoreDword(restored, 0x2797450, ArenaBase + Instruction);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleWaterTextureMetadata.Execute52AA3A60(first, profile)), JsonSerializer.Serialize(NativeBattleWaterTextureMetadata.Execute52AA3A60(restored, profile)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleWaterTextureMetadata.Execute52AA3A60(first, profile)), NativeBattleTestSnapshots.Json(NativeBattleWaterTextureMetadata.Execute52AA3A60(restored, profile)));
     }
 
     private static NativeBattleWater222Profile Profile(short x, short y, byte sourceFlags)

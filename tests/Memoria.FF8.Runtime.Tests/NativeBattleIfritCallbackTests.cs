@@ -116,7 +116,7 @@ public sealed class NativeBattleIfritCallbackTests
     public void Independent_restore_preserves_defined_next_callback_and_latest_external_owners()
     {
         NativeBattleIfrit201Frame live = ControllerFrame();
-        NativeBattleIfrit201Frame restored = JsonSerializer.Deserialize<NativeBattleIfrit201Frame>(JsonSerializer.Serialize(live))!;
+        NativeBattleIfrit201Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleIfrit201Frame>(NativeBattleTestSnapshots.Json(live))!;
         NativeBattleEffectMemory latest = live.Memory with { ScriptedGraphics = live.Memory.ScriptedGraphics! with { Dqa = -7 } };
         NativeBattleScriptedCallbackServices services = Services() with
         {
@@ -129,7 +129,7 @@ public sealed class NativeBattleIfritCallbackTests
         };
         NativeBattleIfrit201Frame first = NativeBattleIfrit201Controller.AdvanceB25DF0(live, Input(1), services, 0x1D9A000, () => latest);
         NativeBattleIfrit201Frame next = NativeBattleIfrit201Controller.AdvanceB25DF0(restored, Input(1), services, 0x1D9A000, () => restored.Memory with { ScriptedGraphics = restored.Memory.ScriptedGraphics! with { Dqa = -7 } });
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(next));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(next));
         Assert.Equal((byte)6, first.Memory.Ifrit201!.Filter145);
         Assert.Equal((short)-7, first.Memory.ScriptedGraphics!.Dqa);
         Assert.Equal(Input(1).ViewMatrix.SetItem(18, 0).SetItem(19, 0), first.Memory.ScriptedGraphics.ModuleViewBackup);
@@ -144,7 +144,7 @@ public sealed class NativeBattleIfritCallbackTests
         Assert.Equal(0u, completed.Effect.ReturnedDescriptor);
         Assert.Null(completed.Effect.Pools[0].Head);
         NativeBattleIfrit201Frame again = NativeBattleIfrit201Controller.AdvanceB25DF0(completed, Input(1), Services(), 0x1D9A000, () => throw new InvalidOperationException());
-        Assert.Equal(JsonSerializer.Serialize(completed), JsonSerializer.Serialize(again));
+        Assert.Equal(NativeBattleTestSnapshots.Json(completed), NativeBattleTestSnapshots.Json(again));
     }
 
     [Fact]
@@ -154,7 +154,8 @@ public sealed class NativeBattleIfritCallbackTests
         NativeBattleIfrit201Frame missing = frame with { Memory = frame.Memory with { Ifrit201 = null } };
         Assert.Throws<NotSupportedException>(() => NativeBattleIfrit201Controller.AdvanceB25DF0(missing, Input(1), Services(), 0x1D9A000, () => missing.Memory));
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[0];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Callback = 1 }) };
+        NativeBattleModulePoolTask task = pool.Slots[0];
+        task.UpdateHeader(task.Flags, task.State, task.Next, 1);
         NativeBattleIfrit201Frame replaced = frame with { Effect = frame.Effect with { Pools = [pool] } };
         Assert.Throws<NotSupportedException>(() => NativeBattleIfrit201Controller.AdvanceB25DF0(replaced, Input(1), Services(), 0x1D9A000, () => replaced.Memory));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleIfrit201State>("{}"));

@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -9,66 +8,46 @@ public sealed record NativeBattleWaterExecutionFrame(NativeBattleScriptedEffectM
 {
     public ImmutableArray<byte> ModuleViewBackup { get; init; } = [];
 
-    public byte[] ReadTemporary(int offset, int length) => ReadTemporarySpan(offset, length).ToArray();
-
-    private ReadOnlySpan<byte> ReadTemporarySpan(int offset, int length)
+    public byte[] ReadTemporary(int offset, int length)
     {
         RequireTemporary(offset, length);
-        if (TemporaryFrame.Known.AsSpan().Slice(offset, length).Contains(false))
-        {
-            throw new NotSupportedException("Native effect temporary read requires its actual assigned fields.");
-        }
-        return TemporaryFrame.Bytes.AsSpan().Slice(offset, length);
+        byte[] bytes = new byte[length];
+        TemporaryFrame.ReadInto(offset, bytes);
+        return bytes;
     }
 
-    public byte ReadTemporaryByte(int offset) => ReadTemporarySpan(offset, 1)[0];
-    public ushort ReadTemporaryWord(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(ReadTemporarySpan(offset, 2));
-    public uint ReadTemporaryDword(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(ReadTemporarySpan(offset, 4));
+    public byte ReadTemporaryByte(int offset) => TemporaryFrame.ReadByte(offset);
+    public ushort ReadTemporaryWord(int offset) => TemporaryFrame.ReadUInt16(offset);
+    public uint ReadTemporaryDword(int offset) => TemporaryFrame.ReadUInt32(offset);
 
     public NativeBattleWaterExecutionFrame WriteTemporary(int offset, ReadOnlySpan<byte> bytes)
     {
-        RequireTemporary(offset, bytes.Length);
-        bool allKnown = !TemporaryFrame.Known.AsSpan().Slice(offset, bytes.Length).Contains(false);
-        if (allKnown && bytes.SequenceEqual(TemporaryFrame.Bytes.AsSpan().Slice(offset, bytes.Length)))
-        {
-            return this;
-        }
-        byte[] current = TemporaryFrame.Bytes.ToArray();
-        bytes.CopyTo(current.AsSpan(offset));
-        ImmutableArray<bool> known = TemporaryFrame.Known;
-        if (!allKnown)
-        {
-            bool[] assigned = known.ToArray();
-            Array.Fill(assigned, true, offset, bytes.Length);
-            known = ImmutableCollectionsMarshal.AsImmutableArray(assigned);
-        }
-        return this with { TemporaryFrame = TemporaryFrame with { Bytes = ImmutableCollectionsMarshal.AsImmutableArray(current), Known = known } };
+        TemporaryFrame.Write(offset, bytes);
+        return this;
     }
 
     public NativeBattleWaterExecutionFrame WriteTemporaryByte(int offset, byte value)
     {
-        Span<byte> bytes = stackalloc byte[1];
-        bytes[0] = value;
-        return WriteTemporary(offset, bytes);
+        TemporaryFrame.WriteByte(offset, value);
+        return this;
     }
 
     public NativeBattleWaterExecutionFrame WriteTemporaryWord(int offset, ushort value)
     {
-        Span<byte> bytes = stackalloc byte[2];
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
-        return WriteTemporary(offset, bytes);
+        TemporaryFrame.WriteUInt16(offset, value);
+        return this;
     }
 
     public NativeBattleWaterExecutionFrame WriteTemporaryDword(int offset, uint value)
     {
-        Span<byte> bytes = stackalloc byte[4];
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-        return WriteTemporary(offset, bytes);
+        TemporaryFrame.WriteUInt32(offset, value);
+        return this;
     }
 
     private void RequireTemporary(int offset, int length)
     {
-        if (TemporaryFrame.Bytes.IsDefault || TemporaryFrame.Known.IsDefault || TemporaryFrame.Bytes.Length != 0x180 || TemporaryFrame.Known.Length != 0x180 || offset < 0 || length < 0 || offset > 0x180 - length)
+        TemporaryFrame.Validate();
+        if (offset < 0 || length < 0 || offset > TemporaryFrame.Length - length)
         {
             throw new InvalidDataException("Native effect temporary access requires its complete bounded reservation.");
         }
@@ -95,12 +74,13 @@ public static class NativeBattleWaterFrameBinding
     {
         directories.Validate();
         uint address = temporaryFrame.Address;
-        if (temporaryFrame.Bytes.IsDefault || temporaryFrame.Known.IsDefault || temporaryFrame.Bytes.Length != 0x180 || temporaryFrame.Known.Length != 0x180 || address == 0 || address > uint.MaxValue - 0x180)
+        temporaryFrame.Validate();
+        if (address == 0 || address > uint.MaxValue - 0x180)
         {
             throw new InvalidDataException("Native effect binding requires its actual bounded temporary reservation.");
         }
-        byte[] bytes = temporaryFrame.Bytes.ToArray();
-        bool[] known = temporaryFrame.Known.ToArray();
+        using NativeBattleWaterTemporaryFrame.PrivateWrite writes = temporaryFrame.BeginPrivateWrite();
+        NativeBattleWaterTemporaryFrame current = writes.View;
         TemporaryDword(0x100, address);
         TemporaryDword(0x104, address + 0x100);
         for (int index = 0; index < 5; index++)
@@ -114,7 +94,7 @@ public static class NativeBattleWaterFrameBinding
         Store(0x279744C, directories.OwnerAddress(2));
         Store(0x27973BC, directories.OwnerAddress(3));
         Store(0x27973C0, directories.OwnerAddress(4));
-        return new(core, temporaryFrame with { Bytes = bytes.ToImmutableArray(), Known = known.ToImmutableArray() });
+        return new(core, writes.Publish());
 
         void Store(uint destination, uint value)
         {
@@ -125,8 +105,7 @@ public static class NativeBattleWaterFrameBinding
 
         void TemporaryDword(int offset, uint value)
         {
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset), value);
-            Array.Fill(known, true, offset, 4);
+            current.WriteUInt32(offset, value);
         }
     }
 }

@@ -41,7 +41,7 @@ public sealed class NativeBattleApocalypse221BreakupTrianglesTests
         NativeBattleApocalypse221BreakupTriangleServices services = new(owner =>
         {
             owner = owner.WriteTemporary(0xE0, new byte[32]);
-            return owner with { TemporaryFrame = owner.TemporaryFrame with { Known = owner.TemporaryFrame.Known.SetItem(0xF2, false).SetItem(0xF3, false) } };
+            return owner with { TemporaryFrame = owner.TemporaryFrame.MarkUnknown(0xF2, 1).MarkUnknown(0xF3, 1) };
         }, (owner, source) =>
         {
             Assert.Equal(vertices + (uint)(8 * projected), source);
@@ -87,8 +87,8 @@ public sealed class NativeBattleApocalypse221BreakupTrianglesTests
         Assert.Equal(1, shadeCalls);
         Assert.Equal(1, detached);
         Assert.Equal((ushort)401, result.ReadTemporaryWord(0xC0));
-        Assert.False(result.TemporaryFrame.Known[0x52]);
-        Assert.False(result.TemporaryFrame.Known[0x53]);
+        Assert.False(result.TemporaryFrame.IsKnown(0x52, 1));
+        Assert.False(result.TemporaryFrame.IsKnown(0x53, 1));
         Assert.Equal(basis + 0x5040, WaterSchedulerFixture.ReadCoreDword(result, 0x2797690 + 0x7C));
     }
 

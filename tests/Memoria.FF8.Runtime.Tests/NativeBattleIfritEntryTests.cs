@@ -34,8 +34,8 @@ public sealed class NativeBattleIfritEntryTests
             Assert.Equal(new byte[4], result.Memory.Arena!.Read(offset, 4));
             Assert.All(result.Memory.Arena.Read(offset + 4, 0xFC), value => Assert.Equal((byte)0xA5, value));
         }
-        Assert.False(result.TemporaryFrame.Known[0x144]);
-        Assert.True(result.TemporaryFrame.Known[0x145]);
+        Assert.False(result.TemporaryFrame.IsKnown(0x144, 1));
+        Assert.True(result.TemporaryFrame.IsKnown(0x145, 1));
     }
 
     [Fact]
@@ -44,13 +44,13 @@ public sealed class NativeBattleIfritEntryTests
         var fixture = Fixture();
         NativeBattleIfritEntryStep expected = Initialize(fixture);
         NativeBattleIfritEntryStep actual = Initialize((RoundTrip(fixture.Memory), RoundTrip(fixture.Effect), RoundTrip(fixture.Directories), RoundTrip(fixture.Inputs)));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(RoundTrip(expected)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(RoundTrip(expected))));
         var water = NativeBattleWaterInitializationTests.Fixture();
         NativeBattleScriptedEffectMemory core = NativeBattleScriptedEffectMemory.Unknown();
         NativeBattleWaterInitializationResult legacy = NativeBattleWaterInitialization.InitializeA9B200(core, water.Arena, water.Profile, water.Inputs);
         NativeBattleWaterInitializationResult shared = NativeBattleWaterInitialization.InitializeScriptedEntry(core, water.Arena, new(water.Profile.InitializationDirectory, water.Profile.OwnerDirectory), water.Inputs, new(0x2796BA8, 0x2796BB8, 16, 1, 0xA9B870));
-        Assert.Equal(JsonSerializer.Serialize(legacy), JsonSerializer.Serialize(shared));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(legacy)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(shared)));
         Assert.Throws<InvalidDataException>(() => NativeBattleWaterInitialization.InitializeA9B200(core, water.Arena, water.Profile with { Tables = new("tables", []) }, water.Inputs));
     }
 
@@ -64,7 +64,11 @@ public sealed class NativeBattleIfritEntryTests
         Assert.Throws<InvalidDataException>(() => Initialize((fixture.Memory, fixture.Effect, fixture.Directories with { OwnerDirectory = new("owners", []) }, fixture.Inputs)));
         Assert.Throws<InvalidDataException>(() => Initialize((fixture.Memory, fixture.Effect, fixture.Directories, fixture.Inputs with { InitializationDirectoryAddress = 0x186C84C })));
         Assert.Throws<InvalidDataException>(() => Initialize((fixture.Memory, fixture.Effect, fixture.Directories, fixture.Inputs with { Resource0 = fixture.Inputs.Resource0 with { ArenaOffset = 0 } })));
-        Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory with { Arena = fixture.Memory.Arena!.MarkUnknown(fixture.Inputs.Resource0.ArenaOffset + 4, 4) }, fixture.Effect, fixture.Directories, fixture.Inputs)));
+        byte[] originalResourcePointer = fixture.Memory.Arena!.Read(fixture.Inputs.Resource0.ArenaOffset + 4, 4);
+        NativeBattleEffectMemory missingConsumed = RoundTrip(fixture.Memory);
+        missingConsumed.Arena!.MarkUnknown(fixture.Inputs.Resource0.ArenaOffset + 4, 4);
+        Assert.Throws<NotSupportedException>(() => Initialize((missingConsumed, fixture.Effect, fixture.Directories, fixture.Inputs)));
+        Assert.Equal(originalResourcePointer, fixture.Memory.Arena!.Read(fixture.Inputs.Resource0.ArenaOffset + 4, 4));
         NativeBattleIfritEntryStep unknown = Initialize((fixture.Memory with { ScriptedEffects = NativeBattleScriptedEffectMemory.Unknown() }, fixture.Effect, fixture.Directories, fixture.Inputs));
         Assert.Throws<NotSupportedException>(() => unknown.Memory.ScriptedEffects!.Read(0x2797690 + 0x78, 4));
         Assert.Throws<NotSupportedException>(() => unknown.Memory.ScriptedEffects!.Read(0x2797968 + 0x12, 2));
@@ -89,6 +93,6 @@ public sealed class NativeBattleIfritEntryTests
         return (memory, effect, directories, inputs);
     }
 
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value)))!);
     private static uint Dword(NativeBattleScriptedEffectMemory core, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(core.Read(address, 4));
 }

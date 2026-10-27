@@ -35,9 +35,9 @@ public sealed class NativeBattleCinematicEntryControllerTests
         Assert.Equal(profile.InitializationAddress + 0x20u, BinaryPrimitives.ReadUInt32LittleEndian(result.Memory.ScriptedEffects.Read(0x2797690 + 0x98, 4)));
         Assert.Equal(effect, result.Memory.Cinematic!.Effect);
         Assert.Equal(effect == 201, result.Memory.Ifrit201 is not null);
-        string json = JsonSerializer.Serialize(result.Memory);
+        string json = NativeBattleTestSnapshots.Json(result.Memory);
         Assert.DoesNotContain("\"Ifrit201\"", json);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(json)));
         Assert.True(NativeBattleCinematicProfile.IsSupported(effect));
     }
 
@@ -56,7 +56,7 @@ public sealed class NativeBattleCinematicEntryControllerTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.QueueAddress, profile.BankAddress, 16, 1);
         (pool, _) = pool.Append(profile.Callback);
         NativeBattleCinematicFrame frame = new(fixture.Memory with { Cinematic = new(effect, 9) }, fixture.Effect with { RequestedEffect = checked((ushort)effect), SelectedIndex = effect - 1, Binding = new(checked((ushort)effect), profile.Entry, profile.Initializer), Pools = [pool], ReturnedDescriptor = profile.QueueAddress }, fixture.Random);
-        frame = JsonSerializer.Deserialize<NativeBattleCinematicFrame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleCinematicFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleScriptedCallbackServices services = NativeBattleIfritCallbackTests.Services() with
         {
             DrawSlots = (current, _) =>
@@ -71,7 +71,7 @@ public sealed class NativeBattleCinematicEntryControllerTests
         Assert.Equal((short)-7, completed.Memory.ScriptedGraphics!.Dqa);
         Assert.Equal(0u, completed.Effect.ReturnedDescriptor);
         NativeBattleCinematicFrame again = NativeBattleCinematicController.Advance(profile, completed, NativeBattleIfritCallbackTests.Input(1), services, 0x1D9A000, () => throw new InvalidOperationException());
-        Assert.Equal(JsonSerializer.Serialize(completed), JsonSerializer.Serialize(again));
+        Assert.Equal(NativeBattleTestSnapshots.Json(completed), NativeBattleTestSnapshots.Json(again));
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class NativeBattleCinematicEntryControllerTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Ifrit201 = new(9) };
         Assert.Equal(new NativeBattleCinematicState(201, 9), memory.Cinematic);
         Assert.Null((memory with { Cinematic = new(202, 6) }).Ifrit201);
-        JsonObject legacy = JsonSerializer.SerializeToNode(memory)!.AsObject();
+        JsonObject legacy = JsonSerializer.SerializeToNode(NativeBattleStorageSnapshots.Capture(memory))!.AsObject();
         legacy.Remove("Cinematic");
         legacy["Ifrit201"] = new JsonObject { ["Filter145"] = 9 };
         Assert.Null(legacy.Deserialize<NativeBattleEffectMemory>()!.Cinematic);

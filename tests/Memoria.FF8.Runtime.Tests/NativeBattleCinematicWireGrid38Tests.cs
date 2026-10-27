@@ -26,7 +26,7 @@ public sealed class NativeBattleCinematicWireGrid38Tests
             Assert.Equal(projections % 17 % 16, current.ReadTemporaryWord(0xD0));
             Assert.Equal(100 + projections % 17 % 16, current.ReadTemporaryWord(0xD4));
             Assert.Equal(projections < 17 ? unchecked((ushort)-2) : (ushort)2, current.ReadTemporaryWord(0xD2));
-            Assert.False(current.TemporaryFrame.Known[0xD6]);
+            Assert.False(current.TemporaryFrame.IsKnown(0xD6, 1));
             int ordinal = projections++;
             current = ArenaDword(current, output, (uint)ordinal);
             return new(current.WriteTemporaryDword(0xFC, 0x1234), 100 + ordinal);
@@ -60,8 +60,8 @@ public sealed class NativeBattleCinematicWireGrid38Tests
         Assert.Equal(Address(0x6380), WaterSchedulerFixture.ReadCoreDword(result, 0x2797690 + 0x7C));
         Assert.Equal(Address(0x404C), WaterSchedulerFixture.ReadCoreDword(result, 0x2797690 + 0x74));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x4076, 2));
-        NativeBattleWaterExecutionFrame clone = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(result.Arena), JsonSerializer.Serialize(clone.Arena));
+        NativeBattleWaterExecutionFrame clone = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Arena)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(clone.Arena)));
     }
 
     [Theory]
@@ -107,7 +107,8 @@ public sealed class NativeBattleCinematicWireGrid38Tests
         frame = ArenaDword(frame, Address(0x3814), 0x100);
         frame = ArenaDword(frame, Address(0x3080), 0x030201);
         frame = ArenaDword(frame, Address(0x3084), 0x060504);
-        return frame with { Arena = frame.Arena.MarkUnknown(0x302A, 2).MarkUnknown(0x4076, 2), TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xD6, false).SetItem(0xD7, false) } };
+        frame.TemporaryFrame.MarkUnknown(0xD6, 2);
+        return frame with { Arena = frame.Arena.MarkUnknown(0x302A, 2).MarkUnknown(0x4076, 2) };
     }
 
     private static uint Address(int offset) => unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)offset);

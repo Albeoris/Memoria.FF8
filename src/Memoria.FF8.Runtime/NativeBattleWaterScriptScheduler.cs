@@ -14,10 +14,7 @@ public static class NativeBattleWaterScriptScheduler
         frame = frame.WriteTemporaryWord(0x13E, 0);
         if (prePass)
         {
-            bool[] known = frame.TemporaryFrame.Known.ToArray();
-            Array.Copy(known, 0x138, known, 0x14C, 4);
-            frame = frame.WriteTemporary(0x14C, frame.TemporaryFrame.Bytes.AsSpan().Slice(0x138, 4));
-            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutableArray() } };
+            frame.TemporaryFrame.Copy(0x138, 0x14C, 4);
         }
         frame = frame.WriteTemporaryByte(0x144, 0);
         int executed = 0;

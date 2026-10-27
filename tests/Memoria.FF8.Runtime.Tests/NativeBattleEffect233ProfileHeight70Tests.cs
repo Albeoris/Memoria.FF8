@@ -92,13 +92,13 @@ public sealed class NativeBattleEffect233ProfileHeight70Tests
                 return current;
             }
         };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicProfileHeight70.Execute(frame, Program, services);
         Assert.True(updated);
         Assert.Equal(expected, WaterSchedulerFixture.ReadSlotDword(result, 0, 0x60));
         Assert.Equal(Address(0x1004), WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         NativeBattleWaterExecutionFrame restoredResult = NativeBattleCinematicProfileHeight70.Execute(restored, Program, Services());
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restoredResult));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restoredResult)));
     }
 
     [Theory]
@@ -155,10 +155,10 @@ public sealed class NativeBattleEffect233ProfileHeight70Tests
     {
         NativeBattleWaterExecutionFrame frame = NativeBattleCinematicProfileHeight70.Execute(Create(), Program, Services());
         frame = ProfileWord(frame, 0x20, 123);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         NativeBattleWaterExecutionFrame next = NativeBattleCinematicProfileHeight70.Execute(frame, Program, Services());
         NativeBattleWaterExecutionFrame nextRestored = NativeBattleCinematicProfileHeight70.Execute(restored, Program, Services());
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(nextRestored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(nextRestored)));
         Assert.Equal(116u << 16, WaterSchedulerFixture.ReadSlotDword(next, 0, 0x60));
         Assert.Equal(Address(0x1008), WaterSchedulerFixture.ReadCoreDword(next, 0x2797450));
     }

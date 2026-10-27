@@ -20,12 +20,7 @@ public static class NativeBattleCinematicBrothersModel3
         uint reference = services.ResolveReference(frame, SlotWord(frame, 0x9C));
         NativeBattleVector angles = Vector(reference + 0x8C);
         (frame, _) = NativeBattleWaterMatrixCommands.BuildRotationB65590(frame, angles, 0);
-        byte[] copy = frame.TemporaryFrame.Bytes.AsSpan().Slice(0xE0, 32).ToArray();
-        bool[] known = frame.TemporaryFrame.Known.AsSpan().Slice(0xE0, 32).ToArray();
-        frame = frame.WriteTemporary(0x80, copy);
-        bool[] mask = frame.TemporaryFrame.Known.ToArray();
-        known.CopyTo(mask, 0x80);
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = mask.ToImmutableArray() } };
+        frame.TemporaryFrame.Copy(0xE0, 0x80, 32);
         int sx = unchecked((short)SlotWord(frame, 0x8C)) << 4;
         int sy = unchecked((short)SlotWord(frame, 0x8E)) << 4;
         int sz = unchecked((short)SlotWord(frame, 0x90)) << 4;

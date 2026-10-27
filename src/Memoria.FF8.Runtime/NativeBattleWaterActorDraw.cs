@@ -82,7 +82,8 @@ public static partial class NativeBattleWaterActorDraw
         {
             frame = frame.WriteTemporaryWord(0x60 + lane * 2, unchecked((ushort)matrix.Rotation[lane]));
         }
-        return frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0x72, false).SetItem(0x73, false) } };
+        frame.TemporaryFrame.MarkUnknown(0x72, 2);
+        return frame;
     }
 
     private static NativeBattleWaterExecutionFrame TemporaryMatrix(NativeBattleWaterExecutionFrame frame, NativeBattleActionMatrix matrix) => TemporaryRotation(frame, matrix).WriteTemporaryDword(0x74, unchecked((uint)matrix.X)).WriteTemporaryDword(0x78, unchecked((uint)matrix.Y)).WriteTemporaryDword(0x7C, unchecked((uint)matrix.Z));

@@ -40,6 +40,7 @@ public sealed class NativeBattleWaterRectangleCommandsTests
         NativeBattleActionMatrix basis = new(new short[] { 0, 4096, 0, -4096, 0, 0, 0, 0, 4096 }.ToImmutableArray(), 0, 0, 0, 4096);
         frame = WriteMatrix(frame, 0x27979A8, basis, false);
         frame = paddingKnown ? WaterSchedulerFixture.CoreWord(frame, 0x27979BA, 0xBEEF) : frame with { Core = frame.Core.MarkUnknown(0x27979BA, 2) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Draw(frame, (current, matrix) =>
         {
             Assert.Equal(new short[] { 0, expected, 0, unchecked((short)-expected), 0, 0, 0, 0, expected }, matrix.Rotation);
@@ -47,15 +48,14 @@ public sealed class NativeBattleWaterRectangleCommandsTests
             Assert.Equal(unchecked((uint)(scale << 4)), current.ReadTemporaryDword(0xF0));
             Assert.Equal(current.ReadTemporaryDword(0xF0), current.ReadTemporaryDword(0xF4));
             Assert.Equal(current.ReadTemporaryDword(0xF4), current.ReadTemporaryDword(0xF8));
-            Assert.Equal(paddingKnown, current.TemporaryFrame.Known[0xE2]);
-            Assert.Equal(paddingKnown, current.TemporaryFrame.Known[0xE3]);
+            Assert.Equal(paddingKnown, NativeBattleStorageSnapshots.Capture(current.TemporaryFrame).Known[0xE2]);
+            Assert.Equal(paddingKnown, NativeBattleStorageSnapshots.Capture(current.TemporaryFrame).Known[0xE3]);
             if (paddingKnown)
             {
                 Assert.Equal((ushort)0xBEEF, current.ReadTemporaryWord(0xE2));
             }
         });
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Draw(restored, (_, _) => { })));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Draw(restored, (_, _) => { })));
     }
 
     [Fact]
@@ -172,6 +172,7 @@ public sealed class NativeBattleWaterRectangleCommandsTests
             Assert.Equal(1, index);
             return NativeBattleWaterShapeSelection.SelectB66230(active, Resources, Map, index);
         });
+        NativeBattleWaterExecutionFrame replay = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(Address(0x5341), SlotDword(result, 0xD8));
         Assert.Equal(Address(0x50A0), SlotDword(result, 0xD0));
@@ -181,7 +182,7 @@ public sealed class NativeBattleWaterRectangleCommandsTests
         Assert.Equal(mode, result.Arena.Read(0x201E, 1)[0]);
         Assert.Equal(5, result.Arena.Read(0x201C, 1)[0]);
         Assert.Equal(0x1004u, Pc(result));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replay)));
     }
 
     [Fact]
@@ -239,8 +240,8 @@ public sealed class NativeBattleWaterRectangleCommandsTests
             Assert.Equal(Address(0x5320), value.ReadTemporaryDword(0x90));
             Assert.Equal(0xFFFF8001u, value.ReadTemporaryDword(0x94));
             Assert.Equal(0xFFFF8002u, value.ReadTemporaryDword(0x9C));
-            Assert.False(value.TemporaryFrame.Known[0xF2]);
-            Assert.False(value.TemporaryFrame.Known[0xF3]);
+            Assert.False(NativeBattleStorageSnapshots.Capture(value.TemporaryFrame).Known[0xF2]);
+            Assert.False(NativeBattleStorageSnapshots.Capture(value.TemporaryFrame).Known[0xF3]);
             Assert.Throws<NotSupportedException>(() => value.ReadTemporaryWord(0xF2));
             return value;
         }, ReadRegisters, (value, registers) =>
@@ -328,6 +329,7 @@ public sealed class NativeBattleWaterRectangleCommandsTests
         NativeBattleWaterExecutionFrame frame = Selected();
         frame = frame with { Arena = frame.Arena.Write(0x50A4, new byte[] { 0, 4, command }) };
         int draws = 0;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Draw(frame, (current, _) =>
         {
             draws++;
@@ -336,8 +338,7 @@ public sealed class NativeBattleWaterRectangleCommandsTests
         Assert.Equal(1, draws);
         Assert.Equal(restart ? Address(0x50A0) : Address(0x50A8), SlotDword(result, 0xD0));
         Assert.Equal((ushort)0x400, SlotWord(result, 0xDC));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Draw(restored, (_, _) => { })));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Draw(restored, (_, _) => { })));
     }
 
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction, ushort operand = 0)

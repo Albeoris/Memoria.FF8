@@ -15,8 +15,9 @@ public static class NativeBattleCinematicRibbonInput
         if (address >= frame.TemporaryFrame.Address && (long)address - frame.TemporaryFrame.Address <= 0x180 - 8)
         {
             int offset = checked((int)(address - frame.TemporaryFrame.Address));
-            raw = frame.TemporaryFrame.Bytes.AsSpan().Slice(offset, 8).ToArray();
-            known = frame.TemporaryFrame.Known.AsSpan().Slice(offset, 8).ToArray();
+            raw = new byte[8];
+            known = new bool[8];
+            frame.TemporaryFrame.ReadWithKnownness(offset, raw, known);
         }
         else if (address >= NativeBattleScriptedEffectMemory.Address && (long)address - NativeBattleScriptedEffectMemory.Address <= NativeBattleScriptedEffectMemory.Length - 8)
         {

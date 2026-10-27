@@ -43,9 +43,7 @@ public sealed partial class BattleSession
         current = current.WriteTemporaryDword(0xF4, unchecked((uint)transformed.X)).WriteTemporaryDword(0xF8, unchecked((uint)transformed.Y)).WriteTemporaryDword(0xFC, unchecked((uint)transformed.Z));
         (byte[] raw, bool[] known) = current.Core.ReadSnapshot(selected, 20);
         current = current.WriteTemporary(0xE0, raw);
-        bool[] temporaryKnown = current.TemporaryFrame.Known.ToArray();
-        known.CopyTo(temporaryKnown, 0xE0);
-        current = current with { TemporaryFrame = current.TemporaryFrame with { Known = temporaryKnown.ToImmutableArray() } };
+        current.TemporaryFrame.SetKnownness(0xE0, known);
         current = current.WriteTemporaryDword(0xD4, unchecked((uint)scale)).WriteTemporaryDword(0xD8, unchecked((uint)scale)).WriteTemporaryDword(0xDC, unchecked((uint)scale));
         NativeBattleActionMatrix scaled = NativeBattlePoseMatrices.Scale56BEF0(basis, scale, scale, scale);
         for (int index = 0; index < 9; index++)

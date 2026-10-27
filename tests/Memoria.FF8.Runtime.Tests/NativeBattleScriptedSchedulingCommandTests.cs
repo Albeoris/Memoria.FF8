@@ -20,12 +20,13 @@ public sealed class NativeBattleScriptedSchedulingCommandTests
         {
             frame = frame with { Arena = frame.Arena.MarkUnknown(0x1004, 2) };
         }
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        ushort retainedWait = frame.ReadTemporaryWord(0x13E);
         NativeBattleWaterExecutionFrame result = NativeBattleScriptedSchedulingCommands.Execute(frame, new(0x1000, 6, 0x2000));
         Assert.Equal(sampled.Random, result.Random);
         Assert.Equal(adjustment < 0 ? 0x2006u : 0x1FF8u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        Assert.Equal(frame.ReadTemporaryWord(0x13E), result.ReadTemporaryWord(0x13E));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleScriptedSchedulingCommands.Execute(restored, new(0x1000, 6, 0x2000))));
+        Assert.Equal(retainedWait, result.ReadTemporaryWord(0x13E));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleScriptedSchedulingCommands.Execute(restored, new(0x1000, 6, 0x2000))));
     }
 
     [Fact]
@@ -33,6 +34,7 @@ public sealed class NativeBattleScriptedSchedulingCommandTests
     {
         NativeBattleWaterExecutionFrame frame = RandomJump(new(1), -1, 0);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x1004, 2) };
+        ushort retainedWait = frame.ReadTemporaryWord(0x13E);
         NativeBattleWaterExecutionFrame result = NativeBattleScriptedSchedulingCommands.Execute(frame, new(0x1000, 6, 0x2000));
         Assert.Equal(0x2006u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.NotEqual(frame.Random, result.Random);
@@ -59,24 +61,24 @@ public sealed class NativeBattleScriptedSchedulingCommandTests
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, raw).WriteTemporaryByte(0x144, 2).WriteTemporaryByte(0x145, 0xA5);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, 0x1000);
         frame = frame with { Core = frame.Core.Write(0x2797454, [4, 8, 0x27, 0xFF]) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleScriptedSchedulingCommands.Execute(frame, new(0, 0, 0));
         Assert.Equal(new byte[] { 4, 8, 0xA7, 0xFF }, result.Core.Read(0x2797454, 4));
         Assert.Equal(filter, result.ReadTemporaryByte(0x145));
         Assert.Equal(0x1002u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleScriptedSchedulingCommands.Execute(restored, new(0, 0, 0))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleScriptedSchedulingCommands.Execute(restored, new(0, 0, 0))));
     }
 
     [Fact]
     public void Plain_immunity_does_not_consume_an_unknown_filter_or_any_program_operands()
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, 7).WriteTemporaryByte(0x144, 0);
-        bool[] known = frame.TemporaryFrame.Known.ToArray();
+        bool[] known = NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Known.ToArray();
         known[0x145] = false;
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutableArray() }, Core = frame.Core.Write(0x2797454, [1, 0xFF]) };
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame.SetKnownness(0, known), Core = frame.Core.Write(0x2797454, [1, 0xFF]) };
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, 0x1000);
         NativeBattleWaterExecutionFrame result = NativeBattleScriptedSchedulingCommands.Execute(frame, new(0, 0, 0));
-        Assert.False(result.TemporaryFrame.Known[0x145]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(result.TemporaryFrame).Known[0x145]);
         Assert.Equal(0x81, result.Core.Read(0x2797454, 1)[0]);
     }
 

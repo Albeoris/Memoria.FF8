@@ -98,8 +98,8 @@ public sealed class NativeBattleCinematicOffscreenTests
         Assert.Equal(32768u, result.ReadTemporaryDword(0xC4));
         Assert.Equal(unchecked((uint)-90), result.ReadTemporaryDword(0xC8));
         Assert.Equal(17u, result.ReadTemporaryDword(0xCC));
-        Assert.False(result.TemporaryFrame.Known[0xC2]);
-        Assert.False(result.TemporaryFrame.Known[0xC3]);
+        Assert.False(result.TemporaryFrame.IsKnown(0xC2, 1));
+        Assert.False(result.TemporaryFrame.IsKnown(0xC3, 1));
         NativeBattleCinematicOffscreenStageRequest draw = Assert.Single(draws);
         Assert.Equal(1, draw.Group);
         Assert.Equal(frame.TemporaryFrame.Address + 0xB0, draw.MatrixAddress);
@@ -133,7 +133,7 @@ public sealed class NativeBattleCinematicOffscreenTests
                 return WaterSchedulerFixture.CoreDword(current, 0x2797450, 0xFFFFFFFE);
             }
         };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicOffscreen.Execute(restored, new(0x1000, 10, 0x80001000), services);
         Assert.Equal(8u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Equal(0x777u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797690 + 0x7C));
@@ -198,4 +198,6 @@ public sealed class NativeBattleCinematicOffscreenTests
     private static int Offset(uint address) => checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress));
     private static uint Dword(NativeBattleWaterExecutionFrame frame, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(Offset(address), 4));
     private static ushort Word(NativeBattleWaterExecutionFrame frame, uint address) => BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(Offset(address), 2));
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

@@ -89,12 +89,7 @@ public sealed partial class BattleSession
             M m = new(current);
             (byte[] raw, bool[] known) = current.Core.ReadSnapshot(0x2797968, 32);
             m.Frame = m.Frame.WriteTemporary(0xC0, raw);
-            ImmutableArray<bool>.Builder mask = m.Frame.TemporaryFrame.Known.ToBuilder();
-            for (int index = 0; index < known.Length; index++)
-            {
-                mask[0xC0 + index] = known[index];
-            }
-            m.Frame = m.Frame with { TemporaryFrame = m.Frame.TemporaryFrame with { Known = mask.ToImmutable() } };
+            m.Frame.TemporaryFrame.SetKnownness(0xC0, known);
             NativeBattleActionMatrix seed = ReadMatrix(m, 0xC0);
             int sx = m.Signed(m.Slot + 0x8C) << 4;
             int sy = m.Signed(m.Slot + 0x8E) << 4;

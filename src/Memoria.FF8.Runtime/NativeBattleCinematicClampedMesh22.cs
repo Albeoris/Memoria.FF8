@@ -84,7 +84,7 @@ public static class NativeBattleCinematicClampedMesh22
         {
             frame = frame.WriteTemporaryWord(0xE0 + lane * 2, unchecked((ushort)local.Rotation[lane]));
         }
-        short? localPadding = frame.TemporaryFrame.Known[0xF2] && frame.TemporaryFrame.Known[0xF3] ? unchecked((short)frame.ReadTemporaryWord(0xF2)) : null;
+        short? localPadding = frame.TemporaryFrame.IsKnown(0xF2, 2) ? unchecked((short)frame.ReadTemporaryWord(0xF2)) : null;
         step = step with { Geometry = NativeBattleGeometry.LoadMatrix(step.Geometry, local, true, true, localPadding) };
         step = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(step, 0, SlotVector(0x94), unchecked((short)SlotWord(frame, 0x9A))));
         step = step with { Geometry = step.Geometry with { Translation = step.Colors.Mac } };

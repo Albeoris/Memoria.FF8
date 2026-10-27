@@ -26,9 +26,7 @@ public sealed partial class BattleSession
         }, current =>
         {
             current = current.WriteTemporary(0xE0, raw ?? throw new InvalidOperationException("Native angular grid basis has not been prepared."));
-            bool[] temporaryKnown = current.TemporaryFrame.Known.ToArray();
-            (known ?? throw new InvalidOperationException("Native angular grid basis knownness is missing.")).CopyTo(temporaryKnown, 0xE0);
-            current = current with { TemporaryFrame = current.TemporaryFrame with { Known = temporaryKnown.ToImmutableArray() } };
+            current.TemporaryFrame.SetKnownness(0xE0, known ?? throw new InvalidOperationException("Native angular grid basis knownness is missing."));
             matrix = NativeBattlePoseMatrices.Scale56BEF0(basis ?? throw new InvalidOperationException("Native angular grid basis has not been prepared."), unchecked((int)current.ReadTemporaryDword(0xC0)), unchecked((int)current.ReadTemporaryDword(0xC4)), unchecked((int)current.ReadTemporaryDword(0xC8)));
             for (int index = 0; index < 9; index++)
             {

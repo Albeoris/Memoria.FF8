@@ -22,7 +22,7 @@ public sealed class NativeBattleWater222ControllerTests
         Assert.Equal(0xA9B870u, Assert.Single(pool.Slots).Callback);
         Assert.Equal((byte)0, initialized.Memory.Water222!.Filter145);
         Assert.Equal(fixture.Frame.Random, initialized.Random);
-        using JsonDocument document = JsonDocument.Parse(JsonSerializer.Serialize(initialized.Memory.Water222));
+        using JsonDocument document = JsonDocument.Parse(NativeBattleTestSnapshots.Json(initialized.Memory.Water222));
         Assert.Equal("Filter145", Assert.Single(document.RootElement.EnumerateObject()).Name);
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleWater222State>("{}"));
     }
@@ -32,8 +32,8 @@ public sealed class NativeBattleWater222ControllerTests
     {
         NativeBattleWaterTemporaryFrame temporary = NativeBattleWater222Controller.CreateTemporaryFrame(TemporaryAddress);
         Assert.Equal(TemporaryAddress, temporary.Address);
-        Assert.Equal(0x180, temporary.Bytes.Length);
-        Assert.All(temporary.Known, known => Assert.False(known));
+        Assert.Equal(0x180, temporary.Length);
+        Assert.All(Enumerable.Range(0, temporary.Length), offset => Assert.False(temporary.IsKnown(offset, 1)));
         Assert.Throws<InvalidDataException>(() => NativeBattleWater222Controller.CreateTemporaryFrame(0));
         Assert.Throws<InvalidDataException>(() => NativeBattleWater222Controller.CreateTemporaryFrame(uint.MaxValue));
     }
@@ -92,7 +92,7 @@ public sealed class NativeBattleWater222ControllerTests
         Assert.Equal((ushort)0, completed.Effect.Pools[0].Slots[0].Flags);
         NativeBattleWater222Frame again = NativeBattleWater222Controller.AdvanceA9B870(completed, Input(fixture.Resources), Services(), TemporaryAddress, UnexpectedMemory);
         Assert.Equal(completed.Random, again.Random);
-        Assert.Equal(JsonSerializer.Serialize(completed), JsonSerializer.Serialize(again));
+        Assert.Equal(NativeBattleTestSnapshots.Json(completed), NativeBattleTestSnapshots.Json(again));
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class NativeBattleWater222ControllerTests
     {
         var fixture = Initialized();
         NativeBattleWater222Frame missing = fixture.Frame with { Memory = fixture.Frame.Memory with { Water222 = null } };
-        NativeBattleWater222Frame imported = JsonSerializer.Deserialize<NativeBattleWater222Frame>(JsonSerializer.Serialize(missing))!;
+        NativeBattleWater222Frame imported = NativeBattleTestSnapshots.RestoreJson<NativeBattleWater222Frame>(NativeBattleTestSnapshots.Json(missing));
         Assert.Null(imported.Memory.Water222);
         Assert.Throws<NotSupportedException>(() => NativeBattleWater222Controller.AdvanceA9B870(imported, Input(fixture.Resources), Services(), TemporaryAddress, () => imported.Memory));
         NativeBattleWater222Frame graphicsMissing = fixture.Frame with { Memory = fixture.Frame.Memory with { ScriptedGraphics = null } };
@@ -112,10 +112,10 @@ public sealed class NativeBattleWater222ControllerTests
     {
         var fixture = Initialized();
         NativeBattleWater222Frame live = fixture.Frame;
-        NativeBattleWater222Frame restored = JsonSerializer.Deserialize<NativeBattleWater222Frame>(JsonSerializer.Serialize(live))!;
+        NativeBattleWater222Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWater222Frame>(NativeBattleTestSnapshots.Json(live));
         NativeBattleWater222Frame first = NativeBattleWater222Controller.AdvanceA9B870(live, Input(fixture.Resources), Services(), TemporaryAddress, () => live.Memory);
         NativeBattleWater222Frame coldNext = NativeBattleWater222Controller.AdvanceA9B870(restored, Input(fixture.Resources), Services(), TemporaryAddress, () => restored.Memory);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(coldNext));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(coldNext));
         Assert.Equal((byte)9, first.Memory.Water222!.Filter145);
         var original = Fixture();
         NativeBattleWater222Frame reentered = NativeBattleWater222Controller.InitializeA9B200(first, original.Resources, original.Inputs);
@@ -127,7 +127,8 @@ public sealed class NativeBattleWater222ControllerTests
     {
         var fixture = Initialized();
         NativeBattleEffectTaskPool pool = fixture.Frame.Effect.Pools[0];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Callback = 0x1234 }) };
+        NativeBattleModulePoolTask task = pool.Slots[0];
+        task.UpdateHeader(task.Flags, task.State, task.Next, 0x1234);
         NativeBattleWater222Frame changed = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [pool] } };
         Assert.Throws<NotSupportedException>(() => NativeBattleWater222Controller.AdvanceA9B870(changed, Input(fixture.Resources), Services(), TemporaryAddress, () => changed.Memory));
     }

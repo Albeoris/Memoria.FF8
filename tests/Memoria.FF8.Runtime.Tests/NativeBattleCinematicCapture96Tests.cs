@@ -123,13 +123,13 @@ public sealed class NativeBattleCinematicCapture96Tests
     public void SnapshotRetainsUnknownUnconsumedOperandAndTemporaryBytes()
     {
         NativeBattleWaterExecutionFrame frame = Fixture().WriteTemporaryWord(0x14A, 0xF096);
-        frame = frame with { Arena = frame.Arena.MarkUnknown(0x1000, 2).MarkUnknown(0x1006, 2), TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xEE, false) } };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x1000, 2).MarkUnknown(0x1006, 2), TemporaryFrame = frame.TemporaryFrame.MarkUnknown(0xEE, 1) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleCinematicCapture96Services services = new(_ => 0, (_, _) => [0, 0, 0, 0], (current, _, _, _) => current);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicCapture96.Execute(restored, new(0x1000, 6, 0x80001000), services);
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x1006, 1));
-        Assert.False(result.TemporaryFrame.Known[0xEE]);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCinematicCapture96.Execute(frame, new(0x1000, 6, 0x80001000), services)), JsonSerializer.Serialize(result));
+        Assert.False(result.TemporaryFrame.IsKnown(0xEE, 1));
+        Assert.Equal(SnapshotJson(NativeBattleCinematicCapture96.Execute(frame, new(0x1000, 6, 0x80001000), services)), SnapshotJson(result));
     }
 
     private static NativeBattleWaterExecutionFrame Fixture()
@@ -142,4 +142,6 @@ public sealed class NativeBattleCinematicCapture96Tests
         BinaryPrimitives.WriteInt16LittleEndian(program.AsSpan(4), 500);
         return frame with { Arena = frame.Arena.Write(0x1000, program) };
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

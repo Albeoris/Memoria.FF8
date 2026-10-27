@@ -72,13 +72,13 @@ public sealed class NativeBattleWaterActorDrawTests
     public void Own_bone_length_extends_root_padded_bounds_and_all_nine_padding_words_remain_unknown()
     {
         NativeBattleWaterExecutionFrame frame = Fixture();
-        bool[] known = frame.TemporaryFrame.Known.ToArray();
+        bool[] known = NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Known.ToArray();
         for (int index = 0; index < 9; index++)
         {
             known[0xB6 + index * 8] = false;
             known[0xB7 + index * 8] = false;
         }
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutableArray() } };
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame.SetKnownness(0, known) };
         byte[] skeleton = Skeleton(2);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(0x12), 30000);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(0x42), 1000);
@@ -91,8 +91,8 @@ public sealed class NativeBattleWaterActorDrawTests
         Assert.Equal((ushort)0, result.Frame.ReadTemporaryWord(0xC4));
         for (int index = 0; index < 9; index++)
         {
-            Assert.False(result.Frame.TemporaryFrame.Known[0xB6 + index * 8]);
-            Assert.False(result.Frame.TemporaryFrame.Known[0xB7 + index * 8]);
+            Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[0xB6 + index * 8]);
+            Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[0xB7 + index * 8]);
         }
     }
 
@@ -126,7 +126,7 @@ public sealed class NativeBattleWaterActorDrawTests
         Assert.Equal(new byte[] { 10, 0, 20, 0, 30, 0 }, first.Frame.Arena.Read(0x20BC, 6));
         Assert.Equal(uint.MaxValue, WaterSchedulerFixture.ReadSlotDword(first.Frame, 0, 0xC4));
         Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(first.Frame.Arena.Read(0x20C2, 2)));
-        Assert.False(first.Frame.TemporaryFrame.Known[0x72]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(first.Frame.TemporaryFrame).Known[0x72]);
         Assert.Equal((ushort)0xA5A5, first.Frame.ReadTemporaryWord(0x56));
         for (int index = 1; index < 7; index++)
         {
@@ -155,11 +155,11 @@ public sealed class NativeBattleWaterActorDrawTests
     public void Independent_JSON_next_preserves_slot_cache_unknown_padding_and_current_actor()
     {
         NativeBattleWaterActorDrawResult first = NativeBattleWaterActorDraw.Draw26A9C340(WrapperFixture(), Models(), Services([]), Projection, 0, 0, 0, Resolve);
-        NativeBattleWaterExecutionFrame clone = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(first.Frame))!;
-        ImmutableArray<NativeBattleGraphicsModel> actors = JsonSerializer.Deserialize<ImmutableArray<NativeBattleGraphicsModel>>(JsonSerializer.Serialize(first.Models));
+        NativeBattleWaterExecutionFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first.Frame))!;
+        ImmutableArray<NativeBattleGraphicsModel> actors = NativeBattleTestSnapshots.RestoreJson<ImmutableArray<NativeBattleGraphicsModel>>(NativeBattleTestSnapshots.Json(first.Models));
         NativeBattleWaterActorDrawResult expected = NativeBattleWaterActorDraw.Draw26A9C340(first.Frame, first.Models, Services([]), Projection, 0, 0, 0, Resolve);
         NativeBattleWaterActorDrawResult actual = NativeBattleWaterActorDraw.Draw26A9C340(clone, actors, Services([]), Projection, 0, 0, 0, Resolve);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     [Fact]

@@ -70,8 +70,11 @@ public sealed partial class BattleSession
             current = StoreNativeGridDword(current, flags, projected.Projected.Flags);
             byte[] rawNormal = ReadNativeGridTemporary(current, normal, 6);
             int normalOffset = checked((int)(normal - current.TemporaryFrame.Address));
-            ImmutableArray<byte> packedNormal = current.TemporaryFrame.Bytes.AsSpan().Slice(normalOffset, 8).ToArray().ToImmutableArray();
-            ImmutableArray<bool> normalKnown = current.TemporaryFrame.Known.AsSpan().Slice(normalOffset, 8).ToArray().ToImmutableArray();
+            byte[] normalBytes = new byte[8];
+            bool[] normalFlags = new bool[8];
+            current.TemporaryFrame.ReadWithKnownness(normalOffset, normalBytes, normalFlags);
+            ImmutableArray<byte> packedNormal = normalBytes.ToImmutableArray();
+            ImmutableArray<bool> normalKnown = normalFlags.ToImmutableArray();
             uint command = BinaryPrimitives.ReadUInt32LittleEndian(ReadNativeGridTemporary(current, material, 4));
             NativeBattleScriptedLightingMemory lighting = memory.ScriptedLighting ?? throw new NotSupportedException("Native cinematic grid projection requires its current lighting controls.");
             NativeBattleScriptedColorRegisters registers = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native cinematic grid projection requires its retained normal-color registers.");

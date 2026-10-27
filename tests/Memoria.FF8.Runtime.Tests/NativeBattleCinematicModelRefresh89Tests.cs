@@ -36,8 +36,8 @@ public sealed partial class NativeBattleCinematicModelTests
         Assert.Equal(10u, prepared.Frame.ReadTemporaryDword(0xF4));
         Assert.Equal(20u, prepared.Frame.ReadTemporaryDword(0xF8));
         Assert.Equal(30u, prepared.Frame.ReadTemporaryDword(0xFC));
-        Assert.False(prepared.Frame.TemporaryFrame.Known[0xF2]);
-        Assert.False(prepared.Frame.TemporaryFrame.Known[0xF3]);
+        Assert.False(prepared.Frame.TemporaryFrame.IsKnown(0xF2, 1));
+        Assert.False(prepared.Frame.TemporaryFrame.IsKnown(0xF3, 1));
         Assert.Equal(0xA5A5A5A5u, prepared.Frame.ReadTemporaryDword(0x40));
     }
 
@@ -47,10 +47,10 @@ public sealed partial class NativeBattleCinematicModelTests
         NativeBattleWaterExecutionFrame frame = Refresh89Fixture().WriteTemporaryByte(0x145, 1);
         frame = frame with { Arena = frame.Arena.Write(Model, BitConverter.GetBytes((ushort)7)).Write(Model + 2, BitConverter.GetBytes((ushort)2)).MarkUnknown(Model + 0x20, 8) };
         NativeBattleCinematicModelServices services = Services with { ReadAnimations = (_, _) => throw new InvalidOperationException("Paused refresh does not consume animation data.") };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleWaterExecutionFrame a = NativeBattleCinematicModelRefresh89.Execute(frame, Refresh89Matrix, services);
         NativeBattleWaterExecutionFrame b = NativeBattleCinematicModelRefresh89.Execute(restored, Refresh89Matrix, services);
-        Assert.Equal(JsonSerializer.Serialize(a), JsonSerializer.Serialize(b));
+        Assert.Equal(SnapshotJson(a), SnapshotJson(b));
         Assert.Equal((ushort)7, Word(a, Model));
         Assert.Equal((ushort)2, Word(a, Model + 2));
         Assert.Throws<NotSupportedException>(() => a.Arena.Read(Model + 0x20, 8));
@@ -85,4 +85,6 @@ public sealed partial class NativeBattleCinematicModelTests
         BinaryPrimitives.WriteInt32LittleEndian(basis.AsSpan(28), 30);
         return frame with { Core = frame.Core.Write(0x2797968, basis) };
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

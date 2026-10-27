@@ -29,6 +29,8 @@ public static class NativeBattleScriptedCallback
         ArgumentNullException.ThrowIfNull(services.UpdateSlot);
         ArgumentNullException.ThrowIfNull(services.ClearOrderingTable);
         ArgumentNullException.ThrowIfNull(services.PublishFocal);
+        using NativeBattleWaterTemporaryFrame.PrivateWrite temporary = frame.TemporaryFrame.BeginPrivateWrite();
+        frame = frame with { TemporaryFrame = temporary.View };
         NativeBattleWaterFrameBindingResult binding = NativeBattleWaterFrameBinding.Bind(frame.Core, frame.TemporaryFrame, input.Directories);
         frame = frame with { Core = binding.Core, TemporaryFrame = binding.TemporaryFrame };
         uint manager = Manager(frame);
@@ -75,6 +77,7 @@ public static class NativeBattleScriptedCallback
         uint cursor = CoreDword(frame, Manager(frame) + 0x7C);
         uint command = CoreDword(frame, 0x27973C0);
         uint result = (CoreWord(frame, command + 0xA) & 0x8000) == 0 ? 2u : 0u;
+        frame = frame with { TemporaryFrame = temporary.Publish() };
         return new(frame, cursor, result);
     }
 

@@ -111,14 +111,14 @@ public sealed class NativeBattleCinematicScanlines37Tests
     public void SnapshotKeepsActualWorkspaceGapAndTheSameNextDraw()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(256);
-        frame = frame with { Arena = frame.Arena.MarkUnknown(0x4006, 2).MarkUnknown(0x51B0, 16), TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xEE, false) } };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x4006, 2).MarkUnknown(0x51B0, 16), TemporaryFrame = frame.TemporaryFrame.MarkUnknown(0xEE, 1) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleCinematicScanlines37Services services = Services((current, _, _, _) => current);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicScanlines37.Draw(restored, services);
-        Assert.False(result.TemporaryFrame.Known[0xEE]);
+        Assert.False(result.TemporaryFrame.IsKnown(0xEE, 1));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x51B0, 1));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x4006, 1));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCinematicScanlines37.Draw(frame, services)), JsonSerializer.Serialize(result));
+        Assert.Equal(SnapshotJson(NativeBattleCinematicScanlines37.Draw(frame, services)), SnapshotJson(result));
     }
 
     private static NativeBattleCinematicScanlines37Services Services(Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> append) => new((current, command, _) => new(current, command), append);
@@ -143,4 +143,6 @@ public sealed class NativeBattleCinematicScanlines37Tests
     }
 
     private static uint Address(int offset) => NativeBattleEffectNodeMemory.ArenaAddress + (uint)offset;
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

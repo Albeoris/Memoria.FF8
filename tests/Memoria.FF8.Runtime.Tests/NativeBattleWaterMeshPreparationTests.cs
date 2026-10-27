@@ -84,15 +84,15 @@ public sealed class NativeBattleWaterMeshPreparationTests
         Assert.Equal(76250u, result.Frame.ReadTemporaryDword(0xF4));
         Assert.Equal(unchecked((uint)-65000), result.Frame.ReadTemporaryDword(0xF8));
         Assert.Equal(101250u, result.Frame.ReadTemporaryDword(0xFC));
-        Assert.False(result.Frame.TemporaryFrame.Known[0xF2]);
-        Assert.False(result.Frame.TemporaryFrame.Known[0xF3]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[0xF2]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[0xF3]);
         foreach (int offset in new[] { 0xC0, 0xC4, 0xC8 })
         {
             Assert.Equal(unchecked((uint)(scale << 4)), result.Frame.ReadTemporaryDword(offset));
         }
         Assert.Equal(new byte[12], result.Frame.ReadTemporary(0x40, 12));
-        string json = JsonSerializer.Serialize(result);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleWaterMeshPrepared>(json)!));
+        string json = NativeBattleTestSnapshots.Json(result);
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterMeshPrepared>(json)!));
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public sealed class NativeBattleWaterMeshPreparationTests
         Assert.Equal(100u, prepared.Frame.ReadTemporaryDword(0xF4));
         Assert.Equal(200u, prepared.Frame.ReadTemporaryDword(0xF8));
         Assert.Equal(300u, prepared.Frame.ReadTemporaryDword(0xFC));
-        Assert.False(prepared.Frame.TemporaryFrame.Known[0xF2]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(prepared.Frame.TemporaryFrame).Known[0xF2]);
         Assert.Equal(new NativeBattleMeshLocalClip(new(700, 800, 900), 8), prepared.LocalClip);
         Assert.Equal((ushort)800, prepared.Frame.ReadTemporaryWord(0x22));
     }
@@ -165,13 +165,13 @@ public sealed class NativeBattleWaterMeshPreparationTests
         int end = NativeBattleScriptedGraphicsMemory.DepthLength;
         NativeBattleEffectArena depths = Depths().Write(0x2A8, [1, 2, 3, 4]).MarkUnknown(0x300, 8).Write(end - 4, [5, 6, 7, 8]);
         NativeBattleWaterMeshProjected projected = NativeBattleWaterMeshPreparation.MorphProject(prepared, Bank, 0, Resources, Map, 0x218, Projection(), 0, 0, depths);
-        NativeBattleWaterMeshProjected cold = JsonSerializer.Deserialize<NativeBattleWaterMeshProjected>(JsonSerializer.Serialize(projected))!;
+        NativeBattleWaterMeshProjected cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterMeshProjected>(NativeBattleTestSnapshots.Json(projected))!;
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, cold.DepthOwner.Read(0x2A8, 4));
         Assert.Equal(new byte[] { 5, 6, 7, 8 }, cold.DepthOwner.Read(end - 4, 4));
         Assert.Throws<NotSupportedException>(() => cold.DepthOwner.Read(0x300, 8));
         Assert.Equal(3000u, BinaryPrimitives.ReadUInt32LittleEndian(cold.DepthOwner.Read(0, 4)));
         NativeBattleWaterMeshProjected next = NativeBattleWaterMeshPreparation.MorphProject(prepared with { Frame = cold.Frame }, Bank, 0, Resources, Map, 0x218, Projection(), 0, 0, cold.DepthOwner);
-        Assert.Equal(JsonSerializer.Serialize(projected), JsonSerializer.Serialize(next));
+        Assert.Equal(NativeBattleTestSnapshots.Json(projected), NativeBattleTestSnapshots.Json(next));
         Assert.Throws<InvalidDataException>(() => NativeBattleWaterMeshPreparation.MorphProject(prepared, Bank, 0, Resources, Map, 0x218, Projection(), 0, 0, depths.MarkUnknown(end, 1)));
     }
 
@@ -230,10 +230,10 @@ public sealed class NativeBattleWaterMeshPreparationTests
         for (int step = 0; step < 4; step++)
         {
             frame = Tuple(frame, starts[step], ends[step]);
-            NativeBattleWaterExecutionFrame cold = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleWaterExecutionFrame cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
             NativeBattleWaterExecutionFrame actual = NativeBattleWaterMeshPreparation.MorphSelected(frame, Bank, 0, Resources, Map, 170);
             NativeBattleWaterExecutionFrame restored = NativeBattleWaterMeshPreparation.MorphSelected(cold, Bank, 0, Resources, Map, 170);
-            Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+            Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(restored));
             Assert.Equal((short)((ends[step] - 5) * 100), Signed(actual.Arena, Work));
             Assert.Equal((ushort)0xA5A5, Word(actual.Arena, Work + 6));
             frame = actual;
@@ -257,18 +257,21 @@ public sealed class NativeBattleWaterMeshPreparationTests
         frame = frame with { Arena = frame.Arena.Write(Shape + 0x30, corners) };
         NativeBattleWaterMeshPrepared prepared = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, Bank, 0, 1, 216);
         NativeBattleWaterMeshProjected projected = NativeBattleWaterMeshPreparation.MorphProject(prepared, Bank, 0, Resources, Map, 0x218, Projection(), 0, 0, Depths());
-        NativeBattleWaterMeshProjected cold = JsonSerializer.Deserialize<NativeBattleWaterMeshProjected>(JsonSerializer.Serialize(projected))!;
+        string projectedJson = NativeBattleTestSnapshots.Json(projected);
+        uint originalCursor = projected.Frame.ReadTemporaryDword(0x60);
+        NativeBattleWaterMeshProjected cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterMeshProjected>(projectedJson)!;
         NativeBattleWaterMeshSubmission first = NativeBattleWaterMeshPreparation.Submit(projected, 0x218, Resolve);
         NativeBattleWaterMeshSubmission restored = NativeBattleWaterMeshPreparation.Submit(cold, 0x218, Resolve);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(restored));
         Assert.Equal(44, first.Packets.AllocationBytes);
         Assert.Equal(0x30002Cu, first.Frame.ReadTemporaryDword(0x60));
         Assert.Equal(0x30002Cu, BinaryPrimitives.ReadUInt32LittleEndian(first.Frame.Core.Read(Manager + 0x7C, 4)));
-        Assert.Equal(0x300000u, projected.Frame.ReadTemporaryDword(0x60));
+        Assert.Equal(0x300000u, originalCursor);
         Assert.Equal(ArenaBase + Shape + 0x11C, first.Frame.ReadTemporaryDword(0x6C));
         Assert.Equal(ArenaBase + Shape + 0x11C, first.Frame.ReadTemporaryDword(0x58));
         Assert.Equal(1u, first.Frame.ReadTemporaryDword(0x70));
-        NativeBattleWaterMeshProjected alternate = projected with { Frame = projected.Frame with { Arena = projected.Frame.Arena.Write(Bank.SlotBaseOffset + 0x4C, [4]) } };
+        NativeBattleWaterMeshProjected alternate = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterMeshProjected>(projectedJson)!;
+        alternate = alternate with { Frame = alternate.Frame with { Arena = alternate.Frame.Arena.Write(Bank.SlotBaseOffset + 0x4C, [4]) } };
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterMeshPreparation.Submit(alternate, 0x218, Resolve));
     }
 

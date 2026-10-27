@@ -76,13 +76,13 @@ public sealed class NativeBattleCinematicSprite2ETests
     public void SnapshotPreservesUnconsumedPayloadAndTemporaryPadding()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(3, 3);
-        frame = frame with { Arena = frame.Arena.MarkUnknown(0x3008, 8), TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xEE, false) } };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x3008, 8), TemporaryFrame = frame.TemporaryFrame.MarkUnknown(0xEE, 1) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleCinematicSprite2EServices services = new(current => new(current.WriteTemporaryWord(0xD0, 0).WriteTemporaryWord(0xD2, 0), 0), (current, _, _, _) => current);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicSprite2E.Draw(restored, services);
-        Assert.False(result.TemporaryFrame.Known[0xEE]);
+        Assert.False(result.TemporaryFrame.IsKnown(0xEE, 1));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x3008, 1));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCinematicSprite2E.Draw(frame, services)), JsonSerializer.Serialize(result));
+        Assert.Equal(SnapshotJson(NativeBattleCinematicSprite2E.Draw(frame, services)), SnapshotJson(result));
     }
 
     private static uint Pack(ushort x, ushort y) => (uint)x | ((uint)y << 16);
@@ -102,4 +102,6 @@ public sealed class NativeBattleCinematicSprite2ETests
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(6), height);
         return frame with { Arena = frame.Arena.Write(0x3000, payload) };
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

@@ -74,10 +74,10 @@ public sealed partial class NativeBattleCinematicModelTests
         BinaryPrimitives.WriteInt16LittleEndian(replacement.AsSpan(2), 713);
         BinaryPrimitives.WriteInt16LittleEndian(replacement.AsSpan(16), -1);
         frame = frame with { Arena = frame.Arena.Write(0x14000, replacement).Write(Model + 0x30, BitConverter.GetBytes(Base + 0x14000)).Write(0x14008, new byte[] { 123, 0 }) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicModel.Select509440(frame, Base + Model, 0, Services);
         Assert.Equal((short)0, WordSigned(result, 0x14008));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicModel.Select509440(restored, Base + Model, 0, Services)));
+        Assert.Equal(SnapshotJson(result), SnapshotJson(NativeBattleCinematicModel.Select509440(restored, Base + Model, 0, Services)));
         frame = frame with { Arena = frame.Arena.Write(Model + 0x21, new byte[] { 1 }) };
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicModel.Select509440(frame, Base + Model, 0, Services));
     }

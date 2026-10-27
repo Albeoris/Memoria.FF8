@@ -17,15 +17,7 @@ public static class NativeBattleApocalypse221BreakupTriangles
         uint shape = m.Dword(state + 0xC);
         m.Frame = services.PrepareBasis(m.Frame);
         // B656A0 copies raw matrix padding together with its original known state.
-        byte[] matrix = m.Frame.TemporaryFrame.Bytes.AsSpan().Slice(0xE0, 32).ToArray();
-        bool[] matrixKnown = m.Frame.TemporaryFrame.Known.AsSpan().Slice(0xE0, 32).ToArray();
-        m.Frame = m.Frame.WriteTemporary(0x40, matrix);
-        ImmutableArray<bool>.Builder known = m.Frame.TemporaryFrame.Known.ToBuilder();
-        for (int index = 0; index < matrixKnown.Length; index++)
-        {
-            known[0x40 + index] = matrixKnown[index];
-        }
-        m.Frame = m.Frame with { TemporaryFrame = m.Frame.TemporaryFrame with { Known = known.ToImmutable() } };
+        m.Frame.TemporaryFrame.Copy(0xE0, 0x40, 32);
         m.Dword(m.Temporary + 0x78, m.Temporary + 0x40);
         uint work = m.Dword(m.Manager + 0x74);
         int vertexCount = unchecked((int)m.Dword(shape + 0x18));

@@ -75,7 +75,7 @@ public static class NativeBattleWaterActorAnchor
         {
             frame = frame.WriteTemporaryWord(0xD0 + lane * 2, unchecked((ushort)composed.Rotation[lane]));
         }
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xE2, false).SetItem(0xE3, false) } };
+        frame.TemporaryFrame.MarkUnknown(0xE2, 2);
         frame = frame.WriteTemporaryDword(0xE4, unchecked((uint)composed.X)).WriteTemporaryDword(0xE8, unchecked((uint)composed.Y)).WriteTemporaryDword(0xEC, unchecked((uint)composed.Z));
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, composed, true, true, null) };
         registers = registers with { Colors = NativeBattleCinematicRibbonInput.Capture(frame, frame.TemporaryFrame.Address + 0xC0, registers.Colors) };

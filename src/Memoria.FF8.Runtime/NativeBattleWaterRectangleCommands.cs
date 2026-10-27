@@ -143,11 +143,7 @@ public static class NativeBattleWaterRectangleCommands
         {
             uint basisAddress = 0x2797968 + (uint)(32 * (ReadSlot(frame, 0xDE, 1)[0] & 3));
             (byte[] bytes, bool[] known) = frame.Core.ReadSnapshot(basisAddress, 20);
-            byte[] temporary = frame.TemporaryFrame.Bytes.ToArray();
-            bool[] temporaryKnown = frame.TemporaryFrame.Known.ToArray();
-            bytes.CopyTo(temporary, 0xD0);
-            known.CopyTo(temporaryKnown, 0xD0);
-            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Bytes = temporary.ToImmutableArray(), Known = temporaryKnown.ToImmutableArray() } };
+            frame.TemporaryFrame.WriteWithKnownness(0xD0, bytes, known);
             int scale = unchecked((int)BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xB8, 4)) << 4);
             frame = frame.WriteTemporaryDword(0xF0, unchecked((uint)scale)).WriteTemporaryDword(0xF4, unchecked((uint)scale)).WriteTemporaryDword(0xF8, unchecked((uint)scale));
             NativeBattleActionMatrix scaled = NativeBattlePoseMatrices.Scale56BEF0(ReadMatrix(frame, basisAddress, false), scale, scale, scale);
@@ -192,12 +188,12 @@ public static class NativeBattleWaterRectangleCommands
         frame = WriteEuler(frame, rotation);
         if (mode is 7 or 9)
         {
-            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xF2, false).SetItem(0xF3, false) } };
+            frame.TemporaryFrame.MarkUnknown(0xF2, 2);
         }
         rotation = NativeBattlePoseMatrices.Scale56BEF0(rotation, scaleX, scaleY, 4096);
         frame = WriteEuler(frame, rotation);
         matrix = rotation with { X = registers.Geometry.Translation[0]!.Value, Y = registers.Geometry.Translation[1]!.Value, Z = registers.Geometry.Translation[2]!.Value };
-        short? rotationPadding = frame.TemporaryFrame.Known[0xF2] && frame.TemporaryFrame.Known[0xF3] ? unchecked((short)frame.ReadTemporaryWord(0xF2)) : null;
+        short? rotationPadding = frame.TemporaryFrame.IsKnown(0xF2, 2) ? unchecked((short)frame.ReadTemporaryWord(0xF2)) : null;
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, false, rotationPadding) };
         return FinishDraw5(frame, registers, matrix, drawRectangles, publishRegisters);
     }

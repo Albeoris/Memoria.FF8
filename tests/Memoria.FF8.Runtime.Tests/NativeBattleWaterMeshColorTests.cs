@@ -40,6 +40,7 @@ public sealed class NativeBattleWaterMeshColorTests
     {
         NativeBattleWaterExecutionFrame frame = new(NativeBattleScriptedEffectMemory.Unknown(), NativeBattleEffectArena.Clear(), new(0x1D9A000, Enumerable.Repeat((byte)0xA5, 0x180).ToImmutableArray(), new bool[0x180].ToImmutableArray()), new(123));
         frame = frame.WriteTemporaryDword(0x84, 0x02AB3412);
+        NativeBattleWaterTemporaryFrame before = NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame);
         NativeBattleWaterMeshColorSetup setup = NativeBattleWaterMeshColor.PrepareA9E8A0(frame);
         Assert.Equal(0x02AB3412u, setup.Modulation);
         Assert.Equal(0x10001000u, setup.Frame.ReadTemporaryDword(0xE0));
@@ -51,12 +52,12 @@ public sealed class NativeBattleWaterMeshColorTests
         {
             if (index is >= 0xE0 and < 0xF4)
             {
-                Assert.True(setup.Frame.TemporaryFrame.Known[index]);
+                Assert.True(NativeBattleStorageSnapshots.Capture(setup.Frame.TemporaryFrame).Known[index]);
             }
             else
             {
-                Assert.Equal(frame.TemporaryFrame.Known[index], setup.Frame.TemporaryFrame.Known[index]);
-                Assert.Equal(frame.TemporaryFrame.Bytes[index], setup.Frame.TemporaryFrame.Bytes[index]);
+                Assert.Equal(before.Known[index], NativeBattleStorageSnapshots.Capture(setup.Frame.TemporaryFrame).Known[index]);
+                Assert.Equal(before.Bytes[index], NativeBattleStorageSnapshots.Capture(setup.Frame.TemporaryFrame).Bytes[index]);
             }
         }
         Assert.Same(frame.Core, setup.Frame.Core);
@@ -70,8 +71,8 @@ public sealed class NativeBattleWaterMeshColorTests
         NativeBattleWaterExecutionFrame frame = new(NativeBattleScriptedEffectMemory.FromColdProcess(), NativeBattleEffectArena.Clear(), new(0x1D9A000, new byte[0x180].ToImmutableArray(), new bool[0x180].ToImmutableArray()), new(0));
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterMeshColor.PrepareA9E8A0(frame));
         NativeBattleWaterMeshColorSetup setup = NativeBattleWaterMeshColor.PrepareA9E8A0(frame.WriteTemporaryDword(0x84, 0x027F017F));
-        NativeBattleWaterMeshColorSetup restored = JsonSerializer.Deserialize<NativeBattleWaterMeshColorSetup>(JsonSerializer.Serialize(setup))!;
-        Assert.Equal(JsonSerializer.Serialize(setup), JsonSerializer.Serialize(restored));
+        NativeBattleWaterMeshColorSetup restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterMeshColorSetup>(NativeBattleTestSnapshots.Json(setup))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(setup), NativeBattleTestSnapshots.Json(restored));
         Assert.Equal(NativeBattleWaterMeshColor.Modulate4601B0(0x30ABCDEF, setup.Modulation), NativeBattleWaterMeshColor.Modulate4601B0(0x30ABCDEF, restored.Modulation));
     }
 }

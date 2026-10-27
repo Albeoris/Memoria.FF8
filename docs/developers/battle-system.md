@@ -22,6 +22,8 @@ Source entry points are [BattleSession](../../src/Memoria.FF8.Runtime/BattleSess
 
 Battle-effect bytes have one mutable runtime owner across callbacks. Arena, task, staging and node views preserve native address aliases, unknown bytes and resource-pointer provenance. Ordinary writes change the selected range; they do not capture a battle or replace the containing bank. Operation journals preserve existing publication boundaries: a failed private suffix rolls back, while an already published native prefix remains accepted.
 
+Publishing register metadata does not commit private writes in other memory components. Producers explicitly accept their own completed prefixes; capture rejects unpublished changes. Retire typed task views when their native lifetime ends, before resource loading reuses the same bytes, while preserving the physical storage.
+
 `BattleSession.Capture()` produces detached persistence state. `BattleSession.Restore()` creates independent working owners and restores aliases within that session. Capture is appropriate for saves and speculative isolation. Use `ReadDefinition()` for encounter metadata and `GameSession.SetLiveBattle()` for current battle synchronization; neither requires capturing live effect storage.
 
 Rendering consumes `PreparedPresentation`, composed after host and immediate UI publication. Commands, UI data and published texture versions remain stable while later callbacks modify working storage. Scoped resource readers preserve their selected source contents until disposal; they must not escape the callback. Bulk copies remain necessary for explicit capture/restore, native copy operations, cold initialization and decoder-owned presentation payloads.

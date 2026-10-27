@@ -39,14 +39,15 @@ public static class NativeBattleScriptedLighting
         {
             NativeBattleScriptedLightingMatrix source = ReadControls(frame, record);
             frame = frame.WriteTemporary(0x20, source.Bytes.AsSpan());
-            bool[] known = frame.TemporaryFrame.Known.ToArray();
-            source.Known.AsSpan().CopyTo(known.AsSpan(0x20));
-            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutableArray() } };
+            frame.TemporaryFrame.SetKnownness(0x20, source.Known.AsSpan());
             matrix = source.ToActionMatrix();
         }
         matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, x, y, z);
         frame = WriteTemporaryRotation(frame, matrix);
-        NativeBattleScriptedLightingMatrix light = new(frame.TemporaryFrame.Bytes.AsSpan().Slice(0x20, 20).ToArray().ToImmutableArray(), frame.TemporaryFrame.Known.AsSpan().Slice(0x20, 20).ToArray().ToImmutableArray());
+        byte[] lightBytes = new byte[20];
+        bool[] lightKnown = new bool[20];
+        frame.TemporaryFrame.ReadWithKnownness(0x20, lightBytes, lightKnown);
+        NativeBattleScriptedLightingMatrix light = new(lightBytes.ToImmutableArray(), lightKnown.ToImmutableArray());
         return new(frame, new(light, color, back));
     }
 

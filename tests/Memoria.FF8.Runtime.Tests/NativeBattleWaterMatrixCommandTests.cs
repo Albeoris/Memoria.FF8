@@ -25,6 +25,7 @@ public sealed class NativeBattleWaterMatrixCommandTests
         frame = Vector(frame, 0, 0x8C, new(0, 0, 1024));
         frame = Vector(frame, 0, 0x94, new(-32768, -1, 32767));
         frame = frame with { Core = frame.Core.MarkUnknown(MatrixBase + 18, 14).MarkUnknown(MatrixBase + 64 + 18, 14).MarkUnknown(MatrixBase + 32, 32) };
+        NativeBattleWaterExecutionFrame replay = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame);
         // A positive quarter-turn around Z maps +X to +Y before either postmultiply.
         short[] expected = [0, 0, -4096, 2048, 0, 0, 0, -8192, 0];
@@ -39,7 +40,7 @@ public sealed class NativeBattleWaterMatrixCommandTests
         Assert.Equal(Pc + 6, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
         Assert.Same(frame.Random, result.Random);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replay)));
     }
 
     [Fact]
@@ -116,8 +117,8 @@ public sealed class NativeBattleWaterMatrixCommandTests
         Assert.Equal((ushort)0, ReadWord(result, destination + 18));
         // The preceding translation flag DWORD occupies F0..F3; the later R18 write replaces only F0..F1.
         Assert.Equal((ushort)0x8140, result.ReadTemporaryWord(0xF2));
-        Assert.True(result.TemporaryFrame.Known[0xF2]);
-        Assert.True(result.TemporaryFrame.Known[0xF3]);
+        Assert.True(NativeBattleStorageSnapshots.Capture(result.TemporaryFrame).Known[0xF2]);
+        Assert.True(NativeBattleStorageSnapshots.Capture(result.TemporaryFrame).Known[0xF3]);
         Assert.Equal(unchecked((ushort)euler.Rotation[8]), result.ReadTemporaryWord(0xF0));
         Assert.Equal(0xA5A5A5A5u, result.ReadTemporaryDword(0xF4));
         Assert.Equal(0xA5A5A5A5u, result.ReadTemporaryDword(0xF8));
@@ -151,7 +152,7 @@ public sealed class NativeBattleWaterMatrixCommandTests
         Assert.Equal(unchecked((uint)-20000), result.ReadTemporaryDword(0xF4));
         Assert.Equal(52767u, result.ReadTemporaryDword(0xF8));
         Assert.Equal(0x81400000u, result.ReadTemporaryDword(0xFC));
-        Assert.All(result.TemporaryFrame.Known.Skip(0xF0).Take(16), value => Assert.True(value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(result.TemporaryFrame).Known.Skip(0xF0).Take(16), value => Assert.True(value));
         Assert.Equal(unchecked(50000u << 16), WaterSchedulerFixture.ReadSlotDword(result, 0, 0x5C));
         Assert.Equal(unchecked((uint)-20000 << 16), WaterSchedulerFixture.ReadSlotDword(result, 0, 0x60));
         Assert.Equal(unchecked(52767u << 16), WaterSchedulerFixture.ReadSlotDword(result, 0, 0x64));
@@ -173,8 +174,8 @@ public sealed class NativeBattleWaterMatrixCommandTests
         frame = Nested();
         frame = frame with { Arena = frame.Arena.Write(0x1006, new byte[] { 0x63, 0, 0xFF, 0xFF, 0, 0 }) };
         frame = Run(frame, 12);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(Run(frame, 12)), JsonSerializer.Serialize(Run(restored, 12)));
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Run(frame, 12)), NativeBattleTestSnapshots.Json(Run(restored, 12)));
     }
 
     [Theory]
@@ -201,14 +202,15 @@ public sealed class NativeBattleWaterMatrixCommandTests
             3 => NativeBattleGfMatrices.Euler56CE30(angles),
             _ => z
         };
+        NativeBattleWaterTemporaryFrame before = NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame);
         var result = NativeBattleWaterMatrixCommands.BuildRotationB65590(frame, angles, mode);
         Assert.Equal(expected.Rotation, result.Matrix.Rotation);
         foreach (int offset in new[] { 0xA0, 0xC0, 0xE0 })
         {
-            Assert.False(result.Frame.TemporaryFrame.Known[offset + 18]);
-            Assert.False(result.Frame.TemporaryFrame.Known[offset + 19]);
+            Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[offset + 18]);
+            Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[offset + 19]);
             Assert.Equal(0x12345678u, result.Frame.ReadTemporaryDword(offset + 20));
-            Assert.Equal(frame.TemporaryFrame.Bytes.Skip(offset + 24).Take(8), result.Frame.TemporaryFrame.Bytes.Skip(offset + 24).Take(8));
+            Assert.Equal(before.Bytes.Skip(offset + 24).Take(8), NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Bytes.Skip(offset + 24).Take(8));
         }
         NativeBattleActionMatrix expectedX = mode == 1 ? NativeBattleGfMatrices.Multiply56C090(z, x) : x;
         for (int lane = 0; lane < 9; lane++)
@@ -241,8 +243,8 @@ public sealed class NativeBattleWaterMatrixCommandTests
         NativeBattleWaterExecutionFrame result = Run(frame, width);
         Assert.Equal(Pc + (uint)width, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Equal(expected, BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(Bank.SlotOffset(result.Arena, 0) + 0xCC, 4)));
-        string json = JsonSerializer.Serialize(result);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(json)!));
+        string json = NativeBattleTestSnapshots.Json(result);
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(json)!));
     }
 
     [Theory]

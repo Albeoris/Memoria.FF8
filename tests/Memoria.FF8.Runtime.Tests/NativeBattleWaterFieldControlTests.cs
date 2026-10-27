@@ -127,16 +127,16 @@ public sealed class NativeBattleWaterFieldControlTests
     public void Filter47NoFlagsPreservesUnknownFilterAndJsonRetainsIntentionalWrittenValue()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x47);
-        bool[] known = frame.TemporaryFrame.Known.ToArray();
+        bool[] known = NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Known.ToArray();
         known[0x145] = false;
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutableArray() } };
-        Assert.False(Run(frame, 0).TemporaryFrame.Known[0x145]);
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame.SetKnownness(0, known) };
+        Assert.False(NativeBattleStorageSnapshots.Capture(Run(frame, 0).TemporaryFrame).Known[0x145]);
         frame = Run(Fixture(0x8047), 0);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         Assert.Equal((byte)0xFF, restored.ReadTemporaryByte(0x145));
         restored = restored.WriteTemporaryWord(0x14A, 0x47);
         frame = frame.WriteTemporaryWord(0x14A, 0x47);
-        Assert.Equal(JsonSerializer.Serialize(Run(frame, 0)), JsonSerializer.Serialize(Run(restored, 0)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Run(frame, 0)), NativeBattleTestSnapshots.Json(Run(restored, 0)));
     }
 
     [Fact]

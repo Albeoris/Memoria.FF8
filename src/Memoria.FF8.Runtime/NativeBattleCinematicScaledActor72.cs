@@ -76,7 +76,7 @@ public static class NativeBattleCinematicScaledActor72
             {
                 frame = frame.WriteTemporaryWord(0x60 + lane * 2, unchecked((ushort)matrix.Rotation[lane]));
             }
-            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0x72, false).SetItem(0x73, false) } };
+            frame.TemporaryFrame.MarkUnknown(0x72, 2);
             return matrix;
         }
 

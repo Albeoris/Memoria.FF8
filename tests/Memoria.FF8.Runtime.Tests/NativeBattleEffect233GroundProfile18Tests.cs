@@ -134,7 +134,7 @@ public sealed class NativeBattleEffect233GroundProfile18Tests
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.SlotWord(Create(), 0, 0x90, 4096);
         frame = WaterSchedulerFixture.SlotWord(frame, 1, 0x98, 256);
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xD6, false).SetItem(0xD7, false) } };
+        frame.TemporaryFrame.MarkUnknown(0xD6, 2);
         Capture capture = new();
         _ = NativeBattleCinematicGroundProfile18.Draw(frame, capture.Services());
         Assert.Contains(capture.Inputs, input => input.X > 0 && input.Z > 0);
@@ -149,7 +149,7 @@ public sealed class NativeBattleEffect233GroundProfile18Tests
     {
         Capture firstCapture = new();
         NativeBattleWaterExecutionFrame first = NativeBattleCinematicGroundProfile18.Draw(Create(), firstCapture.Services());
-        NativeBattleWaterExecutionFrame next = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(first))!;
+        NativeBattleWaterExecutionFrame next = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         next = WaterSchedulerFixture.SlotWord(next, 1, 0x98, 64);
         Capture nextCapture = new();
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicGroundProfile18.Draw(next, nextCapture.Services());
@@ -227,7 +227,7 @@ public sealed class NativeBattleEffect233GroundProfile18Tests
             short y = unchecked((short)frame.ReadTemporaryWord(0xD2));
             short z = unchecked((short)frame.ReadTemporaryWord(0xD4));
             Inputs.Add((x, y, z));
-            Padding.Add(frame.TemporaryFrame.Known[0xD6]);
+            Padding.Add(frame.TemporaryFrame.IsKnown(0xD6, 1));
             uint screen = unchecked((uint)(ushort)x | ((uint)(ushort)y << 16));
             return new(frame, screen, Depth, 0x80000000);
         }

@@ -52,8 +52,8 @@ public sealed class NativeBattleScriptedNormalDepthColorTests
         NativeBattleScriptedColorRegisters result = NativeBattleScriptedNormalDepthColor.Transform45EE80(Lighting(0), new(0, 0, 0), 0, 0, new(0, 0, 0, null, null), registers);
         result = NativeBattleScriptedNormalColor.Transform4601B0(Lighting(0), new(0, 0, 0), 0, result);
         Assert.Equal(registers.NormalInputKnown, result.NormalInputKnown);
-        string json = System.Text.Json.JsonSerializer.Serialize(result);
-        NativeBattleScriptedColorRegisters restored = System.Text.Json.JsonSerializer.Deserialize<NativeBattleScriptedColorRegisters>(json)!;
+        string json = NativeBattleTestSnapshots.Json(result);
+        NativeBattleScriptedColorRegisters restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScriptedColorRegisters>(json)!;
         Assert.Equal(registers.NormalInputKnown!.Value.ToArray(), restored.NormalInputKnown!.Value.ToArray());
         restored.Validate();
     }
@@ -62,10 +62,10 @@ public sealed class NativeBattleScriptedNormalDepthColorTests
     public void Explicit_lighting_argument_does_not_consume_or_publish_temporary84_and_resets_old_input_mask()
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0x84, false) } };
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame.MarkUnknown(0x84, 1) };
         NativeBattleScriptedColorRegisters initial = NativeBattleScriptedColorRegisters.Unknown() with { NormalInput = new byte[8].ToImmutableArray(), NormalInputKnown = Enumerable.Repeat(false, 8).ToImmutableArray() };
         NativeBattleScriptedMaterialStep result = NativeBattleScriptedMaterial.Prepare(frame, initial, 0x00030201);
-        Assert.False(result.Frame.TemporaryFrame.Known[0x84]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[0x84]);
         Assert.Null(result.Registers.NormalInputKnown);
         Assert.Equal(new byte[] { 0, 16, 0, 16, 0, 16, 0, 0 }, result.Registers.NormalInput!.Value.ToArray());
         Assert.Equal(96u, result.Frame.ReadTemporaryDword(0xEC));

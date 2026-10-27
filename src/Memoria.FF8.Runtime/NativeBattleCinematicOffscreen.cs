@@ -153,7 +153,7 @@ public static class NativeBattleCinematicOffscreen
         }
         if (command == 0x90)
         {
-            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xC2, false).SetItem(0xC3, false) } };
+            frame.TemporaryFrame.MarkUnknown(0xC2, 2);
         }
         frame = frame.WriteTemporaryDword(0xC4, unchecked((uint)-(int)(short)SlotWord(frame, 0x94)));
         frame = frame.WriteTemporaryDword(0xC8, unchecked((uint)-(int)(short)SlotWord(frame, 0x98)));

@@ -226,14 +226,7 @@ public static class NativeBattleWaterMatrixCommands
         (byte[] seed, bool[] known) = frame.Core.ReadSnapshot(0x2797968, 24);
         foreach (int offset in new[] { 0xA0, 0xC0, 0xE0 })
         {
-            ImmutableArray<byte>.Builder bytes = frame.TemporaryFrame.Bytes.ToBuilder();
-            ImmutableArray<bool>.Builder mask = frame.TemporaryFrame.Known.ToBuilder();
-            for (int lane = 0; lane < seed.Length; lane++)
-            {
-                bytes[offset + lane] = seed[lane];
-                mask[offset + lane] = known[lane];
-            }
-            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Bytes = bytes.ToImmutable(), Known = mask.ToImmutable() } };
+            frame.TemporaryFrame.WriteWithKnownness(offset, seed, known);
         }
         NativeBattleActionMatrix basis = ReadRotation(frame, 0x2797968);
         NativeBattleActionMatrix x = NativeBattleGfMatrices.RotateX56CFB0(basis, angles.X);

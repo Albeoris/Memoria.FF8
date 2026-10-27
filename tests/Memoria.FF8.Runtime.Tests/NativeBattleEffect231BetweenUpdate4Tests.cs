@@ -27,7 +27,7 @@ public sealed class NativeBattleEffect231BetweenUpdate4Tests
         Assert.Equal(new short[] { 4000, -1 }, selectors);
         AssertPosition(result, 138, 145, 46);
         Assert.Equal(256u, result.ReadTemporaryDword(0xFC));
-        Assert.Equal(JsonSerializer.Serialize(frame.Core), JsonSerializer.Serialize(result.Core));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Core)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Core)));
         Assert.Equal(frame.Random, result.Random);
         Assert.Equal(frame.ReadTemporaryDword(0xF8), result.ReadTemporaryDword(0xF8));
         Assert.Equal(frame.Arena.Read(0x2100, 0x200), result.Arena.Read(0x2100, 0x200));
@@ -50,7 +50,7 @@ public sealed class NativeBattleEffect231BetweenUpdate4Tests
     public void NullBlockDoesNotReadSelectorsOrPublishDistance()
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.SlotDword(Create(), 0, 0xA0, 0);
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = Enumerable.Repeat(false, 0x180).ToImmutableArray() } };
+        frame.TemporaryFrame.MarkUnknown(0, frame.TemporaryFrame.Length);
         Assert.Same(frame, NativeBattleCinematicBetweenUpdate4.Update(frame, (_, _) => throw new InvalidOperationException("The null block must not resolve a reference.")));
     }
 
@@ -59,9 +59,9 @@ public sealed class NativeBattleEffect231BetweenUpdate4Tests
     {
         NativeBattleWaterExecutionFrame frame = Create();
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x3002, 2) };
-        string before = JsonSerializer.Serialize(frame);
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame));
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicBetweenUpdate4.Update(frame, Resolve));
-        Assert.Equal(before, JsonSerializer.Serialize(frame));
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)));
     }
 
     [Fact]
@@ -83,10 +83,10 @@ public sealed class NativeBattleEffect231BetweenUpdate4Tests
         frame = Position(frame, 2, 10, 276, 286);
         frame = NativeBattleCinematicBetweenUpdate4.Update(frame, Resolve);
         frame = Position(frame, 2, 10, -236, 542);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         NativeBattleWaterExecutionFrame next = NativeBattleCinematicBetweenUpdate4.Update(frame, Resolve);
         NativeBattleWaterExecutionFrame restoredNext = NativeBattleCinematicBetweenUpdate4.Update(restored, Resolve);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(restoredNext));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restoredNext)));
         AssertPosition(next, 266, -108, 30);
         Assert.Equal(512u, next.ReadTemporaryDword(0xFC));
     }

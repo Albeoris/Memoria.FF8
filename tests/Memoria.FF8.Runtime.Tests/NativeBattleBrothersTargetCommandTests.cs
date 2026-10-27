@@ -13,7 +13,7 @@ public sealed class NativeBattleBrothersTargetCommandTests
     public void Other_encounters_advance_without_instruction_bone_header_or_flag_reads()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xD5);
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0x14A, false).SetItem(0x14B, false) }, Core = frame.Core.MarkUnknown(0x279744C, 4).MarkUnknown(0x27973E8, 4), Arena = frame.Arena.MarkUnknown(0x1000, 4) };
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame.MarkUnknown(0x14A, 1).MarkUnknown(0x14B, 1), Core = frame.Core.MarkUnknown(0x279744C, 4).MarkUnknown(0x27973E8, 4), Arena = frame.Arena.MarkUnknown(0x1000, 4) };
         NativeBattleWaterExecutionFrame result = NativeBattleBrothersTargetCommand.Execute(frame, Program, Services(94));
         Assert.Equal(0x1004u, Pc(result));
     }
@@ -80,10 +80,10 @@ public sealed class NativeBattleBrothersTargetCommandTests
             frame = frame with { Arena = frame.Arena.MarkUnknown(0x1002, 2) };
         }
         NativeBattleBrothersTargetServices services = Services(63) with { ReadFlag = () => flag };
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleWaterExecutionFrame result = NativeBattleBrothersTargetCommand.Execute(frame, Program, services);
         Assert.Equal(expectedPc, Pc(result));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleBrothersTargetCommand.Execute(restored, Program, services)));
+        Assert.Equal(SnapshotJson(result), SnapshotJson(NativeBattleBrothersTargetCommand.Execute(restored, Program, services)));
     }
 
     [Fact]
@@ -103,4 +103,6 @@ public sealed class NativeBattleBrothersTargetCommandTests
 
     private static NativeBattleBrothersTargetServices Services(ushort encounter) => new(encounter, () => throw new InvalidOperationException("Unexpected flag read."), _ => throw new InvalidOperationException("Unexpected flag write."), _ => throw new InvalidOperationException("Unexpected model read."));
     private static uint Pc(NativeBattleWaterExecutionFrame frame) => WaterSchedulerFixture.ReadCoreDword(frame, 0x2797450);
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

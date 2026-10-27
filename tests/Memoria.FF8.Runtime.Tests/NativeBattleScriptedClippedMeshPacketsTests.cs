@@ -144,7 +144,11 @@ public sealed class NativeBattleScriptedClippedMeshPacketsTests
     private static NativeBattleWaterExecutionFrame Frame()
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryDword(0x50, 0xE1000010).WriteTemporaryDword(0x54, 3).WriteTemporaryDword(0x5C, 0);
-        return frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0x84, false).SetItem(0x8C, false).SetItem(0x90, false).SetItem(0x98, false) } };
+        foreach (int offset in new[] { 0x84, 0x8C, 0x90, 0x98 })
+        {
+            frame.TemporaryFrame.MarkUnknown(offset, 1);
+        }
+        return frame;
     }
 
     private static NativeBattleWaterMeshGroup Group()

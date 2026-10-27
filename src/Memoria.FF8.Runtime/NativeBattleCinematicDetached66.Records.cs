@@ -112,10 +112,7 @@ public static partial class NativeBattleCinematicDetached66
         {
             memory.Word(memory.Temporary + (uint)(0xD0 + index * 2), rotation.Rotation[index]);
         }
-        bool[] known = memory.Frame.TemporaryFrame.Known.ToArray();
-        known[0xE2] = false;
-        known[0xE3] = false;
-        memory.Frame = memory.Frame with { TemporaryFrame = memory.Frame.TemporaryFrame with { Known = known.ToImmutableArray() } };
+        memory.Frame.TemporaryFrame.MarkUnknown(0xE2, 2);
         return rotation with { X = translation.X, Y = translation.Y, Z = translation.Z };
     }
 

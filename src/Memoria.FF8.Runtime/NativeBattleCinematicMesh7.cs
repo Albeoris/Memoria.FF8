@@ -19,7 +19,7 @@ public static class NativeBattleCinematicMesh7
         {
             frame = frame.WriteTemporaryWord(0x20 + index * 2, unchecked((ushort)composed.Rotation[index]));
         }
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0x32, false).SetItem(0x33, false) } };
+        frame.TemporaryFrame.MarkUnknown(0x32, 2);
         uint value = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xB8, 4));
         frame = frame.WriteTemporaryDword(0x48, value).WriteTemporaryDword(0x44, value).WriteTemporaryDword(0x40, value);
         frame = frame.WriteTemporaryDword(0x4C, BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4)));

@@ -33,7 +33,7 @@ public sealed class NativeBattleCinematicMatrixAimCBTests
         Assert.Equal(expectedZ, BinaryPrimitives.ReadInt32LittleEndian(result.Core.Read(Matrices + 60, 4)));
         Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(result.Core.Read(Matrices + 50, 2)));
         Assert.Equal(Address(0x1006), WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        Assert.All(result.TemporaryFrame.Known.Skip(0xA0).Take(18), known => Assert.False(known));
+        Assert.All(Enumerable.Range(0xA0, 18), offset => Assert.False(result.TemporaryFrame.IsKnown(offset, 1)));
         Assert.Throws<NotSupportedException>(() => result.Core.Read(Matrices + 18, 1));
         Assert.Throws<NotSupportedException>(() => result.Core.Read(Matrices + 64, 1));
         Assert.Equal((ushort)0xA5A5, result.ReadTemporaryWord(0x13E));
@@ -71,7 +71,7 @@ public sealed class NativeBattleCinematicMatrixAimCBTests
         BinaryPrimitives.WriteInt32LittleEndian(global.AsSpan(24), 20);
         BinaryPrimitives.WriteInt32LittleEndian(global.AsSpan(28), 30);
         frame = frame with { Core = frame.Core.Write(Matrices, global).MarkUnknown(Matrices + 18, 2).MarkUnknown(Matrices + 32, 33), Arena = frame.Arena.Write(0x1000, program).MarkUnknown(0x209A, 2).MarkUnknown(0x219A, 2) };
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.Select((known, index) => index is >= 0xA0 and < 0xB2 ? false : known).ToImmutableArray() } };
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame.MarkUnknown(0xA0, 18) };
         foreach (int index in new[] { 0, 1 })
         {
             frame = WaterSchedulerFixture.SlotWord(frame, index, 0x94, 100);

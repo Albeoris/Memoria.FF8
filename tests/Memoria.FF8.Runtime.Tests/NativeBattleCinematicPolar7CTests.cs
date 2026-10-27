@@ -48,12 +48,12 @@ public sealed class NativeBattleCinematicPolar7CTests
     public void SnapshotContinuesWithIdenticalRandomMotionAndUnknownPadding()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(short.MinValue, short.MaxValue, short.MaxValue, short.MinValue);
-        frame = frame with { Arena = frame.Arena.MarkUnknown(0x2060, 4), TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xEE, false) } };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x2060, 4), TemporaryFrame = frame.TemporaryFrame.MarkUnknown(0xEE, 1) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicPolar7C.Execute(restored, Program());
-        Assert.False(result.TemporaryFrame.Known[0xEE]);
+        Assert.False(result.TemporaryFrame.IsKnown(0xEE, 1));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x2060, 1));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCinematicPolar7C.Execute(frame, Program())), JsonSerializer.Serialize(result));
+        Assert.Equal(SnapshotJson(NativeBattleCinematicPolar7C.Execute(frame, Program())), SnapshotJson(result));
     }
 
     private static NativeBattleWaterScriptProgram Program() => new(0x1000, 12, 0x80001000);
@@ -69,4 +69,6 @@ public sealed class NativeBattleCinematicPolar7CTests
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(8), sineWidth);
         return frame with { Arena = frame.Arena.Write(0x1000, bytes) };
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

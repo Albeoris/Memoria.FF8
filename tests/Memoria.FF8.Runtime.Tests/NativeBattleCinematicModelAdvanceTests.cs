@@ -25,13 +25,13 @@ public sealed partial class NativeBattleCinematicModelTests
     {
         NativeBattleWaterExecutionFrame frame = NativeBattleCinematicModel.AdvanceAndCompose(Prepared(), Base + Model, Services);
         frame = frame with { Arena = frame.Arena.Write(Skeleton + 8, BitConverter.GetBytes((short)777)) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleWaterExecutionFrame second = NativeBattleCinematicModel.AdvanceAndCompose(frame, Base + Model, Services);
         Assert.Equal((ushort)2, Word(second, Model));
         Assert.Equal((byte)2, second.Arena.Read(Model + 0x26, 1)[0]);
         Assert.Equal((short)777, WordSigned(second, Skeleton + 8));
         Assert.Equal(2174u, Dword(second, Skeleton + 52));
-        Assert.Equal(JsonSerializer.Serialize(second), JsonSerializer.Serialize(NativeBattleCinematicModel.AdvanceAndCompose(restored, Base + Model, Services)));
+        Assert.Equal(SnapshotJson(second), SnapshotJson(NativeBattleCinematicModel.AdvanceAndCompose(restored, Base + Model, Services)));
         NativeBattleWaterExecutionFrame third = NativeBattleCinematicModel.AdvanceAndCompose(second, Base + Model, Services);
         Assert.Equal((ushort)3, Word(third, Model));
         Assert.Equal((byte)1, third.Arena.Read(Model + 0x26, 1)[0]);

@@ -245,7 +245,7 @@ public sealed partial class BattleSession
                 frame = frame.WriteTemporaryWord(offset + index * 2, unchecked((ushort)matrix.Rotation[index]));
             }
             frame = frame.WriteTemporaryDword(offset + 20, unchecked((uint)matrix.X)).WriteTemporaryDword(offset + 24, unchecked((uint)matrix.Y)).WriteTemporaryDword(offset + 28, unchecked((uint)matrix.Z));
-            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(offset + 18, false).SetItem(offset + 19, false) } };
+            frame.TemporaryFrame.MarkUnknown(offset + 18, 2);
         }
 
         byte[] Read(uint address, int length) => frame.Arena.Read(ArenaOffset(address, length), length);

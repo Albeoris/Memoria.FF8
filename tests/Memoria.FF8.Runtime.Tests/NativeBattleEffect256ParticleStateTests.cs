@@ -49,8 +49,8 @@ public sealed class NativeBattleEffect256ParticleStateTests
         Assert.Equal(new int?[] { 110, -180, 330 }, registers.Colors.Mac);
         Assert.Equal(new byte[] { 0xEF, 0xBE }, registers.Colors.NormalInput!.Value.AsSpan().Slice(6, 2).ToArray());
         bool retainedPaddingKnown = mode == 8 && knownPad;
-        Assert.Equal(retainedPaddingKnown, frame.TemporaryFrame.Known[0xF2]);
-        Assert.Equal(retainedPaddingKnown, frame.TemporaryFrame.Known[0xF3]);
+        Assert.Equal(retainedPaddingKnown, frame.TemporaryFrame.IsKnown(0xF2, 1));
+        Assert.Equal(retainedPaddingKnown, frame.TemporaryFrame.IsKnown(0xF3, 1));
         Assert.Equal(retainedPaddingKnown, registers.Geometry.Rotation20[18].HasValue);
         Assert.Equal(retainedPaddingKnown, registers.Geometry.Rotation20[19].HasValue);
         if (retainedPaddingKnown)
@@ -60,8 +60,8 @@ public sealed class NativeBattleEffect256ParticleStateTests
             Assert.Equal(unchecked((byte)expected), registers.Geometry.Rotation20[18]);
             Assert.Equal(unchecked((byte)(expected >> 8)), registers.Geometry.Rotation20[19]);
         }
-        NativeBattleGeometryRegisterStep restored = JsonSerializer.Deserialize<NativeBattleGeometryRegisterStep>(JsonSerializer.Serialize(registers))!;
-        Assert.Equal(JsonSerializer.Serialize(registers), JsonSerializer.Serialize(restored));
+        NativeBattleGeometryRegisterStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGeometryRegisterStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(registers)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(registers)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
     [Fact]
@@ -148,9 +148,8 @@ public sealed class NativeBattleEffect256ParticleStateTests
     }
     private static NativeBattleWaterExecutionFrame UnknownTemporary(NativeBattleWaterExecutionFrame frame, int offset, int length)
     {
-        bool[] known = frame.TemporaryFrame.Known.ToArray();
-        Array.Fill(known, false, offset, length);
-        return frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutableArray() } };
+        frame.TemporaryFrame.MarkUnknown(offset, length);
+        return frame;
     }
     private static NativeBattleWaterExecutionFrame SlotWord(NativeBattleWaterExecutionFrame frame, int offset, ushort value) => WaterSchedulerFixture.SlotWord(frame, 0, offset, value);
     private static NativeBattleWaterExecutionFrame SlotDword(NativeBattleWaterExecutionFrame frame, int offset, uint value) => WaterSchedulerFixture.SlotDword(frame, 0, offset, value);

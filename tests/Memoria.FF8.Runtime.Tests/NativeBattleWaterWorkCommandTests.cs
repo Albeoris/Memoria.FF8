@@ -19,9 +19,9 @@ public sealed class NativeBattleWaterWorkCommandTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(instruction, 0x8000, 1);
         frame = frame with { Arena = PutDword(frame.Arena, ResourceOffset + 0x1C, 0x158).MarkUnknown(0x1006, 2) };
-        bool[] known = frame.TemporaryFrame.Known.ToArray();
+        bool[] known = NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Known.ToArray();
         known[0x141] = false;
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutableArray() } };
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame.SetKnownness(0, known) };
         frame = WaterSchedulerFixture.CoreDword(frame, Manager + 0x70, 0x1234);
         frame = WaterSchedulerFixture.CoreDword(frame, Manager + 0x74, 0x5678);
         NativeBattleWaterExecutionFrame result = Run(frame, 6);
@@ -38,7 +38,7 @@ public sealed class NativeBattleWaterWorkCommandTests
             Assert.Equal(0x5678u, WaterSchedulerFixture.ReadCoreDword(result, Manager + 0x74));
         }
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 0x2000, WaterSchedulerFixture.ReadCoreDword(result, Manager + 0x90));
-        Assert.False(result.TemporaryFrame.Known[0x141]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(result.TemporaryFrame).Known[0x141]);
         Assert.Equal(4u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
     }
 
@@ -74,9 +74,11 @@ public sealed class NativeBattleWaterWorkCommandTests
         Assert.Equal(expected, WaterSchedulerFixture.ReadCoreDword(frame, Manager + 0xD8));
         Assert.Equal((byte)1, frame.ReadTemporaryByte(0x141));
         frame = Reenter(frame, 0xA021, 0, 1, 0x100);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(Run(frame)), JsonSerializer.Serialize(Run(restored)));
-        Assert.Equal((byte)1, Run(restored).ReadTemporaryByte(0x141));
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleWaterExecutionFrame expected = Run(frame);
+        NativeBattleWaterExecutionFrame actual = Run(restored);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
+        Assert.Equal((byte)1, actual.ReadTemporaryByte(0x141));
     }
 
     [Theory]
@@ -130,8 +132,11 @@ public sealed class NativeBattleWaterWorkCommandTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x8021);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x1002, 4) };
-        NotSupportedException error = Assert.Throws<NotSupportedException>(() => Run(frame));
-        Assert.Contains("0x1004", error.Message);
+        Assert.Throws<NotSupportedException>(() => Run(frame));
+        // The high word is outside this shorter program; reading the unknown low word first would produce a different exception.
+        Assert.Throws<InvalidDataException>(() => Run(frame, 4));
+        frame.Arena.Write(0x1004, new byte[2]);
+        Assert.Throws<NotSupportedException>(() => Run(frame));
     }
 
     [Fact]
@@ -179,6 +184,7 @@ public sealed class NativeBattleWaterWorkCommandTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(instruction, 0, 4, unchecked((ushort)size)).WriteTemporaryByte(0x141, 0xFF);
         frame = frame with { Core = frame.Core.MarkUnknown(0x2798A6C, 4) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleWaterWorkCommands.Execute(frame, new(0x1000, 8, Pc), NativeBattleEffectNodeMemory.ArenaAddress);
         uint target = NativeBattleEffectNodeMemory.ArenaAddress + 0x40000;
         if (instruction == 0x1021)
@@ -191,8 +197,7 @@ public sealed class NativeBattleWaterWorkCommandTests
             Assert.Equal(unchecked((uint)(size << 7)), WaterSchedulerFixture.ReadCoreDword(result, Manager + 0xDC));
             Assert.Equal(unchecked(target - (uint)(size << 7)), WaterSchedulerFixture.ReadCoreDword(result, Manager + 0xD8));
         }
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleWaterWorkCommands.Execute(restored, new(0x1000, 8, Pc), NativeBattleEffectNodeMemory.ArenaAddress)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleWaterWorkCommands.Execute(restored, new(0x1000, 8, Pc), NativeBattleEffectNodeMemory.ArenaAddress)));
     }
 
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction, ushort low = 0, ushort high = 0, ushort size = 0)

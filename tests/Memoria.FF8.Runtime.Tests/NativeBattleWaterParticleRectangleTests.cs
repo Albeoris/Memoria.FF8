@@ -26,7 +26,7 @@ public sealed class NativeBattleWaterParticleRectangleTests
         for (int offset = 0xE0; offset < 0x100; offset++)
         {
             bool written = (offset & 7) is 4 or 5;
-            Assert.Equal(written, result.Frame.TemporaryFrame.Known[offset]);
+            Assert.Equal(written, NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[offset]);
         }
         Assert.Equal(frame.Arena, result.Frame.Arena);
         Assert.Equal(frame.Random, result.Frame.Random);
@@ -108,7 +108,7 @@ public sealed class NativeBattleWaterParticleRectangleTests
         foreach (int offset in new[] { 0xE6, 0xEE, 0xF6, 0xFE })
         {
             // E6 is overwritten by the fourth-depth DWORD; remaining padding is retained.
-            Assert.Equal(offset == 0xE6, result.Frame.TemporaryFrame.Known[offset]);
+            Assert.Equal(offset == 0xE6, NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[offset]);
         }
     }
 
@@ -163,12 +163,12 @@ public sealed class NativeBattleWaterParticleRectangleTests
     public void Independent_JSON_next_uses_mutated_current_source_and_preserves_all_other_owners()
     {
         NativeBattleWaterParticleRectangleResult first = Draw(Fixture());
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(first.Frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first.Frame))!;
         NativeBattleWaterExecutionFrame live = SourceWord(first.Frame, 0xA, 0xFFFE);
         restored = SourceWord(restored, 0xA, 0xFFFE);
         NativeBattleWaterParticleRectangleResult expected = Draw(live);
         NativeBattleWaterParticleRectangleResult actual = Draw(restored);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Equal((ushort)0x1E, Word(Assert.Single(actual.Packets.Attempts).Data, 0x14));
         Assert.Equal(0x300050u, actual.NextCursor);
     }
@@ -177,7 +177,7 @@ public sealed class NativeBattleWaterParticleRectangleTests
     public void Later_record_failure_does_not_publish_earlier_temporary_or_cursor_writes()
     {
         NativeBattleWaterExecutionFrame source = Fixture(2);
-        string original = JsonSerializer.Serialize(source);
+        string original = NativeBattleTestSnapshots.Json(source);
         int resolved = 0;
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterParticleRectanglePackets.DrawA9EE90(source, Registers(Matrix), Projection, 1365, 0, 0, _ =>
         {
@@ -189,24 +189,26 @@ public sealed class NativeBattleWaterParticleRectangleTests
             return 17;
         }));
         Assert.Equal(2, resolved);
-        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(source));
         Assert.Equal(0x300000u, WaterSchedulerFixture.ReadCoreDword(source, WaterSchedulerFixture.ReadCoreDword(source, 0x27973EC) + 0x7C));
     }
 
     [Fact]
-    public void Complete_leaf_keeps_input_and_aliases_immutable_through_next_draw()
+    public void Complete_leaf_keeps_explicit_history_immutable_while_current_aliases_advance_through_next_draw()
     {
         NativeBattleWaterExecutionFrame source = Fixture(2);
-        NativeBattleWaterTemporaryFrame alias = source.TemporaryFrame;
-        string original = JsonSerializer.Serialize(source);
+        NativeBattleWaterExecutionFrame original = NativeBattleStorageSnapshots.Capture(source);
+        NativeBattleWaterTemporaryFrame workingAlias = source.TemporaryFrame;
+        string originalJson = NativeBattleTestSnapshots.Json(original);
         NativeBattleWaterParticleRectangleResult first = Draw(source);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(first.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(first.Frame)), JsonSerializer.Serialize(Draw(restored)));
-        Assert.Same(alias, source.TemporaryFrame);
-        Assert.Equal(original, JsonSerializer.Serialize(source));
-        Assert.NotEqual(JsonSerializer.Serialize(alias), JsonSerializer.Serialize(first.Frame.TemporaryFrame));
+        NativeBattleWaterParticleRectangleResult firstHistory = NativeBattleStorageSnapshots.Capture(first);
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(first.Frame)), NativeBattleTestSnapshots.Json(Draw(restored)));
+        Assert.Same(workingAlias, source.TemporaryFrame);
+        Assert.Same(workingAlias, first.Frame.TemporaryFrame);
+        Assert.Equal(originalJson, NativeBattleTestSnapshots.Json(original));
+        Assert.NotEqual(NativeBattleTestSnapshots.Json(original.TemporaryFrame), NativeBattleTestSnapshots.Json(firstHistory.Frame.TemporaryFrame));
     }
-
     private static NativeBattleWaterParticleRectangleResult Draw(NativeBattleWaterExecutionFrame frame) => NativeBattleWaterParticleRectanglePackets.DrawA9EE90(frame, Registers(Matrix), Projection, 1365, 0, 0, Resolve);
     private static NativeBattleGeometryRegisterStep Registers(NativeBattleActionMatrix matrix) => new(NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), matrix, true, true, null), NativeBattleScriptedColorRegisters.Unknown());
 
@@ -239,9 +241,9 @@ public sealed class NativeBattleWaterParticleRectangleTests
 
     private static NativeBattleWaterExecutionFrame UnknownTemporary(NativeBattleWaterExecutionFrame frame, int offset, int length)
     {
-        bool[] known = frame.TemporaryFrame.Known.ToArray();
+        bool[] known = NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Known.ToArray();
         Array.Fill(known, false, offset, length);
-        return frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutableArray() } };
+        return frame with { TemporaryFrame = frame.TemporaryFrame.SetKnownness(0, known) };
     }
 
     private static NativeBattleWaterExecutionFrame CoreDword(NativeBattleWaterExecutionFrame frame, uint address, uint value)

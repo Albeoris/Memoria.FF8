@@ -319,33 +319,32 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             if (effectId == 116)
             {
                 battle = after;
-                for (int callback = 0; callback < 4096 && !battle.CanChoosePlayerCommand("party"); callback++)
-                {
-                    prior = battle.Capture();
-                    battle.Tick();
-                    audio.Update(battle);
-                }
                 Assert.True(battle.CanChoosePlayerCommand("party"), "The restored completed GF cast must release its ordinary command owner.");
                 Assert.True(Released(battle.Capture()));
-                battle.QueueAction("party", target, BattleAbility.GuardianForce, guardian);
-                bool nextSelected = false;
-                for (int callback = 0; callback < 4096; callback++)
+                battle.QueueAttack("party", "enemy");
+                Assert.Contains(battle.NativeCommandBanks.Banks[2].LogicalCommands.OfType<BattleAttackCommand>(), command => command.ActorId == "party" && command.NativeQueuedCommand == 1);
+                BattleSession queuedNext = SaveAndLoad("next-command-queued");
+                prior = battle.Capture();
+                bool nextDispatched = false;
+                List<string> nextObservations = [];
+                for (int callback = 0; callback < 16; callback++)
                 {
-                    prior = battle.Capture();
                     battle.Tick();
+                    queuedNext.Tick();
                     audio.Update(battle);
-                    if (battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } nextEffect && nextEffect.Binding.Effect == effectId)
+                    BattleActionPresentation? active = battle.ActiveAction;
+                    nextObservations.Add($"{callback + 1}:frame{battle.Frame}/callback{battle.NativeGraphics!.Callback}/actor{active?.ActorId}/command{active?.NativeQueuedCommand}/header{active?.NativeHeaderIndex}");
+                    if (active is { ActorId: "party", NativeQueuedCommand: 1, NativeHeaderIndex: not null })
                     {
-                        nextSelected = true;
+                        nextDispatched = true;
                         break;
                     }
                 }
-                Assert.True(nextSelected, "The same restored battle must admit and initialize its next ordinary GF command.");
-                Assert.Equal(2, battle.Events.Count(entry => entry.Kind == "GuardianForceCharging" && entry.ActorId == "party"));
-                Assert.Equal(2, battle.Events.Count(entry => entry.Kind == "GuardianForceReady" && entry.ActorId == "party"));
-                BattleSnapshot nextCommand = battle.Capture();
-                Assert.Equal((byte)254, nextCommand.NativeActionScratch!.Command);
-                Assert.Equal((ushort)(64 + guardian), nextCommand.NativeActionScratch.Action);
+                Assert.True(nextDispatched, "The restored completed GF cast must dispatch its next ordinary native Attack within sixteen callbacks: " + string.Join(';', nextObservations));
+                Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(queuedNext.Capture()));
+                Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(queuedNext, 320, 224).ToArray());
+                Assert.Equal(1, battle.Events.Count(entry => entry.Kind == "GuardianForceCharging" && entry.ActorId == "party"));
+                Assert.Equal(1, battle.Events.Count(entry => entry.Kind == "GuardianForceReady" && entry.ActorId == "party"));
                 BattleSession nextRestored = SaveAndLoad("next-command-initialized");
                 prior = battle.Capture();
                 battle.Tick();
@@ -413,10 +412,11 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Assert.Equal(effectId, action.NativeAction!.MagicId);
         Assert.Equal((byte)254, action.NativeAction.Command);
         Assert.Equal((ushort)(64 + guardian), action.NativeAction.ActionId);
-        NativeBattleStatusAllocation partyStatus = assets.ReadPlayerNativeStatusData(game.ReadNewGameCharacterVitals(), 0);
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+        NativeBattleStatusAllocation partyStatus = assets.ReadPlayerNativeStatusData(vitals, 0);
         BattleCombatantDefinition[] actors =
         [
-            new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum, NativeStatusResistances = partyStatus.Resistances.ToArray(), GuardianForceCompatibility = new ushort[16], EquipmentIds = [guardian], Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce] },
+            new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum, NativeAttack = assets.ReadPlayerNativeAttackData(vitals, 0), NativeStatusResistances = partyStatus.Resistances.ToArray(), GuardianForceCompatibility = new ushort[16], EquipmentIds = [guardian], Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce] },
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1, MaximumHp = 9999, CurrentHp = 9999, NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(61), NativeStatusResistances = assets.ReadEnemyNativeStatusData(61).Resistances.ToArray() }
         ];
         // Explicit independent installed-resource component: the ordinary command owns charge, headers, formula and contact production.
@@ -454,6 +454,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([effectId]),
             NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(),
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            LimitProgress = game.ReadNewGameLimitProgress(),
             NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,

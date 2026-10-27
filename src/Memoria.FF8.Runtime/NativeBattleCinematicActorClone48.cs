@@ -87,7 +87,7 @@ public static class NativeBattleCinematicActorClone48
             {
                 frame = frame.WriteTemporaryWord(offset + index * 2, unchecked((ushort)matrix.Rotation[index]));
             }
-            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(offset + 18, false).SetItem(offset + 19, false) } };
+            frame.TemporaryFrame.MarkUnknown(offset + 18, 2);
         }
     }
 }

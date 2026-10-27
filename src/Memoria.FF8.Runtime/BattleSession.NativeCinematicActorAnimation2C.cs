@@ -76,7 +76,14 @@ public sealed partial class BattleSession
             NativeBattleEffectMemory memory = RequireWaterMemory();
             NativeBattleScriptedColorRegisters colors = NativeBattleCinematicRibbonInput.Capture(current, owner + 0x94, memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native actor animation requires its actual packed input registers."));
             NativeBattleGeometryRegisters geometry = memory.GeometryRegisters ?? throw new NotSupportedException("Native actor animation requires its actual geometry registers.");
-            byte?[] packed = Enumerable.Range(0, 20).Select(index => current.TemporaryFrame.Known[0xE0 + index] ? (byte?)current.TemporaryFrame.Bytes[0xE0 + index] : null).ToArray();
+            Span<byte> rawRotation = stackalloc byte[20];
+            Span<bool> rotationKnown = stackalloc bool[20];
+            current.TemporaryFrame.ReadWithKnownness(0xE0, rawRotation, rotationKnown);
+            byte?[] packed = new byte?[20];
+            for (int index = 0; index < packed.Length; index++)
+            {
+                packed[index] = rotationKnown[index] ? rawRotation[index] : null;
+            }
             NativeEffectMemory = memory with { ScriptedColorRegisters = TransformRegisters(colors, transformed), GeometryRegisters = geometry with { Rotation20 = packed.ToImmutableArray(), Translation = [transformed.X, transformed.Y, transformed.Z] } };
             return current;
         }

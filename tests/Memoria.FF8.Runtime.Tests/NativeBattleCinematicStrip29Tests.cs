@@ -20,7 +20,8 @@ public sealed class NativeBattleCinematicStrip29Tests
         initial = WaterSchedulerFixture.SlotWord(initial, 0, 0x94, 256);
         initial = WaterSchedulerFixture.SlotWord(initial, 0, 0x96, 64);
         initial = WaterSchedulerFixture.SlotWord(initial, 0, 0x98, 1024);
-        initial = initial with { Arena = initial.Arena.Write(0x3000, new byte[] { 0xFE, 0xFF }).MarkUnknown(0x4006, 2), TemporaryFrame = initial.TemporaryFrame with { Known = initial.TemporaryFrame.Known.SetItem(0xC6, false) } };
+        initial = initial with { Arena = initial.Arena.Write(0x3000, new byte[] { 0xFE, 0xFF }).MarkUnknown(0x4006, 2) };
+        initial.TemporaryFrame.MarkUnknown(0xC6, 1);
         int projected = 0;
         int packets = 0;
         List<string> calls = [];
@@ -41,7 +42,7 @@ public sealed class NativeBattleCinematicStrip29Tests
             return frame;
         }, (frame, point) =>
         {
-            Assert.False(frame.TemporaryFrame.Known[0xC6]);
+            Assert.False(frame.TemporaryFrame.IsKnown(0xC6, 1));
             short[] columns = [-2032, 0, 2032];
             short[] heights = [256, 0, -256, 0];
             Assert.Equal(columns[projected % 3], point.X);
@@ -96,8 +97,8 @@ public sealed class NativeBattleCinematicStrip29Tests
         Assert.Equal(Address(0x4000), WaterSchedulerFixture.ReadCoreDword(result, 0x2797690 + 0x74));
         Assert.Equal(unchecked((ushort)-2016), result.ReadTemporaryWord(0xC4));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x4006, 2));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restored));
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
     private static uint Address(int offset) => unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)offset);

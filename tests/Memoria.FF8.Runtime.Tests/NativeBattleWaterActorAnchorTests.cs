@@ -16,10 +16,10 @@ public sealed class NativeBattleWaterActorAnchorTests
         Assert.Equal(new NativeBattleFullMacVertex(10, 20, 80, 0), result.Anchor);
         Assert.Equal(50, result.Frame.ReadTemporaryWord(0xC4));
         Assert.Equal(0u, result.Frame.ReadTemporaryDword(0xC0));
-        Assert.False(result.Frame.TemporaryFrame.Known[0xC6]);
-        Assert.False(result.Frame.TemporaryFrame.Known[0xE2]);
-        Assert.False(result.Frame.TemporaryFrame.Known[0xE3]);
-        Assert.True(result.Frame.TemporaryFrame.Known[0xE4]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[0xC6]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[0xE2]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[0xE3]);
+        Assert.True(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[0xE4]);
         Assert.Equal(80u, result.Frame.ReadTemporaryDword(0xF8));
         Assert.Equal(0u, result.Frame.ReadTemporaryDword(0xFC));
     }
@@ -28,11 +28,12 @@ public sealed class NativeBattleWaterActorAnchorTests
     public void Negative_parent_uses_zero_distance_and_preserves_unwritten_temporary_bytes()
     {
         NativeBattleWaterExecutionFrame frame = Frame();
+        NativeBattleWaterTemporaryFrame before = NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame);
         NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, Skeleton(), Bones(), 0, int.MaxValue, Identity(), NativeBattleActorAnchorRegisterFixture.Registers());
         Assert.Equal(new NativeBattleFullMacVertex(0, 0, 0, 0), result.Anchor);
-        Assert.Equal(frame.TemporaryFrame.Bytes[0xC6], result.Frame.TemporaryFrame.Bytes[0xC6]);
-        Assert.Equal(frame.TemporaryFrame.Bytes[0xCF], result.Frame.TemporaryFrame.Bytes[0xCF]);
-        Assert.False(result.Frame.TemporaryFrame.Known[0xCF]);
+        Assert.Equal(before.Bytes[0xC6], NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Bytes[0xC6]);
+        Assert.Equal(before.Bytes[0xCF], NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Bytes[0xCF]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[0xCF]);
     }
 
     [Fact]
@@ -89,10 +90,10 @@ public sealed class NativeBattleWaterActorAnchorTests
     public void Unknown_padding_and_next_anchor_survive_independent_JSON()
     {
         NativeBattleWaterExecutionFrame frame = NativeBattleWaterActorAnchor.EvaluateB66B80(Frame(), Skeleton(), Bones(), 1, 0x1000, Identity(), NativeBattleActorAnchorRegisterFixture.Registers()).Frame;
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterActorAnchorResult expected = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, Skeleton(), Bones(), 0xF1, -0x800, Identity(), NativeBattleActorAnchorRegisterFixture.Registers());
         NativeBattleWaterActorAnchorResult actual = NativeBattleWaterActorAnchor.EvaluateB66B80(restored, Skeleton(), Bones(), 0xF1, -0x800, Identity(), NativeBattleActorAnchorRegisterFixture.Registers());
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     [Theory]

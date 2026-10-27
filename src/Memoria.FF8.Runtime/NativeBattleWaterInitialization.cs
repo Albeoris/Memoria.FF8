@@ -4,7 +4,6 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleWaterInitializationResource(int ArenaOffset, int Length, uint Address);
-public sealed record NativeBattleWaterTemporaryFrame(uint Address, ImmutableArray<byte> Bytes, ImmutableArray<bool> Known);
 public sealed record NativeBattleWaterInitializationInputs(NativeBattleWaterInitializationResource Resource0, NativeBattleWaterInitializationResource Resource1, NativeBattleWaterTemporaryFrame TemporaryFrame, uint ActionParametersAddress, uint HeaderBaseAddress, uint InitializationDirectoryAddress, byte Caster, int CurrentHeaderIndex, byte FirstHeaderFirstActor, ImmutableArray<byte> Contacts, byte ContactCount, byte FirstHeaderCount, ImmutableArray<NativeBattleGraphicsModel> Graphics);
 public sealed record NativeBattleWaterResetCaptureInputs(byte Caster, int CurrentHeaderIndex, byte FirstHeaderFirstActor, ImmutableArray<byte> Contacts, byte ContactCount, ImmutableArray<NativeBattleGraphicsModel> Graphics);
 public sealed record NativeBattleWaterResetResult(NativeBattleScriptedEffectMemory Core, NativeBattleEffectArena Arena, NativeBattleWaterTemporaryFrame TemporaryFrame, NativeBattleWaterSlotBank SlotBank, int CurrentHeaderIndex);
@@ -27,21 +26,20 @@ public static class NativeBattleWaterInitialization
         directories.Validate();
         Resource(inputs.Resource0, 0x1C);
         Resource(inputs.Resource1, 0x20);
-        NativeBattleWaterTemporaryFrame frame = inputs.TemporaryFrame;
-        if (frame.Bytes.IsDefault || frame.Known.IsDefault || frame.Bytes.Length != 0x180 || frame.Known.Length != 0x180 || frame.Address == 0 || frame.Address > uint.MaxValue - 0x180 || inputs.ActionParametersAddress == 0 || inputs.HeaderBaseAddress == 0 || directories.OwnerAddress(2) != NativeBattleScriptedEffectMemory.Address)
+        inputs.TemporaryFrame.Validate();
+        using NativeBattleWaterTemporaryFrame.PrivateWrite temporary = inputs.TemporaryFrame.BeginPrivateWrite();
+        NativeBattleWaterTemporaryFrame frame = temporary.View;
+        if (frame.Address == 0 || frame.Address > uint.MaxValue - 0x180 || inputs.ActionParametersAddress == 0 || inputs.HeaderBaseAddress == 0 || directories.OwnerAddress(2) != NativeBattleScriptedEffectMemory.Address)
         {
             throw new InvalidDataException("Native initialization requires its actual bounded temporary frame and parameter/header bindings.");
         }
-        byte[] temporary = frame.Bytes.ToArray();
-        bool[] known = frame.Known.ToArray();
         uint manager = directories.OwnerAddress(0);
         uint command = directories.OwnerAddress(4);
         Dword(0x2798A68, inputs.Resource0.Address);
         Dword(0x2798A6C, inputs.Resource1.Address);
         NativeBattleWaterFrameBindingResult binding = NativeBattleWaterFrameBinding.Bind(core, frame, directories);
         core = binding.Core;
-        temporary = binding.TemporaryFrame.Bytes.ToArray();
-        known = binding.TemporaryFrame.Known.ToArray();
+        frame = binding.TemporaryFrame;
         Dword(manager + 0xC0, inputs.ActionParametersAddress);
         Dword(manager + 0xBC, 0);
         Word(manager, 0);
@@ -99,8 +97,8 @@ public static class NativeBattleWaterInitialization
         Byte(0x2798218, 0xFF);
         Word(manager + 0xA0, unchecked((ushort)sourceBase));
         Word(command, 1);
-        NativeBattleWaterResetResult reset = ResetAA4B60(core, arena, new(frame.Address, temporary.ToImmutableArray(), known.ToImmutableArray()), inputs.Resource1, (_, _, _) => inputs.HeaderBaseAddress, (_, _, _, _) => new(inputs.Caster, inputs.CurrentHeaderIndex, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.ContactCount, inputs.Graphics));
-        return new(reset.Core, reset.Arena, reset.SlotBank, reset.TemporaryFrame, reset.CurrentHeaderIndex, poolRequest);
+        NativeBattleWaterResetResult reset = ResetAA4B60(core, arena, frame, inputs.Resource1, (_, _, _) => inputs.HeaderBaseAddress, (_, _, _, _) => new(inputs.Caster, inputs.CurrentHeaderIndex, inputs.FirstHeaderFirstActor, inputs.Contacts, inputs.ContactCount, inputs.Graphics));
+        return new(reset.Core, reset.Arena, reset.SlotBank, temporary.Publish(), reset.CurrentHeaderIndex, poolRequest);
 
         void Resource(NativeBattleWaterInitializationResource resource, int minimum)
         {
@@ -131,14 +129,12 @@ public static class NativeBattleWaterInitialization
 
         void TempWord(int offset, ushort value)
         {
-            BinaryPrimitives.WriteUInt16LittleEndian(temporary.AsSpan(offset), value);
-            Array.Fill(known, true, offset, 2);
+            frame.WriteUInt16(offset, value);
         }
 
         void TempDword(int offset, uint value)
         {
-            BinaryPrimitives.WriteUInt32LittleEndian(temporary.AsSpan(offset), value);
-            Array.Fill(known, true, offset, 4);
+            frame.WriteUInt32(offset, value);
         }
     }
 
@@ -151,6 +147,8 @@ public static class NativeBattleWaterInitialization
         {
             throw new InvalidDataException("Native shared reset requires its actual core header and current resource-one owner.");
         }
+        using NativeBattleWaterTemporaryFrame.PrivateWrite temporary = temporaryFrame.BeginPrivateWrite();
+        temporaryFrame = temporary.View;
         StoreDword(command + 8, 0x80000000);
         StoreDword(manager + 0x74, Dword(manager + 0x70));
         uint slotPointer = unchecked(resource1.Address + BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(resource1.ArenaOffset + 0x1C, 4)));
@@ -173,11 +171,7 @@ public static class NativeBattleWaterInitialization
         StoreByte(header + 0x3A, 0);
         StoreByte(0x2798219, 0);
         StoreByte(0x2798218, 0xFF);
-        if (temporaryFrame.Bytes.IsDefault || temporaryFrame.Known.IsDefault || temporaryFrame.Bytes.Length != 0x180 || temporaryFrame.Known.Length != 0x180)
-        {
-            throw new InvalidDataException("Native shared reset requires the actual bounded temporary frame.");
-        }
-        temporaryFrame = temporaryFrame with { Bytes = temporaryFrame.Bytes.SetItem(0x145, 0), Known = temporaryFrame.Known.SetItem(0x145, true) };
+        temporaryFrame.WriteByte(0x145, 0);
         StoreByte(manager + 0xA2, 0);
         StoreDword(header + 0x170, 0);
         StoreDword(header + 0x16C, 0);
@@ -200,7 +194,7 @@ public static class NativeBattleWaterInitialization
         byte[] main = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(main, Dword(manager + 0x94));
         arena = arena.Write(bank.SlotOffset(arena, 0), main);
-        return new(core, arena, temporaryFrame, bank, captured.CurrentHeaderIndex);
+        return new(core, arena, temporary.Publish(), bank, captured.CurrentHeaderIndex);
 
         uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(core.Read(address, 4));
         void StoreByte(uint address, byte value) => core = core.Write(address, new byte[] { value });

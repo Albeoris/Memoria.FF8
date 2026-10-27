@@ -43,11 +43,11 @@ public sealed class NativeBattleEffect238MeshStateTests
         Assert.Equal(4096, BinaryPrimitives.ReadInt16LittleEndian(result.Prepared.Frame.ReadTemporary(0xE0, 2)));
         Assert.Equal(8192, BinaryPrimitives.ReadInt16LittleEndian(result.Prepared.Frame.ReadTemporary(0xE8, 2)));
         Assert.Equal(2048, BinaryPrimitives.ReadInt16LittleEndian(result.Prepared.Frame.ReadTemporary(0xF0, 2)));
-        Assert.Equal(!unknownPadding, result.Prepared.Frame.TemporaryFrame.Known[0xF2]);
-        Assert.Equal(!unknownPadding, result.Prepared.Frame.TemporaryFrame.Known[0xF3]);
+        Assert.Equal(!unknownPadding, result.Prepared.Frame.TemporaryFrame.IsKnown(0xF2, 1));
+        Assert.Equal(!unknownPadding, result.Prepared.Frame.TemporaryFrame.IsKnown(0xF3, 1));
         Assert.Equal(unknownPadding ? null : (byte?)0x5A, result.Registers.Geometry.Rotation20[18]);
         Assert.Equal(unknownPadding ? null : (byte?)0xA5, result.Registers.Geometry.Rotation20[19]);
-        Assert.Equal(0xA55A, BinaryPrimitives.ReadUInt16LittleEndian(result.Prepared.Frame.TemporaryFrame.Bytes.AsSpan().Slice(0xF2, 2)));
+        Assert.Equal(0xA55A, BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleStorageSnapshots.Capture(result.Prepared.Frame.TemporaryFrame).Bytes.AsSpan().Slice(0xF2, 2)));
         Assert.Equal(10u, result.Prepared.Frame.ReadTemporaryDword(0xF4));
     }
 
@@ -87,7 +87,7 @@ public sealed class NativeBattleEffect238MeshStateTests
         NativeBattleScriptedMeshSubmission result = Run(frame);
         Assert.Empty(result.Packets.Attempts);
         Assert.Equal(3u, result.Registers.Ir0);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Run(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!)))));
     }
 
     [Theory]

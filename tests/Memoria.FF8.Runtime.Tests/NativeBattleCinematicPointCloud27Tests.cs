@@ -120,14 +120,14 @@ public sealed class NativeBattleCinematicPointCloud27Tests
     public void SnapshotPreservesPaddingAndCanonicalRandomThroughTheSameNextDraw()
     {
         NativeBattleWaterExecutionFrame frame = Warm(1);
-        frame = frame with { Arena = frame.Arena.MarkUnknown(0x400B, 1).MarkUnknown(0x4012, 2), TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xEE, false) } };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x400B, 1).MarkUnknown(0x4012, 2), TemporaryFrame = frame.TemporaryFrame.MarkUnknown(0xEE, 1) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(SnapshotJson(frame))!);
         NativeBattleCinematicPointCloud27Services services = new(current => current, (current, _) => new(current, 0, 0), (current, _, _, _) => current);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicPointCloud27.Draw(restored, services);
-        Assert.False(result.TemporaryFrame.Known[0xEE]);
+        Assert.False(result.TemporaryFrame.IsKnown(0xEE, 1));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x400B, 1));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x4012, 1));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCinematicPointCloud27.Draw(frame, services)), JsonSerializer.Serialize(result));
+        Assert.Equal(SnapshotJson(NativeBattleCinematicPointCloud27.Draw(frame, services)), SnapshotJson(result));
     }
 
     [Theory]
@@ -150,14 +150,14 @@ public sealed class NativeBattleCinematicPointCloud27Tests
         original = original with { Arena = original.Arena.WriteResourcePointer(0x7000, new(null, 123)).MarkUnknown(0x6000, 36) };
         original = WaterSchedulerFixture.CoreDword(original, 0x2797690 + 0x7C, commonPackets ? 0x40u : Address(0x6000));
         NativeBattlePrimitiveProcess sourceProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() with { ByteCursor = 0x40 };
-        string originalBytes = JsonSerializer.Serialize(original);
+        string originalBytes = SnapshotJson(original);
         var scalar = Run(false);
         var batched = Run(true);
-        Assert.Equal(JsonSerializer.Serialize(scalar.Frame), JsonSerializer.Serialize(batched.Frame));
-        Assert.Equal(JsonSerializer.Serialize(scalar.Published), JsonSerializer.Serialize(batched.Published));
-        Assert.Equal(JsonSerializer.Serialize(scalar.Process), JsonSerializer.Serialize(batched.Process));
-        Assert.Equal(JsonSerializer.Serialize(scalar.Ordering), JsonSerializer.Serialize(batched.Ordering));
-        Assert.Equal(originalBytes, JsonSerializer.Serialize(original));
+        Assert.Equal(SnapshotJson(scalar.Frame), SnapshotJson(batched.Frame));
+        Assert.Equal(SnapshotJson(scalar.Published), SnapshotJson(batched.Published));
+        Assert.Equal(SnapshotJson(scalar.Process), SnapshotJson(batched.Process));
+        Assert.Equal(SnapshotJson(scalar.Ordering), SnapshotJson(batched.Ordering));
+        Assert.Equal(originalBytes, SnapshotJson(original));
         Assert.Null(batched.Published.Transaction);
         Assert.Null(batched.Process.CommonTransaction);
         Assert.Equal(original.Arena.ReadResourcePointer(0x7000), batched.Published.ReadResourcePointer(0x7000));
@@ -172,18 +172,20 @@ public sealed class NativeBattleCinematicPointCloud27Tests
         }
         else if (failingAppend == 0)
         {
-            Assert.Equal(JsonSerializer.Serialize(original.Arena), JsonSerializer.Serialize(batched.Published));
+            Assert.Equal(SnapshotJson(original.Arena), SnapshotJson(batched.Published));
         }
 
         (NativeBattleWaterExecutionFrame? Frame, NativeBattleEffectArena Published, NativeBattlePrimitiveProcess Process, NativeBattleLogicalOrdering Ordering, int Appends) Run(bool batch)
         {
-            using NativeBattleEffectArenaTransaction? arena = batch ? new(original.Arena) : null;
+            NativeBattleWaterExecutionFrame source = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(original));
+            using NativeBattleEffectArenaTransaction? arena = batch ? new(source.Arena) : null;
             NativeBattleLogicalOrdering seed = NativeBattleLogicalOrdering.Clear();
+            NativeBattleLogicalOrdering initialOrdering = NativeBattleStorageSnapshots.Capture(seed);
             using NativeBattleLogicalOrderingTransaction? links = batch ? new(seed) : null;
             NativeBattleLogicalOrdering ordering = links?.View ?? seed;
-            NativeBattlePrimitiveProcess process = sourceProcess;
+            NativeBattlePrimitiveProcess process = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(sourceProcess));
             NativeBattleCommonPacketTransaction? common = null;
-            NativeBattleEffectArena published = original.Arena;
+            NativeBattleEffectArena published = NativeBattleStorageSnapshots.Capture(source.Arena);
             int appends = 0;
             NativeBattleCinematicPointCloud27Services services = new(current => current, (current, address) => new(current, address, 0x40), (current, output, _, packets) =>
             {
@@ -231,7 +233,7 @@ public sealed class NativeBattleCinematicPointCloud27Tests
             NativeBattleWaterExecutionFrame? drawn = null;
             try
             {
-                drawn = NativeBattleCinematicPointCloud27.Draw(original with { Arena = arena?.View ?? original.Arena }, services);
+                drawn = NativeBattleCinematicPointCloud27.Draw(source with { Arena = arena?.View ?? source.Arena }, services);
                 Assert.Equal(-1, failingAppend);
                 if (arena is not null && ReferenceEquals(drawn.Arena.Transaction, arena))
                 {
@@ -241,7 +243,7 @@ public sealed class NativeBattleCinematicPointCloud27Tests
             }
             catch (InvalidDataException) when (failingAppend >= 0)
             {
-                ordering = seed;
+                ordering = NativeBattleStorageSnapshots.Restore(initialOrdering);
             }
             finally
             {
@@ -288,4 +290,6 @@ public sealed class NativeBattleCinematicPointCloud27Tests
     private static uint Address(int offset) => unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)offset);
     private static uint Dword(NativeBattleWaterExecutionFrame frame, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(offset, 4));
     private static void Word(byte[] data, int offset, short value) => BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(offset), value);
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

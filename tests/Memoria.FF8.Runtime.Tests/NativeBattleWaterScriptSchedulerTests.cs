@@ -97,9 +97,9 @@ public sealed class NativeBattleWaterScriptSchedulerTests
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0, 0x1000);
         frame = WaterSchedulerFixture.SlotDword(frame, 1, 0, 0x80001000);
         frame = frame with { Core = frame.Core.Write(0x2797454, new byte[] { 0, 0x81, 0xFF }) };
-        bool[] known = frame.TemporaryFrame.Known.ToArray();
+        bool[] known = NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Known.ToArray();
         known[0x139] = false;
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutableArray() } };
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame.SetKnownness(0, known) };
         int calls = 0;
         frame = NativeBattleWaterScriptScheduler.RunScriptPass(true, frame, (_, pc) =>
         {
@@ -111,8 +111,8 @@ public sealed class NativeBattleWaterScriptSchedulerTests
             return current.WriteTemporaryWord(0x13E, 3);
         });
         Assert.Equal(1, calls);
-        Assert.False(frame.TemporaryFrame.Known[0x14D]);
-        Assert.Equal(frame.TemporaryFrame.Bytes[0x139], frame.TemporaryFrame.Bytes[0x14D]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Known[0x14D]);
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Bytes[0x139], NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Bytes[0x14D]);
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class NativeBattleWaterScriptSchedulerTests
             frame = WaterSchedulerFixture.SlotWord(frame, index, 0x12, (ushort)(10 + index));
             frame = WaterSchedulerFixture.CoreWord(frame, 0x2797204 + (uint)(2 * index), (ushort)(10 + index));
         }
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         List<byte> visits = [];
         frame = NativeBattleWaterScriptScheduler.RunScriptPass(false, frame, (_, _) => 0, (current, _) =>
         {
@@ -136,7 +136,7 @@ public sealed class NativeBattleWaterScriptSchedulerTests
         });
         restored = NativeBattleWaterScriptScheduler.RunScriptPass(false, restored, (_, _) => 0, (current, _) => NativeBattleWaterStopCommand.StopRemoveAA5120(current));
         Assert.Equal(new byte[] { 0, 1 }, visits);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(restored));
         Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(frame.Core.Read(0x2797080, 2)));
         Assert.Equal(new byte[] { 0xFF, 0xFF, 0xFF, 0xAB }, frame.Core.Read(0x2797554, 4));
         Assert.Equal(new byte[4], frame.Core.Read(0x2797204, 4));

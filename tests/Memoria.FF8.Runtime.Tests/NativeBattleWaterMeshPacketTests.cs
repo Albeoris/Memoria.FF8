@@ -68,7 +68,7 @@ public sealed class NativeBattleWaterMeshPacketTests
         lengths[0x38] = 8;
         ImmutableArray<NativeBattleLogicalCommand> commands = written.Ordering.Traverse(lengths.ToImmutableArray());
         Assert.Equal(type == 9 ? new byte[] { command } : new byte[] { 0xE1, command }, commands.Select(item => item.Opcode));
-        Assert.Equal(result.Packets.Attempts[0].Data.ToArray(), JsonSerializer.Deserialize<NativeBattleGfGeometryBatch>(JsonSerializer.Serialize(result.Packets))!.Attempts[0].Data.ToArray());
+        Assert.Equal(result.Packets.Attempts[0].Data.ToArray(), NativeBattleTestSnapshots.RestoreJson<NativeBattleGfGeometryBatch>(NativeBattleTestSnapshots.Json(result.Packets))!.Attempts[0].Data.ToArray());
     }
 
     [Theory]
@@ -152,11 +152,11 @@ public sealed class NativeBattleWaterMeshPacketTests
     public void JSON_next_emission_preserves_current_inputs_and_unproved_types_or_selectors_fail()
     {
         NativeBattleWaterExecutionFrame frame = Frame();
-        NativeBattleWaterExecutionFrame cold = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         ImmutableArray<byte> records = Records([0, 10, 20], [100, 200, 300]);
         NativeBattleWaterMeshResult first = NativeBattleWaterMeshPackets.EmitSelected(frame, new(9, 1, Face(9)), records, [1, 2, 3], 0x2000, Resolve);
         NativeBattleWaterMeshResult next = NativeBattleWaterMeshPackets.EmitSelected(cold, new(9, 1, Face(9)), records, [1, 2, 3], 0x2000, Resolve);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(next));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(next));
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterMeshPackets.EmitSelected(frame, new(8, 0, []), records, [1, 2, 3], 0, Resolve));
         byte[] bad = Face(7).ToArray();
         BinaryPrimitives.WriteUInt16LittleEndian(bad.AsSpan(12), 1);
@@ -181,7 +181,7 @@ public sealed class NativeBattleWaterMeshPacketTests
         NativeBattleWaterExecutionFrame frame = UnknownFields(Frame(), 0x54);
         NativeBattleWaterMeshResult result = NativeBattleWaterMeshPackets.EmitSelected(frame, new(type, 1, Face(type)), Records([0, 10, 20, 30], [100, 100, 100, 100]), [1, 2, 3, 4], 0, Resolve);
         Assert.NotNull(Assert.Single(result.Packets.Attempts).Primitive);
-        Assert.False(result.Frame.TemporaryFrame.Known[0x54]);
+        Assert.False(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame).Known[0x54]);
     }
 
     [Theory]
@@ -200,12 +200,12 @@ public sealed class NativeBattleWaterMeshPacketTests
 
     private static NativeBattleWaterExecutionFrame UnknownFields(NativeBattleWaterExecutionFrame frame, params int[] offsets)
     {
-        bool[] known = frame.TemporaryFrame.Known.ToArray();
+        bool[] known = NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame).Known.ToArray();
         foreach (int offset in offsets)
         {
             Array.Fill(known, false, offset, 4);
         }
-        return frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutableArray() } };
+        return frame with { TemporaryFrame = frame.TemporaryFrame.SetKnownness(0, known) };
     }
 
     internal static NativeBattleWaterExecutionFrame Frame()

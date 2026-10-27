@@ -22,9 +22,7 @@ public static class NativeBattleCinematicScaledBasis
         int y = unchecked((short)SlotWord(current, 0x8E)) << 4;
         int z = unchecked((short)SlotWord(current, 0x90)) << 4;
         current = current.WriteTemporaryDword(0xD4, unchecked((uint)x)).WriteTemporaryDword(0xD8, unchecked((uint)y)).WriteTemporaryDword(0xDC, unchecked((uint)z)).WriteTemporary(0xE0, raw);
-        bool[] temporaryKnown = current.TemporaryFrame.Known.ToArray();
-        known.CopyTo(temporaryKnown, 0xE0);
-        current = current with { TemporaryFrame = current.TemporaryFrame with { Known = temporaryKnown.ToImmutableArray() } };
+        current.TemporaryFrame.SetKnownness(0xE0, known);
         NativeBattleActionMatrix scaled = NativeBattlePoseMatrices.Scale56BEF0(basis, x, y, z);
         for (int index = 0; index < 9; index++)
         {

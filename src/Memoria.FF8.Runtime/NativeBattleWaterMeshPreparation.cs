@@ -37,12 +37,8 @@ public static class NativeBattleWaterMeshPreparation
         registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(registers, 0, point, w));
         registers = registers with { Geometry = registers.Geometry with { Translation = registers.Colors.Mac } };
         NativeBattleWaterMeshPrepared prepared = PrepareWrapper(frame, bank, index, 2, globalFocal);
-        ImmutableArray<bool>.Builder retained = prepared.Frame.TemporaryFrame.Known.ToBuilder();
-        for (int offset = 18; offset < 32; offset++)
-        {
-            retained[0xE0 + offset] = known[offset];
-        }
-        frame = prepared.Frame with { TemporaryFrame = prepared.Frame.TemporaryFrame with { Known = retained.ToImmutable() } };
+        frame = prepared.Frame;
+        frame.TemporaryFrame.SetKnownness(0xE0 + 18, known.AsSpan(18, 14));
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, prepared.Matrix, true, false, padding) };
         return (prepared with { Frame = frame, Focal = globalFocal }, registers);
     }
@@ -99,12 +95,7 @@ public static class NativeBattleWaterMeshPreparation
             {
                 frame = frame.WriteTemporaryWord(0xE0 + lane * 2, unchecked((ushort)matrix.Rotation[lane]));
             }
-            ImmutableArray<bool>.Builder copiedKnown = frame.TemporaryFrame.Known.ToBuilder();
-            for (int offset = 18; offset < 32; offset++)
-            {
-                copiedKnown[0xE0 + offset] = sourceKnown[offset];
-            }
-            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = copiedKnown.ToImmutable() } };
+            frame.TemporaryFrame.SetKnownness(0xE0 + 18, sourceKnown.AsSpan(18, 14));
         }
         return new(frame, matrix, focal);
     }
@@ -120,12 +111,7 @@ public static class NativeBattleWaterMeshPreparation
         NativeBattleVector global = new(unchecked((short)CoreWord(frame, 0x27971E4)), unchecked((short)CoreWord(frame, 0x27971E6)), unchecked((short)CoreWord(frame, 0x27971E8)));
         NativeBattleFullMacVertex translated = NativeBattleGfMatrices.TransformMac460840(basis, global);
         frame = frame.WriteTemporary(0xE0, bytes);
-        ImmutableArray<bool>.Builder retainedKnown = frame.TemporaryFrame.Known.ToBuilder();
-        for (int offset = 0; offset < known.Length; offset++)
-        {
-            retainedKnown[0xE0 + offset] = known[offset];
-        }
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = retainedKnown.ToImmutable() } };
+        frame.TemporaryFrame.SetKnownness(0xE0, known);
         int sx = SignedWord(frame.Arena, slot + 0x8C) << 4;
         int sy = SignedWord(frame.Arena, slot + 0x8E) << 4;
         int sz = SignedWord(frame.Arena, slot + 0x90) << 4;
@@ -163,10 +149,7 @@ public static class NativeBattleWaterMeshPreparation
             frame = frame.WriteTemporaryWord(0xE0 + lane * 2, unchecked((ushort)matrix.Rotation[lane]));
         }
         // Composition copies its retained CPU stack padding WORD together with the nine rotation WORDs.
-        ImmutableArray<bool>.Builder known = frame.TemporaryFrame.Known.ToBuilder();
-        known[0xF2] = false;
-        known[0xF3] = false;
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutable() } };
+        frame.TemporaryFrame.MarkUnknown(0xF2, 2);
         frame = frame.WriteTemporaryDword(0x48, 0).WriteTemporaryDword(0x44, 0).WriteTemporaryDword(0x40, 0).WriteTemporaryDword(0x4C, Dword(frame.Arena, slot + 0xBC));
         return new(frame, matrix, globalFocal);
     }

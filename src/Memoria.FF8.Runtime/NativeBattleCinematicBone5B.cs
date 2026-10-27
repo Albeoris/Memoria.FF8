@@ -54,14 +54,7 @@ public static class NativeBattleCinematicBone5B
         if (!physical)
         {
             (byte[] seed, bool[] known) = frame.Core.ReadSnapshot(0x2797968, 20);
-            ImmutableArray<byte>.Builder bytes = frame.TemporaryFrame.Bytes.ToBuilder();
-            ImmutableArray<bool>.Builder mask = frame.TemporaryFrame.Known.ToBuilder();
-            for (int index = 0; index < 20; index++)
-            {
-                bytes[0x60 + index] = seed[index];
-                mask[0x60 + index] = known[index];
-            }
-            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Bytes = bytes.ToImmutable(), Known = mask.ToImmutable() } };
+            frame.TemporaryFrame.WriteWithKnownness(0x60, seed, known);
             NativeBattleActionMatrix seedMatrix = ReadCoreMatrix(0x2797968, false);
             int x = unchecked((short)SlotWord(frame, 0x94));
             int y = unchecked((short)SlotWord(frame, 0x96));
