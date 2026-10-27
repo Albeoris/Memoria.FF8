@@ -24,16 +24,36 @@ internal static class LocalizationProjectJson
                 {
                     RequireObject(row.Value, row.Name);
                     Dictionary<string, JsonElement> values = row.Value.EnumerateObject().ToDictionary(property => property.Name, property => property.Value, StringComparer.Ordinal);
-                    bool present = values.Remove(manifest.SourceColumn, out JsonElement source);
+                    JsonElement source = default;
+                    bool present = manifest.SchemaVersion == 1 && values.Remove(manifest.SourceColumn, out source);
                     values.Remove(manifest.TargetColumn, out JsonElement target);
                     Dictionary<string, string?> references = new(StringComparer.Ordinal);
                     Dictionary<string, bool> referencePresence = new(StringComparer.Ordinal);
+                    Dictionary<string, IReadOnlyList<string>> referenceKeys = new(StringComparer.Ordinal);
                     foreach (string label in manifest.ReferenceLanguages.Keys)
                     {
                         referencePresence[label] = values.Remove(label, out JsonElement reference);
                         if (referencePresence[label])
                         {
                             references[label] = Text(reference, row.Name, label);
+                        }
+                    }
+                    if (manifest.SchemaVersion >= 2)
+                    {
+                        foreach (string label in manifest.ReferenceLanguages.Keys)
+                        {
+                            string keyLabel = "ReferenceKey " + label["Reference ".Length..];
+                            if (!values.Remove(keyLabel, out JsonElement keys))
+                            {
+                                throw new InvalidDataException("Missing reference-key property: " + row.Name + "/" + keyLabel);
+                            }
+                            referenceKeys[label] = keys.ValueKind switch
+                            {
+                                JsonValueKind.Null => [],
+                                JsonValueKind.String => string.IsNullOrEmpty(keys.GetString()) ? [] : [keys.GetString()!],
+                                JsonValueKind.Array when keys.EnumerateArray().All(key => key.ValueKind == JsonValueKind.String) => keys.EnumerateArray().Select(key => key.GetString()!).ToArray(),
+                                _ => throw new InvalidDataException("Reference keys must be a key, an array of keys or null: " + row.Name)
+                            };
                         }
                     }
                     result.Add(new LocalizationRecord
@@ -46,6 +66,7 @@ internal static class LocalizationProjectJson
                         Target = Text(target, row.Name, manifest.TargetColumn),
                         References = references,
                         ReferencePresence = referencePresence,
+                        ReferenceKeys = referenceKeys,
                         ExtensionData = values.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal)
                     });
                 }
@@ -70,7 +91,7 @@ internal static class LocalizationProjectJson
                 files.Add(row.File, entries);
             }
             Dictionary<string, object?> values = new(StringComparer.Ordinal);
-            if (row.SourcePresent || !string.IsNullOrEmpty(row.Source))
+            if (manifest.SchemaVersion == 1 && (row.SourcePresent || !string.IsNullOrEmpty(row.Source)))
             {
                 values.Add(manifest.SourceColumn, row.Source);
             }
@@ -82,9 +103,20 @@ internal static class LocalizationProjectJson
                     values.Add(label, row.References.GetValueOrDefault(label));
                 }
             }
+            if (manifest.SchemaVersion >= 2)
+            {
+                foreach (string label in manifest.ReferenceLanguages.Keys)
+                {
+                    IReadOnlyList<string> keys = row.ReferenceKeys.GetValueOrDefault(label) ?? [];
+                    values.Add("ReferenceKey " + label["Reference ".Length..], keys.Count == 1 ? keys[0] : keys.Count == 0 ? null : keys);
+                }
+            }
             foreach ((string key, JsonElement value) in row.ExtensionData.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             {
-                values.Add(key, value);
+                if (manifest.SchemaVersion == 1 || key == "Field Name")
+                {
+                    values.Add(key, value);
+                }
             }
             entries.Add(row.Key, values);
         }

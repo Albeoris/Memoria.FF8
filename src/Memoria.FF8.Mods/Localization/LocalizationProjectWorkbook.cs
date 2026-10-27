@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -35,8 +35,9 @@ internal static class LocalizationProjectWorkbook
             {
                 throw new InvalidDataException($"Category {category.Key} requires an explicit Excel-safe worksheet mapping.");
             }
-            string[] extraColumns = category.SelectMany(row => row.ExtensionData).Where(pair => pair.Value.ValueKind == JsonValueKind.String).Select(pair => pair.Key).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
-            string[] headers = ["File", "Key", manifest.SourceColumn, manifest.TargetColumn, .. manifest.ReferenceLanguages.Keys, .. extraColumns];
+            bool referenceLayout = manifest.SchemaVersion >= 2;
+            string[] extraColumns = category.SelectMany(row => row.ExtensionData).Where(pair => pair.Value.ValueKind == JsonValueKind.String && (!referenceLayout || pair.Key == "Field Name")).Select(pair => pair.Key).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+            string[] headers = [.. RequiredHeaders(manifest), .. extraColumns];
             if (headers.Length > 16384 || category.Count() > 1048575)
             {
                 throw new InvalidDataException($"Category {category.Key} exceeds Excel's row or column limits.");
@@ -58,13 +59,22 @@ internal static class LocalizationProjectWorkbook
             uint rowIndex = 2;
             foreach (LocalizationRecord row in category)
             {
-                List<string?> values = [row.File, row.Key, row.Source, row.Target];
+                List<string?> values = [row.File, row.Key];
+                if (!referenceLayout)
+                {
+                    values.Add(row.Source);
+                }
+                values.Add(row.Target);
                 values.AddRange(manifest.ReferenceLanguages.Keys.Select(key => row.References.GetValueOrDefault(key)));
+                if (referenceLayout)
+                {
+                    values.AddRange(manifest.ReferenceLanguages.Keys.Select(key => FormatReferenceKeys(row.ReferenceKeys.GetValueOrDefault(key))));
+                }
                 values.AddRange(extraColumns.Select(key => row.ExtensionData.TryGetValue(key, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null));
                 Row output = new() { RowIndex = rowIndex };
                 for (int i = 0; i < values.Count; i++)
                 {
-                    output.Append(MakeCell(values[i] ?? "", ColumnName(i) + rowIndex, row.Key, i == 3 ? 1U : 0U));
+                    output.Append(MakeCell(values[i] ?? "", ColumnName(i) + rowIndex, row.Key, i == (referenceLayout ? 2 : 3) ? 1U : 0U));
                 }
                 data.Append(output);
                 rowIndex++;
@@ -132,7 +142,12 @@ internal static class LocalizationProjectWorkbook
                     throw new InvalidDataException($"Duplicate workbook column: {value}.");
                 }
             }
-            string[] required = ["File", "Key", manifest.SourceColumn, manifest.TargetColumn, .. manifest.ReferenceLanguages.Keys];
+            bool referenceLayout = manifest.SchemaVersion >= 2;
+            string[] required = RequiredHeaders(manifest);
+            if (referenceLayout && headers.Keys.Any(label => !required.Contains(label, StringComparer.Ordinal) && label != "Field Name"))
+            {
+                throw new InvalidDataException($"Worksheet {name} contains an unsupported translator column.");
+            }
             foreach (string label in required)
             {
                 if (!headers.ContainsKey(label))
@@ -192,11 +207,12 @@ internal static class LocalizationProjectWorkbook
                     Category = category,
                     File = file,
                     Key = key,
-                    Source = Value(manifest.SourceColumn),
-                    SourcePresent = !string.IsNullOrEmpty(Value(manifest.SourceColumn)),
+                    Source = referenceLayout ? null : Value(manifest.SourceColumn),
+                    SourcePresent = !referenceLayout && !string.IsNullOrEmpty(Value(manifest.SourceColumn)),
                     Target = Value(manifest.TargetColumn),
                     References = manifest.ReferenceLanguages.Keys.ToDictionary(label => label, label => (string?)Value(label)),
                     ReferencePresence = manifest.ReferenceLanguages.Keys.ToDictionary(label => label, label => !string.IsNullOrEmpty(Value(label))),
+                    ReferenceKeys = referenceLayout ? manifest.ReferenceLanguages.Keys.ToDictionary(label => label, label => ParseReferenceKeys(Value(ReferenceKeyColumn(label)))) : new Dictionary<string, IReadOnlyList<string>>(),
                     ExtensionData = extra
                 });
             }
@@ -206,6 +222,48 @@ internal static class LocalizationProjectWorkbook
             throw new InvalidDataException("A declared localization worksheet is missing.");
         }
         return result;
+    }
+
+    private static string[] RequiredHeaders(LocalizationManifest manifest)
+    {
+        return manifest.SchemaVersion >= 2
+            ? ["File", "Key", manifest.TargetColumn, .. manifest.ReferenceLanguages.Keys, .. manifest.ReferenceLanguages.Keys.Select(ReferenceKeyColumn)]
+            : ["File", "Key", manifest.SourceColumn, manifest.TargetColumn, .. manifest.ReferenceLanguages.Keys];
+    }
+
+    private static string ReferenceKeyColumn(string referenceColumn)
+    {
+        return referenceColumn.StartsWith("Reference [", StringComparison.Ordinal) ? "ReferenceKey" + referenceColumn["Reference".Length..] : "ReferenceKey [" + referenceColumn + "]";
+    }
+
+    private static string FormatReferenceKeys(IReadOnlyList<string>? keys)
+    {
+        return keys is null || keys.Count == 0 ? "" : keys.Count == 1 ? keys[0] : JsonSerializer.Serialize(keys);
+    }
+
+    private static IReadOnlyList<string> ParseReferenceKeys(string value)
+    {
+        if (value.Length == 0)
+        {
+            return [];
+        }
+        if (!value.StartsWith('['))
+        {
+            return [value];
+        }
+        try
+        {
+            string[] keys = JsonSerializer.Deserialize<string[]>(value) ?? throw new InvalidDataException("ReferenceKey arrays must contain strings.");
+            if (keys.Any(string.IsNullOrEmpty))
+            {
+                throw new InvalidDataException("ReferenceKey arrays must contain nonempty strings.");
+            }
+            return keys;
+        }
+        catch (JsonException error)
+        {
+            throw new InvalidDataException("ReferenceKey must be a key or a JSON string array of keys.", error);
+        }
     }
 
     private static Cell MakeCell(string value, string address, string key, uint style)

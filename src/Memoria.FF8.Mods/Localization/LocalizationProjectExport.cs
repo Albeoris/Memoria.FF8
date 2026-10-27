@@ -198,6 +198,7 @@ public static partial class LocalizationProjectExport
         {
             References = row.References.Where(pair => labels.Contains(pair.Key, StringComparer.Ordinal)).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
             ReferencePresence = row.ReferencePresence.Where(pair => labels.Contains(pair.Key, StringComparer.Ordinal)).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+            ReferenceKeys = row.ReferenceKeys.Where(pair => labels.Contains(pair.Key, StringComparer.Ordinal)).ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value.ToArray(), StringComparer.Ordinal),
             ExtensionData = row.ExtensionData.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal)
         };
     }

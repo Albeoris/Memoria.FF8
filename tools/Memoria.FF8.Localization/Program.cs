@@ -14,11 +14,12 @@ if (!audit && !refine && !renumber)
     Console.Error.WriteLine("Usage: Memoria.FF8.Localization audit --game-dir <Remastered installation> --output <new private report directory>");
     Console.Error.WriteLine("       Memoria.FF8.Localization refine --input <original audit directory> --output <new private report directory> [--compare <prior refined report directory>]");
     Console.Error.WriteLine("       Memoria.FF8.Localization renumber --input <reviewed mapping CSV> --output <new private report directory>");
-    Console.Error.WriteLine("       Memoria.FF8.Localization export --game-dir <installation> --source <language> --script-base <language> --target <identifier> --output <new package> [--format json|xlsx --layout single|split --references en,fr]");
+    Console.Error.WriteLine("       Memoria.FF8.Localization export --game-dir <installation> --script-base <language> --target <identifier> --output <new package> [--format json|xlsx --layout single|split --references jp,en,...]");
     Console.Error.WriteLine("       Memoria.FF8.Localization convert --input <package> --output <new package> --format json|xlsx --layout single|split");
     Console.Error.WriteLine("       Memoria.FF8.Localization patch --input <base package> --output <new package> --name <patch name> [--format json|xlsx --layout single|split]");
     Console.Error.WriteLine("       Memoria.FF8.Localization validate --input <package>");
     Console.Error.WriteLine("       Memoria.FF8.Localization languages --game-dir <installation>");
+    Console.Error.WriteLine("Export references are ordered reading columns; legacy --source <language> prepends a reference.");
     return 2;
 }
 

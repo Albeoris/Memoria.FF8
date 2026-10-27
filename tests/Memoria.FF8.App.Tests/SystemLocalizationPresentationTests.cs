@@ -31,21 +31,24 @@ public sealed class SystemLocalizationPresentationTests
     }
 
     [Fact]
-    public void NonEnglishSourceKeepsItsAbsenceAndExposesTheAuthoredEnglishOriginal()
+    public void NonEnglishBaseKeepsItsAbsenceAndUsesOrdinaryEnglishReference()
     {
         LocalizationSourceEntry native = new("Fields", "synthetic", "$fr_synthetic_0000", "French field sample", "fr", new Dictionary<string, string?>());
-        LocalizationProject project = LocalizationProjectBuilder.CreateProject(new("fr", "fr", "target", [], "Test package"), new Dictionary<string, LocalizationSourceCatalog> { ["fr"] = new([native], [], []) }, cancellation: TestContext.Current.CancellationToken, includeSystem: true);
-        LocalizationRecord system = Assert.Single(project.Entries, row => row.Key == SystemTextCatalog.Key("common.cancel"));
+        LocalizationProject project = LocalizationProjectBuilder.CreateProject(new("fr", "fr", "target", ["en"], "Test package"), new Dictionary<string, LocalizationSourceCatalog> { ["fr"] = new([native], [], []), ["en"] = new([], [], []) }, cancellation: TestContext.Current.CancellationToken, includeSystem: true);
+        LocalizationRecord system = Assert.Single(project.Entries, row => row.Key == "$fr_" + SystemTextCatalog.File + "_common.cancel");
         Assert.False(system.SourcePresent);
         Assert.Null(system.Source);
-        Assert.Equal("en", project.Manifest.ReferenceLanguages["Authored Original [en]"]);
-        Assert.Equal("Cancel", system.References["Authored Original [en]"]);
-        Assert.True(system.ReferencePresence["Authored Original [en]"]);
-        Assert.Equal("en", system.ExtensionData["Authored Original Language"].GetString());
+        Assert.Equal("en", project.Manifest.ReferenceLanguages["Reference [en]"]);
+        Assert.Equal("Cancel", system.References["Reference [en]"]);
+        Assert.True(system.ReferencePresence["Reference [en]"]);
+        Assert.Equal(new[] { SystemTextCatalog.Key("common.cancel") }, system.ReferenceKeys["Reference [en]"]);
+        Assert.False(system.ReferencePresence["Reference [fr]"]);
+        Assert.Null(system.References["Reference [fr]"]);
+        Assert.DoesNotContain(project.Entries, row => row.Category == "System" && row.Key.StartsWith("$en_", StringComparison.Ordinal));
         LocalizationRecord field = Assert.Single(project.Entries, row => row.Category == "Fields");
         Assert.Equal("French field sample", field.Source);
-        Assert.False(field.ReferencePresence["Authored Original [en]"]);
-        Assert.Null(field.References["Authored Original [en]"]);
+        Assert.False(field.ReferencePresence["Reference [en]"]);
+        Assert.Null(field.References["Reference [en]"]);
         LocalizationProjectIO.Validate(project);
         LocalizationProject english = LocalizationProjectBuilder.CreateProject(new("en", "en", "target", [], "Test package"), new Dictionary<string, LocalizationSourceCatalog> { ["en"] = new([], [], []) }, cancellation: TestContext.Current.CancellationToken, includeSystem: true);
         LocalizationRecord englishSystem = Assert.Single(english.Entries, row => row.Key == SystemTextCatalog.Key("common.cancel"));

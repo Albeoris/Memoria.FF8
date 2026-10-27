@@ -67,5 +67,6 @@ public sealed record LocalizationRecord
     public string? Target { get; init; }
     public IReadOnlyDictionary<string, string?> References { get; init; } = new Dictionary<string, string?>();
     public IReadOnlyDictionary<string, bool> ReferencePresence { get; init; } = new Dictionary<string, bool>();
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> ReferenceKeys { get; init; } = new Dictionary<string, IReadOnlyList<string>>();
     public IReadOnlyDictionary<string, JsonElement> ExtensionData { get; init; } = new Dictionary<string, JsonElement>();
 }

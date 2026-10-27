@@ -72,18 +72,16 @@ internal static class LocalizationCommands
             {
                 throw new ArgumentException("An independent translation needs a Target identifier distinct from built-in languages.");
             }
-            string sourceLanguage = Required("source");
             string scriptBase = Required("script-base");
-            string[] references = options.GetValueOrDefault("references", sourceLanguage == scriptBase ? "" : scriptBase).Split(',', StringSplitOptions.RemoveEmptyEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            LocalizationAuthoringRequest request = new(sourceLanguage, scriptBase, target, references, options.GetValueOrDefault("name", target));
+            string[] references = (options.TryGetValue("source", out string? legacyReference) ? new[] { legacyReference } : Array.Empty<string>()).Concat(options.GetValueOrDefault("references", scriptBase).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            LocalizationAuthoringRequest request = new(references.FirstOrDefault() ?? scriptBase, scriptBase, target, references, options.GetValueOrDefault("name", target));
             LocalizationProject created = LocalizationProjectBuilder.Prepare(Required("game-dir"), request, cancellation.Token, new Progress<string>(Console.WriteLine));
             LocalizationProjectIO.WriteNew(created, Required("output"), options.GetValueOrDefault("format", "json"), options.GetValueOrDefault("layout", "split"), cancellation.Token);
-            int missingSourceCells = created.Entries.Count(row => !row.SourcePresent);
             int resourceDiagnostics = created.Manifest.ExtensionData.TryGetValue("sourceGaps", out System.Text.Json.JsonElement sourceGaps) && sourceGaps.ValueKind == System.Text.Json.JsonValueKind.Array ? sourceGaps.GetArrayLength() : 0;
-            Console.WriteLine($"Created disabled localization: {created.Entries.Count} records, {created.Entries.Select(row => row.Category).Distinct().Count()} categories. Missing Source cells: {missingSourceCells}. Resource/coverage diagnostics: {resourceDiagnostics}. {Required("output")}");
+            Console.WriteLine($"Created disabled localization: {created.Entries.Count} records, {created.Entries.Select(row => row.Category).Distinct().Count()} categories. Resource/coverage diagnostics: {resourceDiagnostics}. {Required("output")}");
             if (resourceDiagnostics > 0)
             {
-                Console.WriteLine("Review sourceGaps in Localization/localization.manifest.json. Resource/coverage diagnostics include unsupported or unavailable resources and are not a count of missing Source cells.");
+                Console.WriteLine("Review sourceGaps in Localization/localization.manifest.json. Resource/coverage diagnostics include unsupported or unavailable resources and are not a count of missing translations.");
             }
             return 0;
         }

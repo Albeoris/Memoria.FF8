@@ -44,6 +44,12 @@ public static class LocalizationRuntime
                 throw new InvalidDataException($"{package.Name}: localization mapping version is not supported.");
             }
             string variant = source.Edition + ":" + source.Language;
+            string activeBase = source.Language.Equals("ja", StringComparison.OrdinalIgnoreCase) ? "jp" : source.Language;
+            string declaredBase = project.Manifest.FieldScriptBaseLanguage.Equals("ja", StringComparison.OrdinalIgnoreCase) ? "jp" : project.Manifest.FieldScriptBaseLanguage;
+            if (project.Manifest.SchemaVersion >= 2 && !declaredBase.Equals(activeBase, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException($"{package.Name}: localization base {declaredBase} does not match active resource language {activeBase}.");
+            }
             if (project.Manifest.CompatibleVariants.Count != 0 && !project.Manifest.CompatibleVariants.Contains(variant, StringComparer.OrdinalIgnoreCase) && !project.Manifest.CompatibleVariants.Contains(source.Language == "ja" ? "jp" : source.Language, StringComparer.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException($"{package.Name}: resource variant {variant} is not declared compatible.");

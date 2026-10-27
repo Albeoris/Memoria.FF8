@@ -47,7 +47,7 @@ public sealed class LocalizationProjectReadCache
 
     internal IReadOnlyList<LocalizationRecord> Read(byte[] bytes, LocalizationManifest manifest, LocalizationPayload payload)
     {
-        string contract = JsonSerializer.Serialize(new { manifest.Format, manifest.SourceColumn, manifest.TargetColumn, manifest.ReferenceLanguages, Payload = payload });
+        string contract = JsonSerializer.Serialize(new { manifest.SchemaVersion, manifest.Format, manifest.SourceColumn, manifest.TargetColumn, manifest.ReferenceLanguages, Payload = payload });
         string key = contract + "\n" + Convert.ToHexString(SHA256.HashData(bytes));
         lock (gate)
         {
@@ -65,6 +65,7 @@ public sealed class LocalizationProjectReadCache
         {
             References = row.References.ToImmutableDictionary(StringComparer.Ordinal),
             ReferencePresence = row.ReferencePresence.ToImmutableDictionary(StringComparer.Ordinal),
+            ReferenceKeys = row.ReferenceKeys.ToImmutableDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value.ToImmutableArray(), StringComparer.Ordinal),
             ExtensionData = row.ExtensionData.ToImmutableDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal)
         }).ToImmutableArray();
         long cost = checked((long)bytes.Length * 4 + rows.Length * 512L + key.Length * 2L + 512L);

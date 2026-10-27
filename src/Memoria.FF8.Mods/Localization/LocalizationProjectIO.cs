@@ -66,6 +66,10 @@ public static partial class LocalizationProjectIO
         }
         LocalizationManifest manifest = document.RootElement.Deserialize<LocalizationManifest>(JsonOptions) ?? throw new InvalidDataException("The localization manifest is empty.");
         ValidateManifest(manifest);
+        if (manifest.SchemaVersion >= 2 && manifest.ExtensionsPath is null)
+        {
+            throw new InvalidDataException("Reference-layout projects require their native binding metadata sidecar.");
+        }
         if (manifest.Payloads.Count == 0 || (manifest.Layout == "single" && manifest.Payloads.Count != 1))
         {
             throw new InvalidDataException("The manifest must declare its localization payloads; single layout requires exactly one payload.");
@@ -111,19 +115,23 @@ public static partial class LocalizationProjectIO
                     Dictionary<string, JsonElement> unknown = new(extension.Values, StringComparer.Ordinal);
                     foreach ((string key, JsonElement value) in row.ExtensionData)
                     {
-                        if (value.ValueKind != JsonValueKind.String || value.GetString() != "" || (!extension.Values.ContainsKey(key) && extension.PresentColumns.Contains(key, StringComparer.Ordinal)))
+                        if (manifest.SchemaVersion >= 2 || value.ValueKind != JsonValueKind.String || value.GetString() != "" || (!extension.Values.ContainsKey(key) && extension.PresentColumns.Contains(key, StringComparer.Ordinal)))
                         {
                             unknown[key] = value;
                         }
                     }
                     rows[i] = row with
                     {
-                        SourcePresent = !string.IsNullOrEmpty(row.Source) || extension.SourcePresent,
-                        Source = string.IsNullOrEmpty(row.Source) ? extension.Source : row.Source,
+                        SourcePresent = manifest.SchemaVersion >= 2 ? extension.SourcePresent : !string.IsNullOrEmpty(row.Source) || extension.SourcePresent,
+                        Source = manifest.SchemaVersion >= 2 ? extension.Source : string.IsNullOrEmpty(row.Source) ? extension.Source : row.Source,
                         References = manifest.ReferenceLanguages.Keys.ToDictionary(key => key, key => !string.IsNullOrEmpty(row.References.GetValueOrDefault(key)) ? row.References[key] : extension.References.GetValueOrDefault(key)),
                         ReferencePresence = manifest.ReferenceLanguages.Keys.ToDictionary(key => key, key => !string.IsNullOrEmpty(row.References.GetValueOrDefault(key)) || extension.ReferencePresence.GetValueOrDefault(key)),
                         ExtensionData = unknown
                     };
+                }
+                else if (manifest.SchemaVersion >= 2)
+                {
+                    throw new InvalidDataException("Missing native binding metadata for localization row: " + row.Key);
                 }
             }
             bool RemovedPayloadIdentity(string identity)
@@ -244,16 +252,16 @@ public static partial class LocalizationProjectIO
                 payloads.Add(payload);
             }
             string? extensionsPath = null;
-            if (format == "xlsx")
+            if (format == "xlsx" || manifest.SchemaVersion >= 2)
             {
                 extensionsPath = "Localization/localization.extensions.json";
                 Dictionary<string, LocalizationAuthoringExtension> extensions = project.Entries.ToDictionary(Identity, row => new LocalizationAuthoringExtension
                 {
                     SourcePresent = row.SourcePresent || !string.IsNullOrEmpty(row.Source),
-                    Source = string.IsNullOrEmpty(row.Source) ? row.Source : null,
+                    Source = manifest.SchemaVersion >= 2 || string.IsNullOrEmpty(row.Source) ? row.Source : null,
                     References = row.References.Where(pair => string.IsNullOrEmpty(pair.Value)).ToDictionary(pair => pair.Key, pair => pair.Value),
                     ReferencePresence = manifest.ReferenceLanguages.Keys.ToDictionary(key => key, key => row.ReferencePresence.TryGetValue(key, out bool present) ? present : row.References.ContainsKey(key)),
-                    Values = row.ExtensionData.Where(pair => pair.Value.ValueKind != JsonValueKind.String).ToDictionary(pair => pair.Key, pair => pair.Value),
+                    Values = row.ExtensionData.Where(pair => manifest.SchemaVersion >= 2 || pair.Value.ValueKind != JsonValueKind.String).ToDictionary(pair => pair.Key, pair => pair.Value),
                     PresentColumns = row.ExtensionData.Keys.ToArray()
                 });
                 System.IO.File.WriteAllBytes(Resolve(staging, extensionsPath), JsonBytes(extensions));
@@ -299,7 +307,7 @@ public static partial class LocalizationProjectIO
             string prefix = "$" + FieldLanguage(row.Key) + "_" + row.File + "_";
             string suffix = row.Key.StartsWith(prefix, StringComparison.Ordinal) ? row.Key[prefix.Length..] : "";
             string keyPattern = row.Category == "Fields" ? "^[0-9]{4,}(_ctx_[a-fA-F0-9]{8,64})?$" : "^[0-9]{4,}$";
-            bool authoredSystem = row.Category == "System" && row.File == SystemTextCatalog.File && SystemTextCatalog.Defaults.Keys.Any(id => SystemTextCatalog.Key(id) == row.Key);
+            bool authoredSystem = row.Category == "System" && row.File == SystemTextCatalog.File && SystemTextCatalog.Defaults.ContainsKey(suffix);
             if (!authoredSystem && (!Regex.IsMatch(suffix, keyPattern, RegexOptions.CultureInvariant) || !Regex.IsMatch(FieldLanguage(row.Key), "^[a-z][a-z0-9-]*$", RegexOptions.CultureInvariant)))
             {
                 throw new InvalidDataException($"Malformed canonical key {row.Key} for {row.File}.");
@@ -308,7 +316,11 @@ public static partial class LocalizationProjectIO
             {
                 throw new InvalidDataException($"Duplicate canonical key: {row.Key}.");
             }
-            string[] roles = ["File", "Key", project.Manifest.SourceColumn, project.Manifest.TargetColumn, .. project.Manifest.ReferenceLanguages.Keys];
+            if (project.Manifest.SchemaVersion >= 2 && !FieldLanguage(row.Key).Equals(project.Manifest.FieldScriptBaseLanguage.Equals("ja", StringComparison.OrdinalIgnoreCase) ? "jp" : project.Manifest.FieldScriptBaseLanguage, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("A localization row must belong to the selected base language: " + row.Key);
+            }
+            string[] roles = ["File", "Key", project.Manifest.SourceColumn, project.Manifest.TargetColumn, .. project.Manifest.ReferenceLanguages.Keys, .. (project.Manifest.SchemaVersion >= 2 ? project.Manifest.ReferenceLanguages.Keys.Select(label => "ReferenceKey " + label["Reference ".Length..]) : [])];
             if (row.ExtensionData.Keys.Any(key => roles.Contains(key, StringComparer.Ordinal)))
             {
                 throw new InvalidDataException($"Extension property conflicts with a role column: {row.Key}.");
@@ -316,6 +328,10 @@ public static partial class LocalizationProjectIO
             if (row.References.Keys.Any(key => !project.Manifest.ReferenceLanguages.ContainsKey(key)))
             {
                 throw new InvalidDataException($"Undeclared reference role: {row.Key}.");
+            }
+            if (row.ReferenceKeys is null || row.ReferenceKeys.Any(pair => !project.Manifest.ReferenceLanguages.ContainsKey(pair.Key) || pair.Value is null || pair.Value.Any(key => string.IsNullOrWhiteSpace(key) || !key.StartsWith('$') || key.Any(char.IsWhiteSpace) || key.Any(char.IsControl)) || pair.Value.Distinct(StringComparer.Ordinal).Count() != pair.Value.Count))
+            {
+                throw new InvalidDataException("Invalid reference key identities: " + row.Key);
             }
         }
     }
@@ -333,7 +349,7 @@ public static partial class LocalizationProjectIO
         {
             throw new InvalidDataException("Localization manifest collections and payload declarations cannot be null.");
         }
-        if (manifest.SchemaVersion != 1 || manifest.PayloadKind != "localization")
+        if (manifest.SchemaVersion is not (1 or 2) || manifest.PayloadKind != "localization")
         {
             throw new InvalidDataException("Unsupported localization manifest schema or payload kind.");
         }
@@ -352,6 +368,10 @@ public static partial class LocalizationProjectIO
         if (manifest.Format is not ("json" or "xlsx") || manifest.Layout is not ("single" or "split"))
         {
             throw new InvalidDataException("Localization format must be json/xlsx and layout single/split.");
+        }
+        if (manifest.SchemaVersion >= 2 && manifest.ReferenceLanguages.Keys.Any(label => !label.StartsWith("Reference [", StringComparison.Ordinal) || !label.EndsWith(']')))
+        {
+            throw new InvalidDataException("Reference columns must use Reference [dataset] labels.");
         }
     }
 

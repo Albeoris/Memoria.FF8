@@ -8,9 +8,9 @@ Memoria can create translation projects, convert them between JSON and XLSX, and
 
 Open **Mods → Create Mods → New localization**.
 
-1. Choose the main **Source**, the prose you want to translate from, and the **Field script base**, the native dialogue/choice topology you are authoring against. Selecting either does not switch the running game or its scripts.
+1. Choose the **Base game language**, which determines every exported row and key. An English base produces `$en_` keys even when Japanese is the first reference. This selection does not switch the running game or its scripts.
 2. Enter a **Target** identifier and a package name. Target is a nonempty label such as `ru (Literary edition)`, not a filename or a restricted language-code list. An independent translation needs an identifier distinct from built-in languages and existing translations.
-3. Select additional available reference datasets. When source and script base differ, the available script-base language is selected as an initial reference; you can change that selection.
+3. Choose available **References** in reading order. Japanese is initially first when available, followed by the base language. Use **Move earlier** and **Move later** to reorder columns. The base language remains selected. Reference order controls reading order only; it does not set runtime translation priority or add rows.
 4. Choose JSON or XLSX, then **All-in-one** or **Separate category/file payloads**. Changing the format keeps entered options.
 5. Choose a destination parent folder. The picker starts at the configured Memoria mod root and creates a proposed child package name. Check the complete child path in the preview; exports do not go directly into the shared mod root.
 6. Select **Prepare preview**. Review the exact destination, languages, categories, record count and source gaps. **Write package** creates the reviewed project. Extraction and writing have cancellation controls.
@@ -31,9 +31,9 @@ Patches use a separate project identity and declare their base relationship. Use
 
 ## Use existing translations as references
 
-The Source and References selectors also list loaded projects by their package name and Target label. An **own contribution** dataset contains only that project's translated Target values. Untranslated rows remain missing; native fallback is never presented as if it were a translation.
+The References selector also list loaded projects by their package name and Target label. An **own contribution** dataset contains only that project's translated Target values. Untranslated rows remain missing; native fallback is never presented as if it were a translation.
 
-**Effective active profile** reads the selected contributions in their committed stack order. It is a source snapshot for authoring another project. It does not activate a different stack or silently turn a mixed profile into a newly named independent translation. Loaded-project datasets can be prose references, but the script base still selects an installed native script language.
+**Effective active profile** reads the selected contributions in their committed stack order. It is a source snapshot for authoring another project. It does not activate a different stack or silently turn a mixed profile into a newly named independent translation. Loaded-project datasets can be prose references; the base game language selects the native row inventory.
 
 ## Convert and edit
 
@@ -54,4 +54,4 @@ Exports inventory all currently implemented resource families and report unavail
 - Dynamic field choices support explicit source-to-target line maps. Validation preserves option order, relative results and cancellation behavior. Incompatible contracts fail before publication. Cross-language correspondence does not imply that arbitrary scripts are compatible.
 - JSON/XLSX conversion and workbook schema checks have automated coverage. Acceptance in the actual Microsoft Excel application has not been run because Excel was unavailable in the validation environment.
 
-Missing source, an actually empty original string and an untranslated Target are different states. The preview and retained metadata expose gaps so they can be investigated without losing record identities. CLI export reports **Missing Source cells** separately from **Resource/coverage diagnostics**. The latter also includes unsupported or unavailable resources, may overlap individual row gaps, and is not a count of missing translations. Review the manifest's `sourceGaps` array for details.
+Workbooks show `File`, `Key`, `Target`, the ordered reference columns, then `ReferenceKeys`. Technical columns are hidden and retained for validation and conversion. An English base with references `jp,en` therefore shows `Target`, `Reference [jp]`, then `Reference [en]`, with no separate Source column. Reference-only rows are not exported. Missing references and empty original strings remain distinct in retained data; ambiguous or unavailable correspondence stays blank rather than being guessed. Review the manifest's `sourceGaps` diagnostics for unavailable resources and mapping limits.

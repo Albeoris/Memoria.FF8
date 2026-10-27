@@ -38,7 +38,7 @@ public sealed class LocalizationAuthoringTests
         menus.Execute(new("localization-language", "base"));
         Assert.Contains(menus.Entries, entry => entry.Id == "jp" && !entry.Enabled);
         menus.Execute(new("localization-select-language", "fr"));
-        Assert.Contains(menus.Entries, entry => entry.Id == "base" && entry.Label == "Field script base: fr");
+        Assert.Contains(menus.Entries, entry => entry.Id == "base" && entry.Label == "Base game language: fr");
         Assert.Contains(menus.Entries, entry => entry.Id == "references" && entry.Label.Contains("fr", StringComparison.Ordinal));
     }
 
@@ -86,7 +86,7 @@ public sealed class LocalizationAuthoringTests
     }
 
     [Fact]
-    public void UnionRetainsLanguageOnlyEntriesAndMissingSourcePresence()
+    public void BaseInventoryExcludesReferenceOnlyEntriesAndPreservesMissingReferences()
     {
         LocalizationAuthoringRequest request = new("en", "en", "Alternate", ["fr"], "Test translation");
         LocalizationSourceEntry english = new("Magic", "names_magic", "$names_magic_0000", "Fire", "en", new Dictionary<string, string?>());
@@ -97,17 +97,20 @@ public sealed class LocalizationAuthoringTests
             ["fr"] = new([french], [], [])
         };
         LocalizationProject project = LocalizationProjectBuilder.CreateProject(request, catalogs, TestContext.Current.CancellationToken);
-        Assert.Equal(2, project.Entries.Count);
-        LocalizationRecord missing = Assert.Single(project.Entries, row => row.Key == french.Key);
-        Assert.False(missing.SourcePresent);
-        Assert.Null(missing.Source);
-        Assert.Equal("Glacier", missing.References["Reference [fr]"]);
-        Assert.True(missing.ReferencePresence["Reference [fr]"]);
+        LocalizationRecord original = Assert.Single(project.Entries);
+        Assert.Equal(english.Key, original.Key);
+        Assert.True(original.SourcePresent);
+        Assert.Equal("Fire", original.Source);
+        Assert.Equal("Fire", original.References["Reference [en]"]);
+        Assert.Null(original.References["Reference [fr]"]);
+        Assert.False(original.ReferencePresence["Reference [fr]"]);
+        Assert.Empty(original.ReferenceKeys["Reference [fr]"]);
+        Assert.DoesNotContain(project.Entries, row => row.Key == french.Key);
         Assert.Equal("Alternate", project.Manifest.TargetLanguage);
     }
 
     [Fact]
-    public void AmbiguousCounterpartsRemainSeparateAndDoNotInventMainSource()
+    public void MultipleCounterpartsStayOnBaseRowWithTheirReferenceIdentities()
     {
         LocalizationAuthoringRequest request = new("it", "en", "Alternate", ["en"], "Test translation");
         LocalizationSourceEntry Row(string key, string text, string language) => new("Fields", "bcport1a", key, text, language, new Dictionary<string, string?>());
@@ -117,14 +120,16 @@ public sealed class LocalizationAuthoringTests
             ["it"] = new([Row("$it_bcport1a_0049", "First dialogue", "it"), Row("$it_bcport1a_0051", "Second dialogue", "it")], [], [])
         };
         LocalizationProject project = LocalizationProjectBuilder.CreateProject(request, catalogs, TestContext.Current.CancellationToken);
-        Assert.Equal(3, project.Entries.Count);
-        LocalizationRecord english = Assert.Single(project.Entries, row => row.Key == "$en_bcport1a_0050");
-        Assert.False(english.SourcePresent);
-        Assert.Null(english.Source);
+        LocalizationRecord english = Assert.Single(project.Entries);
+        Assert.Equal("$en_bcport1a_0050", english.Key);
+        Assert.True(english.SourcePresent);
+        Assert.Equal("English dialogue", english.Source);
+        Assert.Equal("English dialogue", english.References["Reference [en]"]);
+        Assert.Equal("First dialogue{Line}Second dialogue", english.References["Reference [it]"]);
+        Assert.Equal(new[] { "$it_bcport1a_0049", "$it_bcport1a_0051" }, english.ReferenceKeys["Reference [it]"]);
         Assert.Equal(2, english.ExtensionData["equivalentKeys"].GetProperty("it").GetArrayLength());
         Assert.Equal(2, english.ExtensionData["equivalentContexts"].GetProperty("it").GetArrayLength());
-        Assert.Equal("First dialogue", Assert.Single(project.Entries, row => row.Key == "$it_bcport1a_0049").Source);
-        Assert.Equal("Second dialogue", Assert.Single(project.Entries, row => row.Key == "$it_bcport1a_0051").Source);
+        Assert.DoesNotContain(project.Entries, row => row.Key.StartsWith("$it_", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -172,13 +177,24 @@ public sealed class LocalizationAuthoringTests
         LocalizationSourceCatalog source = LocalizationProjectBuilder.ProjectDataset(contribution, dataset, cancellation: TestContext.Current.CancellationToken);
         Assert.Equal("Translated dialogue", Assert.Single(source.Entries, row => row.Key == "$en_bcport1a_0050").Text);
         Assert.Equal("false", Assert.Single(source.Entries, row => row.Key == "$en_bcport1a_0000").Metadata["Source Present"]);
-        LocalizationProject result = LocalizationProjectBuilder.CreateProject(new(dataset, "en", "New independent translation", [], "Test project"), new Dictionary<string, LocalizationSourceCatalog> { [dataset] = source, ["en"] = new([], [], []) }, TestContext.Current.CancellationToken);
-        Assert.Equal(dataset, result.Manifest.SourceLanguage);
-        Assert.Equal("Translated dialogue", Assert.Single(result.Entries, row => row.Key == "$en_bcport1a_0050").Source);
+        LocalizationSourceCatalog native = new([
+            new("Fields", "bcport1a", "$en_bcport1a_0050", "Native source is not translated content", "en", new Dictionary<string, string?>()),
+            new("Fields", "bcport1a", "$en_bcport1a_0000", "Untranslated native source", "en", new Dictionary<string, string?>())
+        ], [], []);
+        LocalizationProject result = LocalizationProjectBuilder.CreateProject(new(dataset, "en", "New independent translation", [], "Test project"), new Dictionary<string, LocalizationSourceCatalog> { [dataset] = source, ["en"] = native }, TestContext.Current.CancellationToken);
+        Assert.Equal("en", result.Manifest.SourceLanguage);
+        string label = "Reference [" + dataset + "]";
+        Assert.Equal(dataset, result.Manifest.ReferenceLanguages[label]);
+        LocalizationRecord translated = Assert.Single(result.Entries, row => row.Key == "$en_bcport1a_0050");
+        Assert.Equal("Native source is not translated content", translated.Source);
+        Assert.Equal("Translated dialogue", translated.References[label]);
+        Assert.True(translated.ReferencePresence[label]);
         LocalizationRecord missing = Assert.Single(result.Entries, row => row.Key == "$en_bcport1a_0000");
-        Assert.Null(missing.Source);
-        Assert.False(missing.SourcePresent);
-        Assert.Equal(contribution.Manifest.ProjectId, missing.ExtensionData["Dataset Project Id"].GetString());
+        Assert.Equal("Untranslated native source", missing.Source);
+        Assert.True(missing.SourcePresent);
+        Assert.Null(missing.References[label]);
+        Assert.False(missing.ReferencePresence[label]);
+        Assert.Equal(new[] { "$en_bcport1a_0000" }, missing.ReferenceKeys[label]);
     }
 
     [Fact]

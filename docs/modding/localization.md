@@ -19,7 +19,7 @@ Split layout groups payloads by **category/file**, without recreating archive ne
 
 JSON/XLSX documents and technical sidecars have a 1.5 GiB file ceiling; XLSX also limits total decompressed ZIP data to 1.5 GiB. Individual PNG files retain a separate 128 MiB ceiling. Split layout also allows unchanged payloads to be reused during live reload.
 
-The manifest records schema/project identity, optional base-project relationship, source and Target roles, script base, references, mapping version, compatible resource variants and payload layout. Paths are relative to the package. Localization files belong under `Localization/`; they are separate from native scene patches under `fields/`.
+The manifest records schema/project identity, optional base-project relationship, base game language and Target, ordered references, mapping version, compatible resource variants and payload layout. Paths are relative to the package. Localization files belong under `Localization/`; they are separate from native scene patches under `fields/`.
 
 XLSX exports also contain `Localization/localization.extensions.json`. This sidecar retains structured technical context, typed metadata and missing-versus-empty states that cannot be represented by an ordinary blank cell. Keep it with the workbook. Known technical JSON such as call contexts, context bindings and place-ID arrays uses structured metadata; it is not squeezed into oversized Excel text cells.
 
@@ -29,32 +29,32 @@ XLSX exports also contain `Localization/localization.extensions.json`. This side
 | --- | --- |
 | `File` | Stable globally unique logical filename stem. Keep it unchanged. |
 | `Key` | Stable source identity. Keep it unchanged when sorting, translating or changing format. |
-| `Source [dataset]` | Main prose reference, including a loaded project's contribution when selected. Missing source remains missing. |
 | `Target` | Your translated text. A missing, null or empty value contributes no override. |
-| `Reference [dataset]` | Additional selected prose references; labels and dataset IDs are declared by the manifest. |
+| `Reference [dataset]` | Ordered prose references, including the base language. Labels and dataset IDs are declared by the manifest. Missing or ambiguous correspondence stays blank. |
+| `ReferenceKeys` | Mapped native identities for the reference columns. Keep this correspondence information unchanged. |
 | `Field Name` | Human-readable field context when established; it can be blank with an explicit status. It does not determine identity. |
 | Other metadata | Retain field names/statuses, source/script fingerprints, call bindings, correspondence alternatives and unknown translator metadata. |
 
-JSON groups records as `category → File → Key → role/metadata properties`. XLSX uses explicit role headers, frozen identity columns, wrapped text and filters. Edit text as literal strings; formulas in role cells or headers are rejected. A translator string longer than Excel's cell limit must be edited in JSON or deliberately shortened. It is not silently moved into a technical sidecar. Save and close an editor before conversion or validation so the input is a consistent file snapshot.
+JSON groups records as `category → File → Key → role/metadata properties`. XLSX shows `File`, `Key`, `Target`, the ordered reference columns, then `ReferenceKeys`, with frozen identity columns, wrapped text and filters. Technical columns are hidden and retained for conversion and validation; keep them and the sidecar intact. There is no separate Source prose column. Edit text as literal strings; formulas in role cells or headers are rejected. A translator string longer than Excel's cell limit must be edited in JSON or deliberately shortened. It is not silently moved into a technical sidecar. Save and close an editor before conversion or validation so the input is a consistent file snapshot.
 
-Source and references do not become runtime Target overrides. If a selected project has no translated Target for a row, its source/reference dataset has a gap rather than a copy of native text. Project datasets have stable `project:<project-id>` identities distinct from their arbitrary Target labels. The effective profile dataset uses the explicit selected stack; own-contribution export and effective-profile export are different operations.
+References do not become runtime Target overrides. If a selected project has no translated Target for a row, its source/reference dataset has a gap rather than a copy of native text. Project datasets have stable `project:<project-id>` identities distinct from their arbitrary Target labels. The effective profile dataset uses the explicit selected stack; own-contribution export and effective-profile export are different operations.
 
 ## Stable keys
 
-Field keys use the actual source language and that language's original zero-based MSD table ordinal:
+The base game language supplies the complete row inventory and every key. Field keys use that language's original zero-based MSD table ordinal:
 
 ```text
 File: bgroom_6
 Key:  $en_bgroom_6_0000
 ```
 
-The ordinal is padded to at least four digits. It is not an English anchor, a byte offset, a source-code line, or a row number after sorting. Japanese source keys use `jp`. Each language keeps its own original slots, including empty slots and same-language aliases. Approved correspondence is separate metadata; identical wording does not merge keys. Ambiguous counterparts remain separate and do not supply a guessed Source value.
+The ordinal is padded to at least four digits. It is not a byte offset, a source-code line, or a row number after sorting. With base `en`, every exported key retains `$en_`, even with references `jp,en`; rows found only in Japanese are excluded. Each base keeps its original slots, including empty slots and same-language aliases. Proven field correspondence supplies reference text and mapped identities in `ReferenceKeys`; identical wording does not establish correspondence. Other categories use only their implemented identity/mapping contracts. Ambiguous or unsupported counterparts do not supply guessed text.
 
 Where a source slot has distinct proven call contexts, a context-specific key adds `_ctx_<stable-hash>`. Preserve that key and its bindings. It is not a second ordinal to renumber by hand.
 
 Other original resources use their registered table/entity identities, such as a kernel collection, role and row index. Engine-owned System strings use registered semantic IDs, for example `$en_interface_system_main.junction`. Unknown identities and contradictory/case-colliding filenames are diagnosed. Do not manufacture new original-game rows or use translated names as keys.
 
-System messages can be templates containing numbered arguments such as `{0}` and `{1}`. Preserve these arguments while translating the surrounding prose; their values include current player names, quantities and paths. When the chosen Source dataset has no authored System translation, **Authored Original [en]** retains the English template explicitly. This reference does not claim an existing translation in the selected Source language.
+System messages can be templates containing numbered arguments such as `{0}` and `{1}`. Preserve these arguments while translating the surrounding prose; their values include current player names, quantities and paths. The English base reference retains the authored English template. Selecting another reference does not claim an authored translation exists for it.
 
 ## Field controls and choices
 
@@ -68,7 +68,7 @@ Keep the original script fingerprint and call bindings. A key reused by incompat
 
 ## Structured Information and artwork
 
-Information bodies preserve `{Info Gate XX}`, `{Info Number XX}` and `{Info Link XXXX}` tokens. Translate prose around them while retaining the original control stream and its structure. Activation checks the translation against installed native controls, rather than trusting edited Source cells.
+Information bodies preserve `{Info Gate XX}`, `{Info Number XX}` and `{Info Link XXXX}` tokens. Translate prose around them while retaining the original control stream and its structure. Activation checks the translation against installed native controls, rather than trusting edited reference cells.
 
 The manifest's `artwork` declarations bind native image identities, source hashes and canvas sizes to files under `Localization/Artwork/`. Each declaration has a required Source PNG and an optional Target PNG path. Create the Target file at that declared path to override an image; an absent Target retains the lower-priority image or installed original. Use the original canvas or a uniform integer enlargement. Do not edit native identity, hash or geometry metadata to force compatibility. PNG overrides participate in stack priority and live publication; malformed updates retain the last valid presentation.
 
@@ -81,7 +81,7 @@ Run these source-build examples from the product root containing `Build.ps1`. Se
 ```powershell
 dotnet run --project tools/Memoria.FF8.Localization -c Release -- languages --game-dir "$env:MEMORIA_FF8_GAME_DIR"
 
-dotnet run --project tools/Memoria.FF8.Localization -c Release -- export --game-dir "$env:MEMORIA_FF8_GAME_DIR" --source en --script-base en --target "en (Alternate translation)" --name "Alternate translation" --format json --layout split --output "$env:MEMORIA_FF8_LOCALIZATION_OUTPUT"
+dotnet run --project tools/Memoria.FF8.Localization -c Release -- export --game-dir "$env:MEMORIA_FF8_GAME_DIR" --script-base en --references jp,en --target "en (Alternate translation)" --name "Alternate translation" --format json --layout split --output "$env:MEMORIA_FF8_LOCALIZATION_OUTPUT"
 
 dotnet run --project tools/Memoria.FF8.Localization -c Release -- validate --input "$env:MEMORIA_FF8_LOCALIZATION_INPUT"
 
@@ -90,8 +90,8 @@ dotnet run --project tools/Memoria.FF8.Localization -c Release -- convert --inpu
 dotnet run --project tools/Memoria.FF8.Localization -c Release -- patch --input "$env:MEMORIA_FF8_LOCALIZATION_INPUT" --output "$env:MEMORIA_FF8_LOCALIZATION_OUTPUT" --name "Translation corrections"
 ```
 
-Formats are `json` and `xlsx`; layouts are `single` and `split`. Export also accepts comma-separated `--references en,fr`. Probe actual availability first: requesting a dataset does not install it. Validate and convert are offline operations. Ctrl+C cancels export/conversion, and completed new packages remain disabled. Existing output directories are rejected.
+Formats are `json` and `xlsx`; layouts are `single` and `split`. Export accepts ordered comma-separated `--references jp,en,fr`; `--script-base` selects the base game language. The legacy `--source jp` option remains accepted and prepends `jp` to the references. Older projects with a Source column are read with that dataset as the first reference; conversion preserves their row and project identities. Probe actual availability first: requesting a dataset does not install it. Validate and convert are offline operations. Ctrl+C cancels export/conversion, and completed new packages remain disabled. Existing output directories are rejected.
 
-The export summary distinguishes **Missing Source cells**, counted from retained records with no available main source, from **Resource/coverage diagnostics**, counted from the manifest's `sourceGaps` array across selected datasets. Resource diagnostics can describe an unsupported section, an unavailable bank or a failed string decoder; they are not a second missing-cell total. Inspect their category/resource/reason entries even when every retained Source cell is present.
+The export summary reports **Resource/coverage diagnostics** from the manifest's `sourceGaps` array across selected datasets. These can describe unsupported sections, unavailable banks, failed decoders or missing correspondence; they are not a missing-translation count. Review their category/resource/reason entries when a reference is blank.
 
 Validation checks package/schema, identities, role columns, workbook structure and retained data. Activation additionally checks current mapping/resource/script compatibility and field presentation bindings. Successful conversion does not prove that an unsupported display consumer or gameplay language has become playable. See [current coverage](../players/localization.md#coverage-and-current-limits) and [the field audit command](../developers/localization-audit.md) for the separate evidence workflow.
