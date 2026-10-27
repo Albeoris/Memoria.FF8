@@ -156,6 +156,30 @@ public sealed class NativeRagnarokSceneTests
         Assert.Equal((short)-341, defaults.OffsetY);
     }
 
+    [Fact]
+    public void AlternateViewManualYawAndSaveReceiptRestoreTheSameNextFlightCallback()
+    {
+        GameSession session = Fixture();
+        using WorldMapScene scene = new(session, GameDirectory);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 2)).Accepted);
+        Assert.Equal((byte)1, scene.State.NativeRagnarokRuntime!.AnimationVariant);
+        Assert.Equal((byte)1, session.State.SavedWorld!.RagnarokReturn!.AnimationVariant108);
+        ushort yaw = scene.State.NativeRagnarokRuntime.Motor.CameraYaw;
+        Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 8, CameraHorizontal: -1, Frames: 4)).Accepted);
+        Assert.NotEqual(yaw, scene.State.NativeRagnarokRuntime.Motor.CameraYaw);
+        Assert.Equal(32, scene.State.NativeRagnarokRuntime.ManualCameraVelocity);
+        Assert.Equal(32, session.WorldProcess!.VehicleManualCameraVelocity);
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene replay = new(restored, GameDirectory);
+        PlayerAction next = new(PlayerActionKind.WorldButtons, 0x80, CameraHorizontal: -1);
+        Assert.True(scene.Apply(next).Accepted);
+        Assert.True(replay.Apply(next).Accepted);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
+        Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 2)).Accepted);
+        Assert.Equal((byte)0, scene.State.NativeRagnarokRuntime.AnimationVariant);
+    }
+
     private static GameSession Fixture()
     {
         GameSession session = GameSession.CreateColdProcess();

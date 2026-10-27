@@ -208,6 +208,18 @@ public sealed partial record NativeSavedWorldState
         return this with { GardenPose3 = receipt.Pose3, GardenReturn = receipt, FootReturn = null, CarReturn = null, ScriptedReturn = null, RagnarokReturn = null };
     }
 
+    public NativeSavedWorldState WithCarParking(NativeWorldParkedCar parked)
+    {
+        Validate();
+        parked.Validate();
+        if (Slot4.ShapeId != parked.Car.ShapeId)
+        {
+            throw new InvalidDataException("Parked car differs from its selected physical saved slot.");
+        }
+        NativeSavedWorldPose pose = new(parked.Position.X, unchecked(-parked.Position.Z), checked((short)parked.Position.Y), checked((ushort)parked.BodyYaw));
+        return this with { Slot4 = new(Slot4.ShapeId, pose), CarReturn = null };
+    }
+
     public NativeSavedWorldState WithGardenParking(NativeGardenWorldRuntimeState garden)
     {
         Validate();
@@ -229,7 +241,7 @@ public sealed partial record NativeSavedWorldState
         {
             throw new InvalidDataException("The native car save requires its active selected vehicle slot.");
         }
-        return this with { Slot4 = new NativeSavedWorldVehicleSlot(255, receipt.Pose), FootReturn = null, CarReturn = receipt, ScriptedReturn = null, GardenReturn = null, RagnarokReturn = null };
+        return this with { Slot4 = new NativeSavedWorldVehicleSlot(receipt.RetireSelectedVehicle ? (byte)255 : Slot4.ShapeId, receipt.Pose), FootReturn = null, CarReturn = receipt, ScriptedReturn = null, GardenReturn = null, RagnarokReturn = null };
     }
 
     public NativeSavedWorldState WithScriptedReturn(NativeSavedWorldScriptedReturn receipt)
@@ -286,7 +298,7 @@ public sealed partial record NativeSavedWorldState
         {
             throw new InvalidDataException("Native scripted return disagrees with its retained saved vehicle slots.");
         }
-        if (CarReturn is not null && (FootReturn is not null || Slot4.ShapeId != 255 || Slot4.Pose != CarReturn.Pose))
+        if (CarReturn is not null && (FootReturn is not null || Slot4.ShapeId != (CarReturn.RetireSelectedVehicle ? (byte)255 : NativeCarWorldRuntimeState.ShapeForEntity(CarReturn.EntityType105)) || Slot4.Pose != CarReturn.Pose))
         {
             throw new InvalidDataException("Native car return disagrees with its retired vehicle slot.");
         }

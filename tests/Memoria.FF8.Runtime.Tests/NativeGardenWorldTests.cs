@@ -41,10 +41,12 @@ public sealed class NativeGardenWorldTests
         Assert.Equal(2048, NativeGardenMotor.Delta(2048, 0));
     }
 
-    [Fact]
-    public void ExactRuntimeRestorePreservesDistinctGardenObjectsParkingAndNextMotor()
+    [Theory]
+    [InlineData((byte)0)]
+    [InlineData((byte)1)]
+    public void ExactRuntimeRestorePreservesDistinctGardenObjectsParkingAndNextMotor(byte variant)
     {
-        NativeGardenWorldRuntimeState original = Fixture();
+        NativeGardenWorldRuntimeState original = Fixture() with { AnimationVariant = variant, ManualCameraVelocity = -37 };
         Assert.Equal((-1, -1), (original.PrimaryContact, original.BroadContact));
         NativeWorldPathPosition parked = new(20480, 200, 4600);
         NativeGardenWorldRuntimeState foot = original.PublishBody(new NativeWorldPathPosition(21180, -34, 4600), 0, 0, 0, gardenControlled: false);
@@ -64,10 +66,12 @@ public sealed class NativeGardenWorldTests
         Assert.Throws<NotSupportedException>(() => (restored with { BroadContact = restored.Objects.Length }).Validate());
     }
 
-    [Fact]
-    public void NativeGardenFieldReturnOwnsPose3WithoutRetiringCarSlotsOrAliasingFootPose()
+    [Theory]
+    [InlineData((byte)0)]
+    [InlineData((byte)1)]
+    public void NativeGardenFieldReturnOwnsPose3WithoutRetiringCarSlotsOrAliasingFootPose(byte variant)
     {
-        NativeGardenWorldRuntimeState garden = Fixture();
+        NativeGardenWorldRuntimeState garden = Fixture() with { AnimationVariant = variant };
         WorldState world = new() { Frame = 31, X = 22000, Z = -3000, NativeHeight = -120, BodyYaw = 128, CameraYaw = 96, NativeGardenRuntime = garden };
         NativeSavedWorldGardenReturn receipt = NativeSavedWorldGardenReturn.Create(world, 107, 750, 3);
         NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame().WithGardenReturn(receipt);
@@ -77,6 +81,7 @@ public sealed class NativeGardenWorldTests
         Assert.Equal((byte)0, saved.Slot5.ShapeId);
         Assert.Equal((ushort)96, saved.GardenReturn!.CameraYaw96);
         Assert.Null(saved.FootReturn);
+        Assert.Equal(variant, saved.GardenReturn.AnimationVariant108);
         Assert.Throws<NotSupportedException>(() => NativeSavedWorldGardenReturn.Create(world with { NativeFootRuntime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(NativeSavedWorldState.CreateNewGame()) }, 107, 750, 3));
     }
 

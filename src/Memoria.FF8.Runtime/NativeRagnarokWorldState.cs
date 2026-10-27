@@ -77,6 +77,8 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
 /// <summary>Component checkpoint only; does not stand in for full world ground/contact/transfer persistence.</summary>
 public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] NativeRagnarokWorldAllocation Allocation, [property: JsonRequired] ImmutableArray<NativeRagnarokWorldObject> Objects, [property: JsonRequired] NativeRagnarokMotorState Motor)
 {
+    public byte AnimationVariant { get; init; }
+    public int ManualCameraVelocity { get; init; }
     [JsonRequired]
     public byte MapDisplayMode { get; init; } = Allocation.MapDisplayMode;
 
@@ -114,7 +116,7 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
     public void RequireSceneState()
     {
         Validate();
-        if (GroundCache is null || ProjectionCamera is null || CurrentGroundHeight is null || PrimaryContact is null || BroadContact is null)
+        if (ManualCameraVelocity is < -128 or > 128 || AnimationVariant > 1 || GroundCache is null || ProjectionCamera is null || CurrentGroundHeight is null || PrimaryContact is null || BroadContact is null)
         {
             throw new NotSupportedException("Ragnarok scene requires its actual ground/cache, pre-terrain projection camera and native current ground height.");
         }

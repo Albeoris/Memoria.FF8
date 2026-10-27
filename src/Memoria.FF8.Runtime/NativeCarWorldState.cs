@@ -14,6 +14,10 @@ public sealed record NativeCarWorldRuntimeState
     public required byte EntityType { get; init; }
     [JsonRequired]
     public required byte ShapeId { get; init; }
+    public byte AnimationVariant { get; init; }
+    public int ManualCameraVelocity { get; init; }
+    public NativeFootCameraTransition? CameraTransition { get; init; }
+    public bool? PriorTerrainOcclusion { get; init; }
     [JsonRequired]
     public required int Speed { get; init; }
     [JsonRequired]
@@ -34,6 +38,9 @@ public sealed record NativeCarWorldRuntimeState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldFootCameraState? ProjectionCamera { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldForestState? Forest { get; init; }
+
     // Older snapshots retain unknown contacts until the next physical callback.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? PrimaryContact { get; init; }
@@ -46,7 +53,7 @@ public sealed record NativeCarWorldRuntimeState
         cache.Validate();
         process.Validate();
         byte shape = ShapeForEntity(entityType);
-        var result = new NativeCarWorldRuntimeState { Version = 4, Rule = LoadRule, EntityType = entityType, ShapeId = shape, Speed = 0, CameraFollowSpeed = process.CarCameraFollowSpeed, TerrainTiltBlend = 0, ModelTilt = 0, MapDisplayMode = saved.ReadMapDisplayModeForFreshFootLoader(), GroundCache = cache, GroundYaw = 0, MovementMagnitude20409F4 = 0, Allocation = allocation, ProjectionCamera = projectionCamera };
+        var result = new NativeCarWorldRuntimeState { Version = 4, Rule = LoadRule, EntityType = entityType, ShapeId = shape, Speed = 0, CameraFollowSpeed = process.CarCameraFollowSpeed, TerrainTiltBlend = 0, ModelTilt = 0, MapDisplayMode = saved.ReadMapDisplayModeForFreshFootLoader(), ManualCameraVelocity = process.VehicleManualCameraVelocity, GroundCache = cache, GroundYaw = 0, MovementMagnitude20409F4 = 0, Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown), Allocation = allocation, ProjectionCamera = projectionCamera };
         result.Validate();
         return result;
     }
@@ -64,12 +71,18 @@ public sealed record NativeCarWorldRuntimeState
 
     public void Validate()
     {
-        if (Version != 4 || Rule != LoadRule || EntityType is not (32 or 33 or 35) || ShapeId != ShapeForEntity(EntityType) || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || TerrainTiltBlend is < 0 or > 64 || ModelTilt is < -128 or > 192 || MapDisplayMode > 3 || GroundCache is null || GroundYaw is null or < -1120 or > 1120 || MovementMagnitude20409F4 is null or < 0 or > 64)
+        if (ManualCameraVelocity is < -128 or > 128 || AnimationVariant > 1 || Version != 4 || Rule != LoadRule || EntityType is not (32 or 33 or 35) || ShapeId != ShapeForEntity(EntityType) || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || TerrainTiltBlend is < 0 or > 64 || ModelTilt is < -128 or > 192 || MapDisplayMode > 3 || GroundCache is null || GroundYaw is null or < -1120 or > 1120 || MovementMagnitude20409F4 is null or < 0 or > 64)
         {
             throw new InvalidDataException("Unsupported native ordinary car runtime state.");
         }
+        CameraTransition?.Validate();
+        if (CameraTransition is not null && (Forest is null || PriorTerrainOcclusion is null))
+        {
+            throw new InvalidDataException("Native car camera transition requires retained pitch and terrain occlusion owners.");
+        }
         GroundCache.Validate();
-        if (EntityType is 32 or 35 && (Allocation is null || ProjectionCamera is null) || EntityType == 33 && (Allocation is not null || ProjectionCamera is not null))
+        Forest?.Validate();
+        if (EntityType is 32 or 35 && (Allocation is null || ProjectionCamera is null) || EntityType == 33 && (Allocation is not null || ProjectionCamera is not null && CameraTransition is null))
         {
             throw new InvalidDataException("Native car object allocation differs from its executed loader contract.");
         }
@@ -85,6 +98,8 @@ public sealed record NativeCarWorldRuntimeState
 /// <summary>Executed549E80(mode1) car save and vehicle shape retirement; historical foot bytes are not reused.</summary>
 public sealed record NativeSavedWorldCarReturn
 {
+    public bool RetireSelectedVehicle { get; init; } = true;
+
     public const string SaveRule = "ff8-en-car-field-return-549e80-mode1-v2";
     [JsonRequired]
     public required int Version { get; init; }
@@ -120,14 +135,14 @@ public sealed record NativeSavedWorldCarReturn
         {
             throw new NotSupportedException("A car save requires executed native car runtime provenance.");
         }
-        var result = new NativeSavedWorldCarReturn { Version = 2, Rule = SaveRule, SourceWorldFrame = world.Frame, LastFieldId = lastField, StoryWord = story, Pose = new NativeSavedWorldPose(world.X, world.Z, checked((short)world.NativeHeight), checked((ushort)world.BodyYaw)), CameraYaw96 = checked((ushort)world.CameraYaw), EntityType105 = world.NativeCarRuntime.EntityType, Channel106 = 255, Channel107 = 255, AnimationVariant108 = 0, MapDisplayMode110 = world.NativeCarRuntime.MapDisplayMode == 3 ? (byte)0 : world.NativeCarRuntime.MapDisplayMode, MapLocationId = location };
+        var result = new NativeSavedWorldCarReturn { Version = 2, Rule = SaveRule, SourceWorldFrame = world.Frame, LastFieldId = lastField, StoryWord = story, Pose = new NativeSavedWorldPose(world.X, world.Z, checked((short)world.NativeHeight), checked((ushort)world.BodyYaw)), CameraYaw96 = checked((ushort)world.CameraYaw), EntityType105 = world.NativeCarRuntime.EntityType, Channel106 = 255, Channel107 = 255, AnimationVariant108 = world.NativeCarRuntime.AnimationVariant, MapDisplayMode110 = world.NativeCarRuntime.MapDisplayMode == 3 ? (byte)0 : world.NativeCarRuntime.MapDisplayMode, MapLocationId = location };
         result.Validate();
         return result;
     }
 
     public void Validate()
     {
-        if (Version != 2 || Rule != SaveRule || SourceWorldFrame < 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 is not (32 or 33 or 35) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 != 0 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
+        if (Version != 2 || Rule != SaveRule || SourceWorldFrame < 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 is not (32 or 33 or 35) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 > 1 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
         {
             throw new InvalidDataException("Invalid native car-to-field save receipt.");
         }

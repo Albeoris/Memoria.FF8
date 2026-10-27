@@ -17,12 +17,15 @@ public sealed record NativeFootCameraTransition([property: JsonRequired] int Fla
 
     public NativeFootWorldRuntimeState Step(NativeFootWorldRuntimeState foot, bool collision)
     {
+        var result = StepWords(foot.AnimationVariant == 1, foot.Forest!.CameraPitch, foot.CameraOffsetY, foot.CameraOffsetZ, collision, foot.AnimationVariant == 0);
+        return foot with { CameraTransition = result.Transition, CameraOffsetY = result.OffsetY, CameraOffsetZ = result.OffsetZ, Forest = foot.Forest with { CameraPitch = result.Pitch } };
+    }
+
+    public (NativeFootCameraTransition Transition, short Pitch, short OffsetY, short OffsetZ) StepWords(bool alternateFoot, short pitch, short offsetY, short offsetZ, bool collision, bool collisionRearmsPitch)
+    {
         Validate();
         int flags = Flags;
         int focal = ProjectionDistance;
-        short pitch = foot.Forest!.CameraPitch;
-        short offsetY = foot.CameraOffsetY;
-        short offsetZ = foot.CameraOffsetZ;
         int Advance(int value, int target, int speed, int flag)
         {
             if ((flags & flag) == 0)
@@ -36,19 +39,19 @@ public sealed record NativeFootCameraTransition([property: JsonRequired] int Fla
             }
             return value + Math.Sign(target - value) * speed;
         }
-        focal = Advance(focal, foot.AnimationVariant == 0 ? 1024 : 640, 8, 1);
+        focal = Advance(focal, alternateFoot ? 640 : 1024, 8, 1);
         // Foot already has the normal curvature and movement owners; bits2/4
         // complete the same-frame native bookkeeping without replacing them.
         flags &= ~6;
         bool changingPitch = (flags & 16) != 0;
-        pitch = checked((short)Advance(pitch, foot.AnimationVariant == 0 ? -112 : -512, 16, 16));
-        if (changingPitch && foot.AnimationVariant == 0 && collision)
+        pitch = checked((short)Advance(pitch, alternateFoot ? -512 : -112, 16, 16));
+        if (changingPitch && collisionRearmsPitch && collision)
         {
             //558D70 XORs this bit even if the preceding signed clamp cleared it.
             flags ^= 16;
         }
         offsetZ = checked((short)Advance(offsetZ, -7168, 512, 32));
         offsetY = checked((short)Advance(offsetY, -341, 512, 128));
-        return foot with { CameraTransition = new NativeFootCameraTransition(flags, focal), CameraOffsetY = offsetY, CameraOffsetZ = offsetZ, Forest = foot.Forest with { CameraPitch = pitch } };
+        return (new NativeFootCameraTransition(flags, focal), pitch, offsetY, offsetZ);
     }
 }

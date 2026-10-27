@@ -15,7 +15,7 @@ On-screen hints follow the last device you use. A keyboard press shows keyboard 
 | Action | Keyboard | Controller |
 | --- | --- | --- |
 | Move / menu direction | Arrow keys | D-pad or left stick |
-| Confirm / talk | X | South button (Xbox A / PlayStation Cross) |
+| Confirm / talk / board or leave vehicle | X | South button (Xbox A / PlayStation Cross) |
 | Cancel / walk modifier | C | East button (Xbox B / PlayStation Circle) |
 | Menu | V | North button (Xbox Y / PlayStation Triangle) |
 | Card / detail | S | West button (Xbox X / PlayStation Square) |
@@ -25,6 +25,8 @@ On-screen hints follow the last device you use. A keyboard press shows keyboard 
 | Camera mode / escape battle (right) | F | Right trigger |
 | Rotate left / previous character | H | Left shoulder |
 | Rotate right / next character | G | Right shoulder |
+
+Press **Confirm** to leave a car where the terrain permits, or to board it again while standing nearby. In a car, Garden or Ragnarok, **Camera mode** switches between automatic following and manual camera rotation. Use **Rotate left/right** or the right stick horizontally to rotate in manual mode. A stationary vehicle can look the same immediately after switching; rotate or steer to see the difference. Scripted train and boat travel keeps its authored camera controls.
 
 The right stick supplies camera input in supported world contexts. In a car or while driving Garden, Card / detail accelerates and Cancel / walk reverses; left/right or the left stick steers. Up/down, including remapped direction keys such as W/S, also drives forward/backward. The separate throttle buttons take priority over these directional alternatives. The right stick's vertical axis also controls forward/reverse. These actions follow your current bindings, including the buttons shown by the driving tutorial. Tilt the left stick gently to walk on foot; the default run threshold is 50%. Input availability still depends on the current scene and script: a binding does not guarantee that an action is valid everywhere.
 

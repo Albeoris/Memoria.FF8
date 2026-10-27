@@ -113,7 +113,7 @@ public sealed class CarGameplayInputTests
         Assert.Equal(0, action.Value);
         Assert.Equal(leftX, horizontal, 5);
         Assert.Equal(-rightY, vertical, 5);
-        Assert.Equal(0, action.CameraHorizontal);
+        Assert.Equal(rightX, action.CameraHorizontal);
     }
 
     [Theory]

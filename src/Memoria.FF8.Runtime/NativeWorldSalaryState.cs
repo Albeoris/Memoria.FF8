@@ -211,11 +211,16 @@ public sealed partial record NativeWorldSalaryState
         return FuelMessageMovementCallbacks <= 0 ? this with { EventUi = EventUi?.Close(1) } : rawMagnitude != 0 ? this with { FuelMessageMovementCallbacks = FuelMessageMovementCallbacks - 1 } : this;
     }
 
+    public NativeWorldSalaryState WithCarTransferCooldown(WorldState world, int? footCooldown)
+    {
+        return this with { CarCameraCooldown = world.NativeCarRuntime is null ? null : footCooldown ?? CarCameraCooldown ?? Departure.WorldProcess!.CameraCooldown, EventUi = world.NativeCarRuntime is null ? EventUi?.Close(1) : EventUi };
+    }
+
     public NativeWorldSalaryState AdvanceCarCameraCooldown(bool throttle, bool steering)
     {
         int cooldown = CarCameraCooldown ?? throw new NotSupportedException("Native car camera update requires its retained shared process cooldown.");
-        //557A90's no-collision car pitch stays at the executed loader baseline.
-        //Actual throttle BYTE11 and steering BYTE13 still change this DWORD.
+        //The camera owner applies pitch/collision changes before these held-byte
+        //modifiers. Actual throttle BYTE11 and steering BYTE13 change this DWORD.
         return this with { CarCameraCooldown = unchecked(cooldown - (throttle ? 2 : 0) - (steering ? 10 : 0)) };
     }
 }

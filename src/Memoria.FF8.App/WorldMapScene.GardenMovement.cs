@@ -9,10 +9,7 @@ internal sealed partial class WorldMapScene
     {
         NativeGardenWorldRuntimeState garden = before.NativeGardenRuntime!;
         garden.Validate();
-        if (cameraHorizontal != 0)
-        {
-            throw new NotSupportedException("Ordinary Garden variant0 has no native manual camera input.");
-        }
+        bool cameraEnabled = !mapOnly && before.EventUi?.ScriptMode is null or 0 or 13;
         bool lowering = garden.Transfer is { Counter: < 31 };
         if (lowering || NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0) > 0)
         {
@@ -21,14 +18,22 @@ internal sealed partial class WorldMapScene
         }
         sbyte steering = checked((sbyte)ReadSignedMovementComponent(-horizontal));
         sbyte throttle = checked((sbyte)ReadSignedMovementComponent(-vertical));
-        NativeGardenMotorResult motor = NativeGardenMotor.Step(before.BodyYaw, before.CameraYaw, garden.Speed, garden.GroundYaw, garden.CameraFollowSpeed, steering, throttle);
-        if (lowering || mapOnly)
+        NativeGardenMotorResult motor = NativeGardenMotor.Step(before.BodyYaw, before.CameraYaw, garden.Speed, garden.GroundYaw, garden.CameraFollowSpeed, steering, throttle, garden.AnimationVariant);
+        int cameraVelocity = garden.ManualCameraVelocity;
+        if (garden.AnimationVariant == 1 && !lowering && cameraEnabled)
+        {
+            (int yaw, int velocity) = NativeVehicleCamera.Step(before.CameraYaw, cameraVelocity, NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0) > 0 ? 0 : cameraHorizontal);
+            cameraVelocity = velocity;
+            motor = motor with { CameraYaw = yaw, CameraFollowSpeed = garden.CameraFollowSpeed };
+        }
+        if (lowering || !cameraEnabled)
         {
             //557A90's nonzero script-mode branch skips vehicle auto-follow.
             motor = motor with { CameraYaw = before.CameraYaw, CameraFollowSpeed = garden.CameraFollowSpeed };
         }
         (int moveX, int graphicsZ) = NativeGardenTransform.Offset(checked((short)motor.Speed), checked((short)motor.MotionYaw));
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsZ);
+        garden = garden with { ManualCameraVelocity = cameraVelocity };
         int targetX = (before.X + NearWrapped(before.CameraTargetX, before.X, 262144)) >> 1;
         int targetZ = (before.Z + NearWrapped(before.CameraTargetZ, before.Z, 196608)) >> 1;
         int targetHeight = (3 * before.CameraTargetNativeHeight + before.NativeHeight - 256) >> 2;
@@ -61,10 +66,6 @@ internal sealed partial class WorldMapScene
         }
         NativeGardenTransferAdmission admission = garden.Buttons.Evaluate(garden.TransferControls.PrepareInput(buttons, 48, before.Frame + 1, garden.Transfer, memory));
         consumeGardenRequest = admission.ConsumeScriptRequest;
-        if (admission.ToggleView)
-        {
-            throw new NotSupportedException("Garden view toggle requires its native variant1 camera transition.");
-        }
         garden = garden with { Buttons = garden.Buttons.Observe(buttons) };
         cameraState = cameraState with { NativeGardenRuntime = garden };
         if (admission.Action)

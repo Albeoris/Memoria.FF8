@@ -273,6 +273,11 @@ public sealed partial class WorldTerrainRenderer
         {
             NativeWorldForestParticle particle = visual.Particle;
             NativeWorldForestEffect effect = assets.ForestTables.GetEffect(particle.Type);
+            if (effect.DrawMode == 1)
+            {
+                DrawForestTile(visual, effect, position);
+                continue;
+            }
             int frame = Math.Clamp(particle.Age / effect.FrameDuration, 0, effect.Frames - 1);
             PixelImage texture = assets.GetForestTexture(particle.Type, frame);
             float halfSize = particle.Scale * effect.HalfSize >> 13;

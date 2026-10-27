@@ -169,9 +169,9 @@ public sealed partial class WorldAssets
         {
             pose = savedRagnarokPose2 ?? throw new NotSupportedException("Ragnarok entry62 requires genuine pose2/+24; no car or Garden saved pose substitutes.");
             cameraYaw = savedCameraYaw96 ?? throw new NotSupportedException("Ragnarok entry62 requires the actual saved camera WORD96.");
-            if (savedVariant108 != 0)
+            if (savedVariant108 is null or > 1)
             {
-                throw new NotSupportedException("Ragnarok entry62 requires the actual saved variant108 and its supported ordinary variant0 camera/motor.");
+                throw new NotSupportedException("Ragnarok entry62 requires the actual saved variant108 and its supported ordinary camera/motor.");
             }
         }
         else

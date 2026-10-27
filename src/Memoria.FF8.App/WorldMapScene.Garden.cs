@@ -38,7 +38,8 @@ internal sealed partial class WorldMapScene
                 CameraTargetNativeHeight = pose.Height - 256,
                 GroundType = ground.Ground.Triangle.GroundType,
                 ReplacementMask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, inputs.StoryByte),
-                NativeGardenRuntime = garden
+                NativeGardenRuntime = garden,
+                EventUi = NativeWorldEventUi.Create()
             };
             session.SetWorldState(initial);
             if (auxiliaryEntry is not null)
@@ -112,7 +113,7 @@ internal sealed partial class WorldMapScene
             NativeWorldPathAngles angles = WorldStaticModelTransform.AllocationAngles(item.ShapeId, item.RotationX, item.RotationY, item.RotationZ);
             models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(projection.CanonicalModelAnchor(draw), angles)) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
         }
-        WorldCamera camera = WorldCamera.Foot(state.CameraYaw, 2048) with
+        WorldCamera camera = state.NativeFootRuntime is not null ? FootCamera(state) : WorldCamera.Foot(state.CameraYaw, 2048) with
         {
             TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ),
             NativePitch = garden.CameraPitch,
@@ -122,6 +123,6 @@ internal sealed partial class WorldMapScene
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         bool footVisible = state.NativeFootRuntime is not null && state.GroundType is null or > 5;
-        return new WorldRenderFrame(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, footVisible, state.NativeFootRuntime is null ? null : assets.GetFootModel(state.NativeFootRuntime.EntityType), models, garden.Forest);
+        return new WorldRenderFrame(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, footVisible, state.NativeFootRuntime is null ? null : assets.GetFootModel(state.NativeFootRuntime.EntityType), models, state.NativeFootRuntime?.Forest ?? garden.Forest);
     }
 }

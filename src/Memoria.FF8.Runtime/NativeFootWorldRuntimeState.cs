@@ -38,6 +38,10 @@ public sealed record NativeWorldGardenDismountReceipt([property: JsonRequired] i
 public sealed partial record NativeFootWorldRuntimeState
 {
     public const int CurrentProofVersion = 1;
+    public const string CarDismountRule = "ff8-en-car-foot-54a7f0-54b460-v1";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldParkedCar? ParkedCar { get; init; }
+
     public const string FirstLoadRule = "ff8-en-first-foot-542b90-548080-save110-v1";
     public const string SavedReloadRule = "ff8-en-foot-entry62-548080-54a0d0-v1";
     public const string BattleReloadRule = "ff8-en-foot-mode2-548080-54a0d0-v1";
@@ -235,15 +239,24 @@ public sealed partial record NativeFootWorldRuntimeState
 
     public void Validate()
     {
+        ParkedCar?.Validate();
+        if ((Rule == CarDismountRule) != (ParkedCar is not null))
+        {
+            throw new InvalidDataException("Car foot state requires its actual parked vehicle receipt.");
+        }
         Forest?.Validate();
         GroundCache?.Validate();
         StationTrains?.Validate();
         NormalObjects?.Validate();
         CameraTransition?.Validate();
         StationTrainEntrySavedWorld?.Validate();
+        if (Rule == CarDismountRule && (GroundCache is null || GroundYaw is null || Forest is null || CameraTransition is null || ReloadSourceWorldFrame is not null || NormalObjects is not null || StationTrains is not null || GardenDismount is not null || RagnarokDismount is not null || EntityType != (ParkedCar!.Car.Allocation is { } carAllocation ? carAllocation.Objects[carAllocation.ControlledObjectIndex].EntityType : 1)))
+        {
+            throw new InvalidDataException("Native car dismount lost its retained ground, process or selected foot allocation.");
+        }
         if (Rule == RagnarokDismountRule)
         {
-            if (RagnarokDismount is null || GardenDismount is not null || StationTrains is not null || TrainDismount is not null || StationTrainProcess is not null || NormalObjects is not null || ReloadSourceWorldFrame is not null || EntityType != 0 || AnimationVariant != 0 || CameraOffsetY != RagnarokDismount.ProjectionCamera.OffsetY || CameraOffsetZ != RagnarokDismount.Camera.OffsetZ || GroundCache is null || GroundYaw is null || Forest is null)
+            if (RagnarokDismount is null || GardenDismount is not null || StationTrains is not null || TrainDismount is not null || StationTrainProcess is not null || NormalObjects is not null || ReloadSourceWorldFrame is not null || EntityType != 0 || AnimationVariant > 1 || CameraOffsetY != RagnarokDismount.ProjectionCamera.OffsetY || CameraOffsetZ != RagnarokDismount.Camera.OffsetZ || GroundCache is null || GroundYaw is null || Forest is null)
             {
                 throw new InvalidDataException("Ragnarok foot handoff lost its completed landing or retained ground, forest and camera owners.");
             }
@@ -255,7 +268,7 @@ public sealed partial record NativeFootWorldRuntimeState
         }
         else if (Rule == GardenDismountRule)
         {
-            if (GardenDismount is null || GardenDismount.ProjectionCamera is null || StationTrains is not null || TrainDismount is not null || StationTrainProcess is not null || NormalObjects is not null || ReloadSourceWorldFrame is not null || EntityType != 0 || AnimationVariant != 0 || CameraOffsetY != GardenDismount.ProjectionCamera.OffsetY || CameraOffsetZ != GardenDismount.ProjectionCamera.OffsetZ || GroundCache is null || GroundYaw is null || Forest is null)
+            if (GardenDismount is null || GardenDismount.ProjectionCamera is null || StationTrains is not null || TrainDismount is not null || StationTrainProcess is not null || NormalObjects is not null || ReloadSourceWorldFrame is not null || EntityType != 0 || AnimationVariant > 1 || CameraOffsetY != GardenDismount.ProjectionCamera.OffsetY || CameraOffsetZ != GardenDismount.ProjectionCamera.OffsetZ || GroundCache is null || GroundYaw is null || Forest is null)
             {
                 throw new InvalidDataException("Native Garden foot handoff lost its completed transfer or retained ground/forest/camera owners.");
             }
@@ -290,7 +303,7 @@ public sealed partial record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Native foot retained input/yaw exceeds its physical word contract.");
         }
-        if (MovementMagnitude20409F4 is < 0 || ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule) || EntityType > 2 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 && CameraTransition is null || ReloadSourceWorldFrame is not null) || Rule is SavedReloadRule or BattleReloadRule && (ReloadSourceWorldFrame is null or < 0))
+        if (MovementMagnitude20409F4 is < 0 || ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule or CarDismountRule) || EntityType > 2 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 && CameraTransition is null || ReloadSourceWorldFrame is not null) || Rule is SavedReloadRule or BattleReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
         }

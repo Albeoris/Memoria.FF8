@@ -11,6 +11,25 @@ public sealed class NativeRagnarokFootTests
     private static string GameDirectory => TestResources.GameDirectory;
 
     [Fact]
+    public void LandedFootAlternateViewTransitionsAndRestoresBesideTheActualParkedShip()
+    {
+        GameSession session = Fixture();
+        using WorldMapScene scene = new(session, GameDirectory);
+        Land(scene);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, WorldButtons: 2)).Accepted);
+        Assert.Equal((byte)1, scene.State.NativeFootRuntime!.AnimationVariant);
+        Assert.True(scene.State.NativeFootRuntime.CameraTransition!.ProjectionDistance < 1024);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, CameraHorizontal: 1, Frames: 4)).Accepted);
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene replay = new(restored, GameDirectory);
+        PlayerAction next = new(PlayerActionKind.Wait, CameraHorizontal: -1);
+        Assert.True(scene.Apply(next).Accepted);
+        Assert.True(replay.Apply(next).Accepted);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
+    }
+
+    [Fact]
     public void OriginalLandingHandsOffToCurrentFootControllerAndRestoresIndependently()
     {
         GameSession session = Fixture();

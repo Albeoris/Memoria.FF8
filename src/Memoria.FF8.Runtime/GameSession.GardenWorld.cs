@@ -10,6 +10,7 @@ public sealed partial class GameSession
 
     private static NativeSavedWorldState PrepareGardenParkingForFootReturn(NativeSavedWorldState saved, WorldState finalWorld)
     {
+        saved = finalWorld.NativeFootRuntime?.ParkedCar is { } car ? saved.WithCarParking(car) : saved;
         saved = finalWorld.NativeGardenRuntime is NativeGardenWorldRuntimeState garden ? saved.WithGardenParking(garden) : saved;
         return finalWorld.NativeRagnarokRuntime is NativeRagnarokWorldRuntimeState ragnarok ? saved.WithRagnarokParking(ragnarok) : saved;
     }

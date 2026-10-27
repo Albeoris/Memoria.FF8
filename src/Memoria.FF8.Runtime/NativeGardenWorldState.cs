@@ -48,7 +48,7 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
             }
         }
         static bool Hash(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
-        if (Version != 1 || Rule != AllocationRule || !Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || ClauseIndex < 0 || MinimumStory >= MaximumStory || Story < MinimumStory || Story >= MaximumStory || ClauseWords.IsDefaultOrEmpty || Objects.IsDefaultOrEmpty || Objects.Length > 64 || Objects.Any(item => item is null) || Packet is null || ControlledEntityType is not (0 or 48) || ControlledEntityType == 48 && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || GardenPose is null || GardenPose.X is < -131072 or >= 131072 || GardenPose.RawZ is < -98304 or >= 98304 || GardenPose.Yaw >= 4096 || CameraYaw >= 4096 || AnimationVariant != 0 || MapDisplayMode > 3)
+        if (Version != 1 || Rule != AllocationRule || !Hash(ProgramHash) || !Hash(CoordinateHash) || !Hash(ClauseHash) || ClauseIndex < 0 || MinimumStory >= MaximumStory || Story < MinimumStory || Story >= MaximumStory || ClauseWords.IsDefaultOrEmpty || Objects.IsDefaultOrEmpty || Objects.Length > 64 || Objects.Any(item => item is null) || Packet is null || ControlledEntityType is not (0 or 48) || ControlledEntityType == 48 && unchecked((sbyte)Packet.Extra) != -1 || LoadPose is null || LoadPose.X is < -131072 or >= 131072 || LoadPose.RawZ is < -98304 or >= 98304 || LoadPose.Yaw >= 4096 || GardenPose is null || GardenPose.X is < -131072 or >= 131072 || GardenPose.RawZ is < -98304 or >= 98304 || GardenPose.Yaw >= 4096 || CameraYaw >= 4096 || AnimationVariant > 1 || MapDisplayMode > 3)
         {
             throw new InvalidDataException("Native Garden allocation lacks its original clause, exact loader packet or current pose authority.");
         }
@@ -110,6 +110,7 @@ public sealed record NativeGardenWorldRuntimeState
     public required short CameraPitch { get; init; }
     [JsonRequired]
     public required byte AnimationVariant { get; init; }
+    public int ManualCameraVelocity { get; init; }
     [JsonRequired]
     public required byte MapDisplayMode { get; init; }
     [JsonRequired]
@@ -164,6 +165,7 @@ public sealed record NativeGardenWorldRuntimeState
             CameraFollowSpeed = process.CarCameraFollowSpeed,
             CameraPitch = cameraDefaults.Pitch,
             AnimationVariant = allocation.AnimationVariant,
+            ManualCameraVelocity = process.VehicleManualCameraVelocity,
             MapDisplayMode = allocation.MapDisplayMode,
             Allocation = allocation,
             Objects = allocation.Objects,
@@ -187,7 +189,7 @@ public sealed record NativeGardenWorldRuntimeState
 
     public void Validate(NativeWorldProcess? process = null)
     {
-        if (Version != 1 || Rule != RuntimeRule || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || CameraPitch is < -512 or > 0 || AnimationVariant != 0 || MapDisplayMode > 3 || Allocation is null || Objects.IsDefault || Objects.Length != Allocation.Objects.Length || Objects.Where((item, index) => item is null || item.ShapeId != Allocation.Objects[index].ShapeId || item.Flags != Allocation.Objects[index].Flags || item.Position.X is < -131072 or >= 131072 || item.Position.Z is < -98304 or >= 98304).Any() || CameraDefaults is null || GroundCache is null || Buttons is null || TransferControls is null || Forest is null || Forest.CameraPitch != CameraPitch || CurrentGroundHeight is null || MovementMagnitude20409F4 is < 0 or > 128)
+        if (ManualCameraVelocity is < -128 or > 128 || Version != 1 || Rule != RuntimeRule || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || CameraPitch is < -512 or > 0 || AnimationVariant > 1 || MapDisplayMode > 3 || Allocation is null || Objects.IsDefault || Objects.Length != Allocation.Objects.Length || Objects.Where((item, index) => item is null || item.ShapeId != Allocation.Objects[index].ShapeId || item.Flags != Allocation.Objects[index].Flags || item.Position.X is < -131072 or >= 131072 || item.Position.Z is < -98304 or >= 98304).Any() || CameraDefaults is null || GroundCache is null || Buttons is null || TransferControls is null || Forest is null || Forest.CameraPitch != CameraPitch || CurrentGroundHeight is null || MovementMagnitude20409F4 is < 0 or > 128)
         {
             throw new InvalidDataException("Native Garden runtime lost its current motor, allocation, camera or ground-query owner.");
         }
@@ -207,7 +209,7 @@ public sealed record NativeGardenWorldRuntimeState
         Buttons.Validate();
         TransferControls.Validate();
         Forest.Validate();
-        if (process is not null && (CameraFollowSpeed != process.CarCameraFollowSpeed || Forest.CameraCooldown != process.CameraCooldown))
+        if (process is not null && (CameraFollowSpeed != process.CarCameraFollowSpeed || ManualCameraVelocity != process.VehicleManualCameraVelocity || Forest.CameraCooldown != process.CameraCooldown))
         {
             throw new InvalidDataException("Garden retained camera words differ from their actual shared process owner.");
         }

@@ -21,9 +21,9 @@ public sealed partial class WorldAssets
         {
             NativeSavedWorldFootReturn receipt = battleReload ?? saved.FootReturn ?? throw new NotSupportedException("Parked Ragnarok entry62 requires the actual independent foot return.");
             receipt.RequireCompleteFootReload();
-            if (receipt.EntityType105 != 0 || receipt.AnimationVariant108 != 0)
+            if (receipt.EntityType105 != 0 || receipt.AnimationVariant108 is null or > 1)
             {
-                throw new NotSupportedException("Parked Ragnarok saved reload requires the exact normal-foot variant0 owner.");
+                throw new NotSupportedException("Parked Ragnarok saved reload requires the actual supported normal-foot camera variant.");
             }
             foot = receipt.Pose0;
             cameraYaw = receipt.CameraYaw96;

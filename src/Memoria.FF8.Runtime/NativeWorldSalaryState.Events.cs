@@ -3,12 +3,36 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeWorldSalaryState
 {
     private NativeSavedWorldFootReturn? CameraToggleReturn { get; init; }
+    private NativeWorldParkedCar? CameraToggleParkedCar { get; init; }
+    private NativeSavedWorldCarReturn? CameraToggleCarReturn { get; init; }
+    private NativeSavedWorldGardenReturn? CameraToggleGardenReturn { get; init; }
+    private NativeSavedWorldRagnarokReturn? CameraToggleRagnarokReturn { get; init; }
 
     public NativeWorldSalaryState WithFootCameraToggle(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId)
     {
-        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(world, lastFieldId, storyWord, mapLocationId);
         NativeSavedWorldState saved = SavedWorldEvents ?? throw new NotSupportedException("Camera mode saving requires the actual saved-world owner.");
-        return this with { CameraToggleReturn = receipt, SavedWorldEvents = saved.WithFootReturn(receipt) };
+        if (world.NativeFootRuntime is null)
+        {
+            if (world.NativeCarRuntime is not null)
+            {
+                NativeSavedWorldCarReturn car = NativeSavedWorldCarReturn.Create(world, lastFieldId, storyWord, mapLocationId) with { RetireSelectedVehicle = false };
+                return this with { CameraToggleReturn = null, CameraToggleParkedCar = null, CameraToggleGardenReturn = null, CameraToggleRagnarokReturn = null, CameraToggleCarReturn = car, SavedWorldEvents = saved.WithCarReturn(car) };
+            }
+            if (world.NativeGardenRuntime is not null)
+            {
+                NativeSavedWorldGardenReturn garden = NativeSavedWorldGardenReturn.Create(world, lastFieldId, storyWord, mapLocationId);
+                return this with { CameraToggleReturn = null, CameraToggleParkedCar = null, CameraToggleCarReturn = null, CameraToggleRagnarokReturn = null, CameraToggleGardenReturn = garden, SavedWorldEvents = saved.WithGardenReturn(garden) };
+            }
+            NativeSavedWorldRagnarokReturn ragnarok = NativeSavedWorldRagnarokReturn.Create(world, lastFieldId, storyWord, mapLocationId);
+            return this with { CameraToggleReturn = null, CameraToggleParkedCar = null, CameraToggleCarReturn = null, CameraToggleGardenReturn = null, CameraToggleRagnarokReturn = ragnarok, SavedWorldEvents = saved.WithRagnarokReturn(ragnarok) };
+        }
+        NativeWorldParkedCar? parkedCar = world.NativeFootRuntime.ParkedCar;
+        if (parkedCar is not null)
+        {
+            saved = saved.WithCarParking(parkedCar);
+        }
+        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(world, lastFieldId, storyWord, mapLocationId);
+        return this with { CameraToggleCarReturn = null, CameraToggleGardenReturn = null, CameraToggleRagnarokReturn = null, CameraToggleReturn = receipt, CameraToggleParkedCar = parkedCar, SavedWorldEvents = saved.WithFootReturn(receipt) };
     }
 
     public NativeWorldSalaryState WithWorldEventCommand(ushort opcode, ushort operand, NativeWorldMessage? decodedMessage = null)
@@ -49,9 +73,25 @@ public sealed partial record NativeWorldSalaryState
         {
             return null;
         }
+        if (CameraToggleParkedCar is not null)
+        {
+            saved = saved.WithCarParking(CameraToggleParkedCar);
+        }
         if (CameraToggleReturn is not null)
         {
             saved = saved.WithFootReturn(CameraToggleReturn);
+        }
+        if (CameraToggleCarReturn is not null)
+        {
+            saved = saved.WithCarReturn(CameraToggleCarReturn);
+        }
+        if (CameraToggleGardenReturn is not null)
+        {
+            saved = saved.WithGardenReturn(CameraToggleGardenReturn);
+        }
+        if (CameraToggleRagnarokReturn is not null)
+        {
+            saved = saved.WithRagnarokReturn(CameraToggleRagnarokReturn);
         }
         return saved with
         {

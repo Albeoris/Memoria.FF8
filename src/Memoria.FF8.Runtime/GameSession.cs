@@ -891,7 +891,7 @@ public sealed partial class GameSession : IEventServices
                 throw new InvalidDataException("Active native foot forest cooldown disagrees with the world process authority.");
             }
             bool battleFootReload = world.NativeFootRuntime is { Rule: NativeFootWorldRuntimeState.BattleReloadRule } battleFoot && ValidateWorldBattleFootReload(state, world, battleFoot);
-            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(foot.StationTrainEntrySavedWorld ?? throw new NotSupportedException("Station foot requires its retained train-entry saved owner."), state.DepartingWorldState, stationSource.Load.Allocation) : !battleFootReload && unchecked((byte)state.WorldArrival.Mode) != foot.EntityType && !(unchecked((byte)state.WorldArrival.Mode) == 48 && foot.Rule == NativeFootWorldRuntimeState.GardenDismountRule && foot.GardenDismount is not null && world.NativeGardenRuntime?.Allocation.Packet == state.WorldArrival) && !(unchecked((byte)state.WorldArrival.Mode) == 50 && foot.Rule == NativeFootWorldRuntimeState.RagnarokDismountRule && foot.RagnarokDismount is not null && world.NativeRagnarokRuntime?.Allocation.Packet == state.WorldArrival))))
+            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(foot.StationTrainEntrySavedWorld ?? throw new NotSupportedException("Station foot requires its retained train-entry saved owner."), state.DepartingWorldState, stationSource.Load.Allocation) : !battleFootReload && unchecked((byte)state.WorldArrival.Mode) != foot.EntityType && !(foot.ParkedCar is { } parkedCar && unchecked((byte)state.WorldArrival.Mode) == parkedCar.Car.EntityType) && !(unchecked((byte)state.WorldArrival.Mode) == 48 && foot.Rule == NativeFootWorldRuntimeState.GardenDismountRule && foot.GardenDismount is not null && world.NativeGardenRuntime?.Allocation.Packet == state.WorldArrival) && !(unchecked((byte)state.WorldArrival.Mode) == 50 && foot.Rule == NativeFootWorldRuntimeState.RagnarokDismountRule && foot.RagnarokDismount is not null && world.NativeRagnarokRuntime?.Allocation.Packet == state.WorldArrival))))
             {
                 throw new InvalidDataException("Native foot world state disagrees with its original transition entity type.");
             }
@@ -904,7 +904,7 @@ public sealed partial class GameSession : IEventServices
                 garden.Validate(state.WorldProcess);
                 world.NativeFootRuntime?.GardenDismount?.Validate(garden, state.WorldProcess);
             }
-            if (world.NativeRagnarokRuntime is { } ragnarok && (state.Scene != SceneKind.WorldMap || state.WorldArrival != ragnarok.Allocation.Packet || state.WorldProcess is null || state.WorldProcess.CarCameraFollowSpeed != ragnarok.Motor.CameraFollowSpeed))
+            if (world.NativeRagnarokRuntime is { } ragnarok && (state.Scene != SceneKind.WorldMap || state.WorldArrival != ragnarok.Allocation.Packet || state.WorldProcess is null || (state.WorldProcess.CarCameraFollowSpeed != ragnarok.Motor.CameraFollowSpeed || state.WorldProcess.VehicleManualCameraVelocity != ragnarok.ManualCameraVelocity)))
             {
                 throw new InvalidDataException("Ragnarok scene lost its original allocation packet or shared process camera-follow owner.");
             }
@@ -916,7 +916,7 @@ public sealed partial class GameSession : IEventServices
             {
                 throw new InvalidDataException("Native car world state disagrees with its original transition or active saved vehicle.");
             }
-            if (world.NativeCarRuntime is { } carCamera && state.WorldProcess?.CarCameraFollowSpeed != carCamera.CameraFollowSpeed)
+            if (world.NativeCarRuntime is { } carCamera && (state.WorldProcess?.CarCameraFollowSpeed != carCamera.CameraFollowSpeed || state.WorldProcess?.VehicleManualCameraVelocity != carCamera.ManualCameraVelocity))
             {
                 throw new InvalidDataException("Native car camera follow speed differs from its retained process WORD204DAE4.");
             }
@@ -939,6 +939,10 @@ public sealed partial class GameSession : IEventServices
     {
         world.NativeFootRuntime?.Validate();
         world.NativeCarRuntime?.Validate();
+        if (world.NativeFootRuntime?.ParkedCar is { } parkedCar && parkedCar.DismountFrame > world.Frame)
+        {
+            throw new InvalidDataException("Parked car dismount cannot follow the current world frame.");
+        }
         world.NativeScriptedRuntime?.Validate();
         world.NativeTrainRuntime?.Validate();
         world.NativeGardenRuntime?.Validate();

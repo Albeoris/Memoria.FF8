@@ -23,7 +23,7 @@ public sealed record NativeSavedWorldGardenReturn([property: JsonRequired] int V
 
     public void Validate()
     {
-        if (Version != 1 || Rule is not (SaveRule or OriginalSaveRule) || SourceWorldFrame < 0 || Pose3 is null || Pose3.X is < -131072 or >= 131072 || Pose3.RawZ is < -98304 or >= 98304 || Pose3.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 != 48 || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 != 0 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
+        if (Version != 1 || Rule is not (SaveRule or OriginalSaveRule) || SourceWorldFrame < 0 || Pose3 is null || Pose3.X is < -131072 or >= 131072 || Pose3.RawZ is < -98304 or >= 98304 || Pose3.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 != 48 || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 > 1 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
         {
             throw new InvalidDataException("Native Garden return lost its executed pose3 and actual saved auxiliary bytes.");
         }

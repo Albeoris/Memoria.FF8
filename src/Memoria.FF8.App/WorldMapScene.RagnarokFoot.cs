@@ -75,10 +75,6 @@ internal sealed partial class WorldMapScene
         }
         NativeGardenTransferAdmission admission = NativeRagnarokTransferInput.Evaluate(new(callback.Buttons, previous ?? callback.Buttons, foot.EntityType, 0, 0, false, -1, NativeWorldEntryControl.DelayAfterCallback(cameraState.Frame + 1, 0), callback.Memory.ReplacementFlags264, false));
         callback.ConsumeRequest = admission.ConsumeScriptRequest;
-        if (admission.ToggleView)
-        {
-            throw new NotSupportedException("Ragnarok foot alternate view requires its actual558D70 multi-callback transition.");
-        }
         runtime = runtime with { PreviousButtons = callback.Buttons };
         WorldState prepared = cameraState with { NativeRagnarokRuntime = runtime };
         if (admission.Action && runtime.BroadContact == runtime.Allocation.RagnarokIndex)

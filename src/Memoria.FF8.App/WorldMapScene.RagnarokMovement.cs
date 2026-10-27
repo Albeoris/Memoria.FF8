@@ -9,25 +9,25 @@ internal sealed partial class WorldMapScene
     {
         NativeRagnarokWorldRuntimeState runtime = before.NativeRagnarokRuntime!;
         runtime.RequireSceneState();
-        if (cameraHorizontal != 0)
-        {
-            throw new NotSupportedException("Ragnarok ordinary variant0 has no manual camera input; WorldButtons supplies real throttle/steering/vertical masks.");
-        }
         byte scriptMode = runtime.Transfer is null ? salary.EventUi?.ScriptMode ?? 0 : runtime.Transfer.Kind == NativeRagnarokTransferKind.Landing ? (byte)5 : (byte)6;
         int cooldown = NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0);
         NativeRagnarokInputPacket input = NativeRagnarokWorldInput.ReadDigitalButtons(cooldown > 0 ? 0 : motorButtons ?? buttons);
         NativeRagnarokMotorState motorBefore = runtime.Motor with { FlightHeight = unchecked((short)before.NativeHeight) };
-        NativeRagnarokMotorResult motor = scriptMode is 0 or 12 ? NativeRagnarokMotor.Step(motorBefore, input.Steering13, input.Throttle11, input.Vertical12, scriptMode: scriptMode) : NativeRagnarokMotor.StepScripted(motorBefore, scriptMode, scriptMode == 5 ? 16 : 120);
+        NativeRagnarokMotorResult motor = scriptMode is 0 or 12 ? NativeRagnarokMotor.Step(motorBefore, input.Steering13, input.Throttle11, input.Vertical12, variant: runtime.AnimationVariant, scriptMode: scriptMode) : NativeRagnarokMotor.StepScripted(motorBefore, scriptMode, scriptMode == 5 ? 16 : 120);
+        int cameraVelocity = runtime.ManualCameraVelocity;
+        if (runtime.AnimationVariant == 1 && scriptMode == 0)
+        {
+            (int yaw, int velocity) = NativeVehicleCamera.Step(before.CameraYaw, cameraVelocity, cooldown > 0 ? 0 : cameraHorizontal);
+            cameraVelocity = velocity;
+            motor = motor with { State = motor.State with { CameraYaw = checked((ushort)yaw) } };
+        }
+        runtime = runtime with { ManualCameraVelocity = cameraVelocity };
         uint? previous = runtime.PreviousButtons;
         if (previous is null && (buttons & 0x42) != 0 && cooldown <= 0)
         {
             throw new NotSupportedException("Ragnarok action/view edge requires a preceding actual released/observed button callback.");
         }
         NativeGardenTransferAdmission admission = NativeRagnarokTransferInput.Evaluate(new(buttons, previous ?? buttons, 50, 0, scriptMode, runtime.Transfer is not null, -1, cooldown, memory.ReplacementFlags264, false));
-        if (admission.ToggleView)
-        {
-            throw new NotSupportedException("Ragnarok alternate view requires its original variant1 camera/motor owner.");
-        }
         consumeRequest = admission.ConsumeScriptRequest;
         int targetX = (before.X + NearWrapped(before.CameraTargetX, before.X, 262144)) >> 1;
         int targetZ = (before.Z + NearWrapped(before.CameraTargetZ, before.Z, 196608)) >> 1;

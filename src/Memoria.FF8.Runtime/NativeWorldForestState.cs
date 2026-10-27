@@ -12,6 +12,9 @@ public sealed record NativeWorldForestEffect(byte Type, ushort Shrink, byte Life
     public byte Height { get; init; }
     public byte DrawMode { get; init; }
     public byte BlendMode { get; init; }
+    public byte Red { get; init; }
+    public byte Green { get; init; }
+    public byte Blue { get; init; }
     public short VelocityX { get; init; }
     public short VelocityY { get; init; }
     public short VelocityZ { get; init; }
@@ -78,7 +81,7 @@ public sealed partial record NativeWorldForestState
 
     public void Validate()
     {
-        if (CameraPitch is < -512 or > 0 || Particles is null || Particles.Length > 64 || Particles.Select(particle => particle.Slot).Distinct().Count() != Particles.Length || Particles.Any(particle => particle.Slot is < 0 or >= 64 || particle.Type is not (0 or >= 4 and <= 10 or 12 or 13 or 14 or 15 or 16 or 19 or 20 or 21) || particle.Lifetime < MinimumLifetime(particle.Type) || particle.Lifetime > MaximumLifetime(particle.Type) || particle.Age > particle.Lifetime || (particle.Type is 0 or 10 or 12 or 13 or 14 or 15 or 16 or 19 or 20 or 21) != (particle.Motion is not null)))
+        if (CameraPitch is < -512 or > 0 || Particles is null || Particles.Length > 64 || Particles.Select(particle => particle.Slot).Distinct().Count() != Particles.Length || Particles.Any(particle => particle.Slot is < 0 or >= 64 || particle.Type is not (0 or 2 or 3 or >= 4 and <= 10 or 12 or 13 or 14 or 15 or 16 or 19 or 20 or 21) || particle.Lifetime < MinimumLifetime(particle.Type) || particle.Lifetime > MaximumLifetime(particle.Type) || particle.Age > particle.Lifetime || (particle.Type is 0 or 2 or 3 or 10 or 12 or 13 or 14 or 15 or 16 or 19 or 20 or 21) != (particle.Motion is not null)))
         {
             throw new InvalidDataException("Invalid executed native forest presentation state.");
         }
@@ -87,6 +90,8 @@ public sealed partial record NativeWorldForestState
     private static int MinimumLifetime(byte type) => type switch
     {
         0 or 10 => 12,
+        2 => 6,
+        3 => 2,
         12 or 13 or 14 or 15 or 20 => 8,
         16 => 32,
         19 => 14,
@@ -97,6 +102,8 @@ public sealed partial record NativeWorldForestState
     private static int MaximumLifetime(byte type) => type switch
     {
         0 or 10 => 19,
+        2 => 13,
+        3 => 9,
         12 or 13 => 8,
         14 or 15 or 20 => 15,
         16 => 32,
@@ -108,7 +115,7 @@ public sealed partial record NativeWorldForestState
     public NativeWorldForestState Advance(byte groundType, int x, int nativeHeight, int rawZ, int bodyYaw, int priorGraphicsSpeed, ReadOnlySpan<byte> random, IReadOnlyList<NativeWorldForestEffect> effects, NativeWorldContactSpark? contactSpark = null)
     {
         Validate();
-        if (random.Length != 256 || effects.Count is not (6 or 7 or 11 or 18) || priorGraphicsSpeed is < 0 or > 46340)
+        if (random.Length != 256 || effects.Count is not (6 or 7 or 11 or 18 or 21) || priorGraphicsSpeed is < 0 or > 46340)
         {
             throw new InvalidDataException("Native forest update requires its complete original random/effect tables.");
         }

@@ -7,9 +7,9 @@ public static class NativeRagnarokWorldInput
     /// <summary>5573C0 ordinary non-foot digital controls, with analog axes absent. Action edges are consumed separately.</summary>
     public static NativeRagnarokInputPacket ReadDigitalButtons(uint buttons, byte variant = 0, byte scriptMode = 0)
     {
-        if (variant != 0 || scriptMode != 0)
+        if (variant > 1 || scriptMode != 0)
         {
-            throw new NotSupportedException("Ragnarok digital controls require the ordinary variant0/scriptMode0 branch; scripted/autopilot and analog consumers need their actual owners.");
+            throw new NotSupportedException("Ragnarok digital controls require the ordinary variant0/1/scriptMode0 branch; scripted/autopilot and analog consumers need their actual owners.");
         }
         sbyte throttle = (buttons & 0x10) != 0 ? (sbyte)-127 : (buttons & 0x80) != 0 ? (sbyte)127 : (sbyte)0;
         sbyte steering = 0;

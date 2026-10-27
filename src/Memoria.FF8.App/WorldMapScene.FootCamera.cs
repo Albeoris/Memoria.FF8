@@ -12,6 +12,10 @@ internal sealed partial class WorldMapScene
         {
             camera = new NativeWorldFootCameraState(before.X, before.Z, before.NativeHeight, before.CameraTargetX, before.CameraTargetZ, before.CameraTargetNativeHeight, train.CameraGeometry.Yaw & 4095, train.CameraGeometry.Pitch, 0, train.CameraGeometry.OffsetZ);
         }
+        else if (before.NativeCarRuntime is { } car)
+        {
+            camera = car.ProjectionCamera ?? new NativeWorldFootCameraState(before.X, before.Z, before.NativeHeight, before.CameraTargetX, before.CameraTargetZ, before.CameraTargetNativeHeight, before.CameraYaw, -112, -341, -7168);
+        }
         else
         {
             camera = foot.StationTrainProcess?.ProjectionCamera ?? foot.NormalObjects?.Camera ?? NativeWorldFootCameraState.Create(before);
@@ -32,11 +36,23 @@ internal sealed partial class WorldMapScene
         {
             return state;
         }
-        NativeFootWorldRuntimeState foot = state.NativeFootRuntime ?? throw new NotSupportedException("Camera mode for this vehicle requires its native variant transition.");
-        if (state.NativeGardenRuntime is not null || state.NativeRagnarokRuntime is not null)
+        if (state.NativeFootRuntime is null)
         {
-            throw new NotSupportedException("Camera mode beside a parked vehicle requires its shared transfer camera variant owner.");
+            if (state.NativeCarRuntime is { } car)
+            {
+                return state with { NativeCarRuntime = car with { AnimationVariant = car.AnimationVariant == 0 ? (byte)1 : (byte)0 } };
+            }
+            if (state.NativeGardenRuntime is { } garden)
+            {
+                return state with { NativeGardenRuntime = garden with { AnimationVariant = garden.AnimationVariant == 0 ? (byte)1 : (byte)0 } };
+            }
+            if (state.NativeRagnarokRuntime is { } ragnarok)
+            {
+                return state with { NativeRagnarokRuntime = ragnarok with { AnimationVariant = ragnarok.AnimationVariant == 0 ? (byte)1 : (byte)0 } };
+            }
+            throw new NotSupportedException("Camera mode requires a supported native entity owner.");
         }
+        NativeFootWorldRuntimeState foot = state.NativeFootRuntime;
         return state with { NativeFootRuntime = foot with { AnimationVariant = foot.AnimationVariant == 0 ? (byte)1 : (byte)0, CameraTransition = new NativeFootCameraTransition(17, foot.CameraTransition?.ProjectionDistance ?? 1024) } };
     }
 }

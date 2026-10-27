@@ -4,6 +4,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeSavedWorldRagnarokReturn([property: JsonRequired] string Rule, [property: JsonRequired] long SourceWorldFrame, [property: JsonRequired] ushort LastFieldId, [property: JsonRequired] ushort StoryWord, [property: JsonRequired] NativeSavedWorldPose Pose2, [property: JsonRequired] ushort CameraYaw96, [property: JsonRequired] byte MapDisplayMode110, [property: JsonRequired] short MapLocationId)
 {
+    public byte AnimationVariant108 { get; init; }
+
     public const string CurrentRule = "ff8-en-ragnarok-field-return-549e80-pose2-v1";
     public const string OriginalSaveRule = "ff8-original-save-ragnarok-position-v1";
 
@@ -15,14 +17,14 @@ public sealed record NativeSavedWorldRagnarokReturn([property: JsonRequired] str
         {
             throw new NotSupportedException("Ragnarok field return requires stable controlled50, outside an unfinished transfer.");
         }
-        var result = new NativeSavedWorldRagnarokReturn(CurrentRule, world.Frame, lastField, story, new(world.X, world.Z, unchecked((short)world.NativeHeight), checked((ushort)world.BodyYaw)), checked((ushort)world.CameraYaw), runtime.MapDisplayMode == 3 ? (byte)0 : runtime.MapDisplayMode, location);
+        var result = new NativeSavedWorldRagnarokReturn(CurrentRule, world.Frame, lastField, story, new(world.X, world.Z, unchecked((short)world.NativeHeight), checked((ushort)world.BodyYaw)), checked((ushort)world.CameraYaw), runtime.MapDisplayMode == 3 ? (byte)0 : runtime.MapDisplayMode, location) { AnimationVariant108 = runtime.AnimationVariant };
         result.Validate();
         return result;
     }
 
     public void Validate()
     {
-        if (Rule is not (CurrentRule or OriginalSaveRule) || SourceWorldFrame < 0 || Pose2 is null || Pose2.X is < -131072 or >= 131072 || Pose2.RawZ is < -98304 or >= 98304 || Pose2.Yaw >= 4096 || CameraYaw96 >= 4096 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
+        if (AnimationVariant108 > 1 || Rule is not (CurrentRule or OriginalSaveRule) || SourceWorldFrame < 0 || Pose2 is null || Pose2.X is < -131072 or >= 131072 || Pose2.RawZ is < -98304 or >= 98304 || Pose2.Yaw >= 4096 || CameraYaw96 >= 4096 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
         {
             throw new InvalidDataException("Ragnarok return lost its actual pose2, camera or ordinary saved auxiliary authority.");
         }

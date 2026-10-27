@@ -73,14 +73,10 @@ internal sealed partial class WorldMapScene
         garden.Validate();
         NativeWorldFootCameraState camera = NativeWorldFootCameraState.Create(cameraState);
         _ = NativeWorldPathProjectionCertificate.CreateFoot(camera);
-        garden = garden with { Forest = foot.Forest!, CameraPitch = foot.Forest!.CameraPitch, ProjectionCamera = camera, GroundCache = foot.GroundCache!, GroundYaw = checked((short)foot.GroundYaw!.Value) };
+        garden = garden with { AnimationVariant = foot.AnimationVariant, Forest = foot.Forest!, CameraPitch = foot.Forest!.CameraPitch, ProjectionCamera = camera, GroundCache = foot.GroundCache!, GroundYaw = checked((short)foot.GroundYaw!.Value) };
         NativeGardenTransferInput input = garden.TransferControls.PrepareInput(callback.Buttons, foot.EntityType, cameraState.Frame + 1, null, callback.Memory);
         NativeGardenTransferAdmission admission = garden.Buttons.Evaluate(input);
         callback.ConsumeScriptRequest = admission.ConsumeScriptRequest;
-        if (admission.ToggleView)
-        {
-            throw new NotSupportedException("Native foot view toggle requires the distinct variant1 camera/model transition.");
-        }
         garden = garden with { Buttons = garden.Buttons.Observe(callback.Buttons) };
         if (admission.Action && garden.BroadContact is int hit && (hit == garden.Allocation.Garden64Index || hit == garden.Allocation.Garden65Index))
         {

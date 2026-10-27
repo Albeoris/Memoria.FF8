@@ -18,7 +18,7 @@ public sealed class NativeWorldForestTables
     public NativeWorldForestEffect SteamEffect { get; }
     public IReadOnlyList<NativeWorldForestEffect> AllEffects { get; }
 
-    public NativeWorldForestEffect GetEffect(byte type) => type == 0 ? SteamEffect : Effects.Single(effect => effect.Type == type);
+    public NativeWorldForestEffect GetEffect(byte type) => AllEffects.Single(effect => effect.Type == type);
 
     public NativeWorldForestTables(string gameDirectory)
     {
@@ -74,7 +74,7 @@ public sealed class NativeWorldForestTables
             palettes.Add(Word(6));
         }
         Effects = effects.AsReadOnly();
-        AllEffects = new[] { SteamEffect }.Concat(Effects).ToArray();
+        AllEffects = Effects.Concat(new[] { SteamEffect, ReadEffect(2, memory.Read(0xC76878 + 40 * 2, 40), 0), ReadEffect(3, memory.Read(0xC76878 + 40 * 3, 40), 0) }).ToArray();
         PaletteY = palettes.AsReadOnly();
     }
 
@@ -91,6 +91,9 @@ public sealed class NativeWorldForestTables
             Height = data[offset + 9],
             DrawMode = data[offset + 20],
             BlendMode = data[offset + 21],
+            Red = data[offset + 12],
+            Green = data[offset + 13],
+            Blue = data[offset + 14],
             VelocityX = unchecked((short)Word(24)),
             VelocityY = unchecked((short)Word(26)),
             VelocityZ = unchecked((short)Word(28)),

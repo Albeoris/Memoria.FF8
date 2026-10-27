@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Retained557A90 entity50/variant0 scalar owners for ordinary and full-map callbacks. Ground/contact publication is separate.</summary>
+/// <summary>Retained557A90 entity50 variant0/1 scalar owners for ordinary and full-map callbacks. Ground/contact publication is separate.</summary>
 public sealed record NativeRagnarokMotorState([property: JsonRequired] int Speed, [property: JsonRequired] ushort BodyYaw, [property: JsonRequired] short BodyPitch, [property: JsonRequired] short BodyRoll, [property: JsonRequired] short FlightHeight, [property: JsonRequired] ushort CameraYaw, [property: JsonRequired] short CameraPitch, [property: JsonRequired] short CameraFollowSpeed, [property: JsonRequired] short? VerticalBias204DADC)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -45,15 +45,15 @@ public static class NativeRagnarokMotor
     public static NativeRagnarokMotorResult Step(NativeRagnarokMotorState before, sbyte steering, sbyte throttle, sbyte vertical, byte variant = 0, byte scriptMode = 0)
     {
         before.Validate();
-        if (variant != 0 || scriptMode is not (0 or 12))
+        if (variant > 1 || scriptMode is not (0 or 12))
         {
-            throw new NotSupportedException("Ragnarok motor requires the ordinary variant0 or full-map script12 branch; scripted transfer and alternate camera require their own owners.");
+            throw new NotSupportedException("Ragnarok motor requires the ordinary variant0/1 or full-map script12 branch; scripted transfers require their own owners.");
         }
         short yaw = unchecked((short)before.BodyYaw);
         short roll = before.BodyRoll;
         if (steering != 0)
         {
-            int shift = Math.Abs((short)before.CameraYaw - yaw) > 511 ? 3 : 2;
+            int shift = variant == 0 && Math.Abs((short)before.CameraYaw - yaw) > 511 ? 3 : 2;
             yaw = unchecked((short)(yaw + (-steering >> shift)));
             int addition = steering >> 1;
             if (Math.Abs(roll + addition) > 256)
@@ -76,7 +76,7 @@ public static class NativeRagnarokMotor
             speed = before.Speed + throttle / 8;
             // Native arithmetic-shifts the signed shortest yaw delta before abs;
             // a small negative difference therefore reduces the cap by one.
-            int cap = scriptMode == 0 ? 200 - Math.Abs(NativeGardenMotor.Delta(Wrap(yaw), before.CameraYaw) >> 3) : 200;
+            int cap = scriptMode == 0 && variant == 0 ? 200 - Math.Abs(NativeGardenMotor.Delta(Wrap(yaw), before.CameraYaw) >> 3) : 200;
             if (speed < -cap)
             {
                 speed = -cap;
@@ -110,6 +110,11 @@ public static class NativeRagnarokMotor
         short targetPitch = unchecked((short)(-256 - height / 24));
         short pitchDifference = unchecked((short)(targetPitch - before.CameraPitch));
         short cameraPitch = Math.Abs((int)pitchDifference) <= 32 ? targetPitch : unchecked((short)(before.CameraPitch + (pitchDifference > 0 ? 32 : -32)));
+        if (variant == 1)
+        {
+            follow = before.CameraFollowSpeed;
+            cameraYaw = before.CameraYaw;
+        }
         if (scriptMode == 12)
         {
             follow = before.CameraFollowSpeed;

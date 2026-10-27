@@ -54,7 +54,7 @@ public sealed class NativeRagnarokWorldTests
         Assert.Equal(new NativeRagnarokInputPacket(127, -127, 127), NativeRagnarokWorldInput.ReadDigitalButtons(0xF090));
         Assert.Equal(default, NativeRagnarokWorldInput.ReadDigitalButtons(0x42));
         Assert.Throws<NotSupportedException>(() => NativeRagnarokWorldInput.ReadDigitalButtons(0, scriptMode: 13));
-        Assert.Throws<NotSupportedException>(() => NativeRagnarokWorldInput.ReadDigitalButtons(0, variant: 1));
+        Assert.Throws<NotSupportedException>(() => NativeRagnarokWorldInput.ReadDigitalButtons(0, variant: 2));
     }
 
     [Fact]
@@ -127,6 +127,6 @@ public sealed class NativeRagnarokWorldTests
         Assert.Equal(NativeRagnarokMotor.Step(first.State, -127, -127, -127), NativeRagnarokMotor.Step(restored, -127, -127, -127));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeRagnarokMotorState>("{}"));
         Assert.Throws<NotSupportedException>(() => NativeRagnarokMotor.Step(before, 0, 0, 0, scriptMode: 6));
-        Assert.Throws<NotSupportedException>(() => NativeRagnarokMotor.Step(before, 0, 0, 0, variant: 1));
+        Assert.Throws<NotSupportedException>(() => NativeRagnarokMotor.Step(before, 0, 0, 0, variant: 2));
     }
 }

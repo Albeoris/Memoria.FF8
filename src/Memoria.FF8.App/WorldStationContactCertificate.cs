@@ -15,10 +15,14 @@ public static class WorldStationContactCertificate
     private readonly record struct Interval(long Low, long High);
     private readonly record struct Point(Interval X, Interval Z);
 
-    public static WorldStationContactResult Evaluate(WorldAssets assets, NativeTrainWorldAllocation allocation, IReadOnlyList<NativeTrainRailBank> banks, NativeWorldPathWords player, int playerHeight, Func<NativeWorldPathPosition, NativeWorldPathNodeProjection> projectStatic, Func<NativeWorldPathPosition, bool> proximity, int padding = 0, int probeRadius = 32, int selectedHeight = 180)
+    public static WorldStationContactResult Evaluate(WorldAssets assets, NativeTrainWorldAllocation allocation, IReadOnlyList<NativeTrainRailBank> banks, NativeWorldPathWords player, int playerHeight, Func<NativeWorldPathPosition, NativeWorldPathNodeProjection> projectStatic, Func<NativeWorldPathPosition, bool> proximity, int padding = 0, int probeRadius = 32, int selectedHeight = 180, bool forceCircle = false, NativeWorldContactShape? selectedShape = null)
     {
         allocation.Validate();
         RequirePadding(padding);
+        if (forceCircle && (selectedShape is null || banks.Count != 0))
+        {
+            throw new NotSupportedException("Forced native contact requires the selected original shape and an excluded rail bank.");
+        }
         if (probeRadius is <= 0 or > 256 || selectedHeight is <= 0 or > short.MaxValue || banks.Count > 0 && (probeRadius != 32 || selectedHeight != 180))
         {
             throw new NotSupportedException("Native static contact requires represented selected-body dimensions; car/train overlap is unsupported.");
@@ -32,6 +36,14 @@ public static class WorldStationContactCertificate
             }
             NativeWorldPathNodeProjection projection = projectStatic(item.Position);
             NativeWorldContactShape shape = assets.ReadNativeContactShape(item.ShapeId);
+            if (forceCircle)
+            {
+                if (EvaluateForcedCircle(shape, selectedShape!, player, projection.Words, padding))
+                {
+                    return new WorldStationContactResult(index, null, null);
+                }
+                continue;
+            }
             if (player.Y - selectedHeight > projection.Words.Y + padding || player.Y < projection.Words.Y - shape.Height - padding || OutsideBroadPhase(player, projection.Words))
             {
                 continue;
@@ -53,6 +65,14 @@ public static class WorldStationContactCertificate
             }
         }
         return new WorldStationContactResult(-1, null, null);
+    }
+
+    public static bool EvaluateForcedCircle(NativeWorldContactShape target, NativeWorldContactShape selected, NativeWorldPathWords player, NativeWorldPathWords anchor, int padding = 0)
+    {
+        // 549320's forced branch consumes only the center, omits height gates,
+        // and uses the shared54BA30 radius contract for both shapes.
+        NativeWorldPathWords[] points = [player, player, player, player, player];
+        return WorldGardenContactCertificate.EvaluateObject(target, 0, 0, selected, 0, points, anchor, padding, true);
     }
 
     public static int EvaluateTrain(WorldAssets assets, NativeTrainRailBank bank, NativeWorldScriptedPathDefinition definition, NativeWorldPathWords player, int playerHeight, Func<NativeWorldPathPosition, bool> proximity, int padding = 0)
