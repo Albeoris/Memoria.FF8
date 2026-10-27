@@ -24,6 +24,7 @@
     <Compile Include="../../src/Memoria.FF8.App/PortableRaster.cs" Link="Presentation/PortableRaster.cs" />
     <Compile Include="../../src/Memoria.FF8.App/ControllerVectorAtlas.cs" Link="Presentation/ControllerVectorAtlas.cs" />
     <Compile Include="../../src/Memoria.FF8.App/PresentationPacer.cs" Link="Presentation/PresentationPacer.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/DiagnosticPresentationPacing.cs" Link="Presentation/DiagnosticPresentationPacing.cs" />
     <Compile Include="../../src/Memoria.FF8.App/GameConfirmationOverlay.cs" Link="Presentation/GameConfirmationOverlay.cs" />
     <Compile Include="../../src/Memoria.FF8.App/GameDialogContext.cs" Link="Presentation/GameDialogContext.cs" />
     <Compile Include="../../src/Memoria.FF8.App/SdlDesktopDialogs.cs" Link="Presentation/SdlDesktopDialogs.cs" />
