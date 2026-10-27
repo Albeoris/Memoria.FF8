@@ -31,7 +31,7 @@ public sealed class NativeWeaponShopMemoryTests
         byte[] recipes = assets.ReadResource(new ResourceKey("menu/mwepon.bin"));
         byte[] messages = assets.ReadResource(new ResourceKey("menu/mwepon.msg"));
         NativeWeaponShopDefinitions adapter = NativeWeaponShopDefinitionReader.Read(executable, kernel, recipes, messages);
-        NativeWeaponShopDefinitions memory = NativeWeaponShopDefinitionReader.Read(new NativeExecutableMemory(executable), kernel, recipes, messages);
+        NativeWeaponShopDefinitions memory = NativeWeaponShopDefinitionReader.Read(new NativeExecutableMemory(executable), kernel, recipes, messages, "en");
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, adapter.ExecutableHash);
         Assert.Equal(memory.ExecutableHash, adapter.ExecutableHash);
         Assert.Equal(executable.AsSpan(0x788918, 256).ToArray(), memory.ArgumentMap.ToArray());

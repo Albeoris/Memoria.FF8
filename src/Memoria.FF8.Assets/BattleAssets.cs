@@ -42,21 +42,21 @@ public sealed partial class BattleAssets : IDisposable
             archive = openedArchive;
             entries = archive.Entries.ToDictionary(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1], StringComparer.OrdinalIgnoreCase);
             byte[] kernel = resources.Read(new ResourceKey("main/kernel.bin"));
-            WeaponDefinitions = BattleKernelReader.Weapons(kernel);
+            WeaponDefinitions = BattleKernelReader.Weapons(kernel, resources.Source.Language);
             byte[] initialContent = resources.Read(new ResourceKey("main/init.out"));
             NativeInitialData.Validate(initialContent);
             string GuardianName(int id)
             {
                 ReadOnlySpan<byte> name = initialContent.AsSpan(id * 68, 12);
                 int end = name.IndexOf((byte)0);
-                return FF8Encoding.CreateEuropean().GetString(end < 0 ? name : name[..end]);
+                return NativeTextEncoding.Create(resources.Source.Language).GetString(end < 0 ? name : name[..end]);
             }
-            BattleActionCatalog actionCatalog = BattleActionKernelReader.ReadCatalogue(kernel);
+            BattleActionCatalog actionCatalog = BattleActionKernelReader.ReadCatalogue(kernel, resources.Source.Language);
             ActionDefinitions = actionCatalog.Actions.Select(action => action.Ability == Memoria.FF8.Runtime.BattleAbility.GuardianForce ? action with { DisplayName = GuardianName(action.Id) } : action).ToArray();
             NativeActions = actionCatalog.NativeActions;
             NativeKernelRecords = actionCatalog.Records;
             playerStats = new BattlePlayerStatReader(kernel);
-            battleKernel = Albeoris.Games.FF8.KernelBin.KernelData.ReadFromArray(kernel, FF8Encoding.CreateEuropean());
+            battleKernel = Albeoris.Games.FF8.KernelBin.KernelData.ReadFromArray(kernel, NativeTextEncoding.Create(resources.Source.Language));
             encounters = Read("scene.out");
             if (encounters.Length != 1024 * 128)
             {
@@ -169,7 +169,7 @@ public sealed partial class BattleAssets : IDisposable
         {
             throw new InvalidDataException("Original enemy name has no terminator.");
         }
-        return FF8Encoding.CreateEuropean().GetString(name[..end]);
+        return NativeTextEncoding.Create(resources.Source.Language).GetString(name[..end]);
     }
 
     public int ReadEnemyAbilityPoints(int modelId)

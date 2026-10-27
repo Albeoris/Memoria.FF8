@@ -58,7 +58,7 @@ public static partial class ScenarioDiscovery
         byte[] initialBytes = resources.Read(new ResourceKey("main/init.out"));
         NativeCharacterVitals initialVitals = NativeCharacterInitialization.Read(initialBytes, kernelBytes);
         NativeBattleExperienceDefinition experienceDefinition = NativeBattleExperienceDefinitionReader.Read(kernelBytes);
-        KernelData kernel = KernelData.ReadFromArray(kernelBytes, FF8Encoding.CreateEuropean());
+        KernelData kernel = KernelData.ReadFromArray(kernelBytes, FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
         using BattleAssets assets = new(gameDirectory, resources);
         List<BuildFile> resourceFiles = [new("FF8_EN.exe", executable.LongLength, Hash(executable)), new("main/kernel.bin", kernelBytes.LongLength, Hash(kernelBytes))];
         byte[] sceneBytes = resources.Read(new ResourceKey("battle/scene.out"));

@@ -16,7 +16,7 @@ public sealed class NativeRefinementGroupReaderTests
         int recordOffset = (int)BinaryPrimitives.ReadUInt32LittleEndian(files.Header.AsSpan(192 * 8)) - 1;
         files.Content[recordOffset + 27 * 8 + 5] = 24;
         files.Content[recordOffset + 27 * 8 + 7] = 198;
-        MngrpArchive archive = MngrpArchive.Read(files, FF8Encoding.CreateEuropean());
+        MngrpArchive archive = MngrpArchive.Read(files, FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
         Assert.Equal(110, NativeRefinementGroupReader.ReadTables(archive)[4].Length);
         var recipes = NativeRefinementGroupReader.ReadCardRefinements(archive);
         Assert.Equal(109, recipes.Length);
@@ -27,7 +27,7 @@ public sealed class NativeRefinementGroupReaderTests
         Assert.Equal("", descriptions[27]);
         Assert.NotEmpty(descriptions[24]);
         files.Content[recordOffset + 27 * 8 + 5] = 110;
-        Assert.Throws<InvalidDataException>(() => NativeRefinementGroupReader.ReadTables(MngrpArchive.Read(files, FF8Encoding.CreateEuropean())));
+        Assert.Throws<InvalidDataException>(() => NativeRefinementGroupReader.ReadTables(MngrpArchive.Read(files, FF8Encoding.CreateEuropean(FF8TextLanguage.EN))));
     }
 
     [Fact]

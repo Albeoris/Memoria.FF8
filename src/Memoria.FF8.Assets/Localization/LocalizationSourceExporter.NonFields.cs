@@ -9,6 +9,7 @@ using Albeoris.Games.FF8.MngrpBin;
 using Albeoris.Games.FF8.MngrpBin.Abstractions;
 using Albeoris.Games.FF8.NamedicBin;
 using Albeoris.Games.FF8.Msd;
+using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.Assets.Localization;
@@ -347,7 +348,7 @@ public static partial class LocalizationSourceExporter
             }
             if (resource == "text/card-names" && source.Descriptor.Edition == Memoria.FF8.Resources.GameDataEdition.Classic && source is IGameNativeMemorySource memory)
             {
-                var names = TripleTriadCatalog.Read(memory).Names;
+                var names = TripleTriadCatalog.Read(memory, language: FF8TextLanguages.Parse(language)).Names;
                 for (int ordinal = 0; ordinal < names.Length; ordinal++)
                 {
                     Add(category, table, ordinal, names[ordinal], resource, new Dictionary<string, string?> { ["Native Source Fingerprint"] = memory.SourceHash });

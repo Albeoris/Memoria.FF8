@@ -8,7 +8,7 @@ public sealed record BattleWeaponDefinition(int Id, string Name, int CharacterId
 /// <summary>The original 12-byte weapon records, including the reserved byte at +3.</summary>
 internal static class BattleKernelReader
 {
-    public static IReadOnlyList<BattleWeaponDefinition> Weapons(byte[] kernel)
+    public static IReadOnlyList<BattleWeaponDefinition> Weapons(byte[] kernel, string language)
     {
         if (kernel.Length < 228 || BinaryPrimitives.ReadInt32LittleEndian(kernel) != 56)
         {
@@ -23,7 +23,7 @@ internal static class BattleKernelReader
         {
             throw new InvalidDataException("Original weapon records or strings exceed their kernel sections.");
         }
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = NativeTextEncoding.Create(language);
         List<BattleWeaponDefinition> weapons = [];
         for (int id = 0; id < 33; id++)
         {

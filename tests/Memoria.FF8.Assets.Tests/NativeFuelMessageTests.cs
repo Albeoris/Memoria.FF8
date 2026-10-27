@@ -26,7 +26,7 @@ public sealed class NativeFuelMessageTests
         Assert.DoesNotContain((byte)1, bytes);
         Assert.DoesNotContain((byte)7, bytes);
         Assert.DoesNotContain((byte)13, bytes);
-        string decoded = FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(0, bytes.Length - 1));
+        string decoded = FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(bytes.AsSpan(0, bytes.Length - 1));
         Assert.Equal(decoded, assets.ReadFuelMessage(count));
         Assert.False(string.IsNullOrWhiteSpace(decoded));
 
@@ -44,7 +44,7 @@ public sealed class NativeFuelMessageTests
                 if (original[index] == 13)
                 {
                     Assert.Equal((byte)194, original[++index]);
-                    expanded.AddRange(FF8Encoding.CreateEuropean().GetBytes("Fuel"));
+                    expanded.AddRange(FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Fuel"));
                 }
                 else
                 {

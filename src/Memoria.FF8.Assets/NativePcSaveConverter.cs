@@ -34,17 +34,17 @@ public static partial class NativePcSaveConverter
             GlobalRandom = assets.ReadNewGameGlobalRandom(),
             SeeD = session.State.SeeD! with { SalaryTable = assets.ReadNativeSalaryTable() }
         };
-        return Import(file, defaults, id => assets.LoadField(id).Name);
+        return Import(file, defaults, id => assets.LoadField(id).Name, assets.Resources.Source.Language);
     }
 
-    public static GameState Import(byte[] file, GameState defaults, Func<int, string> resolveFieldName)
+    public static GameState Import(byte[] file, GameState defaults, Func<int, string> resolveFieldName, string language)
     {
         ArgumentNullException.ThrowIfNull(file);
         ArgumentNullException.ThrowIfNull(defaults);
         ArgumentNullException.ThrowIfNull(resolveFieldName);
         NativePcSaveData original = NativePcSaveCodec.Decode(file);
         byte[] block = original.Block;
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = NativeTextEncoding.Create(language);
         Dictionary<int, string> names = [];
         foreach ((int subject, int offset) in new[] { (0, 408), (1, 420), (2, 432), (GameNames.BokoSubject, 444), (GameNames.GrieverSubject, Main + 2732) }.Concat(Enumerable.Range(0, 16).Select(gf => (16 + gf, Main + gf * 68))))
         {

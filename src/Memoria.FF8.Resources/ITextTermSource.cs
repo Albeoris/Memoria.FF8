@@ -4,5 +4,6 @@ namespace Memoria.FF8.Resources;
 public interface ITextTermSource
 {
     long Generation { get; }
+    string Language { get; }
     string Resolve(int index);
 }

@@ -84,7 +84,7 @@ public sealed partial class WorldAssets
     public string ReadFuelMessage(byte remaining)
     {
         byte[] bytes = ReadFuelMessageBytes(remaining);
-        return FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(0, bytes.Length - 1));
+        return NativeTextEncoding.Create(resources.Source.Language).GetString(bytes.AsSpan(0, bytes.Length - 1));
     }
 
     private byte[] ExpandWorldItemNames(byte[] source)
@@ -153,7 +153,7 @@ public sealed partial class WorldAssets
     public string ReadWorldMessage(int message)
     {
         byte[] bytes = ReadWorldMessageBytes(message);
-        return FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(0, bytes.Length - 1));
+        return NativeTextEncoding.Create(resources.Source.Language).GetString(bytes.AsSpan(0, bytes.Length - 1));
     }
 
     public short ReadWorldMessageSpeed(byte speed)

@@ -94,7 +94,7 @@ public sealed class NativeScanWindowTextProjectionTests
         Assert.Equal(JsonSerializer.Serialize(window), JsonSerializer.Serialize(Assert.Single(NativeScanWindowTextProjection.Project(restored, services))));
     }
 
-    private static byte[] Text(string value) => FF8Encoding.CreateEuropean().GetBytes(value);
+    private static byte[] Text(string value) => FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes(value);
     private static NativeBattleScanTextExpansionServices Services(byte[] source) => new(pointer => source[checked((int)(pointer - 0x100))], _ => throw new InvalidDataException("Unexpected name selector."));
     private static NativeBattleScanByteOwner Owner(int length) => new(new byte[length].ToImmutableArray(), Enumerable.Repeat(true, length).ToImmutableArray());
     private static NativeBattleScanTextFrame Frame()

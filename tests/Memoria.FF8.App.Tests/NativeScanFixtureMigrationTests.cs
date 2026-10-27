@@ -179,7 +179,7 @@ public sealed class NativeScanFixtureMigrationTests
         }
     }
 
-    private static byte[] EncodeTerminated(string text) => FF8Encoding.CreateEuropean().GetBytes(text).Append((byte)0).ToArray();
+    private static byte[] EncodeTerminated(string text) => FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes(text).Append((byte)0).ToArray();
 
     private static byte[] EncodeName24(string text)
     {

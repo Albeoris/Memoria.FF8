@@ -88,7 +88,7 @@ public sealed class JunctionTranslationResourceInstalledTests
                         observations.Add(new { key = key.Path, hash = Hash(bytes), bytes = bytes.Length });
                     }
                     byte[] Expected(string path) => expected.GetValueOrDefault(new ResourceKey(path)) ?? Read(original.Find(new ResourceKey(path))!.OpenRead());
-                    FF8Encoding encoding = FF8Encoding.CreateEuropean();
+                    FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
                     KernelData kernel = KernelData.ReadFromArray(Expected("main/kernel.bin"), encoding);
                     Assert.Equal(kernel.MagicSpells[1].Name, menu.MagicName(1));
                     Assert.Equal(kernel.Weapons[0].Name, menu.WeaponName(0));
@@ -252,7 +252,7 @@ public sealed class JunctionTranslationResourceInstalledTests
             }
             int start = text + offset;
             int length = bytes.AsSpan(start, end - start).IndexOf((byte)0);
-            values.Add(FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(start, length)));
+            values.Add(FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(bytes.AsSpan(start, length)));
         }
         return values.ToArray();
     }

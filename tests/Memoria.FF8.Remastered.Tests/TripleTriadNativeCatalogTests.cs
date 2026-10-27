@@ -1,3 +1,4 @@
+using Albeoris.Games.FF8.TextEncoding;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
@@ -58,7 +59,7 @@ public sealed class TripleTriadNativeCatalogTests
         using RemasteredGameDataSource source = new(InstalledDirectory("MEMORIA_FF8_REMASTERED_DIR", "main.zzz"));
         byte[] names = new ResourceService(source).Read(new ResourceKey("text/card-names"));
         names.AsSpan(4, 2).CopyTo(names.AsSpan(2, 2));
-        TripleTriadCatalog catalog = TripleTriadCatalog.Read(source, names);
+        TripleTriadCatalog catalog = TripleTriadCatalog.Read(source, names, language: FF8TextLanguage.EN);
         Assert.Equal("Funguar", catalog.Name(0));
         Assert.Equal(catalog.Name(1), catalog.Name(0));
     }
@@ -87,7 +88,7 @@ public sealed class TripleTriadNativeCatalogTests
                 names.AsSpan(BinaryPrimitives.ReadUInt16LittleEndian(names.AsSpan(2))).Fill(0x20);
                 break;
         }
-        Assert.Throws<InvalidDataException>(() => TripleTriadCatalog.Read(source, names));
+        Assert.Throws<InvalidDataException>(() => TripleTriadCatalog.Read(source, names, language: FF8TextLanguage.EN));
     }
 
     private static string InstalledDirectory(string variable, string requiredFile)

@@ -38,7 +38,7 @@ internal static class NativeScanWindowTextProjection
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(services);
         List<NativeScanWindowText> windows = [];
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = FF8Encoding.CreateEuropean(Albeoris.Games.FF8.TextEncoding.FF8TextLanguage.EN);
         for (int index = 0; index < 8; index++)
         {
             NativeBattleScanByteOwner row = frame.Windows.Row(index);

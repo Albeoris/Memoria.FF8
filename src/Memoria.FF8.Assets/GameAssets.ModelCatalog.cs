@@ -223,7 +223,7 @@ public sealed partial class GameAssets
         {
             throw new InvalidDataException("The enemy name has no terminator.");
         }
-        return FF8Encoding.CreateEuropean().GetString(name.AsSpan(0, end));
+        return NativeTextEncoding.Create(resources.Source.Language).GetString(name.AsSpan(0, end));
     }
 
     private static bool CatalogError(Exception exception) => exception is IOException or InvalidDataException or NotSupportedException or ArgumentException or OverflowException or IndexOutOfRangeException or UnauthorizedAccessException;

@@ -3,7 +3,7 @@ namespace Albeoris.Games.FF8.TextEncoding.Tags;
 /// <summary>
 /// In-game terms and place names that can be referenced by a <see cref="TextTagCode.Term"/> tag.
 /// </summary>
-public enum TextTagTerm : byte
+public enum TextTagTermEN : byte
 {
     Galbadia = 0x20,
     Esthar,

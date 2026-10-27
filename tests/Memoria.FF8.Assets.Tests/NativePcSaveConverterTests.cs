@@ -40,7 +40,7 @@ public sealed class NativePcSaveConverterTests
             GameplayPreferences = new GameplayPreferences { Difficulty = BattleDifficulty.Hardcore }.NormalizeForDifficulty(),
             WeaponRecipes = new NativeWeaponRecipes(source.CharacterVitals!.InitOutSha256, 2) { ObtainedWeaponsBits = 0xFF, MagazineRecipeBits = 2 }
         };
-        GameState imported = NativePcSaveConverter.Import(original, defaults, _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(original, defaults, _ => "fixture", "en");
         Assert.Equal(BattleDifficulty.Normal, imported.GameplayPreferences.Difficulty);
         Assert.False(imported.GameplayPreferences.WeaponMagazineRequired);
         Assert.False(imported.GameplayPreferences.WeaponUpgradeOrder);
@@ -71,7 +71,7 @@ public sealed class NativePcSaveConverterTests
     {
         byte[] original = NativePcSaveConverter.Export(Defaults());
         GameState defaults = Defaults() with { GameplayPreferences = new() { CardModOnce = true }, RefinedCardIds = [82] };
-        GameState imported = NativePcSaveConverter.Import(original, defaults, _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(original, defaults, _ => "fixture", "en");
         Assert.False(imported.GameplayPreferences.CardModOnce);
         Assert.Empty(imported.RefinedCardIds);
     }
@@ -88,7 +88,7 @@ public sealed class NativePcSaveConverterTests
     {
         byte[] original = NativePcSaveConverter.Export(Defaults());
         GameState enabledDefaults = Defaults() with { GameplayPreferences = new GameplayPreferences { DrawOncePerSpell = true } };
-        GameState imported = NativePcSaveConverter.Import(original, enabledDefaults, _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(original, enabledDefaults, _ => "fixture", "en");
         Assert.False(imported.GameplayPreferences.DrawOncePerSpell);
     }
 
@@ -105,7 +105,7 @@ public sealed class NativePcSaveConverterTests
     {
         byte[] original = NativePcSaveConverter.Export(Defaults());
         GameState enabledDefaults = Defaults() with { GameplayPreferences = new GameplayPreferences { GuardianFormsEnabled = true } };
-        GameState imported = NativePcSaveConverter.Import(original, enabledDefaults, _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(original, enabledDefaults, _ => "fixture", "en");
         Assert.False(imported.GameplayPreferences.GuardianFormsEnabled);
     }
 
@@ -120,7 +120,7 @@ public sealed class NativePcSaveConverterTests
         NativeEconomy economy = source.Economy!.DeepCopy();
         economy.Items[13] = new NativeItemStock(82, 67);
         source = source with { CharacterVitals = vitals, Economy = economy with { Gil = 1234567, PastGil = 87654 }, Playtime = new NativePlaytimeState(54321, 0, 0), CardInventory = source.CardInventory! with { CollectionFlags = 1, TripleTriadStatistics = new TripleTriadStatistics(8, 4, 2) } };
-        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), id => $"field{id}");
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), id => $"field{id}", "en");
         Assert.Equal(165, imported.FieldId);
         Assert.Equal("field165", imported.FieldName);
         Assert.Equal(source.FieldArrival, imported.FieldArrival);
@@ -148,10 +148,10 @@ public sealed class NativePcSaveConverterTests
         byte[] file = NativePcSaveConverter.Export(Defaults());
         NativePcSaveData original = NativePcSaveCodec.Decode(file);
         original.Block[NativePcSaveData.MainOffset + 16] = 197;
-        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(original), Defaults(), _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(original), Defaults(), _ => "fixture", "en");
         JsonElement snapshot = JsonSerializer.SerializeToElement(new { Scene = new { Names = new Dictionary<int, string> { [0] = "Leon", [16] = "Storm" } } });
         imported = imported with { EventState = snapshot, Economy = imported.Economy! with { Gil = 7654321 } };
-        GameState transferred = NativePcSaveConverter.Import(NativePcSaveConverter.Export(imported), Defaults(), _ => "fixture");
+        GameState transferred = NativePcSaveConverter.Import(NativePcSaveConverter.Export(imported), Defaults(), _ => "fixture", "en");
         Assert.Equal((byte)197, transferred.OriginalSave!.Block[NativePcSaveData.MainOffset + 16]);
         Assert.Equal((uint)7654321, transferred.Economy!.Gil);
         Assert.Equal("Leon", transferred.OriginalSave.Names[0]);
@@ -162,7 +162,7 @@ public sealed class NativePcSaveConverterTests
     public void Allocated_or_inactive_actors_do_not_replace_the_safe_saved_field_pose()
     {
         GameState source = Defaults() with { FieldId = 165, FieldArrival = new FieldTransition(165, -723, -8555, 12, 96), EventState = JsonSerializer.SerializeToElement(new { Scene = new { Party = new[] { 0, 255, 255 }, NativeFieldInitialization = new { Stage = "Allocated" } }, Actors = new[] { new { CharacterId = 0, Active = true, X = 0, Y = 0, WalkmeshTriangle = 65535, Direction = 0 } } }) };
-        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), _ => "fixture", "en");
         Assert.Equal(source.FieldArrival, imported.FieldArrival);
     }
 
@@ -171,7 +171,7 @@ public sealed class NativePcSaveConverterTests
     {
         NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with { Slot4 = new NativeSavedWorldVehicleSlot(73, new NativeSavedWorldPose(100, 200, 3, 400)), FuelDistance112 = 1234, WorldEventFlags116 = new NativeWorldEventFlags(0x123456789ABCDEF0, ulong.MaxValue) };
         GameState source = Defaults() with { Scene = SceneKind.WorldMap, FieldId = 165, PreviousFieldId = 165, FieldLoadContext = null, SavedWorld = saved, WorldArrival = new WorldTransition(62, 0, -1), World = new WorldState { X = -1234, Z = 5678, NativeHeight = 99, BodyYaw = 512, CameraYaw = 1024 } };
-        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), _ => "fixture", "en");
         Assert.Equal(SceneKind.WorldMap, imported.Scene);
         Assert.Equal(new WorldTransition(62, 0, -1), imported.WorldArrival);
         Assert.Null(imported.EventState);
@@ -187,7 +187,7 @@ public sealed class NativePcSaveConverterTests
         GameState source = Defaults() with { Scene = SceneKind.WorldMap, FieldId = 165, PreviousFieldId = 165, FieldLoadContext = null, WorldArrival = new WorldTransition(62, 0, -1), World = new WorldState { X = 100, Z = 200, NativeHeight = 3, BodyYaw = 4, CameraYaw = 5 } };
         NativePcSaveData data = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(source));
         data.Block[NativePcSaveData.MainOffset + 4624 + 105] = 33;
-        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture", "en");
         Assert.Equal(new WorldTransition(62, 0, -1), imported.WorldArrival);
         Assert.Equal(new NativeSavedWorldPose(100, 200, 3, 4), imported.SavedWorld!.FootReturn!.Pose0);
         Assert.Equal(source.Economy!.Gil, imported.Economy!.Gil);
@@ -209,7 +209,7 @@ public sealed class NativePcSaveConverterTests
         GameState field = Defaults() with { FieldId = 257, FieldArrival = new FieldTransition(257, 10, 20, 0, 0), SavedWorld = saved, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 750) };
         NativePcSaveData data = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(field));
         BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(388), 500);
-        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture", "en");
         Assert.Equal(SceneKind.Field, imported.Scene);
         Assert.Equal(NativeSavedWorldFootReturn.OriginalSaveRule, imported.SavedWorld!.FootReturn!.Rule);
         Assert.Equal((short)0, imported.SavedWorld.FootReturn.MapLocationId);
@@ -236,7 +236,7 @@ public sealed class NativePcSaveConverterTests
         BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(world + 96), 321);
         data.Block[world + 105] = (byte)entity;
         BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(388), 500);
-        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture", "en");
         NativeSavedWorldState saved = imported.SavedWorld!;
         if (entity == 48)
         {
@@ -262,7 +262,7 @@ public sealed class NativePcSaveConverterTests
         BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(world + 8), 683);
         BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(world + 10), 3113);
         BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(world + 96), 0xF9C5);
-        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture", "en");
         Assert.Equal(new NativeSavedWorldPose(2855, -23150, 683, 3113), imported.SavedWorld!.FootReturn!.Pose0);
         Assert.Equal((ushort)0, imported.SavedWorld.FootReturn.CameraYaw96);
         Assert.Equal((ushort)0xF9C5, BinaryPrimitives.ReadUInt16LittleEndian(imported.OriginalSave!.Block.AsSpan(world + 96)));
@@ -302,7 +302,7 @@ public sealed class NativePcSaveConverterTests
         Assert.Equal(1u, active.CharacterVitals!.GuardianForces[0].ForgottenAbilities);
         Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active, source));
         byte[] bytes = NativePcSaveConverter.Export(active, source, true);
-        GameState imported = NativePcSaveConverter.Import(bytes, target with { CharacterVitals = source }, _ => "fixture");
+        GameState imported = NativePcSaveConverter.Import(bytes, target with { CharacterVitals = source }, _ => "fixture", "en");
         Assert.Equal((byte)29, imported.CharacterVitals!.GuardianForces[0].AbilityProgress[0]);
     }
 

@@ -27,10 +27,10 @@ public sealed partial class GameAssets
         byte[] kernelBytes = Read(main, "kernel.bin");
         string kernelHash = Convert.ToHexString(SHA256.HashData(kernelBytes));
         _ = NativeKernelDirectory.Read(kernelBytes);
-        KernelData kernel = KernelData.ReadFromArray(kernelBytes, FF8Encoding.CreateEuropean());
+        KernelData kernel = KernelData.ReadFromArray(kernelBytes, NativeTextEncoding.Create(resources.Source.Language));
         byte[] content = Read(menu, "mngrp.bin");
         byte[] header = Read(menu, "mngrphd.bin");
-        MngrpArchive archive = MngrpArchive.Read(content, header, FF8Encoding.CreateEuropean());
+        MngrpArchive archive = MngrpArchive.Read(content, header, NativeTextEncoding.Create(resources.Source.Language));
         NativeRefinementDefinitions definitions = new(NativeExecutableHash!, kernelHash, kernel.MenuAbilities.Select(ability => new NativeRefinementAbility(ability.Name ?? "", ability.Index, ability.Start, ability.End)).ToImmutableArray(), NativeRefinementGroupReader.ReadTables(archive))
         {
             TableHashes = NativeRefinementGroupReader.ReadTableHashes(content, header)

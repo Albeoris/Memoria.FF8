@@ -115,7 +115,7 @@ public sealed class NativeBattleEffect344ResourceTests
         {
             int start = text + BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(indices + 2 * index));
             int length = bytes.AsSpan(start).IndexOf((byte)0);
-            string expected = FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(start, length));
+            string expected = FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(bytes.AsSpan(start, length));
             Assert.NotEmpty(expected);
             Assert.Equal(expected, resource.ReadText91(index));
             Assert.Equal(expected, restored.ReadText91(index));

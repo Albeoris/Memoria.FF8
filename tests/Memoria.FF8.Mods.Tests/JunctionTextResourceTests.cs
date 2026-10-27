@@ -94,7 +94,7 @@ public sealed class JunctionTextResourceTests
 
     private static ModFile File(string package, string path, IEnumerable<string> texts)
     {
-        MsdFile table = new(FF8Encoding.CreateEuropean());
+        MsdFile table = new(FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
         table.Texts.AddRange(texts);
         return new(package, ModFormat.Junction, path, 1, table.Write);
     }

@@ -51,17 +51,17 @@ public sealed class NativeFieldShopMemoryTests
         Assert.Equal(encounters.WorldWeights.ToArray(), memoryEncounters.WorldWeights.ToArray());
 
         NativeDrawPointCatalog draw = NativeDrawPointCatalogReader.Read(executable, kernel);
-        NativeDrawPointCatalog memoryDraw = NativeDrawPointCatalogReader.Read(memory, kernel, assets.ReadResource(new ResourceKey("text/draw-points")));
+        NativeDrawPointCatalog memoryDraw = NativeDrawPointCatalogReader.Read(memory, kernel, assets.ReadResource(new ResourceKey("text/draw-points")), language: "en");
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, memoryDraw.ExecutableHash);
         Assert.Equal(draw.PointBytes.ToArray(), memoryDraw.PointBytes.ToArray());
         Assert.Equal(draw.CommonMessages.ToArray(), memoryDraw.CommonMessages.ToArray());
         Assert.Equal(draw.MagicNames.ToArray(), memoryDraw.MagicNames.ToArray());
-        Assert.Throws<InvalidDataException>(() => NativeDrawPointCatalogReader.Read(memory, kernel, new byte[320]));
+        Assert.Throws<InvalidDataException>(() => NativeDrawPointCatalogReader.Read(memory, kernel, new byte[320], language: "en"));
 
         byte[] shops = assets.ReadResource(new ResourceKey("menu/shop.bin"));
         byte[] prices = assets.ReadResource(new ResourceKey("menu/price.bin"));
         NativeShopDefinitions shop = NativeShopDefinitionReader.Read(executable, shops, prices, kernel);
-        NativeShopDefinitions memoryShop = NativeShopDefinitionReader.Read(memory, shops, prices, kernel);
+        NativeShopDefinitions memoryShop = NativeShopDefinitionReader.Read(memory, shops, prices, kernel, "en");
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, memoryShop.ExecutableHash);
         Assert.Equal(shop.ArgumentMap.ToArray(), memoryShop.ArgumentMap.ToArray());
         Assert.Equal(shop.Prices.ToArray(), memoryShop.Prices.ToArray());

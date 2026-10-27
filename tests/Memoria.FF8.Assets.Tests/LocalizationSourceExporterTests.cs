@@ -34,7 +34,7 @@ public sealed class LocalizationSourceExporterTests
     public void ReadsActualNamedicAndLocationsPreservingEmptySlotsAndTokens()
     {
         using InMemoryResourceSource source = Source();
-        var encoding = FF8Encoding.CreateEuropean();
+        var encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         string[] values = ["Named", "", "A{Line}B"];
         source.Set(new("menu/namedic.bin"), NamedicBin.WriteStrings(values, encoding), "bin");
         source.Set(new("menu/areames.dc1"), NamedicBin.WriteStrings(["Place"], encoding), "bin");
@@ -53,7 +53,7 @@ public sealed class LocalizationSourceExporterTests
     public void ScanDirectoryPreservesSelectorsAndSharedOffsets()
     {
         using InMemoryResourceSource source = Source();
-        byte[] text = FF8Encoding.CreateEuropean().GetBytes("Description");
+        byte[] text = FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Description");
         byte[] bytes = new byte[320 + text.Length + 1];
         text.CopyTo(bytes, 320);
         source.Set(new("text/enemy-scan"), bytes, "bin");

@@ -92,7 +92,7 @@ public sealed partial class GameAssets : IDisposable
             return nativeDrawPointCatalog;
         }
         using IFlArchive main = OpenArchive("main");
-        NativeDrawPointCatalog selected = NativeDrawPointCatalogReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"), ReadResource(new ResourceKey("text/draw-points")), resources.FindText(StaticTextResource.DrawPointMessages));
+        NativeDrawPointCatalog selected = NativeDrawPointCatalogReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"), ReadResource(new ResourceKey("text/draw-points")), resources.FindText(StaticTextResource.DrawPointMessages), resources.Source.Language);
         nativeDrawPointCatalog = selected;
         nativeDrawPointGeneration = generation;
         return selected;
@@ -149,7 +149,7 @@ public sealed partial class GameAssets : IDisposable
         }
         using IFlArchive main = OpenArchive("main");
         using IFlArchive menu = OpenArchive("menu");
-        return nativeShopDefinitions = NativeShopDefinitionReader.Read(ReadNativeMemory(), Read(menu, "shop.bin"), Read(menu, "price.bin"), Read(main, "kernel.bin"));
+        return nativeShopDefinitions = NativeShopDefinitionReader.Read(ReadNativeMemory(), Read(menu, "shop.bin"), Read(menu, "price.bin"), Read(main, "kernel.bin"), resources.Source.Language);
     }
 
     public NativeWeaponRecipes ReadNewGameWeaponRecipes()
@@ -170,7 +170,7 @@ public sealed partial class GameAssets : IDisposable
         }
         using IFlArchive main = OpenArchive("main");
         using IFlArchive menu = OpenArchive("menu");
-        return nativeWeaponShopDefinitions = NativeWeaponShopDefinitionReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"), Read(menu, "mwepon.bin"), Read(menu, "mwepon.msg"));
+        return nativeWeaponShopDefinitions = NativeWeaponShopDefinitionReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"), Read(menu, "mwepon.bin"), Read(menu, "mwepon.msg"), resources.Source.Language);
     }
 
     public NativeShotAvailabilityState ReadNewGameShotAvailability()
@@ -288,7 +288,7 @@ public sealed partial class GameAssets : IDisposable
         IReadOnlyList<FieldCamera> cameras = FieldCamera.ReadAll(Read(nested, name + ".ca"));
         byte[] information = Read(nested, name + ".inf");
         byte[] walkmesh = Read(nested, name + ".id");
-        FieldAssets result = new(fieldId, name, Read(nested, name + ".jsm"), MsdFile.Read(Read(nested, name + ".msd"), FF8Encoding.CreateEuropean()).Texts.ToArray(), tiles, cameras[0], FieldWalkmesh.Read(walkmesh), models) { Cameras = cameras, Information = information.Length == 676 ? FieldInformation.Read(information) : null, WalkmeshHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(walkmesh)), NativeExecutableHash = NativeExecutableHash };
+        FieldAssets result = new(fieldId, name, Read(nested, name + ".jsm"), MsdFile.Read(Read(nested, name + ".msd"), NativeTextEncoding.CreateField(resources.Source.Language, name)).Texts.ToArray(), tiles, cameras[0], FieldWalkmesh.Read(walkmesh), models) { Cameras = cameras, Information = information.Length == 676 ? FieldInformation.Read(information) : null, WalkmeshHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(walkmesh)), NativeExecutableHash = NativeExecutableHash };
         if (NativeRuntimeProfile is { IsVerified: true } registrationProfile && nativeDirectory.Count == models.Count)
         {
             result = result with { NativeRegistration = new(fieldId, name, registrationProfile.ExecutableHash, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(result.Jsm)), new($"field/{name}/chara.one", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(one)), one.ToImmutableArray()), nativeDirectory.ToImmutableArray(), nativeMain.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => pair.Value).ToImmutableArray()) { Loader = ReadNativeFieldRegistrationInputs(fieldId, information, result.Jsm, ReadOptionalFieldColors(() => Read(nested, name + ".pcb"))) } };

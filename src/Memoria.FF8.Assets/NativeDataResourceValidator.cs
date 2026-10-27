@@ -47,7 +47,7 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
                     ValidateEnemy(content.Key, bytes, original);
                     break;
                 case NativeDataResourceKind.NameDictionary:
-                    _ = NamedicBin.ReadStrings(bytes, FF8Encoding.CreateEuropean());
+                    _ = NamedicBin.ReadStrings(bytes, NativeTextEncoding.Create(candidate.Source.Language));
                     break;
                 case NativeDataResourceKind.MenuGroupData:
                 case NativeDataResourceKind.MenuGroupIndex:
@@ -70,7 +70,7 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
                     }
                     break;
                 case NativeDataResourceKind.AreaNames:
-                    NativeMenuArtworkDataReader.ValidateAreaNames(bytes);
+                    NativeMenuArtworkDataReader.ValidateAreaNames(bytes, candidate.Source.Language);
                     break;
                 case NativeDataResourceKind.Texture:
                     NativeMenuArtworkDataReader.ValidateTexture(content.Key, bytes);
@@ -164,7 +164,7 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
                 break;
             case "menu/pet_exp.bin":
             case "menu/pet_exp.msg":
-                _ = NativeAngeloTrainingDefinitionReader.Read(candidate.Read(new ResourceKey("menu/pet_exp.bin")), candidate.Read(new ResourceKey("menu/pet_exp.msg")), FF8Encoding.CreateEuropean());
+                _ = NativeAngeloTrainingDefinitionReader.Read(candidate.Read(new ResourceKey("menu/pet_exp.bin")), candidate.Read(new ResourceKey("menu/pet_exp.msg")), NativeTextEncoding.Create(candidate.Source.Language));
                 break;
             case "menu/mtmag.bin":
             case "menu/mmag.bin":
@@ -185,9 +185,9 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
     private void ValidateKernel(byte[] bytes)
     {
         _ = NativeKernelDirectory.Read(bytes);
-        _ = KernelData.ReadFromArray(bytes, FF8Encoding.CreateEuropean());
-        _ = BattleKernelReader.Weapons(bytes);
-        _ = BattleActionKernelReader.ReadCatalogue(bytes);
+        _ = KernelData.ReadFromArray(bytes, NativeTextEncoding.Create(candidate.Source.Language));
+        _ = BattleKernelReader.Weapons(bytes, candidate.Source.Language);
+        _ = BattleActionKernelReader.ReadCatalogue(bytes, candidate.Source.Language);
         _ = NativeBattleExperienceDefinitionReader.Read(bytes);
         NativeCharacterVitals vitals = NativeCharacterInitialization.Read(candidate.Read(new ResourceKey("main/init.out")), bytes);
         BattlePlayerStatReader stats = new(bytes);
@@ -259,7 +259,7 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
         }
         byte[] content = candidate.Read(new ResourceKey("menu/mngrp.bin"));
         byte[] header = candidate.Read(new ResourceKey("menu/mngrphd.bin"));
-        MngrpArchive archive = MngrpArchive.Read(content, header, FF8Encoding.CreateEuropean());
+        MngrpArchive archive = MngrpArchive.Read(content, header, NativeTextEncoding.Create(candidate.Source.Language));
         _ = NativeTutorialExamCatalog.Read(header, content, candidate.ResourceLanguage);
         _ = NativeRefinementGroupReader.ReadTables(archive);
         _ = NativeRefinementGroupReader.ReadCardDescriptions(archive);
@@ -277,9 +277,9 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
         }
         IGameNativeMemorySource memory = candidate.GetSource<IGameNativeMemorySource>() ?? throw new NotSupportedException("Native magazine pages require authenticated weapon and item icon definitions.");
         byte[] kernel = candidate.Read(new ResourceKey("main/kernel.bin"));
-        NativeWeaponShopDefinitions weapons = NativeWeaponShopDefinitionReader.Read(memory, kernel, candidate.Read(new ResourceKey("menu/mwepon.bin")), candidate.Read(new ResourceKey("menu/mwepon.msg")));
-        archive ??= MngrpArchive.Read(candidate.Read(new ResourceKey("menu/mngrp.bin")), candidate.Read(new ResourceKey("menu/mngrphd.bin")), FF8Encoding.CreateEuropean());
-        NativeMagazineDataReader.ValidateInventoryPages(candidate.Read(new ResourceKey("menu/mmag.bin")), candidate.Read(new ResourceKey("menu/mitem.bin")), archive.GetSection<MngrpStringTableSection>(87).Table, weapons, KernelData.ReadFromArray(kernel, FF8Encoding.CreateEuropean()).ZellLimits.Count, archive.GetSection<MngrpOpaqueSection>(7).Content, candidate.Read(new ResourceKey("tables/item-icon-kinds")));
+        NativeWeaponShopDefinitions weapons = NativeWeaponShopDefinitionReader.Read(memory, kernel, candidate.Read(new ResourceKey("menu/mwepon.bin")), candidate.Read(new ResourceKey("menu/mwepon.msg")), candidate.Source.Language);
+        archive ??= MngrpArchive.Read(candidate.Read(new ResourceKey("menu/mngrp.bin")), candidate.Read(new ResourceKey("menu/mngrphd.bin")), NativeTextEncoding.Create(candidate.Source.Language));
+        NativeMagazineDataReader.ValidateInventoryPages(candidate.Read(new ResourceKey("menu/mmag.bin")), candidate.Read(new ResourceKey("menu/mitem.bin")), archive.GetSection<MngrpStringTableSection>(87).Table, weapons, KernelData.ReadFromArray(kernel, NativeTextEncoding.Create(candidate.Source.Language)).ZellLimits.Count, archive.GetSection<MngrpOpaqueSection>(7).Content, candidate.Read(new ResourceKey("tables/item-icon-kinds")));
         magazinesValidated = true;
     }
 
@@ -341,7 +341,7 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
             {
                 throw new InvalidDataException("World message has no bounded terminator.");
             }
-            _ = FF8Encoding.CreateEuropean().GetString(text.Slice(pointer, end));
+            _ = NativeTextEncoding.Create(candidate.Source.Language).GetString(text.Slice(pointer, end));
         }
     }
 

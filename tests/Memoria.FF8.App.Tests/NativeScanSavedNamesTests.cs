@@ -103,7 +103,7 @@ public sealed class NativeScanSavedNamesTests
         NativeBattleScanTextExpansionServices services = battle.CreateNativeScanTextExpansionServices();
         foreach ((byte operand, string text) in new (byte, string)[] { (0x30, squall), (0x34, rinoa), (0x50, griever) })
         {
-            Assert.Equal(FF8Encoding.CreateEuropean().GetBytes(text).Append((byte)0).ToArray(), services.ReadNameBytes!(operand).ToArray());
+            Assert.Equal(FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes(text).Append((byte)0).ToArray(), services.ReadNameBytes!(operand).ToArray());
         }
     }
 

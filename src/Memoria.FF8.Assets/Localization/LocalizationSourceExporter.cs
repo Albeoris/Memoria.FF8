@@ -112,8 +112,8 @@ public static partial class LocalizationSourceExporter
 
     private sealed partial class Reader(IResourceSource source, IGameArchiveSource archives, string language, List<LocalizationSourceEntry> entries, List<LocalizationSourceGap> gaps, CancellationToken cancellation)
     {
-        private readonly FF8Encoding encoding = language == "jp" ? FF8Encoding.CreateJapanese() : FF8Encoding.CreateEuropean();
-        private readonly Encoding nonFieldEncoding = new LocalizationNonFieldEncoding(language == "jp" ? FF8Encoding.CreateJapanese() : FF8Encoding.CreateEuropean());
+        private readonly FF8Encoding encoding = NativeTextEncoding.Create(language);
+        private readonly Encoding nonFieldEncoding = new LocalizationNonFieldEncoding(NativeTextEncoding.Create(language));
         private readonly Dictionary<string, byte[]?> resourceBytes = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> resourceHashes = new(StringComparer.OrdinalIgnoreCase);
         private byte[]? Resource(string path)

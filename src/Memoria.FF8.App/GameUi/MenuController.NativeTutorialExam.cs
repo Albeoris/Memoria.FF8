@@ -237,7 +237,7 @@ public sealed partial class MenuController
             return null;
         }
         NativeTutorialExamQuestion original = _nativeExamCatalog.Levels[_nativeExamLevel - 1].Questions[_nativeExamAnswers.Count];
-        string source = Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateEuropean().GetString(original.Bytes.ToArray());
+        string source = NativeTextEncoding.Create(_nativeExamCatalog.Language.ToString()).GetString(original.Bytes.ToArray());
         string translated = NativeRecordText(95 + _nativeExamLevel, original.Index, source);
         if (translated == source)
         {

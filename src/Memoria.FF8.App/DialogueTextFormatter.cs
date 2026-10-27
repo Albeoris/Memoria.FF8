@@ -116,16 +116,20 @@ internal static partial class DialogueTextFormatter
                 case "Name":
                     Append(MiscName(ParseEnum<TextTagName>(parameter, kind), names));
                     break;
-                case "Term":
+                case string termKind when termKind.StartsWith("Term", StringComparison.Ordinal):
                     if (terms is null)
                     {
                         throw new NotSupportedException("Native text terms require their source dictionary.");
                     }
-                    if (!Enum.TryParse(parameter, out TextTagTerm term))
+                    if (!Albeoris.Games.FF8.TextEncoding.TextTagTerms.TryGetLanguage(kind, out var language) || !Albeoris.Games.FF8.TextEncoding.TextTagTerms.TryParse(language, parameter, out byte term))
                     {
                         throw new NotSupportedException($"Dialogue Term parameter '{parameter}' is unsupported.");
                     }
-                    Append(terms.Resolve(unchecked((byte)((byte)term - 32))));
+                    if (language != Albeoris.Games.FF8.TextEncoding.FF8TextLanguages.Parse(terms.Language))
+                    {
+                        throw new InvalidDataException("Native term language differs from its source dictionary.");
+                    }
+                    Append(terms.Resolve(unchecked((byte)(term - 32))));
                     break;
                 case "Key" when Enum.TryParse(parameter, out TextTagKey key) && key == TextTagKey.JunctionMarker:
                     // Native common message4 uses key65 for the junctioned-magic J marker.

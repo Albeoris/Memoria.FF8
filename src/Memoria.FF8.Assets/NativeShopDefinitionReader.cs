@@ -18,10 +18,10 @@ public static class NativeShopDefinitionReader
 
     public static NativeShopDefinitions Read(byte[] executable, byte[] shops, byte[] prices, byte[] kernel)
     {
-        return Read(new NativeExecutableMemory(executable), shops, prices, kernel);
+        return Read(new NativeExecutableMemory(executable), shops, prices, kernel, "en");
     }
 
-    public static NativeShopDefinitions Read(IGameNativeMemorySource memory, byte[] shops, byte[] prices, byte[] kernel)
+    public static NativeShopDefinitions Read(IGameNativeMemorySource memory, byte[] shops, byte[] prices, byte[] kernel, string language)
     {
         string executableHash = memory.SourceHash;
         string kernelHash = Convert.ToHexString(SHA256.HashData(kernel));
@@ -40,7 +40,7 @@ public static class NativeShopDefinitionReader
         ImmutableArray<NativeShopPrice>.Builder definitions = ImmutableArray.CreateBuilder<NativeShopPrice>(199);
         for (int item = 0; item < 199; item++)
         {
-            definitions.Add(new NativeShopPrice(BinaryPrimitives.ReadUInt16LittleEndian(prices.AsSpan(item * 4)), prices[item * 4 + 2], prices[item * 4 + 3], ReadItemName(kernel, sections, item)));
+            definitions.Add(new NativeShopPrice(BinaryPrimitives.ReadUInt16LittleEndian(prices.AsSpan(item * 4)), prices[item * 4 + 2], prices[item * 4 + 3], ReadItemName(kernel, sections, item, language)));
         }
         //4EBBA0 maps the BYTE argument throughB88918. Retain the complete
         //physical BYTE-index read domain, not an inferred '&31' logical table.
@@ -49,7 +49,7 @@ public static class NativeShopDefinitionReader
         return result;
     }
 
-    private static string? ReadItemName(byte[] kernel, int[] sections, int item)
+    private static string? ReadItemName(byte[] kernel, int[] sections, int item, string language)
     {
         //Original47EA30: item<33 uses WORD1CF7778[12*id]/kernel38;
         //others use WORD1CF7A0C[2*id]/kernel39.47EA90 is description,
@@ -82,6 +82,6 @@ public static class NativeShopDefinitionReader
         {
             throw new InvalidDataException("Native shop item name lies outside its original kernel text section.");
         }
-        return FF8Encoding.CreateEuropean().GetString(kernel[position..zero]);
+        return NativeTextEncoding.Create(language).GetString(kernel[position..zero]);
     }
 }

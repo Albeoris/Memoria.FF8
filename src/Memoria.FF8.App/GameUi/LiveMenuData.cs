@@ -452,7 +452,7 @@ public sealed partial class LiveMenuCatalog
         byte[] Read(string name) => assets.ReadResource(new ResourceKey("main/" + name));
         byte[] initial = Read("init.out");
         NativeInitialData.Validate(initial);
-        System.Text.Encoding encoding = FF8Encoding.CreateEuropean();
+        System.Text.Encoding encoding = NativeTextEncoding.Create(assets.Resources.Source.Language);
         string[] guardianForceNames = Enumerable.Range(0, 16).Select(id =>
         {
             int start = id * 68;

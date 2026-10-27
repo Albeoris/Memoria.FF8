@@ -21,7 +21,7 @@ public sealed class LiveMenuResourceOverlayTests
         using IResourceSource source = GameDataSourceFactory.Open(directory);
         ResourceService resources = new(source);
         string language = resources.Source.Language;
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         KernelData kernel = KernelData.ReadFromArray(Read("main/kernel.bin"), encoding);
         kernel.MagicSpells[1].Name = "Selected spell";
         string[] locations = NamedicBin.ReadStrings(Read("menu/areames.dc1"), encoding);

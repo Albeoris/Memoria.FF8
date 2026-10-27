@@ -14,7 +14,7 @@ public sealed class LocalizationJapaneseNonFieldTests
     public void CommonJapanesePagesAndControlParametersDecodeWithoutAFieldCharacterTable()
     {
         const string expected = "あいうⅧ闘念{Var 28}";
-        byte[] bytes = FF8Encoding.CreateJapanese().GetBytes(expected);
+        byte[] bytes = FF8Encoding.CreateJapanese(FF8TextLanguage.JP).GetBytes(expected);
         Assert.Contains((byte)0x19, bytes);
         Assert.Contains((byte)0x1a, bytes);
         Assert.Contains((byte)0x1b, bytes);
@@ -33,7 +33,7 @@ public sealed class LocalizationJapaneseNonFieldTests
     [Fact]
     public void FieldOnlyAndTruncatedEscapesRetainMissingSourceSlotsWithoutPoisoningTheirNeighbours()
     {
-        byte[] supported = FF8Encoding.CreateJapanese().GetBytes("あいう");
+        byte[] supported = FF8Encoding.CreateJapanese(FF8TextLanguage.JP).GetBytes("あいう");
         using InMemoryResourceSource source = Source();
         source.Set(new("menu/namedic.bin"), NamedTable(supported, [0x1c, 0x20], [0x19], supported), "bin");
 
@@ -56,7 +56,7 @@ public sealed class LocalizationJapaneseNonFieldTests
     [Fact]
     public void InvalidWorldStringRetainsItsOriginalOrdinalAndDoesNotSuppressFollowingMessages()
     {
-        byte[] supported = FF8Encoding.CreateJapanese().GetBytes("あい");
+        byte[] supported = FF8Encoding.CreateJapanese(FF8TextLanguage.JP).GetBytes("あい");
         byte[] bank = new byte[8 + 3 + supported.Length + 1];
         BinaryPrimitives.WriteInt32LittleEndian(bank, 8);
         BinaryPrimitives.WriteInt32LittleEndian(bank.AsSpan(4), 11);
@@ -68,7 +68,7 @@ public sealed class LocalizationJapaneseNonFieldTests
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(14 * 4), bytes.Length);
         bank.CopyTo(bytes, 64);
         using InMemoryResourceSource source = Source();
-        source.Set(new("world/wmsetus.obj"), bytes, "bin");
+        source.Set(new("world/wmsetjp.obj"), bytes, "bin");
 
         LocalizationSourceCatalog result = LocalizationSourceExporter.Read(source, new MissingArchives(), "jp", TestContext.Current.CancellationToken);
         LocalizationSourceEntry[] rows = result.Entries.Where(row => row.File == "messages_world").ToArray();

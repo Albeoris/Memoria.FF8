@@ -18,10 +18,10 @@ public static class NativeWeaponShopDefinitionReader
 
     public static NativeWeaponShopDefinitions Read(byte[] executable, byte[] kernel, byte[] recipes, byte[] messages)
     {
-        return Read(new NativeExecutableMemory(executable), kernel, recipes, messages);
+        return Read(new NativeExecutableMemory(executable), kernel, recipes, messages, "en");
     }
 
-    public static NativeWeaponShopDefinitions Read(IGameNativeMemorySource memory, byte[] kernel, byte[] recipes, byte[] messages)
+    public static NativeWeaponShopDefinitions Read(IGameNativeMemorySource memory, byte[] kernel, byte[] recipes, byte[] messages, string language)
     {
         string executableHash = memory.SourceHash;
         string kernelHash = Convert.ToHexString(SHA256.HashData(kernel));
@@ -52,7 +52,7 @@ public static class NativeWeaponShopDefinitionReader
             {
                 throw new InvalidDataException("Native weapon name lies outside its original kernel text section.");
             }
-            string name = FF8Encoding.CreateEuropean().GetString(kernel[position..zero]);
+            string name = NativeTextEncoding.Create(language).GetString(kernel[position..zero]);
             ImmutableArray<NativeItemStock> materials = Enumerable.Range(0, 4).Select(slot => new NativeItemStock(recipes[id * 12 + 4 + 2 * slot], recipes[id * 12 + 5 + 2 * slot])).ToImmutableArray();
             rows.Add(new NativeWeaponRecipe(name, weapon[4], recipes[id * 12 + 3], materials, ImmutableArray.CreateRange(weapon.ToArray()), ImmutableArray.CreateRange(recipes.AsSpan(id * 12, 12).ToArray())));
         }

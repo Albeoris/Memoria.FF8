@@ -201,7 +201,7 @@ public sealed partial class NativeTutorialCatalog
                 textLength = terminator < 0 ? reserved.Length : searchStart + terminator;
             }
             ImmutableArray<byte> encoded = ImmutableArray.CreateRange(reserved[..textLength].ToArray());
-            result.Add(new NativeTutorialText(index, offset, FF8Encoding.CreateEuropean().GetString(encoded.AsSpan()), encoded));
+            result.Add(new NativeTutorialText(index, offset, FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(encoded.AsSpan()), encoded));
             previous = offset;
         }
         return result.MoveToImmutable();

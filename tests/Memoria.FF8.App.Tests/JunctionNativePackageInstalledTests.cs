@@ -50,7 +50,7 @@ public sealed class JunctionNativePackageInstalledTests
                 _ = NativeEconomyInitialization.Read(initial);
                 using GameAssets assets = new(game.GameDirectory, resources: host.Resources);
                 var refinement = assets.ReadNativeRefinementDefinitions();
-                MngrpArchive menuArchive = MngrpArchive.Read(host.Resources.Read(new ResourceKey("menu/mngrp.bin")), host.Resources.Read(new ResourceKey("menu/mngrphd.bin")), FF8Encoding.CreateEuropean());
+                MngrpArchive menuArchive = MngrpArchive.Read(host.Resources.Read(new ResourceKey("menu/mngrp.bin")), host.Resources.Read(new ResourceKey("menu/mngrphd.bin")), FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
                 var expectedRecipes = NativeRefinementGroupReader.ReadTables(menuArchive);
                 for (int kind = 0; kind < expectedRecipes.Length; kind++)
                 {

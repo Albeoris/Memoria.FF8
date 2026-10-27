@@ -23,12 +23,13 @@ internal sealed class TextDecoder
 
     public Int32 GetCharCount(Byte[] bytes, Int32 index, Int32 count)
     {
+        _owner.RequireLanguage();
         Int32 result = 0;
         Char[] discardBuffer = new Char[TextTag.MaxTagLength];
 
         while (count > 0)
         {
-            TextTag? tag = TextTag.TryRead(bytes, ref index, ref count);
+            TextTag? tag = TextTag.TryRead(bytes, ref index, ref count, _owner.RequireLanguage());
             if (tag is not null)
             {
                 Int32 offset = 0;
@@ -69,11 +70,12 @@ internal sealed class TextDecoder
 
     public Int32 GetChars(Byte[] bytes, Int32 byteIndex, Int32 byteCount, Char[] chars, Int32 charIndex)
     {
+        _owner.RequireLanguage();
         Int32 startCharIndex = charIndex;
 
         while (byteCount > 0)
         {
-            TextTag? tag = TextTag.TryRead(bytes, ref byteIndex, ref byteCount);
+            TextTag? tag = TextTag.TryRead(bytes, ref byteIndex, ref byteCount, _owner.RequireLanguage());
             if (tag is not null)
             {
                 tag.Write(chars, ref charIndex);

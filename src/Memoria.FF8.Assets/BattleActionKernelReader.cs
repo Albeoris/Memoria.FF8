@@ -6,11 +6,11 @@ namespace Memoria.FF8.Assets;
 
 internal static partial class BattleActionKernelReader
 {
-    public static IReadOnlyList<BattleActionDefinition> Read(byte[] bytes) => ReadCatalogue(bytes).Actions;
+    public static IReadOnlyList<BattleActionDefinition> Read(byte[] bytes, string language) => ReadCatalogue(bytes, language).Actions;
 
-    public static BattleActionCatalog ReadCatalogue(byte[] bytes)
+    public static BattleActionCatalog ReadCatalogue(byte[] bytes, string language)
     {
-        KernelData kernel = KernelData.ReadFromArray(bytes, FF8Encoding.CreateEuropean());
+        KernelData kernel = KernelData.ReadFromArray(bytes, NativeTextEncoding.Create(language));
         BattleNativeAction[] native = ReadNativeActions(bytes, kernel, out BattleNativeKernelRecord[] records);
         List<BattleActionDefinition> result = [];
         for (int id = 1; id < kernel.MagicSpells.Count; id++)

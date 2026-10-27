@@ -67,8 +67,8 @@ public sealed partial class GameAssets
         try
         {
             byte[] kernel = resources.Read(new ResourceKey("main/kernel.bin"));
-            definitions = BattleKernelReader.Weapons(kernel).Where(definition => definition.CharacterId == character && character != 7).ToArray();
-            nativeActions = BattleActionKernelReader.ReadCatalogue(kernel).NativeActions;
+            definitions = BattleKernelReader.Weapons(kernel, resources.Source.Language).Where(definition => definition.CharacterId == character && character != 7).ToArray();
+            nativeActions = BattleActionKernelReader.ReadCatalogue(kernel, resources.Source.Language).NativeActions;
         }
         catch (Exception exception) when (CatalogError(exception))
         {

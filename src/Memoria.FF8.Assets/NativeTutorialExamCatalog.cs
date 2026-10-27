@@ -18,6 +18,7 @@ public sealed record NativeTutorialInformationNode(int Id, ushort OriginId, usho
 {
     public string? LocalizationFile { get; init; }
     public bool Japanese { get; init; }
+    public FF8TextLanguage? Language { get; init; }
 }
 public sealed record NativeTutorialInformationLink(int TargetId, string Label, int LineIndex = 0);
 public sealed record NativeTutorialInformationPage(NativeTutorialInformationNode Node, string Text, ImmutableArray<NativeTutorialInformationLink> Links);
@@ -25,13 +26,15 @@ public sealed record NativeTutorialInformationPage(NativeTutorialInformationNode
 /// <summary>Native 4D4960/4D4D30 exam bank and 4D5E00/4D5F10 Information text graph.</summary>
 public sealed class NativeTutorialExamCatalog
 {
-    private NativeTutorialExamCatalog(ImmutableArray<NativeTutorialExamLevel> levels, ImmutableArray<string> prompts, ImmutableArray<NativeTutorialInformationNode> information)
+    private NativeTutorialExamCatalog(ImmutableArray<NativeTutorialExamLevel> levels, ImmutableArray<string> prompts, ImmutableArray<NativeTutorialInformationNode> information, FF8TextLanguage language)
     {
         Levels = levels;
         Prompts = prompts;
         Information = information;
+        Language = language;
     }
 
+    public FF8TextLanguage Language { get; }
     public ImmutableArray<NativeTutorialExamLevel> Levels { get; }
     public ImmutableArray<string> Prompts { get; }
     public ImmutableArray<NativeTutorialInformationNode> Information { get; }
@@ -76,7 +79,7 @@ public sealed class NativeTutorialExamCatalog
             }
         }
         NativeTutorialInformationNode node = Information[id];
-        string source = NativeTutorialInformationText.Format(node.Body.AsSpan(), node.Japanese ? FF8Encoding.CreateJapanese() : FF8Encoding.CreateEuropean(), node.Japanese);
+        string source = NativeTutorialInformationText.Format(node.Body.AsSpan(), node.Japanese ? FF8Encoding.CreateJapanese(node.Language) : FF8Encoding.CreateEuropean(node.Language), node.Japanese);
         string body = localizeBody?.Invoke(node, source) ?? source;
         if (!NativeTutorialInformationText.ValidateTarget(source, body))
         {
@@ -191,10 +194,10 @@ public sealed class NativeTutorialExamCatalog
         {
             throw new NotSupportedException("Original SeeD tests require the authenticated English executable and native menu directory.");
         }
-        return Read(header, content);
+        return Read(header, content, "en");
     }
 
-    public static NativeTutorialExamCatalog Read(byte[] header, byte[] content, string language = "en")
+    public static NativeTutorialExamCatalog Read(byte[] header, byte[] content, string language)
     {
         if (header.Length != 2048)
         {
@@ -211,7 +214,7 @@ public sealed class NativeTutorialExamCatalog
             return content.AsSpan(checked((int)offset - 1), checked((int)length)).ToArray();
         }
         bool japanese = language is "jp" or "ja";
-        FF8Encoding encoding = japanese ? FF8Encoding.CreateJapanese() : FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = NativeTextEncoding.Create(language);
         ImmutableArray<(byte Prefix, byte[] Bytes)> ReadRecords(int slot)
         {
             byte[] bytes = Resource(slot);
@@ -281,9 +284,9 @@ public sealed class NativeTutorialExamCatalog
             }
             MngrpTextBlockReference source = parsedMap.References[id];
             string? localizationFile = source.BlockIndex is int blockIndex && (uint)source.SectionNumber < parsedBlocks.Length ? $"mngrp_slot{parsedBlocks[source.SectionNumber].SlotIndex:000}_block{blockIndex:0000}" : null;
-            information.Add(new NativeTutorialInformationNode(id, BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset)), BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 2)), BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 4)), encoding.GetString(bytes.AsSpan(offset + 8, titleEnd - offset - 8)), bytes[(titleEnd + 1)..bodyEnd].ToImmutableArray()) { LocalizationFile = localizationFile, Japanese = japanese });
+            information.Add(new NativeTutorialInformationNode(id, BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset)), BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 2)), BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 4)), encoding.GetString(bytes.AsSpan(offset + 8, titleEnd - offset - 8)), bytes[(titleEnd + 1)..bodyEnd].ToImmutableArray()) { LocalizationFile = localizationFile, Japanese = japanese, Language = FF8TextLanguages.Parse(language) });
         }
-        return new NativeTutorialExamCatalog(levels.MoveToImmutable(), prompts, information.MoveToImmutable());
+        return new NativeTutorialExamCatalog(levels.MoveToImmutable(), prompts, information.MoveToImmutable(), FF8TextLanguages.Parse(language));
     }
 }
 

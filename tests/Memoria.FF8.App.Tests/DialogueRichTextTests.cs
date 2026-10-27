@@ -74,25 +74,25 @@ public sealed class DialogueRichTextTests
     }
 
     [Theory]
-    [InlineData(TextTagTerm.FishermansHorizon, 7)]
-    [InlineData(TextTagTerm.BalambGarden, 14)]
-    [InlineData(TextTagTerm.TrabiaGarden, 10)]
-    [InlineData(TextTagTerm.EastAcademy, 8)]
-    [InlineData(TextTagTerm.EastAcademyStation, 15)]
-    [InlineData(TextTagTerm.DesertPrison, 9)]
-    [InlineData(TextTagTerm.DesertPrisonStation, 17)]
-    [InlineData(TextTagTerm.LunarGate, 18)]
-    [InlineData(TextTagTerm.LunarBase, 11)]
-    [InlineData(TextTagTerm.ShumiVillage, 12)]
-    [InlineData(TextTagTerm.DelingCity, 13)]
-    [InlineData(TextTagTerm.DolletStation, 16)]
-    [InlineData(TextTagTerm.UltimeciaCastle, 29)]
-    [InlineData(TextTagTerm.Balamb, 2)]
-    [InlineData(TextTagTerm.Restores, 19)]
-    public void TermReferencesUseTheirNativeDictionaryIndex(TextTagTerm term, int index)
+    [InlineData(TextTagTermEN.FishermansHorizon, 7)]
+    [InlineData(TextTagTermEN.BalambGarden, 14)]
+    [InlineData(TextTagTermEN.TrabiaGarden, 10)]
+    [InlineData(TextTagTermEN.EastAcademy, 8)]
+    [InlineData(TextTagTermEN.EastAcademyStation, 15)]
+    [InlineData(TextTagTermEN.DesertPrison, 9)]
+    [InlineData(TextTagTermEN.DesertPrisonStation, 17)]
+    [InlineData(TextTagTermEN.LunarGate, 18)]
+    [InlineData(TextTagTermEN.LunarBase, 11)]
+    [InlineData(TextTagTermEN.ShumiVillage, 12)]
+    [InlineData(TextTagTermEN.DelingCity, 13)]
+    [InlineData(TextTagTermEN.DolletStation, 16)]
+    [InlineData(TextTagTermEN.UltimeciaCastle, 29)]
+    [InlineData(TextTagTermEN.Balamb, 2)]
+    [InlineData(TextTagTermEN.Restores, 19)]
+    public void TermReferencesUseTheirNativeDictionaryIndex(TextTagTermEN term, int index)
     {
-        NativeTextTerms terms = new(Enumerable.Range(0, 32).Select(id => $"Source term {id}"));
-        Assert.Equal($"Source term {index}", DialogueTextFormatter.Format($"{{Term {term}}}", terms: terms));
+        NativeTextTerms terms = new("en", Enumerable.Range(0, 32).Select(id => $"Source term {id}"));
+        Assert.Equal($"Source term {index}", DialogueTextFormatter.Format($"{{TermEN {term}}}", terms: terms));
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public sealed class DialogueRichTextTests
     [InlineData("{Color Ultraviolet}")]
     [InlineData("{Char UnknownCharacter2}")]
     [InlineData("{Char 255}")]
-    [InlineData("{Term MissingPlace}")]
+    [InlineData("{TermEN MissingPlace}")]
     [InlineData("{Name MissingName}")]
     public void Unresolved_supported_references_fail_explicitly(string encoded)
     {

@@ -59,7 +59,7 @@ public sealed class GrieverNamingTests
     public void Original_newgame_bytes_and_saved_name_token_keep_native_identity()
     {
         byte[] executable = File.ReadAllBytes(Path.Combine(Repository(), "ws/original/FF8_EN.exe"));
-        Assert.Equal("Griever", FF8Encoding.CreateEuropean().GetString(executable.AsSpan(0x7887C8, 7).ToArray()));
+        Assert.Equal("Griever", FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(executable.AsSpan(0x7887C8, 7).ToArray()));
         Assert.Equal([9, 12, 54, 0, 252, 10, 0, 0], executable.AsSpan(0x7887E8 + 20 * 8, 8).ToArray());
         Assert.Equal("Griever", GameNames.DefaultName(GameNames.GrieverSubject));
         Assert.True(GameNames.IsValidSubject(GameNames.GrieverSubject));

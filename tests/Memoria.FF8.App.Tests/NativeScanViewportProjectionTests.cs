@@ -51,7 +51,7 @@ public sealed class NativeScanViewportProjectionTests
 
     private static NativeBattleScanTextExpansionServices Services()
     {
-        byte[] source = FF8Encoding.CreateEuropean().GetBytes("Scan").Append((byte)0).ToArray();
+        byte[] source = FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Scan").Append((byte)0).ToArray();
         return new(pointer => source[checked((int)(pointer - 0x100))], _ => throw new InvalidDataException());
     }
 

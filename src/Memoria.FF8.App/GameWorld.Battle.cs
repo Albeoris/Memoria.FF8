@@ -9,7 +9,7 @@ internal sealed partial class GameWorld
 {
     private static byte[] EncodeScanName24(string name)
     {
-        byte[] encoded = Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateEuropean().GetBytes(name).Append((byte)0).ToArray();
+        byte[] encoded = Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateEuropean(Albeoris.Games.FF8.TextEncoding.FF8TextLanguage.EN).GetBytes(name).Append((byte)0).ToArray();
         if (encoded.Length > 24)
         {
             throw new InvalidDataException("Scan player name exceeds its allocated twenty-four-byte owner.");
@@ -124,7 +124,7 @@ internal sealed partial class GameWorld
             GuardianFormsEnabled = session.State.GameplayPreferences.GuardianFormsEnabled,
             GuardianFormResources = session.State.GameplayPreferences.GuardianFormsEnabled ? [BattleResources.ReadIfritGuardianFormResources()] : [],
             NativeSavedOptions = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options,
-            NativeScanNames = new Dictionary<byte, int> { [0x30] = 0, [0x34] = 1, [0x50] = GameNames.GrieverSubject }.ToDictionary(pair => pair.Key, pair => Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateEuropean().GetBytes(Events.Scene.Names.GetValueOrDefault(pair.Value) ?? GameNames.DefaultName(pair.Value)).Append((byte)0).ToArray()),
+            NativeScanNames = new Dictionary<byte, int> { [0x30] = 0, [0x34] = 1, [0x50] = GameNames.GrieverSubject }.ToDictionary(pair => pair.Key, pair => Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateEuropean(Albeoris.Games.FF8.TextEncoding.FF8TextLanguage.EN).GetBytes(Events.Scene.Names.GetValueOrDefault(pair.Value) ?? GameNames.DefaultName(pair.Value)).Append((byte)0).ToArray()),
             NativeScanActorNames = combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id, actor => EncodeScanName24(actor.Name)),
             NativeInputButtonMap = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).ButtonMap,
             NativeSupportRules = BattleResources.ReadNativeSupportRules(),

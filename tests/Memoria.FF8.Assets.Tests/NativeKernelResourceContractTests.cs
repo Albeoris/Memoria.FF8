@@ -16,7 +16,7 @@ public sealed class NativeKernelResourceContractTests
         using IResourceSource source = GameDataSourceFactory.Open(TestResources.GameDirectory);
         ResourceService resources = new(source);
         byte[] original = resources.Read(new ResourceKey("main/kernel.bin"));
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         KernelData kernel = KernelData.ReadFromArray(original, encoding);
         kernel.Weapons[0].Name = "Selected longer weapon name";
         kernel.BattleItems[1].Name = "Selected battle item";
@@ -119,12 +119,12 @@ public sealed class NativeKernelResourceContractTests
 
     private static NativeWeaponShopDefinitions Weapons(GameAssets assets, byte[] kernel)
     {
-        return NativeWeaponShopDefinitionReader.Read(GameDataResources.ReadNativeMemory(assets.Resources), kernel, assets.ReadResource(new ResourceKey("menu/mwepon.bin")), assets.ReadResource(new ResourceKey("menu/mwepon.msg")));
+        return NativeWeaponShopDefinitionReader.Read(GameDataResources.ReadNativeMemory(assets.Resources), kernel, assets.ReadResource(new ResourceKey("menu/mwepon.bin")), assets.ReadResource(new ResourceKey("menu/mwepon.msg")), "en");
     }
 
     private static NativeShopDefinitions Shops(GameAssets assets, byte[] kernel)
     {
-        return NativeShopDefinitionReader.Read(GameDataResources.ReadNativeMemory(assets.Resources), assets.ReadResource(new ResourceKey("menu/shop.bin")), assets.ReadResource(new ResourceKey("menu/price.bin")), kernel);
+        return NativeShopDefinitionReader.Read(GameDataResources.ReadNativeMemory(assets.Resources), assets.ReadResource(new ResourceKey("menu/shop.bin")), assets.ReadResource(new ResourceKey("menu/price.bin")), kernel, "en");
     }
 
     private static byte[] Relocate(byte[] kernel)

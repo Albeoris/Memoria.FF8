@@ -13,6 +13,6 @@ public static class NativePocketStationText
             return null;
         }
         byte[] bytes = name.ToArray();
-        return FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(0, Array.IndexOf(bytes, (byte)0)));
+        return FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(bytes.AsSpan(0, Array.IndexOf(bytes, (byte)0)));
     }
 }

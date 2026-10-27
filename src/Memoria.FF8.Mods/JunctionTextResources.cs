@@ -21,7 +21,7 @@ public static class JunctionTextResources
                 {
                     continue;
                 }
-                ImmutableArray<string> texts = MsdFile.Read(file.ReadBytes(), FF8Encoding.CreateEuropean()).Texts.Select(WithoutTerminator).ToImmutableArray();
+                ImmutableArray<string> texts = MsdFile.Read(file.ReadBytes(), FF8Encoding.CreateEuropean(Albeoris.Games.FF8.TextEncoding.FF8TextLanguage.EN)).Texts.Select(WithoutTerminator).ToImmutableArray();
                 int? requiredCount = key == StaticTextResource.CardNames ? 110 : key == StaticTextResource.BattleScans ? 160 : key == StaticTextResource.DrawPointMessages ? 9 : key == StaticTextResource.CardTexts ? 29 : null;
                 if (texts.IsEmpty || requiredCount is int count && texts.Length != count)
                 {

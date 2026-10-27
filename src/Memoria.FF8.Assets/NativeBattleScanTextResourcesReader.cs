@@ -70,7 +70,7 @@ public static class NativeBattleScanTextResourcesReader
         {
             throw new InvalidDataException("Scan descriptions require all 160 model-indexed text identities.");
         }
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         ImmutableArray<ushort>.Builder offsets = ImmutableArray.CreateBuilder<ushort>(160);
         using MemoryStream bytes = new();
         foreach (string text in selected.Texts)

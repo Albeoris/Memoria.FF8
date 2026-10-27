@@ -30,22 +30,48 @@ public sealed class FF8Encoding : System.Text.Encoding
     /// </summary>
     public FieldCharacterSet? FieldCharacters { get; set; }
 
+    /// <summary>The native dictionary language. Must be selected explicitly before encoding or decoding.</summary>
+    public FF8TextLanguage? Language { get; set; }
+
+    internal FF8TextLanguage RequireLanguage()
+    {
+        if (Language is not FF8TextLanguage language || !Enum.IsDefined(language))
+        {
+            throw new InvalidOperationException("Set FF8Encoding.Language before encoding or decoding native text.");
+        }
+        return language;
+    }
+
     /// <summary>
     /// Creates an encoding for the European release of the game.
     /// </summary>
-    public static FF8Encoding CreateEuropean() => new(Codepage.LoadEuropean());
+    public static FF8Encoding CreateEuropean(FF8TextLanguage? language = null) => new(Codepage.LoadEuropean()) { Language = language };
 
     /// <summary>
     /// Creates an encoding for the Russian release of the game.
     /// </summary>
-    public static FF8Encoding CreateRussian() => new(Codepage.LoadRussian());
+    public static FF8Encoding CreateRussian(FF8TextLanguage? language = null) => new(Codepage.LoadRussian()) { Language = language };
 
     /// <summary>
     /// Creates an encoding for the Japanese release of the game, without field-specific
     /// extension characters. Set <see cref="FieldCharacters"/> before using it to encode
     /// or decode text that relies on them.
     /// </summary>
-    public static FF8Encoding CreateJapanese() => new(Codepage.LoadJapanese());
+    public static FF8Encoding CreateJapanese(FF8TextLanguage? language = null) => new(Codepage.LoadJapanese()) { Language = language };
+
+    public static FF8Encoding CreateJapanese(FF8TextLanguage language, IFieldCharacterProvider provider, string fieldName)
+    {
+        FF8Encoding encoding = CreateJapanese(provider, fieldName);
+        encoding.Language = language;
+        return encoding;
+    }
+
+    public static FF8Encoding CreateJapanese(FF8TextLanguage language, IFieldCharacterProvider provider, int fieldId)
+    {
+        FF8Encoding encoding = CreateJapanese(provider, fieldId);
+        encoding.Language = language;
+        return encoding;
+    }
 
     /// <summary>
     /// Creates an encoding for the Japanese release of the game, using the built-in

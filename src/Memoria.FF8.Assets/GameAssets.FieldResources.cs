@@ -34,7 +34,7 @@ public sealed partial class GameAssets
         byte[] program = ReadMember(name + ".jsm");
         byte[] informationBytes = ReadMember(name + ".inf");
         FieldInformation information = FieldInformation.Read(informationBytes);
-        string[] messages = MsdFile.Read(ReadMember(name + ".msd"), FF8Encoding.CreateEuropean()).Texts.ToArray();
+        string[] messages = MsdFile.Read(ReadMember(name + ".msd"), NativeTextEncoding.CreateField(resources.Source.Language, name)).Texts.ToArray();
         NativeEncounterTables.ReadField(ReadMember(name + ".rat"), ReadMember(name + ".mrt"));
         byte[]? colors = ReadOptionalFieldColors(() => ReadMember(name + ".pcb"));
         if (NativeRuntimeProfile is { IsVerified: true })

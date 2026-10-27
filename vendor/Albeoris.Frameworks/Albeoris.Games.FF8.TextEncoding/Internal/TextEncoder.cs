@@ -22,12 +22,13 @@ internal sealed class TextEncoder
 
     public Int32 GetByteCount(Char[] chars, Int32 index, Int32 count)
     {
+        _owner.RequireLanguage();
         Int32 result = 0;
         Byte[] discardBuffer = new Byte[2];
 
         while (count > 0)
         {
-            TextTag? tag = TextTag.TryRead(chars, ref index, ref count);
+            TextTag? tag = TextTag.TryRead(chars, ref index, ref count, _owner.RequireLanguage());
             if (tag is not null)
             {
                 Int32 offset = 0;
@@ -50,11 +51,12 @@ internal sealed class TextEncoder
 
     public Int32 GetBytes(Char[] chars, Int32 charIndex, Int32 charCount, Byte[] bytes, Int32 byteIndex)
     {
+        _owner.RequireLanguage();
         Int32 startByteIndex = byteIndex;
 
         while (charCount > 0)
         {
-            TextTag? tag = TextTag.TryRead(chars, ref charIndex, ref charCount);
+            TextTag? tag = TextTag.TryRead(chars, ref charIndex, ref charCount, _owner.RequireLanguage());
             if (tag is not null)
             {
                 tag.Write(bytes, ref byteIndex);

@@ -26,11 +26,11 @@ public sealed class LocalizationCommonKeyReferenceTests
                 string label = "Reference [" + language + "]";
                 if (indexes[language].TryGetValue(common, out var counterpart))
                 {
-                    if (!counterpart.Text.Contains("{Term ", StringComparison.Ordinal))
+                    if (!counterpart.Text.Contains("{Term", StringComparison.Ordinal))
                     {
                         Assert.Equal(counterpart.Text, row.References[label]);
                     }
-                    Assert.DoesNotContain("{Term ", row.References[label] ?? "", StringComparison.Ordinal);
+                    Assert.DoesNotContain("{Term", row.References[label] ?? "", StringComparison.Ordinal);
                     Assert.Equal(new[] { counterpart.Key }, row.ReferenceKeys[label]);
                     Assert.True(row.ReferencePresence[label]);
                     if (!coverage.TryGetValue(row.Category, out var counts))

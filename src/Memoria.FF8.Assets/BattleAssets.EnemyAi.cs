@@ -112,7 +112,7 @@ public sealed partial class BattleAssets
         return new NativeBattleAiDefinition(scripts, abilities, band, texts) { NameBuffers = nameBuffers, DisplayNames = displayNames, SequenceTracks = tracks };
     }
 
-    private static System.Collections.Immutable.ImmutableArray<string> ReadEnemyGraphicsTextBank(byte[] bytes)
+    private System.Collections.Immutable.ImmutableArray<string> ReadEnemyGraphicsTextBank(byte[] bytes)
     {
         int sections = bytes.Length >= 16 ? BinaryPrimitives.ReadInt32LittleEndian(bytes) : 0;
         if (sections is not (2 or 11))
@@ -135,7 +135,7 @@ public sealed partial class BattleAssets
         return System.Collections.Immutable.ImmutableArray.CreateRange(texts);
     }
 
-    private static (string[] Texts, byte[][] NameBuffers, string[] DisplayNames) DecodeEnemyTextBank(byte[] bytes, int textIndices, int text, int end, int? loadedEnd = null)
+    private (string[] Texts, byte[][] NameBuffers, string[] DisplayNames) DecodeEnemyTextBank(byte[] bytes, int textIndices, int text, int end, int? loadedEnd = null)
     {
         int copyEnd = loadedEnd ?? end;
         if (copyEnd < end || copyEnd > bytes.Length)
@@ -165,7 +165,7 @@ public sealed partial class BattleAssets
             {
                 throw new InvalidDataException("Enemy AI text has no original terminator.");
             }
-            texts[index] = FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(start, terminator));
+            texts[index] = NativeTextEncoding.Create(resources.Source.Language).GetString(bytes.AsSpan(start, terminator));
             //37 copies24 encoded bytes from the contiguous loaded resource, across text-section boundaries.
             nameBuffers[index] = start <= copyEnd - 24 ? bytes.AsSpan(start, 24).ToArray() : [];
             displayNames[index] = DecodeNativeNamePrefix(bytes.AsSpan(start, Math.Min(24, terminator)));
@@ -173,7 +173,7 @@ public sealed partial class BattleAssets
         return (texts, nameBuffers, displayNames);
     }
 
-    private static string DecodeNativeNamePrefix(ReadOnlySpan<byte> bytes)
+    private string DecodeNativeNamePrefix(ReadOnlySpan<byte> bytes)
     {
         int complete = 0;
         while (complete < bytes.Length && bytes[complete] != 0)
@@ -186,6 +186,6 @@ public sealed partial class BattleAssets
             }
             complete += width;
         }
-        return FF8Encoding.CreateEuropean().GetString(bytes[..complete]);
+        return NativeTextEncoding.Create(resources.Source.Language).GetString(bytes[..complete]);
     }
 }

@@ -25,7 +25,7 @@ public static partial class FieldAuditDecoder
         // Validate the complete offset table independently of any source-language decoding failure.
         int count = MsdFile.Read(bytes, Encoding.Latin1).Texts.Count;
         bool japanese = language == "ja";
-        FF8Encoding encoding = japanese ? FF8Encoding.CreateJapanese(new DefaultJapaneseFieldCharacters(), field) : FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = japanese ? FF8Encoding.CreateJapanese(FF8TextLanguage.JP, new DefaultJapaneseFieldCharacters(), field) : NativeTextEncoding.Create(language);
         FieldCharacterSet? table = encoding.FieldCharacters;
         string? tableHash = table is null ? null : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(table.Characters)));
         List<FieldAuditDecodedRow> rows = [];

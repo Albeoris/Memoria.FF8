@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Albeoris.Games.FF8.TextEncoding.Tags;
+using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Resources.Localization;
 
@@ -67,13 +67,13 @@ public static partial class LocalizationProjectBuilder
             {
                 throw new InvalidDataException(entry.Key + ": cyclic native term dictionary reference.");
             }
-            string text = Regex.Replace(entry.Text, @"\{Term ([^{}]+)\}", match =>
+            string text = Regex.Replace(entry.Text, @"\{(Term[^ {}]*) ([^{}]+)\}", match =>
             {
-                if (!Enum.TryParse(match.Groups[1].Value, out TextTagTerm term))
+                if (!TextTagTerms.TryGetLanguage(match.Groups[1].Value, out FF8TextLanguage language) || !TextTagTerms.TryParse(language, match.Groups[2].Value, out byte term) || language != FF8TextLanguages.Parse(entry.Language))
                 {
                     throw new InvalidDataException(entry.Key + ": invalid native term reference " + match.Value + ".");
                 }
-                int ordinal = unchecked((byte)((byte)term - 32));
+                int ordinal = unchecked((byte)(term - 32));
                 string commonKey = "namedic_menu_" + ordinal.ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
                 if (!CommonKeys.TryGetValue(commonKey, out LocalizationSourceEntry[]? terms) || terms.Length != 1 || !IsPresent(terms[0]))
                 {

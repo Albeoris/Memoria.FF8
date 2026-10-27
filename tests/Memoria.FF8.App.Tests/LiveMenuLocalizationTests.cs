@@ -25,7 +25,7 @@ public sealed class LiveMenuLocalizationTests
         using Stream kernelInput = assets.Resources.Get(new ResourceKey("main/kernel.bin")).OpenRead();
         using MemoryStream kernelBytes = new();
         kernelInput.CopyTo(kernelBytes);
-        KernelData kernel = KernelData.ReadFromArray(kernelBytes.ToArray(), FF8Encoding.CreateEuropean());
+        KernelData kernel = KernelData.ReadFromArray(kernelBytes.ToArray(), FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
         int firstFieldItem = kernel.BattleItems.Count;
         int abilityId = kernel.JunctionAbilities.FindIndex(ability => ability.Description is not null);
         Assert.True(abilityId >= 0);

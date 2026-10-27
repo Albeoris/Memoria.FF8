@@ -43,7 +43,7 @@ public sealed class NativeAiNameBufferTests
 
         Assert.Equal(24, ai.NameBuffers[5].Length);
         Assert.Equal((byte)0x0C, ai.NameBuffers[5][23]);
-        Assert.Equal(FF8Encoding.CreateEuropean().GetString(ai.NameBuffers[5].AsSpan(0, 23)), ai.DisplayNames[5]);
+        Assert.Equal(FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(ai.NameBuffers[5].AsSpan(0, 23)), ai.DisplayNames[5]);
         Assert.Contains("{Name ", ai.Texts[5]);
         Assert.True(ai.Texts[5].Length > ai.DisplayNames[5].Length);
     }

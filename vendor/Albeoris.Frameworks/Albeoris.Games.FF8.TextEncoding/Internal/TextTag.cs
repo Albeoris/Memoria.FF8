@@ -10,7 +10,7 @@ namespace Albeoris.Games.FF8.TextEncoding.Internal;
 /// </summary>
 internal sealed class TextTag
 {
-    public const Int32 MaxTagLength = 32;
+    public const Int32 MaxTagLength = 64;
 
     public TextTag(TextTagCode code)
     {
@@ -74,7 +74,7 @@ internal sealed class TextTag
     {
         StringBuilder builder = new StringBuilder(MaxTagLength);
         builder.Append('{');
-        builder.Append(Code);
+        builder.Append(Code == TextTagCode.Term ? Parameter!.GetType().Name[7..] : Code.ToString());
         if (Parameter is not null)
         {
             builder.Append(' ');
@@ -85,7 +85,7 @@ internal sealed class TextTag
         return builder.ToString();
     }
 
-    public static TextTag? TryRead(Byte[] bytes, ref Int32 offset, ref Int32 left)
+    public static TextTag? TryRead(Byte[] bytes, ref Int32 offset, ref Int32 left, FF8TextLanguage language)
     {
         Int32 startOffset = offset;
         Int32 startLeft = left;
@@ -173,7 +173,7 @@ internal sealed class TextTag
 
                 offset += 2;
                 left -= 2;
-                return new TextTag(code, (TextTagTerm)bytes[offset - 1]);
+                return new TextTag(code, TextTagTerms.Parameter(language, bytes[offset - 1]));
 
             case TextTagCode.Name:
                 if (left < 2)
@@ -191,7 +191,7 @@ internal sealed class TextTag
         return null;
     }
 
-    public static TextTag? TryRead(Char[] chars, ref Int32 offset, ref Int32 left)
+    public static TextTag? TryRead(Char[] chars, ref Int32 offset, ref Int32 left, FF8TextLanguage language)
     {
         Int32 startOffset = offset;
         Int32 startLeft = left;
@@ -201,7 +201,17 @@ internal sealed class TextTag
             return null;
         }
 
-        if (!Enum.TryParse(name, out TextTagCode code))
+        if (name.StartsWith("Term", StringComparison.Ordinal))
+        {
+            if (!TextTagTerms.TryGetLanguage(name, out FF8TextLanguage termLanguage) || termLanguage != language || !TextTagTerms.TryParse(language, parameterText, out byte parameter))
+            {
+                throw new FormatException("A Term tag must identify the configured native language and a valid dictionary operand.");
+            }
+            offset += tagLength;
+            left -= tagLength;
+            return new TextTag(TextTagCode.Term, TextTagTerms.Parameter(language, parameter));
+        }
+        if (!Enum.TryParse(name, out TextTagCode code) || code == TextTagCode.Term)
         {
             return null;
         }
@@ -281,14 +291,6 @@ internal sealed class TextTag
                 if (Byte.TryParse(parameterText, NumberStyles.Integer, CultureInfo.InvariantCulture, out Byte numericParameter1))
                 {
                     return new TextTag(code, numericParameter1);
-                }
-
-                return null;
-
-            case TextTagCode.Term:
-                if (Enum.TryParse(parameterText, out TextTagTerm termParameter))
-                {
-                    return new TextTag(code, termParameter);
                 }
 
                 return null;

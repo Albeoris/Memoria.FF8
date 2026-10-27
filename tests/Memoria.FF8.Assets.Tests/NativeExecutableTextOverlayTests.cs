@@ -50,7 +50,7 @@ public sealed class NativeExecutableTextOverlayTests
         {
             Assert.Equal(messages[id], selected.Message(id));
             byte[] bytes = selected.CommonMessageBytes[id].ToArray();
-            Assert.Equal(messages[id] + "{End}", FF8Encoding.CreateEuropean().GetString(bytes));
+            Assert.Equal(messages[id] + "{End}", FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(bytes));
             Assert.Equal(Convert.ToHexString(SHA256.HashData(bytes)), selected.MessageHash(id));
         }
         Assert.Throws<InvalidDataException>(() => NativeDrawPointCatalogReader.ApplyMessages(original, Text(StaticTextResource.DrawPointMessages, messages.Take(8))));
@@ -97,10 +97,10 @@ public sealed class NativeExecutableTextOverlayTests
             bytes.Add(value);
         }
         while (value != 0);
-        return FF8Encoding.CreateEuropean().GetString(bytes.ToArray());
+        return FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetString(bytes.ToArray());
     }
 
-    private static NativeBattleScanTextResources ScanOriginal() => new(Enumerable.Repeat((ushort)0, 160).ToImmutableArray(), FF8Encoding.CreateEuropean().GetBytes("Original{End}").ToImmutableArray())
+    private static NativeBattleScanTextResources ScanOriginal() => new(Enumerable.Repeat((ushort)0, 160).ToImmutableArray(), FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Original{End}").ToImmutableArray())
     {
         KernelMiscOffsets = [(ushort)0],
         KernelMiscBytes = [0],
@@ -111,7 +111,7 @@ public sealed class NativeExecutableTextOverlayTests
     private static NativeDrawPointCatalog DrawOriginal()
     {
         ImmutableArray<string> messages = Enumerable.Range(0, 8).Select(id => $"Original {id}").ToImmutableArray();
-        ImmutableArray<ImmutableArray<byte>> bytes = messages.Select(text => FF8Encoding.CreateEuropean().GetBytes(text + "{End}").ToImmutableArray()).ToImmutableArray();
+        ImmutableArray<ImmutableArray<byte>> bytes = messages.Select(text => FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes(text + "{End}").ToImmutableArray()).ToImmutableArray();
         ImmutableArray<string> hashes = bytes.Select(value => Convert.ToHexString(SHA256.HashData(value.AsSpan()))).ToImmutableArray();
         return new(NativeFieldRuntimeProfile.FF8EnExecutableHash, new string('0', 64), new byte[256].ToImmutableArray(), new byte[19].ToImmutableArray(), messages[7], hashes[7])
         {

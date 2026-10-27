@@ -51,8 +51,8 @@ public sealed class NativeMenuArtworkDataReaderTests
         NativeMenuArtworkDataReader.ValidateTexture(new ResourceKey("menu/icon.tex"), Texture(256, 256, 16));
         Assert.Throws<InvalidDataException>(() => NativeMenuArtworkDataReader.ValidateTexture(new ResourceKey("menu/icon.tex"), Texture(256, 256)));
         NativeMenuArtworkDataReader.ValidateTexture(new ResourceKey("menu/start00.tex"), Texture(128, 64));
-        NativeMenuArtworkDataReader.ValidateAreaNames(NamedicBin.WriteStrings(["First", "Second"], FF8Encoding.CreateEuropean()));
-        Assert.Throws<InvalidDataException>(() => NativeMenuArtworkDataReader.ValidateAreaNames([1, 0, 8, 0]));
+        NativeMenuArtworkDataReader.ValidateAreaNames(NamedicBin.WriteStrings(["First", "Second"], FF8Encoding.CreateEuropean(FF8TextLanguage.EN)), "en");
+        Assert.Throws<InvalidDataException>(() => NativeMenuArtworkDataReader.ValidateAreaNames([1, 0, 8, 0], "en"));
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class NativeMenuArtworkDataReaderTests
         byte[] Read(string name) => File.ReadAllBytes(Path.GetFullPath(files[name], Path.GetDirectoryName(catalog)!));
         NativeMenuArtworkDataReader.ValidateIconDirectory(Read("icon.sp1"));
         NativeMenuArtworkDataReader.ValidateFaceDirectory(Read("face.sp2"));
-        NativeMenuArtworkDataReader.ValidateAreaNames(Read("areames.dc1"));
+        NativeMenuArtworkDataReader.ValidateAreaNames(Read("areames.dc1"), "en");
         foreach ((string name, string path) in files.Where(pair => pair.Key.EndsWith(".TEX", StringComparison.OrdinalIgnoreCase)))
         {
             string logicalName = name.StartsWith("hires_", StringComparison.Ordinal) ? name[6..] : name;

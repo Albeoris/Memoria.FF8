@@ -105,9 +105,9 @@ public static class NativeMenuArtworkDataReader
         }
     }
 
-    public static void ValidateAreaNames(byte[] bytes)
+    public static void ValidateAreaNames(byte[] bytes, string language)
     {
-        _ = NamedicBin.ReadStrings(bytes, FF8Encoding.CreateEuropean());
+        _ = NamedicBin.ReadStrings(bytes, NativeTextEncoding.Create(language));
     }
 
     private static int ReadCount(byte[] bytes)

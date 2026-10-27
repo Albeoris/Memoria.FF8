@@ -11,10 +11,10 @@ public sealed class NativeInformationLocalizationTests
     [Fact]
     public void OpenInformationReadsFreshUnicodeBodyAndLinkLabelsWithoutChangingNativeNodes()
     {
-        byte[] body = [0x0B, 0x20, 0x21, .. FF8Encoding.CreateEuropean().GetBytes("Synthetic link"), 2, .. FF8Encoding.CreateEuropean().GetBytes("Synthetic prose")];
-        NativeTutorialInformationNode node = new(0, ushort.MaxValue, 1, 1, "Synthetic heading", body.ToImmutableArray()) { LocalizationFile = "mngrp_slot128_block0000" };
+        byte[] body = [0x0B, 0x20, 0x21, .. FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Synthetic link"), 2, .. FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Synthetic prose")];
+        NativeTutorialInformationNode node = new(0, ushort.MaxValue, 1, 1, "Synthetic heading", body.ToImmutableArray()) { LocalizationFile = "mngrp_slot128_block0000", Language = FF8TextLanguage.EN };
         NativeTutorialExamCatalog catalog = (NativeTutorialExamCatalog)Activator.CreateInstance(typeof(NativeTutorialExamCatalog), BindingFlags.Instance | BindingFlags.NonPublic, null,
-            [ImmutableArray<NativeTutorialExamLevel>.Empty, ImmutableArray<string>.Empty, ImmutableArray.Create(node, node with { Id = 1 })], null)!;
+            [ImmutableArray<NativeTutorialExamLevel>.Empty, ImmutableArray<string>.Empty, ImmutableArray.Create(node, node with { Id = 1 }), node.Language!.Value], null)!;
         MenuController menu = new();
         string generation = "第一";
         menu.ConfigureNativeTutorialLocalization((file, ordinal, source) => ordinal == 0 ? generation + "標題" : source.Replace("Synthetic link", generation + "連結", StringComparison.Ordinal).Replace("Synthetic prose", generation + "本文", StringComparison.Ordinal));

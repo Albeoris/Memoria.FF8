@@ -13,8 +13,8 @@ public sealed class NativeScanElementTextTests
     public void Full_element_row_fits_actual_system_font_advances_inside_clip_and_prefix_drawing_preserves_native_state()
     {
         string[] labels = ["Fire", "Ice", "Thunder", "Earth", "Poison", "Wind", "Water", "Holy"];
-        List<byte> source = FF8Encoding.CreateEuropean().GetBytes("Resists: ").ToList();
-        byte space = FF8Encoding.CreateEuropean().GetBytes(" ")[0];
+        List<byte> source = FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Resists: ").ToList();
+        byte space = FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes(" ")[0];
         for (int index = 0; index < labels.Length; index++)
         {
             source.Add(5);
@@ -76,8 +76,8 @@ public sealed class NativeScanElementTextTests
     [InlineData(4, "AFireB")]
     public void Current_byte_prefix_reveals_only_consumed_text_and_complete_icon_pairs(int maximum, string expected)
     {
-        byte a = FF8Encoding.CreateEuropean().GetBytes("A")[0];
-        byte b = FF8Encoding.CreateEuropean().GetBytes("B")[0];
+        byte a = FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("A")[0];
+        byte b = FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("B")[0];
         NativeBattleScanTextFrame frame = Frame((byte)maximum);
         string before = JsonSerializer.Serialize(frame);
         NativeScanWindowText window = Assert.Single(NativeScanWindowTextProjection.Project(frame, Services([a, 5, 0x5D, b, 0])));

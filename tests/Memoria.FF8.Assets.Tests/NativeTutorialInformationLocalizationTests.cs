@@ -13,12 +13,12 @@ public sealed class NativeTutorialInformationLocalizationTests
     [Fact]
     public void UnicodeTargetsKeepConditionalVisibilityLinkOperandsNumbersAndLineRoles()
     {
-        byte[] body = [0x0A, 0x40, 0x0B, 0x20, 0x21, .. FF8Encoding.CreateEuropean().GetBytes("Visible"), 2, 0x0A, 0x3F, .. FF8Encoding.CreateEuropean().GetBytes("Count "), 0x0A, 0xC0];
-        NativeTutorialInformationNode node = new(0, ushort.MaxValue, 1, 1, "Synthetic", body.ToImmutableArray());
+        byte[] body = [0x0A, 0x40, 0x0B, 0x20, 0x21, .. FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Visible"), 2, 0x0A, 0x3F, .. FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Count "), 0x0A, 0xC0];
+        NativeTutorialInformationNode node = new(0, ushort.MaxValue, 1, 1, "Synthetic", body.ToImmutableArray()) { Language = FF8TextLanguage.EN };
         NativeTutorialExamCatalog catalog = (NativeTutorialExamCatalog)Activator.CreateInstance(typeof(NativeTutorialExamCatalog), BindingFlags.Instance | BindingFlags.NonPublic, null,
-            [ImmutableArray<NativeTutorialExamLevel>.Empty, ImmutableArray<string>.Empty, ImmutableArray.Create(node, node with { Id = 1 })], null)!;
+            [ImmutableArray<NativeTutorialExamLevel>.Empty, ImmutableArray<string>.Empty, ImmutableArray.Create(node, node with { Id = 1 }), node.Language!.Value], null)!;
         NativeTutorialExamProgress progress = new(0, 1, 1, InformationNumbers: new Dictionary<int, long> { [0xC0] = 123 });
-        string source = NativeTutorialInformationText.Format(body, FF8Encoding.CreateEuropean());
+        string source = NativeTutorialInformationText.Format(body, FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
         string translated = source.Replace("Visible", "可見 Українська", StringComparison.Ordinal).Replace("Count ", "數量 ", StringComparison.Ordinal);
 
         NativeTutorialInformationPage hidden = catalog.InformationPage(0, new HashSet<int>(), progress, (_, _) => translated);
@@ -50,8 +50,8 @@ public sealed class NativeTutorialInformationLocalizationTests
     [Fact]
     public void SyntheticInformationBodiesExportAsStructuredTextWithResourceFingerprints()
     {
-        byte[] body = [0x0A, 0x40, 0x0B, 0x20, 0x21, .. FF8Encoding.CreateEuropean().GetBytes("Synthetic link"), 2, 0x0A, 0x3F, 0x0A, 0xC0];
-        byte[] title = FF8Encoding.CreateEuropean().GetBytes("Synthetic heading");
+        byte[] body = [0x0A, 0x40, 0x0B, 0x20, 0x21, .. FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Synthetic link"), 2, 0x0A, 0x3F, 0x0A, 0xC0];
+        byte[] title = FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Synthetic heading");
         int length = 8 + title.Length + 1 + body.Length + 1;
         byte[] block = new byte[(length + 3) & ~3];
         BinaryPrimitives.WriteUInt16LittleEndian(block, ushort.MaxValue);
@@ -80,7 +80,7 @@ public sealed class NativeTutorialInformationLocalizationTests
         Assert.True(result.Entries.Count > 0, string.Join("; ", result.Gaps.Where(gap => gap.Resource.Contains("mngrp", StringComparison.Ordinal)).Select(gap => gap.Reason)));
         var row = Assert.Single(result.Entries, row => row.Metadata.GetValueOrDefault("Role") == "Body");
         Assert.Equal("$en_mngrp_slot128_block0000_0001", row.Key);
-        Assert.Equal(NativeTutorialInformationText.Format(body, FF8Encoding.CreateEuropean()), row.Text);
+        Assert.Equal(NativeTutorialInformationText.Format(body, FF8Encoding.CreateEuropean(FF8TextLanguage.EN)), row.Text);
         Assert.Equal("information-body-v1", row.Metadata["Structure"]);
         Assert.Equal(64, row.Metadata["Source SHA256"]!.Length);
         Assert.Equal(64, row.Metadata["Companion SHA256"]!.Length);
@@ -91,10 +91,10 @@ public sealed class NativeTutorialInformationLocalizationTests
     [Fact]
     public void JapaneseInformationPresentationUsesNodeEncodingAndPreservesNativeBody()
     {
-        byte[] body = [.. FF8Encoding.CreateJapanese().GetBytes("あいうⅧ闘"), 0x0A, 0x3F];
-        NativeTutorialInformationNode node = new(0, ushort.MaxValue, 0, 0, "日本語", body.ToImmutableArray()) { Japanese = true };
+        byte[] body = [.. FF8Encoding.CreateJapanese(FF8TextLanguage.JP).GetBytes("あいうⅧ闘"), 0x0A, 0x3F];
+        NativeTutorialInformationNode node = new(0, ushort.MaxValue, 0, 0, "日本語", body.ToImmutableArray()) { Japanese = true, Language = FF8TextLanguage.JP };
         NativeTutorialExamCatalog catalog = (NativeTutorialExamCatalog)Activator.CreateInstance(typeof(NativeTutorialExamCatalog), BindingFlags.Instance | BindingFlags.NonPublic, null,
-            [ImmutableArray<NativeTutorialExamLevel>.Empty, ImmutableArray<string>.Empty, ImmutableArray.Create(node)], null)!;
+            [ImmutableArray<NativeTutorialExamLevel>.Empty, ImmutableArray<string>.Empty, ImmutableArray.Create(node), node.Language!.Value], null)!;
         Assert.Equal("あいうⅧ闘", catalog.InformationPage(0, new HashSet<int>(), new(0, 1, 1)).Text);
         Assert.Equal(body, node.Body);
     }
@@ -102,10 +102,10 @@ public sealed class NativeTutorialInformationLocalizationTests
     [Fact]
     public void JapaneseEscapesAndNativeControlOperandsRemainSeparate()
     {
-        byte[] japanese = FF8Encoding.CreateJapanese().GetBytes("あいうⅧ闘");
+        byte[] japanese = FF8Encoding.CreateJapanese(FF8TextLanguage.JP).GetBytes("あいうⅧ闘");
         byte[] body = [.. japanese, 0x0A, 0x3F, 0x0B, 0x20, 0x21];
-        Assert.Equal("あいうⅧ闘{Info Gate 3F}{Info Link 2021}", NativeTutorialInformationText.Format(body, FF8Encoding.CreateJapanese(), true));
-        Assert.Throws<InvalidDataException>(() => NativeTutorialInformationText.Format(new byte[] { 0x0B, 0x20 }, FF8Encoding.CreateEuropean()));
+        Assert.Equal("あいうⅧ闘{Info Gate 3F}{Info Link 2021}", NativeTutorialInformationText.Format(body, FF8Encoding.CreateJapanese(FF8TextLanguage.JP), true));
+        Assert.Throws<InvalidDataException>(() => NativeTutorialInformationText.Format(new byte[] { 0x0B, 0x20 }, FF8Encoding.CreateEuropean(FF8TextLanguage.EN)));
     }
 
     private sealed class MissingArchives : IGameArchiveSource

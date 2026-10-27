@@ -44,7 +44,7 @@ public sealed class JunctionTextPublicationTests : IDisposable
 
     private static void WriteNames(string path, string prefix)
     {
-        MsdFile table = new(FF8Encoding.CreateEuropean());
+        MsdFile table = new(FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
         table.Texts.AddRange(Enumerable.Range(0, 110).Select(id => $"{prefix} {id}{{End}}"));
         System.IO.File.WriteAllBytes(path, table.Write());
     }

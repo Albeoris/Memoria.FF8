@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.TextEncoding.Tags;
+using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.Mods.Localization;
@@ -31,10 +32,10 @@ public static class LocalizationTextValidation
     private static Dictionary<string, int> Placeholders(string text, string key)
     {
         Dictionary<string, int> placeholders = new(StringComparer.Ordinal);
-        foreach (Match match in Regex.Matches(text, "\\{(End|Next|Line|Speaker|Pause|Var|Item|Char|Key|Color|Dialog|Option|Term|Name)(?=[ }]|$)", RegexOptions.CultureInvariant))
+        foreach (Match match in Regex.Matches(text, "\\{(End|Next|Line|Speaker|Pause|Var|Item|Char|Key|Color|Dialog|Option|Term[^ {}]*|Name)(?=[ }]|$)", RegexOptions.CultureInvariant))
         {
             int close = text.IndexOf('}', match.Index + 1);
-            if (close < 0 || close - match.Index + 1 > 32)
+            if (close < 0 || close - match.Index + 1 > 64)
             {
                 throw new InvalidDataException($"{key}: malformed known control tag near character {match.Index}.");
             }
@@ -73,8 +74,12 @@ public static class LocalizationTextValidation
                 case "Dialog":
                     valid = Parse<TextTagDialog>(parameter, out number) && hasSpace;
                     break;
-                case "Term":
-                    valid = Parse<TextTagTerm>(parameter, out number) && hasSpace;
+                case string term when term.StartsWith("Term", StringComparison.Ordinal):
+                    valid = TextTagTerms.TryGetLanguage(term, out FF8TextLanguage language) && hasSpace && TextTagTerms.TryParse(language, parameter, out number);
+                    if (valid && NativeKeyLanguage(key) is string nativeLanguage)
+                    {
+                        valid = language == FF8TextLanguages.Parse(nativeLanguage);
+                    }
                     break;
                 case "Name":
                     valid = Parse<TextTagName>(parameter, out number) && hasSpace;
@@ -94,6 +99,12 @@ public static class LocalizationTextValidation
             }
         }
         return placeholders;
+    }
+
+    private static string? NativeKeyLanguage(string key)
+    {
+        int end = key.IndexOf('_');
+        return key.StartsWith('$') && end > 1 ? key[1..end] : null;
     }
 
     private static bool Parse<T>(string text, out byte value) where T : struct, Enum

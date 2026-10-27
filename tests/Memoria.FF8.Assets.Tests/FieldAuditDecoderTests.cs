@@ -27,7 +27,7 @@ public sealed class FieldAuditDecoderTests
     {
         DefaultJapaneseFieldCharacters provider = new();
         Assert.Equal("様腹 ", provider.Get("tgview1").Characters);
-        Assert.Equal(new byte[] { 0x1C, 0x22 }, FF8Encoding.CreateJapanese(provider, "tgview1").GetBytes(" "));
+        Assert.Equal(new byte[] { 0x1C, 0x22 }, FF8Encoding.CreateJapanese(FF8TextLanguage.JP, provider, "tgview1").GetBytes(" "));
         FieldAuditDecodedBank bank = FieldAuditDecoder.Decode(Bank([0x1C, 0x22, 0]), "ja", "tgview1");
         Assert.True(bank.Complete);
         Assert.Equal(" {End}", Assert.Single(bank.Rows).Text);

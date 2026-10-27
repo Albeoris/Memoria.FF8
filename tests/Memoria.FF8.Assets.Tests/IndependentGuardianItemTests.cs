@@ -89,7 +89,7 @@ public sealed class IndependentGuardianItemTests
         Assert.Throws<NotSupportedException>(() => missing.QueueAction("caster", "enemy", BattleAbility.Item, 30));
         Assert.Equal(2, Assert.Single(missing.Items).Count);
         byte[] name = new byte[12];
-        FF8Encoding.CreateEuropean().GetBytes("Kweh").CopyTo(name, 0);
+        FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("Kweh").CopyTo(name, 0);
         BattleDefinition definition = missing.Capture().Definition;
         NativePocketStationState pocket = definition.NativePocketStation! with { ChocoboName = name.ToImmutableArray() };
         BattleSession battle = new(definition with { NativePocketStation = pocket, NativeChocoboName = NativePocketStationText.ChocoboName(pocket) }, BattleAtbMode.Normal);

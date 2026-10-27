@@ -11,10 +11,10 @@ public static class NativeDrawPointCatalogReader
 {
     public static NativeDrawPointCatalog Read(byte[] executable, byte[] kernel)
     {
-        return Read(new NativeExecutableMemory(executable), kernel);
+        return Read(new NativeExecutableMemory(executable), kernel, language: "en");
     }
 
-    public static NativeDrawPointCatalog Read(IGameNativeMemorySource memory, byte[] kernel, byte[]? commonMessages = null, StaticTextResource? selectedMessages = null)
+    public static NativeDrawPointCatalog Read(IGameNativeMemorySource memory, byte[] kernel, byte[]? commonMessages = null, StaticTextResource? selectedMessages = null, string? language = null)
     {
         string executableHash = memory.SourceHash;
         if (!NativeFieldRuntimeProfile.IsSupportedImage(executableHash) || kernel.Length < 228 || BinaryPrimitives.ReadUInt32LittleEndian(kernel) != 56)
@@ -27,7 +27,7 @@ public static class NativeDrawPointCatalogReader
         {
             throw new InvalidDataException("Original draw-point common message bank header is invalid.");
         }
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = NativeTextEncoding.Create(language ?? throw new InvalidOperationException("Draw-point text decoding requires its native language."));
         ImmutableArray<string>.Builder messages = ImmutableArray.CreateBuilder<string>(8);
         ImmutableArray<string>.Builder messageHashes = ImmutableArray.CreateBuilder<string>(8);
         ImmutableArray<ImmutableArray<byte>>.Builder messageBytes = ImmutableArray.CreateBuilder<ImmutableArray<byte>>(8);
@@ -98,7 +98,7 @@ public static class NativeDrawPointCatalogReader
         {
             throw new InvalidDataException("Draw-point text requires its complete nine-entry source bank.");
         }
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         ImmutableArray<string> messages = selected.Texts.Take(8).ToImmutableArray();
         ImmutableArray<ImmutableArray<byte>> bytes = messages.Select(text =>
         {

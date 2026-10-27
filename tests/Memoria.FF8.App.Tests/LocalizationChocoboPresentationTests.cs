@@ -136,7 +136,7 @@ public sealed class LocalizationChocoboPresentationTests
         raw[3] = 6;
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(0x28), 123);
         byte[] name = new byte[12];
-        FF8Encoding.CreateEuropean().GetBytes("KeptName").CopyTo(name, 0);
+        FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("KeptName").CopyTo(name, 0);
         return new()
         {
             GameplayPreferences = new() { ChocoboWorldMode = ChocoboWorldMode.NativeImport },

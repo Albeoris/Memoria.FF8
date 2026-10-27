@@ -24,7 +24,7 @@ public sealed class NativeDrawPointCatalogTests
         Assert.Equal("Found a draw point!{Line}Blizzaga found.", catalog.FormatMessage(2, 6));
         Assert.Equal("{Char Quistis} stocked 4 Blizzagas.", catalog.FormatMessage(5, 6, 3, 4));
         Assert.Equal("{Char Ward} is unable to stock Fire.", catalog.FormatMessage(6, 1, 10));
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         for (int id = 0; id < 8; id++)
         {
             byte[] bytes = catalog.CommonMessageBytes[id].ToArray();

@@ -12,12 +12,12 @@ public sealed class LocalizationNonFieldContractsTests
     [Fact]
     public void EuropeanWordmarkTilesRoundTripWithoutInventingUnicode()
     {
-        var encoding = FF8Encoding.CreateEuropean();
+        var encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         byte[] bytes = Enumerable.Range(0xCC, 0xE2 - 0xCC + 1).Select(value => (byte)value).ToArray();
         string text = encoding.GetString(bytes);
         Assert.Equal(bytes.Length, System.Text.RegularExpressions.Regex.Matches(text, @"\{Glyph [0-9]+\}").Count);
         Assert.Equal(bytes, encoding.GetBytes(text));
-        Assert.DoesNotContain("{Glyph ", FF8Encoding.CreateJapanese().GetString(bytes));
+        Assert.DoesNotContain("{Glyph ", FF8Encoding.CreateJapanese(FF8TextLanguage.JP).GetString(bytes));
     }
 
     [Theory]
@@ -27,7 +27,7 @@ public sealed class LocalizationNonFieldContractsTests
     [InlineData(256)]
     public void WordmarkGlyphReferencesRejectValuesOutsideTheirNativeSet(int value)
     {
-        Assert.Throws<FormatException>(() => FF8Encoding.CreateEuropean().GetBytes("{Glyph " + value + "}"));
+        Assert.Throws<FormatException>(() => FF8Encoding.CreateEuropean(FF8TextLanguage.EN).GetBytes("{Glyph " + value + "}"));
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class LocalizationNonFieldContractsTests
     [InlineData(255)]
     public void ItemControlConsumesExactlyOneUnsignedByte(int selector)
     {
-        var encoding = FF8Encoding.CreateEuropean();
+        var encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         byte[] encoded = [0x0D, (byte)selector, 0x41];
         string text = encoding.GetString(encoded);
         Assert.StartsWith("{Item " + selector + "}", text);
@@ -62,7 +62,7 @@ public sealed class LocalizationNonFieldContractsTests
     [Fact]
     public void NamedicAcceptsOnlyBoundedZeroAlignmentPadding()
     {
-        var encoding = FF8Encoding.CreateEuropean();
+        var encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         byte[] bytes = NamedicBin.WriteStrings([""], encoding);
         Assert.Equal(5, bytes.Length);
         Assert.Equal([""], NamedicBin.ReadStrings([.. bytes, 0, 0, 0], encoding));

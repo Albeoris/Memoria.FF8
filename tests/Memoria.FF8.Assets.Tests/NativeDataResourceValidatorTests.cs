@@ -84,7 +84,7 @@ public sealed class NativeDataResourceValidatorTests
         using EmptySource source = new();
         ResourceService resources = new(source);
         NativeDataResourceValidator validator = new(resources);
-        EncodedResource dictionary = new(new ResourceKey("main/namedic.bin"), "bin", 1, "fixture", NamedicBin.WriteStrings(["First", "Second"], FF8Encoding.CreateEuropean()));
+        EncodedResource dictionary = new(new ResourceKey("main/namedic.bin"), "bin", 1, "fixture", NamedicBin.WriteStrings(["First", "Second"], FF8Encoding.CreateEuropean(FF8TextLanguage.EN)));
         validator.Validate(dictionary.Content, null);
         EncodedResource malformed = new(dictionary.Key, "bin", 2, "fixture", [2, 0, 0]);
         Assert.Throws<InvalidDataException>(() => validator.Validate(malformed.Content, null));
@@ -148,7 +148,7 @@ public sealed class NativeDataResourceValidatorTests
         RequireInstallation();
         using IResourceSource source = GameDataSourceFactory.Open(TestResources.GameDirectory);
         ResourceKey key = new("main/kernel.bin");
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         KernelData kernel = KernelData.ReadFromArray(Read(source.Find(key)!), encoding);
         kernel.MagicSpells[1].Name = "Selected longer spell label";
         EncodedResource selected = new(key, "bin", 1, "fixture", kernel.WriteToArray(encoding));
@@ -166,7 +166,7 @@ public sealed class NativeDataResourceValidatorTests
         ResourceKey kernelKey = new("main/kernel.bin");
         byte[] enemy = Read(source.Find(enemyKey)!);
         int information = BinaryPrimitives.ReadInt32LittleEndian(enemy.AsSpan(4));
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         KernelData kernel = KernelData.ReadFromArray(Read(source.Find(kernelKey)!), encoding);
         int last = kernel.EnemyAttacks.Count - 1;
         enemy[information + 52] = 8;

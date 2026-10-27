@@ -41,7 +41,7 @@ public sealed class JunctionFieldResourceInstalledTests
             Assert.Equal(group.Field, logic.Name);
             string prefix = $"field/{group.Field}/{group.Field}";
             Assert.Equal(Expected(prefix + ".jsm"), logic.Program);
-            MsdFile texts = MsdFile.Read(Expected(prefix + ".msd"), FF8Encoding.CreateEuropean());
+            MsdFile texts = MsdFile.Read(Expected(prefix + ".msd"), FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
             Assert.Equal(texts.Texts, logic.Messages);
             Assert.Equal(JsonSerializer.Serialize(FieldInformation.Read(Expected(prefix + ".inf"))), JsonSerializer.Serialize(logic.Information));
             JsmProgram program = JsmProgram.Read(logic.Program);
@@ -77,7 +77,7 @@ public sealed class JunctionFieldResourceInstalledTests
         long generation = host.Resources.Generation;
         long catalogGeneration = host.Mods.Catalog.Generation;
         FieldSceneMods sceneMods = host.SceneMods;
-        MsdFile table = MsdFile.Read(before, FF8Encoding.CreateEuropean());
+        MsdFile table = MsdFile.Read(before, FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
         table.Texts[0] = "Updated field resource{End}";
         byte[] changed = table.Write();
         Assert.NotEqual(Hash(before), Hash(changed));
@@ -131,7 +131,7 @@ public sealed class JunctionFieldResourceInstalledTests
         FieldSceneMods sceneMods = host.SceneMods;
         ResourceKey key = new(selected.Canonical);
         byte[] previous = host.Resources.Read(key);
-        MsdFile invalid = new(FF8Encoding.CreateEuropean());
+        MsdFile invalid = new(FF8Encoding.CreateEuropean(FF8TextLanguage.EN));
         invalid.Texts.Add("Only message{End}");
         File.WriteAllBytes(fixture.CopyPath(selected.Source), invalid.Write());
         host.Mods.Refresh();

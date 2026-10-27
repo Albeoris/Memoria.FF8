@@ -159,7 +159,7 @@ public sealed class OriginalSaveBankTests : IDisposable
 
     private static GameState LoadOriginal(string path)
     {
-        return NativePcSaveConverter.Import(File.ReadAllBytes(path), Defaults(), id => $"field{id}");
+        return NativePcSaveConverter.Import(File.ReadAllBytes(path), Defaults(), id => $"field{id}", "en");
     }
 
     private static GameState Defaults()

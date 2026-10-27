@@ -273,7 +273,7 @@ public static partial class NativePcSaveConverter
         block[2] = 0x11;
         block[3] = 1;
         WriteWord(block, 386, 0x08FF);
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
         void Name(int offset, int subject)
         {
             byte[] bytes = encoding.GetBytes(GameNames.DefaultName(subject));
@@ -378,7 +378,7 @@ public static partial class NativePcSaveConverter
         {
             if (source.TryGetProperty("Names", out JsonElement names) && names.ValueKind == JsonValueKind.Object)
             {
-                FF8Encoding encoding = FF8Encoding.CreateEuropean();
+                FF8Encoding encoding = FF8Encoding.CreateEuropean(FF8TextLanguage.EN);
                 foreach (JsonProperty name in names.EnumerateObject())
                 {
                     if (!int.TryParse(name.Name, out int subject) || name.Value.ValueKind != JsonValueKind.String)

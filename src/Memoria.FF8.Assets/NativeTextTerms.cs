@@ -12,23 +12,25 @@ public sealed class NativeTextTerms : ITextTermSource
     private readonly ImmutableArray<string> entries;
     private readonly ResourceService? resources;
 
-    public NativeTextTerms(IEnumerable<string> entries)
+    public NativeTextTerms(string language, IEnumerable<string> entries)
     {
+        Language = FF8TextLanguages.Parse(language).ToString().ToLowerInvariant();
         this.entries = entries.ToImmutableArray();
     }
 
-    private NativeTextTerms(ResourceService resources, string[] entries) : this(entries)
+    private NativeTextTerms(ResourceService resources, string[] entries) : this(resources.Source.Language, entries)
     {
         this.resources = resources;
         Generation = resources.Generation;
     }
 
     public long Generation { get; }
+    public string Language { get; }
 
     public static NativeTextTerms Read(ResourceService resources)
     {
         ArgumentNullException.ThrowIfNull(resources);
-        return new(resources, NamedicBin.ReadStrings(resources.Read(new ResourceKey("main/namedic.bin")), FF8Encoding.CreateEuropean()));
+        return new(resources, NamedicBin.ReadStrings(resources.Read(new ResourceKey("main/namedic.bin")), NativeTextEncoding.Create(resources.Source.Language)));
     }
 
     public static ITextTermSource FromResources(ResourceService resources)
@@ -41,6 +43,7 @@ public sealed class NativeTextTerms : ITextTermSource
     {
         private NativeTextTerms? dictionary;
         public long Generation => resources.Generation;
+        public string Language => resources.Source.Language;
 
         public string Resolve(int index)
         {

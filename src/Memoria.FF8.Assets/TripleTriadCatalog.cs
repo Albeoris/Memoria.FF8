@@ -59,16 +59,16 @@ public sealed class TripleTriadCatalog
         resources ??= new(provider);
         IGameNativeMemorySource memory = resources.GetSource<IGameNativeMemorySource>() ?? throw new NotSupportedException("The resource source has no authenticated native card memory contract.");
         byte[] names = provider.Descriptor.Edition == GameDataEdition.Remastered ? resources.Read(new ResourceKey("text/card-names")) : memory.Read(NameTableAddress, NativeNameTableLength);
-        MngrpArchive archive = MngrpArchive.Read(resources.Read(new ResourceKey("menu/mngrp.bin")), resources.Read(new ResourceKey("menu/mngrphd.bin")), FF8Encoding.CreateEuropean());
+        MngrpArchive archive = MngrpArchive.Read(resources.Read(new ResourceKey("menu/mngrp.bin")), resources.Read(new ResourceKey("menu/mngrphd.bin")), NativeTextEncoding.Create(resources.Source.Language));
         byte[] kernelBytes = resources.Read(new ResourceKey("main/kernel.bin"));
         _ = NativeKernelDirectory.Read(kernelBytes);
-        KernelData kernel = KernelData.ReadFromArray(kernelBytes, FF8Encoding.CreateEuropean());
+        KernelData kernel = KernelData.ReadFromArray(kernelBytes, NativeTextEncoding.Create(resources.Source.Language));
         if (kernel.MenuAbilities.Count != 24)
         {
             throw new InvalidDataException("Native Card Mod requires its complete kernel menu ability records.");
         }
         var cardAbility = kernel.MenuAbilities[23];
-        TripleTriadCatalog native = Read(memory, names);
+        TripleTriadCatalog native = Read(memory, names, language: FF8TextLanguages.Parse(resources.Source.Language));
         TripleTriadCatalog catalog = new(native.Cards, native.originalNames, native.TradePriorities, native.AiParameters, NativeRefinementGroupReader.ReadCardRefinements(archive, new NativeRefinementAbility(cardAbility.Name ?? "", cardAbility.Index, cardAbility.Start, cardAbility.End)));
         catalog.resources = resources;
         return catalog;
@@ -77,10 +77,10 @@ public sealed class TripleTriadCatalog
     public static TripleTriadCatalog ReadExecutable(byte[] executable, byte[]? refinementData = null)
     {
         ArgumentNullException.ThrowIfNull(executable);
-        return Read(new NativeExecutableMemory(executable), refinementData: refinementData);
+        return Read(new NativeExecutableMemory(executable), refinementData: refinementData, language: FF8TextLanguage.EN);
     }
 
-    public static TripleTriadCatalog Read(IGameNativeMemorySource memory, byte[]? nameData = null, byte[]? refinementData = null)
+    public static TripleTriadCatalog Read(IGameNativeMemorySource memory, byte[]? nameData = null, byte[]? refinementData = null, FF8TextLanguage? language = null)
     {
         ArgumentNullException.ThrowIfNull(memory);
         if (!NativeFieldRuntimeProfile.IsSupportedImage(memory.SourceHash))
@@ -95,7 +95,8 @@ public sealed class TripleTriadCatalog
         {
             throw new InvalidDataException("Original Triple Triad name count is invalid.");
         }
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        FF8TextLanguage selectedLanguage = language ?? throw new InvalidOperationException("Card text decoding requires its native language.");
+        FF8Encoding encoding = selectedLanguage == FF8TextLanguage.JP ? FF8Encoding.CreateJapanese(selectedLanguage) : FF8Encoding.CreateEuropean(selectedLanguage);
         // The match uses a second byte-identical card table at C74D00; byte5
         // is the native reward-selection priority consumed by 535800/53ADF0.
         byte[] ranks = memory.Read(RankTableAddress, CardCount * 8);

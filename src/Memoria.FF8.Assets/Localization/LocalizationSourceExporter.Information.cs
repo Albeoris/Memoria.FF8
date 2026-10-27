@@ -16,7 +16,7 @@ public static partial class LocalizationSourceExporter
             string text;
             try
             {
-                text = NativeTutorialInformationText.Format(body, language == "jp" ? Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateJapanese() : encoding, language == "jp");
+                text = NativeTutorialInformationText.Format(body, language == "jp" ? Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateJapanese(Albeoris.Games.FF8.TextEncoding.FF8TextLanguage.JP) : encoding, language == "jp");
             }
             catch (Exception exception) when (ResourceError(exception))
             {
