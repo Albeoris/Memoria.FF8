@@ -8,6 +8,22 @@ namespace Memoria.FF8.Mods.Tests;
 
 public sealed class LocalizationBaseReferenceTests
 {
+    [Theory]
+    [InlineData("en", "{TermEN Status}")]
+    [InlineData("de", "{TermDE AttackOneEnemy}")]
+    public void FieldNamesAndReferencesExpandTermsWithoutChangingRawContextOrDynamicTags(string language, string term)
+    {
+        string title = term + "- Square {Char Squall}";
+        LocalizationSourceEntry entry = Entry(language, "Fields", "example", 0, "Body {Var 32}") with { Metadata = new Dictionary<string, string?> { ["Field Name"] = title } };
+        LocalizationSourceCatalog catalog = Catalog(entry, Entry(language, "Menus", "namedic_menu", 20, "Resolved"));
+        LocalizationProject project = LocalizationProjectBuilder.CreateProject(new(language, language, "ru", [], "Test"), new Dictionary<string, LocalizationSourceCatalog> { [language] = catalog }, TestContext.Current.CancellationToken);
+        LocalizationRecord row = project.Entries.Single(row => row.Key == entry.Key);
+        Assert.Equal("Resolved- Square {Char Squall}", row.ExtensionData["Field Name"].GetString());
+        Assert.Equal(title, row.ExtensionData["sourceContext"].GetProperty("Field Name").GetString());
+        Assert.Equal("Body {Var 32}", row.Source);
+        Assert.Equal("Body {Var 32}", row.References["Reference [" + language + "]"]);
+    }
+
     [Fact]
     public void TermReferencesUseEachNativeDictionaryWithoutChangingSourceOrKeys()
     {

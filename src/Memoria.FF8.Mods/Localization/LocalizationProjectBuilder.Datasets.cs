@@ -57,6 +57,8 @@ public static partial class LocalizationProjectBuilder
 
         public string DisplayText(LocalizationSourceEntry entry) => DisplayText(entry, new HashSet<string>(StringComparer.Ordinal));
 
+        public string DisplayValue(LocalizationSourceEntry owner, string value) => ExpandTerms(owner, value, new HashSet<string>(StringComparer.Ordinal));
+
         private string DisplayText(LocalizationSourceEntry entry, HashSet<string> visiting)
         {
             if (displayTexts.TryGetValue(entry.Key, out string? cached))
@@ -67,7 +69,15 @@ public static partial class LocalizationProjectBuilder
             {
                 throw new InvalidDataException(entry.Key + ": cyclic native term dictionary reference.");
             }
-            string text = Regex.Replace(entry.Text, @"\{(Term[^ {}]*) ([^{}]+)\}", match =>
+            string text = ExpandTerms(entry, entry.Text, visiting);
+            visiting.Remove(entry.Key);
+            displayTexts.Add(entry.Key, text);
+            return text;
+        }
+
+        private string ExpandTerms(LocalizationSourceEntry entry, string value, HashSet<string> visiting)
+        {
+            return Regex.Replace(value, @"\{(Term[^ {}]*) ([^{}]+)\}", match =>
             {
                 if (!TextTagTerms.TryGetLanguage(match.Groups[1].Value, out FF8TextLanguage language) || !TextTagTerms.TryParse(language, match.Groups[2].Value, out byte term) || language != FF8TextLanguages.Parse(entry.Language))
                 {
@@ -81,9 +91,6 @@ public static partial class LocalizationProjectBuilder
                 }
                 return DisplayText(terms[0], visiting);
             }, RegexOptions.CultureInvariant);
-            visiting.Remove(entry.Key);
-            displayTexts.Add(entry.Key, text);
-            return text;
         }
     }
 

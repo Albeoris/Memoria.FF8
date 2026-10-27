@@ -117,6 +117,10 @@ public static partial class LocalizationProjectBuilder
                 }
             }
             Dictionary<string, JsonElement> extensions = identity.Metadata.ToDictionary(pair => pair.Key, pair => MetadataValue(pair.Key, pair.Value), StringComparer.Ordinal);
+            if (identity.Metadata.GetValueOrDefault("Field Name") is string fieldName)
+            {
+                extensions["Field Name"] = JsonSerializer.SerializeToElement(indexes[baseLanguage].DisplayValue(identity, fieldName));
+            }
             extensions["sourceContext"] = JsonSerializer.SerializeToElement(identity.Metadata);
             extensions["equivalentKeys"] = JsonSerializer.SerializeToElement(aliases);
             extensions["equivalentContexts"] = JsonSerializer.SerializeToElement(counterparts.Where(pair => pair.Value.Length > 1).ToDictionary(pair => pair.Key, pair => pair.Value.Select(entry => new { entry.Key, entry.Text, entry.Metadata }).ToArray()));
