@@ -103,7 +103,7 @@ try {
     # Keep the released worker path with the common x64 music implementation and its complete runtime.
     Invoke-DotNet @('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-o', (Join-Path $data 'audio-host'), '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/music')), '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishSingleFile=false')
     $launcherSingleFile = if ($RuntimeIdentifier -eq 'win-x64') { 'true' } else { 'false' }
-    Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-o', $launcher, '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/launcher')), ('-p:PublishSingleFile=' + $launcherSingleFile), '-p:IncludeNativeLibrariesForSelfExtract=true') + $publishArguments)
+    Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-o', $launcher, '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/launcher')), ('-p:PublishSingleFile=' + $launcherSingleFile), '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:PublishDocumentationFile=false', '-p:PublishReferencesDocumentationFiles=false') + $publishArguments)
     Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--native-image', $RuntimeIdentifier, (Join-Path $data $executable))
 
     if ($Test) {
@@ -136,7 +136,15 @@ try {
         throw "The launcher publish did not produce $launcherName."
     }
     Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--native-image', $RuntimeIdentifier, $launcherExecutable)
-    Get-ChildItem -LiteralPath $launcher | Move-Item -Destination $payload
+    if ($RuntimeIdentifier -eq 'win-x64') {
+        Move-Item -LiteralPath $launcherExecutable -Destination $payload
+        if (@(Get-ChildItem -LiteralPath $launcher -Force).Count -ne 0) {
+            throw 'The Windows single-file launcher produced unexpected companion files. Its complete runtime must be embedded before packaging.'
+        }
+    }
+    else {
+        Get-ChildItem -LiteralPath $launcher | Move-Item -Destination $payload
+    }
     if ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($launcher)) -ne [IO.Path]::GetFullPath($staging)) {
         throw 'The launcher staging path is outside the generated staging directory.'
     }

@@ -12,9 +12,9 @@ $sources = @(
     'src/Memoria.FF8.TitleScene/Shaders/TitleScene.fx'
 )
 $profiles = @(
-    @{ Name = 'DirectX_11'; Suffix = '.mgfxo'; Id = 1 },
+    @{ Name = 'DirectX_11'; Suffix = '.mgfxo'; Id = 1; Defines = '' },
     @{ Name = 'DirectX_12'; Suffix = '.dx12.mgfxo'; Id = 2; Defines = 'DIRECTX12=1' },
-    @{ Name = 'Vulkan'; Suffix = '.vulkan.mgfxo'; Id = 80 }
+    @{ Name = 'Vulkan'; Suffix = '.vulkan.mgfxo'; Id = 80; Defines = '' }
 )
 
 function Get-Sha256([string]$RelativePath)

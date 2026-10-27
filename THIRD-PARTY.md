@@ -17,7 +17,7 @@ Runtime packages are restored from NuGet at the versions in `Directory.Packages.
 | BCnEncoder.NET | 2.3.0 | [MIT or Unlicense](https://github.com/Nominom/BCnEncoder.NET) |
 | SharpCompress | 0.48.1 | [MIT](https://github.com/adamhathcock/sharpcompress) |
 | MonoGame.Framework.WindowsDX | 3.8.5.1 | [Microsoft Public License](https://github.com/MonoGame/MonoGame) |
-| MonoGame.Framework.Native / MonoGame.Runtime.Windows.Vulkan | 3.8.5.1 | [Microsoft Public License and included runtime notices](https://github.com/MonoGame/MonoGame) |
+| MonoGame.Framework.Native / MonoGame.Runtime.Windows.Vulkan / MonoGame.Runtime.Windows.DX12 / MonoGame.Runtime.Linux.Vulkan / MonoGame.Runtime.Mac.Vulkan | 3.8.5.1 | [Microsoft Public License and included runtime notices](https://github.com/MonoGame/MonoGame) |
 | SDL3-CS / SDL3-CS.Windows / SDL3-CS.Linux / SDL3-CS.macOS | 3.4.18 | [Package license](https://github.com/edwardgushchin/SDL3-CS/blob/main/LICENSE); native SDL uses the [zlib license](https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt) |
 | Magick.NET-Q8-AnyCPU | 14.16.0 | [Apache 2.0 and included native notices](https://github.com/dlemstra/Magick.NET) |
 | ValveKeyValue | 0.11.0.378 | [MIT](https://github.com/ValveResourceFormat/ValveKeyValue) |

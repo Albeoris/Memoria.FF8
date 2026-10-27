@@ -30,12 +30,12 @@ Run `./tools/Get-PlatformInventory.ps1` for a project-level JSON inventory, or a
 | Platform, Runtime, Resources, Assets, Mods, Ui, Events, Rendering, Media, Diagnostics | Portable solution; focused tests on the affected contracts |
 | Launcher | Avalonia `net10.0`; separate self-contained win-x64/linux-x64/osx-x64 publishes |
 | Audio and Music | Shared managed parser, sequencer, synthesizer and PCM mixer; native SDL3 device adapter; x64 worker |
-| TitleScene | Portable vector/raster helpers under `net10.0`; current WindowsDX GPU renderer under `net10.0-windows` |
-| TitleScene.Preview | Portable `--crest` output; Windows target retains animated GPU preview |
-| Localization, Distribution.Check, Updater.Compatibility | Portable build; Windows distribution/update execution remains the current package contract |
+| TitleScene | Shared Native GPU renderer under `net10.0`; WindowsDX remains a separate build family |
+| TitleScene.Preview | Portable `--crest` output and Native Vulkan animated GPU preview |
+| Localization, Distribution.Check, Updater.Compatibility | Portable build; per-RID archive/native checks; immutable Windows updater fixture |
 | BattleEffects tool | Portable model/coordination build; owned-child supervision explicitly requires Windows Job Objects |
 | Portable tests | Included as compile roots; execution selection is explicit in `Build.ps1` |
-| App and App.Tests | Current Windows DX11 host and its integration tests |
+| App and App.Tests | Shared Native host/integration graph; isolated Windows DX11/Vulkan/DX12 payloads |
 | Acceptance | External original-game tooling with explicit local inputs |
 | BattleEffects.Tests | Requires an authorized affected-effect selection; never included in aggregate portable execution |
 
