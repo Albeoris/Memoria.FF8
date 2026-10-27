@@ -760,6 +760,12 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             salaryMovementUnits = (uint)(foot.MovementMagnitude20409F4 ?? throw new NotSupportedException("Full map requires the preceding accepted movement magnitude; run a normal callback before using this historical save.")) / 8;
             foot = foot with { Forest = forest with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown } };
+            if (foot.NormalObjects is not null)
+            {
+                //53FAC0 still runs545480 and54E650 in full-map mode12.
+                foot = StepNormalFootObjects(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
+                foot = CompleteNormalFootObjectCallback(foot, before.X, before.Z, before.NativeHeight);
+            }
             return CompleteMapFootMotor(before with { Frame = before.Frame + 1, BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }, mapButtons);
         }
         NativeWorldFootType2AnimationResult? type2Animation = null;

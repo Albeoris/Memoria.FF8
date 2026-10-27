@@ -8,6 +8,78 @@ namespace Memoria.FF8.App.Tests;
 /// <summary>Declared native components using installed original resources; these fixtures do not represent an authentic player journey.</summary>
 public sealed class NativeNormalFootObjectTests
 {
+    [Fact]
+    public void FullMapContinuesNormalObjectsAndRestoresBeforeReturningToTravel()
+    {
+        VerifyFullMap(ComponentSession());
+    }
+
+    [Fact]
+    public void SuppliedStandaloneContinuesNormalObjectsThroughFullMap()
+    {
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("normal-foot-map-source")));
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        world.EnsureField();
+        Assert.NotNull(session.State.World!.NativeFootRuntime!.NormalObjects);
+        Assert.NotEqual((byte)3, WorldMapScene.MapDisplayMode(session.State.World));
+        do
+        {
+            Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
+            Assert.True(world.Apply(new(PlayerActionKind.Wait, WorldButtons: 0x100)).Accepted);
+            world.Render(TimeSpan.Zero);
+        }
+        while (WorldMapScene.MapDisplayMode(session.State.World!) != 3);
+        Assert.True(world.Apply(new(PlayerActionKind.Move, Horizontal: 1, Frames: 3)).Accepted);
+        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_NORMAL_FOOT_MAP_OUTPUT") ?? TestResources.ArtifactFile("normal-foot-map.json");
+        session.Save(output, compact: true);
+        GameSession savedSession = new(GameSession.Load(output));
+        using GameWorld saved = new(savedSession, TestResources.GameDirectory);
+        saved.EnsureField();
+        Assert.Equal(world.Render(TimeSpan.Zero), saved.Render(TimeSpan.Zero));
+        foreach (PlayerAction action in new PlayerAction[] { new(PlayerActionKind.Wait, WorldButtons: 0x100), new(PlayerActionKind.Wait), new(PlayerActionKind.Move, Horizontal: 1) })
+        {
+            Assert.Equal(world.Apply(action), saved.Apply(action));
+            Assert.Equal(JsonSerializer.Serialize(session.PrepareSnapshot()), JsonSerializer.Serialize(savedSession.PrepareSnapshot()));
+            Assert.Equal(world.Render(TimeSpan.Zero), saved.Render(TimeSpan.Zero));
+        }
+        Assert.Equal((byte)0, WorldMapScene.MapDisplayMode(session.State.World!));
+    }
+
+    private static void VerifyFullMap(GameSession session)
+    {
+        using WorldMapScene world = new(session, TestResources.GameDirectory);
+        Assert.NotNull(world.State.NativeFootRuntime!.NormalObjects);
+        Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        world.Render(320, 224);
+        byte initialMode = WorldMapScene.MapDisplayMode(world.State);
+        Assert.NotEqual((byte)3, initialMode);
+        do
+        {
+            Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
+            Assert.True(world.Apply(new(PlayerActionKind.Wait, WorldButtons: 0x100)).Accepted);
+            world.Render(320, 224);
+        }
+        while (WorldMapScene.MapDisplayMode(world.State) != 3);
+        WorldState before = world.State;
+        NativeNormalFootObjectProcess objects = before.NativeFootRuntime!.NormalObjects!;
+        Assert.True(world.Apply(new(PlayerActionKind.Move, Horizontal: 1, Frames: 3)).Accepted);
+        Assert.Equal((before.X, before.Z, before.NativeHeight), (world.State.X, world.State.Z, world.State.NativeHeight));
+        Assert.Equal(objects.Callback + 3, world.State.NativeFootRuntime!.NormalObjects!.Callback);
+        Assert.Equal(world.State.Frame, world.State.NativeFootRuntime.NormalObjects.Callback);
+        Assert.Equal(world.State.CameraYaw, world.State.NativeFootRuntime.NormalObjects.Camera.Yaw);
+        byte[] pixels = world.Render(320, 224);
+        GameSession restoredSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene restored = new(restoredSession, TestResources.GameDirectory);
+        Assert.Equal(pixels, restored.Render(320, 224));
+        foreach (PlayerAction action in new PlayerAction[] { new(PlayerActionKind.Wait, WorldButtons: 0x100), new(PlayerActionKind.Wait), new(PlayerActionKind.Move, Horizontal: 1) })
+        {
+            Assert.Equal(world.Apply(action), restored.Apply(action));
+            Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(restoredSession.State));
+            Assert.Equal(world.Render(320, 224), restored.Render(320, 224));
+        }
+        Assert.Equal((byte)0, WorldMapScene.MapDisplayMode(world.State));
+    }
+
     [Theory]
     [InlineData(290, 3, 9)]
     [InlineData(315, 3, 9)]
