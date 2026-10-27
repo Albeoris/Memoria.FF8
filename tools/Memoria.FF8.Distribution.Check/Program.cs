@@ -89,9 +89,26 @@ using DistributionAssemblies assemblies = new(dataDirectory);
 Assembly textAssembly = assemblies.LoadFromAssemblyName(new AssemblyName("Albeoris.Games.FF8.TextEncoding"));
 Type encodingType = textAssembly.GetType("Albeoris.Games.FF8.TextEncoding.FF8Encoding", throwOnError: true)!;
 Encoding? europeanEncoding = null;
+PropertyInfo languageProperty = encodingType.GetProperty("Language") ?? throw new InvalidDataException("The published text encoder has no native language contract.");
+Type languageType = Nullable.GetUnderlyingType(languageProperty.PropertyType) ?? throw new InvalidDataException("The published native language selection must represent an unset value.");
 foreach (string factory in new[] { "CreateEuropean", "CreateRussian", "CreateJapanese" })
 {
-    Encoding encoding = (Encoding)encodingType.GetMethod(factory, Type.EmptyTypes)!.Invoke(null, null)!;
+    MethodInfo factoryMethod = encodingType.GetMethod(factory, [languageProperty.PropertyType]) ?? throw new InvalidDataException("The published text encoder has no language-aware factory: " + factory);
+    Encoding encoding = (Encoding)factoryMethod.Invoke(null, [null])!;
+    bool rejectedUnsetLanguage = false;
+    try
+    {
+        encoding.GetBytes("Memoria");
+    }
+    catch (InvalidOperationException)
+    {
+        rejectedUnsetLanguage = true;
+    }
+    if (!rejectedUnsetLanguage)
+    {
+        throw new InvalidDataException("The published text encoder accepted an unset native language.");
+    }
+    languageProperty.SetValue(encoding, Enum.Parse(languageType, factory == "CreateJapanese" ? "JP" : "EN"));
     if (factory == "CreateEuropean")
     {
         europeanEncoding = encoding;
