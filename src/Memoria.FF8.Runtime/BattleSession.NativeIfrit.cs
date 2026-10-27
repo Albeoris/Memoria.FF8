@@ -850,7 +850,13 @@ public sealed partial class BattleSession
 
         NativeBattleWaterExecutionFrame DrawSlots(NativeBattleWaterExecutionFrame current, int budget)
         {
-            return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
+            NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic drawing requires its current ordering table.");
+            using NativeBattleLogicalOrderingTransaction? ordering = primitive.Pending.Transaction is null ? new(primitive.Pending) : null;
+            if (ordering is not null)
+            {
+                graphics = graphics with { PrimitiveFrame = primitive with { Pending = ordering.View } };
+            }
+            NativeBattleWaterExecutionFrame drawn = NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
                 if (selectedDrawHandler == 0xA2D000)
@@ -1173,6 +1179,11 @@ public sealed partial class BattleSession
                 }
                 return kind == 0x26 ? frame : throw new NotSupportedException($"Native cinematic draw{kind:X2} requires its selected lit geometry contract.");
             }, budget);
+            if (ordering is not null)
+            {
+                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
+            }
+            return drawn;
         }
 
         uint ResolveCurrentNode(NativeBattleWaterExecutionFrame frame, short selector)
