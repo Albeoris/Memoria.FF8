@@ -87,7 +87,7 @@ public static class LocalizationTextValidation
             {
                 throw new InvalidDataException($"{key}: malformed known control tag {{{code}{(hasSpace ? " " : "")}{parameter}}}.");
             }
-            if (code is "Var" or "Item" or "Char" or "Key" or "Dialog" or "Term" or "Name")
+            if (code is "Var" or "Item" or "Char" or "Key" or "Dialog" or "Name")
             {
                 string identity = code + " " + number;
                 placeholders[identity] = placeholders.GetValueOrDefault(identity) + 1;

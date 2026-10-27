@@ -23,6 +23,9 @@ public sealed class LocalizationBaseReferenceTests
         Assert.Equal("Angriff auf einen Gegner {Char Squall}", row.References["Reference [de]"]);
         Assert.Equal(english.Text, row.Source);
         Assert.Equal(new[] { "$de_descriptions_angelo_abilities_0000" }, row.ReferenceKeys["Reference [de]"]);
+        LocalizationTextValidation.Validate(row with { Target = "Состояние {Char Squall}" });
+        Assert.Throws<InvalidDataException>(() => LocalizationTextValidation.Validate(row with { Target = "Состояние" }));
+        Assert.Throws<InvalidDataException>(() => LocalizationTextValidation.Validate(row with { Target = "{Term InvalidTerm} {Char Squall}" }));
     }
 
     [Fact]

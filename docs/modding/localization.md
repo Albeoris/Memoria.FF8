@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) / Modding
 
-Use [the creation and activation guide](../players/localization.md) to create a disabled project. This page describes its files, identities and editing rules. Source text is read from the user's installation or selected translation projects; original game assets are not distributed with Memoria.
+Use [the creation and activation guide](../players/localization.md) to create a disabled project. This page describes its files, identities and editing rules. New-project source text and artwork are read from the user's original installed archives, independently of installed mods and the active profile; original game assets are not distributed with Memoria.
 
 ## Package files
 
@@ -37,7 +37,7 @@ XLSX exports also contain `Localization/localization.extensions.json`. This side
 
 JSON groups records as `category → File → Key → role/metadata properties`. XLSX shows `File`, `Key`, `Target`, the ordered reference columns, then `ReferenceKeys`, with frozen identity columns, wrapped text and filters. Technical columns are hidden and retained for conversion and validation; keep them and the sidecar intact. There is no separate Source prose column. Edit text as literal strings; formulas in role cells or headers are rejected. A translator string longer than Excel's cell limit must be edited in JSON or deliberately shortened. It is not silently moved into a technical sidecar. Save and close an editor before conversion or validation so the input is a consistent file snapshot.
 
-References do not become runtime Target overrides. If a selected project has no translated Target for a row, its source/reference dataset has a gap rather than a copy of native text. Project datasets have stable `project:<project-id>` identities distinct from their arbitrary Target labels. The effective profile dataset uses the explicit selected stack; own-contribution export and effective-profile export are different operations.
+References do not become runtime Target overrides. Native Term controls are positional references into the dictionary of their own language. Exported references expand these terms into readable text; hidden native Source text retains the original controls. A Target may translate dictionary text literally instead of retaining a Term control; any retained Term control must still be valid. Other dynamic placeholders remain visible and must be preserved when translating.
 
 ## Stable keys
 

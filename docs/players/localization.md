@@ -29,11 +29,9 @@ A stack can contain different Target IDs. Its **Primary target** is displayed ex
 
 Patches use a separate project identity and declare their base relationship. Use **Create localization patch** to select a base package and create a disabled patch with empty Targets. A base and its patches must be selected in a compatible order; a common Target label alone does not declare a dependency.
 
-## Use existing translations as references
+## Original resource references
 
-The References selector also list loaded projects by their package name and Target label. An **own contribution** dataset contains only that project's translated Target values. Untranslated rows remain missing; native fallback is never presented as if it were a translation.
-
-**Effective active profile** reads the selected contributions in their committed stack order. It is a source snapshot for authoring another project. It does not activate a different stack or silently turn a mixed profile into a newly named independent translation. Loaded-project datasets can be prose references; the base game language selects the native row inventory.
+New projects read the original installed archives for every selected language. Installed mods and the active localization stack do not supply exported text or artwork. References expand native dictionary terms using that reference language's own dictionary; symbolic English term names are not translations.
 
 ## Convert and edit
 
