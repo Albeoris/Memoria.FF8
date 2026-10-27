@@ -23,6 +23,7 @@ public sealed class DiagnosticPresentationProgressTests
         Assert.Equal(0, snapshot.InvalidTimestampCount);
         Assert.Equal(3, snapshot.OverThirtyFpsBudgetIntervals);
         Assert.Equal(2, snapshot.Over50MsIntervals);
+        Assert.Equal(2, snapshot.MaximumOver50MsIn60Intervals);
         Assert.Equal(1, snapshot.Over100MsIntervals);
         Assert.Equal(301 * 1000d / 3000, snapshot.MaximumFrameMs);
     }
@@ -40,6 +41,7 @@ public sealed class DiagnosticPresentationProgressTests
         Assert.Equal(2, snapshot.ExcludedIntervals);
         Assert.Equal(0, snapshot.Over100MsIntervals);
         Assert.Equal(100, snapshot.MaximumFrameMs);
+        Assert.Equal(1, snapshot.MaximumOver50MsIn60Intervals);
     }
 
     [Fact]
@@ -56,6 +58,7 @@ public sealed class DiagnosticPresentationProgressTests
         Assert.Equal(10, first.ActiveEffectIntervals);
         Assert.Equal(10, first.Over100MsIntervals);
         Assert.Equal(101, first.MaximumFrameMs);
+        Assert.Equal(10, first.MaximumOver50MsIn60Intervals);
         progress.Reset(2, 2000);
         progress.Presented(2200, 0, 0);
         DiagnosticPresentationProgressSnapshot second = progress.Snapshot(4, false, false);
@@ -65,6 +68,7 @@ public sealed class DiagnosticPresentationProgressTests
         Assert.Equal(0, second.ActiveEffectIntervals);
         Assert.Equal(0, second.Over100MsIntervals);
         Assert.Equal(0, second.MaximumFrameMs);
+        Assert.Equal(0, second.MaximumOver50MsIn60Intervals);
         Assert.Equal(10, first.Over100MsIntervals);
     }
 
@@ -85,4 +89,70 @@ public sealed class DiagnosticPresentationProgressTests
         Assert.Equal(1, snapshot.Over100MsIntervals);
         Assert.Equal(101, snapshot.MaximumFrameMs);
     }
-}
+    [Fact]
+    public void Peak_window_survives_later_fast_presentations_until_the_next_heartbeat()
+    {
+        DiagnosticPresentationProgress progress = new(1000);
+        progress.Reset(1, 1);
+        long timestamp = 1;
+        for (int interval = 0; interval < 180; interval++)
+        {
+            timestamp += interval < 13 ? 51 : 1;
+            progress.Presented(timestamp, 1, 0);
+        }
+        DiagnosticPresentationProgressSnapshot snapshot = progress.Snapshot(1, true, false);
+        Assert.Equal(180, snapshot.ActiveEffectIntervals);
+        Assert.Equal(13, snapshot.Over50MsIntervals);
+        Assert.Equal(13, snapshot.MaximumOver50MsIn60Intervals);
+        System.Text.Json.JsonElement json = System.Text.Json.JsonSerializer.SerializeToElement(snapshot, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower });
+        Assert.Equal(13, json.GetProperty("maximum_over50_ms_in60_intervals").GetInt32());
+    }
+
+    [Fact]
+    public void Sliding_window_expires_the_sixtieth_prior_interval_instead_of_using_cumulative_bad_frames()
+    {
+        DiagnosticPresentationProgress progress = new(1000);
+        progress.Reset(1, 1);
+        long timestamp = 1;
+        for (int interval = 0; interval < 69; interval++)
+        {
+            timestamp += interval < 9 || interval >= 60 ? 51 : 50;
+            progress.Presented(timestamp, 1, 0);
+        }
+        DiagnosticPresentationProgressSnapshot snapshot = progress.Snapshot(1, true, false);
+        Assert.Equal(69, snapshot.ActiveEffectIntervals);
+        Assert.Equal(18, snapshot.Over50MsIntervals);
+        Assert.Equal(9, snapshot.MaximumOver50MsIn60Intervals);
+    }
+
+    [Fact]
+    public void Exact_active_start_and_completion_endpoints_bound_the_peak_without_counting_tail_intervals()
+    {
+        DiagnosticPresentationProgress progress = new(1000);
+        progress.Reset(1, 1);
+        progress.Presented(100, 100, 0);
+        progress.Presented(151, 100, 151);
+        progress.Presented(202, 100, 151);
+        DiagnosticPresentationProgressSnapshot snapshot = progress.Snapshot(1, true, true);
+        Assert.Equal(1, snapshot.ActiveEffectIntervals);
+        Assert.Equal(2, snapshot.ExcludedIntervals);
+        Assert.Equal(1, snapshot.MaximumOver50MsIn60Intervals);
+    }
+
+    [Fact]
+    public void Updating_rolling_density_does_not_allocate_per_presentation()
+    {
+        DiagnosticPresentationProgress progress = new(1000);
+        progress.Reset(1, 1);
+        progress.Presented(52, 1, 0);
+        long timestamp = 52;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int interval = 0; interval < 180; interval++)
+        {
+            timestamp += interval % 2 == 0 ? 51 : 1;
+            progress.Presented(timestamp, 1, 0);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(0, allocated);
+        Assert.Equal(31, progress.Snapshot(1, true, false).MaximumOver50MsIn60Intervals);
+    }}

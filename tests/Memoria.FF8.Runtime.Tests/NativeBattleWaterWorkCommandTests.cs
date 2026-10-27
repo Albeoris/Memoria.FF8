@@ -75,9 +75,9 @@ public sealed class NativeBattleWaterWorkCommandTests
         Assert.Equal((byte)1, frame.ReadTemporaryByte(0x141));
         frame = Reenter(frame, 0xA021, 0, 1, 0x100);
         NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
-        NativeBattleWaterExecutionFrame expected = Run(frame);
+        NativeBattleWaterExecutionFrame expectedFrame = Run(frame);
         NativeBattleWaterExecutionFrame actual = Run(restored);
-        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expectedFrame), NativeBattleTestSnapshots.Json(actual));
         Assert.Equal((byte)1, actual.ReadTemporaryByte(0x141));
     }
 
