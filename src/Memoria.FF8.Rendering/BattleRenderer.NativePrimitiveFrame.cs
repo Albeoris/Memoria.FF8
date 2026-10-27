@@ -15,11 +15,13 @@ public sealed partial class BattleRenderer
     private NativeBattleEffectTextureState? nativeTextureOwner;
     private NativeBattlePcDirectTextureFormat? nativeDirectTextureFormat;
     private IReadOnlyList<NativeBattleTextureReplacement>? nativeModelReplacements;
+    private INativeBattleEffectTextureSource? nativeEffectTextureSource;
+    private long effectTextureGeneration;
     private readonly List<NativeRasterTriangle> nativeTriangles = [];
     private readonly record struct NativeRasterTriangle(PrimitiveVertex A, PrimitiveVertex B, PrimitiveVertex C, PixelImage? Texture, int Blend, byte Pass, float Area, int Left, int Right, int Top, int Bottom, bool Line = false);
 
     /// <summary>Render the executed original battle OT into a viewport representing its320x216 draw environment.</summary>
-    public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, NativeBattlePcUiFrame? uiFrame = null, Func<int, int, bool, PixelImage>? uiTexture = null)
+    public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, NativeBattlePcUiFrame? uiFrame = null, Func<int, int, bool, PixelImage>? uiTexture = null, INativeBattleEffectTextureSource? effectTextureSource = null)
     {
         //The executed OT already owns projected XY/depth; a native WAIT can legitimately publish coincident eye and target.
         sceneProjectionReady = false;
@@ -39,6 +41,8 @@ public sealed partial class BattleRenderer
         nativeTexturePages.Clear();
         NativeBattleEffectTextureState? previousTextureOwner = nativeTextureOwner;
         bool sameReplacements = ReferenceEquals(nativeModelReplacements, replacements) || nativeModelReplacements is not null && replacements is not null && nativeModelReplacements.SequenceEqual(replacements);
+        sameReplacements &= ReferenceEquals(nativeEffectTextureSource, effectTextureSource) && effectTextureGeneration == (effectTextureSource?.Generation ?? 0) && SameTextureOrigins(previousTextureOwner, textures);
+        nativeEffectTextureSource = effectTextureSource;
         nativeModelReplacements = replacements?.ToArray();
         if (nativeDirectTextureFormat != capabilities?.DirectTextureFormat)
         {
@@ -236,10 +240,26 @@ public sealed partial class BattleRenderer
                 {
                     texture = NativeBattleEffectTextureReader.ApplyModelReplacements(texture, textures!, page, clut, window.X, window.Y, retainedPixels, replacements, command.TextureSourceOwner);
                 }
+                if (nativeEffectTextureSource is not null)
+                {
+                    texture = nativeEffectTextureSource.Apply(texture, textures!, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels, alternateShift, capabilities?.DirectTextureFormat);
+                    effectTextureGeneration = nativeEffectTextureSource.Generation;
+                }
             }
             nativeTexturePages.Add(key, texture!);
         }
         return texture!;
+    }
+
+    private static bool SameTextureOrigins(NativeBattleEffectTextureState? previous, NativeBattleEffectTextureState? current)
+    {
+        if (ReferenceEquals(previous, current))
+        {
+            return true;
+        }
+        bool samePixels = previous?.LiveTextureSources is { } before && current?.LiveTextureSources is { } after ? before.SequenceEqual(after) : previous?.LiveTextureSources is null && current?.LiveTextureSources is null;
+        bool sameRegistrations = previous?.TextureRegistrations is { } previousRegistrations && current?.TextureRegistrations is { } currentRegistrations ? previousRegistrations.SequenceEqual(currentRegistrations) : previous?.TextureRegistrations is null && current?.TextureRegistrations is null;
+        return samePixels && sameRegistrations;
     }
 
     private bool NativeScreenQuadCoversProjection(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode)

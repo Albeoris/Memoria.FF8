@@ -37,6 +37,7 @@ internal sealed partial class BattleScenePresentation
     private long renderedGpuVersion;
     private readonly Dictionary<(BattleModel Model, NativeBattleModelTextureBinding Binding, bool Weapon), (object[] Materials, IReadOnlyList<NativeBattleTextureReplacement> Replacements)> replacementBindings = [];
     private IReadOnlyList<NativeBattleTextureReplacement>? renderedModelReplacements;
+    private long renderedEffectTextureGeneration;
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
@@ -146,7 +147,7 @@ internal sealed partial class BattleScenePresentation
             NativeBattlePcUiFrame? uiFrame = session.NativeEffectMemory?.UiImmediateFrame;
             NativeBattlePcTextureWindowCache? windows = session.NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache;
             IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeModelReplacements(session, rawGraphics);
-            bool unchanged = ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedPcUiFrame, uiFrame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements);
+            bool unchanged = ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedPcUiFrame, uiFrame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements) && renderedEffectTextureGeneration == assets.EffectTextureSource.Generation;
             if (triangleRenderer is null && renderedPixels is not null && unchanged)
             {
                 return renderedPixels;
@@ -158,26 +159,28 @@ internal sealed partial class BattleScenePresentation
             if (triangleRenderer is not null)
             {
                 renderedPixels = null;
-                byte[] result = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements, uiFrame, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve);
+                byte[] result = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements, uiFrame, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve, assets.EffectTextureSource);
                 renderedPrimitiveFrame = frame;
                 renderedPcRenderTail = frame.LastPcRenderTail;
                 renderedPcUiFrame = uiFrame;
                 renderedTextures = textures;
                 renderedTextureWindows = windows;
                 renderedModelReplacements = replacements;
+                renderedEffectTextureGeneration = assets.EffectTextureSource.Generation;
                 renderedCamera = selectedCamera;
                 renderedGpu = triangleRenderer as GpuTriangleRenderer;
                 renderedGpuVersion = renderedGpu?.PresentationVersion ?? 0;
                 return result;
             }
             renderedGpu = null;
-            renderedPixels = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements, uiFrame, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve);
+            renderedPixels = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements, uiFrame, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve, assets.EffectTextureSource);
             renderedPrimitiveFrame = frame;
             renderedPcRenderTail = frame.LastPcRenderTail;
             renderedPcUiFrame = uiFrame;
             renderedTextures = textures;
             renderedTextureWindows = windows;
             renderedModelReplacements = replacements;
+            renderedEffectTextureGeneration = assets.EffectTextureSource.Generation;
             renderedCamera = selectedCamera;
             return renderedPixels;
         }

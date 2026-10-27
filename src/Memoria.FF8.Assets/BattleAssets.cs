@@ -20,6 +20,9 @@ public sealed partial class BattleAssets : IDisposable
     private readonly ResourceService resources;
     private readonly AssetTextureScope textureScope;
     private readonly IModelOverrideSource? modelOverrides;
+    private NativeBattleEffectTextureSource? effectTextureSource;
+
+    public INativeBattleEffectTextureSource EffectTextureSource => effectTextureSource ??= new(resources);
 
     public BattleAssets(string gameDirectory, ResourceService? resources = null, IModelOverrideSource? modelOverrides = null)
     {
@@ -395,6 +398,7 @@ public sealed partial class BattleAssets : IDisposable
 
     public void Dispose()
     {
+        effectTextureSource?.Dispose();
         textureScope.Dispose();
         archive.Dispose();
         ownedSource?.Dispose();

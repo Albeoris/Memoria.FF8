@@ -23,6 +23,10 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         {
             return ResolveArtwork(context);
         }
+        if (context.Layout == "native-effect-texture")
+        {
+            return ResolveEffect(context);
+        }
         if (context.Layout == "classic-battle")
         {
             return ResolveBattle(context);
@@ -103,7 +107,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         {
             stem = stem[4..];
         }
-        return IsSupportedFieldBackgroundTarget(stem) || IsSupportedFieldPageTarget(stem) || IsSupportedBattleTarget(stem) || IsSupportedMenuArtworkTarget(stem) || IsSupportedVramTarget(stem) || stem.StartsWith("cardgame/", StringComparison.Ordinal) && new[] { "cards_00", "icons_00", "intro_00", "game_00" }.Contains(stem[9..])
+        return IsSupportedEffectTarget(stem) || IsSupportedFieldBackgroundTarget(stem) || IsSupportedFieldPageTarget(stem) || IsSupportedBattleTarget(stem) || IsSupportedMenuArtworkTarget(stem) || IsSupportedVramTarget(stem) || stem.StartsWith("cardgame/", StringComparison.Ordinal) && new[] { "cards_00", "icons_00", "intro_00", "game_00" }.Contains(stem[9..])
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^data/eng/menu/mc0[0-9]_00$")
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^field/model/(main|second)_chr/[a-z0-9]+-[0-9]+_00$")
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^world/esk/chara_one/model[0-9]+-[0-9]+_00$")

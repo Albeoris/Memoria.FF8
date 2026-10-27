@@ -9,6 +9,44 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattlePrimitiveFrameRenderingTests
 {
+    [Fact]
+    public void CopyFrameRegistrationChangesInvalidateTextureReuseWithoutChangingVramWords()
+    {
+        const ushort page = 0x80;
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), 0, Point(30, 10), (uint)page << 16, Point(10, 30), 0, Point(30, 30), 0], 1, [], null) { OrderingBucket = 50 };
+        NativeBattlePrimitiveFrame frame = Frame([new(command, TexturedMode(page, 0), 1)]);
+        NativeBattleTextureOrigin origin = new("mag001_b.00", 0, NativeBattleTextureRole.Pixels, 8, 64, 256);
+        NativeBattleTextureRegistration registration = new(origin, 0, 0, 64, 256, [new(0, 0, 64, 256), new(64, 0, 64, 256)], 0);
+        NativeBattleEffectTextureState first = NativeBattleEffectTextureState.FromColdProcess() with { LiveTextureSources = [], TextureRegistrations = [registration] };
+        NativeBattleEffectTextureState second = first with { TextureRegistrations = [registration with { CurrentFrame = 1 }] };
+        TextureCapture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        CopyFrameTextureSource source = new();
+        renderer.RenderNativePrimitiveFrame(frame, first, effectTextureSource: source);
+        PixelImage initial = capture.Texture!;
+        int calls = source.Calls;
+        renderer.RenderNativePrimitiveFrame(frame, first, effectTextureSource: source);
+        Assert.Equal(calls, source.Calls);
+        Assert.Same(initial, capture.Texture);
+        renderer.RenderNativePrimitiveFrame(frame, second, effectTextureSource: source);
+        Assert.True(source.Calls > calls);
+        Assert.NotSame(initial, capture.Texture);
+        Assert.NotEqual(initial[0, 0], capture.Texture![0, 0]);
+    }
+
+    private sealed class CopyFrameTextureSource : INativeBattleEffectTextureSource
+    {
+        public long Generation => 0;
+        public int Calls { get; private set; }
+
+        public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
+        {
+            Calls++;
+            byte color = (byte)(state.TextureRegistrations!.Value[0].CurrentFrame + 1);
+            return new(width, height, Enumerable.Repeat(new Rgba32(color, 0, 0, 127), width * height).ToArray());
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -12,7 +12,10 @@ public sealed record TextureSourceRegion(int X = 0, int Y = 0, int BitsPerPixel 
 public sealed record TextureSourceAddress(ResourceKey Owner, string Subresource, int Palette, int X, int Y, int Width, int Height, int CanvasWidth, int CanvasHeight);
 
 public sealed record TexturePageMember(string Kind, string Name, int Texture, int X, int Y, int WidthWords, int Height, int BitsPerPixel, int Frame);
-public sealed record TextureSourcePageAddress(int Page, int X, int Y, int Width, int Height, int PaletteX, int PaletteY, IReadOnlyList<TexturePageMember> Members);
+public sealed record TextureSourcePageAddress(int Page, int X, int Y, int Width, int Height, int PaletteX, int PaletteY, IReadOnlyList<TexturePageMember> Members)
+{
+    public string? Namespace { get; init; }
+}
 
 public sealed class TextureBuildContext
 {
