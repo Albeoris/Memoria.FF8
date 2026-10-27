@@ -129,13 +129,12 @@ public sealed class GameAssetsResourceSourceTests
         NotSupportedException exception = Assert.Throws<NotSupportedException>(() => new GameAssets(Path.GetTempPath(), resources: new ResourceService(source)));
         Assert.Contains("archive enumeration", exception.Message);
         Assert.Throws<NotSupportedException>(() => new BattleAssets(Path.GetTempPath(), resources: new ResourceService(source)));
-        Assert.Throws<NotSupportedException>(() => new WorldAssets(Path.GetTempPath(), resources: new ResourceService(source)));
+        Assert.Throws<FileNotFoundException>(() => new WorldAssets(Path.GetTempPath(), resources: new ResourceService(source)));
     }
 
     [Theory]
     [InlineData("field")]
     [InlineData("battle")]
-    [InlineData("world")]
     public void FailedConstructorDisposesOpenedArchiveWithoutDisposingSuppliedSource(string family)
     {
         using CatalogSource source = new() { ArchiveFamily = family, FailEntryEnumeration = true };
@@ -144,12 +143,53 @@ public sealed class GameAssetsResourceSourceTests
         {
             "field" => () => new GameAssets(Path.GetTempPath(), resources: resources),
             "battle" => () => new BattleAssets(Path.GetTempPath(), resources: resources),
-            "world" => () => new WorldAssets(Path.GetTempPath(), resources: resources),
             _ => throw new ArgumentOutOfRangeException(nameof(family))
         };
         Assert.Throws<InvalidDataException>(construct);
         Assert.True(source.RootDisposed);
         Assert.False(source.Disposed);
+    }
+
+    [Fact]
+    public void WorldConstructionUsesLogicalResourcesWithoutEnumeratingStorage()
+    {
+        using CatalogSource source = new() { ArchiveFamily = "world", FailEntryEnumeration = true };
+        Assert.Throws<FileNotFoundException>(() => new WorldAssets(Path.GetTempPath(), resources: new ResourceService(source)));
+        Assert.Empty(source.OpenedFamilies);
+        Assert.False(source.Disposed);
+    }
+
+    [Fact]
+    public void CompleteWorldSourceDoesNotRequireArchiveCapability()
+    {
+        using IResourceSource installed = GameDataSourceFactory.Open(TestResources.GameDirectory);
+        using ResourceOnlySource source = new(installed);
+        using (WorldAssets world = new(Path.GetTempPath(), resources: new ResourceService(source)))
+        {
+            _ = world.GetSegment(0);
+            Assert.Equal(1, world.LoadedSegmentCount);
+            Assert.Contains(new ResourceKey("world/wmx.obj"), source.Reads);
+            Assert.Contains(new ResourceKey("world/wmsetus.obj"), source.Reads);
+        }
+        Assert.False(source.Disposed);
+    }
+
+    private sealed class ResourceOnlySource(IResourceSource installed) : IResourceSource
+    {
+        public ResourceSourceDescriptor Descriptor => installed.Descriptor;
+        public HashSet<ResourceKey> Reads { get; } = [];
+        public bool Disposed { get; private set; }
+
+        public ResourceContent? Find(ResourceKey key)
+        {
+            Reads.Add(key);
+            return installed.Find(key);
+        }
+
+        public void Dispose()
+        {
+            Disposed = true;
+        }
     }
 
     [Fact]

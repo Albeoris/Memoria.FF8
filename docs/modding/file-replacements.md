@@ -24,15 +24,32 @@ Registered `.tdw` files can replace ordinary archive resources even though the c
 
 ## Native data files
 
-The file replacement layer also registers `main/kernel.bin`, `main/namedic.bin`, `battle/c0mNNN.dat`, `menu/mngrp.bin`, `menu/mngrphd.bin` and native `world/wmsetXX.obj` resources. Root `kernel.bin` and `namedic.bin` names retain their main-archive identity; `world/dat/wmsetXX.obj` retains its world-archive identity. The optional `direct/` prefix has the same meaning as for model files. CSV exports are auxiliary material. Unregistered nested paths do not become aliases for canonical archive files.
+The replacement layer registers bounded native resource families:
 
-Preparation validates all winning files against one candidate resource publication. Enemy ability and text references therefore use the selected kernel. Native two-section and eleven-section enemy layouts remain distinct. Kernel directory and record bounds, message terminators, menu indexes and world records are checked through their typed readers. A malformed winning binary rejects the update with owning-package diagnostics and preserves the preceding generation.
+| Family | Registered resources |
+| --- | --- |
+| Main data | `main/kernel.bin`, `main/init.out`, `main/namedic.bin` |
+| Battles | `battle/scene.out`, `battle/c0mNNN.dat` |
+| Menu groups | `menu/mngrp.bin`, `menu/mngrphd.bin` |
+| Menu tables | `m000.bin` through `m004.bin`, `shop.bin`, `price.bin`, `mwepon.bin/.msg`, `mthomas.bin`, `mitem.bin`, `cyocobo.bin`, `pet_exp.bin/.msg`, `mtmag.bin`, `mmag.bin`, under `menu/` |
+| Menu artwork metadata | `menu/icon.sp1`, `menu/face.sp2`, `menu/areames.dc1` |
+| World data | `world/wmsetXX.obj`, `music0.obj` through `music5.obj`, `rail.obj`, `texl.obj`, `wmx.obj`, `chara.one`, under `world/` |
+
+Registered main-file names can appear at the package root. `world/dat/` retains the world-archive identity, and `world/esk/chara.one` addresses `world/chara.one`. The four native portrait TEX names under `menu/hires/` use their flat menu-library identities. The optional `direct/` prefix has the same meaning as for model files. Other unregistered nested paths do not become aliases. CSV exports and source/build attachments are not executable plugins.
+
+Preparation validates all winning files against one candidate resource publication. Enemy ability and text references therefore use the selected kernel; magazine pages use selected item, text, artwork and learning definitions. Native two-section and eleven-section enemy layouts remain distinct. Section offsets are bounded by the actual loaded file extent rather than an unused terminal size word. Byte-identical installed enemy/model placeholders introduce no new decoding contract; changed resources must pass validation. A malformed winning binary rejects the update with owning-package diagnostics and preserves the preceding generation.
+
+Supported `init.out` copies contain the complete 2,804-byte saved header and an even-length inventory prefix, up to the complete 3,200-byte supported owner range. Every supplied item pair is retained; uncopied inventory remains in its independently cleared state. State reset outside that copy is not bound to the selected file's hash.
+
+The native refinement menu consumes embedded menu groups 188–192 and their companion text groups 196–200, within the selected kernel's recipe ranges. It uses the first matching ingredient record; an absent ingredient has no recipe. Separately published loose `m000.bin`–`m004.bin` tables do not override these embedded operations and receive an unused-consumer diagnostic.
+
+Choose **Game resource language** in the launcher, or pass `--resource-language en|fr|de|es|it`, when a package supplies a language-specific world settings file. **Auto** uses the installed source's default. Resource selection is independent of the authenticated executable and storage profiles. A missing selected resource does not fall back to another language, and filenames are not silently renamed. Unknown native families remain unapplied with package diagnostics.
 
 Native `Term` controls resolve through the selected counted `namedic.bin` dictionary and the resource abstraction. The native parameter-to-index calculation is retained; an index outside that dictionary contributes no text. Native text formatting requires a term source when such a control is reached. Authored interface localization remains a presentation layer over the selected source strings.
 
-The menu index and data files form a compound contribution. When another package overlaps a contributed member, the lower-priority contribution loses as a whole; disjoint partial contributions can combine and must pass joint validation. This follows file replacement priority and does not turn the package into a native Field mod. Field components retain their separate grouping rules below, followed by incremental presentation patches.
+The menu index/data files, icon directory/atlas, portrait directory/atlases, pet-training records/text and tutorial metadata pairs each form a compound contribution. When another package overlaps a contributed member, the lower-priority contribution loses as a whole; disjoint partial contributions can combine and must pass joint validation. This follows file replacement priority and does not turn the package into a native Field mod. Field components retain their separate grouping rules below, followed by incremental presentation patches.
 
-Native menu TEX and compressed disc images are decoded and validated as registered file resources. Tutorial and magazine artwork consumes selected TEX bytes through the resource service. Images without a consumer in the current interface are published with owning `resource-unused` diagnostics; accepting those bytes does not add disc prompts, title layouts or font rendering. Binary files remain subject to the acquired-resource restart guard.
+Registered native menu TEX and compressed startup/disc images are decoded and validated as registered file resources. Tutorial and magazine artwork consumes selected TEX bytes through the resource service. Images without a consumer in the current interface are published with owning `resource-unused` diagnostics; accepting those bytes does not add disc prompts, title layouts or font rendering. Binary files remain subject to the acquired-resource restart guard.
 
 ## Encoded model resources
 

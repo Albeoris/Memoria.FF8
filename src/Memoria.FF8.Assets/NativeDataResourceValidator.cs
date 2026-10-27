@@ -14,6 +14,7 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
 {
     private BattleAssets? battle;
     private bool menuValidated;
+    private bool magazinesValidated;
     private bool disposed;
 
     public void Validate(ResourceContent content, ResourceContent? original)
@@ -169,12 +170,14 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
             case "menu/mmag.bin":
                 IGameNativeMemorySource memory = candidate.GetSource<IGameNativeMemorySource>() ?? throw new NotSupportedException("Native tutorial metadata requires its authenticated executable descriptors.");
                 _ = NativeTutorialBrowserCatalog.Read(memory, candidate.Read(new ResourceKey("menu/mngrphd.bin")), candidate.Read(new ResourceKey("menu/mngrp.bin")), candidate.Read(new ResourceKey("menu/mtmag.bin")), candidate.Read(new ResourceKey("menu/mmag.bin")));
+                ValidateInventoryMagazines();
                 break;
             case "menu/cyocobo.bin":
                 new NativeChocoboWorldTransferTable(System.Collections.Immutable.ImmutableArray.CreateRange(bytes)).Validate();
                 break;
             case "menu/mitem.bin":
                 _ = NativeMenuDataReader.ReadSolomonRingItemId(bytes);
+                ValidateInventoryMagazines();
                 break;
         }
     }
@@ -257,12 +260,27 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
         byte[] content = candidate.Read(new ResourceKey("menu/mngrp.bin"));
         byte[] header = candidate.Read(new ResourceKey("menu/mngrphd.bin"));
         MngrpArchive archive = MngrpArchive.Read(content, header, FF8Encoding.CreateEuropean());
-        _ = NativeTutorialExamCatalog.Read(header, content, candidate.Source.Language);
+        _ = NativeTutorialExamCatalog.Read(header, content, candidate.ResourceLanguage);
         _ = NativeRefinementGroupReader.ReadTables(archive);
         _ = NativeRefinementGroupReader.ReadCardDescriptions(archive);
         _ = archive.GetSection<MngrpStringTableSection>(87);
         _ = archive.GetSection<MngrpOpaqueSection>(7);
+        ValidateInventoryMagazines(archive);
         menuValidated = true;
+    }
+
+    private void ValidateInventoryMagazines(MngrpArchive? archive = null)
+    {
+        if (magazinesValidated)
+        {
+            return;
+        }
+        IGameNativeMemorySource memory = candidate.GetSource<IGameNativeMemorySource>() ?? throw new NotSupportedException("Native magazine pages require authenticated weapon and item icon definitions.");
+        byte[] kernel = candidate.Read(new ResourceKey("main/kernel.bin"));
+        NativeWeaponShopDefinitions weapons = NativeWeaponShopDefinitionReader.Read(memory, kernel, candidate.Read(new ResourceKey("menu/mwepon.bin")), candidate.Read(new ResourceKey("menu/mwepon.msg")));
+        archive ??= MngrpArchive.Read(candidate.Read(new ResourceKey("menu/mngrp.bin")), candidate.Read(new ResourceKey("menu/mngrphd.bin")), FF8Encoding.CreateEuropean());
+        NativeMagazineDataReader.ValidateInventoryPages(candidate.Read(new ResourceKey("menu/mmag.bin")), candidate.Read(new ResourceKey("menu/mitem.bin")), archive.GetSection<MngrpStringTableSection>(87).Table, weapons, KernelData.ReadFromArray(kernel, FF8Encoding.CreateEuropean()).ZellLimits.Count, archive.GetSection<MngrpOpaqueSection>(7).Content, candidate.Read(new ResourceKey("tables/item-icon-kinds")));
+        magazinesValidated = true;
     }
 
     private static void ValidateWorldData(ResourceKey key, byte[] bytes)

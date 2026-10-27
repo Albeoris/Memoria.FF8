@@ -18,9 +18,11 @@ public sealed partial class GameAssets
         {
             throw new ArgumentException("Selected and installed main-character resource identities must agree.", nameof(original));
         }
-        using Stream input = content.OpenRead();
         using MemoryStream bytes = new();
-        input.CopyTo(bytes);
+        using (Stream input = content.OpenRead())
+        {
+            input.CopyTo(bytes);
+        }
         byte[] selected = bytes.ToArray();
         if (original is not null)
         {

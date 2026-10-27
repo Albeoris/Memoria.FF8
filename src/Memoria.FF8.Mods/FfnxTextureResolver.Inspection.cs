@@ -29,7 +29,7 @@ public sealed partial class FfnxTextureResolver
 
     private static NativeTimIdentity? ReadNativeWorldMemberIdentity(IResourceSource source, int section, int member)
     {
-        ResourceContent? content = source.Find(new("world/wmsetus.obj"));
+        ResourceContent? content = source.Find(NativeResourceNames.WorldSettings((source as IResourceLanguageSource)?.ResourceLanguage ?? source.Descriptor.Language));
         if (content is null)
         {
             return null;
@@ -96,7 +96,7 @@ public sealed partial class FfnxTextureResolver
 
     private static int? ReadNativeWorldMemberCount(IResourceSource source, int section)
     {
-        ResourceContent? content = source.Find(new("world/wmsetus.obj"));
+        ResourceContent? content = source.Find(NativeResourceNames.WorldSettings((source as IResourceLanguageSource)?.ResourceLanguage ?? source.Descriptor.Language));
         if (content is null)
         {
             return null;

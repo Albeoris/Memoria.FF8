@@ -32,7 +32,7 @@ public static class NativeDataResourceFiles
         {
             return NativeDataResourceKind.BattleScenes;
         }
-        if (path is "menu/m000.bin" or "menu/m001.bin" or "menu/m002.bin" or "menu/m003.bin" or "menu/m004.bin" or "menu/shop.bin" or "menu/price.bin" or "menu/mwepon.bin" or "menu/mwepon.msg" or "menu/mthomas.bin" or "menu/mitem.bin" or "menu/cyocobo.bin" or "menu/mtmag.bin" or "menu/mmag.bin" or "menu/pet_exp.bin" or "menu/pet_exp.msg")
+        if (IsStandaloneRefinementTable(key) || path is "menu/shop.bin" or "menu/price.bin" or "menu/mwepon.bin" or "menu/mwepon.msg" or "menu/mthomas.bin" or "menu/mitem.bin" or "menu/cyocobo.bin" or "menu/mtmag.bin" or "menu/mmag.bin" or "menu/pet_exp.bin" or "menu/pet_exp.msg")
         {
             return NativeDataResourceKind.MenuTable;
         }
@@ -106,6 +106,8 @@ public static class NativeDataResourceFiles
         "menu/face.sp2" or "menu/face_b00.tex" or "menu/face_b01.tex" or "menu/gf_big00.tex" or "menu/gf_big01.tex" => "menu/portraits",
         _ => null
     };
+
+    public static bool IsStandaloneRefinementTable(ResourceKey key) => key.Path is "menu/m000.bin" or "menu/m001.bin" or "menu/m002.bin" or "menu/m003.bin" or "menu/m004.bin";
 
     public static bool IsDisplayedImage(ResourceKey key)
     {

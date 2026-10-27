@@ -106,7 +106,7 @@ public sealed class BattleAssetsTests
         Assert.Empty(companion.Textures);
         Assert.True(companion.NativeRenderGeometry!.Value.IsEmpty);
         Assert.Null(companion.NativeBodyTexturePack);
-        Assert.Throws<EndOfStreamException>(() => assets.LoadWeapon(0, 7, assets.LoadPlayer(0)));
+        Assert.Throws<InvalidDataException>(() => assets.LoadWeapon(0, 7, assets.LoadPlayer(0)));
     }
 }
 

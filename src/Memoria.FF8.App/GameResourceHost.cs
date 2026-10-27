@@ -8,16 +8,18 @@ namespace Memoria.FF8;
 internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSource
 {
     private readonly IResourceSource source;
+    private readonly string? resourceLanguage;
     private readonly string materializationDirectory = Path.Combine(Path.GetTempPath(), "Memoria.FF8.Junction", Guid.NewGuid().ToString("N"));
     private readonly Dictionary<ModFile, string> materializedFiles = [];
     private TonberryRecognitionCache? recognition;
     private readonly string gameDirectory;
 
-    public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null)
+    public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null)
     {
         this.gameDirectory = gameDirectory;
+        this.resourceLanguage = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage);
         source = GameDataSourceFactory.Open(gameDirectory);
-        Resources = new ResourceService(source);
+        Resources = new ResourceService(source, this.resourceLanguage);
         Mods = new ModRuntime(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory);
         Resources.ReplacementFailed += (key, exception) =>
         {
@@ -178,7 +180,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             return new ModPreparationResult(false, Diagnostics: encodedDiagnostics);
         }
         List<ModDiagnostic> staticFileDiagnostics = [];
-        ResourceService dataCandidate = new(source);
+        ResourceService dataCandidate = new(source, resourceLanguage);
         dataCandidate.Prepare(null, encodedResources: encodedResources).Commit();
         using NativeDataResourceValidator dataValidator = new(dataCandidate);
         foreach (EncodedResource resource in encodedResources.OrderBy(resource => NativeDataResourceFiles.Classify(resource.Key) == NativeDataResourceKind.Kernel ? 0 : NativeDataResourceFiles.Classify(resource.Key) == NativeDataResourceKind.Enemy ? 2 : 1))
@@ -198,11 +200,19 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                         throw new NotSupportedException($"The selected game source does not provide resource {resource.Key}.");
                     }
                     dataValidator.Validate(resource.Content, original);
-                    if (kind is NativeDataResourceKind.CompressedImage or NativeDataResourceKind.Texture && !NativeDataResourceFiles.IsDisplayedImage(resource.Key))
+                    if (kind == NativeDataResourceKind.WorldSettings && resource.Key != NativeResourceNames.WorldSettings(Resources.ResourceLanguage))
+                    {
+                        staticFileDiagnostics.Add(new("resource-unused", $"Resource {resource.Key} was validated and published, but the selected resource language uses {NativeResourceNames.WorldSettings(Resources.ResourceLanguage)}.", owner.PackageId, owner.RelativePath));
+                    }
+                    else if (kind is NativeDataResourceKind.CompressedImage or NativeDataResourceKind.Texture && !NativeDataResourceFiles.IsDisplayedImage(resource.Key))
                     {
                         staticFileDiagnostics.Add(new("resource-unused", $"Resource {resource.Key} was validated and published, but the current interface does not display this native image.", owner.PackageId, owner.RelativePath));
                     }
-                    else if (original is null)
+                    else if (NativeDataResourceFiles.IsStandaloneRefinementTable(resource.Key))
+                    {
+                        staticFileDiagnostics.Add(new("resource-unused", $"Standalone refinement table {resource.Key} was validated and published, but the current native menu consumes the embedded menu-group tables.", owner.PackageId, owner.RelativePath));
+                    }
+                    else if (original is null && kind != NativeDataResourceKind.WorldSettings)
                     {
                         staticFileDiagnostics.Add(new("resource-unused", $"Resource {resource.Key} was validated and published, but the selected source provides no original target for this identity.", owner.PackageId, owner.RelativePath));
                     }
@@ -290,7 +300,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             resolvers.Add(new DemasterTextureResolver(catalog));
             usable.AddRange(demaster.UsablePackageIds);
         }
-        using ResourceSourceView candidateSource = new(source, encodedResources);
+        using ResourceSourceView candidateSource = new(source, encodedResources, resourceLanguage);
         DemasterInspection ffnx = FfnxTextureResolver.Inspect(source.Descriptor, catalog, candidateSource, source as IGameNativeMemorySource);
         if (catalog.Files.Any(file => file.Format == ModFormat.Junction && (file.RelativePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase) || FfnxTextureResolver.IsNativeFieldBackgroundFamilyPath(file.RelativePath) || FfnxTextureResolver.IsNativeMenuArtworkFamilyPath(file.RelativePath))))
         {

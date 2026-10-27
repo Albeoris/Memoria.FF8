@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Resources;
 
 /// <summary>The sole encoded-resource and decoded-texture entry point. The host owns publication timing.</summary>
-public sealed class ResourceService : IResourceChangeFeed
+public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSource
 {
     private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values, ImmutableDictionary<ResourceKey, StaticTextResource> Texts, ImmutableDictionary<ResourceKey, EncodedResource> Encoded, ImmutableArray<string> ExclusiveScopes, LocalizationCatalog Localization);
     private readonly IResourceSource source;
@@ -20,11 +20,13 @@ public sealed class ResourceService : IResourceChangeFeed
     private bool notifying;
     private long mutationVersion;
 
-    public ResourceService(IResourceSource source)
+    public ResourceService(IResourceSource source, string? resourceLanguage = null)
     {
         this.source = source;
+        ResourceLanguage = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage) ?? (source as IResourceLanguageSource)?.ResourceLanguage ?? source.Descriptor.Language;
     }
 
+    public string ResourceLanguage { get; }
     public ResourceSourceDescriptor Source => source.Descriptor;
     public T? GetSource<T>() where T : class => source as T;
     public LocalizationCatalog Localization => Volatile.Read(ref published).Localization;

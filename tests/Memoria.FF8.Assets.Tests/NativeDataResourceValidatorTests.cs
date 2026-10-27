@@ -45,7 +45,7 @@ public sealed class NativeDataResourceValidatorTests
     [Fact]
     public void EnabledFormationReferencesMustExistInTheSelectedSource()
     {
-        using EmptySource source = new();
+        using InMemoryResourceSource source = new(new("fixture", GameDataEdition.Classic, []));
         using NativeDataResourceValidator validator = new(new ResourceService(source));
         ResourceKey key = new("battle/scene.out");
         byte[] bytes = new byte[1024 * 128];

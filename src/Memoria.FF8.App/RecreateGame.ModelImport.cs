@@ -186,14 +186,14 @@ internal sealed partial class RecreateGame
         return model;
     }
 
-    private static ModelCatalogEntry CatalogEntryForTarget(string target)
+    private ModelCatalogEntry CatalogEntryForTarget(string target)
     {
         string[] parts = target.Split('/');
         return parts[0] switch
         {
             "field" => new(target, target, "Field", $"field/{parts[1]}/chara.one", target, ModelIndex: int.Parse(parts[2])),
             "world" when parts.Length == 2 => new(target, target, "World character", "world/chara.one", target, ModelIndex: int.Parse(parts[1])),
-            "world" => new(target, target, "World static", "world/wmsetus.obj", target, ModelIndex: int.Parse(parts[2])),
+            "world" => new(target, target, "World static", NativeResourceNames.WorldSettings(resourceHost?.Resources.ResourceLanguage ?? options.ResourceLanguage ?? "en").Path, target, ModelIndex: int.Parse(parts[2])),
             "battle" => new(target, target, parts[1].StartsWith("a0stg", StringComparison.Ordinal) ? "Battle stage" : parts[1].Length > 2 && parts[1][0] == 'd' && parts[1][2] == 'w' ? "Battle weapon" : "Battle model", target, target),
             _ => throw new NotSupportedException("Unknown model domain.")
         };

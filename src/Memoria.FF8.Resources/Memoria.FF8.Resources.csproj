@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
     <PackageReference Include="BCnEncoder.Net" />
     <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.FF8.Imaging/Albeoris.Games.FF8.Imaging.csproj" />
   </ItemGroup>

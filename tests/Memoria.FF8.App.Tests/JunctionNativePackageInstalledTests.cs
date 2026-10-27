@@ -1,6 +1,9 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
+using Memoria.FF8.GameUi;
+using Albeoris.Games.FF8.MngrpBin;
+using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Resources;
 
@@ -32,7 +35,7 @@ public sealed class JunctionNativePackageInstalledTests
                 JunctionModPackage imported = JunctionModImporter.Open(archive, options);
                 ModFile[] files = imported.Files.Select(file => new ModFile("Junction/native.iroj", ModFormat.Junction, file.RelativePath, 1, () => Read(file.OpenRead()))).ToArray();
                 Assert.True(JunctionEncodedResources.TryPrepare(new ModCatalogSnapshot(1, [], files), out var expected, out var errors), JsonSerializer.Serialize(errors));
-                using GameResourceHost host = new(game.GameDirectory, Path.Combine(root, "Application"), watch: false, modsDirectory: mods);
+                using GameResourceHost host = new(game.GameDirectory, Path.Combine(root, "Application"), watch: false, modsDirectory: mods, resourceLanguage: fixture.ResourceLanguage);
                 WriteEvidence(index, host.Mods.Catalog.Packages, host.Mods.Diagnostics);
                 ModPackage selected = Assert.Single(host.Mods.Catalog.Packages, item => item.Id == "Junction/native.iroj");
                 Assert.Equal(ModEffectiveStatus.Active, selected.Status);
@@ -45,6 +48,25 @@ public sealed class JunctionNativePackageInstalledTests
                 byte[] kernel = host.Resources.Read(new ResourceKey("main/kernel.bin"));
                 _ = NativeCharacterInitialization.Read(initial, kernel);
                 _ = NativeEconomyInitialization.Read(initial);
+                using GameAssets assets = new(game.GameDirectory, resources: host.Resources);
+                var refinement = assets.ReadNativeRefinementDefinitions();
+                MngrpArchive menuArchive = MngrpArchive.Read(host.Resources.Read(new ResourceKey("menu/mngrp.bin")), host.Resources.Read(new ResourceKey("menu/mngrphd.bin")), FF8Encoding.CreateEuropean());
+                var expectedRecipes = NativeRefinementGroupReader.ReadTables(menuArchive);
+                for (int kind = 0; kind < expectedRecipes.Length; kind++)
+                {
+                    Assert.Equal(expectedRecipes[kind].ToArray(), refinement.Tables[kind].ToArray());
+                }
+                TripleTriadCatalog cards = TripleTriadCatalog.Load(game.GameDirectory, host.Resources);
+                Assert.Equal(NativeRefinementGroupReader.ReadCardRefinements(menuArchive, refinement.Abilities.Skip(5).Single(ability => ability.Kind == 4)).ToArray(), cards.Refinements.ToArray());
+                LiveMenuCatalog menu = LiveMenuCatalog.ReadInstalled(assets);
+                for (int card = 0; card < 110; card++)
+                {
+                    Assert.Equal(cards.Refinements.FirstOrDefault(recipe => recipe.CardId == card), menu.CardRefinement(card));
+                }
+                using WorldAssets world = new(game.GameDirectory, host.Resources);
+                ResourceKey settings = NativeResourceNames.WorldSettings(host.Resources.ResourceLanguage);
+                Assert.Equal(Convert.ToHexString(SHA256.HashData(host.Resources.Read(settings))), world.AllocationProgramSha256);
+                Assert.DoesNotContain(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "resource-unused" && diagnostic.RelativePath?.EndsWith(Path.GetFileName(settings.Path), StringComparison.OrdinalIgnoreCase) == true);
                 using BattleAssets battle = new(game.GameDirectory, host.Resources);
                 Assert.Equal(Convert.ToHexString(SHA256.HashData(host.Resources.Read(new ResourceKey("battle/scene.out")))), battle.EncounterSourceHash);
                 for (int row = 0; row < 1024; row++)
@@ -86,5 +108,5 @@ public sealed class JunctionNativePackageInstalledTests
         }
     }
 
-    private sealed record Fixture(string Package, Dictionary<string, int>[] Selections);
+    private sealed record Fixture(string Package, Dictionary<string, int>[] Selections, string? ResourceLanguage = null);
 }

@@ -80,3 +80,9 @@ public interface IResourceChangeFeed
 {
     IDisposable Subscribe(Action<ResourceChangeSet> callback);
 }
+
+/// <summary>The selected language of resource identities, independent of storage and executable metadata.</summary>
+public interface IResourceLanguageSource
+{
+    string ResourceLanguage { get; }
+}

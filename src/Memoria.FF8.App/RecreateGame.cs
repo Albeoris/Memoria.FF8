@@ -110,7 +110,7 @@ internal sealed partial class RecreateGame : Game
     protected override void LoadContent()
     {
         graphicsReadiness = GraphicsHostReadiness.Initialize(() => new GraphicsHostReadiness(GraphicsDevice));
-        resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory);
+        resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage);
         movieClock.ResolveGameFile = resourceHost.ResolveGameFile;
         controller = new ControllerDevice();
         controllerFeedback = new ControllerFeedback(controller.SetVibration);

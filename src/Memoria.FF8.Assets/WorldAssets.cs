@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Security.Cryptography;
-using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tim;
 using Memoria.FF8.Resources;
@@ -32,8 +31,6 @@ public sealed partial class WorldAssets : IDisposable
     public const int SegmentUnits = 8192;
     public const int Columns = 32;
     public const int Rows = 24;
-    private readonly IFlArchive archive;
-    private readonly IGameArchiveSource archiveSource;
     private readonly IResourceSource? ownedSource;
     private readonly ResourceContent terrain;
     private readonly byte[] wmset;
@@ -64,21 +61,13 @@ public sealed partial class WorldAssets : IDisposable
             IResourceSource source = GameDataSourceFactory.Open(gameDirectory);
             ownedSource = source;
             resources = new ResourceService(source);
-            archiveSource = resources.GetSource<IGameArchiveSource>() ?? throw new NotSupportedException("The world resource source does not support archive enumeration.");
-        }
-        else
-        {
-            archiveSource = resources.GetSource<IGameArchiveSource>() ?? throw new NotSupportedException("The world resource source does not support archive enumeration.");
         }
         this.resources = resources;
         worldSettingsKey = NativeResourceNames.WorldSettings(resources.ResourceLanguage);
         this.modelOverrides = modelOverrides;
         textureScope = new AssetTextureScope(resources);
-        IFlArchive? openedArchive = null;
         try
         {
-            openedArchive = archiveSource.OpenArchive("world");
-            archive = openedArchive;
             terrain = resources.Get(new ResourceKey("world/wmx.obj"));
             using (Stream terrainSource = terrain.OpenRead())
             {
@@ -95,14 +84,8 @@ public sealed partial class WorldAssets : IDisposable
         }
         catch
         {
-            try
-            {
-                openedArchive?.Dispose();
-            }
-            finally
-            {
-                ownedSource?.Dispose();
-            }
+            textureScope.Dispose();
+            ownedSource?.Dispose();
             throw;
         }
     }
@@ -295,11 +278,6 @@ public sealed partial class WorldAssets : IDisposable
         return null;
     }
 
-    private IFlArchiveEntry Entry(string name)
-    {
-        return archive.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(name, StringComparison.OrdinalIgnoreCase));
-    }
-
     private byte[] Read(string name)
     {
         return resources.Read(new ResourceKey("world/" + name));
@@ -308,7 +286,6 @@ public sealed partial class WorldAssets : IDisposable
     public void Dispose()
     {
         textureScope.Dispose();
-        archive.Dispose();
         ownedSource?.Dispose();
     }
 }
