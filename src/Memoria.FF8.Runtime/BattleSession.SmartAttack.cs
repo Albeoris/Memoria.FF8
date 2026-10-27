@@ -177,7 +177,7 @@ public sealed partial class BattleSession
     {
         uint statuses = NativeBattleStatusBits(target);
         ushort saved = NativeSavedStatusBits(target);
-        bool immune = (native.AttackFlags & 0x80) == 0 && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || (native.Element & 8) != 0 && (statuses & 0x2000) != 0);
+        bool immune = (native.Statuses1 & 0x4000000) == 0 && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || (native.Element & 8) != 0 && (statuses & 0x2000) != 0);
         int spirit = (statuses & 0x1000000) != 0 || native.AttackType == 22 ? 0 : target.Spirit;
         int[] powers = new int[casts];
         List<NativeMagicStock> stocks = actor.MagicStocks.Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToList();
@@ -214,7 +214,7 @@ public sealed partial class BattleSession
                 {
                     damage = damage * (draw() + 10) / 150;
                 }
-                total += Math.Clamp(damage, (native.AttackFlags & 8) != 0 ? -60_000 : -9_999, definition.Tuning.MaximumDamage);
+                total += Math.Clamp(damage, (native.AttackFlags & 8) != 0 ? -60_000 : -9_999, NativePrimaryDamageLimit(native.AttackFlags));
             }
             return total;
         }, Math.Max(1, target.CurrentHp));
@@ -228,7 +228,7 @@ public sealed partial class BattleSession
         bool gunblade = IsGunbladeAttack(actor, BattleAbility.Attack);
         return BattleActionForecaster.FromNativePhases(draw =>
         {
-            if (((native?.AttackFlags ?? 0) & 0x80) == 0 && ((saved & 4) != 0 || (statuses & 0x180800) != 0))
+            if (((native?.Statuses1 ?? 0) & 0x4000000) == 0 && ((saved & 4) != 0 || (statuses & 0x180800) != 0))
             {
                 return 0;
             }
@@ -266,7 +266,7 @@ public sealed partial class BattleSession
                 damage = NativeBattleDamage.Element(damage, (byte)actor.ElementAttack, target.ElementDefenses[element], true, actor.ElementAttackPercent);
             }
             int maximum = ((native?.AttackFlags ?? 0) & 8) != 0 ? 60_000 : 9_999;
-            return Math.Clamp(damage, -maximum, definition.Tuning.MaximumDamage);
+            return Math.Clamp(damage, -maximum, NativePrimaryDamageLimit(native?.AttackFlags ?? 0));
         }, Math.Max(1, target.CurrentHp));
     }
 

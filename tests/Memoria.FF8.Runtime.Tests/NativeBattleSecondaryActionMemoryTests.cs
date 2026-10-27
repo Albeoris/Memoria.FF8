@@ -9,7 +9,7 @@ public sealed class NativeBattleSecondaryActionMemoryTests
     [InlineData(null)]
     public void LethalZombieDrainRetainsTheSourcesAttackClassWhenDeathPublishesTheOtherMemoryBytes(byte? previousClass)
     {
-        BattleNativeAction drain = new(8, 1, 3, 1) { MagicId = 0, AttackType = 27, Power = 2, HitCount = 1, TargetFlags = 0, AttackFlags = 1, DamagePresentation = 0, Element = 0, ElementPercent = 0, StatusAttack = 100, Statuses0 = 0, Statuses1 = 0x8000, Hit = 0, Critical = 0, PowerModifier = 0, LevelModifier = 0, RawRecord = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], SupplementalRecord = [] };
+        BattleNativeAction drain = new(8, 1, 3, 1) { MagicId = 0, AttackType = 9, Power = 20, HitCount = 1, TargetFlags = 0, AttackFlags = 1, DamagePresentation = 0, Element = 0, ElementPercent = 0, StatusAttack = 100, Statuses0 = 0, Statuses1 = 0x8000, Hit = 255, Critical = 0, PowerModifier = 0, LevelModifier = 0, RawRecord = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], SupplementalRecord = [] };
         NativeBattleAiDefinition ai = new([[4, 0, 5, 1, 7, 1, 6, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
         BattleSession battle = new(new()
         {
@@ -18,7 +18,7 @@ public sealed class NativeBattleSecondaryActionMemoryTests
             Combatants =
             [
                 new() { Id = "party", Name = "Zombie", IsPlayer = true, MaximumHp = 1000, CurrentHp = 1000, NativeStatus0 = 0x40, NativeDeathCount = 0, NativeStatusResistances = new byte[40] },
-                new() { Id = "enemy", Name = "Drainer", MaximumHp = 1000, CurrentHp = 1, NativeAi = ai, NativeCombatantFlags = 0x30, NativeStatusResistances = new byte[40] }
+                new() { Id = "enemy", Name = "Drainer", Attack = 20, MaximumHp = 1000, CurrentHp = 1, NativeAi = ai, NativeCombatantFlags = 0x30, NativeStatusResistances = new byte[40] }
             ]
         }, BattleAtbMode.Normal);
         BattleSnapshot boundary = battle.Capture();
@@ -38,7 +38,8 @@ public sealed class NativeBattleSecondaryActionMemoryTests
         Assert.Equal((byte)3, memory.AttackerIndex);
         NativeBattleContactPacket contact = battle.NativeActionPackets.ReadContact(0);
         Assert.Equal((byte)3, contact.Secondary.ActorIndex);
-        Assert.Equal((ushort)200, contact.Secondary.Amount6);
-        Assert.Equal(800, battle.Combatants[0].CurrentHp);
+        Assert.True(contact.Primary.Amount6 > 1);
+        Assert.Equal(contact.Primary.Amount6, contact.Secondary.Amount6);
+        Assert.Equal(1000 - contact.Primary.Amount6, battle.Combatants[0].CurrentHp);
     }
 }

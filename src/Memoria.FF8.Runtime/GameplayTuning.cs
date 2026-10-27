@@ -8,6 +8,7 @@ public sealed record GameplayTuning
     public int ExperienceMultiplier { get; init; } = 1;
     public int GuardianExperienceMultiplier { get; init; } = 1;
     public bool UnlimitedMagic { get; init; }
+    /// <summary>The default retains native per-action primary caps; other values override the primary damage cap.</summary>
     public int MaximumDamage { get; init; } = 9999;
     public RareItemProbabilities RareItem { get; init; } = new();
     public bool UnrestrictedScanRotation { get; init; }

@@ -441,6 +441,14 @@ public sealed partial class BattleSession
                         return;
                     }
                     damage = native.AttackType == 32 ? -native.Power * recipient.MaximumHp / 16 : native.AttackType == 25 ? -(actor.MaximumHp - ReadNativeRecoverSourceHp(actor)) : -50 * native.Power;
+                    if ((native.AttackFlags & 3) == 2 && actor.NativeIndex < 3)
+                    {
+                        uint passiveFlags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native item healing requires the equipped character-ability flags.");
+                        if ((passiveFlags & 2) != 0)
+                        {
+                            damage *= 2;
+                        }
+                    }
                     applyStatuses = native.StatusAttack > NextRandomByte() % 100 + 1;
                     break;
                 case 21:
@@ -513,6 +521,21 @@ public sealed partial class BattleSession
                 damage = ModifyNativeMagicDamage(recipient, native, damage);
             }
         }
+        bool drainFormula = physical || native.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33 || native.AttackType is 5 or 6 && !curative;
+        int? drainDamage = null;
+        bool drainHealing = false;
+        if (drainFormula && (native.Statuses1 & 0x8000) != 0)
+        {
+            //48F600/491AD0 resolve the secondary half before statuses and primary commitment modifiers.
+            int percent = native.StatusAttack - GetNativeStatusResistance(recipient, 23);
+            long signedDrain = percent <= 0 ? 0 : -(long)damage * percent / 100;
+            if (((NativeSavedStatusBits(actor) ^ saved) & 0x40) != 0)
+            {
+                signedDrain = -signedDrain;
+            }
+            drainHealing = percent <= 0 || signedDrain < 0;
+            drainDamage = checked((int)Math.Min(9_999, Math.Abs(signedDrain)));
+        }
         if (applyStatuses)
         {
             ApplyNativeActionStatuses(actor, recipient, native with { Statuses1 = native.Statuses1 & ~0x4008000u }, curative);
@@ -538,7 +561,7 @@ public sealed partial class BattleSession
             damage /= 2;
         }
         int maximum = (native.AttackFlags & 8) != 0 ? 60_000 : 9_999;
-        damage = Math.Clamp(damage, -maximum, definition.Tuning.MaximumDamage);
+        damage = Math.Clamp(damage, -maximum, NativePrimaryDamageLimit(native.AttackFlags));
         SetNativeContactDamage(damage);
         FinalizeNativeContactPresentation();
         if ((NativeSavedStatusBits(recipient) & 1) != 0 && recipient.CurrentHp > 0)
@@ -548,29 +571,32 @@ public sealed partial class BattleSession
         RecordNativeActionMemory(actor, recipient, command);
         if (damage >= 0)
         {
-            ApplyDamage(actor, recipient, damage, action.Name);
+            ApplyDamage(actor, recipient, damage, action.Name, bypassDamageLimit: true);
         }
         else
         {
             ApplyHealing(recipient, -damage, action.Name);
             DispatchNativeActionCounter(recipient);
         }
-        if (native.AttackType == 9 || (native.Statuses1 & 0x8000) != 0)
+        if (drainDamage is int drain)
         {
-            int percent = native.AttackType == 9 ? 100 : Math.Max(0, native.StatusAttack - GetNativeStatusResistance(recipient, 23));
-            bool reverseDrain = ((NativeSavedStatusBits(actor) ^ NativeSavedStatusBits(recipient)) & 0x40) != 0;
-            int drain = checked((int)Math.Min(reverseDrain ? definition.Tuning.MaximumDamage : 9_999, (long)Math.Abs(damage) * percent / 100));
-            BeginNativeContactSecondary(actor, drain, !reverseDrain);
-            if (drain > 0 && reverseDrain)
+            BeginNativeContactSecondary(actor, drain, drainHealing);
+            if (!drainHealing)
             {
-                ApplyDamage(recipient, actor, drain, action.Name, false);
+                ApplyDamage(recipient, actor, drain, action.Name, counterEligible: false, publishDamage: drain > 0, bypassDamageLimit: true);
             }
-            else if (drain > 0)
+            else
             {
                 ApplyHealing(actor, drain, action.Name);
             }
             EndNativeContactSecondary();
         }
+    }
+
+    private int NativePrimaryDamageLimit(byte attackFlags)
+    {
+        int nativeMaximum = (attackFlags & 8) != 0 ? 60_000 : 9_999;
+        return definition.Tuning.MaximumDamage == 9_999 ? nativeMaximum : definition.Tuning.MaximumDamage;
     }
 
     private bool NativePhysicalActionHits(BattleCombatant actor, BattleCombatant recipient, BattleNativeAction native)

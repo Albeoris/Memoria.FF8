@@ -36,11 +36,11 @@ public sealed class GameplayCombatTuningTests
     }
 
     [Theory]
-    [InlineData(0, (byte)0)]
-    [InlineData(9999, (byte)8)]
-    [InlineData(60000, (byte)0)]
-    [InlineData(100000, (byte)0)]
-    public void NativeFixedDamageOverridesOldCapAndRetainsItsExactMagnitudeThroughStorageAndText(int cap, byte flags)
+    [InlineData(0, (byte)0, 0)]
+    [InlineData(9999, (byte)8, 60000)]
+    [InlineData(60000, (byte)0, 60000)]
+    [InlineData(100000, (byte)0, 100000)]
+    public void NativeFixedDamageOverridesOldCapAndRetainsItsExactMagnitudeThroughStorageAndText(int cap, byte flags, int expected)
     {
         BattleSession battle = Create(cap);
         BattleCombatant actor = battle.Combatants[0];
@@ -49,18 +49,18 @@ public sealed class GameplayCombatTuningTests
         BattleActionPresentation command = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.EnemyAbility, 1) { NativeAction = native, NativeQueuedCommand = 0 };
         BattleActionDefinition action = new(BattleAbility.EnemyAbility, 1, "Fixed damage", BattleActionEffect.Native, 0, false) { NativeAction = native };
         NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, command, action, native, (byte)255, false])!;
-        Assert.Equal(200000 - cap, target.CurrentHp);
-        Assert.Equal(cap, packet.Primary.PresentedAmount);
-        Assert.Equal(unchecked((ushort)cap), NativeBattleContactPacket.Decode(packet.Encode()).Primary.Amount6);
+        Assert.Equal(200000 - expected, target.CurrentHp);
+        Assert.Equal(expected, packet.Primary.PresentedAmount);
+        Assert.Equal(unchecked((ushort)expected), NativeBattleContactPacket.Decode(packet.Encode()).Primary.Amount6);
         NativeBattleActionPacketsState bank = NativeBattleActionPacketsState.Fresh().AppendContact(packet).State;
         bank = JsonSerializer.Deserialize<NativeBattleActionPacketsState>(JsonSerializer.Serialize(bank))!;
         NativeBattleContactHalf restored = bank.ReadContact(0).Primary;
-        Assert.Equal(cap, restored.PresentedAmount);
+        Assert.Equal(expected, restored.PresentedAmount);
         NativeBattleEffectsState effects = NativeBattleEffectsState.Clear().PrependDamageText(restored.ActorIndex, restored.ContactFlags, restored.PresentedAmount);
         effects = JsonSerializer.Deserialize<NativeBattleEffectsState>(JsonSerializer.Serialize(effects))!;
         effects = effects.Advance(NativeBattleGraphicsModels.ClearBank(), _ => new(160, 100)).State;
-        Assert.Equal(cap.ToString().Select(digit => (byte)(56 + digit - '0')).Append((byte)0), Assert.Single(effects.TextDraws).Glyphs);
-        if (cap > short.MaxValue)
+        Assert.Equal(expected.ToString().Select(digit => (byte)(56 + digit - '0')).Append((byte)0), Assert.Single(effects.TextDraws).Glyphs);
+        if (expected > short.MaxValue)
         {
             NativeBattlePartyPresentedVital hp = new(9999, 9999, null, null);
             Assert.Equal((ushort)0, hp.Apply(restored).HitPoints);

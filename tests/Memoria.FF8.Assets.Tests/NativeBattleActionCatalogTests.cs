@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -5,6 +6,40 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleActionCatalogTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void InstalledSquallFinisherDoesNotRestoreHpWithoutDrain(int actionId)
+    {
+        using BattleAssets assets = InstalledAssets();
+        BattleNativeAction native = assets.NativeActions.Single(action => action.Command == 249 && action.ActionId == actionId);
+        Assert.Equal((byte)9, native.AttackType);
+        Assert.Equal(0u, native.Statuses1 & 0x8000);
+        BattleSession battle = new(new BattleDefinition
+        {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
+            Combatants =
+            [
+                new() { Id = "party", Name = "Party", IsPlayer = true, MaximumHp = 1000, CurrentHp = 100, Attack = 40 },
+                new() { Id = "enemy", Name = "Enemy", MaximumHp = 10000, CurrentHp = 10000, Defense = 5 }
+            ]
+        }, BattleAtbMode.Normal);
+        BattleCombatant actor = battle.Combatants[0];
+        BattleCombatant target = battle.Combatants[1];
+        BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.LimitBreak, actionId) { NativeAction = native, NativeQueuedCommand = native.Command };
+        BattleActionDefinition action = new(BattleAbility.LimitBreak, actionId, native.Name!, BattleActionEffect.Native, native.Power, false) { NativeAction = native };
+
+        NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, presentation, action, native, (byte)255, false])!;
+
+        Assert.True(packet.Primary.Amount6 > 0);
+        Assert.Equal(10000 - packet.Primary.Amount6, target.CurrentHp);
+        Assert.Equal(100, actor.CurrentHp);
+        Assert.Equal((byte)255, packet.Secondary.ActorIndex);
+        Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Healing");
+    }
+
     [Fact]
     public void Installed_catalog_keeps_every_player_spell_item_and_junctionable_GF_including_special_effects()
     {
