@@ -67,7 +67,8 @@ public sealed class LauncherTests : IDisposable
         string other = Path.Combine(directory, "Other");
         Directory.CreateDirectory(other);
 
-        IReadOnlyList<GameInstallation> result = GameInstallationSelection.Order(directory, [new GameInstallation(other, "Steam"), new GameInstallation(directory.ToUpperInvariant() + Path.DirectorySeparatorChar, "Detected")]);
+        string duplicate = OperatingSystem.IsWindows() ? directory.ToUpperInvariant() : directory;
+        IReadOnlyList<GameInstallation> result = GameInstallationSelection.Order(directory, [new GameInstallation(other, "Steam"), new GameInstallation(duplicate + Path.DirectorySeparatorChar, "Detected")]);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("Last used", result[0].Release);

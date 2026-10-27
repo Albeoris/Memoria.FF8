@@ -94,10 +94,24 @@ public sealed class PortablePresentationTests
     {
         using PortableTextShaper shaper = new(32, "Arial");
         Assert.Equal(shaper.Measure("Latin ") + shaper.Measure("سلام"), shaper.Measure("Latin سلام"), 3);
-        Assert.Equal(new[] { ("Latin ", false), ("سلام", true) }, shaper.VisualRuns("Latin سلام"));
-        Assert.Equal(new[] { (" عالم", true), ("123", false), ("سلام ", true) }, shaper.VisualRuns("سلام 123 عالم"));
+        // Installed fallback fonts may split a directional run around spaces.
+        // Compare visual character order and direction independently of those font boundaries.
+        Assert.Equal(VisualCharacters([("Latin ", false), ("سلام", true)]), VisualCharacters(shaper.VisualRuns("Latin سلام")));
+        Assert.Equal(VisualCharacters([(" عالم", true), ("123", false), ("سلام ", true)]), VisualCharacters(shaper.VisualRuns("سلام 123 عالم")));
         using SKBitmap raster = PortableTextRasterizer.Rasterize("Latin سلام 123 (עברית) e\u0301 日本語", 32, 1200, "Arial");
         Assert.Contains(raster.Pixels, color => color.Alpha > 0);
+
+        static IEnumerable<(char Character, bool RightToLeft)> VisualCharacters((string Text, bool RightToLeft)[] runs)
+        {
+            foreach ((string text, bool rightToLeft) in runs)
+            {
+                IEnumerable<char> characters = rightToLeft ? text.Reverse() : text;
+                foreach (char character in characters)
+                {
+                    yield return (character, rightToLeft);
+                }
+            }
+        }
     }
 
     [Theory]

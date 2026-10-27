@@ -103,6 +103,7 @@ internal static class UpdateInstaller
 
     internal static UpdateJournal CreateJournal(string root, PackageManifest incoming)
     {
+        root = DistributionPaths.GetFullPath(root);
         if (MacBundleUpdate.IsBundleRoot(root))
         {
             MacBundleUpdate.ValidatePrepared(root, incoming);
