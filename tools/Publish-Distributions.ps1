@@ -62,5 +62,10 @@ if ($LASTEXITCODE -ne 0) {
 if ($tag -eq 'nightly') {
     Invoke-Gh @('api', '--method', 'PATCH', "repos/$env:GITHUB_REPOSITORY/git/refs/tags/nightly", '-f', "sha=$Source", '-F', 'force=true')
 }
-$upload = @('release', 'upload', $tag, '--repo', $env:GITHUB_REPOSITORY, '--clobber') + @($archives | ForEach-Object { $_ + '#' + $Source }) + @((Join-Path $Directory 'release-artifacts.json'))
+$labels = @{
+    'Memoria-FF8-win-x64.zip' = 'Windows_x64_'
+    'Memoria-FF8-linux-x64.tar.gz' = 'Linux_x64_'
+    'Memoria-FF8-osx-x64.tar.gz' = 'macOS_Intel_x64_'
+}
+$upload = @('release', 'upload', $tag, '--repo', $env:GITHUB_REPOSITORY, '--clobber') + @($archives | ForEach-Object { $_ + '#' + $labels[[IO.Path]::GetFileName($_)] + $Source }) + @((Join-Path $Directory 'release-artifacts.json'))
 Invoke-Gh $upload

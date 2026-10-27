@@ -31,6 +31,14 @@ internal sealed class ReleaseClient(HttpClient client, string? runtimeIdentifier
         _ => throw new ArgumentOutOfRangeException(nameof(rid))
     };
 
+    private static string AssetLabelPrefixFor(string rid) => rid switch
+    {
+        "win-x64" => "Windows_x64_",
+        "linux-x64" => "Linux_x64_",
+        "osx-x64" => "macOS_Intel_x64_",
+        _ => throw new ArgumentOutOfRangeException(nameof(rid))
+    };
+
     public async Task<UpdateRelease?> GetAsync(UpdateChannel channel, CancellationToken cancellationToken = default)
     {
         string endpoint = channel switch
@@ -101,7 +109,12 @@ internal sealed class ReleaseClient(HttpClient client, string? runtimeIdentifier
             throw new InvalidDataException("The update archive has no valid publication time.");
         }
         string? buildId = package.TryGetProperty("label", out JsonElement label) && label.ValueKind == JsonValueKind.String ? label.GetString() : null;
-        if (buildId?.StartsWith("build:", StringComparison.Ordinal) == true)
+        string platformPrefix = AssetLabelPrefixFor(rid);
+        if (buildId?.StartsWith(platformPrefix, StringComparison.Ordinal) == true)
+        {
+            buildId = buildId[platformPrefix.Length..];
+        }
+        else if (buildId?.StartsWith("build:", StringComparison.Ordinal) == true)
         {
             buildId = buildId[6..];
         }

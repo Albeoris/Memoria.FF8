@@ -30,6 +30,39 @@ public sealed class ReleaseClientTests
         Assert.Equal(new DateTimeOffset(2026, 10, 18, 12, 0, 0, TimeSpan.Zero), release.UpdatedAt);
     }
 
+    [Theory]
+    [InlineData("win-x64", "Windows_x64_", 40)]
+    [InlineData("linux-x64", "Linux_x64_", 40)]
+    [InlineData("osx-x64", "macOS_Intel_x64_", 40)]
+    [InlineData("linux-x64", "Linux_x64_", 64)]
+    [InlineData("win-x64", "build:", 40)]
+    [InlineData("win-x64", "", 64)]
+    public async Task PlatformAndLegacyLabelsPreserveBuildIdentity(string rid, string prefix, int length)
+    {
+        string identity = new('a', length);
+        string metadata = Metadata("nightly", label: prefix + identity).Replace(ReleaseClient.AssetNameFor("win-x64"), ReleaseClient.AssetNameFor(rid), StringComparison.Ordinal);
+        using HttpClient http = new(new Handler(_ => JsonResponse(metadata)));
+
+        UpdateRelease release = Assert.IsType<UpdateRelease>(await new ReleaseClient(http, rid).GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
+
+        Assert.Equal(identity, release.BuildId);
+        Assert.Equal(rid, release.RuntimeIdentifier);
+    }
+
+    [Theory]
+    [InlineData("Linux_x64_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    [InlineData("Windows_x64_short")]
+    [InlineData("Windows_x64_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_extra")]
+    public async Task InvalidOrMismatchedLabelsCannotSupplyBuildIdentity(string label)
+    {
+        using HttpClient http = new(new Handler(_ => JsonResponse(Metadata("nightly", label: label))));
+
+        UpdateRelease release = Assert.IsType<UpdateRelease>(await new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
+
+        Assert.Null(release.BuildId);
+        Assert.Equal(Digest[7..], release.Sha256);
+    }
+
     [Fact]
     public async Task MissingReleaseIsNotAnError()
     {
