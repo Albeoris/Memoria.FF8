@@ -8,6 +8,38 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleUiTests
 {
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Magic_command_is_unavailable_under_silence(bool nativeSilence, bool effectSilence)
+    {
+        BattleDefinition definition = Definition();
+        definition.Combatants[0] = definition.Combatants[0] with
+        {
+            Abilities = [BattleAbility.Attack, BattleAbility.Magic],
+            NativeStatus0 = nativeSilence ? (ushort)0x10 : (ushort)0,
+            StatusEffects = effectSilence ? [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Silence, DurationFrames = 60 }] : [],
+            MagicStocks = [new(1, 10)]
+        };
+        definition = definition with { ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 10, false)] };
+        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn());
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        UiTheme theme = new();
+        TestCanvas canvas = new();
+        view.Draw(canvas, theme);
+        bool silenced = nativeSilence || effectSilence;
+        Assert.Equal(!silenced, hud.MagicAvailable);
+        Assert.Equal(silenced ? theme.Muted : theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Magic").Color);
+        hud.Navigate(MenuInput.Down);
+        Assert.Equal(BattleAbility.Magic, hud.SelectedCommand);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.Equal(!silenced, hud.SelectingAction);
+        Assert.False(hud.SelectingTarget);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void GuardianListExtendsNamePanelWithRightAlignedCurrentHp(bool guardianFormsEnabled)

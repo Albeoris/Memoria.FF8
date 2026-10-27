@@ -71,6 +71,7 @@ public sealed partial class BattleHudController
     internal string GuardianForceDisplayName(int id) => guardianForceName(id);
     public IReadOnlyList<BattleCombatant> Party => session.Combatants.Where(actor => actor.IsPlayer).ToArray();
     public IReadOnlyList<BattleAbility> Commands => GetPlayerCommandChoices();
+    public bool MagicAvailable => SelectedActor is { } actor && (actor.PersistentStatus & 0x10) == 0;
     public BattleAbility SelectedCommand
     {
         get
@@ -437,6 +438,11 @@ public sealed partial class BattleHudController
         }
         if (ConfirmGuardianFormCommand(actor))
         {
+            return;
+        }
+        if (SelectedCommand == BattleAbility.Magic && !MagicAvailable)
+        {
+            ShowCommandError(SystemText("battle.ui.attack.the.selected.action.is.unavailable", "The selected action is unavailable."));
             return;
         }
         if (ConfirmNativeSlots())
