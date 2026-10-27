@@ -32,4 +32,24 @@ public sealed partial class MenuController
         int? stock = recipe.IngredientStock ?? (recipe.NativeKind == 4 ? Data.Cards.FirstOrDefault(card => card.Id == recipe.IngredientId)?.Quantity : Data.Items.FirstOrDefault(item => item.Id == recipe.IngredientId)?.Quantity);
         return stock?.ToString(CultureInfo.InvariantCulture) ?? "";
     }
+
+    private int RefinementResultStock(MenuRecipe recipe)
+    {
+        if (recipe.ResultStock is { } stock)
+        {
+            return stock;
+        }
+        return recipe.NativeKind is 0 or 2
+            ? Data.Magic.Where(magic => magic.Id == recipe.ResultId && (!Data.SharedMagicStock || magic.CharacterId == Data.Characters.FirstOrDefault()?.Id)).Sum(magic => magic.Quantity)
+            : Data.Items.FirstOrDefault(item => item.Id == recipe.ResultId)?.Quantity ?? 0;
+    }
+
+    private string[] RefinementResultOwners(MenuRecipe recipe)
+    {
+        if (Data.SharedMagicStock || recipe.NativeKind is not (0 or 2))
+        {
+            return [];
+        }
+        return Data.Characters.Select(character => $"{character.Name} - {recipe.ResultStockByCharacter.GetValueOrDefault(character.Id, Data.Magic.FirstOrDefault(magic => magic.Id == recipe.ResultId && magic.CharacterId == character.Id)?.Quantity ?? 0)}").ToArray();
+    }
 }

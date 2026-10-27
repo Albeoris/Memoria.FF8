@@ -37,6 +37,7 @@ public sealed class NativeRefinementProjectionTests
         GameState state = EmptyState(assets);
         NativeRefinementDefinitions definitions = assets.ReadNativeRefinementDefinitions();
         (int abilityId, int recipeIndex, NativeRefinementRecipe recipe) = FirstRecipe(definitions, kind);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         if (kind == 4)
         {
             state = state with { CardInventory = state.CardInventory!.Acquire(recipe.Ingredient, out _) };
@@ -65,6 +66,31 @@ public sealed class NativeRefinementProjectionTests
 
         Assert.Equal(1, projected.IngredientStock);
         Assert.All(projected.MaximumBatches.Values, maximum => Assert.Equal(0, maximum));
+        if (kind is 0 or 2)
+        {
+            int availableCharacters = Enumerable.Range(0, 8).Count(row => state.CharacterVitals!.IsMenuCharacterAvailable(row, state.WorldControls));
+            Assert.Equal(100 * availableCharacters, projected.ResultStock);
+            Assert.Equal(availableCharacters, projected.ResultStockByCharacter.Count);
+            Assert.Equal(100, projected.ResultStockByCharacter["character-0"]);
+            Assert.All(projected.ResultStockByCharacter.Values, stock => Assert.Equal(100, stock));
+            Assert.Null(projected.ResultIcon);
+        }
+        else
+        {
+            Assert.Equal(100, projected.ResultStock);
+            Assert.Empty(projected.ResultStockByCharacter);
+            Assert.NotNull(catalog.ItemIcon(recipe.Output));
+            Assert.Equal(catalog.ItemIcon(recipe.Output), projected.ResultIcon);
+        }
+        if (kind is 0 or 1 or 3)
+        {
+            Assert.NotNull(catalog.ItemIcon(recipe.Ingredient));
+            Assert.Equal(catalog.ItemIcon(recipe.Ingredient), projected.IngredientIcon);
+        }
+        else
+        {
+            Assert.Null(projected.IngredientIcon);
+        }
     }
 
     [Theory]
@@ -167,6 +193,7 @@ public sealed class NativeRefinementProjectionTests
         state.CharacterVitals.Records[0].MagicInventory[0] = new(recipe.Ingredient, 1);
         MenuRecipe projected = Assert.Single(Project(assets, state, definitions).Recipes, entry => entry.NativeAbility == abilityId && entry.NativeRecipeIndex == recipeIndex);
         Assert.Equal(1, projected.IngredientStock);
+        Assert.DoesNotContain("character-7", projected.ResultStockByCharacter.Keys);
     }
 
     [Theory]
@@ -181,6 +208,8 @@ public sealed class NativeRefinementProjectionTests
         state = state with { CharacterVitals = state.CharacterVitals!.WithMemberFlags(1, true) };
         state.CharacterVitals.Records[0].MagicInventory[0] = new(recipe.Ingredient, 3);
         state.CharacterVitals.Records[1].MagicInventory[0] = new(recipe.Ingredient, 4);
+        state.CharacterVitals.Records[0].MagicInventory[1] = new(recipe.Output, 7);
+        state.CharacterVitals.Records[1].MagicInventory[1] = new(recipe.Output, 11);
         if (shared)
         {
             NativeCharacterVitals vitals = state.CharacterVitals;
@@ -190,6 +219,17 @@ public sealed class NativeRefinementProjectionTests
         MenuRecipe projected = Assert.Single(Project(assets, state, definitions).Recipes, entry => entry.NativeAbility == abilityId && entry.NativeRecipeIndex == recipeIndex);
 
         Assert.Equal(expected, projected.IngredientStock);
+        Assert.Equal(shared ? 7 : 18, projected.ResultStock);
+        if (shared)
+        {
+            Assert.Empty(projected.ResultStockByCharacter);
+        }
+        else
+        {
+            Assert.Equal(7, projected.ResultStockByCharacter["character-0"]);
+            Assert.Equal(11, projected.ResultStockByCharacter["character-1"]);
+            Assert.All(projected.ResultStockByCharacter.Where(pair => pair.Key is not "character-0" and not "character-1"), pair => Assert.Equal(0, pair.Value));
+        }
     }
 
     private static GameState EmptyState(GameAssets assets)

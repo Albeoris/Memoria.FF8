@@ -218,6 +218,10 @@ public sealed record MenuRecipe(string Id, string Ability, string IngredientId, 
     public byte? NativeKind { get; init; }
     public string? IngredientName { get; init; }
     public int? IngredientStock { get; init; }
+    public int? ResultStock { get; init; }
+    public IReadOnlyDictionary<string, int> ResultStockByCharacter { get; init; } = new Dictionary<string, int>();
+    public UiImageSource? IngredientIcon { get; init; }
+    public UiImageSource? ResultIcon { get; init; }
     public IReadOnlyDictionary<int, int> OutputCapacity { get; init; } = new Dictionary<int, int>();
     public IReadOnlyDictionary<int, int> MaximumBatches { get; init; } = new Dictionary<int, int>();
 }

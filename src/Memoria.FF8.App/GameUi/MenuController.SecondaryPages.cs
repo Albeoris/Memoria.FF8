@@ -214,8 +214,13 @@ public sealed partial class MenuController
         var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [1.35f, 1], 5);
         Place(page, SecondaryHeader(SystemText("ui.buildsecondaryability.header.ability", "Ability"), ScreenId == "ability" ? SystemText("ui.buildsecondaryability.header.select.an.ability", "Select an ability") : RefinementAbility, ScreenId == "ability" ? SystemText("ui.buildsecondaryability.header.select.a.menu.ability", "Select a menu ability.") : SelectedEntry?.Help ?? SystemText("ui.buildsecondaryability.header.select.an.item.to.refine", "Select an item to refine.")), 0, 0, 1, 2);
         UiList commands = SecondaryCommands();
+        if (ScreenId == "ability")
+        {
+            commands.Images = Entries.Select(_ => NativeAbilityMenuMetadata.Icon(92)).ToList();
+        }
         if (ScreenId == "ability-recipes")
         {
+            commands.Images = Entries.Select(entry => Data.Recipes.First(recipe => recipe.Id == entry.Id)).Select(recipe => recipe.IngredientIcon ?? Data.Items.FirstOrDefault(item => item.Id == recipe.IngredientId)?.Icon).ToList();
             commands.Items = Entries.Select(entry => entry.Label).ToList();
             commands.SecondaryItems = Entries.Select(entry => Data.Recipes.First(recipe => recipe.Id == entry.Id)).Select(RefinementStock).ToList();
             commands.AutoSecondaryWidth = true;
@@ -229,14 +234,42 @@ public sealed partial class MenuController
         }
         else if (HighlightedRefinementRecipe is { } recipe && ScreenId != "ability")
         {
-            details = [recipe.IngredientName ?? Data.Items.FirstOrDefault(item => item.Id == recipe.IngredientId)?.Name ?? recipe.IngredientId, $"{recipe.IngredientQuantity}  →  {recipe.ResultQuantity} {recipe.ResultName}", SystemText("refinement.summary.owned", "Owned   ") + RefinementStock(recipe), .. (recipe.NativeKind is 0 or 2 ? new[] { Character?.Name ?? "--" } : Array.Empty<string>())];
+            details = [recipe.IngredientName ?? Data.Items.FirstOrDefault(item => item.Id == recipe.IngredientId)?.Name ?? recipe.IngredientId, $"{recipe.IngredientQuantity}  →  {recipe.ResultQuantity} {recipe.ResultName}", SystemText("refinement.summary.owned", "Owned   ") + RefinementResultStock(recipe).ToString(System.Globalization.CultureInfo.InvariantCulture), .. RefinementResultOwners(recipe)];
         }
         else
         {
             details = [ScreenId == "ability" ? SystemText("refinement.prompt.ability", "Choose a refinement ability.") : SystemText("refinement.prompt.empty", "No items to refine.")];
         }
-        Place(page, Panel(null, Lines(details, 24)), 1, 1);
+        Place(page, Panel(null, RefinementDetailsView(details)), 1, 1);
         return page;
+    }
+
+    private UiElement RefinementDetailsView(IReadOnlyList<string> details)
+    {
+        var rows = new UiGrid { Columns = 1, Rows = details.Count + 1 };
+        for (int index = 0; index < details.Count; index++)
+        {
+            rows.RowDefinitions.Add(UiGridLength.Auto);
+            UiImageSource? icon = HighlightedRefinementRecipe is { } recipe ? index switch
+            {
+                0 => recipe.IngredientIcon ?? Data.Items.FirstOrDefault(item => item.Id == recipe.IngredientId)?.Icon,
+                1 => recipe.ResultIcon ?? Data.Items.FirstOrDefault(item => item.Id == recipe.ResultId)?.Icon,
+                _ => null
+            } : null;
+            UiElement content = Label(details[index], 24, UiTextFlow.Wrap);
+            if (icon is not null)
+            {
+                var line = new UiGrid { Columns = 2, Rows = 1 };
+                line.ColumnDefinitions.Add(UiGridLength.Pixel(28 * TextScale));
+                line.ColumnDefinitions.Add(UiGridLength.Star());
+                Place(line, new UiImage { Source = icon, Width = 24 * TextScale, Height = 24 * TextScale, VerticalAlignment = UiAlignment.Center }, 0);
+                Place(line, content, 0, 1);
+                content = line;
+            }
+            Place(rows, content, index);
+        }
+        rows.RowDefinitions.Add(UiGridLength.Star());
+        return rows;
     }
 
     private UiElement BuildSecondaryReference()
