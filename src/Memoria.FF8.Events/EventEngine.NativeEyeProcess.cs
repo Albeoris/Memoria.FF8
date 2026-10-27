@@ -13,10 +13,11 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (services is not GameSession session || session.State.NativeBattleMemory is not { } retained)
+        if (services is not GameSession session || session.CurrentNativeBattleMemory is null)
         {
             return;
         }
+        NativeBattleRetainedMemory retained = session.ActivateNativeFieldMemory();
         NativeFieldRetainedActor[] retainedActors = Scene.NativeActorObjectIds.Select(id => new NativeFieldRetainedActor(id, actors[id].NativeAnimationHeader?.BoundModelId ?? throw new NotSupportedException("Native initial registration requires each actual completed model binding."), program!.Objects[id].Label, program.Objects[id].Label + program.Objects[id].Scripts.Count)).ToArray();
         NativeFieldRegistrationStep step = NativeFieldRegistrationMachine.ReloadKind3(resources, retainedActors, retained);
         Scene.NativeFieldRegistration = step.State;
@@ -30,6 +31,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native eye process requires its shared game-session owners.");
         }
+        process = process.RestoreOwned();
         session.SetNativeFieldEyeOwners(process.Memory, process.CrtRandom);
         Scene.NativeEyeProcess = process;
     }
@@ -112,7 +114,7 @@ public sealed partial class EventEngine
     {
         if (services is GameSession session && OwnsNativeFieldEyeProcess(session))
         {
-            NativeBattleRetainedMemory memory = session.State.NativeBattleMemory ?? throw new NotSupportedException("Native eye process lost its current shared memory owner.");
+            NativeBattleRetainedMemory memory = session.CurrentNativeBattleMemory ?? throw new NotSupportedException("Native eye process lost its current shared memory owner.");
             return new(1, memory, session.State.CrtRandom);
         }
         return cached;
@@ -123,15 +125,20 @@ public sealed partial class EventEngine
         return !session.HasActiveBattle && session.State.Scene == SceneKind.Field && session.State.FieldId == FieldId;
     }
 
-    private void CaptureNativeEyeProcessOwners()
+    private SceneEventState CaptureNativeEyeProcessScene()
     {
-        if (Scene.NativeEyeProcess is { } process)
+        if (Scene.NativeEyeProcess is not { } process)
         {
-            Scene.NativeEyeProcess = ReadCurrentNativeEyeProcess(process);
+            return Scene;
         }
+        process = ReadCurrentNativeEyeProcess(process);
+        NativeFieldEyeProcess detached = services is GameSession session && OwnsNativeFieldEyeProcess(session)
+            ? process with { Memory = session.CaptureNativeFieldMemory() ?? throw new InvalidDataException("Field checkpoint lost its retained memory.") }
+            : process.CaptureSnapshot();
+        return Scene.CreateEyeProcessCheckpointProjection(detached);
     }
 
-    private void ValidateNativeEyeProcessCheckpoint(Checkpoint saved)
+    private NativeFieldEyeProcess? ValidateNativeEyeProcessCheckpoint(Checkpoint saved)
     {
         if (saved.Scene.NativeEyeProcess is { } process)
         {
@@ -141,6 +148,8 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved eye process belongs to another field or physical instance order.");
             }
+            return process.RestoreOwned();
         }
+        return null;
     }
 }

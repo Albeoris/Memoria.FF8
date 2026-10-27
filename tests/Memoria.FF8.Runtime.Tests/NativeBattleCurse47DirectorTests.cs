@@ -13,13 +13,14 @@ public sealed class NativeBattleCurse47DirectorTests
     {
         Fixture fixture = new(phase);
         NativeBattleCurse47Frame frame = fixture.Mode(fixture.Frame, before);
+        NativeBattleCurse47Frame branch = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
         NativeBattleCurse47Frame result = fixture.Step(frame).Frame;
         Assert.Equal(after, fixture.Task(result).ReadByte(0x29));
         Assert.Equal(before, result.State.SharedWord(0x40));
         Assert.Equal(before, result.State.SharedWord(0x42));
         Assert.Equal((ushort)(before + 1), result.State.SharedWord(0x44));
         Assert.Empty(fixture.Operations);
-        NativeBattleCurse47Frame failed = fixture.Step(fixture.Mode(frame, unchecked((ushort)(before - 1)))).Frame;
+        NativeBattleCurse47Frame failed = fixture.Step(fixture.Mode(branch, unchecked((ushort)(before - 1)))).Frame;
         Assert.Equal(phase, fixture.Task(failed).ReadByte(0x29));
     }
 
@@ -106,12 +107,13 @@ public sealed class NativeBattleCurse47DirectorTests
     {
         Fixture fixture = new(3);
         NativeBattleCurse47Frame frame = fixture.Frame with { State = fixture.Frame.State.WriteDword(0x264EAE4, 1).WriteDword(0x264D82C, 1) };
+        NativeBattleCurse47Frame branch = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
         NativeBattleCurse47Frame result = fixture.Step(frame).Frame;
         Assert.Equal(new NativeBattleCurse47Pause(0), Assert.Single(fixture.Operations));
         Assert.Equal(0u, result.State.ReadDword(0x264D82C));
         Assert.Equal((byte)4, fixture.Task(result).ReadByte(0x29));
         fixture.Operations.Clear();
-        result = fixture.Step(frame with { State = frame.State.WriteDword(0x264EAE4, 2) }).Frame;
+        result = fixture.Step(branch with { State = branch.State.WriteDword(0x264EAE4, 2) }).Frame;
         Assert.Empty(fixture.Operations);
         Assert.Equal(1u, result.State.ReadDword(0x264D82C));
     }
@@ -152,8 +154,8 @@ public sealed class NativeBattleCurse47DirectorTests
         Assert.Equal(0, waiting.Result);
         Assert.Equal((byte)11, fixture.Task(waiting.Frame).ReadByte(0x29));
         Assert.Equal((ushort)0, fixture.Task(waiting.Frame).ReadWord(0x24));
-        NativeBattleCurse47Frame cold = JsonSerializer.Deserialize<NativeBattleCurse47Frame>(JsonSerializer.Serialize(waiting.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(waiting.Frame)), JsonSerializer.Serialize(fixture.Step(cold)));
+        NativeBattleCurse47Frame cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCurse47Frame>(SnapshotJson(waiting.Frame))!);
+        Assert.Equal(SnapshotJson(fixture.Step(waiting.Frame)), SnapshotJson(fixture.Step(cold)));
         NativeBattleCurse47Step completed = fixture.Step(fixture.Put(waiting.Frame, fixture.Task(waiting.Frame).WriteByte(0x28, 0)));
         Assert.Equal(2, completed.Result);
         Assert.Equal((byte)0, new NativeBattleEffectHierarchy(completed.Frame.Effect.Pools).Read(fixture.Parent).ReadByte(0x28));
@@ -187,4 +189,6 @@ public sealed class NativeBattleCurse47DirectorTests
             return OnExecute(current, operation);
         }));
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

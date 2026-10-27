@@ -19,9 +19,9 @@ public static class NativeBattleChoco97Uv
         {
             throw new InvalidDataException("Native Choco UV mutation requires its complete current resource owner.");
         }
-        NativeBattleEffectArena output = NativeBattleEffectArena.CreateUnknown(owner.Length).Write(0, owner.AsSpan());
-        ScrollWorking(output, resourceOffset, delta, vertical);
-        return ImmutableCollectionsMarshal.AsImmutableArray(output.Read(0, owner.Length));
+        byte[] output = owner.ToArray();
+        ScrollWorking(output.Length, offset => output[offset], offset => System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(output.AsSpan(offset)), (offset, value) => output[offset] = value, resourceOffset, delta, vertical);
+        return ImmutableCollectionsMarshal.AsImmutableArray(output);
     }
 
     internal static NativeBattleGfAnimationSource Scroll7311C0(NativeBattleGfAnimationSource source, int resourceOffset, int deltaV)
@@ -103,20 +103,4 @@ public static class NativeBattleChoco97Uv
         ScrollWorking(bank.Length, offset => bank.ReadByte(checked(bank.Address + (uint)offset)), offset => unchecked((int)bank.ReadUInt32(checked(bank.Address + (uint)offset))), bank.WriteByte, checked((int)(resource - bank.Address)), -8, false);
     }
 
-    internal static ImmutableArray<byte> UpdateDrawableResource(NativeBattleEffectNodeBank bank, uint resource, int kind, byte sourceNodeIndex)
-    {
-        if (sourceNodeIndex != 0 || kind is not (4 or 5))
-        {
-            return bank.Data;
-        }
-        if (kind == 5)
-        {
-            throw new NotSupportedException("Native Choco kind5 resource update requires its own admitted source contract.");
-        }
-        if (resource < bank.Address || (ulong)resource >= (ulong)bank.Address + (uint)bank.Length)
-        {
-            throw new NotSupportedException("Native Choco resource mutation requires its retained same-bank writable owner.");
-        }
-        return Scroll72DF60(bank.Data, checked((int)(resource - bank.Address)), -8);
-    }
 }

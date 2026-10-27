@@ -54,6 +54,22 @@ public sealed class NativeBattleNodeSourceTests
         Assert.Equal(2, roundtrip.Source.Arena.ReadResourcePointer(20)!.CpuRow);
     }
 
+    [Fact]
+    public void Cold_and_legacy_restored_sources_read_the_current_public_overlay()
+    {
+        NativeBattleNodeSource cold = new([1, 2, 3, 4]);
+        History saved = NativeBattleStorageSnapshots.Capture(new History(cold));
+        NativeBattleNodeSource restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<History>(JsonSerializer.Serialize(saved))!).Source;
+        foreach (NativeBattleNodeSource source in new[] { cold, restored })
+        {
+            using NativeBattleEffectArenaTransaction transaction = new(source.Arena);
+            transaction.View.Write(0, [9]);
+            Assert.Equal((byte)9, source.ReadByte(0));
+            using NativeBattleNodeBankOperation operation = new(source);
+            Assert.Equal((byte)9, operation.ReadByte(0));
+        }
+    }
+
     private sealed record History([property: JsonConverter(typeof(NativeBattleNodeSource.Converter))] NativeBattleNodeSource Source);
     private sealed record Aliases(NativeBattleEffectArena Bank, [property: JsonConverter(typeof(NativeBattleNodeSource.Converter))] NativeBattleNodeSource Source);
 }

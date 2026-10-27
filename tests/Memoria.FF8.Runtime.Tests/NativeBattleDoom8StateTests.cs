@@ -52,11 +52,13 @@ public sealed class NativeBattleDoom8StateTests
         Assert.Equal(0x2109AB8u, state.ReadDword(NativeBattleDoom8Io.NextAddressGlobal));
         Assert.Equal((ushort)1, state.ReadIoControlWord(0x166));
         Assert.Equal((byte)0xAB, state.IoScript!.Value[28]);
-        NativeBattleDoom8State restored = JsonSerializer.Deserialize<NativeBattleDoom8State>(JsonSerializer.Serialize(state))!;
+        NativeBattleDoom8State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDoom8State>(SnapshotJson(state))!);
         restored.Validate();
         Assert.Equal(state.ReadIo().Control.ToArray(), restored.ReadIo().Control.ToArray());
         Assert.Equal(state.ReadIo().Script.ToArray(), restored.ReadIo().Script.ToArray());
         Assert.Equal(state.ReadIo().CursorAddress, restored.ReadIo().CursorAddress);
         Assert.Throws<InvalidDataException>(() => NativeBattleDoom8State.FromColdProcess(new byte[111].ToImmutableArray()));
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

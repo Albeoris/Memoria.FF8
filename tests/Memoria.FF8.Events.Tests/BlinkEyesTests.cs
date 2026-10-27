@@ -45,9 +45,13 @@ internal static partial class Program
         NativeCrtRandomState expected = initial.Draw(out _).Draw(out _);
         Require(live.Scene.NativeEyeProcess!.CrtRandom == expected, "BLINKEYES did not consume exactly two shared CRT draws before its first graphics callback.");
         NativeCrtRandomState sharedDraw = host.Session.State.CrtRandom!.Draw(out _);
-        host.Session.SetNativeFieldEyeOwners(host.Session.State.NativeBattleMemory!, sharedDraw);
+        host.Session.SetNativeFieldEyeOwners(host.Session.CurrentNativeBattleMemory!, sharedDraw);
+        NativeFieldEyeProcess liveBeforeCapture = live.Scene.NativeEyeProcess!;
         JsonElement saved = live.Capture();
-        Require(live.Scene.NativeEyeProcess!.CrtRandom == sharedDraw, "Eye snapshot replaced an intervening draw from the current shared CRT owner.");
+        NativeFieldEyeProcess capturedProcess = saved.GetProperty("Scene").GetProperty("NativeEyeProcess").Deserialize<NativeFieldEyeProcess>()!;
+        Require(capturedProcess.CrtRandom == sharedDraw, "Eye snapshot replaced an intervening draw from the current shared CRT owner.");
+        Require(ReferenceEquals(liveBeforeCapture, live.Scene.NativeEyeProcess), "Eye checkpoint replaced its running scene owner.");
+        Require(ReferenceEquals(host.Session.CurrentNativeBattleMemory, liveBeforeCapture.Memory), "Eye checkpoint replaced its running retained memory.");
         Require(saved.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack")[0].GetInt32() == 777, "BLINKEYES consumed an unrelated retained DWORD.");
         EventEngine restored = Create().Engine;
         restored.Restore(saved);

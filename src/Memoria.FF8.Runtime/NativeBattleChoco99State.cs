@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleChoco99State([property: JsonRequired] NativeBattleChoco97Context? Context, [property: JsonRequired] NativeBattleChoco97NodeState Nodes, [property: JsonRequired] NativeBattleChoco99IoState? Io, [property: JsonRequired] bool IoScriptKnownCold, [property: JsonRequired] NativeBattleChoco97IoBanks? PendingIoBanks, [property: JsonRequired] NativeBattleGfAnimationSource? ProgramSource, [property: JsonRequired] bool ProgramSourceKnownCold, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectOwnedModelState> Models, [property: JsonRequired] NativeBattleMoogleCameraState? Camera, [property: JsonRequired] ImmutableArray<byte> MorphScratch, [property: JsonRequired] ImmutableArray<byte>? ProjectedScratch, [property: JsonRequired] uint? FreezePrimary, [property: JsonRequired] uint? FreezeSecondary, [property: JsonRequired] uint? NextAllocation, [property: JsonRequired] ImmutableArray<byte>? ViewCopy, [property: JsonRequired] int? PrivateBufferAliasOffset)
+public sealed record NativeBattleChoco99State([property: JsonRequired] NativeBattleChoco97Context? Context, [property: JsonRequired] NativeBattleChoco97NodeState Nodes, [property: JsonRequired] NativeBattleChoco99IoState? Io, [property: JsonRequired] bool IoScriptKnownCold, [property: JsonRequired] NativeBattleChoco97IoBanks? PendingIoBanks, [property: JsonRequired, JsonConverter(typeof(NativeBattleOwnedGfAnimationSource.Converter))] NativeBattleGfAnimationSource? ProgramSource, [property: JsonRequired] bool ProgramSourceKnownCold, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectOwnedModelState> Models, [property: JsonRequired] NativeBattleMoogleCameraState? Camera, [property: JsonRequired] ImmutableArray<byte> MorphScratch, [property: JsonRequired] ImmutableArray<byte>? ProjectedScratch, [property: JsonRequired] uint? FreezePrimary, [property: JsonRequired] uint? FreezeSecondary, [property: JsonRequired] uint? NextAllocation, [property: JsonRequired] ImmutableArray<byte>? ViewCopy, [property: JsonRequired] int? PrivateBufferAliasOffset)
 {
     public static NativeBattleChoco99State FromColdProcess() => new(null, NativeBattleChoco97NodeState.FromColdProcess(), null, true, new(0x19D3018, 0x1F560, NativeBattleEffectArena.Clear().MarkUnknown(0, 0x1F560)), null, true, ImmutableDictionary<uint, NativeBattleEffectOwnedModelState>.Empty, null, new byte[0x760].ToImmutableArray(), null, null, null, null, null, null);
 
@@ -23,7 +23,7 @@ public sealed record NativeBattleChoco99State([property: JsonRequired] NativeBat
         {
             throw new InvalidDataException("Native Choco99 external banks contradict their actual physical span.");
         }
-        if (ProgramSource is { } source && (source.Address != 0x166DC58 || source.Data.IsDefault || source.Data.Length != 0x2884) || ProgramSource is null && !ProgramSourceKnownCold)
+        if (ProgramSource is { } source && (source.Address != 0x166DC58 || source.IsDefault || source.Length != 0x2884) || ProgramSource is null && !ProgramSourceKnownCold)
         {
             throw new NotSupportedException("Native Choco99 requires its complete retained static program source.");
         }

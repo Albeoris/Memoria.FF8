@@ -41,7 +41,7 @@ public sealed class NativeBattleDoom8ReaperAppearanceTests
         Assert.Equal(new byte[] { 1, 0, 254, 255, 253, 255, 255, 255 }, result.Memory.ScriptedColorRegisters.NormalInput!.Value);
         Assert.Null(result.Memory.GeometryRegisters!.Rotation20[18]);
         Assert.Null(result.Memory.GeometryRegisters.Rotation20[19]);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleDoom8ReaperAppearance.PrepareCamera8CC6B0(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(frame))!, world, camera)));
+        Assert.Equal(SnapshotJson(result), SnapshotJson(NativeBattleDoom8ReaperAppearance.PrepareCamera8CC6B0(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(SnapshotJson(frame))!), world, camera)));
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class NativeBattleDoom8ReaperAppearanceTests
         Assert.Equal((byte)0xEF, result.ScriptedLighting!.LightMatrix!.Bytes[18]);
         Assert.Equal((byte)0xBE, result.ScriptedLighting.LightMatrix.Bytes[19]);
         Assert.All(result.ScriptedLighting.LightMatrix.Known, value => Assert.True(value));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleZantetsukenGte.EvaluatePlane(memory, 0)));
+        Assert.Equal(SnapshotJson(result), SnapshotJson(NativeBattleZantetsukenGte.EvaluatePlane(memory, 0)));
     }
 
     [Fact]
@@ -89,4 +89,6 @@ public sealed class NativeBattleDoom8ReaperAppearanceTests
         memory = memory with { ScriptedGraphics = memory.ScriptedGraphics!.InitializeGeom56BAA0() };
         return new(memory, new(8, 8, new(8, NativeBattleDoom8Controller.Entry, 0x8C4960), null, null), new(1), NativeBattleDoom8State.FromUnknown());
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

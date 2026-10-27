@@ -7,9 +7,12 @@ internal sealed partial class NativeBattleStorageRestoreContext
     private readonly Dictionary<int, NativeBattleWorkingMemory> graphOwners = [];
     private bool hasStorageGraph;
 
-    internal void PrepareStorageGraph(BattleSnapshot snapshot)
+    internal void PrepareStorageGraph(BattleSnapshot snapshot) => PrepareStorageGraph(snapshot, snapshot.StorageGraph);
+    internal void PrepareStorageGraph(NativeBattleRetainedMemory snapshot) => PrepareStorageGraph(snapshot, snapshot.StorageGraph);
+
+    private void PrepareStorageGraph(object snapshot, NativeBattleStorageGraph? storageGraph)
     {
-        if (snapshot.StorageGraph is not { } graph)
+        if (storageGraph is not { } graph)
         {
             return;
         }
@@ -104,7 +107,7 @@ internal sealed partial class NativeBattleStorageRestoreContext
         return false;
     }
 
-    private static void ValidateDefinitionCoverage(NativeBattleEffectArena definition, NativeBattleStorageAuthority authority)
+    internal static void ValidateDefinitionCoverage(NativeBattleEffectArena definition, NativeBattleStorageAuthority authority)
     {
         int index = 0;
         foreach (NativeBattleEffectUnknownRegion range in authority.DataFootprint)
@@ -125,7 +128,7 @@ internal sealed partial class NativeBattleStorageRestoreContext
         }
     }
 
-    private static NativeBattleStorageAuthorityContent ExtractContent(NativeBattleEffectArena arena, int storedLength)
+    internal static NativeBattleStorageAuthorityContent ExtractContent(NativeBattleEffectArena arena, int storedLength)
     {
         ImmutableArray<NativeBattleEffectMemoryRegion>.Builder regions = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
         foreach (NativeBattleEffectMemoryRegion region in arena.Regions)

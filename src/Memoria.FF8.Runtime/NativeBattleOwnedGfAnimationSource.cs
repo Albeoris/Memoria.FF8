@@ -12,9 +12,9 @@ internal sealed record NativeBattleOwnedGfAnimationSource : NativeBattleGfAnimat
     private readonly bool snapshot;
     private readonly ImmutableArray<byte> payload;
 
-    private NativeBattleOwnedGfAnimationSource(uint address, NativeBattleEffectArena storage) : base(address, storage)
+    private NativeBattleOwnedGfAnimationSource(uint address, NativeBattleEffectArena storage) : base(address, NativeBattleEffectArena.BorrowWorking(storage.Working, storage.WorkingOffset, storage.LogicalLength))
     {
-        this.storage = storage;
+        this.storage = Arena!;
     }
 
     private NativeBattleOwnedGfAnimationSource(uint address, NativeBattleEffectArena storage, ImmutableArray<byte> payload) : base(address, payload)
@@ -52,6 +52,15 @@ internal sealed record NativeBattleOwnedGfAnimationSource : NativeBattleGfAnimat
             throw new InvalidDataException("Retained ACT initialization requires its actual bounded catalog bytes or physical bank.");
         }
         return new(source.Address, NativeBattleEffectArena.CreateUnknown(source.Length).Write(0, source.Data.AsSpan()));
+    }
+
+    internal void RequireStorage(NativeBattleEffectArena destination, int offset)
+    {
+        destination.RequireRange(offset, Length);
+        if (snapshot || !ReferenceEquals(storage.Working, destination.Working) || storage.WorkingOffset != checked(destination.WorkingOffset + offset))
+        {
+            throw new InvalidOperationException("Retained ACT publication requires its actual physical bank authority.");
+        }
     }
 
     internal Mutation BeginMutation() => new(this);

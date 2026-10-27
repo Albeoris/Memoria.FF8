@@ -38,7 +38,7 @@ public sealed class NativeBattleChoco99StateTests
             FreezeSecondary = 7
         };
         state.Validate();
-        NativeBattleChoco99State restored = JsonSerializer.Deserialize<NativeBattleChoco99State>(JsonSerializer.Serialize(state))!;
+        NativeBattleChoco99State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco99State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(2, restored.Models.Count);
         Assert.Equal(first, restored.Models[first.TaskAddress]);
@@ -69,11 +69,13 @@ public sealed class NativeBattleChoco99StateTests
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(NativeBattleChoco99Controller.MainDescriptor, NativeBattleChoco99Controller.MainBank, 0x64, 2)]);
         NativeBattleEffectHierarchyAppend root = hierarchy.Append8DC540(0, 0x717ED0, 0x64);
         NativeBattleOriginalEffectState effect = new(99, 98, new(99, 0x717D30, 0x717D10), new(0, 1, 8, 0, 0, 0), null) { Pools = root.Hierarchy.Pools };
+        NativeBattleOriginalEffectState before = NativeBattleStorageSnapshots.Capture(effect);
         NativeBattleOriginalEffectState completed = NativeBattleChoco99Controller.WriteCompletionByte(effect, root.Address + 0x62, 1);
-        Assert.Equal((byte)0, new NativeBattleEffectHierarchy(effect.Pools).Read(root.Address).ReadByte(0x62));
+        Assert.Equal((byte)0, new NativeBattleEffectHierarchy(before.Pools).Read(root.Address).ReadByte(0x62));
+        Assert.Equal((byte)1, new NativeBattleEffectHierarchy(effect.Pools).Read(root.Address).ReadByte(0x62));
         Assert.Equal((byte)1, new NativeBattleEffectHierarchy(completed.Pools).Read(root.Address).ReadByte(0x62));
         Assert.Equal((byte)0, new NativeBattleEffectHierarchy(completed.Pools).Read(root.Address).ReadByte(0x63));
-        Assert.Equal(effect.Pools[0].Slots[1], completed.Pools[0].Slots[1]);
+        Assert.Equal(NativeBattleTestSnapshots.Json(before.Pools[0].Slots[1]), NativeBattleTestSnapshots.Json(completed.Pools[0].Slots[1]));
         Assert.Throws<NotSupportedException>(() => NativeBattleChoco99Controller.WriteCompletionByte(effect, root.Address + 0x63, 1));
         Assert.Throws<NotSupportedException>(() => NativeBattleChoco98Controller.WriteCompletionByte(effect, root.Address + 0x62, 1));
     }

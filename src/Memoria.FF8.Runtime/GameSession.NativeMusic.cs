@@ -22,15 +22,20 @@ public sealed partial class GameSession
             throw new InvalidDataException("Native field registration CRT receipt differs from its actual process owner.");
         }
         NativeBattleRetainedMemory memory = State.NativeBattleMemory ?? throw new NotSupportedException("Native field return requires its actual retained battle process memory.");
+        NativeBattleRetainedMemory? acceptedFieldMemory = null;
         if (owners.ReloadedMemory is { } reloaded)
         {
             reloaded.Validate();
             NativeBattleRetainedMemory allowed = memory with { FileStaging = reloaded.FileStaging, EffectMemory = reloaded.EffectMemory, ModelCpuResources = reloaded.ModelCpuResources };
-            if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(allowed), System.Text.Json.JsonSerializer.SerializeToElement(reloaded)))
+            NativeBattleStorageCaptureContext capture = new();
+            NativeBattleRetainedMemory detachedAllowed = capture.AttachStorageGraph(capture.Map(allowed));
+            NativeBattleRetainedMemory detachedReloaded = capture.AttachStorageGraph(capture.Map(reloaded));
+            if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(detachedAllowed), System.Text.Json.JsonSerializer.SerializeToElement(detachedReloaded)))
             {
                 throw new InvalidDataException("Native field resource reload changed an unrelated retained battle owner.");
             }
-            memory = reloaded;
+            acceptedFieldMemory = NativeFieldEyeProcess.EnsureOwnedMemory(reloaded);
+            memory = detachedReloaded;
         }
         memory = memory with { MusicProcess = owners.Music.MusicProcess, VibrationProcess = owners.Vibration };
         memory.Validate();
@@ -39,5 +44,6 @@ public sealed partial class GameSession
         ValidateLiveEventMemoryOwners(candidate, owners.Memory);
         ValidateBattleFactsCheckpoint(candidate);
         State = candidate;
+        liveFieldMemory = acceptedFieldMemory is null ? null : acceptedFieldMemory with { MusicProcess = owners.Music.MusicProcess, VibrationProcess = owners.Vibration };
     }
 }

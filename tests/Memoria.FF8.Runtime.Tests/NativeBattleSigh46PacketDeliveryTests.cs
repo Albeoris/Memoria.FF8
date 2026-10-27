@@ -22,16 +22,18 @@ public sealed class NativeBattleSigh46PacketDeliveryTests
         }
         ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 12).ToImmutableArray().SetItem(0, NativeBattleGfPacketByteState.Untouched).SetItem(1, NativeBattleGfPacketByteState.Untouched).SetItem(2, NativeBattleGfPacketByteState.Untouched);
         NativeBattleGfGeometryBatch batch = new([new(0, bytes.ToImmutableArray(), mask, primitive)], 12);
+        NativeBattleEffectMemory before = NativeBattleStorageSnapshots.Capture(memory);
+        NativeBattleSigh46State beforeState = NativeBattleStorageSnapshots.Capture(state);
         NativeBattleSigh46PacketStep first = NativeBattleSigh46PacketDelivery.Deliver(memory, state, NativeBattleLogicalOrdering.Clear(), batch, cursor, 0);
         Assert.Equal(address + 76, first.State.ReadDword(cursor));
         Assert.Equal(0xE100002Au, BinaryPrimitives.ReadUInt32LittleEndian(first.Memory.Arena!.Read(68, 4)));
-        Assert.Throws<NotSupportedException>(() => memory.Arena!.Read(64, 3));
+        Assert.Throws<NotSupportedException>(() => before.Arena!.Read(64, 3));
         Assert.Equal(3, first.Memory.Arena.Read(64, 3).Length);
         Assert.Equal("20DFAB8", Assert.Single(first.Ordering.Packets).Reference.Bank);
-        NativeBattleSigh46PacketStep restored = JsonSerializer.Deserialize<NativeBattleSigh46PacketStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleSigh46PacketStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleSigh46PacketStep>(SnapshotJson(first))!);
         NativeBattleSigh46PacketStep Next(NativeBattleSigh46PacketStep step) => NativeBattleSigh46PacketDelivery.Deliver(step.Memory, step.State, step.Ordering, batch, cursor, 0);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
-        Assert.Equal(address + 64, state.ReadDword(cursor));
+        Assert.Equal(SnapshotJson(Next(first)), SnapshotJson(Next(restored)));
+        Assert.Equal(address + 64, beforeState.ReadDword(cursor));
     }
 
     [Theory]
@@ -45,4 +47,6 @@ public sealed class NativeBattleSigh46PacketDeliveryTests
         Assert.Equal(address, state.ReadDword(NativeBattleSigh46Profile.PrimaryCursorGlobal));
         Assert.Throws<InvalidDataException>(() => NativeBattleSigh46PacketDelivery.Deliver(memory, state, NativeBattleLogicalOrdering.Clear(), new([], 0), 0x264EC68, 0));
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

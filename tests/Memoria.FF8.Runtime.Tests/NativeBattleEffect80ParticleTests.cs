@@ -53,7 +53,7 @@ public sealed class NativeBattleEffect80ParticleTests
     private static NativeBattleEffect80Frame Frame(uint callback)
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 160, 1);
-        pool = pool with { Slots = [pool.Slots[0].WriteByte(0x26, 4).WriteByte(0x28, 1) with { Callback = callback }] };
+        pool.WriteSlot(0, pool.Slots[0].WriteByte(0x26, 4).WriteByte(0x28, 1).UpdateHeader(pool.Slots[0].Flags, pool.Slots[0].State, pool.Slots[0].Next, callback));
         NativeBattleOriginalEffectState effect = new(80, 79, new(80, NativeBattleEffect80Profile.Entry, NativeBattleEffect80Profile.Initializer), null, null) { Pools = [pool] };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(123), NativeBattleEffect80State.FromColdProcess());
     }

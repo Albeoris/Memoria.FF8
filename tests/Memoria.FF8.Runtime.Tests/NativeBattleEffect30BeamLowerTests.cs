@@ -81,7 +81,7 @@ public sealed class NativeBattleEffect30BeamLowerTests
     {
         Fixture fixture = new();
         NativeBattleEffect30Frame frame = Write(fixture.Frame, fixture.Beam, Read(fixture.Frame, fixture.Beam).WriteWord(0x24, 5));
-        frame = JsonSerializer.Deserialize<NativeBattleEffect30Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect30Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         uint cursor = TemporaryCursor(frame);
         NativeBattleEffect30Frame result = NativeBattleEffect30BeamLower.Emit(frame, fixture.Beam, fixture.Resources, fixture.Inputs);
         NativeBattleModulePoolTask child = Assert.Single(result.Effect.Pools[4].Slots.Where(slot => slot.Callback == ParticleCallback));

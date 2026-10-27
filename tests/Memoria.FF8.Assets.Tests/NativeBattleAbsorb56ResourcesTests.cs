@@ -62,9 +62,9 @@ public sealed class NativeBattleAbsorb56ResourcesTests
         NativeBattleEffectMemory updated = profile.WithBank(memory, retained);
         Assert.Same(memory.Drain39Bank, updated.Drain39Bank);
         Assert.Same(retained, profile.RequireBank(updated));
-        NativeBattleDrain39BankState restored = JsonSerializer.Deserialize<NativeBattleDrain39BankState>(JsonSerializer.Serialize(retained))!;
+        NativeBattleDrain39BankState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDrain39BankState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(retained)))!);
         restored.Validate();
-        Assert.Equal(retained.Data!.Value.ToArray(), restored.Data!.Value.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(retained.Data!).Data.ToArray(), NativeBattleStorageSnapshots.Capture(restored.Data!).Data.ToArray());
         Assert.Throws<InvalidDataException>(() => (retained with { Data = resources.NodeBank.SetItem(0x4154, 0) }).Validate());
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleDrain39BankState>("{}"));
     }

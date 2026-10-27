@@ -48,8 +48,8 @@ public sealed class NativeBattleChoco99CameraTests
         Assert.Equal(mode == 1 ? origin : expectedEye, Word(step.State, 0x58));
         Assert.Equal(mode == 1 ? 678 : 0, Word(step.State, 0x5A));
         Assert.False(step.Complete);
-        NativeBattleMoogleCameraState restored = JsonSerializer.Deserialize<NativeBattleMoogleCameraState>(JsonSerializer.Serialize(state))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleMoogleCamera.RecomputePublication(restored)));
+        NativeBattleMoogleCameraState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMoogleCameraState>(NativeBattleTestSnapshots.Json(state))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleMoogleCamera.RecomputePublication(restored)));
     }
 
     [Fact]
@@ -75,6 +75,7 @@ public sealed class NativeBattleChoco99CameraTests
     {
         NativeBattleMoogleCameraState camera = State((0xE2, counter), (0x8E, speed), (0xB6, 2), (0xDA, 4094));
         NativeBattleModulePoolTask task = Task(8).WriteByte(0x28, 1).WriteWord(0x24, 65535);
+        Saved restored = NativeBattleTestSnapshots.RestoreJson<Saved>(NativeBattleTestSnapshots.Json(new Saved(task, camera)));
         NativeBattleChoco99CameraTaskStep step = Advance(task, camera, 11);
         Assert.Equal(2, step.Publications.Length);
         Assert.Equal(counter + 1, Word(step.Publications[0].State, 0xE2));
@@ -85,11 +86,10 @@ public sealed class NativeBattleChoco99CameraTests
         Assert.Equal((byte)9, step.Task.ReadByte(0x29));
         Assert.Equal((ushort)0, step.Task.ReadWord(0x24));
         Assert.False(step.ReadyToComplete);
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(Advance(restored.Task, restored.Camera, 11)));
         NativeBattleChoco99CameraTaskStep released = Advance(step.Task.WriteByte(0x28, 0), step.Camera, 11);
         Assert.True(released.ReadyToComplete);
         Assert.Empty(released.Publications);
-        Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(new Saved(task, camera)))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Advance(restored.Task, restored.Camera, 11)));
     }
 
     [Fact]

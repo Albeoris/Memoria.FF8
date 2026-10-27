@@ -67,10 +67,10 @@ public sealed class NativeBattleEffect83StateTests
         NativeBattleEffect83State state = NativeBattleEffect83State.FromColdProcess().WriteWord(TargetAddress + 0x46, 110).WriteDword(DescriptorAddress + 4, TransformedAddress).DetachBank(7);
         state = state with { OwnedModelSourceBound = true, NodeData = new byte[NodeSourceLength].ToImmutableArray(), OwnedModels = state.OwnedModels.Add(0x25CF8D8, new(0x25CF8D8, ModelAddress, null)) };
         state = state.WriteWord(NodeSourceAddress + 4, 0xB278);
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleEffect83State restored = JsonSerializer.Deserialize<NativeBattleEffect83State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleEffect83State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect83State>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal((ushort)110, restored.ReadWord(TargetAddress + 0x46));
         Assert.Equal(TransformedAddress, restored.ReadDword(DescriptorAddress + 4));
         Assert.Equal((ushort)0xB278, restored.ReadWord(NodeSourceAddress + 4));
@@ -82,9 +82,9 @@ public sealed class NativeBattleEffect83StateTests
     [Fact]
     public void Older_source_binding_state_requires_explicit_named_migration()
     {
-        JsonObject old = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleEffect83State.FromColdProcess()))!.AsObject();
+        JsonObject old = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect83State.FromColdProcess())))!.AsObject();
         Assert.True(old.Remove("OwnedModelSourceBound"));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleEffect83State>(old.ToJsonString()));
+        Assert.Throws<JsonException>(() => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect83State>(old.ToJsonString())));
     }
 
 }

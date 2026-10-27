@@ -78,7 +78,7 @@ public sealed class NativeBattleDoom8TargetSetupTests
         Assert.Equal((byte)0xC3, light.Bytes[19]);
         Assert.All(light.Known, known => Assert.True(known));
         Assert.Equal(before.Memory.GeometryRegisters!.Translation.ToArray(), after.Memory.GeometryRegisters!.Translation.ToArray());
-        Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(after))));
+        Assert.Equal(SnapshotJson(after), SnapshotJson(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(SnapshotJson(after)))));
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class NativeBattleDoom8TargetSetupTests
         Assert.False(light.Known[19]);
         Assert.All(light.Known.Take(18), known => Assert.True(known));
         Assert.All(light.Known.Skip(20), known => Assert.True(known));
-        Assert.NotEqual(JsonSerializer.Serialize(light.ReadMatrix().Rotation), JsonSerializer.Serialize(NativeBattleCuragaMatrices.Identity8DD770().Rotation));
+        Assert.NotEqual(SnapshotJson(light.ReadMatrix().Rotation), SnapshotJson(NativeBattleCuragaMatrices.Identity8DD770().Rotation));
         Assert.Null(after.Memory.GeometryRegisters!.Rotation20[18]);
         Assert.Equal(1u, after.Random.Seed);
         Assert.Throws<NotSupportedException>(() => NativeBattleDoom8TargetSetup.Initialize8C52C0(fixture.Frame with { Staging = null }, fixture.Address, actor => new(actor, 0) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, 4096) }));
@@ -117,4 +117,6 @@ public sealed class NativeBattleDoom8TargetSetupTests
         NativeBattleDoom8Frame frame = new(memory, effect, new(1), NativeBattleDoom8State.FromColdProcess(new byte[112].ToImmutableArray())) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
         return (frame, target.Address);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

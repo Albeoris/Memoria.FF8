@@ -19,12 +19,13 @@ public sealed partial record NativeBattleNodeSource : INativeBattleStorageNode, 
         {
             throw new InvalidDataException("Native node storage requires its actual bounded bytes.");
         }
-        storage = NativeBattleEffectArena.CreateUnknown(data.Length).Write(0, data.AsSpan());
+        NativeBattleEffectArena owner = NativeBattleEffectArena.CreateUnknown(data.Length).Write(0, data.AsSpan());
+        storage = NativeBattleEffectArena.BorrowWorking(owner.Working, 0, data.Length);
     }
 
     private NativeBattleNodeSource(NativeBattleEffectArena storage)
     {
-        this.storage = storage;
+        this.storage = NativeBattleEffectArena.BorrowWorking(storage.Working, storage.WorkingOffset, storage.LogicalLength);
     }
 
     private NativeBattleNodeSource(NativeBattleEffectArena storage, ImmutableArray<byte> payload)

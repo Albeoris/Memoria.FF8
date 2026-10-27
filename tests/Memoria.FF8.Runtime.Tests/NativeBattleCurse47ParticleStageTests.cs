@@ -62,11 +62,11 @@ public sealed class NativeBattleCurse47ParticleStageTests
     {
         Fixture fixture = new();
         NativeBattleCurse47Frame before = fixture.Put(fixture.Frame, fixture.Task(fixture.Frame).WriteByte(0x29, 3).WriteWord(0x1C, 128).WriteByte(0x28, 1));
-        NativeBattleCurse47Frame restored = JsonSerializer.Deserialize<NativeBattleCurse47Frame>(JsonSerializer.Serialize(before))!;
+        NativeBattleCurse47Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCurse47Frame>(SnapshotJson(before))!);
         NativeBattleCurse47Step first = fixture.Advance(before);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(fixture.Advance(restored)));
+        Assert.Equal(SnapshotJson(first), SnapshotJson(fixture.Advance(restored)));
         Assert.Equal(0, first.Result);
-        Assert.Equal(JsonSerializer.Serialize(before.Random), JsonSerializer.Serialize(first.Frame.Random));
+        Assert.Equal(SnapshotJson(before.Random), SnapshotJson(first.Frame.Random));
         int writes = fixture.Writes.Count;
         NativeBattleCurse47Frame ready = fixture.Put(first.Frame, fixture.Task(first.Frame).WriteByte(0x28, 0));
         Assert.Equal(2, fixture.Advance(ready).Result);
@@ -109,4 +109,6 @@ public sealed class NativeBattleCurse47ParticleStageTests
             return current;
         });
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

@@ -22,7 +22,7 @@ public sealed class NativeBattleChoco98CameraTests
         Assert.Equal((byte)2, step.Task.ReadByte(0x29));
         NativeBattleChoco98CameraTaskStep waiting = Advance(step.Task, step.Camera, -1);
         Assert.Empty(waiting.Publications);
-        Assert.Equal(JsonSerializer.Serialize(step.Camera), JsonSerializer.Serialize(waiting.Camera));
+        Assert.Equal(NativeBattleTestSnapshots.Json(step.Camera), NativeBattleTestSnapshots.Json(waiting.Camera));
         Assert.Equal((byte)2, waiting.Task.ReadByte(0x29));
         step = Advance(waiting.Task, waiting.Camera, 2);
         Assert.Equal((byte)3, step.Task.ReadByte(0x29));
@@ -61,10 +61,11 @@ public sealed class NativeBattleChoco98CameraTests
         NativeBattleChoco98CameraTaskStep Advance(NativeBattleModulePoolTask currentTask, NativeBattleMoogleCameraState? camera, short mode)
         {
             Saved current = new(currentTask, camera);
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(current))!;
+            Saved restored = NativeBattleTestSnapshots.RestoreJson<Saved>(NativeBattleTestSnapshots.Json(current))!;
+            ushort previousCounter = currentTask.ReadWord(0x24);
             NativeBattleChoco98CameraTaskStep next = NativeBattleChoco98CameraTask.Advance7276F0(currentTask, camera, resources, mode, Actor, Target);
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(NativeBattleChoco98CameraTask.Advance7276F0(restored.Task, restored.Camera, resources, mode, Actor, Target)));
-            Assert.Equal(unchecked((ushort)(currentTask.ReadWord(0x24) + 1)), next.Task.ReadWord(0x24));
+            Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(NativeBattleChoco98CameraTask.Advance7276F0(restored.Task, restored.Camera, resources, mode, Actor, Target)));
+            Assert.Equal(unchecked((ushort)(previousCounter + 1)), next.Task.ReadWord(0x24));
             return next;
         }
     }

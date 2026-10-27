@@ -130,8 +130,8 @@ public sealed class NativeBattleTheEnd85TaskTests
         Assert.Equal((ushort)0xA55A, child.ReadWord(90));
         Assert.Equal((ushort)1, result.Task.ReadWord(222));
         Assert.Equal((byte)1, result.Task.ReadByte(40));
-        NativeBattleTheEnd85TaskInput independent = JsonSerializer.Deserialize<NativeBattleTheEnd85TaskInput>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(independent));
+        NativeBattleTheEnd85TaskInput independent = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleTheEnd85TaskInput>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(independent)));
     }
 
     [Fact]

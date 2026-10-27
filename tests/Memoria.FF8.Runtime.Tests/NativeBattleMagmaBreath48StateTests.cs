@@ -40,7 +40,7 @@ public sealed class NativeBattleMagmaBreath48StateTests
         uint face = MeshBAddress + 8 + 182 * 8 + 7 * 4;
         state = state.WriteWord(vertex, 123).WriteWord(vertex + 6, 456).WriteWord(face + 16, 789).WriteView(vertex + 8, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 8);
         Assert.Same(state, state.EnsureSources(resources));
-        var restored = JsonSerializer.Deserialize<NativeBattleMagmaBreath48State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleMagmaBreath48State>(SnapshotJson(state))!);
         restored.Validate();
         Assert.Equal((ushort)123, restored.ReadWord(vertex));
         Assert.Equal((ushort)456, restored.ReadWord(vertex + 6));
@@ -58,7 +58,7 @@ public sealed class NativeBattleMagmaBreath48StateTests
         NativeBattleMagmaBreath48State state = NativeBattleMagmaBreath48State.FromColdProcess().EnsureSources(resources);
         uint w = MeshAAddress + 14;
         state = state.WriteView(w, NativeBattleEffectArena.Clear().MarkUnknown(0, 2), 2);
-        NativeBattleMagmaBreath48State restored = JsonSerializer.Deserialize<NativeBattleMagmaBreath48State>(JsonSerializer.Serialize(state))!;
+        NativeBattleMagmaBreath48State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleMagmaBreath48State>(SnapshotJson(state))!);
         NativeBattleStaticMeshResource current = restored.ReadMesh(resources, MeshAAddress);
         Assert.Equal(182u, BinaryPrimitives.ReadUInt32LittleEndian(current.Bytes.AsSpan().Slice(4)));
         Assert.Equal(resources.ReadMesh(MeshAAddress).Bytes.AsSpan().Slice(8, 6).ToArray(), current.Bytes.AsSpan().Slice(8, 6).ToArray());
@@ -76,9 +76,9 @@ public sealed class NativeBattleMagmaBreath48StateTests
         state.Validate();
         Assert.Throws<NotSupportedException>(() => state.ReadWord(ChannelBase));
         Assert.Throws<NotSupportedException>(() => state.EnsureSources(Resources()));
-        var json = JsonNode.Parse(JsonSerializer.Serialize(state))!.AsObject();
+        var json = JsonNode.Parse(SnapshotJson(state))!.AsObject();
         Assert.True(json.Remove(nameof(NativeBattleMagmaBreath48State.SourcesLoaded)));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleMagmaBreath48State>(json.ToJsonString()));
+        Assert.Throws<JsonException>(() => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleMagmaBreath48State>(json.ToJsonString())));
     }
 
     [Fact]
@@ -170,4 +170,6 @@ public sealed class NativeBattleMagmaBreath48StateTests
             return new(0, address, 0, 0, bytes.ToImmutableArray());
         }
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

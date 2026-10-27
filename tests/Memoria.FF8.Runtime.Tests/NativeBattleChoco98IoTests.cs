@@ -52,10 +52,10 @@ public sealed class NativeBattleChoco98IoTests
         Assert.Equal(file.Data, queued.State.Banks.Read(destination, 16));
         Assert.Equal((ushort)1, queued.State.Busy);
         Assert.Equal(0, queued.Memory.Textures!.Count);
-        NativeBattleChoco98IoState cold = JsonSerializer.Deserialize<NativeBattleChoco98IoState>(JsonSerializer.Serialize(queued.State))!;
+        NativeBattleChoco98IoState cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco98IoState>(NativeBattleTestSnapshots.Json(queued.State))!;
         NativeBattleChoco98IoCompletion actual = NativeBattleChoco98Io.Complete(queued.State, queued.Memory, callback);
         NativeBattleChoco98IoCompletion restored = NativeBattleChoco98Io.Complete(cold, queued.Memory, callback);
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(restored));
         Assert.Equal((ushort)0, actual.State.Busy);
         Assert.Equal(begin.State.CursorAddress, actual.State.CursorAddress);
         Assert.Equal(0, actual.Memory.Textures!.Count);

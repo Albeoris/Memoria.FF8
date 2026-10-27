@@ -121,10 +121,10 @@ public sealed class NativeBattleEffect31StackTests
         stack = NativeBattleEffect31Stack.ObserveBounds(stack, 0x2001000, 2);
         stack = NativeBattleEffect31Stack.ObserveActor(stack, 0x26D10A8, Task(0x871F60), 0x872020, 0x8720FD, Matrix(5));
         stack = NativeBattleEffect31Stack.InvalidateCustom(stack, 0x86F500);
-        string json = JsonSerializer.Serialize(stack);
-        NativeBattleStackBytes restored = JsonSerializer.Deserialize<NativeBattleStackBytes>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(stack));
+        NativeBattleStackBytes restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleStackBytes>(json)!);
         NativeBattleEffect31Stack.Validate(restored);
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal(NativeBattleEffect31Stack.ReadMatrix(stack, 0x872020).Bytes, NativeBattleEffect31Stack.ReadMatrix(restored, 0x872020).Bytes);
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect31Stack.ReadMatrix(restored, 0x8729F0));
         Assert.Equal(stack.Observations.Select(item => (item.Instruction, item.Offset, item.Length, item.Operation)), restored.Observations.Select(item => (item.Instruction, item.Offset, item.Length, item.Operation)));
@@ -154,6 +154,6 @@ public sealed class NativeBattleEffect31StackTests
 
     private static NativeBattleModulePoolTask Task(uint callback)
     {
-        return NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 0x1B0, 1).Slots[0] with { Callback = callback };
+        return NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 0x1B0, 1).Slots[0].UpdateHeader(0, 0, null, callback);
     }
 }

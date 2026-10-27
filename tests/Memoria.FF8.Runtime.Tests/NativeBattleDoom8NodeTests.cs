@@ -40,7 +40,7 @@ public sealed class NativeBattleDoom8NodeTests
         Assert.Equal(unchecked((ushort)-1), fixture.Task(step.Frame).ReadWord(0x24));
         Assert.Equal((byte)0, fixture.Task(step.Frame).ReadByte(0x29));
         Assert.Null(step.Frame.State.NodeProgram);
-        Assert.Equal(JsonSerializer.Serialize(frame.Random), JsonSerializer.Serialize(step.Frame.Random));
+        Assert.Equal(SnapshotJson(frame.Random), SnapshotJson(step.Frame.Random));
     }
 
     [Theory]
@@ -80,11 +80,11 @@ public sealed class NativeBattleDoom8NodeTests
         Assert.Equal((byte)2, fixture.Task(waiting.Frame).ReadByte(0x29));
         Assert.Equal((byte)1, NativeBattleDoom8Controller.Read(waiting.Frame, fixture.Parent).ReadByte(0x28));
         frame = fixture.Write(waiting.Frame, fixture.Task(waiting.Frame).WriteByte(0x28, 0));
-        NativeBattleDoom8Frame restored = JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleDoom8Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(SnapshotJson(frame))!);
         NativeBattleDoom8Step done = fixture.Step(frame);
         Assert.Equal(2, done.Result);
         Assert.Equal((byte)0, NativeBattleDoom8Controller.Read(done.Frame, fixture.Parent).ReadByte(0x28));
-        Assert.Equal(JsonSerializer.Serialize(done), JsonSerializer.Serialize(fixture.Step(restored)));
+        Assert.Equal(SnapshotJson(done), SnapshotJson(fixture.Step(restored)));
     }
 
     [Fact]
@@ -122,4 +122,6 @@ public sealed class NativeBattleDoom8NodeTests
         public NativeBattleDoom8Frame Write(NativeBattleDoom8Frame frame, NativeBattleModulePoolTask task) => NativeBattleDoom8Controller.Write(frame, address, task);
         public NativeBattleDoom8Step Step(NativeBattleDoom8Frame frame) => NativeBattleDoom8Nodes.Advance8C88D0(frame, address, new(new byte[NativeBattleDoom8Nodes.SourceLength].ToImmutableArray()) { ResourceAddress = NativeBattleDoom8Nodes.SourceAddress }, new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), _ => throw new InvalidOperationException("Unreached model"), _ => throw new InvalidOperationException("Unreached pose"), new(null, 100, 160, 108), 0, new(0, 0, 1f / 4096, BitConverter.Int64BitsToDouble(0x4330000080000000L)), (_, _) => throw new InvalidOperationException("Unreached draw")));
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

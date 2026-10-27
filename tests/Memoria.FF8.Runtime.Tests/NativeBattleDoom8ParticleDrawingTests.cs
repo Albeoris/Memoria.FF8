@@ -20,7 +20,7 @@ public sealed class NativeBattleDoom8ParticleDrawingTests
         Assert.Equal(new[] { 2000, 2000, 2000, 2000 }, primitive.VertexPayload4);
         Assert.Equal(17 + (500 >> 2), primitive.Bucket);
         NativeBattleGfGeometryBatch expected = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, matrix, projection, new(0xF0, 0, 2048, null, null, 0, 17, 2), Constants);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(SnapshotJson(expected), SnapshotJson(result.Batch));
         Assert.Equal(mesh.Address + (uint)mesh.Bytes.Length, Read(result.Context, 0x20));
         Assert.Equal(result.Memory.GeometryRegisters!.Otz, Read(result.Context, 0x2C));
         Assert.Equal((uint)2048, result.Memory.ScriptedColorRegisters!.Ir0);
@@ -30,8 +30,8 @@ public sealed class NativeBattleDoom8ParticleDrawingTests
         Assert.All(result.Memory.GeometryRegisters.Rotation20.Skip(18), value => Assert.Null(value));
         Assert.Equal(0u, result.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
         Assert.Throws<NotSupportedException>(() => result.Context.Read(0x34, 36));
-        NativeBattleStaticMeshContext88Step restored = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleStaticMeshContext88.Draw(result.Memory, mesh, matrix, projection, result.Context, Constants)), JsonSerializer.Serialize(NativeBattleStaticMeshContext88.Draw(restored.Memory, mesh, matrix, projection, restored.Context, Constants)));
+        NativeBattleStaticMeshContext88Step restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(SnapshotJson(result))!);
+        Assert.Equal(SnapshotJson(NativeBattleStaticMeshContext88.Draw(result.Memory, mesh, matrix, projection, result.Context, Constants)), SnapshotJson(NativeBattleStaticMeshContext88.Draw(restored.Memory, mesh, matrix, projection, restored.Context, Constants)));
     }
 
     [Fact]
@@ -184,4 +184,6 @@ public sealed class NativeBattleDoom8ParticleDrawingTests
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown());
         return (new NativeBattleDoom8Frame(Memory(), effect, new(123), NativeBattleDoom8State.FromColdProcess(new byte[112].ToImmutableArray())) { Staging = staging }, appended.Address);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

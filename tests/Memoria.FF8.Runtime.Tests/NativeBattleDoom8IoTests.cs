@@ -138,15 +138,15 @@ public sealed class NativeBattleDoom8IoTests
     public void Restored_pending_state_and_task_have_identical_completion_and_next_poll()
     {
         NativeBattleProfiledIoAdvance begun = NativeBattleDoom8Io.Advance8C4F60(Task(), NativeBattleDoom8Io.Release8C5550(Initialize()).State);
-        NativeBattleProfiledIoState restoredState = JsonSerializer.Deserialize<NativeBattleProfiledIoState>(JsonSerializer.Serialize(begun.State))!;
-        NativeBattleModulePoolTask restoredTask = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(begun.Task))!;
+        NativeBattleProfiledIoState restoredState = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleProfiledIoState>(SnapshotJson(begun.State))!);
+        NativeBattleModulePoolTask restoredTask = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleModulePoolTask>(SnapshotJson(begun.Task))!);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         var first = NativeBattleDoom8Io.Complete(begun.State, memory, 0x8C51D0);
         var second = NativeBattleDoom8Io.Complete(restoredState, memory, 0x8C51D0);
-        Assert.Equal(JsonSerializer.Serialize(first.State), JsonSerializer.Serialize(second.State));
+        Assert.Equal(SnapshotJson(first.State), SnapshotJson(second.State));
         NativeBattleProfiledIoAdvance next = NativeBattleDoom8Io.Advance8C4F60(begun.Task, first.State);
         NativeBattleProfiledIoAdvance restoredNext = NativeBattleDoom8Io.Advance8C4F60(restoredTask, second.State);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(restoredNext));
+        Assert.Equal(SnapshotJson(next), SnapshotJson(restoredNext));
         Assert.Equal(0x19EB018u, Dword(restoredNext.State.Script, 28));
         NativeBattleDoom8IoInitialization repeated = NativeBattleDoom8Io.Initialize8C4E60(restoredNext.State.Script, Buffer + 0xA000);
         Assert.Equal(0x19EB018u, Dword(repeated.State.Script, 28));
@@ -157,7 +157,7 @@ public sealed class NativeBattleDoom8IoTests
     public void Terminator_waits_for_actual_children_and_preserves_raw_links_and_other_task_bytes()
     {
         NativeBattleProfiledIoState state = Initialize() with { CursorAddress = NativeBattleDoom8Io.ScriptAddress + 0x60 };
-        NativeBattleModulePoolTask task = Task().WriteByte(0x28, 1).WriteWord(0x2C, 0xA5A5) with { Next = 7 };
+        NativeBattleModulePoolTask task = Task(capacity: 8).WriteByte(0x28, 1).WriteWord(0x2C, 0xA5A5).SetNext(7);
         NativeBattleProfiledIoAdvance final = NativeBattleDoom8Io.Advance8C4F60(task, state);
         Assert.False(final.ReadyToComplete);
         Assert.Equal(7, final.Task.Next);
@@ -188,9 +188,9 @@ public sealed class NativeBattleDoom8IoTests
     private static ushort Word(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan().Slice(offset, 2));
     private static uint Dword(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(offset, 4));
 
-    private static NativeBattleModulePoolTask Task()
+    private static NativeBattleModulePoolTask Task(ushort capacity = 2)
     {
-        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x275F918, 0x275F568, 48, 2);
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x275F918, 0x275F568, 48, capacity);
         (pool, int slot) = pool.Append(0x8C4F60);
         return pool.Slots[slot];
     }
@@ -230,4 +230,6 @@ public sealed class NativeBattleDoom8IoTests
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(64), 0x3210);
         return bytes;
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

@@ -70,7 +70,7 @@ public sealed class NativeBattleEffect80TrailTests
         (frame, int random) = NativeBattleEffect80Trails.Random7AFEA0(frame);
         Assert.Equal(14, random);
         Assert.Equal(crt, frame.Random);
-        NativeBattleEffect80Frame restored = JsonSerializer.Deserialize<NativeBattleEffect80Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleEffect80Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect80Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         (_, int next) = NativeBattleEffect80Trails.Random7AFEA0(restored);
         Assert.Equal(1764, next);
     }

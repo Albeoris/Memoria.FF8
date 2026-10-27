@@ -17,16 +17,16 @@ public sealed class NativeBattleChoco100SecondaryTests
         while (frame.Task.ReadByte(0x29) != 6 && callbacks < 256)
         {
             phases.Add(frame.Task.ReadByte(0x29));
+            NativeBattleChoco100SecondaryFrame cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco100SecondaryFrame>(NativeBattleTestSnapshots.Json(frame))!;
             NativeBattleChoco100SecondaryStep next = Advance(frame, false);
-            NativeBattleChoco100SecondaryFrame cold = JsonSerializer.Deserialize<NativeBattleChoco100SecondaryFrame>(JsonSerializer.Serialize(frame))!;
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Advance(cold, false)));
+            Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(Advance(cold, false)));
             if ((next.Frame.Task.ReadByte(0x26) & 8) != 0)
             {
                 draws++;
                 Assert.Equal((ushort)((draws * 0x180) & 0xFFF), next.Frame.Task.ReadWord(0xC0));
                 Assert.Equal((ushort)0x806, next.Frame.Actor.Flags0);
             }
-            Assert.Equal(JsonSerializer.Serialize(world), JsonSerializer.Serialize(next.Frame.Actor.GeometryWorldMatrix));
+            Assert.Equal(NativeBattleTestSnapshots.Json(world), NativeBattleTestSnapshots.Json(next.Frame.Actor.GeometryWorldMatrix));
             Assert.False(next.ReadyToComplete);
             frame = next.Frame;
             callbacks++;

@@ -73,7 +73,8 @@ public sealed partial class BattleSession
             else
             {
                 NativeBattleChoco100IoState io = shared.Io ?? throw new NotSupportedException("Native Choco requires its loaded program IO owner.");
-                shared = shared with { Io = io with { Banks = io.Banks.Write(loaded.Source.Address, loaded.Source.Data) }, MorphScratch = loaded.MorphScratch };
+                NativeBattleOwnedGfAnimationSource.Own(loaded.Source).RequireStorage(io.Banks.Bytes, checked((int)(loaded.Source.Address - io.Banks.BaseAddress)));
+                shared = shared with { MorphScratch = loaded.MorphScratch };
             }
             current = current with { Memory = current.Memory with { Choco100 = shared } };
             current = AppendCommon(current, loaded.Packets);

@@ -163,6 +163,9 @@ public static partial class NativeBattleTelemetry
         new(1239, "effect_payload", "NativeBattleGfAnimationWorkspace.cs: workspace.Bytes.ToImmutableArray()"),
         new(1240, "effect_payload", "NativeBattleGfMorphGeometry.cs: destination.ToArray()"),
         new(1241, "effect_payload", "NativeBattleGfMorphGeometry.cs: output.ToImmutableArray()"),
+        new(1242, "vram_publication", "NativeBattleVramStorage.cs: bounded presentation read destination clear"),
+        new(1243, "vram_publication", "NativeBattleVramStorage.cs: bounded initial presentation data copy"),
+        new(1244, "vram_publication", "NativeBattleVramStorage.cs: bounded changed-page presentation data copy"),
         new(1501, "resources", "ResourceService, Classic nested archive and fallback archive staging MemoryStream growth: previous logical length copied"),
         new(1502, "resources", "ResourceService, Classic nested archive and fallback archive staging MemoryStream.Write: supplied payload copied"),
         new(1503, "resources", "ResourceService, Classic nested archive and fallback archive staging MemoryStream.ToArray: publication payload copied")

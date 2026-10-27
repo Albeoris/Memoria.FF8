@@ -38,7 +38,7 @@ public sealed class NativeBattleEffect80PacketDeliveryTests
                 Assert.Throws<NotSupportedException>(() => result.Process.ReadCommonPacket(16 + offset, 1));
             }
         }
-        NativeBattlePrimitiveProcess restored = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(result.Process))!;
+        NativeBattlePrimitiveProcess restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Process)))!);
         Assert.Equal(result.Process.ByteCursor, restored.ByteCursor);
         Assert.Equal(0u, Assert.Single(result.Ordering.Packets).Words[7] >> 16);
         if (quad)

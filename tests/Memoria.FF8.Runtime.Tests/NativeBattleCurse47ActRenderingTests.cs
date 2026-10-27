@@ -20,7 +20,7 @@ public sealed class NativeBattleCurse47ActRenderingTests
         NativeBattleGfAnimationNode node = ModifiedNode(header);
         NativeBattleActMeshDraw expected = Draw(Source(3), ModifiedNode(0x200), NativeBattleEffectArena.Clear().MarkUnknown(0, 840));
         NativeBattleActMeshDraw actual = Draw(Source(3), node, NativeBattleEffectArena.Clear().MarkUnknown(0, 840));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(SnapshotJson(expected), SnapshotJson(actual));
         Assert.Equal(0x20F0u, Dword(actual.Temporary104, 0x14));
         Assert.Equal(1448, Rotation(actual.Registers.Geometry, 0));
         Assert.Equal(2896, Rotation(actual.Registers.Geometry, 1));
@@ -53,9 +53,9 @@ public sealed class NativeBattleCurse47ActRenderingTests
         Assert.Equal((short)258, BinaryPrimitives.ReadInt16LittleEndian(result.MorphScratch.Read(832, 2)));
         Assert.Equal((short)-212, BinaryPrimitives.ReadInt16LittleEndian(result.MorphScratch.Read(834, 2)));
         Assert.All(result.MorphScratch.ReadSnapshot(838, 2).Known, Assert.False);
-        Assert.All(result.MorphScratch.Regions, region => Assert.True(region.Offset + region.Data.Length <= 840));
-        NativeBattleActMeshDraw restored = JsonSerializer.Deserialize<NativeBattleActMeshDraw>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(Source(105), Node(0x200, 2048), result.MorphScratch)), JsonSerializer.Serialize(Draw(Source(105), Node(0x200, 2048), restored.MorphScratch)));
+        Assert.All(NativeBattleStorageSnapshots.Capture(result.MorphScratch).Regions, region => Assert.True(region.Offset + region.Data.Length <= 840));
+        NativeBattleActMeshDraw restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleActMeshDraw>(SnapshotJson(result))!);
+        Assert.Equal(SnapshotJson(Draw(Source(105), Node(0x200, 2048), result.MorphScratch)), SnapshotJson(Draw(Source(105), Node(0x200, 2048), restored.MorphScratch)));
         Assert.Throws<InvalidDataException>(() => Draw(Source(106), Node(0x200, 2048), retained));
     }
 
@@ -135,4 +135,6 @@ public sealed class NativeBattleCurse47ActRenderingTests
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(face + 16), 0x56780605);
         return new(0x17BB134, bytes.ToImmutableArray());
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

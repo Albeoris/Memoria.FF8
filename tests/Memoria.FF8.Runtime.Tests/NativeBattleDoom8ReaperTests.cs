@@ -212,15 +212,16 @@ public sealed class NativeBattleDoom8ReaperTests
     {
         Fixture fixture = new(10);
         NativeBattleDoom8Frame frame = fixture.Write(fixture.Frame, fixture.Task(fixture.Frame).WriteByte(0x26, 1).WriteByte(0x28, 1));
+        NativeBattleDoom8Frame failureFrame = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
         NativeBattleDoom8Step waiting = fixture.Step(frame);
         Assert.Equal(0, waiting.Result);
         Assert.IsType<NativeBattleDoom8ReaperDrawModel>(Assert.Single(fixture.Operations));
-        NativeBattleDoom8Frame cold = JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(waiting.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(waiting.Frame)), JsonSerializer.Serialize(fixture.Step(cold)));
+        NativeBattleDoom8Frame cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(SnapshotJson(waiting.Frame))!);
+        Assert.Equal(SnapshotJson(fixture.Step(waiting.Frame)), SnapshotJson(fixture.Step(cold)));
         fixture.OnExecute = (_, operation) => throw new NotSupportedException($"Required native draw {operation.GetType().Name}.");
-        Assert.Throws<NotSupportedException>(() => fixture.Step(frame));
-        Assert.Equal((ushort)0, fixture.Task(frame).ReadWord(0x24));
-        Assert.Throws<InvalidDataException>(() => fixture.Step(fixture.Write(frame, fixture.Task(frame).WriteByte(0x29, 255))));
+        Assert.Throws<NotSupportedException>(() => fixture.Step(failureFrame));
+        Assert.Equal((ushort)0, fixture.Task(failureFrame).ReadWord(0x24));
+        Assert.Throws<InvalidDataException>(() => fixture.Step(fixture.Write(failureFrame, fixture.Task(failureFrame).WriteByte(0x29, 255))));
     }
 
     private sealed class Fixture
@@ -260,4 +261,6 @@ public sealed class NativeBattleDoom8ReaperTests
         public NativeBattleDoom8Frame Write(NativeBattleDoom8Frame frame, NativeBattleModulePoolTask task) => NativeBattleDoom8Controller.Write(frame, Address, task);
         public NativeBattleDoom8Step Step(NativeBattleDoom8Frame frame) => NativeBattleDoom8Reaper.Advance(frame, Address, Inputs);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

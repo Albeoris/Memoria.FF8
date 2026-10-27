@@ -86,6 +86,7 @@ public sealed class NativeBattleQuezacotlFragmentPacketsTests
         }
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);
         memory = memory with { Arena = memory.Arena!.Write(128, Enumerable.Repeat((byte)0xA5, 80).ToArray()).MarkUnknown(176, 4) };
+        string initial = NativeBattleTestSnapshots.Json(memory);
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, 128, NativeBattleLogicalOrdering.Clear(), batch);
         Assert.Equal(168, written.Cursor);
         Assert.Equal(2, written.Ordering.Proxies.Length);
@@ -93,8 +94,8 @@ public sealed class NativeBattleQuezacotlFragmentPacketsTests
         Assert.Equal(0x20ABCDEFu, BinaryPrimitives.ReadUInt32LittleEndian(written.Memory.Arena.Read(172, 4)));
         Assert.Throws<NotSupportedException>(() => written.Memory.Arena.Read(176, 4));
         Assert.All(written.Memory.Arena.Read(180, 8), value => Assert.Equal((byte)0xA5, value));
-        NativeBattleEffectMemory clone = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        Assert.Equal(JsonSerializer.Serialize(written), JsonSerializer.Serialize(NativeBattleEffectPacketArena.Append(clone, 128, NativeBattleLogicalOrdering.Clear(), batch)));
+        NativeBattleEffectMemory clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(initial);
+        Assert.Equal(NativeBattleTestSnapshots.Json(written), NativeBattleTestSnapshots.Json(NativeBattleEffectPacketArena.Append(clone, 128, NativeBattleLogicalOrdering.Clear(), batch)));
     }
 
     [Fact]

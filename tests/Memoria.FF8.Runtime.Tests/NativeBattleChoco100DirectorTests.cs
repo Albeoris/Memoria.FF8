@@ -100,9 +100,9 @@ public sealed class NativeBattleChoco100DirectorTests
         Assert.Equal((ushort)100, step.Frame.Task.ReadWord(0x44));
         for (int callback = 1; callback <= 82; callback++)
         {
-            NativeBattleChoco97DirectorFrame restored = JsonSerializer.Deserialize<NativeBattleChoco97DirectorFrame>(JsonSerializer.Serialize(step.Frame))!;
+            NativeBattleChoco97DirectorFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco97DirectorFrame>(NativeBattleTestSnapshots.Json(step.Frame))!;
             NativeBattleChoco97DirectorStep next = Advance(step.Frame, []);
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Advance(restored, [])));
+            Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(Advance(restored, [])));
             Assert.Equal(callback == 82 ? (ushort)1 : (ushort)0, next.Frame.Context.Word(0x48));
             step = next;
         }

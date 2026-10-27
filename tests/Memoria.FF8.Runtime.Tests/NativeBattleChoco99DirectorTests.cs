@@ -135,9 +135,10 @@ public sealed class NativeBattleChoco99DirectorTests
         Assert.Empty(operations);
         Assert.Equal((byte)2, held.Frame.Task.ReadByte(0x29));
         frame = Mode(Frame(5), 0, 0, 0);
-        NativeBattleChoco97DirectorFrame restored = JsonSerializer.Deserialize<NativeBattleChoco97DirectorFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(Advance(frame, [])), JsonSerializer.Serialize(Advance(restored, [])));
-        Assert.Equal((ushort)1, Advance(frame, []).Frame.Context.Word(0x44));
+        NativeBattleChoco97DirectorFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco97DirectorFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleChoco97DirectorStep advanced = Advance(frame, []);
+        Assert.Equal(NativeBattleTestSnapshots.Json(advanced), NativeBattleTestSnapshots.Json(Advance(restored, [])));
+        Assert.Equal((ushort)1, advanced.Frame.Context.Word(0x44));
         Assert.Throws<NotSupportedException>(() => Advance(Frame(21), []));
     }
 

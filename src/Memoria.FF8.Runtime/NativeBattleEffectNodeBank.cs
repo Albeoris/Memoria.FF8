@@ -8,24 +8,9 @@ internal sealed class NativeBattleEffectNodeBank : IDisposable
     private readonly Func<uint, int, byte[]>? readExternal;
     private readonly Func<uint, ImmutableArray<byte>>? readResource;
     internal uint Address { get; }
-    private ImmutableArray<byte> data;
-    private readonly NativeBattleNodeBankOperation? operation;
-    internal ImmutableArray<byte> Data => operation is null ? data : throw new InvalidOperationException("Working node storage requires explicit detached capture.");
-    internal NativeBattleNodeSource Source => operation?.Source ?? throw new InvalidOperationException("Catalog node bytes have no retained working authority.");
-    internal bool IsWorking => operation is not null;
-    internal int Length => operation?.Length ?? data.Length;
-
-    internal NativeBattleEffectNodeBank(uint address, ImmutableArray<byte> data, Func<uint, int, byte[]>? readExternal = null, Func<uint, ImmutableArray<byte>>? readResource = null)
-    {
-        if (data.IsDefaultOrEmpty || (ulong)address + (uint)data.Length > uint.MaxValue)
-        {
-            throw new InvalidDataException("Native node executable view requires its actual current addressed bytes.");
-        }
-        Address = address;
-        this.data = data;
-        this.readExternal = readExternal;
-        this.readResource = readResource;
-    }
+    private readonly NativeBattleNodeBankOperation operation;
+    internal NativeBattleNodeSource Source => operation.Source;
+    internal int Length => operation.Length;
 
     internal NativeBattleEffectNodeBank(uint address, NativeBattleNodeSource source, Func<uint, int, byte[]>? readExternal = null, Func<uint, ImmutableArray<byte>>? readResource = null)
     {
@@ -50,50 +35,48 @@ internal sealed class NativeBattleEffectNodeBank : IDisposable
         return NativeBattleNodeSource.Borrow(banks.Bytes, checked((int)offset), length);
     }
 
-    internal void Publish() => operation?.Publish();
-    public void Dispose() => operation?.Dispose();
+    internal void Publish() => operation.Publish();
+    public void Dispose() => operation.Dispose();
 
     internal byte ReadByte(uint address)
     {
-        return operation is not null && address >= Address && (ulong)address < (ulong)Address + (uint)Length ? operation.ReadByte(checked((int)(address - Address))) : Read(address, 1)[0];
+        return address >= Address && (ulong)address < (ulong)Address + (uint)Length ? operation.ReadByte(checked((int)(address - Address))) : Read(address, 1)[0];
     }
 
     internal ushort ReadUInt16(uint address)
     {
-        return operation is not null && address >= Address && (ulong)address + 2 <= (ulong)Address + (uint)Length ? operation.ReadUInt16(checked((int)(address - Address))) : System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
+        return address >= Address && (ulong)address + 2 <= (ulong)Address + (uint)Length ? operation.ReadUInt16(checked((int)(address - Address))) : System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
     }
 
     internal uint ReadUInt32(uint address)
     {
-        return operation is not null && address >= Address && (ulong)address + 4 <= (ulong)Address + (uint)Length ? operation.ReadUInt32(checked((int)(address - Address))) : System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
+        return address >= Address && (ulong)address + 4 <= (ulong)Address + (uint)Length ? operation.ReadUInt32(checked((int)(address - Address))) : System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
     }
 
     internal void WriteByte(int offset, byte value)
     {
         Span<byte> bytes = stackalloc byte[1];
         bytes[0] = value;
-        (operation ?? throw new InvalidOperationException("Native stores require their working node authority.")).Write(offset, bytes);
+        operation.Write(offset, bytes);
     }
 
     internal void WriteUInt16(int offset, ushort value)
     {
-        (operation ?? throw new InvalidOperationException("Native stores require their working node authority.")).WriteUInt16(offset, value);
+        operation.WriteUInt16(offset, value);
     }
 
-    internal NativeBattleGfSourceReader OpenWholeReader() => operation is not null ? operation.OpenReader(0, Length) : new(data);
+    internal NativeBattleGfSourceReader OpenWholeReader() => operation.OpenReader(0, Length);
+
+    internal void Write(int offset, ReadOnlySpan<byte> bytes) => operation.Write(offset, bytes);
 
     internal NativeBattleGfSourceReader OpenResourceReader(uint address)
     {
-        if (readResource is not null)
+        if (readResource is not null && (address < Address || (ulong)address >= (ulong)Address + (uint)Length))
         {
             return new(ReadResource(address));
         }
-        if (operation is not null)
-        {
-            int offset = checked((int)(address - Address));
-            return operation.OpenReader(offset, checked(Length - offset));
-        }
-        return new(ReadResource(address));
+        int offset = checked((int)(address - Address));
+        return operation.OpenReader(offset, checked(Length - offset));
     }
 
     internal byte[] Read(uint address, int length)
@@ -106,13 +89,9 @@ internal sealed class NativeBattleEffectNodeBank : IDisposable
         ulong bankEnd = (ulong)Address + (uint)Length;
         if (address >= Address && end <= bankEnd)
         {
-            if (operation is not null)
-            {
-                byte[] bytes = new byte[length];
-                operation.ReadInto(checked((int)(address - Address)), bytes);
-                return bytes;
-            }
-            return data.AsSpan().Slice(checked((int)(address - Address)), length).ToArray();
+            byte[] bytes = new byte[length];
+            operation.ReadInto(checked((int)(address - Address)), bytes);
+            return bytes;
         }
         if (readExternal is null || address < bankEnd && end > Address)
         {
@@ -130,11 +109,7 @@ internal sealed class NativeBattleEffectNodeBank : IDisposable
     {
         if (readResource is null)
         {
-            if (operation is not null)
-            {
-                throw new InvalidOperationException("Working node resources require scoped bounded reads.");
-            }
-            return Read(address, checked(Length - (int)(address - Address))).ToImmutableArray();
+            throw new InvalidOperationException("Working node resources require scoped bounded reads.");
         }
         ImmutableArray<byte> bytes = readResource(address);
         if (bytes.IsDefaultOrEmpty)
@@ -144,18 +119,7 @@ internal sealed class NativeBattleEffectNodeBank : IDisposable
         return bytes;
     }
 
-    internal void ReplaceData(ImmutableArray<byte> data)
-    {
-        if (operation is not null)
-        {
-            throw new InvalidOperationException("Working node stores require their exact bounded written range.");
-        }
-        if (data.IsDefault || data.Length != this.data.Length)
-        {
-            throw new InvalidDataException("Native node executable writes cannot change the retained bank's extent.");
-        }
-        this.data = data;
-    }
+
 }
 
 internal enum NativeBattleEffectNodeOrientation2Policy
@@ -166,7 +130,6 @@ internal enum NativeBattleEffectNodeOrientation2Policy
 
 internal sealed record NativeBattleEffectNodeInputs(NativeBattleActionMatrix? CopiedCamera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<uint, sbyte, sbyte, int?> AllocateEmitter, Func<int, sbyte, int?> AllocateGeometry)
 {
-    public Func<NativeBattleEffectNodeBank, uint, int, byte, ImmutableArray<byte>>? ResourceUpdate { get; init; }
     public Action<NativeBattleEffectNodeBank, uint, int, byte>? MutateResource { get; init; }
     public Action<uint, uint, uint, short>? MorphResource { get; init; }
     public Action<uint, uint, uint, uint>? SelectedMorph { get; init; }

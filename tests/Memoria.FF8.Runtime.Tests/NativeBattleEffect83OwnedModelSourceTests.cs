@@ -10,11 +10,12 @@ public sealed class NativeBattleEffect83OwnedModelSourceTests
     {
         NativeBattleEffectOwnedModelResource resource = Source();
         NativeBattleEffect83Frame frame = Frame(NativeBattleEffect83State.FromColdProcess());
+        NativeBattleEffect83Frame before = NativeBattleStorageSnapshots.Capture(frame);
         NativeBattleEffect83Frame published = NativeBattleEffect83Models.BindOriginalSource(frame, resource);
         Assert.True(published.State.OwnedModelSourceBound);
         Assert.Equal(resource.Bytes.ToArray(), published.Staging!.Read(resource.Address, resource.Bytes.Length));
         Assert.False(frame.State.OwnedModelSourceBound);
-        Assert.Throws<NotSupportedException>(() => frame.Staging!.Read(resource.Address, 1));
+        Assert.Throws<NotSupportedException>(() => before.Staging!.Read(resource.Address, 1));
     }
 
     [Fact]
@@ -23,8 +24,8 @@ public sealed class NativeBattleEffect83OwnedModelSourceTests
         NativeBattleEffectOwnedModelResource resource = Source();
         NativeBattleEffect83Frame first = NativeBattleEffect83Models.BindOriginalSource(Frame(NativeBattleEffect83State.FromColdProcess()), resource);
         first = first with { Staging = first.Staging!.Write(resource.Address + 25, [0x72, 0xA4]) };
-        NativeBattleEffect83State restoredState = JsonSerializer.Deserialize<NativeBattleEffect83State>(JsonSerializer.Serialize(first.State))!;
-        NativeBattleFileStaging restoredStaging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(first.Staging))!;
+        NativeBattleEffect83State restoredState = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect83State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.State)))!);
+        NativeBattleFileStaging restoredStaging = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Staging)))!);
         NativeBattleEffect83Frame restored = first with { State = restoredState, Staging = restoredStaging };
         NativeBattleEffect83Frame rebound = NativeBattleEffect83Models.BindOriginalSource(restored, resource);
         Assert.Same(restored, rebound);

@@ -39,6 +39,7 @@ internal sealed class NativeBattleVramVersion
             throw new ArgumentOutOfRangeException(nameof(offset));
         }
         destination.Clear();
+        NativeBattleTelemetry.Record(1242, NativeBattleTrafficKind.ZeroFill, destination.Length);
         int end = offset + destination.Length;
         foreach (NativeBattleEffectMemoryRegion region in initial)
         {
@@ -46,7 +47,7 @@ internal sealed class NativeBattleVramVersion
             int last = Math.Min(end, region.Offset + region.Data.Length);
             if (first < last)
             {
-                region.Data.AsSpan(first - region.Offset, last - first).CopyTo(destination[(first - offset)..]);
+                NativeBattleTelemetry.Copy<byte>(1243, region.Data.AsSpan(first - region.Offset, last - first), destination[(first - offset)..]);
             }
         }
         for (int page = offset / PageLength; page * PageLength < end; page++)
@@ -57,7 +58,7 @@ internal sealed class NativeBattleVramVersion
             }
             int first = Math.Max(offset, page * PageLength);
             int last = Math.Min(end, (page + 1) * PageLength);
-            data.AsSpan(first - page * PageLength, last - first).CopyTo(destination[(first - offset)..]);
+            NativeBattleTelemetry.Copy<byte>(1244, data.AsSpan(first - page * PageLength, last - first), destination[(first - offset)..]);
         }
     }
 

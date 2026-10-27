@@ -6,6 +6,39 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleChoco100ProgramTests
 {
     [Fact]
+    public void Loaded_borrowed_source_scrolls_its_physical_owner_without_payload_export()
+    {
+        var profile = NativeBattleChoco100ProgramDrawing.LoadedProfile(NativeBattleChoco100LoadedProgram.File492);
+        byte[] bytes = new byte[profile.Length];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8), 32);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20), 160);
+        foreach (int resource in new[] { 32, 160 })
+        {
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(resource), 4);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(resource + 12), 1);
+            bytes[resource + 27] = 250;
+            bytes[resource + 29] = 10;
+            bytes[resource + 33] = 20;
+        }
+        ImmutableArray<byte> expected = NativeBattleChoco97Uv.Scroll7311C0(bytes.ToImmutableArray(), 32, 12);
+        expected = NativeBattleChoco97Uv.Scroll7311C0(expected, 160, 12);
+        NativeBattleEffectArena arena = NativeBattleEffectArena.CreateUnknown(bytes.Length).Write(0, bytes);
+        NativeBattleGfAnimationSource source = NativeBattleGfAnimationSource.Borrow(profile.Address, arena, 0, bytes.Length);
+        NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, profile.Callback, new byte[0x540 - 12].ToImmutableArray()).WriteDword(0x74, profile.Address).WriteDword(0x78, (uint)profile.Clear).WriteByte(0x29, 2);
+        NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096);
+        NativeBattleChoco99ProgramDraw result = NativeBattleChoco100ProgramDrawing.AdvanceLoaded(NativeBattleChoco100LoadedProgram.File492, task, source, new byte[8].ToImmutableArray(), new byte[8].ToImmutableArray(), 0, new byte[0x120].ToImmutableArray(), matrix, new(matrix, 216, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, 0);
+        Assert.Equal(expected, arena.Read(0, bytes.Length).ToImmutableArray());
+        NativeBattleOwnedGfAnimationSource.Own(result.Draw.Source).RequireStorage(arena, 0);
+        Assert.Throws<InvalidOperationException>(() => result.Draw.Source.Data);
+        NativeBattleChoco99ProgramDraw snapshot = NativeBattleStorageSnapshots.Capture(result);
+        Assert.Equal(expected, snapshot.Draw.Source.Data);
+        string json = System.Text.Json.JsonSerializer.Serialize(snapshot);
+        NativeBattleChoco99ProgramDraw restored = NativeBattleStorageSnapshots.Restore(System.Text.Json.JsonSerializer.Deserialize<NativeBattleChoco99ProgramDraw>(json)!);
+        using NativeBattleGfSourceReader reader = restored.Draw.Source.OpenReader();
+        Assert.Equal(expected[59], reader.Byte(59));
+    }
+
+    [Fact]
     public void Header8000_skips_only_basis_and_direct200_also_skips_position_rotation()
     {
         byte[] bytes = new byte[44];

@@ -23,9 +23,9 @@ public sealed class NativeBattleChoco97StageFadeTests
         NativeBattleChoco97StageFadeStep step;
         do
         {
-            NativeBattleModulePoolTask cold = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+            NativeBattleModulePoolTask cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
             step = NativeBattleChoco97StageFade.Advance(task);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleChoco97StageFade.Advance(cold)));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleChoco97StageFade.Advance(cold)));
             Assert.False(step.ClearRgb);
             task = step.Task;
             callbacks++;

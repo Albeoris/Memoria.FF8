@@ -10,6 +10,8 @@ public sealed class NativeBattleDoom8ReaperAppearanceGeometryTests
     public void Accepted_quad_uses_ordered_screen_prefix_sparse_tail_and_actual_depth_sidecars()
     {
         Fixture fixture = new(quad: true);
+        NativeBattleDoom8Frame continuation = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame));
+        NativeBattleFileStaging continuationStaging = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Staging));
         NativeBattleDoom8AppearanceStep result = fixture.Draw();
         Assert.Equal(40, result.Batch.AllocationBytes);
         Assert.Equal(2, result.Batch.Attempts.Length);
@@ -30,7 +32,7 @@ public sealed class NativeBattleDoom8ReaperAppearanceGeometryTests
         Assert.Equal((uint?)500, result.Frame.Memory.GeometryRegisters!.Otz);
         Assert.Equal((uint?)0, result.Frame.Memory.ScriptedColorRegisters!.Flags);
         Assert.Equal(NativeBattleTemporaryMemory.Address, U32(result.Staging.Read(NativeBattleTemporaryMemory.Cursor, 4)));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(fixture.Draw(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(fixture.Frame))!)));
+        Assert.Equal(SnapshotJson(result), SnapshotJson(NativeBattleDoom8ReaperAppearance.Draw8CC7B0(continuation, continuationStaging, fixture.Model, fixture.Projection)));
     }
 
     [Fact]
@@ -84,7 +86,7 @@ public sealed class NativeBattleDoom8ReaperAppearanceGeometryTests
         Assert.Equal(unchecked((ushort)(-100 - dx)), U16(temporary.Read(0x54, 2)));
         Assert.Equal(unchecked((ushort)-dz), U16(temporary.Read(0x58, 2)));
         Assert.Equal((ushort)0, result.Frame.State.ReadWord(NativeBattleDoom8ReaperAppearance.ScratchAddress + 0x58));
-        Assert.Equal(JsonSerializer.Serialize(fixture.Frame.Random), JsonSerializer.Serialize(result.Frame.Random));
+        Assert.Equal(SnapshotJson(fixture.Frame.Random), SnapshotJson(result.Frame.Random));
     }
 
     [Fact]
@@ -117,7 +119,8 @@ public sealed class NativeBattleDoom8ReaperAppearanceGeometryTests
     public void Nonzero_linked_model_and_missing_bone_owner_fail_before_a_fallback()
     {
         Fixture fixture = new(quad: false);
-        NativeBattleDoom8AppearanceModel linked = fixture.Model with { Bytes = WriteDword(fixture.Model.Bytes, 0x78, 0x1234) };
+        NativeBattleDoom8AppearanceModel independent = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Model));
+        NativeBattleDoom8AppearanceModel linked = independent with { Bytes = WriteDword(independent.Bytes, 0x78, 0x1234) };
         Assert.Throws<NotSupportedException>(() => NativeBattleDoom8ReaperAppearance.Draw8CC7B0(fixture.Frame, fixture.Staging, linked, fixture.Projection));
         fixture.Model = fixture.Model with { Bones = [] };
         Assert.Throws<InvalidDataException>(() => fixture.Draw());
@@ -185,4 +188,6 @@ public sealed class NativeBattleDoom8ReaperAppearanceGeometryTests
 
     private static ushort U16(byte[] bytes) => BinaryPrimitives.ReadUInt16LittleEndian(bytes);
     private static uint U32(byte[] bytes) => BinaryPrimitives.ReadUInt32LittleEndian(bytes);
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

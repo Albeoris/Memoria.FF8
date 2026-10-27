@@ -61,18 +61,43 @@ public sealed class NativeFieldPalettePolicyTests
         Assert.Equal(NativeFieldRegistrationMachine.FieldArena + 56, absent.State.PreModelAddress);
         Assert.Equal(2, absent.Uploads.Length);
         Assert.Equal(palette, absent.Uploads[1].Bytes.ToArray());
-        NativeBattleEffectArena vram = new(absent.Memory.EffectMemory!.Textures!.VramRegions);
-        Assert.Equal(palette, vram.Read(2 * (240 * 1024 + 512), 512));
+        byte[] actualPalette = new byte[512];
+        absent.Memory.EffectMemory!.Textures!.ReadVramInto(2 * (240 * 1024 + 512), actualPalette);
+        Assert.Equal(palette, actualPalette);
         NativeFieldRegisteredResource resource = Assert.Single(absent.State.Resources);
         Assert.Equal(palette, absent.Memory.FileStaging!.Read(resource.GeometryAddress + 76 + 20, 512));
         NativeFieldRegistrationStep restored = NativeFieldRegistrationMachine.ReloadKind3(JsonSerializer.Deserialize<NativeFieldRegistrationResources>(JsonSerializer.Serialize(source))!, actors, cold);
-        Assert.Equal(JsonSerializer.Serialize(absent), JsonSerializer.Serialize(restored));
+        NativeFieldRegistrationStep absentSnapshot = absent with { Memory = new NativeFieldEyeProcess(1, absent.Memory, null).CaptureSnapshot().Memory };
+        NativeFieldRegistrationStep restoredSnapshot = restored with { Memory = new NativeFieldEyeProcess(1, restored.Memory, null).CaptureSnapshot().Memory };
+        Assert.Equal(JsonSerializer.Serialize(absentSnapshot), JsonSerializer.Serialize(restoredSnapshot));
 
         NativeFieldModelSource neutral = Source("sample.pcb", [0, 0, 0, 0, 0, 128, 128, 128]);
         NativeFieldRegistrationStep present = NativeFieldRegistrationMachine.ReloadKind3(Fixture(neutral), actors, cold);
         Assert.Equal(absent.State.PreModelAddress + 8, present.State.PreModelAddress);
         Assert.Equal(NativeFieldRegistrationMachine.ProjectPalette532A40(palette, "unit"u8, neutral), present.Uploads[1].Bytes.ToArray());
         Assert.Equal(palette, source.One.Data.AsSpan().Slice(4 + 76 + 20, 512).ToArray());
+    }
+
+    [Fact]
+    public void Cold_registration_creates_working_field_ownership_without_changing_the_cold_template()
+    {
+        NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
+        string original = JsonSerializer.Serialize(cold);
+        NativeFieldRegistrationStep registered = NativeFieldRegistrationMachine.ReloadKind3(Fixture(null), [new(0, 0, 0, 1)], cold);
+        Assert.False(registered.Memory.FileStaging!.IsSnapshot);
+        Assert.False(((INativeBattleStorageNode)registered.Memory.EffectMemory!.Textures!).IsSnapshot);
+        Assert.True(cold.FileStaging!.IsSnapshot);
+        NativeFieldEyeProcess captured = new NativeFieldEyeProcess(1, registered.Memory, NativeCrtRandomState.FromColdProcess()).CaptureSnapshot();
+        string snapshot = JsonSerializer.Serialize(captured);
+        NativeFieldEyeProcess restored = JsonSerializer.Deserialize<NativeFieldEyeProcess>(snapshot)!.RestoreOwned();
+        NativeBattleEffectTextureState before = captured.Memory.EffectMemory!.Textures!;
+        ushort originalWord = before.ReadVramWord(0, 0);
+        ushort nextWord = (ushort)(originalWord ^ 0xFF);
+        NativeBattleEffectTextureState updated = restored.Memory.EffectMemory!.Textures!.Upload45BD30(0, 0, 1, 1, [unchecked((byte)nextWord), (byte)(nextWord >> 8)]);
+        Assert.Equal(nextWord, updated.ReadVramWord(0, 0));
+        Assert.Equal(originalWord, before.ReadVramWord(0, 0));
+        Assert.Equal(snapshot, JsonSerializer.Serialize(captured));
+        Assert.Equal(original, JsonSerializer.Serialize(cold));
     }
 
     private static NativeFieldModelSource Source(string member, byte[] bytes) => new(member, Convert.ToHexString(SHA256.HashData(bytes)), bytes.ToImmutableArray());

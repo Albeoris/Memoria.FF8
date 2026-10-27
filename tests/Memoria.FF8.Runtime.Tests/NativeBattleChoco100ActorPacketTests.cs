@@ -57,8 +57,8 @@ public sealed class NativeBattleChoco100ActorPacketTests
             Assert.Equal(1024u, BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(offset + 12, 4)));
         }
         Assert.Equal((byte)0xA5, result.Arena.Read(0x20040, 1)[0]);
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(result.Arena))!;
-        Assert.Equal(JsonSerializer.Serialize(Emit(Mesh(), result.Arena)), JsonSerializer.Serialize(Emit(Mesh(), restored)));
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(result.Arena))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Emit(Mesh(), result.Arena)), NativeBattleTestSnapshots.Json(Emit(Mesh(), restored)));
     }
 
     [Fact]

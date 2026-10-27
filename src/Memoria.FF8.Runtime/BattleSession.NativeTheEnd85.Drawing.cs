@@ -128,8 +128,14 @@ public sealed partial class BattleSession
         {
             if (address >= NativeBattleTheEnd85GroundInitialization.ModelBankAddress && (ulong)address - NativeBattleTheEnd85GroundInitialization.ModelBankAddress < NativeBattleTheEnd85GroundInitialization.ModelBankLength)
             {
-                ImmutableArray<byte> bytes = State.ModelData ?? resources.Read(NativeBattleTheEnd85GroundInitialization.ModelBankAddress, NativeBattleTheEnd85GroundInitialization.ModelBankLength).ToImmutableArray();
-                return new(address, bytes.AsSpan().Slice(checked((int)(address - NativeBattleTheEnd85GroundInitialization.ModelBankAddress))).ToArray().ToImmutableArray());
+                NativeBattleNodeSource bank = State.ModelData ?? new NativeBattleNodeSource(resources.Read(NativeBattleTheEnd85GroundInitialization.ModelBankAddress, NativeBattleTheEnd85GroundInitialization.ModelBankLength).ToImmutableArray());
+                if (State.ModelData is null)
+                {
+                    State = State with { ModelData = bank };
+                }
+                NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(bank);
+                int offset = checked((int)(address - NativeBattleTheEnd85GroundInitialization.ModelBankAddress));
+                return NativeBattleGfAnimationSource.Borrow(address, bank.Arena ?? throw new InvalidDataException("Native The End model requires its physical arena owner."), offset, bank.Length - offset);
             }
             return resources.Program(address);
         }
@@ -162,7 +168,7 @@ public sealed partial class BattleSession
             }
             if (State.ModelData is { } data && address >= NativeBattleTheEnd85GroundInitialization.ModelBankAddress && (ulong)address - NativeBattleTheEnd85GroundInitialization.ModelBankAddress + (uint)length <= (uint)data.Length)
             {
-                return data.AsSpan().Slice(checked((int)(address - NativeBattleTheEnd85GroundInitialization.ModelBankAddress)), length).ToArray();
+                return data.Read(checked((int)(address - NativeBattleTheEnd85GroundInitialization.ModelBankAddress)), length);
             }
             return resources.Read(address, length);
         }
@@ -197,9 +203,10 @@ public sealed partial class BattleSession
             }
             if (address >= NativeBattleTheEnd85GroundInitialization.ModelBankAddress && (ulong)address - NativeBattleTheEnd85GroundInitialization.ModelBankAddress + (uint)bytes.Length <= NativeBattleTheEnd85GroundInitialization.ModelBankLength)
             {
-                byte[] data = (State.ModelData ?? resources.Read(NativeBattleTheEnd85GroundInitialization.ModelBankAddress, NativeBattleTheEnd85GroundInitialization.ModelBankLength).ToImmutableArray()).ToArray();
-                bytes.AsSpan().CopyTo(data.AsSpan(checked((int)(address - NativeBattleTheEnd85GroundInitialization.ModelBankAddress))));
-                State = State with { ModelData = data.ToImmutableArray() };
+                NativeBattleNodeSource data = State.ModelData ?? new NativeBattleNodeSource(resources.Read(NativeBattleTheEnd85GroundInitialization.ModelBankAddress, NativeBattleTheEnd85GroundInitialization.ModelBankLength).ToImmutableArray());
+                NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(data);
+                data.Write(checked((int)(address - NativeBattleTheEnd85GroundInitialization.ModelBankAddress)), bytes.AsSpan());
+                State = State with { ModelData = data };
                 return;
             }
             throw new NotSupportedException("Native The End write has no current physical owner.");

@@ -18,9 +18,10 @@ public sealed class NativeBattleChoco98ProgramDrawingTests
         NativeBattleGfAnimationSource source = new(0x1000, bytes.ToImmutableArray());
         NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, 0x722460, Enumerable.Repeat((byte)0xA5, 0x864 - 12).ToImmutableArray()).WriteDword(0x74, source.Address).WriteDword(0x78, (uint)clear);
         NativeBattleModulePoolTask next = NativeBattleChoco98ProgramDrawing.InitializeWorkspace7224C0(task, source, [1, 0, 2, 0, 3, 0, 4, 0]);
-        Assert.Equal(0x864 - 12, next.Payload.Length);
-        Assert.All(next.Payload.Skip(0x94 - 12 + 4).Take(clear - 4), value => Assert.Equal((byte)0, value));
-        Assert.All(next.Payload.Skip(0x94 - 12 + clear), value => Assert.Equal((byte)0xA5, value));
+        Assert.Equal(0x864 - 12, next.PayloadLength);
+        ImmutableArray<byte> payload = NativeBattleStorageSnapshots.Capture(next).Payload;
+        Assert.All(payload.Skip(0x94 - 12 + 4).Take(clear - 4), value => Assert.Equal((byte)0, value));
+        Assert.All(payload.Skip(0x94 - 12 + clear), value => Assert.Equal((byte)0xA5, value));
         Assert.Equal((ushort)2, next.ReadWord(0x1E));
         Assert.Equal((ushort)4, next.ReadWord(0x22));
         Assert.Throws<InvalidDataException>(() => NativeBattleChoco98ProgramDrawing.InitializeWorkspace7224C0(task.WriteDword(0x78, 0x290), source, new byte[8].ToImmutableArray()));

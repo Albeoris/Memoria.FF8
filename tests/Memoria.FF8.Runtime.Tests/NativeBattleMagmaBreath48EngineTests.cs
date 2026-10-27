@@ -59,8 +59,8 @@ public sealed class NativeBattleMagmaBreath48EngineTests
     public void Completed_context_remains_resumable_with_identical_mouth_and_count_stores()
     {
         NativeBattleMagmaBreath48Frame frame = Frame(2);
-        NativeBattleMagmaBreath48Frame restored = JsonSerializer.Deserialize<NativeBattleMagmaBreath48Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(AdvanceEngine825E90(frame, TaskAddress, UnusedResources, Inputs()).Frame), JsonSerializer.Serialize(AdvanceEngine825E90(restored, TaskAddress, UnusedResources, Inputs()).Frame));
+        NativeBattleMagmaBreath48Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleMagmaBreath48Frame>(SnapshotJson(frame))!);
+        Assert.Equal(SnapshotJson(AdvanceEngine825E90(frame, TaskAddress, UnusedResources, Inputs()).Frame), SnapshotJson(AdvanceEngine825E90(restored, TaskAddress, UnusedResources, Inputs()).Frame));
     }
 
     internal static NativeBattleMagmaBreath48Frame Frame(int phase)
@@ -74,4 +74,6 @@ public sealed class NativeBattleMagmaBreath48EngineTests
     }
 
     internal static NativeBattleMagmaBreath48Inputs Inputs(Func<NativeBattleMagmaBreath48Frame, int, int, int, NativeBattleMagmaBreath48PointStep>? bone = null) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, uint.MaxValue, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 100, 160, 108), (_, _) => throw new InvalidOperationException("Unreached model"), bone ?? ((current, _, _, _) => new(current, PointView(new(1, 2, 3)))), _ => 0, (_, _) => throw new InvalidOperationException("Unreached packet"));
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

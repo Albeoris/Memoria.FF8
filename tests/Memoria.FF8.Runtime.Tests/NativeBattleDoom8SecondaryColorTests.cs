@@ -29,16 +29,16 @@ public sealed class NativeBattleDoom8SecondaryColorTests
         Assert.Equal(new byte[] { fade, fade, fade }, current.Temporary8C.Read(0x88, 3));
         Assert.Throws<NotSupportedException>(() => current.Temporary8C.Read(0x8B, 1));
         Assert.Equal(primary, Dword(current.Temporary8C, 0x7C));
-        Assert.Equal(JsonSerializer.Serialize(baseline.Memory.GeometryRegisters), JsonSerializer.Serialize(current.Memory.GeometryRegisters));
-        Assert.Equal(JsonSerializer.Serialize(baseline.Memory.ScriptedColorRegisters), JsonSerializer.Serialize(current.Memory.ScriptedColorRegisters));
-        Assert.Equal(JsonSerializer.Serialize(baseline.Memory.PrimitiveProcess), JsonSerializer.Serialize(current.Memory.PrimitiveProcess));
+        Assert.Equal(SnapshotJson(baseline.Memory.GeometryRegisters), SnapshotJson(current.Memory.GeometryRegisters));
+        Assert.Equal(SnapshotJson(baseline.Memory.ScriptedColorRegisters), SnapshotJson(current.Memory.ScriptedColorRegisters));
+        Assert.Equal(SnapshotJson(baseline.Memory.PrimitiveProcess), SnapshotJson(current.Memory.PrimitiveProcess));
         NativeBattleModelRendererRegisters far = current.Memory.PrimitiveProcess!.ModelRendererRegisters!;
         Assert.Equal((uint?)48, far.FarRed);
         Assert.Equal((uint?)32, far.FarGreen);
         Assert.Equal((uint?)16, far.FarBlue);
         Assert.Equal(0xABCDu, far.SourceCursor);
         NativeBattleGeometryPrimitive packet = Emit(current, quad, page);
-        Assert.Equal(JsonSerializer.Serialize(Emit(baseline, quad, page)), JsonSerializer.Serialize(packet));
+        Assert.Equal(SnapshotJson(Emit(baseline, quad, page)), SnapshotJson(packet));
         Assert.Equal(quad ? 0x2E010203u : 0x26010203u, packet.Words[1]);
         Assert.Equal(page, packet.Words[5]);
         Assert.NotEqual(page + 0x400000, packet.Words[5]);
@@ -55,11 +55,11 @@ public sealed class NativeBattleDoom8SecondaryColorTests
             Assert.Throws<NotSupportedException>(() => stored.ReadCommonPacket(38, 1));
             Assert.Equal(new byte[] { 0xA5 }, stored.ReadCommonPacket(39, 1));
         }
-        NativeBattleEffect20BodyPreparation cold = JsonSerializer.Deserialize<NativeBattleEffect20BodyPreparation>(JsonSerializer.Serialize(current))!;
+        NativeBattleEffect20BodyPreparation cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect20BodyPreparation>(SnapshotJson(current))!);
         Assert.Equal(new byte[] { fade, fade, fade }, cold.Temporary8C.Read(0x88, 3));
         Assert.Throws<NotSupportedException>(() => cold.Temporary8C.Read(0x8B, 1));
-        Assert.Equal(JsonSerializer.Serialize(packet), JsonSerializer.Serialize(Emit(cold, quad, page)));
-        Assert.Equal(JsonSerializer.Serialize(stored), JsonSerializer.Serialize(Store(Emit(cold, quad, page), cold.Memory.PrimitiveProcess!)));
+        Assert.Equal(SnapshotJson(packet), SnapshotJson(Emit(cold, quad, page)));
+        Assert.Equal(SnapshotJson(stored), SnapshotJson(Store(Emit(cold, quad, page), cold.Memory.PrimitiveProcess!)));
     }
 
     [Theory]
@@ -77,8 +77,8 @@ public sealed class NativeBattleDoom8SecondaryColorTests
         NativeBattleGeometryPrimitive actual = Emit(current, quad, page);
         Assert.Equal(command, actual.Words[1]);
         Assert.Equal(page, actual.Words[5]);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(Emit(blueOnly, quad, page)));
+        Assert.Equal(SnapshotJson(expected), SnapshotJson(actual));
+        Assert.Equal(SnapshotJson(expected), SnapshotJson(Emit(blueOnly, quad, page)));
         Assert.Equal(new byte[] { 0, 0, 1 }, blueOnly.Temporary8C.Read(0x88, 3));
     }
 
@@ -124,4 +124,6 @@ public sealed class NativeBattleDoom8SecondaryColorTests
 
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
     private static uint XY(short x, short y) => unchecked((ushort)x | (uint)(ushort)y << 16);
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

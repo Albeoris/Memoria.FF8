@@ -19,7 +19,7 @@ public sealed class NativeBattleEffect79StackTests
         Assert.Equal(0x1D97530u, stack.ReadUInt32(-0x40));
         Assert.Equal(9, NativeBattleEffect79Stack.ReadRotation(stack).Length);
         Assert.Equal(new uint[] { 0x460865, 0x7BD900, 0x7BD907, 0x7BD90B, 0x7BD91C }, stack.Observations.Select(item => item.Instruction));
-        NativeBattleStackBytes restored = JsonSerializer.Deserialize<NativeBattleStackBytes>(JsonSerializer.Serialize(stack))!;
+        NativeBattleStackBytes restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleStackBytes>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(stack)))!);
         Assert.Equal(NativeBattleEffect79Stack.ReadRotation(stack), NativeBattleEffect79Stack.ReadRotation(restored));
     }
 
@@ -57,7 +57,8 @@ public sealed class NativeBattleEffect79StackTests
         var fixture = Fixture();
         NativeBattleStackBytes known = NativeBattleEffect79Stack.ObserveBody(NativeBattleEffect79Stack.Begin(1), fixture.Pool, fixture.Address, fixture.Task, true);
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.Begin(2)));
-        NativeBattleEffectTaskPool changed = fixture.Pool with { Head = null };
+        NativeBattleEffectTaskPool changed = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Pool));
+        changed.UpdateLinks(null, changed.Tail);
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.ObserveBody(known, changed, fixture.Address, fixture.Task, true)));
         NativeBattleModulePoolTask otherPhase = fixture.Task.WriteByte(0x29, 9);
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect79Stack.ReadRotation(NativeBattleEffect79Stack.ObserveBody(known, fixture.Pool, fixture.Address, otherPhase, false)));
@@ -104,7 +105,7 @@ public sealed class NativeBattleEffect79StackTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 676, 1);
         NativeBattleModulePoolTask task = pool.Slots[0].WriteWord(0x34 + 0x16, 1);
-        pool = pool with { Slots = [task] };
+        pool.WriteSlot(0, task);
         NativeBattleOriginalEffectState effect = new(79, 78, new(79, NativeBattleEffect79Profile.Entry, NativeBattleEffect79Profile.Initializer), null, null) { Pools = [pool] };
         NativeBattleEffectNodeMemory memory = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, 0x200, 0, 0x870, 0x870, 0x9D80);
         byte[] source = new byte[344];
@@ -132,8 +133,9 @@ public sealed class NativeBattleEffect79StackTests
     private static (NativeBattleEffectTaskPool Pool, uint Address, NativeBattleModulePoolTask Task) Fixture()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x25E5100, 0x25E5110, 180, 2);
-        NativeBattleModulePoolTask task = (pool.Slots[0] with { Callback = 0x7BCF10 }).WriteByte(0x29, 1).WriteByte(0x2C, 4).WriteWord(0x24, 1);
-        pool = pool with { Slots = pool.Slots.SetItem(0, task), Head = 0, Tail = 0 };
+        NativeBattleModulePoolTask task = pool.Slots[0].UpdateHeader(pool.Slots[0].Flags, pool.Slots[0].State, pool.Slots[0].Next, 0x7BCF10).WriteByte(0x29, 1).WriteByte(0x2C, 4).WriteWord(0x24, 1);
+        pool.WriteSlot(0, task);
+        pool.UpdateLinks(0, 0);
         return (pool, pool.BankAddress, task);
     }
 }

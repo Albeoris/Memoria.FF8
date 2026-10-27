@@ -32,7 +32,7 @@ public sealed class NativeBattleDoom8ActRenderingTests
         Assert.Equal(0xABCDEF01u, Dword(prepared.Context92, 0x44));
         Assert.Equal(NativeBattleDoom8ActRendering.MorphAddress, Dword(prepared.Context92, 0x48));
         Assert.Equal((ushort)(0x88 * 3), BinaryPrimitives.ReadUInt16LittleEndian(prepared.Context92.Read(0x58, 2)));
-        Assert.Equal(JsonSerializer.Serialize(frame.Random), JsonSerializer.Serialize(prepared.Frame.Random));
+        Assert.Equal(SnapshotJson(frame.Random), SnapshotJson(prepared.Frame.Random));
         Assert.Equal(frame.Memory.GeometryRegisters!.Translation.ToArray(), prepared.Frame.Memory.GeometryRegisters!.Translation.ToArray());
     }
 
@@ -71,8 +71,8 @@ public sealed class NativeBattleDoom8ActRenderingTests
         NativeBattleDoom8Frame result = Draw(frame);
         Assert.All(result.State.ReadView(NativeBattleDoom8ActRendering.MorphAddress, 24).ReadSnapshot(6, 2).Known, Assert.False);
         Assert.Equal(0x77u, result.Memory.SoundPublishedFlags);
-        NativeBattleDoom8Frame cold = JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(result)), JsonSerializer.Serialize(Draw(cold)));
+        NativeBattleDoom8Frame cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(SnapshotJson(result))!);
+        Assert.Equal(SnapshotJson(Draw(result)), SnapshotJson(Draw(cold)));
 
         NativeBattleDoom8Frame Draw(NativeBattleDoom8Frame current) => NativeBattleDoom8ActRendering.DrawNode8C5B10(current, Source(), Context(), Node(0x200, 2048), new(null, 100, 160, 108), Constants, (published, batch) =>
         {

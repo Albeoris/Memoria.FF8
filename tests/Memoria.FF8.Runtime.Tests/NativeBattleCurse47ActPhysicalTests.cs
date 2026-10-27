@@ -20,6 +20,7 @@ public sealed class NativeBattleCurse47ActPhysicalTests
         NativeBattleCurse47Frame frame = NativeBattleCurse47Controller.Write(fixture.Frame, fixture.Address, task);
         NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 92).ToArray());
         NativeBattleEffectArena internal32 = NativeBattleEffectArena.Clear().MarkUnknown(0, 32).Write(18, [0xBC]);
+        string stagingBefore = SnapshotJson(frame.Staging);
         NativeBattleCurse47ActPreparation prepared = NativeBattleCurse47ActRendering.PrepareDraw(frame, fixture.Address, NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), retained, internal32);
         Assert.Equal(new short[] { 0, 2048, 0, 0, 0, -4096, -4096, 0, 0 }, Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadInt16LittleEndian(prepared.Context92.Read(index * 2, 2))));
         Assert.Equal(123u, Dword(prepared.Context92, 20));
@@ -37,7 +38,7 @@ public sealed class NativeBattleCurse47ActPhysicalTests
         }
         Assert.Equal(new byte[] { 0xA5, 0xA5 }, prepared.Context92.Read(0x5A, 2));
         Assert.Equal(fixture.Frame.Memory.GeometryRegisters!.Translation.ToArray(), prepared.Frame.Memory.GeometryRegisters!.Translation.ToArray());
-        Assert.NotEqual(JsonSerializer.Serialize(frame.Staging), JsonSerializer.Serialize(prepared.Frame.Staging));
+        Assert.NotEqual(stagingBefore, SnapshotJson(prepared.Frame.Staging));
     }
 
     [Fact]
@@ -88,8 +89,8 @@ public sealed class NativeBattleCurse47ActPhysicalTests
         NativeBattleCurse47Frame frame = fixture.Frame with { State = fixture.Frame.State.WriteView(NativeBattleCurse47ActRendering.MorphAddress, NativeBattleEffectArena.Clear().MarkUnknown(0, 840), 840) };
         NativeBattleCurse47Frame result = Draw(frame);
         Assert.All(result.State.ReadView(NativeBattleCurse47ActRendering.MorphAddress, 24).ReadSnapshot(6, 2).Known, Assert.False);
-        NativeBattleCurse47Frame cold = JsonSerializer.Deserialize<NativeBattleCurse47Frame>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(result)), JsonSerializer.Serialize(Draw(cold)));
+        NativeBattleCurse47Frame cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCurse47Frame>(SnapshotJson(result))!);
+        Assert.Equal(SnapshotJson(Draw(result)), SnapshotJson(Draw(cold)));
         NativeBattleCurse47Frame Draw(NativeBattleCurse47Frame current) => NativeBattleCurse47ActRendering.EmitNode(current, Source(), Context(), Node(2048), new(null, 100, 160, 108), Constants, (published, batch) =>
         {
             Assert.NotEmpty(batch.Attempts);
@@ -156,4 +157,6 @@ public sealed class NativeBattleCurse47ActPhysicalTests
         NativeBattleCurse47State state = NativeBattleCurse47IoTests.Initialized().WriteDword(0x264B3CC, 0x20E3AB8).WriteDword(0x264B4D4, 0x20E7AB8);
         return (new NativeBattleCurse47Frame(memory, effect, new(1), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) }, appended.Address);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

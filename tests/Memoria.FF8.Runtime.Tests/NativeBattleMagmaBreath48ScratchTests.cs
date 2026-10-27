@@ -32,7 +32,7 @@ public sealed class NativeBattleMagmaBreath48ScratchTests
         {
             Assert.Equal(bytes.Read(0, 180 - size), retained.Read(0, 180 - size));
         }
-        Assert.Equal(JsonSerializer.Serialize(frame.Staging), JsonSerializer.Serialize(released.Staging));
+        Assert.Equal(SnapshotJson(frame.Staging), SnapshotJson(released.Staging));
     }
 
     [Fact]
@@ -93,4 +93,6 @@ public sealed class NativeBattleMagmaBreath48ScratchTests
         Assert.Equal((ushort)7, BinaryPrimitives.ReadUInt16LittleEndian(laterMesh.Read(86, 2)));
         Assert.Throws<NotSupportedException>(() => laterMesh.Read(26, 2));
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

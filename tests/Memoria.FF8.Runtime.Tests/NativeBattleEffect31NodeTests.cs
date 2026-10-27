@@ -46,7 +46,7 @@ public sealed class NativeBattleEffect31NodeTests
             [sourceAddress + 0x150] = new byte[6].ToImmutableArray(),
             [rotationAddress] = [0, 0]
         }.ToImmutableDictionary());
-        Fixture fixture = new();
+        using Fixture fixture = new();
         fixture.Memory.ContextDword(0x224, directoryAddress + 4);
         fixture.Memory.ContextDword(0x228, directoryAddress + 0x44);
         fixture.Memory.ContextWord(0x20, 1);
@@ -105,7 +105,7 @@ public sealed class NativeBattleEffect31NodeTests
     [Fact]
     public void Context_start_and_completion_preserve_the_outer_callback_clock_and_child_barrier()
     {
-        Fixture fixture = new();
+        using Fixture fixture = new();
         NativeBattleEffectNodeMemoryWrite captured = fixture.Memory.FlushStorage();
         NativeBattleEffect31Frame frame = new(captured.Memory, captured.Effect, new(99), NativeBattleEffect31State.FromColdProcess());
         frame = NativeBattleEffect31Controller.Write(frame, 0x200, NativeBattleEffect31Controller.Read(frame, 0x200).WriteByte(0x29, 1).WriteByte(0x28, 1));
@@ -150,7 +150,7 @@ public sealed class NativeBattleEffect31NodeTests
             [sourceAddress + 0x150] = new byte[6].ToImmutableArray(),
             [countAddress] = [0]
         }.ToImmutableDictionary());
-        Fixture fixture = new();
+        using Fixture fixture = new();
         fixture.Memory.ContextDword(0x224, directoryAddress + 4);
         fixture.Memory.ContextDword(0x228, directoryAddress + 0x44);
         fixture.Memory.ContextWord(0x20, 1);
@@ -185,7 +185,7 @@ public sealed class NativeBattleEffect31NodeTests
     [Fact]
     public void Source_operands_read_only_the_three_consumed_fragments_for_each_selected_index()
     {
-        Fixture fixture = new();
+        using Fixture fixture = new();
         foreach (sbyte index in new sbyte[] { 0, 1, 2, 3, 5, 7 })
         {
             byte[] physical = fixture.AddSource(index);
@@ -205,13 +205,13 @@ public sealed class NativeBattleEffect31NodeTests
             Assert.Throws<NotSupportedException>(() => fixture.Bank.Read(address + 0x14E, 2));
             Assert.Throws<NotSupportedException>(() => fixture.Bank.Read(address + 0x156, 2));
         }
-        Assert.Equal(fixture.Directory, fixture.Bank.Data.ToArray());
+        Assert.Equal(fixture.Directory, fixture.Bank.Read(0x1000, fixture.Directory.Length));
     }
 
     [Fact]
     public void Selected_sprite_emission_consumes_live_count_radius_rotation_and_both_euler_fragments()
     {
-        Fixture fixture = new();
+        using Fixture fixture = new();
         byte[] physical = fixture.AddSource(0);
         physical[0x12] = 12;
         physical[0x25] = 1;
@@ -251,14 +251,14 @@ public sealed class NativeBattleEffect31NodeTests
             Assert.Contains((channel, 2), fixture.Reads);
         }
         NativeBattleEffectNodeMemoryWrite written = fixture.Memory.FlushStorage();
-        Assert.Equal(fixture.Directory, fixture.Bank.Data.ToArray());
+        Assert.Equal(fixture.Directory, fixture.Bank.Read(0x1000, fixture.Directory.Length));
         Assert.Equal(0x438 + 0x8340, written.Memory.Arena!.Read(0, 0x438 + 0x8340).Length);
     }
 
     [Fact]
     public void Animated_anchor_reads_each_current_selector_and_signed_word_channel_without_caching_bss_values()
     {
-        Fixture fixture = new();
+        using Fixture fixture = new();
         byte[] physical = fixture.AddSource(1);
         physical[0x11] = 4;
         physical[0x12] = 24;
@@ -295,7 +295,7 @@ public sealed class NativeBattleEffect31NodeTests
         Assert.Throws<NotSupportedException>(() => NativeBattleEffectAnimatedAnchor.Advance(fixture.Memory, 0, fixture.Lifecycle.ReadSource(1), fixture.Bank.Read));
     }
 
-    private sealed class Fixture
+    private sealed class Fixture : IDisposable
     {
         internal const int Particle = 0x438;
         private readonly Dictionary<uint, byte[]> regions = [];
@@ -312,7 +312,7 @@ public sealed class NativeBattleEffect31NodeTests
         {
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 676, 1);
             (pool, int slot) = pool.Append(0x86D1D0);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[664])) };
+            pool.WriteSlot(slot, pool.Slots[slot].WriteBytes(12, new byte[664]));
             NativeBattleOriginalEffectState effect = new(31, 30, new(31, 0x86C9E0, 0x86C9C0), null, null) { Pools = [pool] };
             Memory = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, 0x200, 0, 0x438, Particle, 0x8340);
             Memory.ContextDword(0x224, 0x1000);
@@ -326,6 +326,12 @@ public sealed class NativeBattleEffect31NodeTests
             Lifecycle = new(Memory, Bank, inputs);
         }
 
+        public void Dispose()
+        {
+            Bank.Dispose();
+            Memory.Dispose();
+        }
+
         internal uint SourceAddress(sbyte index) => unchecked(0x2000u + (uint)index * 0x200);
 
         internal byte[] AddSource(sbyte index)
@@ -333,7 +339,7 @@ public sealed class NativeBattleEffect31NodeTests
             uint address = SourceAddress(index);
             byte[] physical = new byte[0x156];
             BinaryPrimitives.WriteUInt32LittleEndian(Directory.AsSpan(index * 4), address);
-            Bank.ReplaceData(Directory.ToImmutableArray());
+            Bank.Write(0, Directory);
             regions.Add(address, physical);
             return physical;
         }
@@ -354,7 +360,7 @@ public sealed class NativeBattleEffect31NodeTests
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8), frames);
             regions.Add(address, bytes);
             BinaryPrimitives.WriteUInt32LittleEndian(Directory.AsSpan(0x40 + index * 4), address);
-            Bank.ReplaceData(Directory.ToImmutableArray());
+            Bank.Write(0, Directory);
         }
 
         internal byte[] Current(uint address) => regions[address];

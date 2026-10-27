@@ -38,16 +38,16 @@ public sealed class NativeBattleDeathSourceMemoryTests
         NativeBattleEffectMemory warm = resources.Profile.WithState(prepared.Memory, changed);
         uint last = resources.Model.Address + (uint)resources.Model.Bytes.Length - 1;
         NativeBattleFileStaging mutated = prepared.Staging.Write(last, [(byte)(resources.Model.Bytes[^1] ^ 0xFF)]);
-        NativeBattleEffectMemory imported = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(warm))!;
-        NativeBattleFileStaging importedStaging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(mutated))!;
+        NativeBattleEffectMemory imported = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(warm)))!);
+        NativeBattleFileStaging importedStaging = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(mutated)))!);
         var next = NativeBattleDeathSourceMemory.Prepare(imported, importedStaging, resources);
         Assert.Same(imported, next.Memory);
         Assert.Same(importedStaging, next.Staging);
-        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(next.Memory));
-        Assert.Equal(JsonSerializer.Serialize(mutated), JsonSerializer.Serialize(next.Staging));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(warm)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next.Memory)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(mutated)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next.Staging)));
         Assert.NotEqual(resources.Model.Bytes[^1], next.Staging.Read(last, 1)[0]);
-        Assert.Equal((byte)0xAB, resources.Profile.RequireState(next.Memory).AuraActors!.Value[0x20]);
-        Assert.Equal((byte)0xCD, resources.Profile.RequireState(next.Memory).DarkActors!.Value[0x20]);
+        Assert.Equal((byte)0xAB, resources.Profile.RequireState(next.Memory).AuraActors!.ReadByte(0x20));
+        Assert.Equal((byte)0xCD, resources.Profile.RequireState(next.Memory).DarkActors!.ReadByte(0x20));
     }
 
     [Theory]
@@ -59,7 +59,7 @@ public sealed class NativeBattleDeathSourceMemoryTests
         NativeBattleDeathResources resources = Resources(game, effect);
         NativeBattleEffectMemory memory = game.ReadColdProcessNativeBattleMemory().EffectMemory!;
         memory = resources.Profile.WithState(memory, resources.Profile.RequireState(memory) with { PendingColdSources = false });
-        NativeBattleFileStaging unknown = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleFileStaging.Unknown()))!;
+        NativeBattleFileStaging unknown = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleFileStaging.Unknown())))!);
         var retained = NativeBattleDeathSourceMemory.Prepare(memory, unknown, resources);
         Assert.Same(memory, retained.Memory);
         Assert.Same(unknown, retained.Staging);

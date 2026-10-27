@@ -14,7 +14,7 @@ public sealed class NativeBattleEffectTextureTests
         byte[] data = new byte[128 * 128 * 2];
         new Random(505).NextBytes(data);
         NativeBattleEffectTextureState queued = (NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = source.Capture().Regions }).PublishVramSpan(0, []).EnqueueRectangle505DF0(new(32, 64, 128, 128), new("rectangle", data.ToImmutableArray()));
-        NativeBattleEffectArena scalar = NativeBattleStorageSnapshots.Restore(source.Capture());
+        NativeBattleEffectArena scalar = NativeBattleStorageSnapshots.Restore<NativeBattleEffectArena>(source.Capture());
         for (int row = 0; row < 128; row++)
         {
             scalar = scalar.Write(2 * ((64 + row) * 1024 + 32), data.AsSpan(row * 256, 256));
@@ -89,13 +89,14 @@ public sealed class NativeBattleEffectTextureTests
         arena = arena.Write(128 + 64, [0xCD, 0xAB]);
         NativeBattleEffectTextureDrain drained = queued.Drain505D20(arena);
         Assert.Equal(0xABCD, BinaryPrimitives.ReadUInt16LittleEndian(drained.State.ReadVram().AsSpan(2 * (256 * 1024 + 64))));
-        NativeBattleEffectTextureState copy = drained.State.EnqueueCopy505EB0(64, 256, 1, 1, 65, 256);
+        NativeBattleEffectTextureState baseline = NativeBattleStorageSnapshots.Capture(drained.State);
+        NativeBattleEffectTextureState copy = NativeBattleStorageSnapshots.Restore(baseline).EnqueueCopy505EB0(64, 256, 1, 1, 65, 256);
         Assert.Null(copy.Slots[0]!.ArenaOffset);
         Assert.Equal(0xABCD, BinaryPrimitives.ReadUInt16LittleEndian(copy.Drain505D20().State.ReadVram().AsSpan(2 * (256 * 1024 + 65))));
-        NativeBattleEffectTextureState heap = drained.State.EnqueueTim505E30(tim).State;
+        NativeBattleEffectTextureState heap = NativeBattleStorageSnapshots.Restore(baseline).EnqueueTim505E30(tim).State;
         Assert.Null(heap.Slots[0]!.ArenaOffset);
         Assert.Equal(0x3210, BinaryPrimitives.ReadUInt16LittleEndian(heap.Drain505D20().State.ReadVram().AsSpan(2 * (256 * 1024 + 64))));
-        NativeBattleEffectTextureState rectangle = drained.State.EnqueueRectangle505DF0(new(64, 256, 1, 1), new("replacement-rectangle", [0xEF, 0xBE]));
+        NativeBattleEffectTextureState rectangle = NativeBattleStorageSnapshots.Restore(baseline).EnqueueRectangle505DF0(new(64, 256, 1, 1), new("replacement-rectangle", [0xEF, 0xBE]));
         Assert.Null(rectangle.Slots[0]!.ArenaOffset);
         Assert.Equal(0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(rectangle.Drain505D20().State.ReadVram().AsSpan(2 * (256 * 1024 + 64))));
     }

@@ -17,7 +17,7 @@ public sealed class NativeBattleEffect345ParticlesTests
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(0x238), 5);
         (NativeBattleEffect345Frame frame, uint task) = Frame();
         NativeBattleActionMatrix camera = NativeBattleCuragaMatrices.Identity8DD770() with { X = 10, Y = 20, Z = 30 };
-        frame = frame with { Memory = frame.Memory with { SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(camera, null) }, State = frame.State.WriteDword(0x2557208, 0x2793E58) with { NodeData = ImmutableDictionary<uint, ImmutableArray<byte>>.Empty.Add(source, bytes.ToImmutableArray()).Add(0x164808C, new byte[9708].ToImmutableArray()) } };
+        frame = frame with { Memory = frame.Memory with { SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(camera, null) }, State = frame.State.WriteDword(0x2557208, 0x2793E58) with { NodeData = ImmutableDictionary<uint, NativeBattleNodeSource>.Empty.Add(source, bytes.ToImmutableArray()).Add(0x164808C, new byte[9708].ToImmutableArray()) } };
         frame = NativeBattleEffect345Controller.Write(frame, task, NativeBattleEffect345Controller.Read(frame, task).WriteDword(0x34 + 0x224, source + 4));
         NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, task, 0, 0x870, 0x870, 0x9D80);
         int particle = 0x870;
@@ -51,8 +51,8 @@ public sealed class NativeBattleEffect345ParticlesTests
     {
         byte[] original = new byte[18932];
         BinaryPrimitives.WriteUInt32LittleEndian(original.AsSpan(4), 0x200);
-        NativeBattleEffect345State state = NativeBattleEffect345State.FromColdProcess() with { NodeData = ImmutableDictionary<uint, ImmutableArray<byte>>.Empty.Add(0x1643698, original.ToImmutableArray()).Add(0x164808C, new byte[9708].ToImmutableArray()) };
-        NativeBattleEffect345Frame frame = new(Memory(), null!, new(1), state);
+        NativeBattleEffect345State state = NativeBattleEffect345State.FromColdProcess() with { NodeData = ImmutableDictionary<uint, NativeBattleNodeSource>.Empty.Add(0x1643698, original.ToImmutableArray()).Add(0x164808C, new byte[9708].ToImmutableArray()) };
+        NativeBattleEffect345Frame frame = new(Memory(), new(345, 344, new(345, NativeBattleEffect345Profile.Entry, NativeBattleEffect345Profile.Initializer), null, null), new(1), state);
         frame = NativeBattleEffect345Particles.Relocate707370(frame, 0x1643698);
         Assert.Equal(1u, frame.State.ReadDword(0x1643698));
         Assert.Equal(0x1643898u, frame.State.ReadDword(0x164369C));
@@ -60,8 +60,9 @@ public sealed class NativeBattleEffect345ParticlesTests
         frame = frame with { State = frame.State.WriteDword(0x1643698 + 0x200 + 0xC8, 0x1643798) };
         Assert.Same(frame, NativeBattleEffect345Particles.Relocate707370(frame, 0x1643698));
         Assert.Equal(0x1643798u, frame.State.ReadDword(0x1643698 + 0x200 + 0xC8));
-        string json = JsonSerializer.Serialize(frame.State);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffect345State>(json)));
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.State));
+        NativeBattleEffect345State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect345State>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(original));
     }
 
@@ -118,7 +119,7 @@ public sealed class NativeBattleEffect345ParticlesTests
         }
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(0x20E), 119);
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(NativeBattleTemporaryMemory.Cursor, BitConverter.GetBytes(NativeBattleTemporaryMemory.Address + 32));
-        NativeBattleEffect345Frame frame = new(Memory(), null!, new(1), NativeBattleEffect345State.FromColdProcess()) { Staging = staging };
+        NativeBattleEffect345Frame frame = new(Memory(), new(345, 344, new(345, NativeBattleEffect345Profile.Entry, NativeBattleEffect345Profile.Initializer), null, null), new(1), NativeBattleEffect345State.FromColdProcess()) { Staging = staging };
         var result = NativeBattleEffect345Particles.Morph70ABF0(frame, basis, bytes.ToImmutableArray(), basis + 0x200, basis + 0x400, basis + 0x800, basis + 0x1000);
         Assert.Equal(new short[] { 500, 30, 40, 119 }, Enumerable.Range(0, 4).Select(index => BinaryPrimitives.ReadInt16LittleEndian(result.Bank.AsSpan().Slice(0x208 + index * 2))).ToArray());
         Assert.Equal(2048u, result.Frame.Memory.ScriptedColorRegisters!.Ir0);
@@ -143,6 +144,69 @@ public sealed class NativeBattleEffect345ParticlesTests
         Assert.Equal(twice, product.Random);
         Assert.Equal(-4 + unchecked(sample * other) % 13, product.Value);
         Assert.Equal(4096, NativeBattleEffectNodeRandom.Angle882030(initial, -4096, 0).Value);
+    }
+
+    [Fact]
+    public void Sprite_branch_reads_retained_resource_and_keeps_first_selection_across_delivery()
+    {
+        const uint sourceAddress = 0x1643698;
+        const int resource = 0x400;
+        const int geometry = 0x870;
+        byte[] bytes = new byte[18932];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), sourceAddress + 0x100);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(resource + 10), 16);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(resource + 12), 16);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(resource + 16), 1);
+        bytes[resource + 20] = 1;
+        bytes[resource + 21] = 128;
+        bytes[resource + 22] = 1;
+        bytes[resource + 23] = 0x2C;
+        NativeBattleNodeSource source = new(bytes.ToImmutableArray());
+        (NativeBattleEffect345Frame frame, uint task) = Frame();
+        NativeBattleActionMatrix camera = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 4096 };
+        frame = frame with { Memory = frame.Memory with { SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(camera, 0) }, State = frame.State with { NodeData = ImmutableDictionary<uint, NativeBattleNodeSource>.Empty.Add(sourceAddress, source) } };
+        frame = frame with { State = frame.State.WriteDword(0x255EA44, NativeBattleEffectNodeMemory.ArenaAddress).WriteDword(0x255EA88, NativeBattleEffectNodeMemory.ArenaAddress + geometry).WriteDword(0x255EA84, NativeBattleEffectNodeContextMemory.Address + 180).WriteDword(0x2557208, 0x2793E58) };
+        frame = NativeBattleEffect345Controller.Write(frame, task, NativeBattleEffect345Controller.Read(frame, task).WriteDword(0x30, sourceAddress).WriteWord(0x54, 1).WriteWord(0x56, ushort.MaxValue).WriteDword(0x34 + 0x224, sourceAddress + 4));
+        using (NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, task, 0, 0x870, geometry, 0x9D80))
+        {
+            memory.ContextDword(0x2C, memory.Pointer(geometry));
+            memory.ContextWord(0x16, 2);
+            for (int index = 0; index < 2; index++)
+            {
+                int node = geometry + index * 672;
+                memory.Word(node + 8, 1);
+                memory.Dword(node + 4, index == 0 ? memory.Pointer(geometry + 672) : 0);
+                memory.Word(node + 0x1CC, 2);
+                memory.Byte(node + 0x1D8, 1);
+                memory.Dword(node + 0x170, sourceAddress + resource);
+                for (int lane = 0; lane < 9; lane++)
+                {
+                    memory.Word(node + 0xAC + lane * 2, lane % 4 == 0 ? (ushort)4096 : (ushort)0);
+                }
+                memory.Dword(node + 0xC8, 4096);
+            }
+            NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
+            frame = frame with { Memory = written.Memory, Effect = written.Effect };
+        }
+        List<NativeBattleGfGeometryBatch> batches = [];
+        NativeBattleEffect345Inputs inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => new(camera, 216, 160, 108), _ => 0, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _, _, _, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (current, operation) =>
+        {
+            NativeBattleEffect345DrawBatch drawn = Assert.IsType<NativeBattleEffect345DrawBatch>(operation);
+            batches.Add(drawn.Batch);
+            source.Write(resource + 20, [2]);
+            return current;
+        })
+        {
+            ReadModel = _ => throw new InvalidOperationException("Sprite delivery does not read an actor model."),
+            ReadPoseSource = _ => throw new InvalidOperationException("Sprite delivery does not read an actor pose.")
+        };
+        NativeBattleEffect345Step result = NativeBattleEffect345Particles.Advance7075D0(frame, task, null!, inputs);
+        Assert.Equal(2, batches.Count);
+        NativeBattleGfGeometryAttempt first = Assert.Single(batches[0].Attempts);
+        NativeBattleGfGeometryAttempt second = Assert.Single(batches[1].Attempts);
+        Assert.NotNull(first.Primitive);
+        Assert.Equal(first.Primitive!.Words, second.Primitive!.Words);
+        Assert.Equal((byte)2, result.Frame.State.NodeData![sourceAddress].ReadByte(resource + 20));
     }
 
     private static (NativeBattleEffect345Frame Frame, uint Task) Frame()

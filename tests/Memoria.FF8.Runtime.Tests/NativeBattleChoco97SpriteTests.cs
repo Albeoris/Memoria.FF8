@@ -18,9 +18,9 @@ public sealed class NativeBattleChoco97SpriteTests
         for (int callback = 1; callback <= 27; callback++)
         {
             phases.Add(task.ReadByte(0x29));
+            NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
             NativeBattleChoco97SpriteStep step = Advance(task);
-            NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Advance(restored)));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(Advance(restored)));
             Assert.Equal((ushort)callback, step.Task.ReadWord(0x24));
             if (callback <= 4 || callback == 27)
             {
@@ -44,10 +44,11 @@ public sealed class NativeBattleChoco97SpriteTests
         Assert.Equal((ushort)19, task.ReadWord(0x50));
         Assert.Equal((byte)5, task.ReadByte(0x29));
         Assert.Equal((byte)5, task.ReadByte(0x26));
+        NativeBattleModulePoolTask beforeHold = NativeBattleStorageSnapshots.Capture(task);
         NativeBattleChoco97SpriteStep held = Advance(task.WriteByte(0x28, 1));
         Assert.False(held.ReadyToComplete);
         Assert.Null(held.Packets);
-        NativeBattleChoco97SpriteStep onlyCompleteFlag = Advance(task.WriteByte(0x26, 1));
+        NativeBattleChoco97SpriteStep onlyCompleteFlag = Advance(NativeBattleStorageSnapshots.Restore(beforeHold).WriteByte(0x26, 1));
         Assert.True(onlyCompleteFlag.ReadyToComplete);
         Assert.NotNull(onlyCompleteFlag.Packets);
     }

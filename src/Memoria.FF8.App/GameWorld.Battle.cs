@@ -134,7 +134,7 @@ internal sealed partial class GameWorld
             NativeSupportRules = BattleResources.ReadNativeSupportRules(),
             NativeGraphics = BattleResources.ReadNativeGraphicsDefinition(definition.Combatants, assets.ReadNativeBattleGraphicsRules(), encounter),
             NativeClockRules = BattleResources.ReadNativeClockRules(),
-            NativeRetainedMemory = session.State.NativeBattleMemory,
+            NativeRetainedMemory = session.CaptureNativeFieldMemory(),
             NativeVibrationProcess = session.State.VibrationProcess,
             NativeGlobalSoundProcess = session.State.GlobalSoundProcess,
             NativeEntry = new(encounter.Flags, session.State.CharacterVitals!.GetEncounterAbilityFlags()),

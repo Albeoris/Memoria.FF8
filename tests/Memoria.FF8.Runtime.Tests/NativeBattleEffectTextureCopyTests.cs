@@ -61,7 +61,7 @@ public sealed class NativeBattleEffectTextureCopyTests
         long before = GC.GetAllocatedBytesForCurrentThread();
         NativeBattleEffectTextureDrain drained = state.Drain505D20();
         long transferBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        NativeBattleEffectArena scalar = NativeBattleStorageSnapshots.Restore(source.Capture());
+        NativeBattleEffectArena scalar = NativeBattleStorageSnapshots.Restore<NativeBattleEffectArena>(source.Capture());
         for (int row = 0; row < height; row++)
         {
             scalar = scalar.Write(2 * ((destinationY + row) * 1024 + destinationX), transferred.AsSpan(2 * row * width, 2 * width));

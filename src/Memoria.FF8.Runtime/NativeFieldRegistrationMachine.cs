@@ -107,6 +107,7 @@ public static partial class NativeFieldRegistrationMachine
     public static NativeFieldRegistrationStep ReloadKind3(NativeFieldRegistrationResources source, IReadOnlyList<NativeFieldRetainedActor> actors, NativeBattleRetainedMemory retained)
     {
         source.Validate();
+        retained = NativeFieldEyeProcess.EnsureOwnedMemory(retained);
         retained.Validate();
         if (source.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash)
         {

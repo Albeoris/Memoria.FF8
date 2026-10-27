@@ -118,7 +118,7 @@ internal sealed partial class GameWorld
             throw new NotSupportedException("Diagnostic initialization requires canonical New Game timer, character, input and economy owners before battle allocation.");
         }
         long started = Stopwatch.GetTimestamp();
-        NativeBattleRetainedMemory retained = session.State.NativeBattleMemory ?? throw new NotSupportedException("Diagnostic initialization requires installed cold-process retained memory.");
+        NativeBattleRetainedMemory retained = session.CurrentNativeBattleMemory ?? throw new NotSupportedException("Diagnostic initialization requires installed cold-process retained memory.");
         string executable = retained.ColdExecutableSha256 ?? throw new NotSupportedException("Diagnostic initialization requires an authenticated executable identity.");
         DiagnosticPreparationResult? characters = request.Fixture is null ? null : PrepareDiagnosticCharacters(session.State.CharacterVitals, request.Fixture, request.Fixture.Characters.Any(character => character.Level.HasValue) ? assets.ReadNativeBattleExperienceDefinition() : null);
         DiagnosticInventoryPreparationResult? inventory = request.Fixture is null ? null : PrepareDiagnosticInventory(session.State.Economy, request.Fixture);

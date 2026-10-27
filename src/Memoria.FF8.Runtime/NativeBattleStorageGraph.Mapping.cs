@@ -121,13 +121,11 @@ internal sealed partial class NativeBattleStorageCaptureContext
 
     internal void RegisterCapturedArena(NativeBattleEffectArena arena) => capturedArenas.Add(arena);
 
-    internal BattleSnapshot AttachStorageGraph(BattleSnapshot snapshot)
+    internal BattleSnapshot AttachStorageGraph(BattleSnapshot snapshot) => capturedArenas.Count == 0 ? snapshot : snapshot with { StorageGraph = BuildStorageGraph(snapshot) };
+    internal NativeBattleRetainedMemory AttachStorageGraph(NativeBattleRetainedMemory snapshot) => capturedArenas.Count == 0 ? snapshot : snapshot with { StorageGraph = BuildStorageGraph(snapshot) };
+
+    private NativeBattleStorageGraph? BuildStorageGraph(object snapshot)
     {
-        if (capturedArenas.Count == 0)
-        {
-            return snapshot;
-        }
-        snapshot = snapshot with { StorageGraph = null };
         Dictionary<NativeBattleWorkingMemorySnapshot, List<NativeBattleEffectArena>> groups = new(ReferenceEqualityComparer.Instance);
         foreach (NativeBattleEffectArena arena in NativeBattleStorageGraphViews.Enumerate(snapshot))
         {
@@ -162,6 +160,6 @@ internal sealed partial class NativeBattleStorageCaptureContext
                 view.AttachStorageReference(new(id, view.CapturedOffset, view.LogicalLength, ReferenceEquals(view, definition), view.CapturedBorrowed));
             }
         }
-        return authorities.Count == 0 ? snapshot : snapshot with { StorageGraph = new(authorities.ToImmutable()) };
+        return authorities.Count == 0 ? null : new(authorities.ToImmutable());
     }
 }

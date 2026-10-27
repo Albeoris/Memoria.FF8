@@ -49,8 +49,9 @@ public sealed class NativeBattleEffect345ControllerTests
             task = task.WriteWord(0x24, 14);
         }
         frame = Write(frame, address, task);
+        ushort previousAge = task.ReadWord(0x24);
         NativeBattleEffect345Step step = AdvanceTask(frame, address, f.Resources, f.Inputs);
-        Assert.Equal(unchecked((ushort)(task.ReadWord(0x24) + 1)), Read(step.Frame, address).ReadWord(0x24));
+        Assert.Equal(unchecked((ushort)(previousAge + 1)), Read(step.Frame, address).ReadWord(0x24));
         Assert.Equal(expected, Read(step.Frame, address).ReadByte(0x29));
     }
 
@@ -212,7 +213,7 @@ public sealed class NativeBattleEffect345ControllerTests
                 Pools = Pools.Select(shape => NativeBattleEffectTaskPool.Initialize(shape.Descriptor, shape.Bank, shape.Stride, shape.Capacity)).ToImmutableArray(),
                 ReturnedDescriptor = RootDescriptor
             };
-            NativeBattleEffect345State state = NativeBattleEffect345State.FromColdProcess() with { NodeData = ImmutableDictionary<uint, ImmutableArray<byte>>.Empty.Add(0x1643698, new byte[18932].ToImmutableArray()).Add(0x164808C, new byte[9708].ToImmutableArray()) };
+            NativeBattleEffect345State state = NativeBattleEffect345State.FromColdProcess() with { NodeData = ImmutableDictionary<uint, NativeBattleNodeSource>.Empty.Add(0x1643698, new byte[18932].ToImmutableArray()).Add(0x164808C, new byte[9708].ToImmutableArray()) };
             for (int index = 0; index < Pools.Length; index++)
             {
                 state = state.DetachBank(index);

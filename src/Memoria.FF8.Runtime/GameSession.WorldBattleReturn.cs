@@ -61,5 +61,9 @@ public sealed partial class GameSession
         NativeBattleRetainedMemory memory = State.NativeBattleMemory with { MusicProcess = music with { Buffers = buffers } };
         memory.Validate();
         State = State with { NativeBattleMemory = memory };
+        if (liveFieldMemory is { } fieldMemory)
+        {
+            liveFieldMemory = fieldMemory with { MusicProcess = memory.MusicProcess };
+        }
     }
 }

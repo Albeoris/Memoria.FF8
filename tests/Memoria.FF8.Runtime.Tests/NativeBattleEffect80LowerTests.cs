@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect80LowerTests
         Assert.Equal(0u, U(result.Context104, 0x30));
         Assert.Equal(0xDEADBEEFu, U(result.Context104, 0x40));
         Assert.Equal(mesh.Address + (uint)mesh.Bytes.Length, U(result.Context104, 0x2C));
-        NativeBattleEffect80Mesh104Step restored = JsonSerializer.Deserialize<NativeBattleEffect80Mesh104Step>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect80Mesh104Step restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect80Mesh104Step>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.Equal(result.Memory.GeometryRegisters!.Sxy.ToArray(), restored.Memory.GeometryRegisters!.Sxy.ToArray());
     }
 

@@ -29,7 +29,7 @@ public sealed class NativeBattleLaserEye71ParticleTests
     {
         Fixture fixture = new();
         NativeBattleLaserEye71Frame frame = Write(fixture.Frame, fixture.Address, Read(fixture.Frame, fixture.Address).WriteByte(0x29, 1).WriteWord(0x52, 6).WriteWord(0x58, unchecked((ushort)-17)).WriteWord(0x5A, 17).WriteWord(0x5C, unchecked((ushort)-15)).MarkPayloadUnknown(0x22, 2));
-        frame = JsonSerializer.Deserialize<NativeBattleLaserEye71Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleLaserEye71Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         NativeBattleLaserEye71TaskStep result = fixture.Advance(frame);
         NativeBattleModulePoolTask task = Read(result.Frame, fixture.Address);
         Assert.Equal(new ushort[] { unchecked((ushort)-16), 16, unchecked((ushort)-15) }, new[] { task.ReadWord(0x58), task.ReadWord(0x5A), task.ReadWord(0x5C) });

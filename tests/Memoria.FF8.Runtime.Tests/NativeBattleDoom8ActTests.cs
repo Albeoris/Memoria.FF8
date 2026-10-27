@@ -222,8 +222,8 @@ public sealed class NativeBattleDoom8ActTests
     public void Cold_task_workspace_continues_exactly_and_missing_draw_cannot_complete_a_live_ACT()
     {
         Fixture fixture = new(NativeBattleDoom8Act.AuxiliaryCallback, 1);
-        NativeBattleDoom8Frame cold = JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(fixture.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(fixture.Frame)), JsonSerializer.Serialize(fixture.Step(cold)));
+        NativeBattleDoom8Frame cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(SnapshotJson(fixture.Frame))!);
+        Assert.Equal(SnapshotJson(fixture.Step(fixture.Frame)), SnapshotJson(fixture.Step(cold)));
         fixture.OnPrepare = (_, _) => throw new NotSupportedException("The actual ACT callback context is required.");
         Assert.Throws<NotSupportedException>(() => fixture.Step(fixture.Frame));
         fixture.OnPrepare = (frame, _) => new(frame, Fixture.Context);
@@ -292,7 +292,7 @@ public sealed class NativeBattleDoom8ActTests
             if (phase != 0)
             {
                 NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[size].ToImmutableArray()).Initialize7016B0(Source, size);
-                task = task.WriteBytes(0x94, workspace.Data.AsSpan());
+                task = task.WriteBytes(0x94, NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan());
             }
             hierarchy = child.Hierarchy.Write(Address, task);
             NativeBattleOriginalEffectState effect = new(8, 8, new(8, NativeBattleDoom8Controller.Entry, 0x8C4960), null, null) { Pools = hierarchy.Pools };
@@ -304,4 +304,6 @@ public sealed class NativeBattleDoom8ActTests
         public NativeBattleDoom8Frame Put(NativeBattleDoom8Frame frame, NativeBattleModulePoolTask task) => NativeBattleDoom8Controller.Write(frame, Address, task);
         public NativeBattleDoom8Step Step(NativeBattleDoom8Frame frame) => NativeBattleDoom8Act.Advance(frame, Address, Inputs);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

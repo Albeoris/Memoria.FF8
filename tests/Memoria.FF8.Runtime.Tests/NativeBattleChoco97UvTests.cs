@@ -92,7 +92,7 @@ public sealed class NativeBattleChoco97UvTests
         using NativeBattleEffectNodeBank bank = new(NativeBattleCuragaExecutableState.Address, bytes.ToImmutableArray());
         NativeBattleEffectNodeInputs inputs = new(spawn.Frame.State.CopiedCamera, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException())
         {
-            ResourceUpdate = update ? NativeBattleChoco97Uv.UpdateDrawableResource : null
+            MutateResource = update ? NativeBattleChoco97Uv.MutateDrawableResource : null
         };
         NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
         byte[] source = bank.Read(bank.Address + 0x104, 0x158);
@@ -116,9 +116,11 @@ public sealed class NativeBattleChoco97UvTests
     {
         var fixture = Mesh(3, false, [0, 16, 32, 48]);
         using NativeBattleEffectNodeBank bank = new(0x1000, fixture.Bytes);
-        Assert.Equal(bank.Data, NativeBattleChoco97Uv.UpdateDrawableResource(bank, bank.Address, 4, 2));
-        Assert.Equal(bank.Data, NativeBattleChoco97Uv.UpdateDrawableResource(bank, bank.Address, 4, 3));
-        Assert.Throws<NotSupportedException>(() => NativeBattleChoco97Uv.UpdateDrawableResource(bank, bank.Address, 5, 0));
+        NativeBattleChoco97Uv.MutateDrawableResource(bank, bank.Address, 4, 2);
+        Assert.Equal(fixture.Bytes, bank.Read(bank.Address, bank.Length).ToImmutableArray());
+        NativeBattleChoco97Uv.MutateDrawableResource(bank, bank.Address, 4, 3);
+        Assert.Equal(fixture.Bytes, bank.Read(bank.Address, bank.Length).ToImmutableArray());
+        Assert.Throws<NotSupportedException>(() => NativeBattleChoco97Uv.MutateDrawableResource(bank, bank.Address, 5, 0));
     }
 
     [Theory]

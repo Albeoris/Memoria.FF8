@@ -91,6 +91,56 @@ public sealed class NativeBattleVramWorkingStorageTests
         Assert.Equal((ushort)1, changed.ReadVramWord(0, 0));
     }
 
+    [Fact]
+    public void Bounded_version_reads_account_for_clear_and_actual_initial_and_page_copies()
+    {
+        NativeBattleEffectTextureState original = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, [11, 0])] };
+        NativeBattleEffectTextureState current = original.Upload45BD30(0, 0, 1, 1, [12, 0]);
+        Traffic traffic = new();
+        using IDisposable scope = NativeBattleTelemetry.BeginScope(traffic);
+        Span<byte> bytes = stackalloc byte[2];
+        current.ReadVramInto(0, bytes);
+        Assert.Equal((ushort)12, BinaryPrimitives.ReadUInt16LittleEndian(bytes));
+        Assert.Equal(2, traffic.Bytes[(1242, NativeBattleTrafficKind.ZeroFill)]);
+        Assert.Equal(2, traffic.Bytes[(1243, NativeBattleTrafficKind.CpuCopyPayload)]);
+        Assert.Equal(2, traffic.Bytes[(1244, NativeBattleTrafficKind.CpuCopyPayload)]);
+    }
+
+    [Fact]
+    public void Current_owner_does_not_retain_released_intermediate_presentation_versions()
+    {
+        (NativeBattleEffectTextureState current, WeakReference[] released) = CreateReleasedVersions();
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        Assert.All(released, reference => Assert.False(reference.IsAlive));
+        Assert.Equal((ushort)33, current.ReadVramWord(0, 0));
+        GC.KeepAlive(current);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static (NativeBattleEffectTextureState Current, WeakReference[] Released) CreateReleasedVersions()
+    {
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [1, 0]);
+        WeakReference[] released = new WeakReference[32];
+        for (int index = 0; index < released.Length; index++)
+        {
+            released[index] = new(state.VramPublicationIdentity);
+            state = state.Upload45BD30(0, 0, 1, 1, [(byte)(index + 2), 0]);
+        }
+        return (state, released);
+    }
+
+    private sealed class Traffic : INativeBattleTelemetrySink
+    {
+        internal Dictionary<(int Site, NativeBattleTrafficKind Kind), long> Bytes { get; } = [];
+
+        public void Record(int siteId, NativeBattleTrafficKind kind, long payloadBytes)
+        {
+            Bytes[(siteId, kind)] = Bytes.GetValueOrDefault((siteId, kind)) + payloadBytes;
+        }
+    }
+
     private static ushort Word(NativeBattleEffectTextureState state, int x, int y)
     {
         Span<byte> bytes = stackalloc byte[2];

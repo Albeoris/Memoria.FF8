@@ -361,6 +361,13 @@ public sealed class SceneEventState
     public Dictionary<int, BackgroundScrollSettings> BackgroundScrollLayers { get; private set; } = [];
     public Dictionary<int, BackgroundScrollPosition> BackgroundScrollPositions { get; private set; } = [];
 
+    internal SceneEventState CreateEyeProcessCheckpointProjection(NativeFieldEyeProcess? process)
+    {
+        SceneEventState projection = (SceneEventState)MemberwiseClone();
+        projection.NativeEyeProcess = process;
+        return projection;
+    }
+
     /// <summary>Detached scroll words for read-only renderer admission; other owners are shared and must not be mutated.</summary>
     public SceneEventState CreateBackgroundScrollProjection(int layer, BackgroundScrollSettings settings)
     {

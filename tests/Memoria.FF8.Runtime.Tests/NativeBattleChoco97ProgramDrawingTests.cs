@@ -23,8 +23,9 @@ public sealed class NativeBattleChoco97ProgramDrawingTests
         NativeBattleModulePoolTask initialized = NativeBattleChoco97ProgramDrawing.InitializeWorkspace72A6C0(task, source, [1, 0, 2, 0, 3, 0, 4, 0]);
         int start = 0x94 - 12;
         Assert.Equal(source.Address, initialized.ReadDword(0x94));
-        Assert.All(initialized.Payload.Skip(start + 4).Take(clearBytes - 4), value => Assert.Equal((byte)0, value));
-        Assert.All(initialized.Payload.Skip(start + clearBytes), value => Assert.Equal((byte)0xA5, value));
+        ImmutableArray<byte> initializedPayload = NativeBattleStorageSnapshots.Capture(initialized).Payload;
+        Assert.All(initializedPayload.Skip(start + 4).Take(clearBytes - 4), value => Assert.Equal((byte)0, value));
+        Assert.All(initializedPayload.Skip(start + clearBytes), value => Assert.Equal((byte)0xA5, value));
         Assert.Equal((ushort)2, initialized.ReadWord(0x1E));
         Assert.Equal((ushort)4, initialized.ReadWord(0x22));
         Assert.Throws<InvalidDataException>(() => NativeBattleChoco97ProgramDrawing.InitializeWorkspace72A6C0(task.WriteDword(0x78, 0x171), source, new byte[8].ToImmutableArray()));

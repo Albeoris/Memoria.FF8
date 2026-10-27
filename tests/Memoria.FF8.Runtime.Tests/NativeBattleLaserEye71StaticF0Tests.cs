@@ -80,9 +80,9 @@ public sealed class NativeBattleLaserEye71StaticF0Tests
     public void F0_JSON_next_preserves_feedback_and_unknown_context_RGB_high_byte()
     {
         NativeBattleStaticMeshContext88Step first = Draw(2, Context(2048));
-        NativeBattleStaticMeshContext88Step restored = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(first))!;
+        NativeBattleStaticMeshContext88Step restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         NativeBattleStaticMeshContext88Step Next(NativeBattleStaticMeshContext88Step current) => Draw(0, current.Context, current.Memory);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(first))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(restored))));
         Assert.Throws<NotSupportedException>(() => Draw(0, Context(2048).MarkUnknown(9, 1)));
     }
 

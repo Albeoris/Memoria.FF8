@@ -29,10 +29,11 @@ public static class NativeBattleChoco100ProgramDrawing
     private static NativeBattleChoco99ProgramDraw Advance(NativeBattleChoco100LoadedProgram? profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> targetRaw8, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary)
     {
         var definition = profile is { } loaded ? LoadedProfile(loaded) : (Address: 0x1663154u, Length: 0x2884, Callback: 0x70F5F0u, Clear: 0x4AC);
-        if (task.PayloadLength != 0x540 - 12 || task.Callback != definition.Callback || source.Address != definition.Address || source.Data.IsDefault || source.Data.Length != definition.Length || task.ReadDword(0x74) != source.Address || task.ReadDword(0x78) != definition.Clear || morphScratch.IsDefault || morphScratch.Length != 0x120)
+        if (task.PayloadLength != 0x540 - 12 || task.Callback != definition.Callback || source.Address != definition.Address || source.IsDefault || source.Length != definition.Length || task.ReadDword(0x74) != source.Address || task.ReadDword(0x78) != definition.Clear || morphScratch.IsDefault || morphScratch.Length != 0x120)
         {
             throw new InvalidDataException("Native Choco program requires its actual task, source, clear and morph owners.");
         }
+        source = NativeBattleOwnedGfAnimationSource.Own(source);
         int phase = unchecked((sbyte)task.ReadByte(0x29));
         short? terminalMode = profile == NativeBattleChoco100LoadedProgram.File496 ? (short)5 : profile == NativeBattleChoco100LoadedProgram.File502 ? (short)9 : null;
         bool draw;
@@ -84,8 +85,9 @@ public static class NativeBattleChoco100ProgramDrawing
         }
         foreach ((int geometry, int delta) in profile == NativeBattleChoco100LoadedProgram.File492 ? new[] { (0, 12), (3, 12) } : profile == NativeBattleChoco100LoadedProgram.File496 ? new[] { (2, 18) } : Array.Empty<(int, int)>())
         {
-            int offset = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(8 + geometry * 4));
-            source = source with { Data = NativeBattleChoco97Uv.Scroll7311C0(source.Data, offset / 4 * 4, delta) };
+            using NativeBattleGfSourceReader reader = source.OpenReader();
+            int offset = reader.Int(8 + geometry * 4);
+            source = NativeBattleChoco97Uv.Scroll7311C0(source, offset / 4 * 4, delta);
         }
         task = task.WriteWord(0x24, unchecked((ushort)(task.ReadWord(0x24) + 1)));
         return new(new(task, source, morphScratch, packets, remaining, (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0), profile is null && phase == 0 ? 0x15297F4u : null);

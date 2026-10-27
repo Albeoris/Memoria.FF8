@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -23,7 +23,7 @@ public sealed class NativeBattleCurse47TargetSetupTests
         Assert.Equal(new byte[8], result.State.Read(NativeBattleCurse47State.SharedAddress + 76, 8));
         Assert.Same(fixture.Frame.Memory, result.Memory);
         Assert.Same(fixture.Frame.Staging, result.Staging);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleCurse47Frame>(JsonSerializer.Serialize(result))));
+        Assert.Equal(SnapshotJson(result), SnapshotJson(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCurse47Frame>(SnapshotJson(result)))));
     }
 
     [Theory]
@@ -56,4 +56,6 @@ public sealed class NativeBattleCurse47TargetSetupTests
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x15B8028, BitConverter.GetBytes(NativeBattleCurse47State.SharedAddress));
         return (new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), state) { Staging = staging }, appended.Address);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

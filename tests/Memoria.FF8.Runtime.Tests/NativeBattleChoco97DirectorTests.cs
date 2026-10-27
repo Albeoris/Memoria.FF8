@@ -125,10 +125,10 @@ public sealed class NativeBattleChoco97DirectorTests
         int contactTransitions = 0;
         for (int callback = 0; callback < 20; callback++)
         {
-            NativeBattleChoco97DirectorFrame restored = JsonSerializer.Deserialize<NativeBattleChoco97DirectorFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleChoco97DirectorFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco97DirectorFrame>(NativeBattleTestSnapshots.Json(frame))!;
             NativeBattleChoco97DirectorStep step = NativeBattleChoco97Director.Advance72A410(frame, Inputs(operations));
             NativeBattleChoco97DirectorStep cold = NativeBattleChoco97Director.Advance72A410(restored, Inputs([]));
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(cold));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(cold));
             if (frame.Context.Word(0x48) == 0 && step.Frame.Context.Word(0x48) == 1)
             {
                 contactTransitions++;

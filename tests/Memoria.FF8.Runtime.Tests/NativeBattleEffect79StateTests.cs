@@ -77,10 +77,10 @@ public sealed class NativeBattleEffect79StateTests
         NativeBattleEffect79State state = NativeBattleEffect79State.FromUnknown().DetachBank(0);
         state = state with { ProgramData = new byte[ScriptLength].ToImmutableArray(), NodeBanks = state.NodeBanks.Add(0x176A958, new byte[6916].ToImmutableArray()) };
         state = state.WriteDword(ScriptAddress + 12, 0x19F1018).WriteDword(0x176A958, 1).WriteWord(MorphAddress, 0xA55A);
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleEffect79State restored = JsonSerializer.Deserialize<NativeBattleEffect79State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleEffect79State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect79State>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal(0x19F1018u, restored.ReadDword(ScriptAddress + 12));
         Assert.Equal(1u, restored.ReadDword(0x176A958));
         Assert.Equal((ushort)0xA55A, restored.ReadWord(MorphAddress));

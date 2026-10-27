@@ -31,8 +31,11 @@ public sealed class NativeFieldEyeCallbackTests
         Assert.Equal((byte)0x10, (byte)(started.Memory.FileStaging.Read(instance + 114, 1)[0] & 0xF0));
         NativeBattleRetainedMemory live = started.Memory;
         NativeCrtRandomState? random = started.CrtRandomAfter;
-        NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(live))!;
-        NativeCrtRandomState? restoredRandom = JsonSerializer.Deserialize<NativeCrtRandomState>(JsonSerializer.Serialize(random));
+        NativeFieldEyeProcess saved = new NativeFieldEyeProcess(1, live, random).CaptureSnapshot();
+        string savedJson = JsonSerializer.Serialize(saved);
+        NativeFieldEyeProcess restoredProcess = JsonSerializer.Deserialize<NativeFieldEyeProcess>(savedJson)!.RestoreOwned();
+        NativeBattleRetainedMemory restored = restoredProcess.Memory;
+        NativeCrtRandomState? restoredRandom = restoredProcess.CrtRandom;
         byte[] original = live.EffectMemory!.Textures!.ReadVram();
         bool copied = false;
         bool idle = false;
@@ -40,7 +43,10 @@ public sealed class NativeFieldEyeCallbackTests
         {
             NativeBattleFieldResourceReloadResult step = NativeFieldRegistrationMachine.AdvanceEyes530810(registered.State, live, random);
             NativeBattleFieldResourceReloadResult independent = NativeFieldRegistrationMachine.AdvanceEyes530810(registered.State, restored, restoredRandom);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(independent));
+            NativeBattleFieldResourceReloadResult capturedStep = step with { Memory = new NativeFieldEyeProcess(1, step.Memory, step.CrtRandomAfter).CaptureSnapshot().Memory };
+            NativeBattleFieldResourceReloadResult capturedIndependent = independent with { Memory = new NativeFieldEyeProcess(1, independent.Memory, independent.CrtRandomAfter).CaptureSnapshot().Memory };
+            Assert.Equal(JsonSerializer.Serialize(capturedStep), JsonSerializer.Serialize(capturedIndependent));
+            Assert.Equal(savedJson, JsonSerializer.Serialize(saved));
             live = step.Memory;
             random = step.CrtRandomAfter;
             restored = independent.Memory;

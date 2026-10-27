@@ -73,10 +73,10 @@ public sealed class NativeBattleEffect80StateTests
     {
         NativeBattleEffect80State state = NativeBattleEffect80State.FromColdProcess().BindNodeSource(Sources(), 0x1750660).BindInitializedSource(Sources(), TrailAddress).DetachBank(0).WriteWord(TrailAddress + 4, 0xBEEF);
         state = state with { InitializedSources = state.InitializedSources.Add(TrailPointerAddress, NativeBattleEffectArena.Clear().MarkUnknown(0, 4).Write(0, BitConverter.GetBytes((ushort)0xAC20))) };
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleEffect80State restored = JsonSerializer.Deserialize<NativeBattleEffect80State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleEffect80State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect80State>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Null(restored.FixedBanks[Pools[0].Bank]);
         Assert.Single(restored.NodeBanks);
         Assert.Equal((ushort)0xBEEF, restored.ReadWord(TrailAddress + 4));

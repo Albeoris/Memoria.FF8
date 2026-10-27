@@ -139,8 +139,8 @@ public sealed class NativeBattleSigh46ParticleTests
     {
         var fixture = NativeBattleSigh46LowerTests.Fixture(4, 0x836090, 1);
         var frame = Write(fixture.Frame, fixture.Address, Read(fixture.Frame, fixture.Address).WriteWord(0x1C, 100).WriteWord(0x1E, 200).WriteWord(0x20, 300).WriteDword(0x4C, 0x15B82A4).WriteWord(0x50, 14).WriteWord(0x52, 14).WriteWord(0x78, unchecked((ushort)-17)));
-        var restored = JsonSerializer.Deserialize<NativeBattleSigh46Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(AdvanceSprite836090(frame, fixture.Address, fixture.Resources, NativeBattleSigh46LowerTests.Inputs([])).Frame), JsonSerializer.Serialize(AdvanceSprite836090(restored, fixture.Address, fixture.Resources, NativeBattleSigh46LowerTests.Inputs([])).Frame));
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleSigh46Frame>(SnapshotJson(frame))!);
+        Assert.Equal(SnapshotJson(AdvanceSprite836090(frame, fixture.Address, fixture.Resources, NativeBattleSigh46LowerTests.Inputs([])).Frame), SnapshotJson(AdvanceSprite836090(restored, fixture.Address, fixture.Resources, NativeBattleSigh46LowerTests.Inputs([])).Frame));
     }
 
     private static (NativeBattleSigh46Frame Frame, uint Address, NativeBattleSigh46Resources Resources) Producer(byte phase)
@@ -151,4 +151,6 @@ public sealed class NativeBattleSigh46ParticleTests
         task = CopyTask(task, 0x58, PackedArena(NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0xABCD)), 32);
         return (Write(frame, fixture.Address, task), fixture.Address, fixture.Resources);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

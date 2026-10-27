@@ -2,13 +2,16 @@ namespace Memoria.FF8.Runtime;
 
 internal static class NativeBattleRetainedSourceAliases
 {
-    internal static void Validate(BattleSnapshot snapshot)
+    internal static void Validate(BattleSnapshot snapshot) => Validate(snapshot.NativeEffectMemory?.Rinoa88?.NodeData, snapshot.NativeFileStaging);
+    internal static void Validate(NativeBattleRetainedMemory snapshot) => Validate(snapshot.EffectMemory?.Rinoa88?.NodeData, snapshot.FileStaging);
+
+    private static void Validate(NativeBattleNodeSource? source, NativeBattleFileStaging? owner)
     {
-        if (snapshot.NativeEffectMemory?.Rinoa88?.NodeData is not { } source)
+        if (source is null)
         {
             return;
         }
-        NativeBattleFileStaging staging = snapshot.NativeFileStaging ?? throw new InvalidOperationException("Retained node storage requires its current file staging authority.");
+        NativeBattleFileStaging staging = owner ?? throw new InvalidOperationException("Retained node storage requires its current file staging authority.");
         uint address = NativeBattleRinoa88NodeResources.Address;
         int length = NativeBattleRinoa88NodeResources.Length;
         if (source.Length != length)
@@ -53,14 +56,17 @@ internal static class NativeBattleRetainedSourceAliases
         }
     }
 
-    internal static BattleSnapshot Rebind(BattleSnapshot snapshot)
+    internal static BattleSnapshot Rebind(BattleSnapshot snapshot) => snapshot with { NativeEffectMemory = Rebind(snapshot.NativeEffectMemory, snapshot.NativeFileStaging) };
+    internal static NativeBattleRetainedMemory Rebind(NativeBattleRetainedMemory snapshot) => snapshot with { EffectMemory = Rebind(snapshot.EffectMemory, snapshot.FileStaging) };
+
+    private static NativeBattleEffectMemory? Rebind(NativeBattleEffectMemory? memory, NativeBattleFileStaging? owner)
     {
-        if (snapshot.NativeEffectMemory is not { Rinoa88.NodeData: { } source } memory)
+        if (memory?.Rinoa88?.NodeData is not { } source)
         {
-            return snapshot;
+            return memory;
         }
-        NativeBattleFileStaging staging = snapshot.NativeFileStaging ?? throw new InvalidOperationException("Retained node storage requires its restored file staging authority.");
+        NativeBattleFileStaging staging = owner ?? throw new InvalidOperationException("Retained node storage requires its restored file staging authority.");
         NativeBattleNodeSource rebound = source.RebindStaging(staging, NativeBattleRinoa88NodeResources.Address, NativeBattleRinoa88NodeResources.Length);
-        return snapshot with { NativeEffectMemory = memory with { Rinoa88 = memory.Rinoa88 with { NodeData = rebound } } };
+        return memory with { Rinoa88 = memory.Rinoa88 with { NodeData = rebound } };
     }
 }

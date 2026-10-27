@@ -98,8 +98,9 @@ public sealed class NativeBattleChoco97IoTests
         Assert.Throws<NotSupportedException>(() => banks.Read(Base - 1, 1));
         NativeBattleChoco97IoState state = NativeBattleChoco97Io.ReleaseWait730590(NativeBattleChoco97Io.Initialize729EF0(Script(3, 445, 1, 20), Buffer, banks).State).State;
         NativeBattleChoco97IoAdvance begin = NativeBattleChoco97Io.Advance729FF0(Task(), state);
-        NativeBattleChoco97IoState restored = JsonSerializer.Deserialize<NativeBattleChoco97IoState>(JsonSerializer.Serialize(begin.State))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleChoco97Io.Advance729FF0(begin.Task, begin.State)), JsonSerializer.Serialize(NativeBattleChoco97Io.Advance729FF0(begin.Task, restored)));
+        NativeBattleChoco97IoState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco97IoState>(NativeBattleTestSnapshots.Json(begin.State))!;
+        NativeBattleModulePoolTask restoredTask = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(begin.Task));
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleChoco97Io.Advance729FF0(begin.Task, begin.State)), NativeBattleTestSnapshots.Json(NativeBattleChoco97Io.Advance729FF0(restoredTask, restored)));
         byte[] invalid = begin.State.Control.ToArray();
         BinaryPrimitives.WriteInt16LittleEndian(invalid.AsSpan(0x168), -1);
         NativeBattleChoco97IoState invalidRange = state with { Control = invalid.ToImmutableArray() };

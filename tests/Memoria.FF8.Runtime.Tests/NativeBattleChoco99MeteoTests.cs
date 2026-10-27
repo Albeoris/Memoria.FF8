@@ -17,9 +17,9 @@ public sealed class NativeBattleChoco99MeteoTests
         List<ushort> frames = [];
         for (int index = 0; index <= 31; index++)
         {
-            NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+            NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
             NativeBattleChoco97SpriteStep step = Advance(task, true);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Advance(restored, false)));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(Advance(restored, false)));
             if (step.Packets is not null)
             {
                 frames.Add(step.Task.ReadWord(0x50));
@@ -91,11 +91,12 @@ public sealed class NativeBattleChoco99MeteoTests
     public void Secondary_terminal_frame_short_circuits_mode_query_and_hides_while_early_mode_also_sets_both_flags()
     {
         NativeBattleModulePoolTask task = Task(0x7208D0).WriteByte(0x29, 1).WriteDword(0x4C, 0x152A70C).WriteWord(0x50, 6).WriteWord(0x52, 6);
+        NativeBattleModulePoolTask initial = NativeBattleStorageSnapshots.Capture(task);
         NativeBattleChoco97SpriteStep terminal = NativeBattleChoco99Meteo.Advance7208D0(task, Resources(), _ => throw new InvalidOperationException(), View, Projection, 0);
         Assert.True(terminal.ReadyToComplete);
         Assert.Null(terminal.Packets);
         Assert.Equal((byte)5, terminal.Task.ReadByte(0x26));
-        NativeBattleChoco97SpriteStep early = NativeBattleChoco99Meteo.Advance7208D0(task.WriteWord(0x50, 0), Resources(), _ => true, View, Projection, 0);
+        NativeBattleChoco97SpriteStep early = NativeBattleChoco99Meteo.Advance7208D0(NativeBattleStorageSnapshots.Restore(initial).WriteWord(0x50, 0), Resources(), _ => true, View, Projection, 0);
         Assert.True(early.ReadyToComplete);
         Assert.Null(early.Packets);
         Assert.Equal((ushort)1, early.Task.ReadWord(0x50));
@@ -116,9 +117,9 @@ public sealed class NativeBattleChoco99MeteoTests
         List<short> values = [];
         for (int index = 0; index < 9; index++)
         {
-            NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+            NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
             NativeBattleChoco99CameraYStep step = NativeBattleChoco99Meteo.Advance71F880(task, Resources().CameraY);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleChoco99Meteo.Advance71F880(restored, Resources().CameraY)));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleChoco99Meteo.Advance71F880(restored, Resources().CameraY)));
             if (step.Y is short y)
             {
                 values.Add(y);
@@ -149,9 +150,9 @@ public sealed class NativeBattleChoco99MeteoTests
         for (int index = 0; index < 3; index++)
         {
             frame = frame with { Ordering = NativeBattleLogicalOrdering.Clear() };
-            NativeBattleFullscreenOverlayFrame restored = JsonSerializer.Deserialize<NativeBattleFullscreenOverlayFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleFullscreenOverlayFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFullscreenOverlayFrame>(NativeBattleTestSnapshots.Json(frame))!;
             NativeBattleFullscreenOverlayStep drawn = NativeBattleFullscreenOverlay.Advance8DDC30(frame, appended.Address, 0, Resources().Overlay);
-            Assert.Equal(JsonSerializer.Serialize(drawn), JsonSerializer.Serialize(NativeBattleFullscreenOverlay.Advance8DDC30(restored, appended.Address, 0, Resources().Overlay)));
+            Assert.Equal(NativeBattleTestSnapshots.Json(drawn), NativeBattleTestSnapshots.Json(NativeBattleFullscreenOverlay.Advance8DDC30(restored, appended.Address, 0, Resources().Overlay)));
             Assert.Equal(5, drawn.Frame.Ordering.ProxyCursor);
             Assert.Equal(0x2A000000u | Resources().Overlay.Commands[index], BinaryPrimitives.ReadUInt32LittleEndian(drawn.Frame.Memory.FullscreenOverlay!.Read(0, 24).AsSpan(4)));
             frame = drawn.Frame;

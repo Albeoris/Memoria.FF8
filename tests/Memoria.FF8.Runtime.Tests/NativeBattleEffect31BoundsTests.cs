@@ -73,7 +73,7 @@ public sealed class NativeBattleEffect31BoundsTests
     public void Unknown_copied_padding_and_vector_W_survive_json_without_becoming_zero()
     {
         NativeBattleEffect31BoundsStep step = NativeBattleEffect31Bounds.Advance(NativeBattleEffectMemory.FromColdProcess(), Staging(), Task(), Source(2), [Matrix(0, 0, 0, 0), Matrix(1, 2, 3, null)]);
-        NativeBattleEffect31BoundsStep restored = JsonSerializer.Deserialize<NativeBattleEffect31BoundsStep>(JsonSerializer.Serialize(step))!;
+        NativeBattleEffect31BoundsStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect31BoundsStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step)))!);
         Assert.Equal(0, restored.Task.ReadWord(0x48));
         Assert.Equal(1, restored.Task.ReadWord(0x50));
         Assert.Throws<NotSupportedException>(() => restored.Task.ReadWord(0x4E));

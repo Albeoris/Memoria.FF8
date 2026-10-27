@@ -33,8 +33,8 @@ public sealed class NativeBattleEffect345StateTests
         byte[] value = [1, 2, 3, 4, 5, 6, 7, 8];
         state = state.Write(0x255DC0C, value);
         state.Validate();
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleEffect345State restored = JsonSerializer.Deserialize<NativeBattleEffect345State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleEffect345State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect345State>(json)!);
         restored.Validate();
         Assert.Equal(value, restored.Read(0x255DC0C, 8));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(0x255DC14));
@@ -54,10 +54,10 @@ public sealed class NativeBattleEffect345StateTests
         Assert.Equal((byte)0xA7, state.ReadBank(2).Read(12, 1)[0]);
         Assert.Throws<NotSupportedException>(() => state.ReadBank(2).Read(13, 1));
         state = state.DetachBank(7) with { OwnedModelSourceBound = true, OwnedModels = ImmutableDictionary<uint, NativeBattleEffectOwnedModelState>.Empty.Add(0x255E670, new(0x255E670, NativeBattleEffect345Resources.ModelAddress, null)) };
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleEffect345State restored = JsonSerializer.Deserialize<NativeBattleEffect345State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleEffect345State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect345State>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal((ushort)91, restored.ReadWord(0x255EA78));
         Assert.Null(restored.BankStorage[7]);
         Assert.True(restored.OwnedModelSourceBound);
@@ -68,9 +68,9 @@ public sealed class NativeBattleEffect345StateTests
     {
         foreach (string property in new[] { "ColdSourceOrigin", "OwnedModelSourceBound", "NodeData", "OwnedModels" })
         {
-            JsonObject old = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleEffect345State.FromColdProcess()))!.AsObject();
+            JsonObject old = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect345State.FromColdProcess())))!.AsObject();
             Assert.True(old.Remove(property));
-            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleEffect345State>(old.ToJsonString()));
+            Assert.Throws<JsonException>(() => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect345State>(old.ToJsonString())));
         }
     }
 }

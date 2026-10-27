@@ -14,6 +14,7 @@ public sealed class NativeBattleMagmaBreath48PacketDeliveryTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0x6000, 36) };
         NativeBattleMagmaBreath48State state = NativeBattleMagmaBreath48State.FromColdProcess().WriteDword(Primary, Base + 0x6000);
+        NativeBattleEffectMemory before = NativeBattleStorageSnapshots.Capture(memory);
         NativeBattleMagmaBreath48PacketStep result = NativeBattleMagmaBreath48PacketDelivery.Submit(memory, state, NativeBattleLogicalOrdering.Clear(), Flash());
         Assert.Equal(Base + 0x6024, result.State.ReadDword(Primary));
         Assert.Equal(new[] { 0x6000, 0x6018 }, result.Ordering.Packets.Select(packet => packet.Reference.ByteOffset));
@@ -23,7 +24,7 @@ public sealed class NativeBattleMagmaBreath48PacketDeliveryTests
         Assert.Equal(0x2A000007u, U32(result.Memory.Arena!.Read(0x6004, 4)));
         Assert.Equal(0xE100002Au, U32(result.Memory.Arena.Read(0x601C, 4)));
         Assert.Equal(0u, U32(result.Memory.Arena.Read(0x6020, 4)));
-        Assert.Throws<NotSupportedException>(() => memory.Arena!.Read(0x6000, 1));
+        Assert.Throws<NotSupportedException>(() => before.Arena!.Read(0x6000, 1));
     }
 
     [Fact]
@@ -45,13 +46,13 @@ public sealed class NativeBattleMagmaBreath48PacketDeliveryTests
     public void Independently_restored_packet_descriptions_and_state_continue_by_value()
     {
         NativeBattleModulePacketBatch batch = Flash();
-        NativeBattleModulePacketBatch restoredBatch = JsonSerializer.Deserialize<NativeBattleModulePacketBatch>(JsonSerializer.Serialize(batch))!;
+        NativeBattleModulePacketBatch restoredBatch = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleModulePacketBatch>(SnapshotJson(batch))!);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
         NativeBattleMagmaBreath48State state = NativeBattleMagmaBreath48State.FromColdProcess().WriteDword(Primary, Base);
         NativeBattleMagmaBreath48PacketStep first = NativeBattleMagmaBreath48PacketDelivery.Submit(memory, state, NativeBattleLogicalOrdering.Clear(), batch);
-        NativeBattleMagmaBreath48PacketStep restored = JsonSerializer.Deserialize<NativeBattleMagmaBreath48PacketStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleMagmaBreath48PacketStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleMagmaBreath48PacketStep>(SnapshotJson(first))!);
         NativeBattleMagmaBreath48PacketStep Next(NativeBattleMagmaBreath48PacketStep step, NativeBattleModulePacketBatch description) => NativeBattleMagmaBreath48PacketDelivery.Submit(step.Memory, step.State, step.Ordering, description);
-        Assert.Equal(JsonSerializer.Serialize(Next(first, batch)), JsonSerializer.Serialize(Next(restored, restoredBatch)));
+        Assert.Equal(SnapshotJson(Next(first, batch)), SnapshotJson(Next(restored, restoredBatch)));
     }
 
     [Theory]
@@ -79,7 +80,7 @@ public sealed class NativeBattleMagmaBreath48PacketDeliveryTests
         Assert.Throws<NotSupportedException>(() => NativeBattleMagmaBreath48PacketDelivery.Submit(memory, state, NativeBattleLogicalOrdering.Clear(), batch with { CapturedWrites = null }));
         NativeBattleAllocatedPrimitive mismatch = batch.Primitives[0] with { Primitive = batch.Primitives[0].Primitive with { Bucket = 9 } };
         Assert.Throws<InvalidDataException>(() => NativeBattleMagmaBreath48PacketDelivery.Submit(memory, state, NativeBattleLogicalOrdering.Clear(), batch with { Primitives = batch.Primitives.SetItem(0, mismatch) }));
-        Assert.Throws<InvalidDataException>(() => NativeBattleMagmaBreath48PacketDelivery.Submit(memory, state.WriteDword(Primary, Base + NativeBattleEffectArena.Length - 32), NativeBattleLogicalOrdering.Clear(), batch));
+        Assert.Throws<InvalidDataException>(() => NativeBattleMagmaBreath48PacketDelivery.Submit(memory, NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(state)).WriteDword(Primary, Base + NativeBattleEffectArena.Length - 32), NativeBattleLogicalOrdering.Clear(), batch));
         Assert.Throws<InvalidDataException>(() => NativeBattleMagmaBreath48PacketDelivery.Deliver(memory, state, NativeBattleLogicalOrdering.Clear(), new([], 0), 0x1D8E054, 0));
         Assert.Equal(new byte[36], memory.Arena!.Read(0, 36));
         Assert.Equal(Base, state.ReadDword(Primary));
@@ -106,4 +107,6 @@ public sealed class NativeBattleMagmaBreath48PacketDeliveryTests
     }
 
     private static uint U32(byte[] bytes) => BinaryPrimitives.ReadUInt32LittleEndian(bytes);
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

@@ -20,7 +20,7 @@ public sealed class NativeBattleDoom8ModelDrawingTests
         Assert.Equal((uint?)0x800, registers.FarBlue);
         Assert.Equal((uint?)0x2000020, registers.PacketCursor);
         Assert.Equal((uint?)(fixture.Resource.Address + 148), registers.SourceCursor);
-        Assert.Equal(JsonSerializer.Serialize(fixture.Frame.Memory.ScriptedColorRegisters), JsonSerializer.Serialize(result.Frame.Memory.ScriptedColorRegisters));
+        Assert.Equal(SnapshotJson(fixture.Frame.Memory.ScriptedColorRegisters), SnapshotJson(result.Frame.Memory.ScriptedColorRegisters));
         Assert.Equal(new int?[] { 0, 0, 2000 }, result.Frame.Memory.GeometryRegisters!.Translation);
         Assert.Null(result.Frame.Memory.GeometryRegisters.Rotation20[18]);
         Assert.Throws<NotSupportedException>(() => NativeBattleDoom8Controller.Read(result.Frame, fixture.Address).ReadWord(0x82));
@@ -37,19 +37,20 @@ public sealed class NativeBattleDoom8ModelDrawingTests
         Assert.Equal(0, I32(result.Staging.Read(bone + 28, 4)));
         Assert.Equal(new byte[] { 0, 0 }, result.Staging.Read(bone + 18, 2));
         Assert.NotEqual(new byte[24], result.Frame.State.Read(NativeBattleDoom8ModelDrawing.ProjectedAddress, 24));
-        Assert.Equal(JsonSerializer.Serialize(result.Staging), JsonSerializer.Serialize(result.Frame.Staging));
+        Assert.Equal(SnapshotJson(result.Staging), SnapshotJson(result.Frame.Staging));
     }
 
     [Fact]
     public void Nonzero_secondary_color_retains_actual_temporary_bytes_without_a_second_packet_pass()
     {
         Fixture fixture = new();
+        NativeBattleDoom8Frame initial = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame));
         NativeBattleDoom8ModelDrawStep faded = fixture.Draw();
-        NativeBattleModulePoolTask task = NativeBattleDoom8Controller.Read(fixture.Frame, fixture.Address).WriteByte(0x37, 0);
-        NativeBattleDoom8Frame unfaded = NativeBattleDoom8Controller.Write(fixture.Frame, fixture.Address, task);
+        NativeBattleModulePoolTask task = NativeBattleDoom8Controller.Read(initial, fixture.Address).WriteByte(0x37, 0);
+        NativeBattleDoom8Frame unfaded = NativeBattleDoom8Controller.Write(initial, fixture.Address, task);
         NativeBattleDoom8ModelDrawStep ordinary = fixture.Draw(unfaded);
-        Assert.Equal(JsonSerializer.Serialize(ordinary.Batch), JsonSerializer.Serialize(faded.Batch));
-        Assert.Equal(JsonSerializer.Serialize(ordinary.Frame.Memory), JsonSerializer.Serialize(faded.Frame.Memory));
+        Assert.Equal(SnapshotJson(ordinary.Batch), SnapshotJson(faded.Batch));
+        Assert.Equal(SnapshotJson(ordinary.Frame.Memory), SnapshotJson(faded.Frame.Memory));
         Assert.Equal(new byte[] { 0, 0, 0 }, NativeBattleTemporaryMemory.ReadView(ordinary.Staging, NativeBattleTemporaryMemory.Address, 0x4C).Read(0x48, 3));
         Assert.Equal(new byte[] { 60, 60, 60 }, NativeBattleTemporaryMemory.ReadView(faded.Staging, NativeBattleTemporaryMemory.Address, 0x4C).Read(0x48, 3));
     }
@@ -64,7 +65,7 @@ public sealed class NativeBattleDoom8ModelDrawingTests
         Assert.Empty(result.Batch.Attempts);
         Assert.Equal((uint?)0x800, result.Frame.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
         Assert.Throws<NotSupportedException>(() => result.Frame.State.Read(NativeBattleDoom8ModelDrawing.ProjectedAddress, 1));
-        Assert.Equal(JsonSerializer.Serialize(frame.Memory.GeometryRegisters), JsonSerializer.Serialize(result.Frame.Memory.GeometryRegisters));
+        Assert.Equal(SnapshotJson(frame.Memory.GeometryRegisters), SnapshotJson(result.Frame.Memory.GeometryRegisters));
         Assert.Equal(NativeBattleTemporaryMemory.Address, U32(result.Staging.Read(NativeBattleTemporaryMemory.Cursor, 4)));
     }
 
@@ -91,13 +92,14 @@ public sealed class NativeBattleDoom8ModelDrawingTests
         NativeBattleDoom8ModelDrawStep normal = fixture.Draw(fixture.WithShadow(fixture.Frame));
         NativeBattleDoom8Frame frame = NativeBattleDoom8ReaperAppearance.Initialize8CD020(normal.Frame, fixture.Address + 0x30);
         frame = frame with { State = frame.State.Write(NativeBattleDoom8ReaperAppearance.ScratchAddress + 0x5D, [19]) };
+        NativeBattleDoom8Frame continuation = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
         NativeBattleDoom8ModelDrawStep result = NativeBattleDoom8ModelDrawing.Draw8CC6B0(frame, normal.Staging, fixture.Address, fixture.Model, fixture.Resource, fixture.Inputs);
         Assert.True(result.Batch.Attempts.Length > 1);
         Assert.Equal(4112, result.Batch.Attempts[0].Primitive!.Bucket);
         Assert.Equal(0x24808080u, result.Batch.Attempts[^1].Primitive!.Words[1]);
         Assert.Equal(0, I32(result.Staging.Read(fixture.Resource.Address + 24 + 32 + 28, 4)));
         Assert.Equal(NativeBattleTemporaryMemory.Address, U32(result.Staging.Read(NativeBattleTemporaryMemory.Cursor, 4)));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleDoom8ModelDrawing.Draw8CC6B0(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(frame))!, normal.Staging, fixture.Address, fixture.Model, fixture.Resource, fixture.Inputs)));
+        Assert.Equal(SnapshotJson(result), SnapshotJson(NativeBattleDoom8ModelDrawing.Draw8CC6B0(continuation, continuation.Staging!, fixture.Address, fixture.Model, fixture.Resource, fixture.Inputs)));
     }
 
     [Fact]
@@ -124,9 +126,10 @@ public sealed class NativeBattleDoom8ModelDrawingTests
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown());
         NativeBattleGeometryRegisterStep registers = new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown());
         NativeBattleCameraProjection projection = new(identity with { Z = 2000 }, 100, 160, 108);
+        NativeBattleFileStaging independent = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(staging));
         NativeBattleShadowDrawStep existing = NativeBattleShadowDrawing.Prepare5088A0(staging, registers, actor, projection, NativeBattleScriptedGraphicsMemory.FromColdProcess(), source, true, 4121, 16);
-        NativeBattleShadowDrawStep neutral = NativeBattleShadowDrawing.Prepare5088A0(staging, registers, identity, 0, bounds, 0x32808080, projection, NativeBattleScriptedGraphicsMemory.FromColdProcess(), source, true, 4121, 16);
-        Assert.Equal(JsonSerializer.Serialize(existing), JsonSerializer.Serialize(neutral));
+        NativeBattleShadowDrawStep neutral = NativeBattleShadowDrawing.Prepare5088A0(independent, registers, identity, 0, bounds, 0x32808080, projection, NativeBattleScriptedGraphicsMemory.FromColdProcess(), source, true, 4121, 16);
+        Assert.Equal(SnapshotJson(existing), SnapshotJson(neutral));
     }
 
     private sealed class Fixture
@@ -192,10 +195,13 @@ public sealed class NativeBattleDoom8ModelDrawingTests
 
         public NativeBattleDoom8ModelDrawStep Draw(NativeBattleDoom8Frame? frame = null)
         {
-            return NativeBattleDoom8ModelDrawing.Draw8CC4D0(frame ?? Frame, Staging, Address, Model, Resource, Inputs);
+            NativeBattleDoom8Frame current = frame ?? Frame;
+            return NativeBattleDoom8ModelDrawing.Draw8CC4D0(current, current.Staging!, Address, Model, Resource, Inputs);
         }
     }
 
     private static uint U32(byte[] bytes) => BinaryPrimitives.ReadUInt32LittleEndian(bytes);
     private static int I32(byte[] bytes) => BinaryPrimitives.ReadInt32LittleEndian(bytes);
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

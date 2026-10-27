@@ -168,7 +168,7 @@ internal sealed partial class GameWorld : IDisposable
         {
             throw new NotSupportedException("Diagnostic battle lifecycle persistence is unsupported; retain the declared recipe and restart a fresh process instead.");
         }
-        if (state.Scene == SceneKind.WorldMap && Field is not null && worldScene is not null || battle is not null && Events.PendingMenuBattle is not null || tutorial is not null)
+        if (state.Scene == SceneKind.Field && HasCurrentFieldAllocation || state.Scene == SceneKind.WorldMap && Field is not null && worldScene is not null || battle is not null && Events.PendingMenuBattle is not null || tutorial is not null)
         {
             // Suspended exploration publishes its current shared owners and battle callbacks only for persistence.
             return state with { EventState = Events.Capture() };
@@ -378,7 +378,7 @@ internal sealed partial class GameWorld : IDisposable
         {
             Events.RehydrateNativeModelResources();
             registration = Events.Scene.NativeFieldRegistration!;
-            NativeBattleRetainedMemory memory = restoreDeparting && Events.Scene.NativeEyeProcess is { } dormantEyes ? dormantEyes.Memory : session.State.NativeBattleMemory ?? throw new InvalidDataException("Registered field restore lost its shared physical resource memory.");
+            NativeBattleRetainedMemory memory = restoreDeparting && Events.Scene.NativeEyeProcess is { } dormantEyes ? dormantEyes.Memory : session.CurrentNativeBattleMemory ?? throw new InvalidDataException("Registered field restore lost its shared physical resource memory.");
             Events.ValidateNativeBattleFieldRegistrationMemory(memory);
             next = assets.BindNativeRegisteredTextures(next, registration, memory.EffectMemory?.Textures ?? throw new InvalidDataException("Registered field restore lost its physical texture memory."), memory.FieldTextureAnimations);
         }

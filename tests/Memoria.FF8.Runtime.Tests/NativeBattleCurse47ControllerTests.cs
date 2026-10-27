@@ -20,7 +20,7 @@ public sealed class NativeBattleCurse47ControllerTests
                 Assert.Equal(secondary, current.State.ReadDword(0x264B4D4));
                 Assert.Equal(0x2793E58u, current.State.ReadDword(0x264EADC));
                 Assert.Equal(0x2793E58u, current.State.ReadDword(0x264B4D8));
-                Assert.Equal(JsonSerializer.Serialize(fixture.Camera), JsonSerializer.Serialize(current.Memory.SharedEffectView2793E58));
+                Assert.Equal(SnapshotJson(fixture.Camera), SnapshotJson(current.Memory.SharedEffectView2793E58));
             }
             return current;
         };
@@ -35,7 +35,8 @@ public sealed class NativeBattleCurse47ControllerTests
     public void Phase_two_waits_for_children_then_clears_only_the_native_emitter_and_geometry_extents()
     {
         Fixture fixture = new(2);
-        NativeBattleCurse47Frame waiting = fixture.PutRoot(fixture.Frame, fixture.Root(fixture.Frame).WriteByte(0x28, 1));
+        NativeBattleCurse47Frame branch = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame));
+        NativeBattleCurse47Frame waiting = fixture.PutRoot(branch, fixture.Root(branch).WriteByte(0x28, 1));
         waiting = fixture.Step(waiting);
         Assert.Equal((byte)2, fixture.Root(waiting).ReadByte(0x29));
         Assert.Equal(0u, waiting.State.ReadDword(0x264E708));
@@ -134,17 +135,18 @@ public sealed class NativeBattleCurse47ControllerTests
     public void Texture_completion_and_terminal_cold_next_require_real_completion_instead_of_elapsed_time()
     {
         Fixture fixture = new(7);
+        NativeBattleCurse47Frame invalidPhaseFrame = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame));
         NativeBattleCurse47Frame frame = fixture.Step(fixture.Frame);
         Assert.Equal(0x20DFAB8u, Assert.Single(fixture.Operations.OfType<NativeBattleCurse47TextureLoad>()).SourceAddress);
         Assert.Equal((byte)8, fixture.Root(frame).ReadByte(0x29));
-        NativeBattleCurse47Frame restored = JsonSerializer.Deserialize<NativeBattleCurse47Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(frame)), JsonSerializer.Serialize(fixture.Step(restored)));
+        NativeBattleCurse47Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCurse47Frame>(SnapshotJson(frame))!);
+        Assert.Equal(SnapshotJson(fixture.Step(frame)), SnapshotJson(fixture.Step(restored)));
         frame = fixture.PutRoot(frame, fixture.Root(frame).WriteByte(0x62, 1));
         frame = fixture.Step(frame);
         Assert.Equal((byte)9, fixture.Root(frame).ReadByte(0x29));
         frame = fixture.Step(frame);
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
-        Assert.Throws<InvalidDataException>(() => fixture.Step(fixture.PutRoot(fixture.Frame, fixture.Root(fixture.Frame).WriteByte(0x29, 0xFF))));
+        Assert.Throws<InvalidDataException>(() => fixture.Step(fixture.PutRoot(invalidPhaseFrame, fixture.Root(invalidPhaseFrame).WriteByte(0x29, 0xFF))));
     }
 
     private sealed class Fixture
@@ -187,4 +189,6 @@ public sealed class NativeBattleCurse47ControllerTests
             return Execute(current, operation);
         }, (current, address) => Leaf(current, address), 0x64221));
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

@@ -59,9 +59,9 @@ public sealed class NativeBattleChoco99EnvironmentTests
         NativeBattleChoco99EnvironmentFrame frame = Frame(callback, 0, 0);
         for (int index = 0; index < callbacks; index++)
         {
-            NativeBattleChoco99EnvironmentFrame cold = JsonSerializer.Deserialize<NativeBattleChoco99EnvironmentFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleChoco99EnvironmentFrame cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleChoco99EnvironmentFrame>(NativeBattleTestSnapshots.Json(frame))!;
             NativeBattleChoco99EnvironmentStep step = Advance(frame);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Advance(cold)));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(Advance(cold)));
             Assert.Equal(index == callbacks - 1, step.ReadyToComplete);
             if (index == 0)
             {

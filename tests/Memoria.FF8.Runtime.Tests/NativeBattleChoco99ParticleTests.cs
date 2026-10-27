@@ -13,10 +13,12 @@ public sealed class NativeBattleChoco99ParticleTests
     public void Trail_appends_one_mandatory_child_before24_RNG_draws_and_preserves_raw_fourth_words()
     {
         (NativeBattleEffectHierarchy hierarchy, uint parent) = Hierarchy();
+        NativeBattleEffectHierarchy before = NativeBattleStorageSnapshots.Capture(hierarchy);
         NativeBattleChoco99ParticleEmission emission = NativeBattleChoco99Particles.EmitTrail7209B0(hierarchy, parent, 8, new(1), SelectActors);
         Assert.Equal(SeedAfter(24), emission.Random.Seed);
         Assert.Equal((byte)1, emission.Hierarchy.Read(parent).ReadByte(0x28));
-        Assert.Equal((byte)0, hierarchy.Read(parent).ReadByte(0x28));
+        Assert.Equal((byte)0, before.Read(parent).ReadByte(0x28));
+        Assert.Equal((byte)1, hierarchy.Read(parent).ReadByte(0x28));
         NativeBattleModulePoolTask child = emission.Hierarchy.Read(emission.Address);
         Assert.Equal(NativeBattleChoco99Particles.TrailCallback, child.Callback);
         Assert.Equal((ushort)8, child.ReadWord(0xAE));
@@ -87,7 +89,8 @@ public sealed class NativeBattleChoco99ParticleTests
         int queries = 0;
         for (int callbackIndex = 0; callbackIndex < 13; callbackIndex++)
         {
-            NativeBattleModulePoolTask before = task;
+            NativeBattleModulePoolTask before = NativeBattleStorageSnapshots.Capture(task);
+            NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task));
             NativeBattleChoco99ParticleStep step = NativeBattleChoco99Particles.Advance(task, Resources(), mode =>
             {
                 Assert.Equal((short)10, mode);
@@ -105,8 +108,7 @@ public sealed class NativeBattleChoco99ParticleTests
             Assert.Equal((ushort)0xFF00, step.Task.ReadWord(0x54));
             Assert.Equal(step.Task.ReadDword(0x84), step.Task.ReadDword(0x1C));
             Assert.Equal(step.Task.ReadDword(0x88), step.Task.ReadDword(0x20));
-            NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleChoco99Particles.Advance(restored, Resources(), _ => false, View, Projection, 0)));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleChoco99Particles.Advance(restored, Resources(), _ => false, View, Projection, 0)));
             task = step.Task;
         }
         Assert.Equal(11, queries);

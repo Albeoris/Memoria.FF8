@@ -166,7 +166,7 @@ public sealed class NativeBattleSigh46ControllerTests
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.Empty(actual.Effect.Pools);
         Assert.All(actual.State.InactiveBanks, bank => Assert.NotNull(bank));
-        var restored = JsonSerializer.Deserialize<NativeBattleSigh46Frame>(JsonSerializer.Serialize(actual))!;
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleSigh46Frame>(SnapshotJson(actual))!);
         Assert.Equal(actual.Random, restored.Random);
         Assert.Equal(actual.State.InactiveBanks[0]!.Read(0x29, 1), restored.State.InactiveBanks[0]!.Read(0x29, 1));
         Assert.Equal(restored, Advance(restored, Resources(), Inputs([])));
@@ -376,4 +376,6 @@ public sealed class NativeBattleSigh46ControllerTests
     }
 
     private static NativeBattleSigh46Resources Resources() => NativeBattleSigh46StateTests.Resources();
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

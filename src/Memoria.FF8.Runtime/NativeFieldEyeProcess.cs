@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeFieldEyeProcess([property: JsonRequired] int Version, [property: JsonRequired] NativeBattleRetainedMemory Memory, [property: JsonRequired] NativeCrtRandomState? CrtRandom)
+public sealed partial record NativeFieldEyeProcess([property: JsonRequired] int Version, [property: JsonRequired] NativeBattleRetainedMemory Memory, [property: JsonRequired] NativeCrtRandomState? CrtRandom)
 {
     public void Validate(NativeFieldRegistrationState registration)
     {

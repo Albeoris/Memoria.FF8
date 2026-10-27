@@ -18,7 +18,7 @@ public static class NativeBattleChoco99Controller
         NativeBattleChoco99State retained = memory.Choco99 ?? throw new NotSupportedException("Native Choco99 retained owners are missing.");
         retained.Validate();
         NativeBattleGfAnimationSource source = retained.ProgramSource ?? (retained.ProgramSourceKnownCold ? resources.ProgramSource : throw new NotSupportedException("Native Choco99 warm static program source is missing."));
-        if (source.Address != 0x166DC58 || source.Data.IsDefault || source.Data.Length != 0x2884)
+        if (source.Address != 0x166DC58 || source.IsDefault || source.Length != 0x2884)
         {
             throw new InvalidDataException("Native Choco99 static program source contradicts its actual owner.");
         }

@@ -109,8 +109,8 @@ public sealed class NativeBattleCurse47ActTests
         Assert.Equal((byte)2, fixture.Task(result.Frame).ReadByte(0x29));
         Assert.Equal((byte)1, (byte)(fixture.Task(result.Frame).ReadByte(0x26) & 1));
         int prepared = fixture.Prepared;
-        NativeBattleCurse47Frame cold = JsonSerializer.Deserialize<NativeBattleCurse47Frame>(JsonSerializer.Serialize(result.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(result.Frame)), JsonSerializer.Serialize(fixture.Step(cold)));
+        NativeBattleCurse47Frame cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCurse47Frame>(SnapshotJson(result.Frame))!);
+        Assert.Equal(SnapshotJson(fixture.Step(result.Frame)), SnapshotJson(fixture.Step(cold)));
         Assert.Equal(prepared, fixture.Prepared);
         NativeBattleCurse47Step completed = fixture.Step(fixture.Put(result.Frame, fixture.Task(result.Frame).WriteByte(0x28, 0)));
         Assert.Equal(2, completed.Result);
@@ -147,6 +147,7 @@ public sealed class NativeBattleCurse47ActTests
     public void Observed_mode_one_births_three_distinct_ACTs_before_the_particle_under_the_actual_director()
     {
         var source = BirthFrame();
+        NativeBattleCurse47Frame before = NativeBattleStorageSnapshots.Capture(source.Frame);
         NativeBattleCurse47Frame frame = NativeBattleCurse47Act.ObserveMode(source.Frame, source.Director, 1, source.Packets);
         Assert.Equal(new uint[] { NativeBattleCurse47Act.FirstCallback, NativeBattleCurse47Act.SecondCallback, NativeBattleCurse47Act.MidpointCallback }, frame.Effect.Pools[4].Slots.Select(task => task.Callback));
         Assert.Equal(new uint[] { 0x17BB134, 0x17BDF6C, 0x17C0DA4 }, frame.Effect.Pools[4].Slots.Select(task => task.ReadDword(0x74)));
@@ -155,7 +156,7 @@ public sealed class NativeBattleCurse47ActTests
         Assert.All(frame.Effect.Pools[4].Slots, task => Assert.Equal((ushort)0, task.ReadWord(0x82)));
         Assert.Equal(0x831870u, frame.Effect.Pools[5].Slots[0].Callback);
         Assert.Equal((byte)4, NativeBattleCurse47Controller.Read(frame, source.Director).ReadByte(0x28));
-        Assert.Equal((byte)0, NativeBattleCurse47Controller.Read(source.Frame, source.Director).ReadByte(0x28));
+        Assert.Equal((byte)0, NativeBattleCurse47Controller.Read(before, source.Director).ReadByte(0x28));
     }
 
     [Fact]
@@ -241,4 +242,6 @@ public sealed class NativeBattleCurse47ActTests
         public NativeBattleCurse47Frame Put(NativeBattleCurse47Frame frame, NativeBattleModulePoolTask task) => NativeBattleCurse47Controller.Write(frame, Address, task);
         public NativeBattleCurse47Step Step(NativeBattleCurse47Frame frame) => NativeBattleCurse47Act.Advance(frame, Address, Inputs);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

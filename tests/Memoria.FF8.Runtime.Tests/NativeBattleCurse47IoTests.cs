@@ -95,14 +95,15 @@ public sealed class NativeBattleCurse47IoTests
     public void Pending_cold_state_has_identical_callback_and_next_poll_without_reinitialization()
     {
         NativeBattleCurse47IoAdvance begun = NativeBattleCurse47Io.AdvanceTask(Task(), NativeBattleCurse47Io.ReleaseWait(Initialized()).State);
-        NativeBattleCurse47IoAdvance cold = JsonSerializer.Deserialize<NativeBattleCurse47IoAdvance>(JsonSerializer.Serialize(begun))!;
+        NativeBattleCurse47IoAdvance cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCurse47IoAdvance>(SnapshotJson(begun))!);
+        NativeBattleCurse47State invalidCallbackState = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(begun.State));
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x20000, Tim(33312, 0xAA)) };
         var a = NativeBattleCurse47Io.Complete(begun.State, memory, 0x82AF90);
         var b = NativeBattleCurse47Io.Complete(cold.State, memory, 0x82AF90);
-        Assert.Equal(JsonSerializer.Serialize(a.State), JsonSerializer.Serialize(b.State));
-        Assert.Equal(JsonSerializer.Serialize(a.Memory), JsonSerializer.Serialize(b.Memory));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCurse47Io.AdvanceTask(begun.Task, a.State)), JsonSerializer.Serialize(NativeBattleCurse47Io.AdvanceTask(cold.Task, b.State)));
-        Assert.Throws<InvalidDataException>(() => NativeBattleCurse47Io.Complete(begun.State, memory, 0x82B000));
+        Assert.Equal(SnapshotJson(a.State), SnapshotJson(b.State));
+        Assert.Equal(SnapshotJson(a.Memory), SnapshotJson(b.Memory));
+        Assert.Equal(SnapshotJson(NativeBattleCurse47Io.AdvanceTask(begun.Task, a.State)), SnapshotJson(NativeBattleCurse47Io.AdvanceTask(cold.Task, b.State)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleCurse47Io.Complete(invalidCallbackState, memory, 0x82B000));
     }
 
     [Fact]
@@ -207,4 +208,6 @@ public sealed class NativeBattleCurse47IoTests
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(64), 0x3210);
         return bytes;
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

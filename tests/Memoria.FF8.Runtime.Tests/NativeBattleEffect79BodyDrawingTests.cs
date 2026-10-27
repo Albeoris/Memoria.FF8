@@ -64,10 +64,10 @@ public sealed class NativeBattleEffect79BodyDrawingTests
         Assert.False(first.Memory.ScriptedLighting!.ColorMatrix!.Known[18]);
         Assert.False(first.Memory.ScriptedLighting.ColorMatrix.Known[19]);
         Assert.Throws<NotSupportedException>(() => first.Rows.Read(16, 16));
-        NativeBattleEffect79BodyDrawingStep restored = JsonSerializer.Deserialize<NativeBattleEffect79BodyDrawingStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleEffect79BodyDrawingStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect79BodyDrawingStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         NativeBattleEffect79BodyDrawingStep expected = Draw(Points([new(32760, 0, 0)]), context, first.Temporary168, 1, first.Memory, first.Rows);
         NativeBattleEffect79BodyDrawingStep actual = Draw(Points([new(32760, 0, 0)]), context, restored.Temporary168, 1, restored.Memory, restored.Rows);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
         NativeBattleEffect79BodyDrawingStep unknownW = Draw(Points([new(100, 0, 0)]), Context(), Temporary(), 1);
         Assert.Throws<NotSupportedException>(() => unknownW.Rows.Read(6, 2));
     }

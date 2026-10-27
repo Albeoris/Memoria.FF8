@@ -31,7 +31,7 @@ public sealed class NativeBattleEffect79ParticleDrawingTests
         NativeBattleEffectArena temporary = NativeBattleEffectArena.Clear().MarkUnknown(0, 232);
         NativeBattleProjectedSpriteHead result = NativeBattleEffect79ParticleDrawing.PrepareHead(Memory(), Task(), View(), temporary, 4096);
         NativeBattleProjectedSpriteHead expected = NativeBattleProjectedSpriteD8.PrepareHead(Memory(), Task(), View(), temporary);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)));
         Assert.DoesNotContain(true, result.TemporaryD8.ReadSnapshot(0xD8, 16).Known);
     }
 
@@ -72,11 +72,11 @@ public sealed class NativeBattleEffect79ParticleDrawingTests
             Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[30]);
             Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[38]);
         });
-        NativeBattleEffect79Frame restored = JsonSerializer.Deserialize<NativeBattleEffect79Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect79Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect79Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         NativeBattleEffect79Frame Next(NativeBattleEffect79Frame current) => NativeBattleEffect79ParticleDrawing.Draw7BBEB0(current, 0x200, resources, inputs);
         if (!scaled)
         {
-            Assert.Equal(JsonSerializer.Serialize(Next(result)), JsonSerializer.Serialize(Next(restored)));
+            Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(result))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(restored))));
         }
     }
 
@@ -93,7 +93,8 @@ public sealed class NativeBattleEffect79ParticleDrawingTests
     private static NativeBattlePackedMatrix32 View() => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0x1234);
     private static NativeBattleEffect79Frame Frame(NativeBattleModulePoolTask task)
     {
-        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 180, 1) with { Slots = [task] };
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 180, 1);
+        pool.WriteSlot(0, task);
         NativeBattleOriginalEffectState effect = new(79, 78, new(79, NativeBattleEffect79Profile.Entry, NativeBattleEffect79Profile.Initializer), null, null) { Pools = [pool] };
         return new(Memory(), effect, new(1), NativeBattleEffect79State.FromColdProcess().WriteDword(0x25DF33C, 0x20E0000).WriteDword(0x25EB3AC, 0x2793E58)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }

@@ -60,13 +60,13 @@ public sealed class NativeBattleChoco100CameraTests
         NativeBattleChoco97Context context = Context(8).WriteWord(0x40, current).WriteWord(0x44, requested);
         NativeBattleModulePoolTask task = Task(8);
         NativeBattleMoogleCameraState camera = NativeBattleMoogleCamera.Reset732AF0();
+        Saved restored = NativeBattleTestSnapshots.RestoreJson<Saved>(NativeBattleTestSnapshots.Json(new Saved(task, camera, context)));
         NativeBattleChoco100CameraTaskStep step = Advance(task, camera, context);
         Assert.IsType<NativeBattleChoco97CameraPublish>(Assert.Single(step.Operations));
         Assert.Equal(1, Word(step.Camera, 0xE2));
         Assert.Equal(accepted ? (ushort)9 : requested, step.Context.Word(0x44));
         Assert.Equal(accepted ? (byte)9 : (byte)8, step.Task.ReadByte(0x29));
-        Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(new Saved(task, camera, context)))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Advance(restored.Task, restored.Camera, restored.Context)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(Advance(restored.Task, restored.Camera, restored.Context)));
     }
 
     [Fact]

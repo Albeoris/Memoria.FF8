@@ -63,12 +63,12 @@ public sealed partial class EventEngine
             throw new InvalidOperationException("No field has been loaded.");
         }
         PreparingCheckpoint?.Invoke();
-        CaptureNativeEyeProcessOwners();
+        SceneEventState sceneSnapshot = CaptureNativeEyeProcessScene();
         Checkpoint snapshot = new(
             1, FieldId, programHash, Frame, accumulatedSeconds, preparedMovie, sequence, defaultsStarted, transitionRequested, userControlEnabled,
             backgroundFps, nameEntity,
             actors.ToArray(), fibers.Select(fiber => new FiberCheckpoint(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture(), fiber.StackExpressions.ToArray(), new Dictionary<int, NativeScalarValue>(fiber.Results), fiber.WaitReason, fiber.WaitUntil, fiber.Request?.Sequence, fiber.DialogueChannel, fiber.BackgroundId, fiber.SoundResourceId, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeMoveOperation, fiber.NativeMoveTarget, fiber.NativeDoorRequestWait, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults, fiber.NativeShadeOperation, fiber.NativePartyRequestPointer, fiber.NativeGlobalJumps.ToArray(), fiber.NativeDialogueConsumer)).ToArray(),
-            dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop, pair.Value.NativeFlag404)).ToArray(), EventMemory, Scene, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.CharacterVitals, services.CharacterAppearance, services.CardInventory, services.SeeD, services.MessageVariables, services.Economy, services.GlobalSoundProcess, services.SalaryPresentation, services.FieldShake, services.InputConfiguration, services.FieldButtonInput, services.ShotAvailability, partyMenu, services.EventRandom, services.NativeFieldLocation, services.VibrationProcess, services.FieldFade, services.ShopHistory, services.MenuRandom, services.WeaponRecipes, services.WorldEntryMemory, services.DiscProcess, services.MovieSource, userControlSequenceDisabled, services.FieldBars, services.FieldRequestPacket, services.NativeGameOver, (services as GameSession)?.State.SavedBattleFlags, services.NativeFieldDebugRequested);
+            dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop, pair.Value.NativeFlag404)).ToArray(), EventMemory, sceneSnapshot, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.CharacterVitals, services.CharacterAppearance, services.CardInventory, services.SeeD, services.MessageVariables, services.Economy, services.GlobalSoundProcess, services.SalaryPresentation, services.FieldShake, services.InputConfiguration, services.FieldButtonInput, services.ShotAvailability, partyMenu, services.EventRandom, services.NativeFieldLocation, services.VibrationProcess, services.FieldFade, services.ShopHistory, services.MenuRandom, services.WeaponRecipes, services.WorldEntryMemory, services.DiscProcess, services.MovieSource, userControlSequenceDisabled, services.FieldBars, services.FieldRequestPacket, services.NativeGameOver, (services as GameSession)?.State.SavedBattleFlags, services.NativeFieldDebugRequested);
         return JsonSerializer.SerializeToElement(snapshot, CheckpointOptions);
     }
 
@@ -331,7 +331,7 @@ public sealed partial class EventEngine
         ValidateSoundStopCheckpoint(saved);
         ValidateSoundVolumeTransitionCheckpoint(saved);
         ValidateSoundVolumeCheckpoint(saved);
-        ValidateNativeEyeProcessCheckpoint(saved);
+        NativeFieldEyeProcess? restoredEyeProcess = ValidateNativeEyeProcessCheckpoint(saved);
         ValidateSoundPositionCheckpoint(saved);
         ValidateAllSoundPositionCheckpoint(saved);
         ValidateVibrationCheckpoint(saved);
@@ -882,9 +882,9 @@ public sealed partial class EventEngine
         }
         Scene = saved.Scene;
         // A suspended field retains its cached eye process while battle owns shared memory and CRT.
-        if (restoreSharedState && !IsDormantWorldReturnCheckpoint(snapshot) && services is GameSession eyeSession && OwnsNativeFieldEyeProcess(eyeSession) && Scene.NativeEyeProcess is { } eyeProcess)
+        if (restoreSharedState && !IsDormantWorldReturnCheckpoint(snapshot) && services is GameSession eyeSession && OwnsNativeFieldEyeProcess(eyeSession) && Scene.NativeEyeProcess is not null)
         {
-            PublishNativeFieldEyeProcess(eyeProcess);
+            PublishNativeFieldEyeProcess(restoredEyeProcess ?? throw new InvalidDataException("Saved field eye ownership was not prepared before restoration."));
         }
         if (restoreSharedState)
         {

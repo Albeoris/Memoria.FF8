@@ -16,7 +16,7 @@ public sealed class NativeBattleLaserEye71NodeTests
         Assert.Equal(unchecked((ushort)-1), fixture.Task(next.Frame).ReadWord(0x24));
         Assert.Equal((byte)0, fixture.Task(next.Frame).ReadByte(0x29));
         Assert.Null(next.Frame.State.ExecutableBytes);
-        Assert.Equal(JsonSerializer.Serialize(frame.Random), JsonSerializer.Serialize(next.Frame.Random));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Random)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next.Frame.Random)));
     }
 
     [Fact]
@@ -49,12 +49,12 @@ public sealed class NativeBattleLaserEye71NodeTests
         NativeBattleLaserEye71Frame frame = fixture.Set(fixture.Frame, fixture.Task(fixture.Frame).WriteByte(0x29, 1).WriteWord(0x54, 1).WriteWord(0x4E, 1).WriteDword(0x258, SourceAddress + 4));
         frame = frame with { State = frame.State with { ExecutableBytes = bytes.ToImmutableArray() }, Memory = frame.Memory with { Arena = NativeBattleEffectArena.Clear(), SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) } };
         frame = frame with { State = frame.State.WriteDword(0x25FCD8C, ArenaAddress + EmittersOffset).WriteDword(0x25FCDC8, ArenaAddress + GeometryOffset).WriteWord(0x25FAAE0, 0).WriteWord(0x25FCD98, 0) };
-        NativeBattleLaserEye71Frame restored = JsonSerializer.Deserialize<NativeBattleLaserEye71Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleLaserEye71Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleLaserEye71Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         NativeBattleLaserEye71TaskStep next = fixture.Step(frame);
         Assert.Equal((byte)0xA7, next.Frame.State.ExecutableBytes!.ReadByte(SourceLength - 1));
         Assert.Equal(1u, next.Frame.State.ReadSourceFlag());
         Assert.Equal((ushort)2, fixture.Task(next.Frame).ReadWord(0x54));
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(fixture.Step(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Step(restored))));
         NativeBattleLaserEye71TaskStep done = fixture.Step(next.Frame);
         Assert.Equal(2, done.Result);
         Assert.Equal((byte)0, NativeBattleLaserEye71Controller.Read(done.Frame, fixture.Parent).ReadByte(0x28));

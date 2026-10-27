@@ -47,7 +47,7 @@ public sealed class NativeBattleEffect83SpiralTests
         NativeBattleEffect83SpiralStep first = NativeBattleEffect83Spiral.AdvanceFace(faces, 32, Corners(), true);
         Assert.Equal((short)256, Word(first.Faces, 62));
         Assert.Equal(unchecked((short)(short.MinValue - 48)), Word(first.Faces, 32));
-        NativeBattleEffect83SpiralStep restored = JsonSerializer.Deserialize<NativeBattleEffect83SpiralStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleEffect83SpiralStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect83SpiralStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         NativeBattleEffect83SpiralStep expected = NativeBattleEffect83Spiral.AdvanceFace(first.Faces, 32, first.Temporary148, true);
         NativeBattleEffect83SpiralStep actual = NativeBattleEffect83Spiral.AdvanceFace(restored.Faces, 32, restored.Temporary148, true);
         Assert.Equal(expected.Faces.Read(0, 64), actual.Faces.Read(0, 64));

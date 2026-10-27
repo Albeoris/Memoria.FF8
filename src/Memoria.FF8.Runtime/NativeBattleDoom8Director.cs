@@ -4,6 +4,9 @@ public static class NativeBattleDoom8Director
 {
     public static NativeBattleDoom8Step Advance(NativeBattleDoom8Frame frame, uint address, NativeBattleDoom8DirectorInputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        operation?.AdmitStaging(frame.Staging);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(frame.State.Globals);
         ArgumentNullException.ThrowIfNull(inputs.Execute);
         NativeBattleDoom8Controller.RequireDirector(frame, address);
         frame = ObserveModes(frame, address, inputs);
@@ -94,7 +97,7 @@ public static class NativeBattleDoom8Director
             default:
                 throw new InvalidDataException("Doom director signed phase exceeds its fifteen handlers.");
         }
-        return NativeBattleDoom8Controller.Finish(frame, address);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, NativeBattleDoom8Controller.Finish(frame, address));
     }
 
     private static NativeBattleDoom8Frame ObserveModes(NativeBattleDoom8Frame frame, uint address, NativeBattleDoom8DirectorInputs inputs)

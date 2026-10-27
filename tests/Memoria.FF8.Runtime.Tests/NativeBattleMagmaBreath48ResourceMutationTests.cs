@@ -50,10 +50,11 @@ public sealed class NativeBattleMagmaBreath48ResourceMutationTests
         var fixture = Fixture(mesh);
         NativeBattleMagmaBreath48Frame frame = fixture.Frame with { State = fixture.Frame.State.WriteView(MeshAAddress, fixture.Frame.State.ReadView(MeshAAddress, mesh.Length).MarkUnknown(14, 2), mesh.Length) };
         NativeBattleMagmaBreath48Frame once = ScrollResource(frame, fixture.Resources, MeshAAddress);
+        NativeBattleMagmaBreath48Frame onceSnapshot = NativeBattleStorageSnapshots.Capture(once);
         NativeBattleMagmaBreath48Frame twice = ScrollResource(once, fixture.Resources, MeshAAddress);
         for (int index = 0; index < lanes.Length; index++)
         {
-            Assert.Equal(unchecked((byte)(index * 16 - 8 - 128)), once.State.Read(MeshAAddress + (uint)(face + lanes[index]), 1)[0]);
+            Assert.Equal(unchecked((byte)(index * 16 - 8 - 128)), onceSnapshot.State.Read(MeshAAddress + (uint)(face + lanes[index]), 1)[0]);
             Assert.Equal(unchecked((byte)(index * 16 - 16 - 128)), twice.State.Read(MeshAAddress + (uint)(face + lanes[index]), 1)[0]);
         }
         for (int offset = 0; offset < mesh.Length; offset++)

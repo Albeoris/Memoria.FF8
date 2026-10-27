@@ -49,7 +49,7 @@ public sealed class NativeBattleSigh46StateTests
         Assert.Equal(expected, current.ReadMesh(resources, MeshAAddress).Bytes.ToArray());
         Assert.Equal(resources.ReadMesh(MeshBAddress).Bytes.ToArray(), current.Read(MeshBAddress, MeshLength));
         Assert.Same(current, current.EnsureSources(resources));
-        var restored = JsonSerializer.Deserialize<NativeBattleSigh46State>(JsonSerializer.Serialize(current))!;
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleSigh46State>(SnapshotJson(current))!);
         restored.Validate();
         Assert.Same(restored, restored.EnsureSources(resources));
         Assert.Equal(expected, restored.ReadMesh(resources, MeshAAddress).Bytes.ToArray());
@@ -63,9 +63,9 @@ public sealed class NativeBattleSigh46StateTests
         Assert.Null(unknown.SourcesLoaded);
         Assert.Throws<NotSupportedException>(() => unknown.EnsureSources(Resources()));
         Assert.Throws<NotSupportedException>(() => unknown.ReadWord(ChannelBase));
-        var json = JsonNode.Parse(JsonSerializer.Serialize(unknown))!.AsObject();
+        var json = JsonNode.Parse(SnapshotJson(unknown))!.AsObject();
         Assert.True(json.Remove(nameof(NativeBattleSigh46State.SourcesLoaded)));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleSigh46State>(json.ToJsonString()));
+        Assert.Throws<JsonException>(() => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleSigh46State>(json.ToJsonString())));
     }
 
     [Fact]
@@ -172,4 +172,6 @@ public sealed class NativeBattleSigh46StateTests
             return new(0, address, 0, 0, bytes.ToImmutableArray());
         }
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

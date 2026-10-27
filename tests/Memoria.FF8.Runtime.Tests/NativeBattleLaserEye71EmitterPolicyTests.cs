@@ -93,7 +93,7 @@ public sealed class NativeBattleLaserEye71EmitterPolicyTests
         Assert.Equal(start + (count - 1) * stride, accepted);
         Assert.Equal((ushort)0, scan);
         NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(written.Memory.Arena))!;
+        NativeBattleEffectArena restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(written.Memory.Arena)))!);
         Assert.Equal(written.Memory.Arena!.Read(start + (count - 1) * stride, stride), restored.Read(start + (count - 1) * stride, stride));
     }
 
@@ -114,7 +114,7 @@ public sealed class NativeBattleLaserEye71EmitterPolicyTests
         {
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(Pools[2].Descriptor, Pools[2].Bank, 676, 3);
             (pool, int slot) = pool.Append(NativeBattleLaserEye71Controller.NodeCallback);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[664])) };
+            pool.WriteSlot(slot, pool.Slots[slot].WriteBytes(12, new byte[664]));
             address = pool.BankAddress;
             effect = new(71, 70, new(71, Entry, Initializer), null, null) { Pools = [pool] };
             memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };

@@ -103,9 +103,9 @@ public sealed class NativeBattleDoom8StripTests
         var fixture = Fixture();
         NativeBattleDoom8Frame frame = Initialize(fixture.Frame, fixture.Address);
         NativeBattlePackedMatrix32 camera = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = -1 }, null);
-        NativeBattleDoom8Frame restored = JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleDoom8Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(SnapshotJson(frame))!);
         NativeBattleDoom8Step Draw(NativeBattleDoom8Frame current) => NativeBattleDoom8Strips.AdvanceStrips8C84A0(current, Tables(), camera, new(null, 100, 160, 108), (next, _) => next);
-        Assert.Equal(JsonSerializer.Serialize(Draw(frame)), JsonSerializer.Serialize(Draw(restored)));
+        Assert.Equal(SnapshotJson(Draw(frame)), SnapshotJson(Draw(restored)));
         frame = frame with { State = frame.State.WriteWord(NativeBattleDoom8Strips.TargetAddress + 0x54, 13), Memory = frame.Memory with { GeometryRegisters = null, ScriptedColorRegisters = null } };
         NativeBattleDoom8Step done = NativeBattleDoom8Strips.AdvanceStrips8C84A0(frame, Tables(), null!, null!, (_, _) => throw new InvalidOperationException());
         Assert.Equal(0, done.Result);
@@ -131,4 +131,6 @@ public sealed class NativeBattleDoom8StripTests
         NativeBattleDoom8Frame frame = new(memory, effect, new(123), NativeBattleDoom8State.FromColdProcess(new byte[112].ToImmutableArray())) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
         return (frame, appended.Address);
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

@@ -32,8 +32,8 @@ public sealed class NativeBattleTheEnd85SpawnScratchObserverTests
             Assert.False(result.ReadSnapshot(100 + offset, 1).Known[0]);
         }
         Assert.Equal(initial.Read(0, 100), result.Read(0, 100));
-        NativeBattleEffectArena independent = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(independent));
+        NativeBattleEffectArena independent = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(independent)));
     }
 
     [Fact]

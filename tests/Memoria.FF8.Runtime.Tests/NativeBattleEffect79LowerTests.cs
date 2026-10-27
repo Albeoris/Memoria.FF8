@@ -23,8 +23,8 @@ public sealed class NativeBattleEffect79LowerTests
         Assert.Equal(mesh.Address + (uint)mesh.Bytes.Length, U(result.Context104, 0x2C));
         Assert.Equal(mesh.Address + 8, U(result.Context104, 4));
         Assert.Equal(0xDEADBEEFu, U(result.Context104, 0x40));
-        string json = JsonSerializer.Serialize(result);
-        NativeBattleEffect79Mesh104Step restored = JsonSerializer.Deserialize<NativeBattleEffect79Mesh104Step>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result));
+        NativeBattleEffect79Mesh104Step restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect79Mesh104Step>(json)!);
         Assert.Equal(result.Batch.AllocationBytes, restored.Batch.AllocationBytes);
         Assert.Equal(result.Memory.GeometryRegisters!.Sxy.ToArray(), restored.Memory.GeometryRegisters!.Sxy.ToArray());
     }
@@ -58,7 +58,7 @@ public sealed class NativeBattleEffect79LowerTests
         }
         BinaryPrimitives.WriteInt16LittleEndian(bank.AsSpan(0x1000), 4096);
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown());
-        NativeBattleEffect79Frame frame = new(Memory(), null!, new(1), NativeBattleEffect79State.FromColdProcess()) { Staging = staging };
+        NativeBattleEffect79Frame frame = new(Memory(), new(79, 78, new(79, NativeBattleEffect79Profile.Entry, NativeBattleEffect79Profile.Initializer), null, null), new(1), NativeBattleEffect79State.FromColdProcess()) { Staging = staging };
         NativeBattleEffect79MorphStep result = NativeBattleEffect79Morph.Execute7BA230(frame, basis, bank.ToImmutableArray(), mesh, a, b, channel);
         Assert.Equal(new short[] { 100, -20, 30, 119, 101, -20, 30, 119 }, Enumerable.Range(0, 8).Select(index => BinaryPrimitives.ReadInt16LittleEndian(result.Bank.AsSpan().Slice(0x208 + index * 2))));
         Assert.Equal(0u, result.Frame.Memory.ScriptedColorRegisters!.Ir0);
@@ -72,7 +72,7 @@ public sealed class NativeBattleEffect79LowerTests
     [Fact]
     public void Null_shape_skips_the_native_temporary_and_register_consumers()
     {
-        NativeBattleEffect79Frame frame = new(Memory(), null!, new(1), NativeBattleEffect79State.FromColdProcess());
+        NativeBattleEffect79Frame frame = new(Memory(), new(79, 78, new(79, NativeBattleEffect79Profile.Entry, NativeBattleEffect79Profile.Initializer), null, null), new(1), NativeBattleEffect79State.FromColdProcess());
         ImmutableArray<byte> bank = new byte[31512].ToImmutableArray();
         NativeBattleEffect79MorphStep result = NativeBattleEffect79Morph.Execute7BA230(frame, 0x1762E40, bank, 0, 0, 1, uint.MaxValue);
         Assert.Same(frame, result.Frame);
@@ -100,7 +100,7 @@ public sealed class NativeBattleEffect79LowerTests
         BinaryPrimitives.WriteUInt32LittleEndian(source.AsSpan(0x138), uint.MaxValue);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 676, 1);
         NativeBattleModulePoolTask task = pool.Slots[0].WriteDword(0x34 + 0x22C, basis).WriteDword(0x34 + 0x230, basis + 16);
-        pool = pool with { Slots = [task] };
+        pool.WriteSlot(0, task);
         NativeBattleOriginalEffectState effect = new(79, 78, new(79, NativeBattleEffect79Profile.Entry, NativeBattleEffect79Profile.Initializer), null, null) { Pools = [pool] };
         NativeBattleEffectNodeMemory memory = new(Memory(), effect, 0x200, 0, 0x10E0, 0x10E0, 0x10680);
         NativeBattleEffectNodeBank bank = new(basis, bytes.ToImmutableArray());
@@ -152,7 +152,7 @@ public sealed class NativeBattleEffect79LowerTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 676, 1);
         NativeBattleModulePoolTask task = pool.Slots[0].WriteWord(0x34 + 0x1E, 4).WriteDword(0x34 + 0x1D4, 10u << 16).WriteDword(0x34 + 0x1E4, 20u << 16).WriteDword(0x34 + 0x1F4, 30u << 16);
-        pool = pool with { Slots = [task] };
+        pool.WriteSlot(0, task);
         NativeBattleOriginalEffectState effect = new(79, 78, new(79, NativeBattleEffect79Profile.Entry, NativeBattleEffect79Profile.Initializer), null, null) { Pools = [pool] };
         NativeBattleEffectNodeMemory memory = new(Memory(), effect, 0x200, 0, 0x870, 0x870, 0x9D80);
         int calls = 0;
@@ -190,8 +190,8 @@ public sealed class NativeBattleEffect79LowerTests
         BinaryPrimitives.WriteInt32LittleEndian(current.AsSpan(20), 1);
         NativeBattleEffect79Resources resources = new(null!, null!, null!, ImmutableDictionary<uint, NativeBattleEffect79NodeResourceBank>.Empty, null!, ImmutableDictionary<short, NativeBattleEffectFileAsset>.Empty.Add(396, new(396, "fixture", original.ToImmutableArray())), ImmutableDictionary<uint, uint>.Empty, ImmutableDictionary<uint, ImmutableArray<byte>>.Empty, [], 0);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 704, 1);
-        NativeBattleModulePoolTask task = (pool.Slots[0] with { Payload = Enumerable.Repeat((byte)0xAA, 692).ToImmutableArray() }).WriteDword(0x74, sourceAddress).WriteDword(0x78, 236);
-        pool = pool with { Slots = [task] };
+        NativeBattleModulePoolTask task = pool.Slots[0].WriteBytes(12, Enumerable.Repeat((byte)0xAA, 692).ToArray()).WriteDword(0x74, sourceAddress).WriteDword(0x78, 236);
+        pool.WriteSlot(0, task);
         NativeBattleOriginalEffectState effect = new(79, 78, new(79, NativeBattleEffect79Profile.Entry, NativeBattleEffect79Profile.Initializer), null, null) { Pools = [pool] };
         NativeBattleEffect79Frame frame = new(Memory(), effect, new(1), NativeBattleEffect79State.FromColdProcess()) { Staging = NativeBattleFileStaging.Unknown().Write(sourceAddress, current) };
         NativeBattleEffect79Frame initialized = NativeBattleEffect79Programme.Initialize7016B0(frame, 0x200, sourceAddress, 236, resources);
@@ -203,7 +203,7 @@ public sealed class NativeBattleEffect79LowerTests
         NativeBattleEffect79ProgrammeStep advanced = NativeBattleEffect79Programme.Advance701970(initialized, 0x200, NativeBattleEffectArena.Clear().MarkUnknown(0, 92), resources, null!);
         Assert.Equal(1u, NativeBattleEffect79Controller.Read(advanced.Frame, 0x200).ReadDword(0x98));
         Assert.Equal(0, advanced.Remaining);
-        NativeBattleEffect79Frame restored = JsonSerializer.Deserialize<NativeBattleEffect79Frame>(JsonSerializer.Serialize(advanced.Frame))!;
+        NativeBattleEffect79Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect79Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(advanced.Frame)))!);
         NativeBattleEffect79ProgrammeStep next = NativeBattleEffect79Programme.Advance701970(restored, 0x200, NativeBattleEffectArena.Clear().MarkUnknown(0, 92), resources, null!);
         Assert.Equal(1u, NativeBattleEffect79Controller.Read(next.Frame, 0x200).ReadDword(0x98));
         Assert.Equal(0, next.Remaining);

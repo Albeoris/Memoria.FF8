@@ -127,8 +127,19 @@ public static partial class NativeBattleEffect345Particles
             lifecycle.AdvanceList(ref random);
             frame = frame with { Random = random };
             Flush();
-            DrawList(false);
-            DrawList(true);
+            Dictionary<uint, NativeBattleGfSourceReader> spriteResources = [];
+            try
+            {
+                DrawList(false);
+                DrawList(true);
+            }
+            finally
+            {
+                foreach (NativeBattleGfSourceReader reader in spriteResources.Values)
+                {
+                    reader.Dispose();
+                }
+            }
             Flush();
             frame = frame with { State = frame.State.WriteWord(0x2557758, emitterCursor).WriteWord(0x255EA50, particleCursor) };
 
@@ -193,7 +204,11 @@ public static partial class NativeBattleEffect345Particles
                                 throw new NotSupportedException("Effect345 projected sprites require their actual canonical physical context.");
                             }
                             frame = frame with { State = frame.State.WriteDword(0x255EA84, temporary) };
-                            ImmutableArray<byte> resource = bank.ReadResource(resourceAddress);
+                            if (!spriteResources.TryGetValue(resourceAddress, out NativeBattleGfSourceReader? resource))
+                            {
+                                resource = bank.OpenResourceReader(resourceAddress);
+                                spriteResources.Add(resourceAddress, resource);
+                            }
                             ushort phase = unchecked((ushort)(short)(sbyte)memory.Byte(particle + 0x1D0));
                             NativeBattleGfGeometryBatch batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, phase, packed.ReadMatrix(), inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, observeRolledMatrix: memory.WriteSpriteMatrix, observeQuadMatrix: memory.WriteQuadMatrix, geometry: memory.ProjectedSpriteGeometry(particle, resourceAddress, resource, phase, inputs.ReadProjection(frame)));
                             frame = frame with { Memory = memory.CaptureProcessMemory() };

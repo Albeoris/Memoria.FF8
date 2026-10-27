@@ -31,12 +31,11 @@ public sealed class NativeBattleMagmaBreath48MorphRoutingTests
                 Assert.Equal((short)2048, ratio);
                 order.Add("morph");
             },
-            ResourceUpdate = (current, _, kind, _) =>
+            MutateResource = (current, _, kind, _) =>
             {
                 Assert.Equal(5, kind);
                 Assert.Equal(new[] { "morph" }, order);
                 order.Add("uv");
-                return current.Data;
             }
         };
         new NativeBattleEffectNodeLifecycle(memory, bank, inputs).AdvanceDrawable(spawned.Node, bank.Read(bank.Address + 0x104, 0x158));

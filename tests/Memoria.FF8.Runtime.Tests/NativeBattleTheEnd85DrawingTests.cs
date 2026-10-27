@@ -123,8 +123,8 @@ public sealed class NativeBattleTheEnd85DrawingTests
         Assert.Equal(new byte[] { 0x12, 0x34, 0x56, 0x78 }, result.Staging.Read(NativeBattleTemporaryMemory.Address + 100, 4));
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(result.Staging.Read(NativeBattleTemporaryMemory.Cursor, 4)));
         Assert.Throws<NotSupportedException>(() => result.Staging.Read(NativeBattleTemporaryMemory.Address + 8, 3));
-        NativeBattleTheEnd85DrawingStep restored = JsonSerializer.Deserialize<NativeBattleTheEnd85DrawingStep>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restored));
+        NativeBattleTheEnd85DrawingStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleTheEnd85DrawingStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
     private static NativeBattleModulePoolTask Task() => new(1, 0, null, 0x7855C0, new byte[732 - 12].ToImmutableArray());

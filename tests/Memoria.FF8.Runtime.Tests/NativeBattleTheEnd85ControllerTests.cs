@@ -36,11 +36,11 @@ public sealed class NativeBattleTheEnd85ControllerTests
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 0x10000, frame.Memory.TheEnd85!.Dword(0x25BC394));
         Assert.False(frame.Memory.SharedEffectView2793E58!.Known[18]);
         Assert.False(frame.Memory.SharedEffectView2793E58.Known[19]);
-        NativeBattleTheEnd85Frame restored = JsonSerializer.Deserialize<NativeBattleTheEnd85Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleTheEnd85Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleTheEnd85Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         frame = NativeBattleTheEnd85Controller.Advance784630(frame, fixture.Inputs);
         Assert.Equal((byte)7, Root(frame).ReadByte(41));
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 0x18000, frame.Memory.TheEnd85!.Dword(0x25BC394));
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleTheEnd85Controller.Advance784630(restored, fixture.Inputs)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleTheEnd85Controller.Advance784630(restored, fixture.Inputs))));
     }
 
     [Fact]

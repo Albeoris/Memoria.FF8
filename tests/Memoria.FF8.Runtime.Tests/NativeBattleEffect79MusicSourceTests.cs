@@ -33,10 +33,10 @@ public sealed class NativeBattleEffect79MusicSourceTests
         NativeGlobalSoundProcess sound = NativeGlobalSoundProcess.FromBufferlessColdProcess();
         NativeBattleMusicLoadStep first = process.AdvanceLoad501A70(sound, null, 0, 0x25DF340, readSource: (_, _) => throw new InvalidOperationException("Phase0 does not read music."));
         NativeBattleMusicCommandStep stopped = first.State.DrainCommands501B60(first.Sound);
-        process = JsonSerializer.Deserialize<NativeBattleMusicProcessState>(JsonSerializer.Serialize(stopped.State))!;
-        sound = JsonSerializer.Deserialize<NativeGlobalSoundProcess>(JsonSerializer.Serialize(stopped.Sound))!;
+        process = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleMusicProcessState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(stopped.State)))!);
+        sound = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeGlobalSoundProcess>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(stopped.Sound)))!);
         arena = arena.Write(28, [77]);
-        arena = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
+        arena = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(arena)))!);
         NativeBattleMusicLoadStep copied = process.AdvanceLoad501A70(sound, null, 1, 0x25DF340, readSource: Read);
         Assert.Equal(new NativeMusicBufferIdentity(77, NativeMusicBufferProducer.Battle501A70), copied.State.Buffers.ReadBuffer(0));
         Assert.Equal((byte)1, copied.State.ReturnBank);

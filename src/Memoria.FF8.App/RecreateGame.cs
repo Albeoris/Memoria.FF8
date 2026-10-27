@@ -739,7 +739,6 @@ internal sealed partial class RecreateGame : Game
         }
         else if (events is not null && world?.HasCurrentFieldAllocation == true)
         {
-            session.SetEventState(events.Capture());
             DialogueState? dialogue = events.CurrentDialogue;
             session.SetDialogueDraft(dialogue is null ? null : new DialogueDraft(dialogue.Channel, dialogue.MessageId, selectedChoice, gameMenus?.IsNamePrompt == true ? gameMenus.NameDraft : enteredName));
         }

@@ -61,8 +61,10 @@ public sealed class NativeBattleDoom8DirectorTests
     {
         Fixture fixture = new(7);
         NativeBattleDoom8Frame frame = fixture.Frame with { State = fixture.Frame.State.WithSharedWord(0x42, 2).WithSharedWord(0x44, 2) };
+        string before = SnapshotJson(frame);
         fixture.OnExecute = (_, operation) => throw new NotSupportedException($"Required service {operation.GetType().Name}");
         Assert.Throws<NotSupportedException>(() => fixture.Step(frame));
+        Assert.Equal(before, SnapshotJson(frame));
         Assert.Equal((ushort)0, frame.State.SharedWord(0x40));
         fixture.OnExecute = (current, _) => current;
         frame = fixture.Step(frame).Frame;
@@ -106,7 +108,7 @@ public sealed class NativeBattleDoom8DirectorTests
         Assert.Equal((ushort)1, fixture.Task(frame).ReadWord(0x44));
         frame = fixture.Step(frame).Frame;
         Assert.Equal((byte)12, fixture.Task(frame).ReadByte(0x29));
-        NativeBattleDoom8State restored = JsonSerializer.Deserialize<NativeBattleDoom8State>(JsonSerializer.Serialize(frame.State))!;
+        NativeBattleDoom8State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDoom8State>(SnapshotJson(frame.State))!);
         frame = frame with { State = restored };
         frame = fixture.Step(frame).Frame;
         Assert.Equal((ushort)1, frame.State.SharedWord(0x48));
@@ -162,4 +164,6 @@ public sealed class NativeBattleDoom8DirectorTests
             }));
         }
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

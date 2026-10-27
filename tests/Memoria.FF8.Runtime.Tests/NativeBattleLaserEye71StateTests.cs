@@ -40,10 +40,10 @@ public sealed class NativeBattleLaserEye71StateTests
         NativeBattleResourcePointer pointer = new(new NativeBattleModelCpuReference(0, 32), null, 64);
         NativeBattleLaserEye71State state = NativeBattleLaserEye71State.FromUnknown().WriteResourcePointer(SavedBindingAddress, pointer).WriteDword(CursorGlobal, ArenaAddress + 0x800 + DrawBankLength).WriteDword(PacketEndGlobal, ArenaAddress + 0x800 + 2 * DrawBankLength);
         state.Validate();
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleLaserEye71State restored = JsonSerializer.Deserialize<NativeBattleLaserEye71State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleLaserEye71State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleLaserEye71State>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal(pointer, restored.ReadResourcePointer(SavedBindingAddress));
         Assert.Equal((uint)DrawBankLength, restored.ReadDword(PacketEndGlobal) - restored.ReadDword(CursorGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadView(SavedBindingAddress + 4, 28).Read(0, 28));

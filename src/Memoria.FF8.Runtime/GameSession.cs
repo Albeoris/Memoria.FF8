@@ -113,6 +113,7 @@ public sealed partial class GameSession : IEventServices
             State = PrepareSnapshot();
             liveBattle = null;
             acceptedBattleObservation = null;
+            liveFieldMemory = null;
         }
         finally
         {
@@ -128,15 +129,18 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("Snapshot preparation cannot recursively prepare another snapshot.");
         }
         preparingSnapshot = true;
+        preparedFieldMemory = null;
         try
         {
             GameState snapshot = snapshotPreparation?.Prepare(State) ?? State;
+            snapshot = CaptureLiveFieldMemory(snapshot);
             snapshot = CaptureLiveBattle(snapshot);
             ValidateLiveEventMemoryOwners(snapshot, snapshot.EventMemory);
             return snapshot;
         }
         finally
         {
+            preparedFieldMemory = null;
             preparingSnapshot = false;
         }
     }
@@ -180,6 +184,8 @@ public sealed partial class GameSession : IEventServices
 
     private void ResetTransientGameplayState()
     {
+        liveFieldMemory = null;
+        preparedFieldMemory = null;
         liveBattle = null;
         acceptedBattleObservation = null;
         Dialog = null;

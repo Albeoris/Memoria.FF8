@@ -44,18 +44,19 @@ public static class NativeBattleTheEnd85Drawing
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 104);
         uint temporary = allocation.Address;
         staging = allocation.Staging;
+        using NativeBattleGfSourceReader reader = source.OpenReader();
         int index = unchecked((short)node.GeometryIndex);
-        int geometry = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(checked(8 + index * 4), 4));
+        int geometry = reader.Int(checked(8 + index * 4));
         uint mesh = checked(source.Address + (uint)geometry);
         Store(0, mesh);
-        int count = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(checked(geometry + 4), 4));
+        int count = reader.Int(checked(geometry + 4));
         bool morph = node.Word40 != node.Word42 && node.Scalar38 is not (0 or 4096);
         uint selected;
         if (morph)
         {
             selected = 0x25C1D28;
             uint destination = selected;
-            foreach (NativeBattleVector point in NativeBattleGfMorphGeometry.MorphVertices701390(source.Data, geometry, node.Word40, node.Word42, node.Scalar38))
+            foreach (NativeBattleVector point in NativeBattleGfMorphGeometry.MorphVertices701390(reader, geometry, node.Word40, node.Word42, node.Scalar38))
             {
                 byte[] xyz = new byte[6];
                 BinaryPrimitives.WriteInt16LittleEndian(xyz, point.X);
@@ -91,9 +92,17 @@ public static class NativeBattleTheEnd85Drawing
         }
         Store(16, unchecked((uint)bias));
         SetWindows(ref staging, temporary);
-        NativeBattleTheEnd85MeshStep emitted = NativeBattleTheEnd85GeometryPackets.Emit785A90(staging, temporary, matrix, projection, colors, services.Read);
+        NativeBattleTheEnd85MeshStep emitted = NativeBattleTheEnd85GeometryPackets.Emit785A90(staging, temporary, matrix, projection, colors, ReadObserved);
         return Completed(task, emitted);
 
+        byte[] ReadObserved(uint address, int length)
+        {
+            if (address >= source.Address && (ulong)address - source.Address + (uint)length <= (uint)reader.Length)
+            {
+                return reader.ReadBytes(checked((int)(address - source.Address)), length);
+            }
+            return services.Read(address, length);
+        }
         void Store(int offset, uint value) => staging = staging.Write(temporary + (uint)offset, BitConverter.GetBytes(value));
     }
 

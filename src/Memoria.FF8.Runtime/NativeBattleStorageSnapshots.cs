@@ -19,7 +19,11 @@ internal static class NativeBattleStorageSnapshots
     {
         NativeBattleStorageCaptureContext context = new();
         T result = context.Map(value);
-        return result is BattleSnapshot snapshot ? (T)(object)context.AttachStorageGraph(snapshot) : result;
+        if (result is BattleSnapshot snapshot)
+        {
+            return (T)(object)context.AttachStorageGraph(snapshot);
+        }
+        return result is NativeBattleRetainedMemory retained ? (T)(object)context.AttachStorageGraph(retained) : result;
     }
 
     public static T Restore<T>(T value)
@@ -30,8 +34,17 @@ internal static class NativeBattleStorageSnapshots
             NativeBattleRetainedSourceAliases.Validate(snapshot);
             context.PrepareStorageGraph(snapshot);
         }
+        else if (value is NativeBattleRetainedMemory retained)
+        {
+            NativeBattleRetainedSourceAliases.Validate(retained);
+            context.PrepareStorageGraph(retained);
+        }
         T result = context.Map(value);
-        return result is BattleSnapshot restored ? (T)(object)NativeBattleRetainedSourceAliases.Rebind(restored) : result;
+        if (result is BattleSnapshot restored)
+        {
+            return (T)(object)NativeBattleRetainedSourceAliases.Rebind(restored);
+        }
+        return result is NativeBattleRetainedMemory restoredRetained ? (T)(object)NativeBattleRetainedSourceAliases.Rebind(restoredRetained) : result;
     }
 }
 

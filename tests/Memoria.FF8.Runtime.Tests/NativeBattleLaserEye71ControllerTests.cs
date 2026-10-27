@@ -91,8 +91,8 @@ public sealed class NativeBattleLaserEye71ControllerTests
         Fixture fixture = new();
         (NativeBattleLaserEye71Frame frame, uint task) = fixture.Child(BeamCallback, 3);
         frame = Write(frame, task, Read(frame, task).WriteByte(0x29, 4).WriteWord(0x24, 16).WriteWord(0x8C, 2048).WriteDword(0x7C, 0x11223344).WriteWord(0x80, 123).MarkPayloadUnknown(0x82, 2));
-        string json = JsonSerializer.Serialize(frame);
-        NativeBattleLaserEye71TaskStep result = Advance(JsonSerializer.Deserialize<NativeBattleLaserEye71Frame>(json)!, task, fixture.Resources, fixture.Inputs);
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame));
+        NativeBattleLaserEye71TaskStep result = Advance(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleLaserEye71Frame>(json)!), task, fixture.Resources, fixture.Inputs);
         Assert.Equal(new[] { "prepare", "draw", "particles" }, fixture.Services);
         Assert.Equal(2, result.Result);
         Assert.Equal((ushort)17, Read(result.Frame, task).ReadWord(0x24));

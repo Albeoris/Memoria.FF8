@@ -77,10 +77,10 @@ public sealed class NativeBattleEffect79ParticleTests
         (NativeBattleEffect79Frame frame, uint address) = Child(0x7BC840, harness);
         NativeBattleModulePoolTask task = Read(frame, address).WriteByte(0x29, 2).WriteByte(0x26, 4).WriteWord(0x8C, unchecked((ushort)-17)).WriteWord(0x8E, 32760).WriteWord(0x90, 17).WriteWord(0x6C, 100).WriteWord(0x6E, 200).WriteWord(0x70, 300).WriteWord(0x7A, 0xBEEF);
         frame = Write(frame, address, task);
-        NativeBattleEffect79Frame restored = JsonSerializer.Deserialize<NativeBattleEffect79Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleEffect79Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect79Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         frame = AdvanceParticle7BC840(frame, address, null!, harness.Inputs()).Frame;
         restored = AdvanceParticle7BC840(restored, address, null!, harness.Inputs()).Frame;
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         task = Read(frame, address);
         Assert.Equal((short)-15, Signed(task, 0x8C));
         Assert.Equal((short)-28455, Signed(task, 0x8E));
@@ -116,7 +116,7 @@ public sealed class NativeBattleEffect79ParticleTests
         frame = Write(frame, address, Read(frame, address).WriteByte(0x2C, 4));
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[5];
         NativeBattleModulePoolTask retained = CopyTask(pool.Slots[1], 12, NativeBattleEffectArena.Clear(), 0xB4 - 12).WriteWord(0x92, 0xCAFE);
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(5, pool with { Slots = pool.Slots.SetItem(1, retained) }) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(5, pool.WriteSlot(1, retained)) } };
         return (frame, address);
     }
 

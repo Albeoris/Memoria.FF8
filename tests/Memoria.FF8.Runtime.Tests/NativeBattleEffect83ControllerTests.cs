@@ -52,9 +52,9 @@ public sealed class NativeBattleEffect83ControllerTests
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
         Assert.Empty(frame.Effect.Pools);
         Assert.All(frame.State.BankStorage, bank => Assert.NotNull(bank));
-        string json = JsonSerializer.Serialize(frame);
-        NativeBattleEffect83Frame restored = JsonSerializer.Deserialize<NativeBattleEffect83Frame>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(Advance(restored, null!, harness.Inputs())));
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame));
+        NativeBattleEffect83Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect83Frame>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Advance(restored, null!, harness.Inputs()))));
     }
 
     [Fact]

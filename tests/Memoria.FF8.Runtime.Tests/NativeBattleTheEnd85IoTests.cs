@@ -34,10 +34,10 @@ public sealed class NativeBattleTheEnd85IoTests
         Assert.Equal((ushort)402, begun.Request!.FileId);
         Assert.Equal(0x784C60u, begun.Request.CompletionCallback);
         Assert.Equal((ushort)1, begun.Frame.Memory.TheEnd85!.Word(0x25C21E0 + 356));
-        NativeBattleTheEnd85Frame restored = JsonSerializer.Deserialize<NativeBattleTheEnd85Frame>(JsonSerializer.Serialize(begun.Frame))!;
+        NativeBattleTheEnd85Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleTheEnd85Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(begun.Frame)))!);
         NativeBattleEffectFileAsset file = new(402, "input", [1, 2, 3, 4]);
         NativeBattleTheEnd85IoQueued queued = NativeBattleTheEnd85Io.CopyAndQueue(begun.Frame, NativeBattleFileIoState.FromColdProcess(), file);
-        Assert.Equal(JsonSerializer.Serialize(queued), JsonSerializer.Serialize(NativeBattleTheEnd85Io.CopyAndQueue(restored, NativeBattleFileIoState.FromColdProcess(), file)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(queued)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleTheEnd85Io.CopyAndQueue(restored, NativeBattleFileIoState.FromColdProcess(), file))));
         Assert.Equal(new byte[] { 1, 2, 3, 4, 0xA5 }, queued.Frame.Memory.Arena!.Read(0x20000, 5));
         Assert.Equal(4, queued.FileIo.Rows[0].FileResult);
         Assert.Equal((byte)1, NativeBattleTheEnd85Io.Advance784A60(queued.Frame, begun.Task).Task.ReadByte(41));
@@ -49,7 +49,7 @@ public sealed class NativeBattleTheEnd85IoTests
         NativeBattleTheEnd85State state = NativeBattleTheEnd85State.FromColdProcess();
         Assert.Null(state.Script);
         Assert.Equal(new byte[NativeBattleTheEnd85State.GlobalLength], state.Read(NativeBattleTheEnd85State.GlobalAddress, NativeBattleTheEnd85State.GlobalLength));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleTheEnd85State>("{\"Globals\":{\"Regions\":[],\"UnknownRegions\":[]}}"));
+        Assert.Throws<JsonException>(() => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleTheEnd85State>("{\"Globals\":{\"Regions\":[],\"UnknownRegions\":[]}}")));
         Assert.Throws<InvalidDataException>(() => state.Read(0x25C234B, 2));
         Assert.Throws<InvalidDataException>(() => NativeBattleTheEnd85Io.Advance784A60(new(NativeBattleEffectMemory.FromColdProcess(), Effect(), new(1)), Task()));
         NativeBattleTheEnd85Frame initialized = Initialize();

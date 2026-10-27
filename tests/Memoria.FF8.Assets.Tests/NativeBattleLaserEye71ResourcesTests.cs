@@ -44,13 +44,13 @@ public sealed class NativeBattleLaserEye71ResourcesTests
         NativeBattleLaserEye71Resources resources = game.ReadNativeLaserEye71Resources();
         NativeBattleLaserEye71State seeded = NativeBattleLaserEye71State.FromColdProcess().SeedColdSource(resources);
         Assert.False(seeded.ColdSourcePending);
-        Assert.Equal(resources.Executable.Data.ToArray(), seeded.ExecutableBytes!.Value.ToArray());
-        byte[] bytes = seeded.ExecutableBytes!.Value.ToArray();
+        Assert.Equal(resources.Executable.Data.ToArray(), NativeBattleStorageSnapshots.Capture(seeded.ExecutableBytes!).Data.ToArray());
+        byte[] bytes = NativeBattleStorageSnapshots.Capture(seeded.ExecutableBytes!).Data.ToArray();
         bytes[0] = 1;
         bytes[100] ^= 0x80;
         NativeBattleLaserEye71State warm = seeded with { ExecutableBytes = bytes.ToImmutableArray() };
         Assert.Same(warm, warm.SeedColdSource(resources));
-        Assert.Equal(bytes, warm.ExecutableBytes!.Value.ToArray());
+        Assert.Equal(bytes, NativeBattleStorageSnapshots.Capture(warm.ExecutableBytes!).Data.ToArray());
         NativeBattleLaserEye71State unknown = NativeBattleLaserEye71State.FromUnknown();
         Assert.Same(unknown, unknown.SeedColdSource(resources));
         Assert.Throws<NotSupportedException>(() => unknown.ReadSourceFlag());

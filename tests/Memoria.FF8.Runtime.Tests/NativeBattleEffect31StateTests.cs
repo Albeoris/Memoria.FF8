@@ -30,7 +30,7 @@ public sealed class NativeBattleEffect31StateTests
     public void Word_stores_and_morph_writes_preserve_unknown_neighbors_through_json()
     {
         NativeBattleEffect31State state = NativeBattleEffect31State.FromUnknown().WriteWord(0x26D2DA8, 0).WriteDword(MorphScratch, 0xABCD1234);
-        state = JsonSerializer.Deserialize<NativeBattleEffect31State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect31State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((ushort)0, state.ReadWord(0x26D2DA8));
         Assert.Equal(0xABCD1234u, state.ReadDword(MorphScratch));
@@ -55,7 +55,7 @@ public sealed class NativeBattleEffect31StateTests
             Assert.Throws<InvalidDataException>(() => state.AttachBank(index, bank));
             Assert.Throws<InvalidDataException>(() => state.AttachQueue(pool.Descriptor, queue));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect31State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect31State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         for (int index = 0; index < Pools.Length; index++)
         {
@@ -71,9 +71,9 @@ public sealed class NativeBattleEffect31StateTests
     {
         foreach (string property in new[] { "Storage", "FixedBanks", "FixedQueues", "ColdSourceOrigin", "StaticSourcesBound", "CallbackStack" })
         {
-            JsonObject json = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleEffect31State.FromColdProcess()))!.AsObject();
+            JsonObject json = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect31State.FromColdProcess())))!.AsObject();
             Assert.True(json.Remove(property));
-            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleEffect31State>(json.ToJsonString()));
+            Assert.Throws<JsonException>(() => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect31State>(json.ToJsonString())));
         }
     }
 }

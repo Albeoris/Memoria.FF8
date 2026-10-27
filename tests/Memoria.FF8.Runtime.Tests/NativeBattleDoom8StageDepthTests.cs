@@ -76,10 +76,10 @@ public sealed class NativeBattleDoom8StageDepthTests
         Fixture fixture = new(0x8CC1E0);
         NativeBattleModulePoolTask task = fixture.Task(fixture.Frame).WriteByte(0x29, 1).WriteWord(0x1C, 1440).WriteByte(0x28, 1);
         NativeBattleDoom8Frame before = NativeBattleDoom8Controller.Write(fixture.Frame, fixture.Address, task);
-        NativeBattleDoom8Frame restored = JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(before))!;
+        NativeBattleDoom8Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleDoom8Frame>(SnapshotJson(before))!);
         NativeBattleDoom8Step first = fixture.Advance(before);
         NativeBattleDoom8Step second = fixture.Advance(restored);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(SnapshotJson(first), SnapshotJson(second));
         Assert.Equal(0, first.Result);
         Assert.Equal((byte)2, fixture.Task(first.Frame).ReadByte(0x29));
         int writes = fixture.Writes.Count;
@@ -94,7 +94,7 @@ public sealed class NativeBattleDoom8StageDepthTests
         Fixture fixture = new(0x8CC1E0);
         NativeBattleDoom8Frame frame = NativeBattleDoom8Controller.Write(fixture.Frame, fixture.Address, fixture.Task(fixture.Frame).WriteByte(0x29, 255));
         Assert.Throws<InvalidDataException>(() => fixture.Advance(frame));
-        frame = NativeBattleDoom8Controller.Write(fixture.Frame, fixture.Address, fixture.Task(fixture.Frame) with { Callback = 0x8CC3A0 });
+        frame = NativeBattleDoom8Controller.Write(fixture.Frame, fixture.Address, fixture.Task(fixture.Frame).UpdateHeader(fixture.Task(fixture.Frame).Flags, fixture.Task(fixture.Frame).State, fixture.Task(fixture.Frame).Next, 0x8CC3A0));
         Assert.Throws<InvalidDataException>(() => fixture.Advance(frame));
         Assert.Empty(fixture.Writes);
     }
@@ -129,4 +129,6 @@ public sealed class NativeBattleDoom8StageDepthTests
             });
         }
     }
+
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

@@ -111,6 +111,10 @@ public sealed partial class GameSession
         entry.SoundProcess.Validate();
         entry.Receipt.Validate();
         NativeBattleRetainedMemory memory = State.NativeBattleMemory ?? throw new NotSupportedException("Battle entry music requires its retained process memory.");
+        if (liveFieldMemory is { } fieldMemory)
+        {
+            liveFieldMemory = fieldMemory with { MusicProcess = entry.MusicProcess };
+        }
         State = State with { NativeBattleMemory = memory with { MusicProcess = entry.MusicProcess }, GlobalSoundProcess = entry.SoundProcess };
     }
 
@@ -201,6 +205,7 @@ public sealed partial class GameSession
     public void SetBattle(BattleSnapshot? snapshot)
     {
         BattleSnapshot? owned = snapshot is null ? null : BattleSession.Restore(snapshot).Capture();
+        liveFieldMemory = null;
         liveBattle = null;
         SetOwnedBattle(owned);
         acceptedBattleObservation = owned is null ? null : BattleLiveObservation.FromSnapshot(owned);
@@ -228,6 +233,7 @@ public sealed partial class GameSession
         candidate = StageOriginalAchievementDraws(candidate, observation);
         candidate = StageBattleAchievementFacts(candidate, observation.EnemyDefeats);
         State = candidate;
+        liveFieldMemory = null;
         liveBattle = active;
         acceptedBattleObservation = observation;
     }

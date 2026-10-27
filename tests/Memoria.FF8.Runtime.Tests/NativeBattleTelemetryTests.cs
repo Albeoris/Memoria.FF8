@@ -19,32 +19,29 @@ public sealed class NativeBattleTelemetryTests
     }
 
     [Fact]
-    public void Pool_observations_include_preexisting_rentals_growth_and_disposal_without_a_traffic_scope()
+    public void Private_writer_journal_does_not_claim_ArrayPool_rentals_and_publishes_to_the_same_owner()
     {
         NativeBattlePoolObservation before = NativeBattleTelemetry.PoolSnapshot();
-        NativeBattleEffectArenaWriter writer = new(NativeBattleEffectArena.Clear());
-        writer.BeginReadThrough();
-        try
+        NativeBattleEffectArena owner = NativeBattleEffectArena.Clear();
+        using (NativeBattleEffectArenaWriter writer = new(owner))
         {
-            NativeBattlePoolObservation initial = NativeBattleTelemetry.PoolSnapshot();
-            Assert.Equal(before.OutstandingCount + 1, initial.OutstandingCount);
-            Assert.True(initial.OutstandingBytes > before.OutstandingBytes);
-            _ = writer.ReadThrough(0, 8192);
-            NativeBattlePoolObservation grown = NativeBattleTelemetry.PoolSnapshot();
-            Assert.Equal(initial.OutstandingCount, grown.OutstandingCount);
-            Assert.True(grown.OutstandingBytes >= before.OutstandingBytes + 8192);
-            Assert.Equal(before.RentOperations + 2, grown.RentOperations);
-            Assert.Equal(before.ReturnOperations + 1, grown.ReturnOperations);
-            Assert.True(grown.PeakBytes >= grown.OutstandingBytes);
+            writer.BeginReadThrough();
+            writer.Write(8191, [7]);
+            Assert.Equal((byte)0, owner.ReadByte(8191));
+            Assert.Equal((byte)7, writer.ReadThrough(0, 8192)[8191]);
+            Assert.Equal(before, NativeBattleTelemetry.PoolSnapshot());
+            Assert.Same(owner, writer.Freeze());
+            Assert.Equal((byte)7, owner.ReadByte(8191));
         }
-        finally
+        Assert.Equal(before, NativeBattleTelemetry.PoolSnapshot());
+        using (NativeBattleEffectArenaWriter reused = new(owner))
         {
-            writer.EndReadThrough();
+            reused.Write(8191, [9]);
+            Assert.Equal((byte)9, reused.ReadThrough(8191, 1)[0]);
+            Assert.Equal((byte)7, owner.ReadByte(8191));
         }
-        NativeBattlePoolObservation after = NativeBattleTelemetry.PoolSnapshot();
-        Assert.Equal(before.OutstandingCount, after.OutstandingCount);
-        Assert.Equal(before.OutstandingBytes, after.OutstandingBytes);
-        Assert.Equal(before.ReturnOperations + 2, after.ReturnOperations);
+        Assert.Equal((byte)7, owner.ReadByte(8191));
+        Assert.Equal(before, NativeBattleTelemetry.PoolSnapshot());
     }
 
     [Fact]
@@ -59,9 +56,9 @@ public sealed class NativeBattleTelemetryTests
             Assert.Equal(new byte[] { 1, 9, 3, 4 }, snapshot.Data);
             Assert.All(snapshot.Known, value => Assert.True(value));
         }
-        // Copy the old four-byte backing range, apply the one-byte store, read four bytes.
+        // One byte is stored; the snapshot reads four data bytes and four knownness bytes.
         Assert.Equal(9, sink.Total(NativeBattleTrafficKind.CpuCopyPayload));
-        Assert.Equal(4, sink.Total(NativeBattleTrafficKind.Fill));
+        Assert.Equal(1, sink.Total(NativeBattleTrafficKind.Fill));
         Assert.Equal(0, sink.Total(NativeBattleTrafficKind.LogicalMemoryCopy));
     }
 
@@ -94,7 +91,13 @@ public sealed class NativeBattleTelemetryTests
         }
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, source.Read(NativeBattleFileStaging.Address + 10, 4));
         Assert.Equal(4, sink.Total(NativeBattleTrafficKind.LogicalMemoryCopy));
-        Assert.Equal(4, sink.Total(NativeBattleTrafficKind.CpuCopyPayload));
+        // The four-byte native copy reads data+knownness, stages four bytes, journals
+        // and stores four byte/knownness pairs, and grows the existing 32-lane page.
+        Assert.Equal(8, sink.Bytes[(1002, NativeBattleTrafficKind.CpuCopyPayload)]);
+        Assert.Equal(4, sink.Bytes[(1035, NativeBattleTrafficKind.CpuCopyPayload)]);
+        Assert.Equal(16, sink.Bytes[(1005, NativeBattleTrafficKind.CpuCopyPayload)]);
+        Assert.Equal(64, sink.Bytes[(1012, NativeBattleTrafficKind.CpuCopyPayload)]);
+        Assert.Equal(92, sink.Total(NativeBattleTrafficKind.CpuCopyPayload));
     }
 
     [Fact]

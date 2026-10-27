@@ -57,10 +57,7 @@ internal static class NativeBattleEffectNodeCaller
         }
         NativeBattleRecover93NodeState retained = frame.State;
         NativeBattleNodeSource source = retained.Data ?? new(resource.Data);
-        if (retained.Data is not null)
-        {
-            NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(source);
-        }
+        NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(source);
         using NativeBattleNodeBankOperation bank = new(source);
         if (retained.InitializationFlag == 0)
         {

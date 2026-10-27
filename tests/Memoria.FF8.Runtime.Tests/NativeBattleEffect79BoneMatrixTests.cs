@@ -91,10 +91,10 @@ public sealed class NativeBattleEffect79BoneMatrixTests
         NativeBattlePoseSource source = Source();
         NativeBattleGraphicsModel model = Model(source);
         NativeBattleBoneMatrixOutputStep first = NativeBattleBoneMatrixOutput8DE8F0.Query(Memory(), Staging(), model, source, 241, 0, Output());
-        NativeBattleBoneMatrixOutputStep restored = JsonSerializer.Deserialize<NativeBattleBoneMatrixOutputStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleBoneMatrixOutputStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleBoneMatrixOutputStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         NativeBattleBoneMatrixOutputStep expected = NativeBattleBoneMatrixOutput8DE8F0.Query(first.Memory, first.Staging, model, source, 1, -2048, first.Output);
         NativeBattleBoneMatrixOutputStep actual = NativeBattleBoneMatrixOutput8DE8F0.Query(restored.Memory, restored.Staging, model, source, 1, -2048, restored.Output);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
     }
 
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { BoneMatrixAnchor2795BC0 = [0x2C, 1, 0x70, 0xFE, 0x34, 0x12, 0xEF, 0xBE] };
