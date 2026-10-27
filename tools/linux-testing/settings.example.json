@@ -3,6 +3,7 @@
   "GameDirectory": null,
   "DlsPath": null,
   "SgtPath": null,
+  "MediaToolsDirectory": null,
   "Targets": {
     "SteamDeck": {
       "SshHost": "steamdeck",
@@ -10,6 +11,7 @@
       "HardwareGameDirectory": null,
       "HardwareDlsPath": null,
       "HardwareSgtPath": null,
+      "HardwareMediaToolsDirectory": null,
       "GraphicalEnvironment": {},
       "StreamCommand": [],
       "ScreenshotCommand": []

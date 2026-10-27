@@ -14,7 +14,7 @@ function Invoke-Checker([string[]]$Arguments, [switch]$ExpectFailure) {
 }
 try {
     $package = Join-Path $temporary 'package'
-    foreach ($relative in @('Memoria.Launcher', 'Data/Memoria.FF8', 'Data/audio-host/Memoria.FF8.Music', 'Data/Game/vulkan/Memoria.FF8')) {
+    foreach ($relative in @('Memoria.Launcher', 'Data/Memoria.FF8', 'Data/audio-host/Memoria.FF8.Music', 'Data/Game/vulkan/Memoria.FF8', 'Data/Game/vulkan/Memoria.PsfDecoder')) {
         $path = Join-Path $package $relative
         New-Item -ItemType Directory -Force -Path ([IO.Path]::GetDirectoryName($path)) | Out-Null
         $elf = [byte[]]::new(32)
@@ -23,7 +23,7 @@ try {
     }
     & (Join-Path $product 'tools/New-DistributionManifest.ps1') -PackageRoot $package -RuntimeIdentifier linux-x64
     $manifest = Get-Content -LiteralPath (Join-Path $package 'Data/distribution.json') -Raw | ConvertFrom-Json
-    if ($manifest.SchemaVersion -ne 2 -or $manifest.RuntimeIdentifier -cne 'linux-x64' -or $manifest.Files.Count -ne 4 -or @($manifest.Files | Where-Object UnixMode -ne 493).Count -ne 0) {
+    if ($manifest.SchemaVersion -ne 2 -or $manifest.RuntimeIdentifier -cne 'linux-x64' -or $manifest.Files.Count -ne 5 -or @($manifest.Files | Where-Object UnixMode -ne 493).Count -ne 0) {
         throw 'Linux descriptor identity, inventory or executable modes are incorrect.'
     }
     $archive = Join-Path $temporary 'package.tar.gz'

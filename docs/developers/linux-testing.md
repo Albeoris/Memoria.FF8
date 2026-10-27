@@ -6,7 +6,7 @@ From the public product directory, after the one-time setup:
 pwsh ./tools/Test-Linux.ps1
 ```
 
-The default detects an installed WSL2 distro, preferring Ubuntu 24.04, and uses WSLg. It probes the x64 host, builds or verifies a matching cached Linux payload, transfers changed files, runs portable tests and opens the application for interaction. Close the application to collect its exit status and diagnostics; Ctrl+C cancels. The default guard timeout is one hour. Use `-Phase Test` for a quick 15-second smoke instead. This currently validates the launcher, shared presentation services and audio implementation. The Linux game host is not implemented; no launcher, Vulkan cube or audio result is recorded as successful gameplay.
+The default detects an installed WSL2 distro, preferring Ubuntu 24.04, and uses WSLg. It probes the x64 host, builds or verifies a matching cached Linux payload, transfers changed files, runs portable tests and opens the application for interaction. Close the application to collect its exit status and diagnostics; Ctrl+C cancels. The default guard timeout is one hour. Use `-Phase Test` for a quick 15-second smoke instead. This validates the selected component, shared presentation services and audio implementation. Game smoke also requires the Vulkan host to finish loading content and present its first frame. No startup, Vulkan cube or audio result is recorded as successful gameplay.
 
 WSLg uses a virtualized graphics path. Native Linux/Steam Deck graphics acceptance remains a separate hardware gate.
 
@@ -20,13 +20,13 @@ wsl --install -d Ubuntu-24.04
 
 Restart if Windows requests it, launch Ubuntu once, and create its Linux user. Confirm `wsl --list --verbose` reports version 2. The testing script does not enable Windows features, install a distro, update graphics drivers, restart WSL or change Windows settings.
 
-The Windows checkout needs the repository's .NET SDK, PowerShell 7 and Git. The distro needs a .NET 10 SDK on PATH and ordinary desktop runtime libraries. The SDK runs the staged test modules through `dotnet test`; Python is not required. Install the SDK using the supported instructions for your distribution before running this workflow. To explicitly authorize installing Ubuntu runtime and diagnostic packages from its configured standard repositories:
+The Windows checkout needs the repository's .NET SDK, PowerShell 7 and Git. The distro needs a .NET 10 SDK on PATH, CMake 3.20 or later, a C compiler and make, plus ordinary desktop runtime libraries. The SDK runs the staged test modules through `dotnet test`; Python is not required. Install the SDK using the supported instructions for your distribution before running this workflow. To explicitly authorize installing Ubuntu runtime and diagnostic packages from its configured standard repositories:
 
 ```powershell
 pwsh ./tools/Test-Linux.ps1 -SetupDependencies
 ```
 
-This asks `sudo apt-get` to install DejaVu/Noto core and CJK fonts, X11/font/audio/GTK libraries, standard desktop-portal services, Vulkan tools, Mesa utilities and the standard `mesa-vulkan-drivers` package containing Lavapipe. It does not install the .NET SDK or add repositories, experimental packages or vendor GPU drivers. Later runs reuse these packages. Without this flag the script performs no package installation.
+This asks `sudo apt-get` to install CMake and build-essential, DejaVu/Noto core and CJK fonts, X11/font/audio/GTK libraries, standard desktop-portal services, Vulkan tools, Mesa utilities and the standard `mesa-vulkan-drivers` package containing Lavapipe. It does not install the .NET SDK or add repositories, experimental packages or vendor GPU drivers. Later runs reuse these packages. Without this flag the script performs no package installation.
 
 Create optional local settings, which Git ignores:
 
@@ -38,6 +38,8 @@ Set `GameDirectory` to your existing legal Windows game folder, including a fold
 
 `-Distro` overrides the configured distro. `-GameDirectory` overrides its configured Windows game folder for a single run. For example, pass a folder selected on your own machine:
 
+Set optional `MediaToolsDirectory` to an existing native Linux LGPL FFmpeg directory containing `ffmpeg` and `ffprobe`. It accepts a Windows path accessible through WSL or an absolute Linux path. Hardware targets use `HardwareMediaToolsDirectory`. These tools are referenced in place, never transferred with application or original game assets; the game validates them before use. Configure this once to avoid optional media-installation dialogs during unattended game smoke tests.
+
 ```powershell
 pwsh ./tools/Test-Linux.ps1 -GameDirectory $env:MEMORIA_FF8_GAME_DIR
 ```
@@ -48,17 +50,19 @@ pwsh ./tools/Test-Linux.ps1 -GameDirectory $env:MEMORIA_FF8_GAME_DIR
 | --- | --- |
 | `pwsh ./tools/Test-Linux.ps1` | Detect, build/reuse, deploy, portable tests and interactive launch. |
 | `pwsh ./tools/Test-Linux.ps1 -Phase Diagnostics` | Build/reuse the small .NET helper and gather available Linux graphics/system diagnostics without building the application. |
-| `pwsh ./tools/Test-Linux.ps1 -Phase Build` | Build/verify Linux payload from Windows; no installed WSL/SSH target required. |
+| `pwsh ./tools/Test-Linux.ps1 -Phase Build` | Build/verify Linux payload from Windows; a WSL2 native compiler is required for an uncached build, with no SSH target required. |
 | `pwsh ./tools/Test-Linux.ps1 -Phase Deploy` | Deploy a matching previously built payload. |
 | `pwsh ./tools/Test-Linux.ps1 -Phase Test` | Verify/deploy a matching cache and run tests plus a 15-second smoke. |
 | `pwsh ./tools/Test-Linux.ps1 -Phase Launch` | Verify/deploy and open the application for manual interaction until exit or timeout. |
 | `pwsh ./tools/Test-Linux.ps1 -Component Audio` | Play explicit `DlsPath`/`SgtPath` fixtures through the common audio harness. |
 
+On an application cache miss, Windows publishing first builds the retained PSF decoder CMake source in an x86_64 WSL2 distro, including when using `-Mode Hardware` or `-Phase Build`. Hardware deployment therefore also needs local WSL for a fresh build. `-Distro` or the shared `Distro` setting selects that build distro. The incremental CMake cache stays in the Linux home under `.cache/memoria-ff8/native-psf/`, keyed by codec source contents, source location, distro and compiler/CMake identity. The executable installs into `artifacts/native-psf/linux-x64`; the script verifies its x64 ELF header and every published decoder copy against its SHA-256. Only child build processes receive the prepared-codec MSBuild properties, leaving the calling environment unchanged. Probe and compiler logs are retained with each run. A verified application cache can still be reused without compiling the codec. `-SetupDependencies` installs build tools only in Wsl mode; hardware mode never changes its target.
+
 Build identity hashes tracked and untracked nonignored working files, deleted files, dependency pins, scripts, capability declarations and the SDK version. Source identity is checked again before sealing the build receipt; edits during publishing cannot produce a falsely verified cache. Reuse additionally verifies every payload file against its SHA-256 manifest. A corrupted cache is retained under a separate diagnostic name. Current launcher builds and test publishes use an isolated reusable output tree. Five Linux test modules are staged: Platform, Audio, Launcher, Presentation and LinuxTesting. The target runs them with `dotnet test --root-directory <module-directory> --test-modules <module-name>.dll --results-directory <results-directory> --no-progress`, using the staged `global.json` to select Microsoft Testing Platform. Successful portable test results are reused on the same target only for the same verified build fingerprint; failures are not cached as successes. Optional original-resource tests retain their explicit fixture requirements and skip when absent. No battle-effect test project is selected.
 
 Evidence is stored under `artifacts/linux-test/runs/<run-id>/`: orchestration/build/transport logs, per-project portable test logs, `result.json`, system information, Vulkan ICD descriptors, full Vulkan surface/device information and presentation-probe results. Process stdout/stderr and nonzero exit status are preserved. The console prints target failures and structured status. Configuration, cache and test state are separate from ordinary launcher/player data. The source tree never contains copied original game assets or credentials.
 
-Smoke success means the requested process survived its interval. A launcher that exits early, even with exit code zero, does not pass the smoke. Manual launch preserves the actual exit code; its timeout returns 124. The .NET helper creates an owned Linux session through its own `setsid`/`execvp` entry point and terminates that process group after leader exit, timeout or cancellation. Descendants retaining inherited output pipes remain owned after leader exit. Remote cancellation writes `stop.request` in the owned run directory; the helper observes it during tests, diagnostics and smoke execution, then writes `result.json`. Cleanup never kills by executable name and needs no external `setsid` program. A child deliberately creating a new session leaves this supervision boundary.
+Launcher smoke success means the requested process survived its interval. Game smoke additionally requires the bootstrap graphics readiness line and a valid Vulkan host readiness receipt under the run-owned `game-graphics` directory. A startup prompt or optional FFmpeg consent dialog cannot pass game smoke merely by staying open. `result.json` records `gameGraphicsReady` and the receipt's backend, host process ID and device capabilities; inspect `process.log` and `game-graphics` when readiness fails. A launcher that exits early, even with exit code zero, does not pass the smoke. Manual launch preserves the actual exit code; its timeout returns 124. The .NET helper creates an owned Linux session through its own `setsid`/`execvp` entry point and terminates that process group after leader exit, timeout or cancellation. Descendants retaining inherited output pipes remain owned after leader exit. Remote cancellation writes `stop.request` in the owned run directory; the helper observes it during tests, diagnostics and smoke execution, then writes `result.json`. Cleanup never kills by executable name and needs no external `setsid` program. A child deliberately creating a new session leaves this supervision boundary.
 
 Screenshots use an already installed `grim`, `spectacle` or `gnome-screenshot`, or an explicitly configured `ScreenshotCommand` argument array with `{output}` for the output filename. If no suitable command exists, the result records screenshots as unavailable. A screenshot still needs human inspection.
 
@@ -95,7 +99,7 @@ The runner attaches to an existing session using `DISPLAY`/`WAYLAND_DISPLAY` and
 
 ## Current boundary and workflow tests
 
-The committed [build capability profile](../../tools/linux-testing/build-capabilities.json) declares `gameHost: true` and selects the complete `Distribution` recipe, `artifacts/package/linux-x64` and `Data/Memoria.FF8`. `Auto` selects Game. Binary-only deployment restores executable modes from the verified package inventory before promotion. A surviving process remains a smoke result; gameplay acceptance also requires inspecting the requested slice.
+The committed [build capability profile](../../tools/linux-testing/build-capabilities.json) declares `gameHost: true` and selects the complete `Distribution` recipe, `artifacts/package/linux-x64` and `Data/Memoria.FF8`. `Auto` selects Game. Binary-only deployment restores executable modes from the verified package inventory before promotion. Game smoke requires survival plus first-presentation readiness; gameplay acceptance also requires inspecting the requested slice.
 
 Run orchestration tests without an installed distro or SSH target:
 

@@ -157,6 +157,95 @@ public sealed class TargetRunnerTests
         }
     }
 
+    [Theory]
+    [Trait("Platform", "Linux")]
+    [InlineData(false, false, false, false, false, false, false)]
+    [InlineData(false, true, false, false, false, false, false)]
+    [InlineData(true, false, false, false, false, false, false)]
+    [InlineData(true, true, true, false, false, false, false)]
+    [InlineData(true, true, false, false, true, false, false)]
+    [InlineData(true, true, false, false, true, true, false)]
+    [InlineData(true, true, false, false, false, true, true)]
+    [InlineData(true, true, false, true, false, false, false)]
+    public async Task GameSmokeRequiresValidatedFirstPresentation(bool receipt, bool readinessLine, bool malformed, bool earlyExit, bool expectedPass, bool configureMediaTools, bool missingMediaTools)
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "Requires Linux executable fixtures.");
+        string directory = CreateDirectory();
+        CancellationToken token = TestContext.Current.CancellationToken;
+        try
+        {
+            Deployment.Initialize(directory);
+            string payload = Path.Combine(directory, "payload");
+            string tools = Path.Combine(directory, "tools");
+            string game = Path.Combine(directory, "game");
+            Directory.CreateDirectory(payload);
+            Directory.CreateDirectory(tools);
+            Directory.CreateDirectory(game);
+            string mediaTools = Path.Combine(directory, "media tools ' fixture");
+            if (configureMediaTools && !missingMediaTools)
+            {
+                Directory.CreateDirectory(mediaTools);
+            }
+            Directory.CreateDirectory(Path.Combine(directory, "test-results"));
+            await File.WriteAllTextAsync(Path.Combine(directory, "test-results", "game-fixture.json"), "{\"passed\":true}", token);
+            string script = "#!/bin/sh\nprintf 'argument=<%s>\\n' \"$@\"\n";
+            if (receipt)
+            {
+                string json = malformed ? "{}" : "{\"schemaVersion\":1,\"backend\":\"Vulkan\",\"processId\":42,\"capabilities\":{\"device\":\"fixture Vulkan device\"}}";
+                script += "/bin/mkdir -p \"$MEMORIA_FF8_HOST_DIAGNOSTICS_DIRECTORY/Vulkan-fixture\"\nprintf '%s' '" + json + "' > \"$MEMORIA_FF8_HOST_DIAGNOSTICS_DIRECTORY/Vulkan-fixture/ready.json\"\n";
+            }
+            if (readinessLine)
+            {
+                script += "printf 'Graphics ready: requested=Auto actual=Vulkan\\n'\n";
+            }
+            script += earlyExit ? "exit 0\n" : "exec /bin/sleep 60\n";
+            string executable = Path.Combine(payload, "game-fixture");
+            string uname = Path.Combine(tools, "uname");
+            await File.WriteAllTextAsync(executable, script, token);
+            await File.WriteAllTextAsync(uname, "#!/bin/sh\nexit 0\n", token);
+            if (OperatingSystem.IsLinux())
+            {
+                File.SetUnixFileMode(uname, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
+            await File.WriteAllTextAsync(Path.Combine(directory, "payload-manifest.json"), JsonSerializer.Serialize(Deployment.Manifest(payload)), token);
+            string request = Path.Combine(directory, "request.json");
+            await File.WriteAllTextAsync(request, JsonSerializer.Serialize(new { root = directory, runId = "graphics-readiness", mode = "Smoke", smoke = true, timeoutSeconds = 1, component = "Game", gameHost = true, gameDirectory = game, gameExecutable = "game-fixture", mediaToolsDirectory = configureMediaTools ? mediaTools : null, vulkan = "None", fingerprint = "game-fixture", graphicalEnvironment = new Dictionary<string, string> { ["PATH"] = tools, ["DISPLAY"] = ":fixture" } }), token);
+            Assert.Equal(expectedPass ? 0 : 1, await TargetRunner.RunAsync(request, token));
+            using JsonDocument result = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(directory, "runs", "graphics-readiness", "result.json"), token));
+            JsonElement value = result.RootElement;
+            if (missingMediaTools)
+            {
+                Assert.Contains("Configured media tools directory", value.GetProperty("error").GetString());
+                Assert.False(File.Exists(Path.Combine(directory, "runs", "graphics-readiness", "leader-pid")));
+                return;
+            }
+            string log = await File.ReadAllTextAsync(Path.Combine(directory, "runs", "graphics-readiness", "process.log"), token);
+            string expectedArguments = "argument=<--game-dir>\nargument=<" + game + ">\n";
+            if (configureMediaTools)
+            {
+                expectedArguments += "argument=<--media-tools>\nargument=<" + mediaTools + ">\n";
+            }
+            Assert.StartsWith(expectedArguments, log);
+            Assert.Equal(configureMediaTools, log.Contains("argument=<--media-tools>", StringComparison.Ordinal));
+            Assert.Equal(!earlyExit, value.GetProperty("processSurvivedSmoke").GetBoolean());
+            Assert.Equal(receipt && readinessLine && !malformed, value.GetProperty("gameGraphicsReady").GetBoolean());
+            Assert.False(value.GetProperty("gameplayAccepted").GetBoolean());
+            Assert.False(value.GetProperty("nativeGpuAcceptance").GetBoolean());
+            if (expectedPass)
+            {
+                Assert.Equal("fixture Vulkan device", value.GetProperty("gameGraphics").GetProperty("capabilities").GetProperty("device").GetString());
+            }
+            else
+            {
+                Assert.True(value.TryGetProperty("error", out _));
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
     private static string CreateDirectory()
     {
         string directory = Path.Combine(Path.GetTempPath(), "memoria-target-tests-" + Guid.NewGuid().ToString("N"));

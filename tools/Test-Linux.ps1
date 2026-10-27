@@ -57,7 +57,7 @@ try {
     if ($selectedComponent -eq 'Game' -and !$profile.gameHost) {
         throw 'The committed Linux build profile has no supported game host. Select Launcher or Audio.'
     }
-    if ($Phase -ne 'Build') {
+    if ($Phase -ne 'Build' -or ($Mode -eq 'Wsl' -and $SetupDependencies)) {
         if ($Mode -eq 'Wsl') {
             $inventory = Invoke-TestProcess wsl.exe @('--list', '--verbose') -AllowFailure -TimeoutSeconds 30
             ($inventory.Output + $inventory.Error).Replace([string][char]0, '') | Set-Content -LiteralPath (Join-Path $localRun 'wsl-inventory.txt') -Encoding utf8
@@ -78,7 +78,7 @@ try {
             if ($SetupDependencies) {
                 Write-Host 'Explicit setup: installing ordinary Ubuntu runtime/diagnostic packages from configured distro repositories. sudo may request your Linux password.'
                 # Sudo runs interactively; credentials are never captured by this script.
-                & wsl.exe --distribution $settings.Distro --exec sh -c 'sudo apt-get update && sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-cjk libx11-6 libice6 libsm6 libfontconfig1 libfreetype6 libxcb1 libxkbcommon0 libgl1 libegl1 libgtk-3-0t64 dbus-user-session xdg-desktop-portal xdg-desktop-portal-gtk libasound2t64 libpulse0 libvulkan1 vulkan-tools mesa-utils mesa-vulkan-drivers'
+                & wsl.exe --distribution $settings.Distro --exec sh -c 'sudo apt-get update && sudo apt-get install -y cmake build-essential fonts-dejavu-core fonts-noto-core fonts-noto-cjk libx11-6 libice6 libsm6 libfontconfig1 libfreetype6 libxcb1 libxkbcommon0 libgl1 libegl1 libgtk-3-0t64 dbus-user-session xdg-desktop-portal xdg-desktop-portal-gtk libasound2t64 libpulse0 libvulkan1 vulkan-tools mesa-utils mesa-vulkan-drivers'
                 if ($LASTEXITCODE -ne 0) {
                     throw 'Explicit Ubuntu dependency setup failed. Review apt output; no external repository or graphics driver was requested.'
                 }
@@ -104,10 +104,12 @@ try {
                 throw 'Select a dedicated target staging directory below the home directory, not a home root or traversal path.'
             }
         }
-        $helper = Get-LinuxTestingBootstrap $product $localRun
-        $targetRunner = Initialize-LinuxTestingTarget $Mode $settings $helper $targetRoot
-        $probe = Invoke-LinuxTarget $Mode $settings @($targetRunner, 'probe') -TimeoutSeconds 30
-        $probe.Output | Set-Content -LiteralPath (Join-Path $localRun 'host-probe.json') -Encoding utf8
+        if ($Phase -ne 'Build') {
+            $helper = Get-LinuxTestingBootstrap $product $localRun
+            $targetRunner = Initialize-LinuxTestingTarget $Mode $settings $helper $targetRoot
+            $probe = Invoke-LinuxTarget $Mode $settings @($targetRunner, 'probe') -TimeoutSeconds 30
+            $probe.Output | Set-Content -LiteralPath (Join-Path $localRun 'host-probe.json') -Encoding utf8
+        }
     }
     if ($Phase -eq 'Diagnostics') {
         $requestPath = Join-Path $localRun 'request.json'
@@ -144,12 +146,13 @@ try {
             Move-Item -LiteralPath $cache -Destination $preserved
         }
         New-Item -ItemType Directory -Force -Path $payload | Out-Null
+        $nativeEnvironment = Get-LinuxPsfBuildEnvironment $product $settings $localRun
         $isolatedBuild = Join-Path $product 'artifacts/linux-test/build'
         if ($profile.scope -eq 'Launcher') {
-            $build = Invoke-TestProcess dotnet @('publish', (Join-Path $product 'src/Memoria.Launcher/Memoria.Launcher.csproj'), '--artifacts-path', $isolatedBuild, '-c', 'Release', '-r', 'linux-x64', '--self-contained', 'true', '-p:PublishTrimmed=false', '-o', $payload)
+            $build = Invoke-TestProcess dotnet @('publish', (Join-Path $product 'src/Memoria.Launcher/Memoria.Launcher.csproj'), '--artifacts-path', $isolatedBuild, '-c', 'Release', '-r', 'linux-x64', '--self-contained', 'true', '-p:PublishTrimmed=false', '-o', $payload) -Environment $nativeEnvironment
         }
         else {
-            $build = Invoke-TestProcess pwsh @('-NoProfile', '-File', (Join-Path $product 'Build.ps1'), '-Scope', $profile.scope, '-RuntimeIdentifier', 'linux-x64')
+            $build = Invoke-TestProcess pwsh @('-NoProfile', '-File', (Join-Path $product 'Build.ps1'), '-Scope', $profile.scope, '-RuntimeIdentifier', 'linux-x64') -Environment $nativeEnvironment
             $built = Join-Path $product $profile.gameOutput
             Get-ChildItem -LiteralPath $built -Force | Copy-Item -Destination $payload -Recurse
         }
@@ -160,12 +163,13 @@ try {
         if ($profile.gameHost -and !(Test-Path -LiteralPath (Join-Path $payload $profile.gameExecutable))) {
             throw 'Declared Linux game distribution is missing its game executable.'
         }
-        $audio = Invoke-TestProcess dotnet @('publish', (Join-Path $product 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj'), '--artifacts-path', $isolatedBuild, '-c', 'Release', '-r', 'linux-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-o', (Join-Path $payload 'audio'))
+        $audio = Invoke-TestProcess dotnet @('publish', (Join-Path $product 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj'), '--artifacts-path', $isolatedBuild, '-c', 'Release', '-r', 'linux-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-o', (Join-Path $payload 'audio')) -Environment $nativeEnvironment
         ($audio.Output + $audio.Error) | Set-Content -LiteralPath (Join-Path $localRun 'audio-build.log') -Encoding utf8
         foreach ($testProject in @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.Launcher.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.FF8.LinuxTesting.Tests')) {
-            $testBuild = Invoke-TestProcess dotnet @('publish', (Join-Path $product "tests/$testProject/$testProject.csproj"), '--artifacts-path', $isolatedBuild, '-c', 'Release', '-r', 'linux-x64', '--self-contained', 'true', '-p:PublishSingleFile=false', '-o', (Join-Path $payload "tests/$testProject"))
+            $testBuild = Invoke-TestProcess dotnet @('publish', (Join-Path $product "tests/$testProject/$testProject.csproj"), '--artifacts-path', $isolatedBuild, '-c', 'Release', '-r', 'linux-x64', '--self-contained', 'true', '-p:PublishSingleFile=false', '-o', (Join-Path $payload "tests/$testProject")) -Environment $nativeEnvironment
             ($testBuild.Output + $testBuild.Error) | Set-Content -LiteralPath (Join-Path $localRun "$testProject-build.log") -Encoding utf8
         }
+        Assert-PayloadPsfDecoder $payload $nativeEnvironment.MemoriaPsfDecoderDirectory
         Copy-Item -LiteralPath (Join-Path $product 'global.json') -Destination (Join-Path $payload 'global.json')
         if ((Get-SourceFingerprint $product) -cne $fingerprint) {
             throw 'Source files changed during the build. Partial output was preserved; rerun after edits settle to create a verified current build.'
@@ -231,16 +235,18 @@ try {
         $exitCode = 0
         return
     }
-    $request = @{ fingerprint = $fingerprint; vulkan = $Vulkan; root = $targetRoot; runId = $runId; mode = $Mode; component = $selectedComponent; timeoutSeconds = $TimeoutSeconds; smoke = $Phase -eq 'Test'; gameHost = [bool]$profile.gameHost; gameExecutable = $profile.gameExecutable; graphicalEnvironment = $settings.GraphicalEnvironment; screenshotCommand = @($settings.ScreenshotCommand); audioSeconds = [Math]::Min(10, $TimeoutSeconds); gameDirectory = $null; dlsPath = $null; sgtPath = $null }
+    $request = @{ fingerprint = $fingerprint; vulkan = $Vulkan; root = $targetRoot; runId = $runId; mode = $Mode; component = $selectedComponent; timeoutSeconds = $TimeoutSeconds; smoke = $Phase -eq 'Test'; gameHost = [bool]$profile.gameHost; gameExecutable = $profile.gameExecutable; graphicalEnvironment = $settings.GraphicalEnvironment; screenshotCommand = @($settings.ScreenshotCommand); audioSeconds = [Math]::Min(10, $TimeoutSeconds); gameDirectory = $null; dlsPath = $null; sgtPath = $null; mediaToolsDirectory = $null }
     if ($Mode -eq 'Wsl') {
         $request.gameDirectory = ConvertTo-WslPath $settings.Distro $settings.GameDirectory
         $request.dlsPath = ConvertTo-WslPath $settings.Distro $settings.DlsPath
         $request.sgtPath = ConvertTo-WslPath $settings.Distro $settings.SgtPath
+        $request.mediaToolsDirectory = ConvertTo-WslPath $settings.Distro $settings.MediaToolsDirectory
     }
     else {
         $request.gameDirectory = $settings.HardwareGameDirectory
         $request.dlsPath = $settings.HardwareDlsPath
         $request.sgtPath = $settings.HardwareSgtPath
+        $request.mediaToolsDirectory = $settings.HardwareMediaToolsDirectory
         if (@($settings.StreamCommand).Count -gt 0) {
             $streamStart = [Diagnostics.ProcessStartInfo]::new($settings.StreamCommand[0])
             $streamStart.UseShellExecute = $false

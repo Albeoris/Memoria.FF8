@@ -48,7 +48,7 @@ public static class TargetRunner
         {
             ["schemaVersion"] = 1, ["mode"] = Required(request, "mode"), ["component"] = component,
             ["gameplayAccepted"] = false, ["nativeGpuAcceptance"] = false, ["exitCode"] = 1,
-            ["boundary"] = "Launcher/audio validation only; portable Linux game host unavailable.", ["runId"] = runId
+            ["boundary"] = "Component startup validation only; gameplay and native GPU acceptance require inspection.", ["runId"] = runId
         };
         using CancellationTokenSource runCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using CancellationTokenSource watcherCancellation = new();
@@ -338,12 +338,22 @@ public static class TargetRunner
                 throw new ArgumentException("Game executable must be inside the verified payload.");
             }
             arguments.AddRange(["--game-dir", gameDirectory]);
-            result["boundary"] = "Game process smoke; gameplay/native GPU acceptance requires human inspection.";
+            string? mediaToolsDirectory = request["mediaToolsDirectory"]?.GetValue<string>();
+            if (mediaToolsDirectory != null)
+            {
+                if (!Directory.Exists(mediaToolsDirectory))
+                {
+                    throw new DirectoryNotFoundException("Configured media tools directory is not accessible. Explicitly expose the media tools to this Linux target.");
+                }
+                arguments.AddRange(["--media-tools", mediaToolsDirectory]);
+            }
+            environment["MEMORIA_FF8_HOST_DIAGNOSTICS_DIRECTORY"] = Path.Combine(output, "game-graphics");
+            result["boundary"] = "Game graphics startup smoke requires first presentation readiness; gameplay/native GPU acceptance requires human inspection.";
         }
         else
         {
             executable = Path.Combine(payload, "Memoria.Launcher");
-            result["boundary"] = "Launcher process smoke; browse/dialog/render acceptance requires human inspection. Linux game host unavailable.";
+            result["boundary"] = "Launcher process smoke; browse/dialog/render acceptance requires human inspection.";
             if (gameDirectory != null)
             {
                 string settings = Path.Combine(environment["XDG_CONFIG_HOME"], "Memoria", "FF8", "launcher.json");
@@ -392,14 +402,24 @@ public static class TargetRunner
         result["elapsedSeconds"] = Math.Round(elapsed.Elapsed.TotalSeconds, 2);
         bool survived = !process.HasExited;
         result["processSurvivedSmoke"] = survived;
+        int? processExitCode = survived ? null : await process.WaitAsync(token);
+        bool gameReady = component != "Game" || ReadGameGraphicsReadiness(output, result);
+        if (component == "Game")
+        {
+            result["gameGraphicsReady"] = gameReady;
+        }
         result["termination"] = survived ? smoke ? "smoke deadline" : "launch timeout" : "process exit";
         if (survived)
         {
-            result["exitCode"] = smoke ? 0 : 124;
+            result["exitCode"] = smoke ? gameReady ? 0 : 1 : 124;
+            if (smoke && !gameReady)
+            {
+                result["error"] = "Game process survived without completing graphics initialization and first presentation; inspect process.log and game-graphics for startup prompts or failures.";
+            }
         }
         else
         {
-            int code = await process.WaitAsync(token);
+            int code = processExitCode!.Value;
             result["exitCode"] = component == "Audio" || !smoke ? code : code == 0 ? 1 : code;
             if (component != "Audio" && smoke && code == 0)
             {
@@ -411,6 +431,44 @@ public static class TargetRunner
                 result["errorTail"] = text.Length > 4000 ? text[^4000..] : text;
             }
         }
+    }
+
+    private static bool ReadGameGraphicsReadiness(string output, Dictionary<string, object?> result)
+    {
+        string diagnostics = Path.Combine(output, "game-graphics");
+        if (!Directory.Exists(diagnostics))
+        {
+            return false;
+        }
+        string log = File.ReadAllText(Path.Combine(output, "process.log"));
+        if (!Regex.IsMatch(log, @"(?m)^Graphics ready: requested=(Auto|Vulkan) actual=Vulkan\r?$"))
+        {
+            return false;
+        }
+        foreach (string attempt in Directory.EnumerateDirectories(diagnostics, "Vulkan-*"))
+        {
+            string path = Path.Combine(attempt, "ready.json");
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+                JsonElement receipt = document.RootElement;
+                if (receipt.GetProperty("schemaVersion").GetInt32() != 1 || receipt.GetProperty("backend").GetString() != "Vulkan" || receipt.GetProperty("processId").GetInt32() <= 0 || receipt.GetProperty("capabilities").ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+                result["gameGraphics"] = new { receipt = Path.GetRelativePath(output, path), backend = "Vulkan", processId = receipt.GetProperty("processId").GetInt32(), capabilities = receipt.GetProperty("capabilities").Clone() };
+                return true;
+            }
+            catch (Exception error) when (error is IOException or JsonException or InvalidOperationException or KeyNotFoundException or FormatException)
+            {
+                result["gameGraphicsReceiptError"] = error.Message;
+            }
+        }
+        return false;
     }
 
     private static string Required(JsonObject request, string name) => request[name]?.GetValue<string>() ?? throw new ArgumentException("Missing request property: " + name);

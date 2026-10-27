@@ -30,7 +30,7 @@ $manifestPath = Join-Path $root ($prefix + 'Data/distribution.json')
 $files = @(Get-ChildItem -LiteralPath $root -File -Recurse | Where-Object FullName -ne $manifestPath)
 $inventory = @($files | Sort-Object FullName | ForEach-Object {
     $relative = [IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/')
-    $mode = if ($RuntimeIdentifier -eq 'win-x64') { 0 } elseif ([IO.Path]::GetFileName($_.FullName) -in @('Memoria.Launcher', 'Memoria.FF8', 'Memoria.FF8.Music')) { 493 } else { 420 }
+    $mode = if ($RuntimeIdentifier -eq 'win-x64') { 0 } elseif ([IO.Path]::GetFileName($_.FullName) -in @('Memoria.Launcher', 'Memoria.FF8', 'Memoria.FF8.Music', 'Memoria.PsfDecoder')) { 493 } else { 420 }
     [ordered]@{
         UnixMode = $mode
         Path = [IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/')

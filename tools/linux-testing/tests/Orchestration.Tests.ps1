@@ -55,9 +55,52 @@ Assert-Throws { Get-TestSettings $settingsFile } 'Non-graphical environment keys
 $defaults = Get-TestSettings (Join-Path $temp 'absent.json')
 Assert-True (!$defaults.Distro) 'Default should detect a suitable existing WSL2 distro, preferring Ubuntu 24.04.'
 Assert-True (!$defaults.GameDirectory) 'Game directory must not be guessed.'
+@{ MediaToolsDirectory = '/home/test/approved media/bin'; Targets = @{ Desktop = @{ HardwareMediaToolsDirectory = '/opt/approved media/bin' } } } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $settingsFile
+$mediaSettings = Get-TestSettings $settingsFile
+Assert-True ($mediaSettings.MediaToolsDirectory -eq '/home/test/approved media/bin') 'Explicit WSL media tools must preserve path spaces.'
+Assert-True ((ConvertTo-WslPath 'Ubuntu-24.04' $mediaSettings.MediaToolsDirectory) -eq '/home/test/approved media/bin') 'Existing absolute Linux media paths must not become Windows drive paths.'
+Assert-True ((Select-HardwareTarget $mediaSettings 'Desktop').HardwareMediaToolsDirectory -eq '/opt/approved media/bin') 'Hardware media tools must select the target-specific native directory.'
+$parentPrepared = [Environment]::GetEnvironmentVariable('MemoriaPsfDecoderPrepared')
+$child = Invoke-TestProcess pwsh @('-NoProfile', '-Command', '[Console]::Write($env:MemoriaPsfDecoderPrepared)') -Environment @{ MemoriaPsfDecoderPrepared = 'test-child-only' }
+Assert-True ($child.Output -ceq 'test-child-only') 'Prepared codec properties must reach only the child build process.'
+Assert-True ([Environment]::GetEnvironmentVariable('MemoriaPsfDecoderPrepared') -ceq $parentPrepared) 'Successful child builds must leave the parent environment unchanged.'
+Assert-Throws { Invoke-TestProcess pwsh @('-NoProfile', '-Command', 'exit 3') -Environment @{ MemoriaPsfDecoderPrepared = 'test-child-only' } } 'Child build failures must propagate.'
+Assert-True ([Environment]::GetEnvironmentVariable('MemoriaPsfDecoderPrepared') -ceq $parentPrepared) 'Failed child builds must leave the parent environment unchanged.'
+$nativeSource = Join-Path $temp 'native-source'
+New-Item -ItemType Directory -Path $nativeSource | Out-Null
+Set-Content -LiteralPath (Join-Path $nativeSource 'decoder.c') -Value 'native-first'
+Set-Content -LiteralPath (Join-Path $nativeSource 'CMakeLists.txt') -Value 'cmake-first'
+$nativeIdentity = Get-PsfNativeBuildIdentity $nativeSource '/mnt/c/source with spaces' 'compiler-first'
+Assert-True ($nativeIdentity -ceq (Get-PsfNativeBuildIdentity $nativeSource '/mnt/c/source with spaces' 'compiler-first')) 'Unchanged native source and toolchain must reuse the CMake cache identity.'
+Assert-True ($nativeIdentity -cne (Get-PsfNativeBuildIdentity $nativeSource '/mnt/d/source with spaces' 'compiler-first')) 'Moving the native source must invalidate absolute CMake source paths.'
+Assert-True ($nativeIdentity -cne (Get-PsfNativeBuildIdentity $nativeSource '/mnt/c/source with spaces' 'compiler-second')) 'Changing native compilers must invalidate the CMake cache.'
+Set-Content -LiteralPath (Join-Path $nativeSource 'decoder.c') -Value 'native-second'
+Assert-True ($nativeIdentity -cne (Get-PsfNativeBuildIdentity $nativeSource '/mnt/c/source with spaces' 'compiler-first')) 'Changing codec source must invalidate native build identity.'
+$decoder = Join-Path $nativeSource 'Memoria.PsfDecoder'
+$elf = [byte[]]::new(20)
+$elf[0] = 127
+$elf[1] = 69
+$elf[2] = 76
+$elf[3] = 70
+$elf[4] = 2
+$elf[5] = 1
+$elf[6] = 1
+$elf[16] = 3
+$elf[18] = 62
+[IO.File]::WriteAllBytes($decoder, $elf)
+Assert-LinuxX64Executable $decoder
+Copy-Item -LiteralPath $decoder -Destination $payload
+Assert-PayloadPsfDecoder $payload $nativeSource
+Add-Content -LiteralPath (Join-Path $payload 'Memoria.PsfDecoder') -Value 'tamper'
+Assert-Throws { Assert-PayloadPsfDecoder $payload $nativeSource } 'A copied codec with a different hash must prevent accepting the payload.'
+$elf[18] = 183
+[IO.File]::WriteAllBytes($decoder, $elf)
+Assert-Throws { Assert-LinuxX64Executable $decoder } 'An ARM ELF codec must not pass x64 preparation.'
+[IO.File]::WriteAllBytes($decoder, [byte[]]@(77, 90))
+Assert-Throws { Assert-LinuxX64Executable $decoder } 'A Windows or truncated codec must not pass Linux preparation.'
 $script:commands = [Collections.Generic.List[object]]::new()
 function Invoke-TestProcess {
-    param([string]$Executable, [string[]]$Arguments, [int]$TimeoutSeconds = 1800, [switch]$AllowFailure)
+    param([string]$Executable, [string[]]$Arguments, [int]$TimeoutSeconds = 1800, [switch]$AllowFailure, [hashtable]$Environment = @{})
     $script:commands.Add(@{ executable = $Executable; arguments = $Arguments })
     if ($Executable -eq 'git') {
         return [pscustomobject]@{ ExitCode = 0; Output = "source.cs`0Directory.Packages.props`0tools/test.ps1`0"; Error = '' }

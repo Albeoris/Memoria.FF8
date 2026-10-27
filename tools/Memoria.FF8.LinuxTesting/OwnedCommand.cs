@@ -7,8 +7,8 @@ internal static class OwnedCommand
 {
     public static ProcessStartInfo Wrap(ProcessStartInfo original, string ready)
     {
-        string assembly = typeof(OwnedCommand).Assembly.Location;
-        string apphost = Path.Combine(Path.GetDirectoryName(assembly)!, "Memoria.FF8.LinuxTesting");
+        string assembly = Path.Combine(AppContext.BaseDirectory, "Memoria.FF8.LinuxTesting.dll");
+        string apphost = Path.Combine(AppContext.BaseDirectory, "Memoria.FF8.LinuxTesting");
         bool native = File.Exists(apphost);
         ProcessStartInfo wrapper = new(native ? apphost : DotNetHost())
         {
