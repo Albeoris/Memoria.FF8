@@ -58,7 +58,7 @@ internal sealed partial class RecreateGame
 
     private DialogueState LocalizedDialogue(DialogueState native)
     {
-        if (resourceHost is null || native.IsNamePrompt)
+        if (resourceHost is null || native.IsNamePrompt || native.MessageId < 0)
         {
             return native;
         }
@@ -87,7 +87,8 @@ internal sealed partial class RecreateGame
 
     private LocalizationFieldText? ResolveLocalizedField(DialogueState native)
     {
-        if (resourceHost is null || world?.Field is not { } field || session.State.Scene != Runtime.SceneKind.Field || native.IsNamePrompt)
+        // Generated/common-bank dialogue has no ordinal in the current field's message table.
+        if (resourceHost is null || native.MessageId < 0 || world?.Field is not { } field || session.State.Scene != Runtime.SceneKind.Field || native.IsNamePrompt)
         {
             return null;
         }
