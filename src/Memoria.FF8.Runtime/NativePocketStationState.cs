@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Saved PocketStation block1CFEFB8..1CFEFF7, retained with its original56D9F0 clear provenance.</summary>
+// The legacy InitOutSha256 field identifies the original reset producer, independently of selected template contents.
 public sealed record NativePocketStationState([property: JsonRequired] string InitOutSha256, [property: JsonRequired] ImmutableArray<byte> Raw)
 {
     /// <summary>Nullable original FF8 name buffer1CFDC94..1CFDC9F; missing historical state is not a default name.</summary>
@@ -15,7 +16,7 @@ public sealed record NativePocketStationState([property: JsonRequired] string In
 
     public void Validate()
     {
-        if (!NativeInitialData.IsFingerprint(InitOutSha256) || Raw.IsDefault || Raw.Length != 64)
+        if (InitOutSha256 != NativeInputConfiguration.OriginalInitHash || Raw.IsDefault || Raw.Length != 64)
         {
             throw new InvalidDataException("Native PocketStation state requires its original cleared64-byte saved block.");
         }

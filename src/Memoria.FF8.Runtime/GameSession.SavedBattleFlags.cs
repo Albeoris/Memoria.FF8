@@ -8,7 +8,7 @@ public sealed partial class GameSession
         if (flags is null)
         {
             NativeCharacterVitals vitals = State.CharacterVitals ?? throw new NotSupportedException("Native SETWITCH requires its saved flag owner or the independently known dream bit0 alias.");
-            flags = new NativeSavedBattleFlags(vitals.InitOutSha256, (byte)((vitals.DreamEnabled ? 1 : 0) | (write.RawOperand != 0 ? 0x20 : 0)), 0x21, WitchFieldWrite: write);
+            flags = new NativeSavedBattleFlags(NativeInputConfiguration.OriginalInitHash, (byte)((vitals.DreamEnabled ? 1 : 0) | (write.RawOperand != 0 ? 0x20 : 0)), 0x21, WitchFieldWrite: write);
         }
         GameState candidate = State with { SavedBattleFlags = flags.WithWitch(write) };
         ValidateNativeSavedBattleFlagsCheckpoint(candidate);
@@ -18,7 +18,7 @@ public sealed partial class GameSession
     public void SetNativeSavedBattleFlagBit4(NativeSavedBattleFlagFieldWrite write)
     {
         NativeCharacterVitals vitals = State.CharacterVitals ?? throw new NotSupportedException("Native529EB0 requires the independently known dream bit0 alias.");
-        NativeSavedBattleFlags flags = State.SavedBattleFlags ?? new NativeSavedBattleFlags(vitals.InitOutSha256, (byte)((vitals.DreamEnabled ? 1 : 0) | (write.RawOperand != 0 ? 0x10 : 0)), 0x11, write);
+        NativeSavedBattleFlags flags = State.SavedBattleFlags ?? new NativeSavedBattleFlags(NativeInputConfiguration.OriginalInitHash, (byte)((vitals.DreamEnabled ? 1 : 0) | (write.RawOperand != 0 ? 0x10 : 0)), 0x11, write);
         GameState candidate = State with { SavedBattleFlags = flags.WithFieldBit4(write) };
         ValidateNativeSavedBattleFlagsCheckpoint(candidate);
         State = candidate;
@@ -42,10 +42,6 @@ public sealed partial class GameSession
             return flags;
         }
         flags.Validate();
-        if (flags.InitOutSha256 != vitals.InitOutSha256)
-        {
-            throw new InvalidDataException("Saved battle flags and character records have different native initialization provenance.");
-        }
         return flags.WithDreamEnabled(vitals.DreamEnabled);
     }
 
@@ -53,7 +49,7 @@ public sealed partial class GameSession
     {
         state.SavedBattleFlags?.Validate();
         state.LimitProgress?.Validate();
-        if (state.SavedBattleFlags is { } flags && state.CharacterVitals is { } vitals && (flags.InitOutSha256 != vitals.InitOutSha256 || ((flags.Value & 1) != 0) != vitals.DreamEnabled))
+        if (state.SavedBattleFlags is { } flags && state.CharacterVitals is { } vitals && ((flags.Value & 1) != 0) != vitals.DreamEnabled)
         {
             throw new InvalidDataException("Saved battle flags disagree with the canonical DreamEnabled bit0 alias.");
         }

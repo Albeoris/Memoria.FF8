@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeSavedBattleFlagFieldWrite(int FieldId, string ProgramHash, int ObjectId, int ScriptId, int Operation, long Frame, int RawOperand);
 
 /// <summary>Saved BYTE1CFE97A, including the checked DreamEnabled bit0 alias.</summary>
+// The legacy InitOutSha256 field identifies the original reset producer, independently of selected template contents.
 public sealed record NativeSavedBattleFlags([property: JsonRequired] string InitOutSha256, [property: JsonRequired] byte Value, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? KnownMask = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeSavedBattleFlagFieldWrite? FieldWrite = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeSavedBattleFlagFieldWrite? WitchFieldWrite = null)
 {
     [JsonIgnore]
