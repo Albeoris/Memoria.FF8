@@ -12,6 +12,30 @@ public sealed class LocalizationReferenceWorkbookTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "memoria-reference-workbook-tests-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void EntirelyAbsentReferencesExplainTheirAbsenceWithoutInventingText()
+    {
+        var project = Project(2);
+        var row = project.Entries.Single() with
+        {
+            References = new Dictionary<string, string?> { ["Reference [jp]"] = null, ["Reference [en]"] = "English original" },
+            ReferencePresence = new Dictionary<string, bool> { ["Reference [jp]"] = false, ["Reference [en]"] = true },
+            ReferenceKeys = new Dictionary<string, IReadOnlyList<string>> { ["Reference [jp]"] = Array.Empty<string>(), ["Reference [en]"] = new[] { "$en_scene_0000" } }
+        };
+        string directory = Path.Combine(_root, "unavailable");
+        LocalizationProjectIO.WriteNew(project with { Entries = new[] { row } }, directory, "xlsx", "single", TestContext.Current.CancellationToken);
+        using (var workbook = SpreadsheetDocument.Open(Path.Combine(directory, "Localization/localization.xlsx"), false))
+        {
+            var note = Assert.Single(workbook.WorkbookPart!.WorksheetParts.Single().Worksheet!.Descendants<DataValidation>());
+            Assert.Equal("D2:D2", note.SequenceOfReferences!.InnerText);
+            Assert.True(note.ShowInputMessage!.Value);
+            Assert.Contains("no matching original keys", note.Prompt!.Value, StringComparison.Ordinal);
+        }
+        var loaded = Assert.Single(LocalizationProjectIO.Read(directory).Entries);
+        Assert.Null(loaded.References["Reference [jp]"]);
+        Assert.Empty(loaded.ReferenceKeys["Reference [jp]"]);
+    }
+
+    [Fact]
     public void ReferenceLayoutKeepsTranslatorColumnsAndTechnicalSidecarDistinct()
     {
         LocalizationProject project = Project(2);

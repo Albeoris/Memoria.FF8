@@ -80,6 +80,33 @@ internal static class LocalizationProjectWorkbook
                 rowIndex++;
             }
             part.Worksheet.Append(new AutoFilter { Reference = "A1:" + ColumnName(headers.Length - 1) + (rowIndex - 1) });
+            if (referenceLayout)
+            {
+                DataValidations notices = new();
+                int referenceColumn = 3;
+                foreach (string label in manifest.ReferenceLanguages.Keys)
+                {
+                    if (category.All(row => string.IsNullOrEmpty(row.References.GetValueOrDefault(label)) && (row.ReferenceKeys.GetValueOrDefault(label)?.Count ?? 0) == 0))
+                    {
+                        string column = ColumnName(referenceColumn);
+                        notices.Append(new DataValidation
+                        {
+                            Type = DataValidationValues.None,
+                            AllowBlank = true,
+                            ShowInputMessage = true,
+                            PromptTitle = "No source counterpart",
+                            Prompt = "This reference dataset contains no matching original keys for these rows. No English fallback has been substituted. See the ReferenceKey columns.",
+                            SequenceOfReferences = new ListValue<StringValue> { InnerText = column + "2:" + column + (rowIndex - 1) }
+                        });
+                    }
+                    referenceColumn++;
+                }
+                if (notices.ChildElements.Count > 0)
+                {
+                    notices.Count = (uint)notices.ChildElements.Count;
+                    part.Worksheet.Append(notices);
+                }
+            }
             part.Worksheet.Save();
             sheets.Append(new Sheet { Id = workbook.GetIdOfPart(part), SheetId = sheetId++, Name = name });
         }

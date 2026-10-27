@@ -54,7 +54,7 @@ public sealed class LocalizationBaseReferenceTests
     }
 
     [Fact]
-    public void KernelReferencesRequireMatchingTypedCollectionRoleAndEntityId()
+    public void ReferencesUseTheCommonKeyAndIgnoreCategorySpecificMetadata()
     {
         LocalizationSourceEntry Kernel(string language, string role, string text)
         {
@@ -65,7 +65,7 @@ public sealed class LocalizationBaseReferenceTests
         LocalizationProject valid = Create(new Dictionary<string, LocalizationSourceCatalog> { ["en"] = Catalog(Kernel("en", "Name", "native")), ["jp"] = Catalog(Kernel("jp", "Name", "unrelated script")) }, []);
         Assert.Equal("unrelated script", valid.Entries.Single().References["Reference [jp]"]);
         LocalizationProject invalid = Create(new Dictionary<string, LocalizationSourceCatalog> { ["en"] = Catalog(Kernel("en", "Name", "same")), ["jp"] = Catalog(Kernel("jp", "Description", "same")) }, []);
-        Assert.Null(invalid.Entries.Single().References["Reference [jp]"]);
+        Assert.Equal("same", invalid.Entries.Single().References["Reference [jp]"]);
     }
 
     [Fact]
@@ -82,18 +82,18 @@ public sealed class LocalizationBaseReferenceTests
     }
 
     [Fact]
-    public void UnprovedWorldAndMenuOrdinalsDoNotBecomeFalseReferences()
+    public void WorldAndMenuKeysUseTheSameLanguagePrefixRule()
     {
         LocalizationSourceEntry[] Rows(string language) => [Entry(language, "World", "messages_world", 3, "same"), Entry(language, "Menus", "namedic_menu", 3, "same"), Entry(language, "Menus", "mngrp_slot000_table", 3, "same")];
         LocalizationProject project = Create(new Dictionary<string, LocalizationSourceCatalog> { ["en"] = Catalog(Rows("en")), ["jp"] = Catalog(Rows("jp")) }, []);
         Assert.Equal(3, project.Entries.Count);
         Assert.All(project.Entries, row =>
         {
-            Assert.Null(row.References["Reference [jp]"]);
-            Assert.Empty(row.ReferenceKeys["Reference [jp]"]);
-            Assert.False(row.ReferencePresence["Reference [jp]"]);
+            Assert.Equal("same", row.References["Reference [jp]"]);
+            Assert.Equal(new[] { row.Key.Replace("$en_", "$jp_", StringComparison.Ordinal) }, row.ReferenceKeys["Reference [jp]"]);
+            Assert.True(row.ReferencePresence["Reference [jp]"]);
         });
-        Assert.Equal(3, project.Manifest.ExtensionData["unmappedReferenceFamilies"].EnumerateObject().Count());
+        Assert.Empty(project.Manifest.ExtensionData["unmappedReferenceFamilies"].EnumerateObject());
     }
 
     [Fact]

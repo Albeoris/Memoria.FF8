@@ -97,7 +97,7 @@ public static partial class LocalizationProjectBuilder
                 }
                 else
                 {
-                    matches = indexes.TryGetValue(language, out var index) ? DatasetEquivalentKeys(identity, language, index).Select(key => index.Exact.GetValueOrDefault((identity.Category, identity.File, key))).OfType<LocalizationSourceEntry>().ToArray() : [];
+                    matches = indexes.TryGetValue(language, out var index) ? DatasetEquivalentKeys(identity, language, index).Select(key => index.Exact.GetValueOrDefault(key)).OfType<LocalizationSourceEntry>().ToArray() : [];
                 }
                 counterparts[language] = matches;
                 aliases[language] = matches.Select(row => row.Key).ToArray();

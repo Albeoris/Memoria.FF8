@@ -57,30 +57,29 @@ public static partial class LocalizationProjectBuilder
 
     private sealed class ReferenceDatasetIndex
     {
-        public Dictionary<(string Category, string File, string Key), LocalizationSourceEntry> Exact { get; }
+        public Dictionary<string, LocalizationSourceEntry> Exact { get; }
         public Dictionary<(string File, string Key), LocalizationSourceEntry[]> Fields { get; }
-        public Dictionary<(string Category, string File, string Identity), LocalizationSourceEntry[]> Semantic { get; }
+        public Dictionary<string, LocalizationSourceEntry[]> CommonKeys { get; }
 
         public ReferenceDatasetIndex(LocalizationSourceCatalog catalog)
         {
-            Exact = catalog.Entries.ToDictionary(row => (row.Category, row.File, row.Key));
+            Exact = catalog.Entries.ToDictionary(row => row.Key, StringComparer.Ordinal);
             Fields = catalog.Entries.Where(row => row.Category == "Fields").GroupBy(row => (row.File, row.Metadata.GetValueOrDefault("Base Key") ?? row.Key)).ToDictionary(group => group.Key, group => group.ToArray());
-            Semantic = catalog.Entries.Select(row => (Row: row, Identity: SemanticIdentity(row))).Where(pair => pair.Identity is not null).GroupBy(pair => (pair.Row.Category, pair.Row.File, pair.Identity!)).ToDictionary(group => group.Key, group => group.Select(pair => pair.Row).ToArray());
+            CommonKeys = catalog.Entries.GroupBy(row => WithoutLanguagePrefix(row.Key), StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
         }
     }
 
     private static IReadOnlyList<string> DatasetEquivalentKeys(LocalizationSourceEntry identity, string dataset, ReferenceDatasetIndex index)
     {
-        if (index.Exact.ContainsKey((identity.Category, identity.File, identity.Key)))
+        if (index.Exact.ContainsKey(identity.Key))
         {
             return [identity.Key];
         }
-        if (identity.Category != "Fields")
-        {
-            string? semantic = SemanticIdentity(identity);
-            return semantic is not null && index.Semantic.TryGetValue((identity.Category, identity.File, semantic), out LocalizationSourceEntry[]? matches) && matches.Length == 1 ? [matches[0].Key] : [];
-        }
         string baseKey = identity.Metadata.GetValueOrDefault("Base Key") ?? identity.Key;
+        if (!FieldCorrespondenceCatalog.Contains(baseKey))
+        {
+            return index.CommonKeys.TryGetValue(WithoutLanguagePrefix(identity.Key), out LocalizationSourceEntry[]? matches) ? matches.Select(row => row.Key).ToArray() : [];
+        }
         IEnumerable<string> equivalentBases = BuiltInLanguages.Contains(dataset, StringComparer.OrdinalIgnoreCase) ? FieldCorrespondenceCatalog.GetEquivalents(baseKey, dataset) : BuiltInLanguages.SelectMany(language => FieldCorrespondenceCatalog.GetEquivalents(baseKey, language)).Distinct(StringComparer.Ordinal);
         List<string> keys = [];
         string? prefix = ContextPrefix(identity);
@@ -89,7 +88,7 @@ public static partial class LocalizationProjectBuilder
         {
             if (!variant)
             {
-                if (index.Exact.ContainsKey((identity.Category, identity.File, equivalent)))
+                if (index.Exact.ContainsKey(equivalent))
                 {
                     keys.Add(equivalent);
                 }
@@ -100,7 +99,7 @@ public static partial class LocalizationProjectBuilder
             {
                 keys.Add(compatible[0].Key);
             }
-            else if (index.Exact.ContainsKey((identity.Category, identity.File, equivalent)))
+            else if (index.Exact.ContainsKey(equivalent))
             {
                 keys.Add(equivalent);
             }
@@ -120,32 +119,9 @@ public static partial class LocalizationProjectBuilder
         return applicable.Length == 1 && !applicable[0].Dynamic ? applicable[0].Prefix : null;
     }
 
-    private static string? SemanticIdentity(LocalizationSourceEntry row)
+    private static string WithoutLanguagePrefix(string key)
     {
-        if (row.Category == "System")
-        {
-            return row.Metadata.GetValueOrDefault("Authored ID");
-        }
-        if (!int.TryParse(row.Metadata.GetValueOrDefault("Source Ordinal"), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int ordinal) || ordinal < 0)
-        {
-            return null;
-        }
-        if (row.Metadata.GetValueOrDefault("Kernel Collection") is string collection && row.Metadata.GetValueOrDefault("Role") is string role && row.File == LocalizationSourceExporter.KernelTable(collection, role))
-        {
-            return collection + ":" + role + ":" + ordinal;
-        }
-        // These tables are indexed by fixed native entity IDs, independent of text layout.
-        bool entity = row.File switch
-        {
-            "names_angelo_abilities" or "descriptions_angelo_abilities" => ordinal < 8,
-            "defaults_guardians" => ordinal < 16,
-            "names_cards" or "namesalternate_cards" or "named_texts_cards" => ordinal < 110,
-            "scan_monsters" => ordinal < 160,
-            "mngrp_slot192_records" => row.Category == "Cards" && row.Metadata.GetValueOrDefault("Menu Section") == "192" && ordinal < 110,
-            "names_locations" => true,
-            _ => row.Category == "Monsters" && row.File.StartsWith("c0m", StringComparison.Ordinal) && row.File.EndsWith("_names", StringComparison.Ordinal) && ordinal == 0
-        };
-        // World messages, namedic and menu section positions have no proved shared identity.
-        return entity ? ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+        int separator = key.IndexOf('_');
+        return key.StartsWith('$') && separator > 1 ? key[(separator + 1)..] : key;
     }
 }
