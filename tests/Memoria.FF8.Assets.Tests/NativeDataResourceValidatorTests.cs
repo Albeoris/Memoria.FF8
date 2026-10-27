@@ -10,6 +10,19 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeDataResourceValidatorTests
 {
     [Theory]
+    [InlineData("main/init.out")]
+    [InlineData("battle/scene.out")]
+    [InlineData("menu/m000.bin")]
+    [InlineData("menu/m001.bin")]
+    [InlineData("menu/m002.bin")]
+    [InlineData("menu/m003.bin")]
+    [InlineData("menu/m004.bin")]
+    [InlineData("menu/shop.bin")]
+    [InlineData("menu/price.bin")]
+    [InlineData("menu/mwepon.bin")]
+    [InlineData("menu/mwepon.msg")]
+    [InlineData("menu/mthomas.bin")]
+    [InlineData("menu/mitem.bin")]
     [InlineData("main/kernel.bin")]
     [InlineData("battle/c0m000.dat")]
     [InlineData("battle/c0m127.dat")]
@@ -27,6 +40,42 @@ public sealed class NativeDataResourceValidatorTests
         Assert.NotNull(original);
         using NativeDataResourceValidator validator = new(resources);
         validator.Validate(original, original);
+    }
+
+    [Fact]
+    public void EnabledFormationReferencesMustExistInTheSelectedSource()
+    {
+        using EmptySource source = new();
+        using NativeDataResourceValidator validator = new(new ResourceService(source));
+        ResourceKey key = new("battle/scene.out");
+        byte[] bytes = new byte[1024 * 128];
+        EncodedResource scenes = new(key, "out", 1, "fixture", bytes);
+        validator.Validate(scenes.Content, null);
+        bytes[7] = 0x80;
+        bytes[56] = 16;
+        scenes = new(key, "out", 2, "fixture", bytes);
+        Assert.Throws<FileNotFoundException>(() => validator.Validate(scenes.Content, null));
+        bytes[56] = 0;
+        scenes = new(key, "out", 3, "fixture", bytes);
+        Assert.Throws<InvalidDataException>(() => validator.Validate(scenes.Content, null));
+    }
+
+    [Theory]
+    [InlineData("menu/m000.bin")]
+    [InlineData("menu/shop.bin")]
+    [InlineData("menu/price.bin")]
+    [InlineData("menu/mwepon.bin")]
+    [InlineData("menu/mwepon.msg")]
+    [InlineData("main/init.out")]
+    [InlineData("battle/scene.out")]
+    public void TruncatedTypedFamiliesFailBeforePublication(string path)
+    {
+        using EmptySource source = new();
+        ResourceService resources = new(source);
+        using NativeDataResourceValidator validator = new(resources);
+        EncodedResource content = new(new ResourceKey(path), "bin", 1, "fixture", [0]);
+        Assert.Throws<InvalidDataException>(() => validator.Validate(content.Content, null));
+        Assert.Equal(0, resources.Generation);
     }
 
     [Fact]

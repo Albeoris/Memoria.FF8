@@ -19,6 +19,14 @@ public static partial class JunctionEncodedResources
         {
             path = "world/" + parts[start + 2];
         }
+        if (path == "world/esk/chara.one")
+        {
+            path = "world/chara.one";
+        }
+        if (path is "menu/hires/face_b00.tex" or "menu/hires/face_b01.tex" or "menu/hires/gf_big00.tex" or "menu/hires/gf_big01.tex")
+        {
+            path = "menu/" + parts[^1];
+        }
         ResourceKey key = new(path);
         return NativeDataResourceFiles.Classify(key) is not null ? key : null;
     }

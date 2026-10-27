@@ -323,7 +323,7 @@ public sealed partial class WorldAssets
     {
         if (!nativeTerrainVertexCounts.TryGetValue(sourceId, out byte[]? counts))
         {
-            using Stream source = terrain.OpenForRead();
+            using Stream source = terrain.OpenRead();
             source.Seek((long)sourceId * SegmentBytes, SeekOrigin.Begin);
             byte[] bytes = new byte[SegmentBytes];
             source.ReadExactly(bytes);

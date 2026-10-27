@@ -193,18 +193,18 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 ResourceContent? original = source.Find(resource.Key);
                 if (NativeDataResourceFiles.Classify(resource.Key) is NativeDataResourceKind kind)
                 {
-                    if (original is null && kind is not (NativeDataResourceKind.Texture or NativeDataResourceKind.CompressedImage))
+                    if (original is null && kind is not (NativeDataResourceKind.Texture or NativeDataResourceKind.CompressedImage or NativeDataResourceKind.WorldSettings))
                     {
                         throw new NotSupportedException($"The selected game source does not provide resource {resource.Key}.");
                     }
                     dataValidator.Validate(resource.Content, original);
-                    if (kind == NativeDataResourceKind.CompressedImage || kind == NativeDataResourceKind.Texture && !Path.GetFileName(resource.Key.Path).StartsWith("mag", StringComparison.Ordinal))
+                    if (kind is NativeDataResourceKind.CompressedImage or NativeDataResourceKind.Texture && !NativeDataResourceFiles.IsDisplayedImage(resource.Key))
                     {
                         staticFileDiagnostics.Add(new("resource-unused", $"Resource {resource.Key} was validated and published, but the current interface does not display this native image.", owner.PackageId, owner.RelativePath));
                     }
                     else if (original is null)
                     {
-                        staticFileDiagnostics.Add(new("resource-unused", $"Resource {resource.Key} was validated and published, but the selected source provides no original image target.", owner.PackageId, owner.RelativePath));
+                        staticFileDiagnostics.Add(new("resource-unused", $"Resource {resource.Key} was validated and published, but the selected source provides no original target for this identity.", owner.PackageId, owner.RelativePath));
                     }
                 }
                 else if (JunctionEncodedResources.IsStaticFileResource(resource.Key))

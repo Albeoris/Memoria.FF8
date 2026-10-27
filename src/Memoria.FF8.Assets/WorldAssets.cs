@@ -35,7 +35,7 @@ public sealed partial class WorldAssets : IDisposable
     private readonly IFlArchive archive;
     private readonly IGameArchiveSource archiveSource;
     private readonly IResourceSource? ownedSource;
-    private readonly IFlArchiveEntry terrain;
+    private readonly ResourceContent terrain;
     private readonly byte[] wmset;
     private readonly int[] sections;
     private readonly WorldMapLocations mapLocations;
@@ -77,8 +77,9 @@ public sealed partial class WorldAssets : IDisposable
         {
             openedArchive = archiveSource.OpenArchive("world");
             archive = openedArchive;
-            terrain = Entry("wmx.obj");
-            if (terrain.Size != 835 * SegmentBytes)
+            terrain = resources.Get(new ResourceKey("world/wmx.obj"));
+            using Stream terrainSource = terrain.OpenRead();
+            if (!terrainSource.CanSeek || terrainSource.Length != 835L * SegmentBytes)
             {
                 throw new InvalidDataException("Unexpected WMX segment count.");
             }
@@ -165,7 +166,7 @@ public sealed partial class WorldAssets : IDisposable
         {
             ArgumentOutOfRangeException.ThrowIfNegative(sourceId);
             ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(sourceId, 835);
-            using Stream source = terrain.OpenForRead();
+            using Stream source = terrain.OpenRead();
             source.Seek((long)sourceId * SegmentBytes, SeekOrigin.Begin);
             byte[] bytes = new byte[SegmentBytes];
             source.ReadExactly(bytes);
