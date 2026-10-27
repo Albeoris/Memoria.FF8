@@ -84,6 +84,7 @@ internal sealed partial class NativeBattleEffectArenaTransaction : IDisposable
     public NativeBattleEffectArena View { get; }
     internal System.Collections.Immutable.ImmutableArray<NativeBattleTextureFileSource>? TextureFiles => writer.TextureFiles;
     internal void SetTextureFiles(System.Collections.Immutable.ImmutableArray<NativeBattleTextureFileSource> files) => writer.SetTextureFiles(files);
+    internal void SetTextureFiles(int offset, int length, System.Collections.Immutable.ImmutableArray<NativeBattleTextureFileSource> files) => writer.SetTextureFiles(offset, length, files);
     internal NativeBattleArenaRanges DataRanges() => writer.DataRanges();
     internal NativeBattleArenaRanges UnknownRanges() => writer.UnknownRanges();
     internal int StoredLength => writer.StoredLength;

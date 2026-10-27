@@ -260,6 +260,8 @@ public sealed partial record NativeBattleGfAnimationWorkspace : INativeBattleSto
         public ImmutableArray<NativeBattleEffectUnknownRegion>? UnknownRegions { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public ImmutableDictionary<int, NativeBattleResourcePointer?>? ResourcePointers { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public ImmutableArray<NativeBattleTextureFileSource>? TextureFiles { get; init; }
     }
 
     public sealed class Converter : JsonConverter<NativeBattleGfAnimationWorkspace>
@@ -271,7 +273,7 @@ public sealed partial record NativeBattleGfAnimationWorkspace : INativeBattleSto
             {
                 throw new InvalidDataException("Native animation workspace snapshot has an invalid physical extent.");
             }
-            NativeBattleEffectArena frozen = new([new(0, value.Data)], value.UnknownRegions ?? [], value.ResourcePointers, value.Data.Length);
+            NativeBattleEffectArena frozen = new([new(0, value.Data)], value.UnknownRegions ?? [], value.ResourcePointers, value.Data.Length) { TextureFiles = value.TextureFiles };
             frozen.Validate();
             return new(frozen, true, value.Data);
         }
@@ -285,7 +287,8 @@ public sealed partial record NativeBattleGfAnimationWorkspace : INativeBattleSto
             JsonSerializer.Serialize(writer, new SnapshotData(value.data)
             {
                 UnknownRegions = value.arena.UnknownRegions.IsEmpty ? null : value.arena.UnknownRegions,
-                ResourcePointers = value.arena.ResourcePointers is { Count: > 0 } pointers ? pointers : null
+                ResourcePointers = value.arena.ResourcePointers is { Count: > 0 } pointers ? pointers : null,
+                TextureFiles = value.arena.TextureFiles
             }, options);
         }
     }

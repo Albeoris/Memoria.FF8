@@ -171,7 +171,7 @@ internal sealed partial class NativeBattleStorageCaptureContext
             NativeBattleStorageAuthority authority = new(id, owner.LogicalLength, owner.InitialKnownZero, owner.StoredLength, owner.DataFootprint, owner.ClassifiedRanges);
             if (definition is null)
             {
-                authority = authority with { Content = new(owner.Regions, owner.UnknownRegions, owner.ResourcePointers) };
+                authority = authority with { Content = new(owner.Regions, owner.UnknownRegions, owner.ResourcePointers, owner.TextureFiles) };
             }
             authorities.Add(authority);
             foreach (NativeBattleEffectArena view in views)

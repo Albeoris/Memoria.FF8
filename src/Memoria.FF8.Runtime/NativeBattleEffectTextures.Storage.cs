@@ -82,19 +82,19 @@ public sealed partial record NativeBattleEffectTextureState
         {
             throw new InvalidOperationException("Texture capture requires a committed physical VRAM owner.");
         }
-        return CreateSnapshot(Slots, Count, Animation, VramVersion.CaptureRegions(), VramReadTail);
+        return CreateSnapshot(Slots, Count, Animation, VramVersion.CaptureRegions(), VramReadTail, LiveTextureSources, TextureRegistrations, TextureFileContext);
     }
 
     object INativeBattleStorageNode.RestoreOwned(NativeBattleStorageRestoreContext context)
     {
-        NativeBattleEffectTextureState result = new(Slots, Count, Animation, snapshotRegions) { VramReadTail = VramReadTail };
+        NativeBattleEffectTextureState result = new(Slots, Count, Animation, snapshotRegions) { VramReadTail = VramReadTail, LiveTextureSources = LiveTextureSources, TextureRegistrations = TextureRegistrations, TextureFileContext = TextureFileContext };
         _ = result.vramOwner.Arena.Working;
         return result;
     }
 
-    internal static NativeBattleEffectTextureState CreateSnapshot(ImmutableArray<NativeBattleEffectTimUpload?> slots, int count, NativeBattleEffectAnimationRegisters? animation, ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<byte>? tail)
+    internal static NativeBattleEffectTextureState CreateSnapshot(ImmutableArray<NativeBattleEffectTimUpload?> slots, int count, NativeBattleEffectAnimationRegisters? animation, ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<byte>? tail, ImmutableArray<NativeBattleTextureSourceRegion>? liveTextureSources = null, ImmutableArray<NativeBattleTextureRegistration>? textureRegistrations = null, NativeBattleTextureFileContext? textureFileContext = null)
     {
-        NativeBattleEffectTextureState result = new(slots, count, animation, regions) { VramReadTail = tail };
+        NativeBattleEffectTextureState result = new(slots, count, animation, regions) { VramReadTail = tail, LiveTextureSources = liveTextureSources, TextureRegistrations = textureRegistrations, TextureFileContext = textureFileContext };
         result.vramVersion = result.vramOwner.Initial;
         result.vramOwner = null!;
         result.textureSnapshot = true;
@@ -109,12 +109,18 @@ public sealed class NativeBattleEffectTextureStateJsonConverter : JsonConverter<
     {
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public ImmutableArray<byte>? VramReadTail { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public ImmutableArray<NativeBattleTextureSourceRegion>? LiveTextureSources { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public ImmutableArray<NativeBattleTextureRegistration>? TextureRegistrations { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public NativeBattleTextureFileContext? TextureFileContext { get; init; }
     }
 
     public override NativeBattleEffectTextureState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         SnapshotData value = JsonSerializer.Deserialize<SnapshotData>(ref reader, options) ?? throw new JsonException("Texture snapshot is missing.");
-        return NativeBattleEffectTextureState.CreateSnapshot(value.Slots, value.Count, value.Animation, value.VramRegions, value.VramReadTail);
+        return NativeBattleEffectTextureState.CreateSnapshot(value.Slots, value.Count, value.Animation, value.VramRegions, value.VramReadTail, value.LiveTextureSources, value.TextureRegistrations, value.TextureFileContext);
     }
 
     public override void Write(Utf8JsonWriter writer, NativeBattleEffectTextureState value, JsonSerializerOptions options)
@@ -124,6 +130,6 @@ public sealed class NativeBattleEffectTextureStateJsonConverter : JsonConverter<
             throw new InvalidOperationException("Working textures require an explicit detached capture before serialization.");
         }
         value.Validate();
-        JsonSerializer.Serialize(writer, new SnapshotData(value.Slots, value.Count, value.Animation, value.VramRegions) { VramReadTail = value.VramReadTail }, options);
+        JsonSerializer.Serialize(writer, new SnapshotData(value.Slots, value.Count, value.Animation, value.VramRegions) { VramReadTail = value.VramReadTail, LiveTextureSources = value.LiveTextureSources, TextureRegistrations = value.TextureRegistrations, TextureFileContext = value.TextureFileContext }, options);
     }
 }

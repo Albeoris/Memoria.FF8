@@ -72,7 +72,7 @@ internal sealed partial class NativeBattleStorageRestoreContext
             {
                 throw new InvalidOperationException("Battle physical authority is missing its data definition.");
             }
-            NativeBattleWorkingMemorySnapshot frozen = new(authority.LogicalLength, authority.InitialKnownZero, authority.StoredLength, content.Regions, content.UnknownRegions, content.ResourcePointers, authority.DataFootprint, authority.ClassifiedRanges);
+            NativeBattleWorkingMemorySnapshot frozen = new(authority.LogicalLength, authority.InitialKnownZero, authority.StoredLength, content.Regions, content.UnknownRegions, content.ResourcePointers, authority.DataFootprint, authority.ClassifiedRanges, content.TextureFiles);
             NativeBattleWorkingMemory owner = NativeBattleWorkingMemory.Restore(frozen);
             graphOwners.Add(id, owner);
             foreach (NativeBattleEffectArena view in views)
@@ -148,7 +148,7 @@ internal sealed partial class NativeBattleStorageRestoreContext
                 unknown.Add(new(range.Offset, length));
             }
         }
-        return new(regions.ToImmutable(), unknown.ToImmutable(), arena.ResourcePointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty);
+        return new(regions.ToImmutable(), unknown.ToImmutable(), arena.ResourcePointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty, arena.TextureFiles);
     }
 
     private static void ValidateView(NativeBattleEffectArena view, NativeBattleWorkingMemory owner, NativeBattleStorageReference reference)
@@ -168,6 +168,11 @@ internal sealed partial class NativeBattleStorageRestoreContext
                 throw new InvalidOperationException("Battle storage view data disagrees with its physical authority.");
             }
             offset += length;
+        }
+        ImmutableArray<NativeBattleTextureFileSource> expectedFiles = NativeBattleTextureFileMetadata.Project(owner.TextureFiles, reference.Offset, reference.Length) ?? [];
+        if (!(view.TextureFiles ?? []).SequenceEqual(expectedFiles))
+        {
+            throw new InvalidOperationException("Battle storage view texture files disagree with its physical authority.");
         }
         ImmutableDictionary<int, NativeBattleResourcePointer?> pointers = view.ResourcePointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty;
         int count = 0;

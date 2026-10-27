@@ -6,9 +6,7 @@ namespace Memoria.FF8.Runtime;
 internal sealed class NativeBattleEffectArenaWriter : IDisposable
 {
     private readonly NativeBattleEffectArena source;
-    private ImmutableArray<NativeBattleTextureFileSource>? textureFiles;
-    private ImmutableArray<NativeBattleTextureFileSource>? checkpointTextureFiles;
-    internal ImmutableArray<NativeBattleTextureFileSource>? TextureFiles => transaction is null ? textureFiles : transaction.TextureFiles;
+    internal ImmutableArray<NativeBattleTextureFileSource>? TextureFiles => transaction is null ? overlay!.TextureFiles : NativeBattleTextureFileMetadata.Project(transaction.TextureFiles, transactionOffset, source.Bound);
     private readonly NativeBattleEffectArenaTransaction? transaction;
     private readonly NativeBattleArenaOverlay? overlay;
     private bool disposed;
@@ -24,7 +22,6 @@ internal sealed class NativeBattleEffectArenaWriter : IDisposable
         source.RequireWritable();
         source.Validate();
         this.source = source;
-        textureFiles = source.CurrentTextureFiles;
         if (source.TryEffectiveRoute(0, source.Bound, out NativeBattleEffectArenaTransaction? parent, out int routedOffset))
         {
             if (privateLayer)
@@ -103,16 +100,19 @@ internal sealed class NativeBattleEffectArenaWriter : IDisposable
         return transaction is null ? overlay!.Commit() : source;
     }
 
-    internal void SetTextureFiles(ImmutableArray<NativeBattleTextureFileSource> files)
+    internal void SetTextureFiles(ImmutableArray<NativeBattleTextureFileSource> files) => SetTextureFiles(0, source.Bound, files);
+
+    internal void SetTextureFiles(int offset, int length, ImmutableArray<NativeBattleTextureFileSource> files)
     {
         RequireActive();
+        source.RequireRange(offset, length);
         if (transaction is not null)
         {
-            transaction.SetTextureFiles(files);
+            transaction.SetTextureFiles(checked(transactionOffset + offset), length, files);
         }
         else
         {
-            textureFiles = files;
+            overlay!.SetTextureFiles(offset, length, files);
         }
     }
 
@@ -233,22 +233,18 @@ internal sealed class NativeBattleEffectArenaWriter : IDisposable
             throw new InvalidOperationException("A forwarding arena writer cannot acquire its borrowed transaction checkpoint.");
         }
         overlay!.BeginCheckpoint();
-        checkpointTextureFiles = textureFiles;
     }
 
     internal void CommitCheckpoint()
     {
         RequireActive();
         overlay!.CommitCheckpoint();
-        checkpointTextureFiles = null;
     }
 
     internal void RollbackCheckpoint()
     {
         RequireActive();
         overlay!.RollbackCheckpoint();
-        textureFiles = checkpointTextureFiles;
-        checkpointTextureFiles = null;
     }
 
     internal void EndReadThrough() => Dispose();

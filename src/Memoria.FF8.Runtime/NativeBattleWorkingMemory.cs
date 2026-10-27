@@ -5,7 +5,7 @@ using System.Runtime.ExceptionServices;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Detached physical storage. Unmaterialized suffix bytes use InitialKnownZero.</summary>
-internal sealed record NativeBattleWorkingMemorySnapshot(int LogicalLength, bool InitialKnownZero, int StoredLength, ImmutableArray<NativeBattleEffectMemoryRegion> Regions, ImmutableArray<NativeBattleEffectUnknownRegion> UnknownRegions, ImmutableDictionary<int, NativeBattleResourcePointer?> ResourcePointers, ImmutableArray<NativeBattleEffectUnknownRegion> DataFootprint = default, ImmutableArray<NativeBattleEffectUnknownRegion> ClassifiedRanges = default);
+internal sealed record NativeBattleWorkingMemorySnapshot(int LogicalLength, bool InitialKnownZero, int StoredLength, ImmutableArray<NativeBattleEffectMemoryRegion> Regions, ImmutableArray<NativeBattleEffectUnknownRegion> UnknownRegions, ImmutableDictionary<int, NativeBattleResourcePointer?> ResourcePointers, ImmutableArray<NativeBattleEffectUnknownRegion> DataFootprint = default, ImmutableArray<NativeBattleEffectUnknownRegion> ClassifiedRanges = default, ImmutableArray<NativeBattleTextureFileSource>? TextureFiles = null);
 
 internal interface INativeBattleCheckpointParticipant
 {
@@ -627,7 +627,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             }
             unknown.Add(new(first, index - first));
         }
-        return new(logicalLength, initialKnownZero, storedLength, regions.ToImmutable(), unknown.ToImmutable(), pointers.ToImmutableDictionary(), CaptureReceipts(DataFootprint), CaptureReceipts(ExplicitCoverage));
+        return new(logicalLength, initialKnownZero, storedLength, regions.ToImmutable(), unknown.ToImmutable(), pointers.ToImmutableDictionary(), CaptureReceipts(DataFootprint), CaptureReceipts(ExplicitCoverage), textureFiles);
     }
 
     public static NativeBattleWorkingMemory Restore(NativeBattleWorkingMemorySnapshot snapshot)
@@ -655,7 +655,9 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             }
             end = region.Offset + region.Length;
         }
+        NativeBattleTextureFileMetadata.Validate(snapshot.TextureFiles, snapshot.LogicalLength);
         NativeBattleWorkingMemory result = new(snapshot.LogicalLength, snapshot.InitialKnownZero, snapshot.StoredLength);
+        result.textureFiles = snapshot.TextureFiles;
         result.RestoreStorageReceipts(snapshot);
         result.storedLength = snapshot.StoredLength;
         Array.Fill(result.known, true, 0, snapshot.StoredLength);
@@ -738,6 +740,8 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         data = [];
         known = [];
         pointers.Clear();
+        textureFiles = null;
+        textureFileCheckpoint = null;
         byteUndo.Clear();
         pointerUndo.Clear();
         nestedCheckpoints.Clear();

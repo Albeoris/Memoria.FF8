@@ -8,14 +8,44 @@ public sealed record NativeBattleTextureFileSource(int Offset, int Length, Nativ
 
 public sealed partial record NativeBattleEffectArena
 {
+    private ImmutableArray<NativeBattleTextureFileSource>? initialTextureFiles;
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableArray<NativeBattleTextureFileSource>? TextureFiles { get; init; }
+    public ImmutableArray<NativeBattleTextureFileSource>? TextureFiles
+    {
+        get => snapshot ? initialTextureFiles : CurrentTextureFiles;
+        init
+        {
+            if (working is not null || Transaction is not null)
+            {
+                throw new InvalidOperationException("Texture provenance import cannot replace a working authority.");
+            }
+            initialTextureFiles = value;
+        }
+    }
+
     [JsonIgnore]
-    internal ImmutableArray<NativeBattleTextureFileSource>? CurrentTextureFiles => Transaction is { } transaction ? transaction.TextureFiles : TextureFiles;
+    internal ImmutableArray<NativeBattleTextureFileSource>? CurrentTextureFiles
+    {
+        get
+        {
+            if (snapshot)
+            {
+                return initialTextureFiles;
+            }
+            if (TryEffectiveRoute(0, bound, out NativeBattleEffectArenaTransaction? transaction, out int offset))
+            {
+                return NativeBattleTextureFileMetadata.Project(transaction!.TextureFiles, offset, bound);
+            }
+            return NativeBattleTextureFileMetadata.Project(Working.TextureFiles, workingOffset, bound);
+        }
+    }
 
     public NativeBattleEffectArena RememberTextureFile(int offset, ReadOnlySpan<byte> bytes, NativeBattleTextureFileIdentity identity)
     {
+        RequireWritable();
         RequireRange(offset, bytes.Length);
+        ArgumentNullException.ThrowIfNull(identity);
         if (string.IsNullOrWhiteSpace(identity.Name) || !Enum.IsDefined(identity.Domain))
         {
             throw new InvalidDataException("Native loaded texture file requires its original name and loader namespace.");
@@ -24,34 +54,20 @@ public sealed partial record NativeBattleEffectArena
         {
             return this;
         }
-        int end = offset + bytes.Length;
-        var files = (CurrentTextureFiles ?? []).Where(file => file.Offset + file.Length <= offset || file.Offset >= end).ToImmutableArray().Add(new(offset, bytes.Length, identity, Convert.ToHexString(SHA256.HashData(bytes))));
-        if (Transaction is { } transaction)
+        ImmutableArray<NativeBattleTextureFileSource> files = [new(0, bytes.Length, identity, Convert.ToHexString(SHA256.HashData(bytes)))];
+        if (TryEffectiveRoute(offset, bytes.Length, out NativeBattleEffectArenaTransaction? transaction, out int routedOffset))
         {
-            transaction.SetTextureFiles(files);
-            return this;
+            transaction!.SetTextureFiles(routedOffset, bytes.Length, files);
         }
-        return this with { TextureFiles = files };
+        else
+        {
+            int absolute = checked(workingOffset + offset);
+            Working.SetTextureFiles(NativeBattleTextureFileMetadata.Replace(Working.TextureFiles, absolute, bytes.Length, [files[0] with { Offset = absolute }]));
+        }
+        return this;
     }
 
-    private void ValidateTextureFiles()
-    {
-        if (TextureFiles is not { } files)
-        {
-            return;
-        }
-        if (files.IsDefault)
-        {
-            throw new InvalidDataException("Native loaded texture files require explicit retained descriptors.");
-        }
-        foreach (NativeBattleTextureFileSource file in files)
-        {
-            if (file.Offset < 0 || file.Length <= 0 || file.Offset > Length - file.Length || string.IsNullOrWhiteSpace(file.Identity.Name) || !Enum.IsDefined(file.Identity.Domain) || file.Sha256 is not { Length: 64 })
-            {
-                throw new InvalidDataException("Native loaded texture file metadata leaves its bounded source owner.");
-            }
-        }
-    }
+    private void ValidateTextureFiles() => NativeBattleTextureFileMetadata.Validate(initialTextureFiles, bound);
 
     internal NativeBattleTextureFileSource? FindTextureFile(int offset, ReadOnlySpan<byte> bytes)
     {

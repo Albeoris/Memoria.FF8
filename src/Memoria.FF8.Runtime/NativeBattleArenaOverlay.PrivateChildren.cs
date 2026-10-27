@@ -153,6 +153,7 @@ internal sealed partial class NativeBattleArenaOverlay
         mergePointerKeys.Clear();
         int originalDirtyCount = dirty.Count;
         int originalExtent = extent;
+        int originalTextureFileChanges = textureFileChanges.Count;
         int originalByteUndoCount = byteUndo.Count;
         int originalPointerUndoCount = pointerUndo.Count;
         child.dirty.Sort();
@@ -187,6 +188,7 @@ internal sealed partial class NativeBattleArenaOverlay
             mergePointers.Add(new(offset, exists, value));
         }
         dirty.EnsureCapacity(checked(dirty.Count + child.dirty.Count));
+        textureFileChanges.EnsureCapacity(checked(textureFileChanges.Count + child.textureFileChanges.Count));
         if (checkpoint)
         {
             byteUndo.EnsureCapacity(checked(byteUndo.Count + child.dirty.Count));
@@ -220,6 +222,7 @@ internal sealed partial class NativeBattleArenaOverlay
                 SavePointer(target);
                 pointers[target] = value;
             }
+            textureFileChanges.AddRange(child.textureFileChanges);
         }
         catch
         {
@@ -244,6 +247,7 @@ internal sealed partial class NativeBattleArenaOverlay
             }
             dirty.RemoveRange(originalDirtyCount, dirty.Count - originalDirtyCount);
             extent = originalExtent;
+            textureFileChanges.RemoveRange(originalTextureFileChanges, textureFileChanges.Count - originalTextureFileChanges);
             for (int index = originalByteUndoCount; index < byteUndo.Count; index++)
             {
                 checkpointSaved[byteUndo[index].Offset] = false;

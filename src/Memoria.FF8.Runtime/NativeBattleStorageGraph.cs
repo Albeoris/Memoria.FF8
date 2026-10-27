@@ -15,7 +15,7 @@ public sealed record NativeBattleStorageAuthority(int Id, int LogicalLength, boo
     public NativeBattleStorageAuthorityContent? Content { get; init; }
 }
 
-public sealed record NativeBattleStorageAuthorityContent(ImmutableArray<NativeBattleEffectMemoryRegion> Regions, ImmutableArray<NativeBattleEffectUnknownRegion> UnknownRegions, ImmutableDictionary<int, NativeBattleResourcePointer?> ResourcePointers);
+public sealed record NativeBattleStorageAuthorityContent(ImmutableArray<NativeBattleEffectMemoryRegion> Regions, ImmutableArray<NativeBattleEffectUnknownRegion> UnknownRegions, ImmutableDictionary<int, NativeBattleResourcePointer?> ResourcePointers, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ImmutableArray<NativeBattleTextureFileSource>? TextureFiles = null);
 
 internal interface INativeBattleArenaStorageNode
 {

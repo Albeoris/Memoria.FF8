@@ -100,7 +100,7 @@ public sealed partial record NativeBattleNodeSource : INativeBattleStorageNode, 
 
     object INativeBattleStorageNode.RestoreOwned(NativeBattleStorageRestoreContext context) => staging is null ? new NativeBattleNodeSource(context.Map(storage)) : new NativeBattleNodeSource(context.Map(staging), stagingAddress, stagingLength, false);
 
-    private sealed record SnapshotData(ImmutableArray<byte> Data, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ImmutableArray<NativeBattleEffectUnknownRegion>? UnknownRegions, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ImmutableDictionary<int, NativeBattleResourcePointer?>? ResourcePointers, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeBattleStorageReference? StorageReference = null);
+    private sealed record SnapshotData(ImmutableArray<byte> Data, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ImmutableArray<NativeBattleEffectUnknownRegion>? UnknownRegions, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ImmutableDictionary<int, NativeBattleResourcePointer?>? ResourcePointers, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeBattleStorageReference? StorageReference = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ImmutableArray<NativeBattleTextureFileSource>? TextureFiles = null);
 
     public sealed class Converter : JsonConverter<NativeBattleNodeSource>
     {
@@ -119,7 +119,7 @@ public sealed partial record NativeBattleNodeSource : INativeBattleStorageNode, 
             {
                 throw new InvalidDataException("Native node snapshot has an invalid physical extent.");
             }
-            NativeBattleEffectArena frozen = new([new(0, value.Data)], value.UnknownRegions is { IsDefault: false } ranges ? ranges : [], value.ResourcePointers, value.Data.Length);
+            NativeBattleEffectArena frozen = new([new(0, value.Data)], value.UnknownRegions is { IsDefault: false } ranges ? ranges : [], value.ResourcePointers, value.Data.Length) { TextureFiles = value.TextureFiles };
             frozen.Validate();
             if (value.StorageReference is not null)
             {
@@ -137,12 +137,13 @@ public sealed partial record NativeBattleNodeSource : INativeBattleStorageNode, 
             ImmutableArray<NativeBattleEffectUnknownRegion> unknown = value.staging is null ? value.storage.UnknownRegions : value.stagingUnknown;
             ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers = value.staging is null ? value.storage.ResourcePointers : value.stagingPointers;
             NativeBattleStorageReference? reference = value.staging is null ? value.storage.StorageReference : null;
-            if (unknown.IsEmpty && (pointers is null || pointers.IsEmpty) && reference is null)
+            ImmutableArray<NativeBattleTextureFileSource>? files = value.staging is null ? value.storage.TextureFiles : null;
+            if (unknown.IsEmpty && (pointers is null || pointers.IsEmpty) && reference is null && files is null)
             {
                 JsonSerializer.Serialize(writer, value.payload, options);
                 return;
             }
-            JsonSerializer.Serialize(writer, new SnapshotData(value.payload, unknown.IsEmpty ? null : unknown, pointers is { IsEmpty: true } ? null : pointers, reference), options);
+            JsonSerializer.Serialize(writer, new SnapshotData(value.payload, unknown.IsEmpty ? null : unknown, pointers is { IsEmpty: true } ? null : pointers, reference, files), options);
         }
     }
 }

@@ -89,6 +89,7 @@ public sealed class DiagnosticPresentationProgressTests
         Assert.Equal(1, snapshot.Over100MsIntervals);
         Assert.Equal(101, snapshot.MaximumFrameMs);
     }
+
     [Fact]
     public void Peak_window_survives_later_fast_presentations_until_the_next_heartbeat()
     {
@@ -155,4 +156,5 @@ public sealed class DiagnosticPresentationProgressTests
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Equal(0, allocated);
         Assert.Equal(31, progress.Snapshot(1, true, false).MaximumOver50MsIn60Intervals);
-    }}
+    }
+}

@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -47,6 +47,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         initialRegions = snapshot ? original.initialRegions : [];
         initialUnknown = snapshot ? original.initialUnknown : [];
         initialPointers = snapshot ? original.initialPointers : null;
+        initialTextureFiles = snapshot ? original.initialTextureFiles : null;
         capturedAuthority = original.capturedAuthority;
         capturedOffset = original.capturedOffset;
         capturedBound = original.capturedBound;
@@ -430,7 +431,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
                 pointers.Add(offset, pointer);
             }
         }
-        return new NativeBattleEffectArenaSnapshot(regions.ToImmutable(), unknowns.MoveToImmutable(), pointers.Count == 0 ? null : pointers.ToImmutable(), captured, workingOffset, bound) { CapturedBorrowed = borrowed };
+        return new NativeBattleEffectArenaSnapshot(regions.ToImmutable(), unknowns.MoveToImmutable(), pointers.Count == 0 ? null : pointers.ToImmutable(), captured, workingOffset, bound) { CapturedBorrowed = borrowed, TextureFiles = NativeBattleTextureFileMetadata.Project(captured.TextureFiles, workingOffset, bound) };
     }
 
     object INativeBattleStorageNode.CaptureDetached(NativeBattleStorageCaptureContext context)
@@ -461,7 +462,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
             NativeBattleEffectArena arena = new(restored, capturedOffset, capturedBound, CapturedBorrowed);
             return arena;
         }
-        return context.GetOrAddOwner(this, () => new NativeBattleEffectArena(initialRegions, bound) { UnknownRegions = initialUnknown, ResourcePointers = initialPointers });
+        return context.GetOrAddOwner(this, () => new NativeBattleEffectArena(initialRegions, bound) { UnknownRegions = initialUnknown, ResourcePointers = initialPointers, TextureFiles = initialTextureFiles });
     }
 
     internal NativeBattleArenaOverlay RentOverlay()
@@ -506,10 +507,11 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
             throw new InvalidOperationException("Frozen arena snapshots cannot acquire working authority implicitly.");
         }
         ValidateImport();
-        NativeBattleWorkingMemory result = NativeBattleWorkingMemory.Restore(new(bound, true, ImportExtent(), initialRegions, initialUnknown, initialPointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty));
+        NativeBattleWorkingMemory result = NativeBattleWorkingMemory.Restore(new(bound, true, ImportExtent(), initialRegions, initialUnknown, initialPointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty, TextureFiles: initialTextureFiles));
         initialRegions = [];
         initialUnknown = [];
         initialPointers = null;
+        initialTextureFiles = null;
         return result;
     }
 

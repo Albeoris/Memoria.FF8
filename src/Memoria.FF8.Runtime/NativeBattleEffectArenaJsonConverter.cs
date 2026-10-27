@@ -21,6 +21,11 @@ public sealed class NativeBattleEffectArenaJsonConverter : JsonConverter<NativeB
         ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers = TryProperty(root, "ResourcePointers", options, out JsonElement pointerValue) ? pointerValue.Deserialize<ImmutableDictionary<int, NativeBattleResourcePointer?>>(options) : null;
         int logicalLength = TryProperty(root, "LogicalLength", options, out JsonElement logicalLengthValue) ? logicalLengthValue.GetInt32() : NativeBattleEffectArena.Length;
         NativeBattleEffectArenaSnapshot snapshot = NativeBattleEffectArena.CreateSnapshot(regions.Deserialize<ImmutableArray<NativeBattleEffectMemoryRegion>>(options), unknown, pointers, logicalLength);
+        if (TryProperty(root, "TextureFiles", options, out JsonElement textureFiles))
+        {
+            snapshot = snapshot with { TextureFiles = textureFiles.Deserialize<ImmutableArray<NativeBattleTextureFileSource>?>(options) };
+            snapshot.Validate();
+        }
         NativeBattleStorageReference? reference = TryProperty(root, "StorageReference", options, out JsonElement referenceValue) ? referenceValue.Deserialize<NativeBattleStorageReference>(options) : null;
         return snapshot.WithStorageReference(reference);
     }
@@ -45,6 +50,11 @@ public sealed class NativeBattleEffectArenaJsonConverter : JsonConverter<NativeB
         {
             writer.WritePropertyName(PropertyName("ResourcePointers", options));
             JsonSerializer.Serialize(writer, pointers, options);
+        }
+        if (value.TextureFiles is { } textureFiles)
+        {
+            writer.WritePropertyName(PropertyName("TextureFiles", options));
+            JsonSerializer.Serialize(writer, textureFiles, options);
         }
         if (value.StorageReference is { } reference)
         {

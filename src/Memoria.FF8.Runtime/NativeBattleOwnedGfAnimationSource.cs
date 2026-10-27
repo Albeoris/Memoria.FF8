@@ -102,6 +102,8 @@ internal sealed record NativeBattleOwnedGfAnimationSource : NativeBattleGfAnimat
         public ImmutableArray<NativeBattleEffectUnknownRegion>? UnknownRegions { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public ImmutableDictionary<int, NativeBattleResourcePointer?>? ResourcePointers { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public ImmutableArray<NativeBattleTextureFileSource>? TextureFiles { get; init; }
     }
 
     public sealed class Converter : JsonConverter<NativeBattleGfAnimationSource>
@@ -113,7 +115,7 @@ internal sealed record NativeBattleOwnedGfAnimationSource : NativeBattleGfAnimat
             {
                 throw new InvalidDataException("Retained ACT snapshot has an invalid physical extent.");
             }
-            NativeBattleEffectArena frozen = new([new(0, value.Data)], value.UnknownRegions ?? [], value.ResourcePointers, value.Data.Length);
+            NativeBattleEffectArena frozen = new([new(0, value.Data)], value.UnknownRegions ?? [], value.ResourcePointers, value.Data.Length) { TextureFiles = value.TextureFiles };
             frozen.Validate();
             if (value.StorageReference is not null)
             {
@@ -137,7 +139,8 @@ internal sealed record NativeBattleOwnedGfAnimationSource : NativeBattleGfAnimat
             {
                 StorageReference = owned.storage.StorageReference,
                 UnknownRegions = owned.storage.UnknownRegions.IsEmpty ? null : owned.storage.UnknownRegions,
-                ResourcePointers = owned.storage.ResourcePointers is { Count: > 0 } pointers ? pointers : null
+                ResourcePointers = owned.storage.ResourcePointers is { Count: > 0 } pointers ? pointers : null,
+                TextureFiles = owned.storage.TextureFiles
             }, options);
         }
     }
