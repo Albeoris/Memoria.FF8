@@ -14,7 +14,7 @@ internal static class UpdateInstaller
 
     internal static string MutexName(string root)
     {
-        string identity = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        string identity = Path.TrimEndingDirectorySeparator(DistributionPaths.GetFullPath(root));
         if (OperatingSystem.IsWindows())
         {
             identity = identity.ToUpperInvariant();
@@ -24,7 +24,7 @@ internal static class UpdateInstaller
 
     internal static void RejectLinks(string path)
     {
-        for (DirectoryInfo? directory = new(Path.GetFullPath(path)); directory is not null; directory = directory.Parent)
+        for (DirectoryInfo? directory = new(DistributionPaths.GetFullPath(path)); directory is not null; directory = directory.Parent)
         {
             try
             {

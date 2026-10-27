@@ -29,6 +29,7 @@
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.HarfBuzz" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" />
     <PackageReference Include="SDL3-CS" />
     <PackageReference Include="MonoGame.Runtime.Windows.DX12" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'" />
     <PackageReference Include="MonoGame.Runtime.Linux.Vulkan" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' And '$(MemoriaTargetRuntime)' == 'linux-x64'" />

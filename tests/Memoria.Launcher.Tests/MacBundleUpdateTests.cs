@@ -8,7 +8,7 @@ namespace Memoria.Launcher.Tests;
 
 public sealed class MacBundleUpdateTests : IDisposable
 {
-    private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria Mac bundle tests", Guid.NewGuid().ToString("N"));
+    private readonly string directory = DistributionPaths.GetFullPath(Path.Combine(Path.GetTempPath(), "Memoria Mac bundle tests", Guid.NewGuid().ToString("N")));
     private string Root => Path.Combine(directory, "Memoria.FF8.app");
 
     [Fact]

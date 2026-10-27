@@ -13,7 +13,7 @@ Runtime packages are restored from NuGet at the versions in `Directory.Packages.
 | Avalonia / Avalonia.Desktop / Avalonia.Themes.Fluent | 11.3.9 | [MIT](https://github.com/AvaloniaUI/Avalonia) |
 | Tmds.DBus.Protocol | 0.21.3 | [MIT](https://github.com/tmds/Tmds.DBus) |
 | SkiaSharp / SkiaSharp.HarfBuzz / native assets | 3.119.4 | [MIT and retained native notices](https://github.com/mono/SkiaSharp) |
-| HarfBuzzSharp | Transitive package-selected version | [MIT and retained HarfBuzz notices](https://github.com/mono/SkiaSharp) |
+| HarfBuzzSharp / HarfBuzzSharp.NativeAssets.Linux | 8.3.1.5 | [MIT and retained HarfBuzz notices](https://github.com/mono/SkiaSharp) |
 | BCnEncoder.NET | 2.3.0 | [MIT or Unlicense](https://github.com/Nominom/BCnEncoder.NET) |
 | SharpCompress | 0.48.1 | [MIT](https://github.com/adamhathcock/sharpcompress) |
 | MonoGame.Framework.WindowsDX | 3.8.5.1 | [Microsoft Public License](https://github.com/MonoGame/MonoGame) |

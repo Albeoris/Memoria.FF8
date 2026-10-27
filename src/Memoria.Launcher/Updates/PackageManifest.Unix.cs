@@ -7,7 +7,7 @@ internal sealed partial record PackageManifest
 {
     private static void ExtractUnix(string archivePath, string destination, string? expectedRuntimeIdentifier)
     {
-        string root = Path.GetFullPath(destination);
+        string root = DistributionPaths.GetFullPath(destination);
         EnsureNoReparsePoints(root);
         if (Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any())
         {

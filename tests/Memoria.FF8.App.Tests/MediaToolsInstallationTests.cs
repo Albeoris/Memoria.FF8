@@ -153,7 +153,7 @@ public sealed class MediaToolsInstallationTests
         string report = string.Join(Environment.NewLine, reports);
         Assert.Contains(directory.Path, report);
         Assert.Contains("https://", report);
-        Assert.Contains("latest", report, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(OperatingSystem.IsMacOS() ? "https://ffmpeg.org/download.html" : MediaToolsInstallation.LatestReleaseUrl, report);
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffmpeg.exe")));
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffprobe.exe")));
     }

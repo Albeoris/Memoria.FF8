@@ -12,6 +12,7 @@
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.HarfBuzz" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" />
     <PackageReference Include="SDL3-CS" />
     <ProjectReference Include="../../vendor/Topten.RichTextKit.Bidi/Memoria.FF8.Text.Unicode.csproj" />
     <ProjectReference Include="../../src/Memoria.FF8.Ui/Memoria.FF8.Ui.csproj" />

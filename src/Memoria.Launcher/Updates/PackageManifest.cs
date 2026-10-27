@@ -130,7 +130,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
     internal static string ResolvePath(string root, string relative)
     {
         ValidateFilePath(relative, true);
-        string fullRoot = Path.GetFullPath(root);
+        string fullRoot = DistributionPaths.GetFullPath(root);
         string fullPath = Path.GetFullPath(Path.Combine(fullRoot, relative.Replace('/', Path.DirectorySeparatorChar)));
         string prefix = Path.EndsInDirectorySeparator(fullRoot) ? fullRoot : fullRoot + Path.DirectorySeparatorChar;
         if (!fullPath.StartsWith(prefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
@@ -167,7 +167,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
             ExtractUnix(zipPath, destination, expectedRuntimeIdentifier);
             return;
         }
-        string root = Path.GetFullPath(destination);
+        string root = DistributionPaths.GetFullPath(destination);
         EnsureNoReparsePoints(root);
         if (Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any())
         {
@@ -342,7 +342,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
 
     private static void EnsureNoReparsePoints(string path)
     {
-        for (string? current = Path.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current))
+        for (string? current = DistributionPaths.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current))
         {
             try
             {
