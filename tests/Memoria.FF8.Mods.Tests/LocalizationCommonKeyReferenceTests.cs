@@ -26,7 +26,11 @@ public sealed class LocalizationCommonKeyReferenceTests
                 string label = "Reference [" + language + "]";
                 if (indexes[language].TryGetValue(common, out var counterpart))
                 {
-                    Assert.Equal(counterpart.Text, row.References[label]);
+                    if (!counterpart.Text.Contains("{Term ", StringComparison.Ordinal))
+                    {
+                        Assert.Equal(counterpart.Text, row.References[label]);
+                    }
+                    Assert.DoesNotContain("{Term ", row.References[label] ?? "", StringComparison.Ordinal);
                     Assert.Equal(new[] { counterpart.Key }, row.ReferenceKeys[label]);
                     Assert.True(row.ReferencePresence[label]);
                     if (!coverage.TryGetValue(row.Category, out var counts))
@@ -42,6 +46,11 @@ public sealed class LocalizationCommonKeyReferenceTests
                     Assert.Empty(row.ReferenceKeys[label]);
                 }
             }
+        }
+        foreach (int ordinal in new[] { 0, 4, 5, 7 })
+        {
+            string key = LocalizationSourceExporter.IndexedKey("en", "descriptions_angelo_abilities", ordinal);
+            Assert.Equal(ordinal is 0 or 5 ? "Angriff auf einen Gegner" : "Angriff auf alle Gegner", project.Entries.Single(row => row.Key == key).References["Reference [de]"]);
         }
         string? report = Environment.GetEnvironmentVariable("MEMORIA_FF8_REFERENCE_REPORT");
         if (!string.IsNullOrWhiteSpace(report))

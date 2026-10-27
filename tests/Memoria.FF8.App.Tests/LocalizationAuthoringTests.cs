@@ -7,6 +7,35 @@ namespace Memoria.FF8.App.Tests;
 public sealed class LocalizationAuthoringTests
 {
     [Fact]
+    public void NewProjectDatasetsDoNotInspectLoadedModsOrActiveProfile()
+    {
+        string missingDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        LocalizationAuthoringServices services = LocalizationProjectController.CreateServices(missingDirectory, missingDirectory,
+            readLoaded: () => throw new InvalidOperationException("Source export must not inspect loaded mods."),
+            readProfileOrder: () => throw new InvalidOperationException("Source export must not inspect the active profile."));
+
+        IReadOnlyList<LocalizationDatasetOption> datasets = services.ReadDatasets();
+
+        Assert.Equal(new[] { "en", "fr", "de", "es", "it", "jp" }, datasets.Select(dataset => dataset.Id));
+    }
+
+    [Theory]
+    [InlineData("profile:active")]
+    [InlineData("project:translation")]
+    public void NewProjectRejectsModDatasetsBeforeReadingResources(string dataset)
+    {
+        string missingDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        LocalizationAuthoringServices services = LocalizationProjectController.CreateServices(missingDirectory, missingDirectory,
+            readLoaded: () => throw new InvalidOperationException("Source export must not inspect loaded mods."),
+            readProfileOrder: () => throw new InvalidOperationException("Source export must not inspect the active profile."));
+        LocalizationAuthoringRequest request = new(dataset, "en", "Custom", [], "Test translation");
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => services.Prepare(request, TestContext.Current.CancellationToken, new Progress<string>()));
+
+        Assert.Contains("original", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void FormatChangesPreserveCustomTargetPackageAndReferences()
     {
         MenuController menus = CreateMenus();

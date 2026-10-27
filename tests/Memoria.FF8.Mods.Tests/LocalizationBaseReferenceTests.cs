@@ -9,6 +9,37 @@ namespace Memoria.FF8.Mods.Tests;
 public sealed class LocalizationBaseReferenceTests
 {
     [Fact]
+    public void TermReferencesUseEachNativeDictionaryWithoutChangingSourceOrKeys()
+    {
+        LocalizationSourceEntry english = Entry("en", "Abilities", "descriptions_angelo_abilities", 0, "{Term Status} {Char Squall}");
+        LocalizationProject project = Create(new Dictionary<string, LocalizationSourceCatalog>
+        {
+            ["en"] = Catalog(english, Entry("en", "Menus", "namedic_menu", 20, "status")),
+            ["jp"] = Catalog(),
+            ["de"] = Catalog(Entry("de", "Abilities", english.File, 0, "{Term Status} {Char Squall}"), Entry("de", "Menus", "namedic_menu", 20, "Angriff auf einen Gegner"))
+        }, ["de"]);
+        LocalizationRecord row = project.Entries.Single(row => row.Key == english.Key);
+        Assert.Equal("status {Char Squall}", row.References["Reference [en]"]);
+        Assert.Equal("Angriff auf einen Gegner {Char Squall}", row.References["Reference [de]"]);
+        Assert.Equal(english.Text, row.Source);
+        Assert.Equal(new[] { "$de_descriptions_angelo_abilities_0000" }, row.ReferenceKeys["Reference [de]"]);
+    }
+
+    [Fact]
+    public void NestedTermsResolveAndBrokenDictionaryReferencesFailExplicitly()
+    {
+        LocalizationSourceEntry description = Entry("en", "Abilities", "description", 0, "{Term Restores}");
+        LocalizationSourceEntry first = Entry("en", "Menus", "namedic_menu", 19, "{Term Status}");
+        LocalizationSourceEntry second = Entry("en", "Menus", "namedic_menu", 20, "resolved");
+        Dictionary<string, LocalizationSourceCatalog> catalogs = new() { ["en"] = Catalog(description, first, second), ["jp"] = Catalog() };
+        Assert.Equal("resolved", Create(catalogs, []).Entries.Single(row => row.Key == description.Key).References["Reference [en]"]);
+        catalogs["en"] = Catalog(description, first);
+        Assert.Contains("missing native dictionary", Assert.Throws<InvalidDataException>(() => Create(catalogs, [])).Message);
+        catalogs["en"] = Catalog(description, first, second with { Text = "{Term Restores}" });
+        Assert.Contains("cyclic", Assert.Throws<InvalidDataException>(() => Create(catalogs, [])).Message);
+    }
+
+    [Fact]
     public void OnlyBaseRowsOwnTargetsAndEveryMappedPartRemainsAvailable()
     {
         LocalizationSourceEntry baseline = Entry("en", "Fields", "bcport1a", 50, "base");

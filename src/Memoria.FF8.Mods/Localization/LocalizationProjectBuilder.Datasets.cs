@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using Albeoris.Games.FF8.TextEncoding.Tags;
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Resources.Localization;
 
@@ -10,22 +12,6 @@ public static partial class LocalizationProjectBuilder
     private static readonly string[] BuiltInLanguages = ["en", "fr", "de", "es", "it", "jp", "ja"];
 
     public static string ProjectDatasetId(LocalizationProject project) => "project:" + project.Manifest.ProjectId;
-
-    private static LocalizationSourceCatalog ReadDataset(string gameDirectory, string dataset, IReadOnlyList<LocalizationLayer> loaded, IReadOnlyList<string>? profileOrder, CancellationToken cancellation)
-    {
-        if (dataset == EffectiveProfileDatasetId)
-        {
-            LocalizationLayer[] layers = profileOrder is null ? loaded.ToArray() : profileOrder.Select(id => loaded.Single(layer => string.Equals(layer.PackageId, id, StringComparison.OrdinalIgnoreCase))).ToArray();
-            LocalizationProject profile = LocalizationProjectExport.Resolve(layers.Select(layer => layer.Project).ToArray(), "Effective active profile (source snapshot)");
-            return ProjectDataset(profile, dataset, "effective-profile", cancellation);
-        }
-        if (dataset.StartsWith("project:", StringComparison.Ordinal))
-        {
-            LocalizationLayer layer = loaded.SingleOrDefault(layer => ProjectDatasetId(layer.Project) == dataset) ?? throw new InvalidDataException("The selected localization source project is no longer loaded: " + dataset);
-            return ProjectDataset(layer.Project, dataset, "own-contribution", cancellation);
-        }
-        return LocalizationSourceExporter.Read(gameDirectory, dataset, cancellation);
-    }
 
     public static LocalizationSourceCatalog ProjectDataset(LocalizationProject project, string dataset, string role = "own-contribution", CancellationToken cancellation = default)
     {
@@ -60,12 +46,44 @@ public static partial class LocalizationProjectBuilder
         public Dictionary<string, LocalizationSourceEntry> Exact { get; }
         public Dictionary<(string File, string Key), LocalizationSourceEntry[]> Fields { get; }
         public Dictionary<string, LocalizationSourceEntry[]> CommonKeys { get; }
+        private readonly Dictionary<string, string> displayTexts = new(StringComparer.Ordinal);
 
         public ReferenceDatasetIndex(LocalizationSourceCatalog catalog)
         {
             Exact = catalog.Entries.ToDictionary(row => row.Key, StringComparer.Ordinal);
             Fields = catalog.Entries.Where(row => row.Category == "Fields").GroupBy(row => (row.File, row.Metadata.GetValueOrDefault("Base Key") ?? row.Key)).ToDictionary(group => group.Key, group => group.ToArray());
             CommonKeys = catalog.Entries.GroupBy(row => WithoutLanguagePrefix(row.Key), StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
+        }
+
+        public string DisplayText(LocalizationSourceEntry entry) => DisplayText(entry, new HashSet<string>(StringComparer.Ordinal));
+
+        private string DisplayText(LocalizationSourceEntry entry, HashSet<string> visiting)
+        {
+            if (displayTexts.TryGetValue(entry.Key, out string? cached))
+            {
+                return cached;
+            }
+            if (!visiting.Add(entry.Key))
+            {
+                throw new InvalidDataException(entry.Key + ": cyclic native term dictionary reference.");
+            }
+            string text = Regex.Replace(entry.Text, @"\{Term ([^{}]+)\}", match =>
+            {
+                if (!Enum.TryParse(match.Groups[1].Value, out TextTagTerm term))
+                {
+                    throw new InvalidDataException(entry.Key + ": invalid native term reference " + match.Value + ".");
+                }
+                int ordinal = unchecked((byte)((byte)term - 32));
+                string commonKey = "namedic_menu_" + ordinal.ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
+                if (!CommonKeys.TryGetValue(commonKey, out LocalizationSourceEntry[]? terms) || terms.Length != 1 || !IsPresent(terms[0]))
+                {
+                    throw new InvalidDataException(entry.Key + ": missing native dictionary entry " + commonKey + ".");
+                }
+                return DisplayText(terms[0], visiting);
+            }, RegexOptions.CultureInvariant);
+            visiting.Remove(entry.Key);
+            displayTexts.Add(entry.Key, text);
+            return text;
         }
     }
 

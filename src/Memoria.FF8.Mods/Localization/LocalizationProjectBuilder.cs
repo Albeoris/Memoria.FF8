@@ -13,11 +13,16 @@ public static partial class LocalizationProjectBuilder
             throw new InvalidDataException("The field script base must identify an installed native script language, not a translation contribution.");
         }
         Dictionary<string, LocalizationSourceCatalog> catalogs = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string language in new[] { request.FieldScriptBaseLanguage, request.SourceLanguage }.Concat(request.ReferenceLanguages).Distinct(StringComparer.OrdinalIgnoreCase))
+        string[] languages = new[] { request.FieldScriptBaseLanguage, request.SourceLanguage }.Concat(request.ReferenceLanguages).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (languages.Any(language => !BuiltInLanguages.Contains(language, StringComparer.OrdinalIgnoreCase)))
+        {
+            throw new InvalidDataException("New localization projects require original game languages; mod contributions and active profiles cannot be exported as native references.");
+        }
+        foreach (string language in languages)
         {
             cancellation.ThrowIfCancellationRequested();
             progress?.Report("Reading " + language + " resources…");
-            catalogs.Add(language, ReadDataset(gameDirectory, language, loadedProjects ?? [], profileOrder, cancellation));
+            catalogs.Add(language, LocalizationSourceExporter.Read(gameDirectory, language, cancellation));
         }
         foreach (string dataset in catalogs.Keys.ToArray())
         {
@@ -37,7 +42,7 @@ public static partial class LocalizationProjectBuilder
             PrimaryReference = dataset == request.SourceLanguage,
             FieldScriptBase = dataset == request.FieldScriptBaseLanguage,
             Reference = project.Manifest.ReferenceLanguages.Values.Contains(dataset, StringComparer.OrdinalIgnoreCase),
-            Contributors = (loadedProjects ?? []).Where(layer => dataset == ProjectDatasetId(layer.Project) || dataset == EffectiveProfileDatasetId && (profileOrder is null || profileOrder.Contains(layer.PackageId, StringComparer.OrdinalIgnoreCase))).Select(layer => new { layer.Project.Manifest.ProjectId, layer.Project.Manifest.TargetLanguage }).ToArray()
+            OriginalResources = true
         }).ToArray());
         string scriptLanguage = request.FieldScriptBaseLanguage.Equals("ja", StringComparison.OrdinalIgnoreCase) ? "jp" : request.FieldScriptBaseLanguage.ToLowerInvariant();
         progress?.Report("Reading original lettering artwork…");
@@ -103,7 +108,7 @@ public static partial class LocalizationProjectBuilder
                 aliases[language] = matches.Select(row => row.Key).ToArray();
                 referenceKeys[label] = aliases[language];
                 bool present = matches.Any(IsPresent);
-                references[label] = present ? string.Join("{Line}", matches.Where(IsPresent).Select(row => row.Text)) : null;
+                references[label] = present ? string.Join("{Line}", matches.Where(IsPresent).Select(row => indexes[language].DisplayText(row))) : null;
                 presence[label] = present;
                 if (matches.Length == 0)
                 {
