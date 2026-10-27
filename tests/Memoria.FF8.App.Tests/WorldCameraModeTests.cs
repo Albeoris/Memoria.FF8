@@ -72,11 +72,16 @@ public sealed class WorldCameraModeTests
         session.StartNewGame();
         using GameWorld initialization = new(session, TestResources.GameDirectory);
         session.SetWorldEntryMemory(session.WorldEntryMemory!.WriteBytes(256, 2, story).WriteBytes(264, 1, entity == 33 ? 0 : 8).WriteBytes(265, 1, flags));
-        session.Restore(session.State with { SavedWorld = session.State.SavedWorld! with { WorldEventFlags116 = NativeWorldEventFlags.CreateNewGame().WithOperand(65).WithOperand(256).WithOperand(260) } });
+        session.Restore(session.State with { SavedWorld = session.State.SavedWorld! with { WorldEventFlags116 = NativeWorldEventFlags.CreateNewGame().WithOperand(256) } });
+        if (story == 455)
+        {
+            session.Restore(session.State with { SavedWorld = session.State.SavedWorld! with { WorldEventFlags116 = session.State.SavedWorld.WorldEventFlags116!.WithOperand(261) } });
+        }
         WorldTransition packet = new(spawn, entity, -1);
         using PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(session.State, TestResources.GameDirectory, packet);
         session.CommitPreparedWorldEntry(packet, ticket.InitialState, session.WorldControls!, ticket.ValidateAdoption, ticket.InitialSavedWorld);
         using WorldMapScene scene = ticket.Adopt(session);
+        Assert.True(story != 455 || session.State.SavedWorld!.WorldEventFlags116!.Matches(261), "Declared clause15 shown flag was lost at preflight adoption.");
         Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
         Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 2)).Accepted);
         int yaw = scene.State.CameraYaw;

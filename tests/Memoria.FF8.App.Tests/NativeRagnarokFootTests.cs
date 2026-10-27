@@ -13,7 +13,7 @@ public sealed class NativeRagnarokFootTests
     [Fact]
     public void LandedFootAlternateViewTransitionsAndRestoresBesideTheActualParkedShip()
     {
-        GameSession session = Fixture();
+        GameSession session = Fixture(3600);
         using WorldMapScene scene = new(session, GameDirectory);
         Land(scene);
         Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
@@ -27,6 +27,29 @@ public sealed class NativeRagnarokFootTests
         Assert.True(scene.Apply(next).Accepted);
         Assert.True(replay.Apply(next).Accepted);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 48)).Accepted);
+        Assert.True(replay.Apply(new(PlayerActionKind.Wait, Frames: 48)).Accepted);
+        Assert.Equal(0, scene.State.NativeFootRuntime.CameraTransition.Flags);
+        Assert.Equal(640, scene.State.NativeFootRuntime.CameraTransition.ProjectionDistance);
+        ApproachShip(scene);
+        ApproachShip(replay);
+        Assert.True(scene.Apply(new(PlayerActionKind.Confirm)).Accepted);
+        Assert.True(replay.Apply(new(PlayerActionKind.Confirm)).Accepted);
+        Assert.Null(scene.State.NativeFootRuntime);
+        Assert.Equal((byte)0, scene.State.NativeRagnarokRuntime!.AnimationVariant);
+        Assert.Equal(1, scene.State.NativeRagnarokRuntime.Transfer!.Counter);
+        Assert.Equal(640, scene.State.NativeRagnarokRuntime.Transfer.InitialCamera.ProjectionDistance);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 60)).Accepted);
+        Assert.True(replay.Apply(new(PlayerActionKind.Wait, Frames: 60)).Accepted);
+        Assert.Null(scene.State.NativeRagnarokRuntime.Transfer);
+        Assert.Equal((byte)0, scene.State.NativeRagnarokRuntime.AnimationVariant);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
+        GameSession activeRestored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene activeReplay = new(activeRestored, GameDirectory);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.True(activeReplay.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.Equal((byte)0, activeReplay.State.NativeRagnarokRuntime!.AnimationVariant);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(activeRestored.State)));
     }
 
     [Fact]

@@ -143,11 +143,11 @@ internal sealed partial class WorldMapScene
         }
         NativeRagnarokWorldRuntimeState runtime = state.NativeRagnarokRuntime!;
         NativeFootWorldRuntimeState foot = state.NativeFootRuntime!;
-        NativeRagnarokTransferCamera initial = runtime.TransferCamera! with { Pitch = foot.Forest!.CameraPitch, Yaw = checked((short)state.CameraYaw), OffsetZ = foot.CameraOffsetZ };
+        NativeRagnarokTransferCamera initial = runtime.TransferCamera! with { ProjectionDistance = foot.CameraTransition?.ProjectionDistance ?? runtime.TransferCamera!.ProjectionDistance, Pitch = foot.Forest!.CameraPitch, Yaw = checked((short)state.CameraYaw), OffsetZ = foot.CameraOffsetZ };
         NativeRagnarokTransferCamera destination = assets.ReadRagnarokTransferCameraTargets(NativeRagnarokTransferKind.Takeoff, runtime.CurrentGroundHeight!.Value, target.Yaw);
         NativeRagnarokTransferState transfer = new(NativeRagnarokTransferKind.Takeoff, target.Position, runtime.CurrentGroundHeight!.Value, target.Yaw, initial, destination);
         NativeWorldVerticalBiasState bias = (session.State.WorldProcess!.VerticalBias204DADC ?? NativeWorldVerticalBiasState.UnknownWord).Damp(2, 2, state.Frame - session.State.World!.Frame);
-        runtime = runtime with { MapDisplayMode = foot.MapDisplayMode, Transfer = transfer, LandingPlacement = null, TransferCamera = initial, Motor = runtime.Motor with { Speed = 0, BodyYaw = checked((ushort)WrapYaw(target.Yaw)), BodyPitch = target.Pitch, BodyRoll = target.Roll, CameraYaw = checked((ushort)state.CameraYaw), CameraPitch = initial.Pitch, VerticalBias204DADC = bias.IsExact ? bias.Minimum : null, VerticalBiasAuthority = bias.IsExact ? null : bias }, Forest = foot.Forest };
+        runtime = runtime with { AnimationVariant = 0, MapDisplayMode = foot.MapDisplayMode, Transfer = transfer, LandingPlacement = null, TransferCamera = initial, Motor = runtime.Motor with { Speed = 0, BodyYaw = checked((ushort)WrapYaw(target.Yaw)), BodyPitch = target.Pitch, BodyRoll = target.Roll, CameraYaw = checked((ushort)state.CameraYaw), CameraPitch = initial.Pitch, VerticalBias204DADC = bias.IsExact ? bias.Minimum : null, VerticalBiasAuthority = bias.IsExact ? null : bias }, Forest = foot.Forest };
         runtime = runtime.PublishBody(target.Position, target.Pitch, target.Yaw, target.Roll);
         state = state with { X = target.Position.X, Z = -target.Position.Z, NativeHeight = target.Position.Y, BodyYaw = WrapYaw(target.Yaw), NativeFootRuntime = null, NativeRagnarokRuntime = runtime };
         return AdvanceRagnarokTransfer(state);
