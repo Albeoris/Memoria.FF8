@@ -29,7 +29,7 @@ public sealed class SnapshotStorageTests : IDisposable
     {
         Directory.CreateDirectory(directory);
         byte[] bytes = Enumerable.Range(0, 32768).Select(value => (byte)value).ToArray();
-        NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess() with { FileStaging = NativeBattleFileStaging.Unknown().Write(NativeBattleFileStaging.Address, bytes) };
+        NativeBattleRetainedMemory retained = NativeBattleStorageSnapshots.Capture(NativeBattleRetainedMemory.FromColdProcess() with { FileStaging = NativeBattleFileStaging.Unknown().Write(NativeBattleFileStaging.Address, bytes) });
         GameState state = new() { Scene = SceneKind.Field, FieldId = 180, FieldName = "bghoke_2", X = 12.5f, NativeBattleMemory = retained, Playtime = new(90061, 0, 0), ExamTimer = NativeExamTimerState.FromColdProcess() };
         GameSession session = new(state);
         string json = Path.Combine(directory, "legacy.json");

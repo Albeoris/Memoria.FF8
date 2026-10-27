@@ -6,6 +6,46 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleNodeSourceTests
 {
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("\"\"")]
+    public void Pending_resources_accept_both_explicit_empty_byte_encodings(string bytes)
+    {
+        PendingHistory saved = JsonSerializer.Deserialize<PendingHistory>("{\"Source\":" + bytes + "}")!;
+
+        Assert.Null(saved.Source);
+        Assert.Equal("{\"Source\":[]}", JsonSerializer.Serialize(saved));
+        Assert.Throws<InvalidDataException>(() => JsonSerializer.Deserialize<History>("{\"Source\":" + bytes + "}"));
+    }
+
+    [Fact]
+    public void Pending_resources_reject_null_and_preserve_materialized_bytes()
+    {
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<PendingHistory>("{\"Source\":null}"));
+        PendingHistory saved = JsonSerializer.Deserialize<PendingHistory>("{\"Source\":\"AQIDBA==\"}")!;
+
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, saved.Source!.Data);
+        PendingHistory restored = NativeBattleStorageSnapshots.Restore(saved);
+        Assert.Equal((byte)4, restored.Source!.ReadByte(3));
+    }
+
+    [Fact]
+    public void Compact_byte_encoding_roundtrips_as_detached_storage()
+    {
+        JsonSerializerOptions options = new() { Converters = { new ImmutableBytesJsonConverter() } };
+        History frozen = NativeBattleStorageSnapshots.Capture(new History(new([1, 2, 3, 4])));
+        string json = JsonSerializer.Serialize(frozen, options);
+
+        Assert.Equal("{\"Source\":\"AQIDBA==\"}", json);
+        History saved = JsonSerializer.Deserialize<History>(json, options)!;
+        Assert.Equal(frozen.Source.Data, saved.Source.Data);
+        History first = NativeBattleStorageSnapshots.Restore(saved);
+        History second = NativeBattleStorageSnapshots.Restore(saved);
+        first.Source.Arena.Write(0, [99]);
+        Assert.Equal((byte)1, second.Source.ReadByte(0));
+        Assert.Equal((byte)1, saved.Source.Data[0]);
+    }
+
     [Fact]
     public void Legacy_array_shape_is_detached_and_two_restores_have_independent_authorities()
     {
@@ -71,5 +111,6 @@ public sealed class NativeBattleNodeSourceTests
     }
 
     private sealed record History([property: JsonConverter(typeof(NativeBattleNodeSource.Converter))] NativeBattleNodeSource Source);
+    private sealed record PendingHistory([property: JsonConverter(typeof(NativeBattlePendingNodeSourceConverter))] NativeBattleNodeSource? Source);
     private sealed record Aliases(NativeBattleEffectArena Bank, [property: JsonConverter(typeof(NativeBattleNodeSource.Converter))] NativeBattleNodeSource Source);
 }

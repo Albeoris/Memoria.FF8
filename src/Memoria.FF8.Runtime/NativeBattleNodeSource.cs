@@ -107,7 +107,11 @@ public sealed partial record NativeBattleNodeSource : INativeBattleStorageNode, 
         public override NativeBattleNodeSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             SnapshotData value;
-            if (reader.TokenType == JsonTokenType.StartArray)
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                value = new(reader.GetBytesFromBase64().ToImmutableArray(), [], null);
+            }
+            else if (reader.TokenType == JsonTokenType.StartArray)
             {
                 value = new(JsonSerializer.Deserialize<ImmutableArray<byte>>(ref reader, options), [], null);
             }

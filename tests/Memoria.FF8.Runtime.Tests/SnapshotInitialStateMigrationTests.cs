@@ -103,7 +103,7 @@ public sealed class SnapshotInitialStateMigrationTests
     public void All_absent_independent_effect_owners_use_the_current_initialization_factories()
     {
         JsonObject saved = HistoricalBattle(1);
-        JsonObject initial = JsonSerializer.SerializeToNode(NativeBattleEffectMemory.FromColdProcess(), Options)!.AsObject();
+        JsonObject initial = JsonSerializer.SerializeToNode(NativeBattleStorageSnapshots.Capture(NativeBattleEffectMemory.FromColdProcess()), Options)!.AsObject();
         JsonObject effects = saved["Battle"]!["NativeEffectMemory"]!.AsObject();
         string[] allocationOwner = ["Arena", "Cursor", "AllocationCount", "Allocations", "Active", "SelectedIndex", "SoundPendingFlags", "SoundPublishedFlags"];
         foreach (string name in effects.Select(pair => pair.Key).Except(allocationOwner).ToArray())

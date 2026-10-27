@@ -9,7 +9,7 @@ internal static class SnapshotBattleMetadataMigration
     internal static void Apply(JsonObject saved, JsonSerializerOptions options)
     {
         JsonObject rowDefaults = JsonSerializer.SerializeToNode(NativeBattleModelRetainedFields.FromColdProcess(), options)!.AsObject();
-        JsonNode actorDefaults = JsonSerializer.SerializeToNode(NativeBattleGilgameshZantetsukenActors.FromColdProcess(), options)!;
+        JsonNode actorDefaults = JsonSerializer.SerializeToNode(NativeBattleStorageSnapshots.Capture(NativeBattleGilgameshZantetsukenActors.FromColdProcess()), options)!;
         List<JsonObject?> retainedOwners =
         [
             Find(saved, "NativeBattleMemory"),
