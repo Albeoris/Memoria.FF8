@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -83,6 +84,48 @@ public sealed class NativeGuardianForceLearningIndexTests
         Assert.Throws<InvalidDataException>(() => source.ApplyGuardianForceTemplates(templates.SetItem(0, [entry with { NativeLearningSlots = 1 }])));
     }
 
+    [Fact]
+    public void SnapshotWithoutSourceSlotMetadataKeepsLegacyNativeConditions()
+    {
+        NativeCharacterVitals source = Source([new(1, 255, 100), new(101, 255, 101), new(101, 1, 102)], learned: [100]);
+        source.GuardianForces[0] = source.GuardianForces[0] with { AbilityProgress = source.GuardianForces[0].AbilityProgress.SetItem(1, 9) };
+        source = source.ApplyGuardianForceTemplates(source.ResolveGuardianForceTemplates());
+        JsonObject json = JsonSerializer.SerializeToNode(source)!.AsObject();
+        foreach (string property in new[] { "Templates", "SourceTemplates" })
+        {
+            JsonArray rows = json["MenuDefinitions"]![property]!.AsArray();
+            for (int id = 0; id < rows.Count; id++)
+            {
+                foreach (JsonNode? node in rows[id]!.AsArray())
+                {
+                    JsonObject entry = node!.AsObject();
+                    entry.Remove(nameof(GuardianForceAbilityTemplate.NativeLearningSlots));
+                    int ability = entry["Ability"]!.GetValue<int>();
+                    int index = Array.FindIndex(source.MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == ability);
+                    if (index < 0)
+                    {
+                        continue;
+                    }
+                    NativeGuardianForceLearningRule rule = source.MenuDefinitions.Learning[id][index];
+                    entry["RequiredLevel"] = rule.Requirement <= 100 ? Math.Max(1, (int)rule.Requirement) : 1;
+                    entry["PrerequisiteAbility"] = rule.Requirement is >= 101 and <= 121 ? JsonValue.Create((int)source.MenuDefinitions.Learning[id][rule.Requirement - 101].Ability) : null;
+                    entry["ExcludedAbility"] = rule.Requirement is >= 101 and <= 121 && rule.Exclusion != 255 ? JsonValue.Create((int)source.MenuDefinitions.Learning[id][rule.Exclusion].Ability) : null;
+                    entry["SupportedCondition"] = rule.Requirement <= 121 && ability < source.MenuDefinitions.AbilityPoints.Length;
+                }
+            }
+        }
+        NativeCharacterVitals restored = JsonSerializer.Deserialize<NativeCharacterVitals>(json.ToJsonString())!;
+        restored.Validate();
+        NativeCharacterVitals normalized = restored.NormalizeGuardianForceCompatibility();
+        Assert.Same(restored, normalized);
+        for (int id = 0; id < 16; id++)
+        {
+            Assert.Equal(source.GuardianForceAbilities(id).Select(entry => (entry.Ability, entry.Learned, entry.Progress, entry.RequiredPoints)), normalized.GuardianForceAbilities(id).Select(entry => (entry.Ability, entry.Learned, entry.Progress, entry.RequiredPoints)));
+        }
+        Assert.False(normalized.GuardianForceRequiresMemoriaFormat);
+        Assert.Equal(source.MenuDefinitions.Learning.SelectMany(row => row), normalized.MenuDefinitions.Learning.SelectMany(row => row));
+    }
+
     private static NativeCharacterVitals Source(NativeGuardianForceLearningRule[] rules, int[]? learned = null)
     {
         NativeCharacterVitals source = MagicSystemFixture.Create();
@@ -99,3 +142,4 @@ public sealed class NativeGuardianForceLearningIndexTests
         return source with { MenuDefinitions = source.MenuDefinitions with { Templates = templates, SourceTemplates = templates, InitialStates = source.GuardianForces.Select(gf => new NativeGuardianForceInitialState(gf.LearnedBank, gf.AbilityProgress, gf.Learning, gf.ForgottenAbilities)).ToImmutableArray() } };
     }
 }
+
