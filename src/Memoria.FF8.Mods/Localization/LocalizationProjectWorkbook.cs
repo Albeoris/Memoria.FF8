@@ -12,6 +12,8 @@ namespace Memoria.FF8.Mods.Localization;
 
 internal static class LocalizationProjectWorkbook
 {
+    private const long MaximumExpandedWorkbookBytes = LocalizationProjectIO.MaximumDocumentBytes;
+
     public static void Write(string path, IReadOnlyList<LocalizationRecord> rows, LocalizationManifest manifest, LocalizationPayload payload)
     {
         using SpreadsheetDocument document = SpreadsheetDocument.Create(path, SpreadsheetDocumentType.Workbook);
@@ -79,7 +81,7 @@ internal static class LocalizationProjectWorkbook
     {
         ValidateZip(bytes);
         using MemoryStream snapshot = new(bytes, false);
-        using SpreadsheetDocument document = SpreadsheetDocument.Open(snapshot, false, new OpenSettings { AutoSave = false, MaxCharactersInPart = 128 * 1024 * 1024 });
+        using SpreadsheetDocument document = SpreadsheetDocument.Open(snapshot, false, new OpenSettings { AutoSave = false, MaxCharactersInPart = MaximumExpandedWorkbookBytes });
         ValidationErrorInfo? packageError = new OpenXmlValidator(FileFormatVersions.Microsoft365).Validate(document).FirstOrDefault();
         if (packageError is not null)
         {
@@ -305,25 +307,40 @@ internal static class LocalizationProjectWorkbook
         using MemoryStream stream = new(bytes, false);
         using ZipArchive archive = new(stream, ZipArchiveMode.Read);
         long total = 0;
+        long actualTotal = 0;
+        byte[] buffer = new byte[64 * 1024];
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
         foreach (ZipArchiveEntry entry in archive.Entries)
         {
-            total += entry.Length;
-            if (total > 256 * 1024 * 1024 || !names.Add(entry.FullName))
+            if (!names.Add(entry.FullName))
             {
-                throw new InvalidDataException("Workbook exceeds the decompression limit or contains duplicate ZIP entries.");
+                throw new InvalidDataException($"Workbook contains a duplicate ZIP entry: {entry.FullName}.");
             }
+            long length = entry.Length;
+            if (length < 0 || length > MaximumExpandedWorkbookBytes - total)
+            {
+                throw new InvalidDataException($"Workbook decompressed content exceeds the {MaximumExpandedWorkbookBytes} byte limit.");
+            }
+            total += length;
             using Stream content = entry.Open();
-            byte[] buffer = new byte[64 * 1024];
             long actual = 0;
             int count;
             while ((count = content.Read(buffer)) != 0)
             {
-                actual += count;
-                if (actual > entry.Length)
+                if (count > length - actual)
                 {
                     throw new InvalidDataException("Workbook ZIP entry exceeds its declared length.");
                 }
+                if (count > MaximumExpandedWorkbookBytes - actualTotal)
+                {
+                    throw new InvalidDataException($"Workbook decompressed content exceeds the {MaximumExpandedWorkbookBytes} byte limit.");
+                }
+                actual += count;
+                actualTotal += count;
+            }
+            if (actual != length)
+            {
+                throw new InvalidDataException("Workbook ZIP entry does not match its declared length.");
             }
         }
     }
