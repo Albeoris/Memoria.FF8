@@ -10,7 +10,7 @@ public sealed record BattleMagicSystemReceipt(MagicSystemState Before, MagicSyst
     {
         Before.Validate();
         After.Validate();
-        if (Before.SharedMagicStock != After.SharedMagicStock || Before.InfiniteMagic != After.InfiniteMagic || Before.SmartAttack != After.SmartAttack || !Before.AttackModes.SequenceEqual(After.AttackModes) || Before.HistoriesInitialized != After.HistoriesInitialized || !Before.SharedFieldMasks.SequenceEqual(After.SharedFieldMasks) || !Before.PersonalFieldMasks.Zip(After.PersonalFieldMasks).All(pair => pair.First.SequenceEqual(pair.Second)) || BanksBefore is not { Length: 8 } || BanksAfter is not { Length: 8 })
+        if (Before.SharedMagicStock != After.SharedMagicStock || Before.InfiniteMagic != After.InfiniteMagic || Before.UnlimitedMagic != After.UnlimitedMagic || Before.SmartAttack != After.SmartAttack || !Before.AttackModes.SequenceEqual(After.AttackModes) || Before.HistoriesInitialized != After.HistoriesInitialized || !Before.SharedFieldMasks.SequenceEqual(After.SharedFieldMasks) || !Before.PersonalFieldMasks.Zip(After.PersonalFieldMasks).All(pair => pair.First.SequenceEqual(pair.Second)) || BanksBefore is not { Length: 8 } || BanksAfter is not { Length: 8 })
         {
             throw new InvalidDataException("Battle magic receipt changes field histories or rules during an encounter.");
         }

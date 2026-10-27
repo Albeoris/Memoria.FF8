@@ -26,7 +26,7 @@ public sealed partial record NativeCharacterVitals
             int mask = 0;
             foreach (MagicCastReservation reservation in group)
             {
-                if ((mask & reservation.TicketMask) != 0 || MagicSystem.InfiniteMagic && System.Numerics.BitOperations.PopCount((uint)reservation.TicketMask) != reservation.Count - reservation.CommittedCount || (reservation.BankId == -1) != MagicSystem.SharedMagicStock || MagicSystem.CommittedActionIds.Contains(reservation.ActionId, StringComparer.Ordinal))
+                if ((mask & reservation.TicketMask) != 0 || MagicSystem.UnlimitedMagic && reservation.TicketMask != 0 || MagicSystem.InfiniteMagic && !MagicSystem.UnlimitedMagic && System.Numerics.BitOperations.PopCount((uint)reservation.TicketMask) != reservation.Count - reservation.CommittedCount || (reservation.BankId == -1) != MagicSystem.SharedMagicStock || MagicSystem.CommittedActionIds.Contains(reservation.ActionId, StringComparer.Ordinal))
                 {
                     throw new InvalidDataException("Saved magic reservations overlap or contradict their active storage rules.");
                 }

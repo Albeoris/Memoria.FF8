@@ -4,7 +4,8 @@ public sealed partial class BattleSession
 {
     private NativeCharacterVitals? magicVitals;
     public NativeCharacterVitals? MagicVitals => magicVitals?.DeepCopy();
-    public bool InfiniteMagic => magicVitals?.MagicSystem.InfiniteMagic == true;
+    public bool InfiniteMagic => magicVitals?.MagicSystem.InfiniteMagic == true && !UnlimitedMagic;
+    public bool UnlimitedMagic => magicVitals?.MagicSystem.UnlimitedMagic == true;
     public int? GetMagicJunctionOwner(string actorId, int spellId)
     {
         if (magicVitals is null)
@@ -66,7 +67,7 @@ public sealed partial class BattleSession
     private int MagicCost(BattleCombatant actor, int casts)
     {
         uint flags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? 0;
-        return magicVitals?.MagicSystem.InfiniteMagic != true && (casts == 2 && (flags & 0x20) != 0 || casts == 3 && (flags & 0x40) != 0) ? 1 : casts;
+        return (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (casts == 2 && (flags & 0x20) != 0 || casts == 3 && (flags & 0x40) != 0) ? 1 : casts;
     }
 
     private BattleAttackCommand EnsureMagicReservation(BattleCombatant actor, BattleAttackCommand command)
@@ -121,7 +122,7 @@ public sealed partial class BattleSession
         {
             MagicSystemState before = initial.MagicSystem;
             MagicSystemState current = magicVitals.MagicSystem;
-            if (before.SharedMagicStock != current.SharedMagicStock || before.InfiniteMagic != current.InfiniteMagic || before.SmartAttack != current.SmartAttack || before.HistoriesInitialized != current.HistoriesInitialized || !before.AttackModes.SequenceEqual(current.AttackModes) || !before.SharedFieldMasks.SequenceEqual(current.SharedFieldMasks) || !before.PersonalFieldMasks.Zip(current.PersonalFieldMasks).All(pair => pair.First.SequenceEqual(pair.Second)))
+            if (before.SharedMagicStock != current.SharedMagicStock || before.InfiniteMagic != current.InfiniteMagic || before.UnlimitedMagic != current.UnlimitedMagic || before.SmartAttack != current.SmartAttack || before.HistoriesInitialized != current.HistoriesInitialized || !before.AttackModes.SequenceEqual(current.AttackModes) || !before.SharedFieldMasks.SequenceEqual(current.SharedFieldMasks) || !before.PersonalFieldMasks.Zip(current.PersonalFieldMasks).All(pair => pair.First.SequenceEqual(pair.Second)))
             {
                 throw new InvalidDataException("A battle checkpoint cannot change its saved magic rules or field histories.");
             }

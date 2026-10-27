@@ -13,7 +13,7 @@ public sealed class NativeGuestSelectionMenuTests
     [InlineData(7)]
     [InlineData(-1)]
     [InlineData(65539)]
-    public void GuestRequestPreservesBackupsAndResetsNormalRowsBeforeSelection(int operand)
+    public void GuestRequestPreservesBackupsAndJunctionsBeforeSelection(int operand)
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals().WithMemberFlags(1, true).WithMemberFlags(5, true);
@@ -26,8 +26,8 @@ public sealed class NativeGuestSelectionMenuTests
         Assert.Equal(new byte[] { 0, 1, 5 }, requested.FieldParty);
         Assert.Equal(new byte[] { 5, 0, 1 }, requested.Vitals.CombatParty);
         Assert.Equal(1, requested.Vitals.Records[0].Junction.GuardianForces);
-        Assert.Equal(0, requested.Vitals.Records[1].Junction.GuardianForces);
-        Assert.Equal(0u, requested.Vitals.Records[1].Junction.Commands);
+        Assert.Equal(2, requested.Vitals.Records[1].Junction.GuardianForces);
+        Assert.Equal(0x04030201u, requested.Vitals.Records[1].Junction.Commands);
         Assert.Equal(2, initial.Records[1].Junction.GuardianForces);
         Assert.True(requested.Vitals.DreamEnabled);
         Assert.Equal(8, requested.Vitals.Records[0].CharacterId);
@@ -40,6 +40,15 @@ public sealed class NativeGuestSelectionMenuTests
         Assert.Equal(new byte[] { 1, 0, 5 }, mapped.Vitals.CombatParty);
         Assert.Equal(5, mapped.Vitals.FindPhysicalRow(9));
         Assert.Equal(1, mapped.Vitals.FindPhysicalRow(10));
+        NativeCharacterVitals restored = JsonSerializer.Deserialize<NativeCharacterVitals>(JsonSerializer.Serialize(mapped.Vitals))!.RebuildParty();
+        NativeJunctionResult exit = restored.PrepareJunction(0, [8, 9, 10], 7);
+        for (int row = 0; row < 8; row++)
+        {
+            Assert.Equal(initial.Records[row].Junction, restored.Records[row].Junction);
+            Assert.Equal(initial.Records[row].MagicInventory, restored.Records[row].MagicInventory);
+            Assert.Equal(initial.Records[row].Junction, exit.Vitals.Records[row].Junction);
+        }
+        Assert.Equal(initial.CombatParty, exit.Vitals.CombatParty);
         NativeJunctionResult onlyWard = active.CompleteGuestSelectionMenu([0, 255, 5], 5);
         Assert.Equal(new byte[] { 8, 10, 255 }, onlyWard.FieldParty);
         Assert.Equal(new byte[] { 5, 0, 255 }, onlyWard.Vitals.CombatParty);

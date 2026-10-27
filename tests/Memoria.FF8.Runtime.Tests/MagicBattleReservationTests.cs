@@ -125,6 +125,27 @@ public sealed class MagicBattleReservationTests
         Assert.Equal(0, battle.MagicVitals.MagicSystem.SharedBattleMasks[1]);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Unlimited_magic_triple_with_one_stock_keeps_junction_and_round_trips(bool limitedMode)
+    {
+        BattleSession battle = Create(infinite: limitedMode, stock: 1, transient: 0x40000, unlimited: true);
+        Assert.Contains(3, battle.GetNativeMagicCastCounts("caster", 1));
+        battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy", "enemy"]);
+        BattleSnapshot saved = battle.Capture();
+        Assert.Equal(3, Assert.Single(saved.MagicVitals!.MagicSystem.Reservations).Count);
+        BattleSession restored = BattleSession.Restore(saved);
+        Advance(restored);
+        Assert.Equal(1, restored.MagicVitals!.GetMagicCount(4, 1));
+        Assert.Equal(1, restored.MagicVitals.Records[4].Junction.MagicJunctions[0]);
+        Assert.Equal(0, restored.MagicVitals.MagicSystem.SharedBattleMasks[1]);
+        Assert.Empty(restored.MagicVitals.MagicSystem.Reservations);
+        NativeCharacterVitals changed = saved.MagicVitals.DeepCopy();
+        changed = changed with { MagicSystem = changed.MagicSystem with { UnlimitedMagic = false } };
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(saved with { MagicVitals = changed }));
+    }
+
     private static void Advance(BattleSession battle)
     {
         for (int frame = 0; frame <= BattleSession.AttackWindupFrames + 2; frame++)
@@ -133,9 +154,10 @@ public sealed class MagicBattleReservationTests
         }
     }
 
-    private static BattleSession Create(bool infinite = true, int stock = 100, uint transient = 0, int enemyHp = 60000)
+    private static BattleSession Create(bool infinite = true, int stock = 100, uint transient = 0, int enemyHp = 60000, bool unlimited = false)
     {
         NativeCharacterVitals vitals = MagicSystemFixture.Modes(MagicSystemFixture.Stock(MagicSystemFixture.Create(), 0, 1, stock), shared: true, infinite: infinite);
+        vitals = vitals with { MagicSystem = vitals.MagicSystem with { UnlimitedMagic = unlimited } };
         vitals = MagicJunctionPolicy.Assign(vitals, 4, 0, 1);
         BattleNativeAction spell = new(2, 1, 1, 1) { Name = "Spell", MagicId = 1, AttackType = 2, Power = 255, HitCount = 1, TargetFlags = 0x50, AttackFlags = 1, DamagePresentation = 0, Element = 0, ElementPercent = null, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, RawRecord = [], SupplementalRecord = [] };
         byte[] character = new byte[36];

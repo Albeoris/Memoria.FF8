@@ -47,7 +47,12 @@ public sealed partial class BattleCombatant
     {
         if (MagicOwner is not null && SetMagicOwner is not null && MagicRecordId is int row)
         {
-            NativeCharacterVitals next = MagicOwner().ChangeMagicStock(row, id, -1, MagicOperationReason.ScriptRemoval, out MagicStockMutation result);
+            NativeCharacterVitals owner = MagicOwner();
+            if (owner.MagicSystem.UnlimitedMagic)
+            {
+                return MagicJunctionPolicy.CanAccess(owner, row, id);
+            }
+            NativeCharacterVitals next = owner.ChangeMagicStock(row, id, -1, MagicOperationReason.ScriptRemoval, out MagicStockMutation result);
             SetMagicOwner(next);
             return result.Accepted != 0;
         }

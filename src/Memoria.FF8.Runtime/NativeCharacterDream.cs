@@ -25,13 +25,6 @@ public sealed partial record NativeCharacterVitals
             NativeCharacterVital[] requestedRows = requested.Records.ToArray();
             requestedRows[0] = requestedRows[0] with { CharacterId = 8 };
             requested = requested with { DreamEnabled = true, Records = requestedRows, JunctionPartyBackup = [.. fieldParty.Select(identity => (byte)identity), .. CombatParty] };
-            for (int row = 0; row < requested.Records.Length; row++)
-            {
-                if (requested.Records[row].CharacterId < 8)
-                {
-                    requested = requested.ResetGuardianForcesAtRow(row);
-                }
-            }
             return new NativeJunctionResult(requested, fieldParty.Select(identity => (byte)identity).ToArray());
         }
         NativeCharacterVitals next = DeepCopy();
@@ -83,14 +76,6 @@ public sealed partial record NativeCharacterVitals
         }
         ReorderNativeDreamCombatParty(combat);
         next = (next with { DreamEnabled = true, Records = records, CombatParty = combat, JunctionPartyBackup = backup }).RebuildParty();
-        // Native51EFB0 resets remaining normal identities by PHYSICAL row.
-        for (int row = 0; row < next.Records.Length; row++)
-        {
-            if (next.Records[row].CharacterId < 8)
-            {
-                next = next.ResetGuardianForcesAtRow(row);
-            }
-        }
         return new NativeJunctionResult(next.DeepCopy(), party);
     }
 

@@ -22,6 +22,7 @@ public sealed record MagicSystemState
     public bool SharedMagicStock { get; init; }
     [JsonRequired]
     public bool InfiniteMagic { get; init; }
+    public bool UnlimitedMagic { get; init; }
     [JsonRequired]
     public bool SmartAttack { get; init; }
     [JsonRequired]
@@ -46,7 +47,7 @@ public sealed record MagicSystemState
     [JsonRequired]
     public string[] RecoveredResultIds { get; init; } = [];
     [JsonIgnore]
-    public bool RequiresMemoriaFormat => SharedMagicStock || InfiniteMagic || SmartAttack || HistoriesInitialized || RecordZeroExtension.Length != 0 || AttackModes.Any(mode => mode != MagicAttackMode.PhysicalOnly);
+    public bool RequiresMemoriaFormat => SharedMagicStock || InfiniteMagic || UnlimitedMagic || SmartAttack || HistoriesInitialized || RecordZeroExtension.Length != 0 || AttackModes.Any(mode => mode != MagicAttackMode.PhysicalOnly);
 
     private static byte[][] EmptyMasks() => Enumerable.Range(0, 8).Select(_ => new byte[57]).ToArray();
     public MagicSystemState DeepCopy() => this with

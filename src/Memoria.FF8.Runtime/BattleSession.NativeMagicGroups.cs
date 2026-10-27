@@ -51,11 +51,11 @@ public sealed partial class BattleSession
             return counts;
         }
         uint flags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Double/Triple magic requires the original equipped character-ability flags, including Double/Triple Single.");
-        if ((statuses & 0x20000) != 0 && (stock >= 2 || magicVitals?.MagicSystem.InfiniteMagic != true && (flags & 0x20) != 0))
+        if ((statuses & 0x20000) != 0 && (stock >= 2 || (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (flags & 0x20) != 0))
         {
             counts.Add(2);
         }
-        if ((statuses & 0x40000) != 0 && (stock >= 3 || magicVitals?.MagicSystem.InfiniteMagic != true && (flags & 0x40) != 0))
+        if ((statuses & 0x40000) != 0 && (stock >= 3 || (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (flags & 0x40) != 0))
         {
             counts.Add(3);
         }
@@ -91,7 +91,7 @@ public sealed partial class BattleSession
         uint statuses = NativeBattleStatusBits(actor);
         int count = command.NativeMagicTargets.Length >= 3 && (statuses & 0x40000) != 0 ? 3 : command.NativeMagicTargets.Length >= 2 && (statuses & 0x20000) != 0 ? 2 : 1;
         uint flags = count > 1 ? actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native repeated magic requires its equipped passive flags.") : 0;
-        bool singleCost = magicVitals?.MagicSystem.InfiniteMagic != true && (count == 2 && (flags & 0x20) != 0 || count == 3 && (flags & 0x40) != 0);
+        bool singleCost = (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (count == 2 && (flags & 0x20) != 0 || count == 3 && (flags & 0x40) != 0);
         int completed = 0;
         for (int index = 0; index < count; index++)
         {

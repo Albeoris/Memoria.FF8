@@ -32,7 +32,11 @@ public static class MagicCastingService
         int capacity = Capacity(stock, bound, vitals.Records[row].CharacterId);
         MagicCastReservation[] others = state.Reservations.Where(r => r.BankId == bank && r.SpellId == spellId && r.Context == context && r.ActionId != actionId).ToArray();
         int available;
-        if (state.InfiniteMagic)
+        if (state.UnlimitedMagic)
+        {
+            available = int.MaxValue;
+        }
+        else if (state.InfiniteMagic)
         {
             int mask = GetMask(state, bank, spellId, context);
             MagicCastReservation? own = state.Reservations.FirstOrDefault(r => r.ActionId == actionId && r.BankId == bank && r.SpellId == spellId && r.Context == context);
@@ -80,7 +84,7 @@ public static class MagicCastingService
         }
         int bank = state.SharedMagicStock ? -1 : row;
         int tickets = 0;
-        if (state.InfiniteMagic)
+        if (state.InfiniteMagic && !state.UnlimitedMagic)
         {
             int unavailable = GetMask(state, bank, spellId, context);
             foreach (MagicCastReservation other in state.Reservations.Where(r => r.BankId == bank && r.SpellId == spellId && r.Context == context))
@@ -119,7 +123,7 @@ public static class MagicCastingService
         int tickets = reservation.TicketMask;
         for (int cast = reservation.CommittedCount; cast < performedCount; cast++)
         {
-            if (!state.InfiniteMagic)
+            if (!state.InfiniteMagic && !state.UnlimitedMagic)
             {
                 next = next.ChangeMagicStock(reservation.ActorRow, reservation.SpellId, -1, MagicOperationReason.OrdinaryCast, out MagicStockMutation debit);
                 if (debit.Accepted != 1)
@@ -128,7 +132,7 @@ public static class MagicCastingService
                 }
                 state = next.MagicSystem;
             }
-            else
+            else if (!state.UnlimitedMagic)
             {
                 int ticket = LowestBit(tickets);
                 if (ticket == 0)
@@ -138,7 +142,7 @@ public static class MagicCastingService
                 tickets &= ~ticket;
                 SetMask(state, reservation.BankId, reservation.SpellId, reservation.Context, GetMask(state, reservation.BankId, reservation.SpellId, reservation.Context) | ticket);
             }
-            if (reservation.Context == MagicCastContext.Field && state.HistoriesInitialized)
+            if (reservation.Context == MagicCastContext.Field && state.HistoriesInitialized && !state.UnlimitedMagic)
             {
                 if (!state.InfiniteMagic)
                 {

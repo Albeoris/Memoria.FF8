@@ -125,7 +125,7 @@ public sealed partial class BattleSession
                     if ((rules & 2) == 0)
                     {
                         NativeCharacterVitals? stockOwner = actor.MagicOwner?.Invoke();
-                        bool logicalStock = stockOwner is not null && actor.MagicRecordId is int record && (stockOwner.MagicSystem.SharedMagicStock || stockOwner.MagicSystem.InfiniteMagic || record == 0 && stockOwner.MagicSystem.RecordZeroExtension.Length != 0);
+                        bool logicalStock = stockOwner is not null && actor.MagicRecordId is int record && (stockOwner.MagicSystem.SharedMagicStock || stockOwner.MagicSystem.InfiniteMagic || stockOwner.MagicSystem.UnlimitedMagic || record == 0 && stockOwner.MagicSystem.RecordZeroExtension.Length != 0);
                         NativeMagicStock[] candidates = logicalStock ? actor.MagicStocks.Where(stock => MagicCastingService.Quote(stockOwner!, actor.MagicRecordId!.Value, stock.Id, MagicCastContext.Battle).Allowed).Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToArray() : actor.NativeMagicInventory;
                         int occupied = candidates.Count(stock => stock.SpellId != 0);
                         if (occupied != 0)

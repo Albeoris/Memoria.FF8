@@ -160,7 +160,7 @@ public static class MagicModeCoordinator
         List<MagicStockMove> moves = [];
         List<MagicStockMove> overflow = [];
         bool enabling = preferences.SharedMagicStock && !next.MagicSystem.SharedMagicStock;
-        next = next with { MagicSystem = next.MagicSystem with { SharedMagicStock = preferences.SharedMagicStock, InfiniteMagic = preferences.InfiniteMagic, SmartAttack = preferences.SmartAttack, HistoriesInitialized = next.MagicSystem.HistoriesInitialized || preferences.InfiniteMagic } };
+        next = next with { MagicSystem = next.MagicSystem with { SharedMagicStock = preferences.SharedMagicStock, InfiniteMagic = preferences.InfiniteMagic, UnlimitedMagic = preferences.Tuning.UnlimitedMagic, SmartAttack = preferences.SmartAttack, HistoriesInitialized = next.MagicSystem.HistoriesInitialized || preferences.InfiniteMagic } };
         if (enabling)
         {
             for (int donor = 1; donor < 8; donor++)
