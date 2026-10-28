@@ -71,7 +71,7 @@ public sealed class NativeBattleMagmaBreath48ResourcesTests
         var current = state.ReadMesh(resources, MeshAAddress);
         Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6 }, current.Bytes.AsSpan().Slice(8, 6).ToArray());
         Assert.Equal(resources.MeshSeeds[0].Bytes.AsSpan().Slice(14, 2).ToArray(), current.Bytes.AsSpan().Slice(14, 2).ToArray());
-        var restored = JsonSerializer.Deserialize<NativeBattleMagmaBreath48State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleMagmaBreath48State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Same(restored, restored.EnsureSources(resources));
         Assert.Equal((ushort)1234, restored.ReadWord(ChannelBase));

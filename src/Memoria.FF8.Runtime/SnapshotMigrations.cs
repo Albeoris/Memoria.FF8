@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Upgrades saved JSON before constructing the single current state model.</summary>
 internal static class SnapshotMigrations
 {
-    internal static void Apply(JsonObject saved, JsonSerializerOptions options)
+    internal static int Apply(JsonObject saved, JsonSerializerOptions options)
     {
         int version = 0;
         if (saved.TryGetPropertyValue(nameof(GameState.SnapshotSchemaVersion), out JsonNode? schema))
@@ -20,6 +20,7 @@ internal static class SnapshotMigrations
         {
             throw new InvalidDataException($"Snapshot schema {version} is newer than supported schema {GameState.CurrentSnapshotSchemaVersion}. Update the application to load this save.");
         }
+        int originalVersion = version;
         while (version < GameState.CurrentSnapshotSchemaVersion)
         {
             switch (version)
@@ -36,10 +37,28 @@ internal static class SnapshotMigrations
                 case 2:
                     SnapshotSigh46Migration.Apply(saved, options);
                     break;
+                case 3:
+                    SnapshotRetainedEffectMigration.Apply(saved, options);
+                    break;
                 default:
                     throw new InvalidDataException($"No forward migration is available for snapshot schema {version}.");
             }
             saved[nameof(GameState.SnapshotSchemaVersion)] = ++version;
+        }
+        return originalVersion;
+    }
+
+    internal static void CompleteInitialOwners(JsonObject saved, JsonSerializerOptions options, int originalVersion)
+    {
+        // Ordinary idle-state completion can create a missing parent after the versioned pass.
+        // Only historical inputs may initialize its newly introduced effect owners.
+        if (originalVersion < 3)
+        {
+            SnapshotSigh46Migration.Apply(saved, options);
+        }
+        if (originalVersion < 4)
+        {
+            SnapshotRetainedEffectMigration.Apply(saved, options);
         }
     }
 }

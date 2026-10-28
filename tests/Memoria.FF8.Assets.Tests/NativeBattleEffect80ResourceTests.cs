@@ -45,7 +45,7 @@ public sealed class NativeBattleEffect80ResourceTests
             int frames = index == 0 ? 128 : 24;
             NativeBattleGfAnimationWorkspace workspace = new(Enumerable.Repeat((byte)0xA5, 236).ToImmutableArray());
             workspace = workspace.Initialize7016B0(source, clear);
-            Assert.All(workspace.Data.AsSpan().Slice(clear).ToArray(), value => Assert.Equal((byte)0xA5, value));
+            Assert.All(NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan().Slice(clear).ToArray(), value => Assert.Equal((byte)0xA5, value));
             int observations = 0;
             for (int frame = 0; frame < frames; frame++)
             {

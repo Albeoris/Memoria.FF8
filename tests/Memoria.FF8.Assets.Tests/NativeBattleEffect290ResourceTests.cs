@@ -79,8 +79,8 @@ public sealed class NativeBattleEffect290ResourceTests
             Assert.Throws<NotSupportedException>(() => resources.ReadStatic(address, 2));
             staging = staging.Write(address, new byte[2]);
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect290State>(JsonSerializer.Serialize(state))!;
-        staging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect290State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
+        staging = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(staging)))!);
         (state, staging) = state.BindSources(staging, resources);
         Assert.False(state.ScriptSourcePending);
         foreach (uint address in ScriptCountAddresses)

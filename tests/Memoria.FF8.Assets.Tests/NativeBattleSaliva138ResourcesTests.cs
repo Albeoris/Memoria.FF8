@@ -41,13 +41,13 @@ public sealed class NativeBattleSaliva138ResourcesTests
         byte[] mesh = state.ReadMesh().ToArray();
         BinaryPrimitives.WriteInt16LittleEndian(mesh.AsSpan(14), 4096);
         state = state.WriteMesh(mesh.ToImmutableArray()).WriteWord(MatrixAddress + 16, 1234);
-        NativeBattleSaliva138State restored = JsonSerializer.Deserialize<NativeBattleSaliva138State>(JsonSerializer.Serialize(state))!;
+        NativeBattleSaliva138State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleSaliva138State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Same(state, state.SeedColdSources(resources));
         Assert.Same(restored, restored.SeedColdSources(resources));
         Assert.Equal((short)4096, BinaryPrimitives.ReadInt16LittleEndian(restored.ReadMesh().AsSpan().Slice(14)));
         Assert.Equal((ushort)1234, restored.ReadWord(MatrixAddress + 16));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Throws<NotSupportedException>(() => NativeBattleSaliva138State.FromUnknown().SeedColdSources(resources));
     }
 

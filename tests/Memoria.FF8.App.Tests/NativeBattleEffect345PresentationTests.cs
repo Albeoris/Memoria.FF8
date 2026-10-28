@@ -65,6 +65,7 @@ public sealed class NativeBattleEffect345PresentationTests
 
     internal static BattleSnapshot RunPrepared(BattleSnapshot source, GameAssets game, BattleAssets assets, string output)
     {
+        source = NativeBattleRetainedEffectMigrationAcceptance.Prepare(source, 345, output);
         BattleSession battle = Restore(source, game);
         NativeBattleEffect345PresentationObserver observer = new();
         BattleScenePresentation scene = new(assets, source.Definition, true);
@@ -162,7 +163,7 @@ public sealed class NativeBattleEffect345PresentationTests
                     }
                     observations.Add(new { current.Frame, graphics.Callback, Commands = commands.Length, OwnedModels = state.OwnedModels.Count, NodeBanks = state.NodeData?.Count, Primary = state.ReadDword(PrimaryCursorGlobal), Secondary = state.ReadDword(SecondaryCursorGlobal) });
                 }
-                observer.Observe(prior, current, Cold);
+                observer.Observe(NativeBattleStorageSnapshots.Restore(prior), NativeBattleStorageSnapshots.Restore(current), (name, snapshot) => Cold(name, NativeBattleStorageSnapshots.Capture(snapshot)));
                 prior = current;
                 if (Released(current))
                 {

@@ -34,6 +34,7 @@ public sealed class NativeBattleEffect54PresentationTests
         using BattleAssets assets = new(directory);
         using GameAssets game = new(directory);
         BattleSnapshot source = PrepareSource(game, assets, output);
+        source = NativeBattleRetainedEffectMigrationAcceptance.Prepare(source, 54, output);
         BattleSession battle = Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         NativeBattleEffect54PresentationObserver observer = new();
@@ -168,7 +169,7 @@ public sealed class NativeBattleEffect54PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.Null(graphics.OriginalEffect);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect54State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect54));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect54State.FromColdProcess())), JsonSerializer.Serialize(original.NativeEffectMemory.Effect54));
         string casterId = graphics.ActorIds[3] ?? throw new InvalidDataException("Effect54 requires its current caster.");
         string targetId = graphics.ActorIds[0] ?? throw new InvalidDataException("Effect54 requires its actual party recipient.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);

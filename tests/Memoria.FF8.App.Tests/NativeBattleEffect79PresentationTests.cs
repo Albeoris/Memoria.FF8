@@ -44,7 +44,7 @@ public sealed class NativeBattleEffect79PresentationTests
         Assert.Equal(0u, graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.NotNull(original.NativeEffectMemory!.Effect79);
         original.NativeEffectMemory.Effect79.Validate();
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect79State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect79));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect79State.FromColdProcess())), JsonSerializer.Serialize(original.NativeEffectMemory.Effect79));
         List<object> loaded = [];
         foreach ((byte actor, int modelId, byte nativeId) in new[] { ((byte)3, 123, (byte)139), ((byte)4, 122, (byte)138) })
         {

@@ -49,7 +49,7 @@ public sealed class NativeBattleEffect79ResourceTests
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadNodeBank(0x176A958).AsSpan()));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect79State.FromUnknown().BindProgram(resources));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect79State.FromUnknown().BindNodeSource(0x176A958, resources));
-        string json = JsonSerializer.Serialize(state);
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
         Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffect79State>(json)));
     }
 

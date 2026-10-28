@@ -47,7 +47,7 @@ public sealed class NativeBattleEffect345ResourceTests
         Assert.Equal(0u, Dword(bank.Data, 0));
         Assert.Equal(1u, state.ReadDword(bank.Address));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect345State.FromUnknown().BindNodeSources(resources));
-        string stateJson = JsonSerializer.Serialize(state);
+        string stateJson = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
         Assert.Equal(stateJson, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffect345State>(stateJson)));
     }
 

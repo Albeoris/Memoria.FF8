@@ -9,7 +9,7 @@ internal static class SnapshotDefaults
     internal static GameState Deserialize(Stream stream, JsonSerializerOptions options)
     {
         JsonObject saved = JsonSerializer.Deserialize<JsonObject>(stream, options) ?? throw new JsonException("Expected a saved game object.");
-        SnapshotMigrations.Apply(saved, options);
+        int originalVersion = SnapshotMigrations.Apply(saved, options);
         if (saved["GameplayPreferences"] is JsonObject preferences && new[] { "SharedMagicStock", "InfiniteMagic", "SmartAttack" }.Any(flag => preferences[flag] is JsonValue value && value.TryGetValue(out bool enabled) && enabled) && saved["CharacterVitals"] is JsonObject vitals && !vitals.ContainsKey("MagicSystem"))
         {
             throw new InvalidDataException("Enabled magic rules require their saved magic-system owner.");
@@ -23,6 +23,9 @@ internal static class SnapshotDefaults
         }
         GameSession initial = GameSession.CreateColdProcess();
         JsonObject defaults = JsonSerializer.SerializeToNode(initial.State, options)!.AsObject();
+        JsonObject effects = defaults[nameof(GameState.NativeBattleMemory)]![nameof(NativeBattleRetainedMemory.EffectMemory)]!.AsObject();
+        effects.Remove(nameof(NativeBattleEffectMemory.Sigh46));
+        SnapshotRetainedEffectMigration.ExcludeFromDefaults(effects);
         Complete(saved, defaults);
 
         // A live battle is a continuation, not a new process. Its missing execution state must remain invalid.
@@ -36,6 +39,7 @@ internal static class SnapshotDefaults
             }
         }
 
+        SnapshotMigrations.CompleteInitialOwners(saved, options, originalVersion);
         return saved.Deserialize<GameState>(options) ?? throw new JsonException("Empty checkpoint.");
     }
 
@@ -101,7 +105,7 @@ internal static class SnapshotDefaults
     internal static void CompleteProperty(JsonObject saved, string name, JsonNode? value)
     {
         // Versioned migration owns this complete state; filling individual fields can erase unknown history.
-        if (name == nameof(NativeBattleEffectMemory.Sigh46))
+        if (name == nameof(NativeBattleEffectMemory.Sigh46) || SnapshotRetainedEffectMigration.Owns(name))
         {
             return;
         }

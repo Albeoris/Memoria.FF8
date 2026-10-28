@@ -34,6 +34,7 @@ public sealed class NativeBattleEffect301PresentationTests
         using BattleAssets assets = new(directory);
         using GameAssets game = new(directory);
         BattleSnapshot source = PrepareSource(game, assets, output);
+        source = NativeBattleRetainedEffectMigrationAcceptance.Prepare(source, 301, output);
         BattleSession battle = Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         NativeBattleEffect301PresentationObserver observer = new();

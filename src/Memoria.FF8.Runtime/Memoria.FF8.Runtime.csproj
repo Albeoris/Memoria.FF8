@@ -7,5 +7,6 @@
     <ProjectReference Include="../Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
     <InternalsVisibleTo Include="Memoria.FF8.Runtime.Tests" />
     <InternalsVisibleTo Include="Memoria.FF8.Assets.Tests" />
+    <InternalsVisibleTo Include="Memoria.FF8.App.Tests" />
   </ItemGroup>
 </Project>

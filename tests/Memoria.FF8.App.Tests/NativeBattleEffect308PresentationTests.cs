@@ -23,7 +23,7 @@ public sealed class NativeBattleEffect308PresentationTests
         Assert.Equal(794, source.Definition.EncounterId);
         Assert.Equal(65, source.Definition.StageId);
         Assert.Null(source.NativeGraphics!.OriginalEffect);
-        Assert.All(source.NativeGraphics.Models.Skip(3).Take(3), model => Assert.Null(model.ReadLinkedModelIndex140()));
+        Assert.Equal(new int?[] { 4, 5, 3 }, source.NativeGraphics.Models.Skip(3).Take(3).Select(model => model.ReadLinkedModelIndex140()));
         RunPrepared(QueueComponent(source, game, assets), game, assets, output!);
     }
 
@@ -62,6 +62,7 @@ public sealed class NativeBattleEffect308PresentationTests
 
     internal static BattleSnapshot RunPrepared(BattleSnapshot source, GameAssets game, BattleAssets assets, string output)
     {
+        source = NativeBattleRetainedEffectMigrationAcceptance.Prepare(source, 308, output);
         BattleSession battle = Restore(source, game);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         HashSet<string> restored = [];

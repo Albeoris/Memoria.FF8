@@ -53,7 +53,7 @@ public sealed class NativeBattleEffect83ResourceTests
         Assert.Equal(0u, Dword(resources.Nodes.Data, 0));
         Assert.Equal(1u, state.ReadDword(NodeSourceAddress));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect83State.FromUnknown().BindNodeSource(resources));
-        string json = JsonSerializer.Serialize(state);
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
         Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffect83State>(json)));
     }
 

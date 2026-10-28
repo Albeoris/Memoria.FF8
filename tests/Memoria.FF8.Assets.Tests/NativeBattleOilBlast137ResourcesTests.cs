@@ -78,12 +78,12 @@ public sealed class NativeBattleOilBlast137ResourcesTests
         Assert.Equal((ushort)4096, state.ReadWord(NativeBattleOilBlast137Profile.MatrixAddress));
         Assert.Equal((ushort)0, state.ReadWord(NativeBattleOilBlast137Profile.MatrixAddress + 18));
         state = state.WriteWord(NativeBattleOilBlast137Profile.MatrixAddress, 123).WriteWord(NativeBattleOilBlast137Profile.MatrixAddress + 18, 456);
-        NativeBattleOilBlast137State restored = JsonSerializer.Deserialize<NativeBattleOilBlast137State>(JsonSerializer.Serialize(state))!;
+        NativeBattleOilBlast137State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleOilBlast137State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         Assert.Same(state, state.SeedColdSource(resources));
         Assert.Same(restored, restored.SeedColdSource(resources));
         Assert.Equal((ushort)123, restored.ReadWord(NativeBattleOilBlast137Profile.MatrixAddress));
         Assert.Equal((ushort)456, restored.ReadWord(NativeBattleOilBlast137Profile.MatrixAddress + 18));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Throws<NotSupportedException>(() => NativeBattleOilBlast137State.FromUnknown().SeedColdSource(resources));
     }
 

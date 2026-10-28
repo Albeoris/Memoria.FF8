@@ -50,6 +50,7 @@ public sealed class NativeBattleEffect290PresentationTests
         using BattleAssets assets = new(directory);
         using GameAssets game = new(directory);
         BattleSnapshot source = PrepareSource(game, assets, output);
+        source = NativeBattleRetainedEffectMigrationAcceptance.Prepare(source, 290, output);
         BattleSession battle = Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         NativeBattleEffect290PresentationObserver observer = new();
@@ -185,7 +186,7 @@ public sealed class NativeBattleEffect290PresentationTests
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Null(graphics.OriginalEffect);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect290State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect290));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect290State.FromColdProcess())), JsonSerializer.Serialize(original.NativeEffectMemory.Effect290));
         string casterId = graphics.ActorIds[3] ?? throw new InvalidDataException("Effect290 requires its current caster.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);
         Assert.Equal(109, caster.ModelId);

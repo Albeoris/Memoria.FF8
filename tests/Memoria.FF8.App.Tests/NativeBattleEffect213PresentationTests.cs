@@ -50,6 +50,7 @@ public sealed class NativeBattleEffect213PresentationTests
         using BattleAssets assets = new(directory);
         using GameAssets game = new(directory);
         BattleSnapshot source = PrepareSource(game, assets, output);
+        source = NativeBattleRetainedEffectMigrationAcceptance.Prepare(source, 213, output);
         BattleSession battle = Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         NativeBattleEffect213PresentationObserver observer = new();
@@ -181,7 +182,7 @@ public sealed class NativeBattleEffect213PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect213State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect213));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect213State.FromColdProcess())), JsonSerializer.Serialize(original.NativeEffectMemory.Effect213));
         string casterId = graphics.ActorIds[3] ?? throw new InvalidDataException("Effect213 requires its current caster.");
         string targetId = graphics.ActorIds[0] ?? throw new InvalidDataException("Effect213 requires its current party recipient.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);

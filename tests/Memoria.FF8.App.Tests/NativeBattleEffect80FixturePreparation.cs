@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
-using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -197,7 +196,7 @@ internal static class NativeBattleEffect80FixturePreparation
             NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(actor).PoseSource ?? throw new InvalidDataException("The actual loaded model requires its original skeleton.");
             Assert.Equal(expected, pose.BoneCount);
             Assert.Equal(expected, NativeBattleBodyBoneMatrices.Require(model, pose).Length);
-            Assert.Equal(Convert.ToHexString(SHA256.HashData(pose.Skeleton.AsSpan())), model.CurrentBodyBoneMatrices!.SkeletonSha256);
+            Assert.Equal(NativeBattleBodyBoneMatrices.ReadLoadedSkeleton(pose).SkeletonSha256, model.CurrentBodyBoneMatrices!.SkeletonSha256);
             Assert.NotNull(model.GeometryWorldMatrix);
             Assert.NotNull(model.ActiveResourceRow100);
             return expected;

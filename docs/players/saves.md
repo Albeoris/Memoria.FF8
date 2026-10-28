@@ -73,6 +73,8 @@ Initial process values do not reset the current field or story progress. A runni
 
 Schema 3 initializes absent Sigh state and complete legacy uninitialized Sigh placeholders when loading older snapshots. This covers the retained field and battle copies, including saves immediately before Sigh starts. Initialized effects, partial state and current-schema owners retain their saved values.
 
+Schema 4 extends this migration to the other supported legacy effect-source placeholders. It preserves bound sources, modified bytes and active effect tasks, including compact saves and retained field copies. The source file is read without modification; saving normally writes the upgraded state.
+
 When a migration is necessary:
 
 1. Preserve the source file.

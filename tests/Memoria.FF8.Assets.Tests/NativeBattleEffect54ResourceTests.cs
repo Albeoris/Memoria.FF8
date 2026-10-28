@@ -72,8 +72,8 @@ public sealed class NativeBattleEffect54ResourceTests
         Assert.Equal(DescriptorAddresses[0], BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadResource(staging, SourceAddress + 4, 4)));
         Assert.Equal(FirstSpriteAddress, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadResource(staging, SourceAddress + 0x44, 4)));
         Assert.All(staging.ReadSnapshot(SourceAddress + 12, 4).Known, known => Assert.False(known));
-        state = JsonSerializer.Deserialize<NativeBattleEffect54State>(JsonSerializer.Serialize(state))!;
-        staging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect54State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
+        staging = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(staging)))!);
         (state, staging) = state.BindSources(staging, resources);
         Assert.Equal(relocated, resources.ReadBank(staging).ToArray());
         Assert.Throws<NotSupportedException>(() => resources.ReadStatic(DescriptorAddresses[0] + 0xC8, 4));

@@ -53,7 +53,7 @@ public sealed class NativeBattleBadBreath131ResourcesTests
         ImmutableArray<byte> changedB = cold.ReadMesh(NativeBattleBadBreath131Profile.MeshBAddress).SetItem(14, 45);
         NativeBattleBadBreath131State warm = cold.WriteMesh(NativeBattleBadBreath131Profile.MeshAAddress, changedA).WriteMesh(NativeBattleBadBreath131Profile.MeshBAddress, changedB);
         Assert.Same(warm, warm.SeedColdSources(resources));
-        NativeBattleBadBreath131State restored = JsonSerializer.Deserialize<NativeBattleBadBreath131State>(JsonSerializer.Serialize(warm))!;
+        NativeBattleBadBreath131State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleBadBreath131State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(warm)))!);
         restored.Validate();
         Assert.Same(restored, restored.SeedColdSources(resources));
         Assert.Equal(changedA.ToArray(), restored.ReadMesh(NativeBattleBadBreath131Profile.MeshAAddress).ToArray());

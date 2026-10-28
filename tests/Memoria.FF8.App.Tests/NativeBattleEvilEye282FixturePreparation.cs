@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -148,7 +147,7 @@ internal static class NativeBattleEvilEye282FixturePreparation
         Assert.False(selectedBone.Known[18]);
         Assert.False(selectedBone.Known[19]);
         Assert.All(selectedBone.Known.Where((_, index) => index is not (18 or 19)), known => Assert.True(known));
-        Assert.Equal(Convert.ToHexString(SHA256.HashData(pose.Skeleton.AsSpan())), model.CurrentBodyBoneMatrices!.SkeletonSha256);
+        Assert.Equal(NativeBattleBodyBoneMatrices.ReadLoadedSkeleton(pose).SkeletonSha256, model.CurrentBodyBoneMatrices!.SkeletonSha256);
         foreach (BattleCombatantDefinition companion in originalCompanions)
         {
             BattleCombatantSnapshot retained = Assert.Single(ready.Combatants, actor => actor.Id == companion.Id);

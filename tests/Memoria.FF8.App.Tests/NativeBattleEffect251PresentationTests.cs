@@ -78,6 +78,7 @@ public sealed class NativeBattleEffect251PresentationTests
 
     internal static BattleSnapshot RunPrepared(BattleSnapshot source, GameAssets game, BattleAssets assets, string output)
     {
+        source = NativeBattleRetainedEffectMigrationAcceptance.Prepare(source, 251, output);
         BattleSession battle = Restore(source, game);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         HashSet<string> restored = [];

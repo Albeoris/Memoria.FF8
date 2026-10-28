@@ -1594,6 +1594,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             Assert.Equal(request.PartyModelId, source.Definition.Combatants.Single(actor => actor.IsPlayer).ModelId);
             Assert.NotNull(source.NativeModelCpuResources);
             File.WriteAllText(Path.Combine(output!, "original-binding.json"), JsonSerializer.Serialize(new { action.Command, action.ActionId, action.MagicId, action.CrisisLevel, action.KernelSection, action.KernelIndex, action.SupplementalKernelIndex, Formation = formation.Id, formation.StageId, Enemy = enemy.ModelId, enemy.Slot, enemy.Level, Caster = caster, Target = contactActor, OriginalKernelReference = originalAction is not null, RequestedEffect = effectId }));
+            source = NativeBattleRetainedEffectMigrationAcceptance.Prepare(source, effectId, output!);
             battle = BattleSession.Restore(source);
             battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
@@ -9348,7 +9349,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 }
                 return next;
             });
-            Assert.Equal(step.Workspace.Data.ToArray(), current.ReadBytes(offset, size));
+            Assert.Equal(step.Workspace.Read(0, step.Workspace.Length), current.ReadBytes(offset, size));
         }
         return (ordinary, standard);
     }
@@ -9875,15 +9876,16 @@ public sealed class NativeBattleActorDirectorPresentationTests
 
     private static NativeBattleVector BladeShot12PointOracle(BattleSnapshot prior, int actor, byte[] selectors)
     {
-        NativeBattleGraphicsModel model = prior.NativeGraphics!.Models[actor];
+        BattleSession oracle = BattleSession.Restore(prior);
+        NativeBattleGraphicsState graphics = oracle.NativeGraphics!;
+        NativeBattleGraphicsModel model = graphics.Models[actor];
         if ((model.Flags0 & 2) == 0)
         {
             return model.Transform!.Position28;
         }
-        BattleSession oracle = BattleSession.Restore(prior);
-        NativeBattleGraphicsResource resource = BladeShot12Invoke<NativeBattleGraphicsResource>(oracle, "NativeGraphicsPoseResource", prior.NativeGraphics, actor);
+        NativeBattleGraphicsResource resource = BladeShot12Invoke<NativeBattleGraphicsResource>(oracle, "NativeGraphicsPoseResource", graphics, actor);
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Blade Shot point queries require the original current skeleton.");
-        NativeBattleEffectMemory memory = prior.NativeEffectMemory!;
+        NativeBattleEffectMemory memory = oracle.NativeEffectMemory!;
         List<NativeBattleVector> points = [];
         foreach (byte selector in selectors)
         {
@@ -9909,7 +9911,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
     private static object AssertBladeShot12ScopedRandom(BattleSnapshot prior, int oldAge, int draws)
     {
         BattleSession oracle = BattleSession.Restore(prior);
-        NativeBattleGraphicsState graphics = prior.NativeGraphics!;
+        NativeBattleGraphicsState graphics = oracle.NativeGraphics!;
         if (graphics.PrimitiveFrame is not null)
         {
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = NativeBattleLogicalOrdering.Clear() } };

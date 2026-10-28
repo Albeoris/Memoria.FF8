@@ -53,7 +53,7 @@ public sealed class NativeBattleBladeShot12ResourcesTests
             Assert.Equal((ushort)0, loaded.ReadWord(MutableVerticesB + vertex * 8 + 6));
         }
         NativeBattleBladeShot12State warm = loaded.WriteWord(MutableVerticesA + 6, 0xDEAD).WriteWord(MutableVerticesB + 6, 0xBEEF);
-        NativeBattleBladeShot12State restored = JsonSerializer.Deserialize<NativeBattleBladeShot12State>(JsonSerializer.Serialize(warm))!;
+        NativeBattleBladeShot12State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleBladeShot12State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(warm)))!);
         restored.Validate();
         Assert.Same(restored, restored.EnsureVertexSources(resources));
         Assert.Equal((ushort)0xDEAD, restored.ReadWord(MutableVerticesA + 6));
