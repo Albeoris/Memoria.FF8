@@ -101,7 +101,12 @@ internal sealed class NativeBattleVramVersion
 
     internal NativeBattleVramVersion PublishChangedPages(NativeBattleEffectArena arena, HashSet<int> changedPages, List<(int Offset, int Length)> writes)
     {
-        if (changedPages.Count == 0)
+        ImmutableSortedDictionary<int, int> ranges = coverage;
+        foreach ((int offset, int length) in writes)
+        {
+            ranges = AddRange(ranges, offset, length);
+        }
+        if (changedPages.Count == 0 && ReferenceEquals(ranges, coverage))
         {
             return this;
         }
@@ -111,11 +116,6 @@ internal sealed class NativeBattleVramVersion
             byte[] bytes = new byte[PageLength];
             arena.ReadInto(page * PageLength, bytes);
             next = next.SetItem(page, ImmutableCollectionsMarshal.AsImmutableArray(bytes));
-        }
-        ImmutableSortedDictionary<int, int> ranges = coverage;
-        foreach ((int offset, int length) in writes)
-        {
-            ranges = AddRange(ranges, offset, length);
         }
         return new(this, next, ranges);
     }
@@ -228,7 +228,10 @@ internal sealed class NativeBattleVramOwner : INativeBattleCheckpointParticipant
 
         internal void Write(int offset, ReadOnlySpan<byte> bytes)
         {
+            RequireActive();
             owner.Arena.RequireRange(offset, bytes.Length);
+            owner.Arena.RequireWritable();
+            bool unchanged = HasSameKnownBytes(offset, bytes);
             owner.Arena.Write(offset, bytes);
             if (bytes.Length == 0)
             {
@@ -243,6 +246,10 @@ internal sealed class NativeBattleVramOwner : INativeBattleCheckpointParticipant
             {
                 writes.Add((offset, bytes.Length));
             }
+            if (unchanged)
+            {
+                return;
+            }
             int last = (offset + bytes.Length - 1) / NativeBattleVramVersion.PageLength;
             for (int page = offset / NativeBattleVramVersion.PageLength; page <= last; page++)
             {
@@ -252,6 +259,7 @@ internal sealed class NativeBattleVramOwner : INativeBattleCheckpointParticipant
 
         internal NativeBattleVramVersion Commit()
         {
+            RequireActive();
             NativeBattleVramVersion version = previous.PublishChangedPages(owner.Arena, pages, writes);
             owner.Current = version;
             if (nested)
@@ -264,6 +272,30 @@ internal sealed class NativeBattleVramOwner : INativeBattleCheckpointParticipant
             }
             complete = true;
             return version;
+        }
+
+        private bool HasSameKnownBytes(int offset, ReadOnlySpan<byte> bytes)
+        {
+            Span<byte> previousBytes = stackalloc byte[256];
+            Span<bool> known = stackalloc bool[256];
+            for (int first = 0; first < bytes.Length; first += previousBytes.Length)
+            {
+                int count = Math.Min(previousBytes.Length, bytes.Length - first);
+                owner.Arena.ReadWithKnownness(offset + first, previousBytes[..count], known[..count]);
+                if (known[..count].Contains(false) || !previousBytes[..count].SequenceEqual(bytes.Slice(first, count)))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private void RequireActive()
+        {
+            if (complete)
+            {
+                throw new InvalidOperationException("A completed VRAM mutation cannot write or publish another version.");
+            }
         }
 
         public void Dispose()

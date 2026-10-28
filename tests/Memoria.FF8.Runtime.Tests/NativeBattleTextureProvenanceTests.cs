@@ -284,6 +284,24 @@ public sealed class NativeBattleTextureProvenanceTests
         Assert.Equal(130, copied.Length);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Repeated_copy_keeps_exact_metadata_identity_but_observes_changed_source_provenance(bool overlap)
+    {
+        NativeBattleTextureOrigin origin = new("effect.tim", 0, NativeBattleTextureRole.Pixels, 8, 300, 128) { SourceOwner = "original", SourceOffset = 4 };
+        ImmutableArray<NativeBattleTextureSourceRegion> sources = [new(origin, 64, 32, 300, 128)];
+        NativeBattleEffectVramCopy copy = overlap ? new(64, 32, 256, 128, 66, 32) : new(64, 32, 64, 32, 400, 32);
+        ImmutableArray<NativeBattleTextureSourceRegion> first = NativeBattleTextureProvenance.Copy(sources, copy)!.Value;
+        ImmutableArray<NativeBattleTextureSourceRegion> second = NativeBattleTextureProvenance.Copy(first, copy)!.Value;
+        Assert.True(first.Equals(second));
+        NativeBattleTextureOrigin replacement = origin with { SourceOwner = "replacement", SourceOffset = 8 };
+        ImmutableArray<NativeBattleTextureSourceRegion> rebound = first.Select(region => Contains(region, copy.SourceX, copy.SourceY) ? region with { Origin = replacement } : region).ToImmutableArray();
+        ImmutableArray<NativeBattleTextureSourceRegion> changed = NativeBattleTextureProvenance.Copy(rebound, copy)!.Value;
+        Assert.False(rebound.Equals(changed));
+        Assert.Equal(replacement, Assert.Single(changed.Where(region => Contains(region, copy.DestinationX, copy.DestinationY))).Origin);
+    }
+
     private static bool Contains(NativeBattleTextureSourceRegion region, int x, int y) => x >= region.X && y >= region.Y && x < region.X + region.WidthWords && y < region.Y + region.Height;
 
     private static NativeBattleEffectHeapAllocation Tim(string name)

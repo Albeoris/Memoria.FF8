@@ -7,6 +7,125 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleVramWorkingStorageTests
 {
     [Fact]
+    public void First_zero_upload_publishes_coverage_and_repeated_known_zero_keeps_the_version()
+    {
+        NativeBattleEffectTextureState cold = NativeBattleEffectTextureState.FromColdProcess();
+        NativeBattleEffectTextureState first = cold.Upload45BD30(4, 2, 1, 1, [0, 0]);
+        Assert.NotSame(cold.VramPublicationIdentity, first.VramPublicationIdentity);
+        NativeBattleEffectMemoryRegion region = Assert.Single(NativeBattleStorageSnapshots.Capture(first).VramRegions);
+        Assert.Equal(2 * (2 * 1024 + 4), region.Offset);
+        Assert.Equal(new byte[] { 0, 0 }, region.Data);
+
+        NativeBattleEffectTextureState repeated = first.Upload45BD30(4, 2, 1, 1, [0, 0]);
+        Assert.Same(first.VramPublicationIdentity, repeated.VramPublicationIdentity);
+        Assert.Equal((ushort)0, Word(repeated, 4, 2));
+        Assert.Empty(NativeBattleStorageSnapshots.Capture(cold).VramRegions);
+    }
+
+    [Fact]
+    public void Equal_known_upload_still_performs_the_native_write_and_emits_its_upload()
+    {
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [11, 0]);
+        Traffic traffic = new();
+        using IDisposable scope = NativeBattleTelemetry.BeginScope(traffic);
+        NativeBattleEffectTextureDrain repeated = state.EnqueueRectangle505DF0(new(0, 0, 1, 1), new("same", [11, 0])).Drain505D20();
+
+        Assert.Same(state.VramPublicationIdentity, repeated.State.VramPublicationIdentity);
+        Assert.Equal(new byte[] { 11, 0 }, Assert.Single(repeated.Uploads).Bytes);
+        Assert.Equal(2, traffic.Bytes[(1005, NativeBattleTrafficKind.CpuCopyPayload)]);
+        Assert.Equal((ushort)11, Word(repeated.State, 0, 0));
+    }
+
+    [Fact]
+    public void Equal_zero_bytes_that_were_unknown_are_published_as_known()
+    {
+        NativeBattleVramOwner owner = new([new(0, [0, 0])]);
+        owner.Arena.MarkUnknown(0, 2);
+        using NativeBattleVramOwner.Mutation mutation = owner.BeginMutation(owner.Initial);
+        mutation.Write(0, [0, 0]);
+        NativeBattleVramVersion version = mutation.Commit();
+
+        Assert.NotSame(owner.Initial, version);
+        Assert.Equal((ushort)0, owner.Arena.ReadUInt16(0));
+        Assert.Equal((ushort)0, version.ReadWord(0));
+    }
+
+    [Fact]
+    public void Equality_uses_current_working_bytes_after_earlier_writes_in_the_same_mutation()
+    {
+        NativeBattleVramOwner owner = new([new(0, [1, 0])]);
+        using NativeBattleVramOwner.Mutation mutation = owner.BeginMutation(owner.Initial);
+        mutation.Write(0, [2, 0]);
+        mutation.Write(0, [2, 0]);
+        mutation.Write(0, [1, 0]);
+        NativeBattleVramVersion version = mutation.Commit();
+
+        Assert.Equal((ushort)1, version.ReadWord(0));
+        Assert.Equal((ushort)1, owner.Arena.ReadUInt16(0));
+    }
+
+    [Fact]
+    public void Equal_pixels_do_not_preserve_overwritten_origin_or_copy_metadata()
+    {
+        NativeBattleTextureOrigin origin = new("known.tim", 0, NativeBattleTextureRole.Pixels, 16, 1, 1);
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [11, 0]) with
+        {
+            LiveTextureSources = [new(origin, 0, 0, 1, 1)],
+            TextureRegistrations = NativeBattleTextureCopyHistory.Upload(null, 0, 0, 1, 1, origin)
+        };
+        NativeBattleEffectTextureDrain copied = state.EnqueueCopy505EB0(0, 0, 1, 1, 0, 0).Drain505D20();
+        Assert.Same(state.VramPublicationIdentity, copied.State.VramPublicationIdentity);
+        Assert.True(Assert.Single(copied.Uploads).Copied);
+        Assert.Equal(0, Assert.Single(copied.State.TextureRegistrations!.Value).CurrentFrame);
+
+        NativeBattleEffectTextureState overwritten = copied.State.Upload45BD30(0, 0, 1, 1, [11, 0]);
+        Assert.Same(state.VramPublicationIdentity, overwritten.VramPublicationIdentity);
+        Assert.Empty(overwritten.LiveTextureSources!.Value);
+        Assert.Empty(overwritten.TextureRegistrations!.Value);
+    }
+
+    [Fact]
+    public void Outer_rollback_restores_bytes_and_publication_after_changed_and_equal_nested_uploads()
+    {
+        NativeBattleVramOwner owner = new([new(0, [1, 0])]);
+        owner.Arena.Working.BeginCheckpoint();
+        using (NativeBattleVramOwner.Mutation changed = owner.BeginMutation(owner.Initial))
+        {
+            changed.Write(0, [2, 0]);
+            changed.Commit();
+        }
+        NativeBattleVramVersion accepted = owner.Current;
+        using (NativeBattleVramOwner.Mutation equal = owner.BeginMutation(accepted))
+        {
+            equal.Write(0, [2, 0]);
+            Assert.Same(accepted, equal.Commit());
+        }
+        owner.Arena.Working.RollbackCheckpoint();
+
+        Assert.Same(owner.Initial, owner.Current);
+        Assert.Equal((ushort)1, owner.Arena.ReadUInt16(0));
+        using NativeBattleVramOwner.Mutation next = owner.BeginMutation(owner.Initial);
+        next.Write(0, [1, 0]);
+        Assert.Same(owner.Initial, next.Commit());
+    }
+
+    [Fact]
+    public void Equal_write_does_not_bypass_historical_completed_or_out_of_bounds_writer_checks()
+    {
+        NativeBattleVramOwner owner = new([new(0, [1, 0])]);
+        using NativeBattleVramOwner.Mutation mutation = owner.BeginMutation(owner.Initial);
+        Assert.Throws<InvalidDataException>(() => mutation.Write(-1, [1, 0]));
+        Assert.Throws<InvalidDataException>(() => mutation.Write(NativeBattleEffectArena.Length, [0]));
+        mutation.Write(0, [2, 0]);
+        mutation.Commit();
+        Assert.Throws<InvalidOperationException>(() => mutation.Write(0, [2, 0]));
+        Assert.Throws<InvalidOperationException>(() => mutation.Commit());
+        Assert.Throws<InvalidOperationException>(() => owner.BeginMutation(owner.Initial));
+        NativeBattleEffectTextureState frozen = NativeBattleStorageSnapshots.Capture(NativeBattleEffectTextureState.FromColdProcess());
+        Assert.Throws<InvalidOperationException>(() => frozen.Upload45BD30(0, 0, 1, 1, [0, 0]));
+    }
+
+    [Fact]
     public void Later_uploads_keep_prepared_versions_and_detached_history_stable()
     {
         NativeBattleEffectTextureState before = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(4, 2, 1, 1, [1, 2]);

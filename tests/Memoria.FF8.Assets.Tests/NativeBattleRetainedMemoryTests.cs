@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -156,7 +157,12 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal(temporary, generic.FileStaging!.Read(NativeBattleTemporaryMemory.Address, temporary.Length));
         Assert.Equal(cursor, generic.FileStaging!.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
         NativeBattleRetainedMemory authenticated = generic with { EffectMemory = authenticatedEffect, FileStaging = NativeBattleStorageSnapshots.Restore(generic.FileStaging!).Write(NativeBattleTemporaryMemory.Address, temporary).Write(NativeBattleTemporaryMemory.Cursor, cursor).Write(0x1D999D0, shadow) };
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(authenticated)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null, RecoveryExecutables = null } })));
+        JsonObject expectedCold = JsonSerializer.SerializeToNode(NativeBattleStorageSnapshots.Capture(authenticated))!.AsObject();
+        JsonObject actualCold = JsonSerializer.SerializeToNode(NativeBattleStorageSnapshots.Capture(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null, RecoveryExecutables = null } }))!.AsObject();
+        AssertDefinedEffectProperties(expectedCold[nameof(NativeBattleRetainedMemory.EffectMemory)], actualCold[nameof(NativeBattleRetainedMemory.EffectMemory)], "EffectMemory");
+        expectedCold.Remove(nameof(NativeBattleRetainedMemory.EffectMemory));
+        actualCold.Remove(nameof(NativeBattleRetainedMemory.EffectMemory));
+        Assert.True(JsonNode.DeepEquals(expectedCold, actualCold), "All other retained cold owners must match the authenticated image exactly.");
         Assert.Same(actual, assets.ReadColdProcessNativeBattleMemory());
         Assert.Equal(0, actual.ActionPackets.Headers[31].ReadByte(19));
         Assert.Equal(0, actual.ActionPackets.ReadContact(48).Secondary.Amount6);
@@ -164,6 +170,36 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal((byte)0, actual.ActionScratch.FinisherActionIndexE2E);
         Assert.Equal(new byte?[] { 0, 0, 0, 0, 0, 0, 0 }, actual.ElementAttack);
         Assert.All(actual.ActionMemory.Rows, row => Assert.All(row, value => Assert.Equal((byte)0, value)));
+    }
+
+    private static void AssertDefinedEffectProperties(JsonNode? expected, JsonNode? actual, string path)
+    {
+        if (expected is null)
+        {
+            Assert.Null(actual);
+        }
+        else if (expected is JsonObject expectedObject)
+        {
+            JsonObject actualObject = Assert.IsType<JsonObject>(actual);
+            foreach ((string name, JsonNode? value) in expectedObject)
+            {
+                Assert.True(actualObject.ContainsKey(name), "Missing authenticated cold property: " + path + "." + name);
+                AssertDefinedEffectProperties(value, actualObject[name], path + "." + name);
+            }
+        }
+        else if (expected is JsonArray expectedArray)
+        {
+            JsonArray actualArray = Assert.IsType<JsonArray>(actual);
+            Assert.Equal(expectedArray.Count, actualArray.Count);
+            for (int index = 0; index < expectedArray.Count; index++)
+            {
+                AssertDefinedEffectProperties(expectedArray[index], actualArray[index], path + "[" + index + "]");
+            }
+        }
+        else
+        {
+            Assert.True(JsonNode.DeepEquals(expected, actual), "Authenticated cold value differs at " + path);
+        }
     }
 
     [Fact]

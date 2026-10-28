@@ -13,6 +13,8 @@ public sealed record BattleDiagnosticEffectDispatch(long Serial, long Callback, 
     public int? NativeHeaderIndex { get; init; }
     public long? NativeHeaderGeneration { get; init; }
     public BattleDiagnosticReflection? Reflection { get; init; }
+    public string? ReflectionRejectionReason { get; init; }
+    public BattleDiagnosticReflectionRejection? ReflectionRejection { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

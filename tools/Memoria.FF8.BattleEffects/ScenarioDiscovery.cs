@@ -112,14 +112,15 @@ public static partial class ScenarioDiscovery
                 recipe["driver"]!["expected_native_action"] = native.ActionId;
                 recipe["driver"]!["expected_native_command"] = native.Command;
                 recipe["fixture"]!["characters"]![0]!["stocks"]![0]!["action"] = native.ActionId;
-                int preparedHitPoints = recipe["fixture"]!["characters"]![0]!["hit_points"]!.GetValue<int>();
-                recipe["fixture"]!["characters"]![0]!["hit_points"] = partyTarget && native.AttackType is 3 or 32 ? 1 : preparedHitPoints;
+                JsonObject character = recipe["fixture"]!["characters"]![0]!.AsObject();
+                NativeCharacterVitals preparedVitals = character["level"] is { } declaredLevel ? initialVitals.WithDiagnosticBattleLevel(0, declaredLevel.GetValue<int>(), experienceDefinition) : initialVitals;
+                character["hit_points"] = ResolveMagicPreparationHitPoints(native, partyTarget, preparedVitals.GetMagicMaximumHitPoints(0));
                 string copied = Path.Combine(output, "recipes", caseId + ".json");
                 Directory.CreateDirectory(Path.GetDirectoryName(copied)!);
                 File.WriteAllText(copied, recipe.ToJsonString(RecordJson.Options));
                 recipePath = copied;
                 blockers.Clear();
-                targetPolicy = "Installed BattleActionDefinition.Allies and NativeBattleLimitRules.PlayerTargetMask: target=" + recipe["driver"]!["input"]!["target_id"]!.GetValue<string>() + $"; mask=0x{targetMask:X4}; template-sha256={Hash(File.ReadAllBytes(sourceRecipe))}; initialHP derives from the verified imported template's declared preparation.";
+                targetPolicy = "Installed BattleActionDefinition.Allies and NativeBattleLimitRules.PlayerTargetMask: target=" + recipe["driver"]!["input"]!["target_id"]!.GetValue<string>() + $"; mask=0x{targetMask:X4}; template-sha256={Hash(File.ReadAllBytes(sourceRecipe))}; initialHP is the original character maximum at the declared prepared level, except positive-power party healing starts at1HP.";
             }
             if (ordinaryMagic && requiresRevival)
             {

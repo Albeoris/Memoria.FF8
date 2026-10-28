@@ -88,7 +88,52 @@ public sealed class DiagnosticReflectionLineageTests
         }
         BattleDiagnosticEffectDispatch stale = (BattleDiagnosticEffectDispatch)Invoke(session, "CompleteDiagnosticReflection", Child with { Reflection = null })!;
         Assert.Null(stale.Reflection);
+        Assert.Equal(reset ? "CHILD_HEADER_GENERATION_MISSING" : "SOURCE_HEADER_GENERATION_STALE", stale.ReflectionRejectionReason);
         Assert.DoesNotContain("diagnosticHeaderGenerations", JsonSerializer.Serialize(session.Capture()));
+    }
+
+    [Fact]
+    public void Actual_secondary_bank_production_retains_the_parent_until_both_effects_dispatch()
+    {
+        BattleNativeAction sourceAction = new(2, 31, 0, 0) { MagicId = 106, Name = "Reflection fixture", AttackType = 8, Power = 0, HitCount = 1, TargetFlags = 0, AttackFlags = 0x10, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 100, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
+        BattleNativeAction reflectedAction = sourceAction with { Command = 247 };
+        BattleSession session = new(new BattleDefinition { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = [sourceAction, reflectedAction], Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, NativeStatus1 = 0x80 }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
+        session.DiagnosticEffectDispatched += static _ => { };
+        BattleAttackCommand command = new("party", "party", BattleAbility.Magic, 31) { NativeQueuedCommand = 2, NativeAction = sourceAction, NativeTargetMask = 1, FreeNativeMagic = true };
+        (NativeBattleCommandBanks banks, NativeBattleCommandLocation location) = session.NativeCommandBanks.Allocate(2);
+        banks = banks.WriteCommand(location, 0, 0, 2, 0, 0, 31, new ushort[] { 1 }).BindCommand(location, 0, command);
+        typeof(BattleSession).GetField("nativeCommandBanks", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, banks);
+        typeof(BattleSession).GetField("nativeDispatchCommandLocation", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, location);
+        Invoke(session, "SetNativeActionEvent", session.Combatants[0], (byte)2);
+        NativeBattleActionPacketsState packets = session.NativeActionPackets;
+        (packets, _) = packets.Prepare(new(0, 2, 0, -1, 31, 106, null));
+        (packets, _) = packets.Publish(1);
+        typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
+        Invoke(session, "ObserveDiagnosticPreparedHeader", 0);
+        BattleActionPresentation presentation = new("party", "party", BattleActionPhase.Recovery, 1, BattleAbility.Magic, 31) { NativeAction = sourceAction, NativeQueuedCommand = 2, NativeTargetMask = 1, FreeNativeMagic = true };
+        Invoke(session, "ResolveNativeReflection", session.Combatants[0], session.Combatants[0], presentation, sourceAction, 0);
+        Assert.Equal((byte)247, session.NativeCommandBanks.Banks[location.Bank].Packets[2 * location.Slot + 1].ReadByte(1));
+        Invoke(session, "DispatchNativeSecondaryBankCommand");
+        Assert.Equal(2, session.NativeActionPackets.ActionCount);
+        BattleDiagnosticEffectDispatch source = new(1, 10, "party", BattleAbility.Magic, 31, 106, 106, 2) { NativeActorIndex = 0, NativeTargetMask = 1, NativeHeaderIndex = 0 };
+        source = (BattleDiagnosticEffectDispatch)Invoke(session, "CompleteDiagnosticReflection", source)!;
+        BattleDiagnosticEffectDispatch child = new(2, 11, "party", BattleAbility.Magic, 31, 106, 106, 247) { NativeActorIndex = 0, NativeTargetMask = 8, NativeHeaderIndex = 1 };
+        child = (BattleDiagnosticEffectDispatch)Invoke(session, "CompleteDiagnosticReflection", child)!;
+        Assert.Null(child.ReflectionRejectionReason);
+        Assert.True(BattleDiagnosticReflectionLineage.Matches(child, source));
+    }
+
+    [Fact]
+    public void Unlinked_native247_records_its_missing_proof_without_accepting_it()
+    {
+        BattleSession session = new(new BattleDefinition { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
+        session.DiagnosticEffectDispatched += static _ => { };
+        Invoke(session, "ObserveDiagnosticPreparedHeader", 1);
+        BattleDiagnosticEffectDispatch rejected = (BattleDiagnosticEffectDispatch)Invoke(session, "CompleteDiagnosticReflection", Child with { Reflection = null })!;
+        Assert.Null(rejected.Reflection);
+        Assert.Equal("PENDING_HEADER_ABSENT", rejected.ReflectionRejectionReason);
+        Assert.Equal(0, rejected.ReflectionRejection!.PendingHeaderCount);
+        Assert.Null(rejected.ReflectionRejection.Candidate);
     }
 
     [Fact]

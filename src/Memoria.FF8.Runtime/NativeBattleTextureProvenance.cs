@@ -132,7 +132,13 @@ internal static class NativeBattleTextureProvenance
                 result.Add(new(origin, x, y, width, height));
             }
         }
-        return result.ToImmutable();
+        ImmutableArray<NativeBattleTextureSourceRegion> updated = result.ToImmutable();
+        return sources is { } previous ? ReuseUnchanged(previous, updated) : updated;
+    }
+
+    private static ImmutableArray<NativeBattleTextureSourceRegion> ReuseUnchanged(ImmutableArray<NativeBattleTextureSourceRegion> previous, ImmutableArray<NativeBattleTextureSourceRegion> updated)
+    {
+        return previous.AsSpan().SequenceEqual(updated.AsSpan()) ? previous : updated;
     }
 
     internal static ImmutableArray<NativeBattleTextureSourceRegion>? Copy(ImmutableArray<NativeBattleTextureSourceRegion>? sources, NativeBattleEffectVramCopy copy)
@@ -160,7 +166,7 @@ internal static class NativeBattleTextureProvenance
                     copied.Add(source with { X = copy.DestinationX + left - copy.SourceX, Y = copy.DestinationY + top - copy.SourceY, WidthWords = right - left, Height = bottom - top, SourceXWords = source.SourceXWords + left - source.X, SourceY = source.SourceY + top - source.Y });
                 }
             }
-            return copied.ToImmutable();
+            return ReuseUnchanged(sources.Value, copied.ToImmutable());
         }
         return CopyOverlapping(sources.Value, copy);
     }
@@ -227,7 +233,7 @@ internal static class NativeBattleTextureProvenance
             {
                 result.Add(new(run.Origin, run.X, run.Y, run.Width, run.Height, run.SourceX, run.SourceY));
             }
-            return result.ToImmutable();
+            return ReuseUnchanged(sources, result.ToImmutable());
         }
         finally
         {

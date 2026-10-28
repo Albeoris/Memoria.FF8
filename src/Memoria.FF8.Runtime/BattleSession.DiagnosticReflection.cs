@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticReflection(uint ProducerAddress, long SourceDispatchSerial, int SourceHeaderIndex, long SourceHeaderGeneration, int ReflectedHeaderIndex, long ReflectedHeaderGeneration, string ActorId, byte ActorIndex, string ReflectorId, byte ReflectorIndex, uint ReflectorStatuses1, string RecipientId, byte RecipientIndex, byte SourceCommand, ushort SourceActionId, ushort SourceEffect, byte SourceAttackType, byte SourceAttackFlags, ushort ReflectedActionId, ushort ReflectedEffect, byte ReflectedTargetFlags, ushort ReflectedTargetMask);
+public sealed record BattleDiagnosticReflectionRejection(int? SourceHeaderIndex, long? ExpectedSourceGeneration, long? ActualSourceGeneration, long? SourceDispatchSerial, int PendingHeaderCount, int ObservedHeaderCount, BattleDiagnosticReflection? Candidate);
 
 public static class BattleDiagnosticReflectionLineage
 {
@@ -87,20 +88,45 @@ public sealed partial class BattleSession
     {
         if (dispatch.NativeHeaderIndex is not int header || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation))
         {
-            return dispatch;
+            return RejectDiagnosticReflection(dispatch, "CHILD_HEADER_GENERATION_MISSING");
         }
         dispatch = dispatch with { NativeHeaderGeneration = generation };
-        if (diagnosticReflectedHeaders is { } reflectedHeaders && reflectedHeaders.Remove(header, out var pending) && generations.TryGetValue(pending.SourceHeader, out long sourceGeneration) && sourceGeneration == pending.SourceGeneration && diagnosticHeaderDispatches is { } dispatches && dispatches.TryGetValue(pending.SourceHeader, out var source))
+        if (dispatch.NativeCommand == 247)
         {
-            BattleDiagnosticReflection proof = new(0x487DF0, source.Serial, pending.SourceHeader, pending.SourceGeneration, header, generation, pending.ActorId, pending.ActorIndex, pending.ReflectorId, pending.ReflectorIndex, pending.ReflectorStatuses1, pending.RecipientId, pending.RecipientIndex, pending.SourceCommand, pending.SourceActionId, pending.Source.MagicId, pending.Source.AttackType, pending.Source.AttackFlags, pending.Reflected.ActionId, pending.Reflected.MagicId, pending.Reflected.TargetFlags.GetValueOrDefault(), pending.TargetMask);
-            BattleDiagnosticEffectDispatch candidate = dispatch with { Reflection = proof };
-            if (BattleDiagnosticReflectionLineage.Matches(candidate, source))
+            if (diagnosticReflectedHeaders is not { } reflectedHeaders || !reflectedHeaders.Remove(header, out var pending))
             {
-                dispatch = candidate;
+                dispatch = RejectDiagnosticReflection(dispatch, "PENDING_HEADER_ABSENT");
+            }
+            else if (!generations.TryGetValue(pending.SourceHeader, out long sourceGeneration))
+            {
+                dispatch = RejectDiagnosticReflection(dispatch, "SOURCE_HEADER_GENERATION_MISSING", pending);
+            }
+            else if (sourceGeneration != pending.SourceGeneration)
+            {
+                dispatch = RejectDiagnosticReflection(dispatch, "SOURCE_HEADER_GENERATION_STALE", pending, sourceGeneration);
+            }
+            else if (diagnosticHeaderDispatches is not { } dispatches || !dispatches.TryGetValue(pending.SourceHeader, out var source))
+            {
+                dispatch = RejectDiagnosticReflection(dispatch, "SOURCE_DISPATCH_MISSING", pending, sourceGeneration);
+            }
+            else
+            {
+                BattleDiagnosticReflection proof = new(0x487DF0, source.Serial, pending.SourceHeader, pending.SourceGeneration, header, generation, pending.ActorId, pending.ActorIndex, pending.ReflectorId, pending.ReflectorIndex, pending.ReflectorStatuses1, pending.RecipientId, pending.RecipientIndex, pending.SourceCommand, pending.SourceActionId, pending.Source.MagicId, pending.Source.AttackType, pending.Source.AttackFlags, pending.Reflected.ActionId, pending.Reflected.MagicId, pending.Reflected.TargetFlags.GetValueOrDefault(), pending.TargetMask);
+                BattleDiagnosticEffectDispatch candidate = dispatch with { Reflection = proof };
+                dispatch = BattleDiagnosticReflectionLineage.Matches(candidate, source) ? candidate : RejectDiagnosticReflection(dispatch, "LINEAGE_FIELDS_REJECTED", pending, sourceGeneration, source.Serial, proof);
             }
         }
         diagnosticHeaderDispatches ??= [];
         diagnosticHeaderDispatches[header] = dispatch;
         return dispatch;
+    }
+
+    private BattleDiagnosticEffectDispatch RejectDiagnosticReflection(BattleDiagnosticEffectDispatch dispatch, string reason, PendingDiagnosticReflection? pending = null, long? sourceGeneration = null, long? sourceSerial = null, BattleDiagnosticReflection? candidate = null)
+    {
+        if (dispatch.NativeCommand != 247)
+        {
+            return dispatch;
+        }
+        return dispatch with { ReflectionRejectionReason = reason, ReflectionRejection = new(pending?.SourceHeader, pending?.SourceGeneration, sourceGeneration, sourceSerial, diagnosticReflectedHeaders?.Count ?? 0, diagnosticHeaderDispatches?.Count ?? 0, candidate) };
     }
 }
