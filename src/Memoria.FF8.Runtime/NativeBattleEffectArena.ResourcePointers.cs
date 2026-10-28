@@ -42,6 +42,20 @@ public partial record NativeBattleEffectArena
 
     public IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> EnumerateResourcePointers() => EnumerateResourcePointers(false);
 
+    internal bool MayHaveResourcePointers()
+    {
+        if (TryEffectiveRoute(0, bound, out _, out _))
+        {
+            return true;
+        }
+        if (IsSnapshot)
+        {
+            Validate();
+            return initialPointers is { Count: > 0 };
+        }
+        return Working.ResourcePointerCount != 0;
+    }
+
     internal IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> EnumerateResourcePointers(bool committed)
     {
         if (!committed && TryEffectiveRoute(0, bound, out NativeBattleEffectArenaTransaction? transaction, out int routedOffset))

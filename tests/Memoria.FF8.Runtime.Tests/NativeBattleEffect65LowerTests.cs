@@ -41,6 +41,66 @@ internal static class NativeBattleEffect65LowerFixture
 
 public sealed class NativeBattleEffect65LowerTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Copy_pointer_check_keeps_explicit_null_numeric_symbolic_and_contained_span_metadata(bool frozen)
+    {
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().WriteResourcePointer(0, new(null, 0x11223344)).WriteResourcePointer(4, null).WriteResourcePointer(8, new(null, 0x12345678)).WriteResourcePointer(12, new(null, null) { CpuRow = 2 });
+        if (frozen)
+        {
+            source = NativeBattleStorageSnapshots.Capture(source);
+        }
+        NativeBattleEffectArena destination = NativeBattleEffectArena.Clear();
+
+        NativeBattleEffect65Controller.CopyBytes(source, 4, destination, 16, 12);
+
+        Assert.True(destination.TryGetResourcePointer(16, out NativeBattleResourcePointer? explicitNull));
+        Assert.Null(explicitNull);
+        Assert.Equal(source.ReadResourcePointer(8), destination.ReadResourcePointer(20));
+        Assert.Equal(source.ReadResourcePointer(12), destination.ReadResourcePointer(24));
+        Assert.False(destination.TryGetResourcePointer(12, out _));
+        Assert.Equal(source.ReadSnapshot(4, 12).Data, destination.ReadSnapshot(16, 12).Data);
+        Assert.Equal(source.ReadSnapshot(4, 12).Known, destination.ReadSnapshot(16, 12).Known);
+    }
+
+    [Fact]
+    public void Copy_pointer_check_observes_pointer_metadata_created_only_in_the_active_overlay()
+    {
+        NativeBattleEffectArena owner = NativeBattleEffectArena.Clear();
+        NativeBattleEffectArena window = NativeBattleEffectArena.BorrowWorking(owner.Working, 32, 16);
+        using NativeBattleEffectArenaTransaction transaction = new(window);
+        window.WriteResourcePointer(4, null).WriteResourcePointer(8, new(null, 0x12345678));
+        NativeBattleEffectArena destination = NativeBattleEffectArena.Clear();
+
+        NativeBattleEffect65Controller.CopyBytes(window, 4, destination, 0, 8);
+
+        Assert.Equal(0, owner.Working.ResourcePointerCount);
+        Assert.True(destination.TryGetResourcePointer(0, out NativeBattleResourcePointer? explicitNull));
+        Assert.Null(explicitNull);
+        Assert.Equal(0x12345678u, destination.ReadResourcePointer(4)!.StagingAddress);
+    }
+
+    [Fact]
+    public void Empty_pointer_copy_avoids_an_iterator_per_steady_state_copy()
+    {
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, [1, 2, 3, 4]);
+        NativeBattleEffectArena destination = NativeBattleEffectArena.Clear();
+        for (int index = 0; index < 32; index++)
+        {
+            NativeBattleEffect65Controller.CopyBytes(source, 0, destination, 0, 4);
+        }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 64; index++)
+        {
+            NativeBattleEffect65Controller.CopyBytes(source, 0, destination, 0, 4);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.True(allocated < 1024, $"Empty-pointer copies allocated {allocated} bytes across 64 calls.");
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, destination.Read(0, 4));
+    }
+
     [Fact]
     public void Fresh_read_copy_covers_mixed_regions_and_keeps_outside_span_known_zero_and_detached()
     {

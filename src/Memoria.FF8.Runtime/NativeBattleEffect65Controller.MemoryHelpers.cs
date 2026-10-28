@@ -205,6 +205,10 @@ public static partial class NativeBattleEffect65Controller
     public static NativeBattleEffectArena CopyBytes(NativeBattleEffectArena source, int sourceOffset, NativeBattleEffectArena destination, int destinationOffset, int count)
     {
         destination = NativeBattleEffectNodeContextMemory.Copy(source, sourceOffset, destination, destinationOffset, count);
+        if (!source.MayHaveResourcePointers())
+        {
+            return destination;
+        }
         foreach ((int offset, NativeBattleResourcePointer? pointer) in source.EnumerateResourcePointers())
         {
             if (offset >= sourceOffset && offset + 4 <= sourceOffset + count)

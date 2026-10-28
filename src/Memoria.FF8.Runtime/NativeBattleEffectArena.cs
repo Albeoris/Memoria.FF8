@@ -526,7 +526,16 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
             throw new InvalidOperationException("Frozen arena snapshots cannot acquire working authority implicitly.");
         }
         ValidateImport();
-        NativeBattleWorkingMemory result = NativeBattleWorkingMemory.Restore(new(bound, true, ImportExtent(), initialRegions, initialUnknown, initialPointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty, TextureFiles: initialTextureFiles));
+        NativeBattleWorkingMemory result;
+        if (initialRegions.IsEmpty && initialUnknown.IsEmpty && (initialPointers is null || initialPointers.Count == 0) && initialTextureFiles is null)
+        {
+            result = new(bound);
+            NativeBattleTelemetry.Record(1013, NativeBattleTrafficKind.Fill, 0);
+        }
+        else
+        {
+            result = NativeBattleWorkingMemory.Restore(new(bound, true, ImportExtent(), initialRegions, initialUnknown, initialPointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty, TextureFiles: initialTextureFiles));
+        }
         initialRegions = [];
         initialUnknown = [];
         initialPointers = null;
