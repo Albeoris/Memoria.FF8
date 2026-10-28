@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Rendering;
@@ -12,14 +13,14 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 {
     private readonly GraphicsDevice device;
     private readonly Effect effect;
-    private readonly Dictionary<PixelImage, LinkedListNode<CachedTexture>> textures = new(ReferenceEqualityComparer.Instance);
+    private readonly ConditionalWeakTable<PixelImage, LinkedListNode<CachedTexture>> textures = new();
     private readonly LinkedList<CachedTexture> recentTextures = new();
     private readonly int maximumCachedTextures;
     private readonly long maximumCachedTextureBytes;
     private long cachedTextureBytes;
     private Texture2D? transientTexture;
     private Color[] captureColors = [];
-    private readonly record struct CachedTexture(PixelImage Image, Texture2D Texture, long Bytes);
+    private readonly record struct CachedTexture(WeakReference<PixelImage> Image, Texture2D Texture, long Bytes);
     private readonly Dictionary<(TriangleBlend, bool, bool), BlendState> blends = [];
     private readonly Dictionary<(TriangleDepthComparison, bool), DepthStencilState> depths = [];
     private readonly GpuVertex[] vertices = new GpuVertex[12288];
@@ -227,18 +228,23 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         transientTexture = null;
         try
         {
-            if (ReferenceEquals(device.Textures[0], oversized))
-            {
-                device.Textures[0] = null;
-            }
-            if (ReferenceEquals(effect.Parameters["SourceTexture"].GetValueTexture2D(), oversized))
-            {
-                effect.Parameters["SourceTexture"].SetValue((Texture2D?)null);
-            }
+            UnbindTexture(oversized);
         }
         finally
         {
             oversized.Dispose();
+        }
+    }
+
+    private void UnbindTexture(Texture2D texture)
+    {
+        if (ReferenceEquals(device.Textures[0], texture))
+        {
+            device.Textures[0] = null;
+        }
+        if (ReferenceEquals(effect.Parameters["SourceTexture"].GetValueTexture2D(), texture))
+        {
+            effect.Parameters["SourceTexture"].SetValue((Texture2D?)null);
         }
     }
 
@@ -285,11 +291,22 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         }
         finally
         {
+            pendingMaterial = default;
+            dynamicUploads.Clear();
             RestoreDevice();
         }
         (target, workingTarget) = (workingTarget, target);
         PresentationVersion++;
         TrimTerrainBuffers();
+        for (LinkedListNode<CachedTexture>? node = recentTextures.First; node is not null;)
+        {
+            LinkedListNode<CachedTexture>? next = node.Next;
+            if (!node.Value.Image.TryGetTarget(out _))
+            {
+                RemoveCachedTexture(node);
+            }
+            node = next;
+        }
     }
 
     /// <summary>Invalidate mutable source pixels explicitly before their next use.</summary>
@@ -304,10 +321,20 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 
     private void RemoveCachedTexture(LinkedListNode<CachedTexture> node)
     {
-        textures.Remove(node.Value.Image);
+        if (node.Value.Image.TryGetTarget(out PixelImage? image))
+        {
+            textures.Remove(image);
+        }
         recentTextures.Remove(node);
         cachedTextureBytes -= node.Value.Bytes;
-        node.Value.Texture.Dispose();
+        try
+        {
+            UnbindTexture(node.Value.Texture);
+        }
+        finally
+        {
+            node.Value.Texture.Dispose();
+        }
     }
 
     private Texture2D Texture(PixelImage image, bool refresh)
@@ -326,7 +353,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         }
         long bytes = checked((long)image.Pixels.Length * 4);
         bool cacheable = bytes <= maximumCachedTextureBytes;
-        while (cacheable && (textures.Count >= maximumCachedTextures || cachedTextureBytes > maximumCachedTextureBytes - bytes))
+        while (cacheable && (recentTextures.Count >= maximumCachedTextures || cachedTextureBytes > maximumCachedTextureBytes - bytes))
         {
             LinkedListNode<CachedTexture> oldest = recentTextures.First!;
             RemoveCachedTexture(oldest);
@@ -345,7 +372,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         FrameTextureUploads++;
         if (cacheable)
         {
-            textures.Add(image, recentTextures.AddLast(new CachedTexture(image, texture, bytes)));
+            textures.Add(image, recentTextures.AddLast(new CachedTexture(new(image), texture, bytes)));
             cachedTextureBytes += bytes;
         }
         else
@@ -406,6 +433,8 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     public void Abort()
     {
         vertexCount = 0;
+        pendingMaterial = default;
+        dynamicUploads.Clear();
         try
         {
             ReleaseTransientTexture();
@@ -437,12 +466,13 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         Abort();
         target?.Dispose();
         workingTarget?.Dispose();
-        effect.Dispose();
         DisposeTerrainBuffers();
-        foreach (LinkedListNode<CachedTexture> node in textures.Values)
+        foreach (CachedTexture cached in recentTextures)
         {
-            node.Value.Texture.Dispose();
+            UnbindTexture(cached.Texture);
+            cached.Texture.Dispose();
         }
+        effect.Dispose();
         foreach (BlendState blend in blends.Values)
         {
             blend.Dispose();
