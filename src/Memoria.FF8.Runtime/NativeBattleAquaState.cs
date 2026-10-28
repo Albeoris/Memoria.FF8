@@ -54,7 +54,15 @@ public sealed record NativeBattleAquaState([property: JsonRequired] ushort Effec
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleAquaState? Aqua55 { get; init; }
+    public NativeBattleAquaState? Aqua55
+    {
+        get => effectState.Aqua55;
+        init => effectState = effectState with { Aqua55 = value };
+    }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleAquaState? Aqua72 { get; init; }
+    public NativeBattleAquaState? Aqua72
+    {
+        get => effectState.Aqua72;
+        init => effectState = effectState with { Aqua72 = value };
+    }
 }

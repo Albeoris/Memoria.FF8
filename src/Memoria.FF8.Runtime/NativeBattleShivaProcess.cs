@@ -38,5 +38,9 @@ public sealed record NativeBattleShivaProcess([property: JsonRequired] NativeBat
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleShivaProcess? Shiva { get; init; }
+    public NativeBattleShivaProcess? Shiva
+    {
+        get => effectState.Shiva;
+        init => effectState = effectState with { Shiva = value };
+    }
 }

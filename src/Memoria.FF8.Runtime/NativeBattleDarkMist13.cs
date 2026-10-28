@@ -14,7 +14,11 @@ public sealed record NativeBattleDarkMist13State([property: JsonRequired] Immuta
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleDarkMist13State? DarkMist13 { get; init; }
+    public NativeBattleDarkMist13State? DarkMist13
+    {
+        get => effectState.DarkMist13;
+        init => effectState = effectState with { DarkMist13 = value };
+    }
 }
 
 public static partial class NativeBattleDarkMist13

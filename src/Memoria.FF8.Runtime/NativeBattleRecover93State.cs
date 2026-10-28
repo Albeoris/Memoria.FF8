@@ -11,9 +11,17 @@ public sealed record NativeBattleRecover93State([property: JsonRequired] Immutab
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleRecover93State? Recover93 { get; init; }
+    public NativeBattleRecover93State? Recover93
+    {
+        get => effectState.Recover93;
+        init => effectState = effectState with { Recover93 = value };
+    }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleRecover93State? Reverse94 { get; init; }
+    public NativeBattleRecover93State? Reverse94
+    {
+        get => effectState.Reverse94;
+        init => effectState = effectState with { Reverse94 = value };
+    }
 }
 public sealed record NativeBattleRecover93Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleRecover93Operation;

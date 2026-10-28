@@ -32,9 +32,17 @@ public sealed record NativeBattleWendigoState([property: JsonRequired] NativeBat
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleWendigoState? Dribble41 { get; init; }
+    public NativeBattleWendigoState? Dribble41
+    {
+        get => effectState.Dribble41;
+        init => effectState = effectState with { Dribble41 = value };
+    }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleWendigoState? Shoot42 { get; init; }
+    public NativeBattleWendigoState? Shoot42
+    {
+        get => effectState.Shoot42;
+        init => effectState = effectState with { Shoot42 = value };
+    }
 }
 public sealed record NativeBattleWendigoFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleWendigoOperation;

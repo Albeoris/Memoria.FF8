@@ -20,7 +20,11 @@ public sealed record NativeBattleRayBomb10State([property: JsonRequired] Immutab
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleRayBomb10State? RayBomb10 { get; init; }
+    public NativeBattleRayBomb10State? RayBomb10
+    {
+        get => effectState.RayBomb10;
+        init => effectState = effectState with { RayBomb10 = value };
+    }
 }
 
 public sealed record NativeBattleRayBomb10Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);

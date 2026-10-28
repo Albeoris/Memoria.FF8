@@ -5,10 +5,18 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleDrinkMagic37State? DrinkMagic37 { get; init; }
+    public NativeBattleDrinkMagic37State? DrinkMagic37
+    {
+        get => effectState.DrinkMagic37;
+        init => effectState = effectState with { DrinkMagic37 = value };
+    }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleCuragaExecutableState? DrinkMagic37Executable { get; init; }
+    public NativeBattleCuragaExecutableState? DrinkMagic37Executable
+    {
+        get => effectState.DrinkMagic37Executable;
+        init => effectState = effectState with { DrinkMagic37Executable = value };
+    }
 
     public NativeBattleDrinkMagic37State RequireDrinkMagic37()
     {

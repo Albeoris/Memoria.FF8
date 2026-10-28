@@ -11,7 +11,11 @@ public sealed record NativeBattleReflectState([property: JsonRequired] short Wal
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleReflectState? Reflect106 { get; init; }
+    public NativeBattleReflectState? Reflect106
+    {
+        get => effectState.Reflect106;
+        init => effectState = effectState with { Reflect106 = value };
+    }
 }
 public sealed record NativeBattleReflectFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect);
 public sealed record NativeBattleReflectStep(NativeBattleReflectFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);

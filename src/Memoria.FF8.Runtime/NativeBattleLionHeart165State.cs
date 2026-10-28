@@ -62,7 +62,11 @@ public sealed record NativeBattleLionHeart165State([property: JsonRequired] bool
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleLionHeart165State? LionHeart165 { get; init; }
+    public NativeBattleLionHeart165State? LionHeart165
+    {
+        get => effectState.LionHeart165;
+        init => effectState = effectState with { LionHeart165 = value };
+    }
 }
 
 public sealed record NativeBattleLionHeart165Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random)

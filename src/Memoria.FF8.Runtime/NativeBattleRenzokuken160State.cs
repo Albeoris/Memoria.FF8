@@ -50,7 +50,11 @@ public sealed record NativeBattleRenzokuken160State([property: JsonRequired] byt
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleRenzokuken160State? Renzokuken160 { get; init; }
+    public NativeBattleRenzokuken160State? Renzokuken160
+    {
+        get => effectState.Renzokuken160;
+        init => effectState = effectState with { Renzokuken160 = value };
+    }
 }
 
 public sealed record NativeBattleRenzokuken160Resources(NativeBattleEffectHeapAllocation Animation, BattleNativeRenzokukenResource ActorResource, ImmutableArray<NativeBattleSearchSpriteResource> ParticleSprites, ImmutableArray<uint> SpiralColors, ImmutableArray<int> ContactLeadFrames, ImmutableArray<NativeBattleStaticMeshResource> Meshes, uint AppearanceSound, uint DefaultModelColor)

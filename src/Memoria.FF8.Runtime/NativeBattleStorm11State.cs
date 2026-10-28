@@ -11,5 +11,9 @@ public sealed record NativeBattleStorm11State([property: JsonRequired] Immutable
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleStorm11State? Storm11 { get; init; }
+    public NativeBattleStorm11State? Storm11
+    {
+        get => effectState.Storm11;
+        init => effectState = effectState with { Storm11 = value };
+    }
 }

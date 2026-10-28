@@ -76,5 +76,9 @@ public sealed record NativeBattleBio22ActorMemory([property: JsonRequired] Nativ
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleBio22ActorMemory? Bio22ActorMemory { get; init; }
+    public NativeBattleBio22ActorMemory? Bio22ActorMemory
+    {
+        get => effectState.Bio22ActorMemory;
+        init => effectState = effectState with { Bio22ActorMemory = value };
+    }
 }

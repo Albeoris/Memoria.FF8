@@ -8,7 +8,11 @@ public sealed record NativeBattleAngelWing84Resources(NativeBattleAngelWing84Bod
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleAngelWing84State? AngelWing84 { get; init; }
+    public NativeBattleAngelWing84State? AngelWing84
+    {
+        get => effectState.AngelWing84;
+        init => effectState = effectState with { AngelWing84 = value };
+    }
 }
 
 public static class NativeBattleAngelWing84Storage

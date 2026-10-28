@@ -2,9 +2,21 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleEffectMemory
 {
-    public NativeBattleEffectBinding? Entry21DFEC0 { get; init; }
-    public NativeBattleEffectBinding? Entry21DFEC4 { get; init; }
-    public NativeBattleEffectBinding? Entry21DFEC8 { get; init; }
+    public NativeBattleEffectBinding? Entry21DFEC0
+    {
+        get => effectState.Entry21DFEC0;
+        init => effectState = effectState with { Entry21DFEC0 = value };
+    }
+    public NativeBattleEffectBinding? Entry21DFEC4
+    {
+        get => effectState.Entry21DFEC4;
+        init => effectState = effectState with { Entry21DFEC4 = value };
+    }
+    public NativeBattleEffectBinding? Entry21DFEC8
+    {
+        get => effectState.Entry21DFEC8;
+        init => effectState = effectState with { Entry21DFEC8 = value };
+    }
     public byte? Parameter82 { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public uint? MagicTextureBufferAddress1D99A88 { get; init; }

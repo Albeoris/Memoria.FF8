@@ -32,5 +32,9 @@ public sealed record NativeBattleKiros262TrailState([property: JsonRequired] Nat
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleKiros262TrailState? Kiros262Trail { get; init; }
+    public NativeBattleKiros262TrailState? Kiros262Trail
+    {
+        get => effectState.Kiros262Trail;
+        init => effectState = effectState with { Kiros262Trail = value };
+    }
 }

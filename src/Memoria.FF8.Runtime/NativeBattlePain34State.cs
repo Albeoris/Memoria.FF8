@@ -40,7 +40,11 @@ public sealed record NativeBattlePain34State([property: JsonRequired] NativeBatt
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattlePain34State? Pain34 { get; init; }
+    public NativeBattlePain34State? Pain34
+    {
+        get => effectState.Pain34;
+        init => effectState = effectState with { Pain34 = value };
+    }
 }
 
 public sealed record NativeBattlePain34Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging)

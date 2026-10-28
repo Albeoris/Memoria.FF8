@@ -5,7 +5,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleEffectMemory
 {
-    public NativeBattleActionMatrix? SequenceDeformationMatrix1D99BF8 { get; init; }
+    public NativeBattleActionMatrix? SequenceDeformationMatrix1D99BF8
+    {
+        get => effectState.SequenceDeformationMatrix1D99BF8;
+        init => effectState = effectState with { SequenceDeformationMatrix1D99BF8 = value };
+    }
 }
 
 public sealed partial record NativeBattleAuxiliaryState

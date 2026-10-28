@@ -13,7 +13,11 @@ public sealed record NativeBattleFunguarLaser277State([property: JsonRequired] i
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleFunguarLaser277State? FunguarLaser277 { get; init; }
+    public NativeBattleFunguarLaser277State? FunguarLaser277
+    {
+        get => effectState.FunguarLaser277;
+        init => effectState = effectState with { FunguarLaser277 = value };
+    }
 }
 
 public static class NativeBattleFunguarLaser277

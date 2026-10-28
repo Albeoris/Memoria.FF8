@@ -5,5 +5,9 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleResonance49State? Resonance49 { get; init; }
+    public NativeBattleResonance49State? Resonance49
+    {
+        get => effectState.Resonance49;
+        init => effectState = effectState with { Resonance49 = value };
+    }
 }

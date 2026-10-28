@@ -5,10 +5,18 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleMightyGuardState? MightyGuard73 { get; init; }
+    public NativeBattleMightyGuardState? MightyGuard73
+    {
+        get => effectState.MightyGuard73;
+        init => effectState = effectState with { MightyGuard73 = value };
+    }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleMightyGuardState? MightyGuard78 { get; init; }
+    public NativeBattleMightyGuardState? MightyGuard78
+    {
+        get => effectState.MightyGuard78;
+        init => effectState = effectState with { MightyGuard78 = value };
+    }
 
     public NativeBattleMightyGuardState RequireMightyGuard(ushort effect)
     {

@@ -11,7 +11,11 @@ public sealed record NativeBattleProtectState([property: JsonRequired] Immutable
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleProtectState? Protect32 { get; init; }
+    public NativeBattleProtectState? Protect32
+    {
+        get => effectState.Protect32;
+        init => effectState = effectState with { Protect32 = value };
+    }
 }
 public sealed record NativeBattleProtectFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleProtectOperation;

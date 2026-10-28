@@ -11,7 +11,11 @@ public sealed record NativeBattleMeltdownState([property: JsonRequired] NativeBa
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleMeltdownState? Meltdown148 { get; init; }
+    public NativeBattleMeltdownState? Meltdown148
+    {
+        get => effectState.Meltdown148;
+        init => effectState = effectState with { Meltdown148 = value };
+    }
 }
 public sealed record NativeBattleMeltdownFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleMeltdownOperation;

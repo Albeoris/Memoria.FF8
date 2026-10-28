@@ -45,7 +45,11 @@ public sealed record NativeBattleChoco98State([property: JsonRequired] NativeBat
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleChoco98State? Choco98 { get; init; }
+    public NativeBattleChoco98State? Choco98
+    {
+        get => effectState.Choco98;
+        init => effectState = effectState with { Choco98 = value };
+    }
 }
 
 public sealed record NativeBattleChoco98Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);

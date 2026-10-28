@@ -42,5 +42,9 @@ public sealed record NativeBattleShot193State([property: JsonRequired] byte Acto
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleShot193State? Shot193 { get; init; }
+    public NativeBattleShot193State? Shot193
+    {
+        get => effectState.Shot193;
+        init => effectState = effectState with { Shot193 = value };
+    }
 }

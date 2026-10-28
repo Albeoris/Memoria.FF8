@@ -7,7 +7,11 @@ public sealed record NativeBattleWater222State([property: JsonRequired] byte Fil
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleWater222State? Water222 { get; init; }
+    public NativeBattleWater222State? Water222
+    {
+        get => effectState.Water222;
+        init => effectState = effectState with { Water222 = value };
+    }
 }
 
 public sealed record NativeBattleWater222Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);

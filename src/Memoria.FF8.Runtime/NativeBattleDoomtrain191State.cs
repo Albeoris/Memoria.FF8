@@ -55,7 +55,11 @@ public sealed record NativeBattleDoomtrain191State([property: JsonRequired] Nati
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleDoomtrain191State? Doomtrain191 { get; init; }
+    public NativeBattleDoomtrain191State? Doomtrain191
+    {
+        get => effectState.Doomtrain191;
+        init => effectState = effectState with { Doomtrain191 = value };
+    }
 }
 
 public sealed record NativeBattleDoomtrain191Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);

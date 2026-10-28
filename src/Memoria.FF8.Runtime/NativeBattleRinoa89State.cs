@@ -21,7 +21,11 @@ public sealed record NativeBattleRinoa89State([property: JsonRequired] bool Glob
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleRinoa89State? Rinoa89 { get; init; }
+    public NativeBattleRinoa89State? Rinoa89
+    {
+        get => effectState.Rinoa89;
+        init => effectState = effectState with { Rinoa89 = value };
+    }
 }
 
 public sealed record NativeBattleRinoa89Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random);

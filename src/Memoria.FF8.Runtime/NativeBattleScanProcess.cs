@@ -41,5 +41,9 @@ public sealed record NativeBattleScanProcess([property: JsonRequired] NativeBatt
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleScanProcess? Scan { get; init; }
+    public NativeBattleScanProcess? Scan
+    {
+        get => effectState.Scan;
+        init => effectState = effectState with { Scan = value };
+    }
 }

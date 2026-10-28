@@ -13,7 +13,11 @@ public sealed record NativeBattleSleep145State([property: JsonRequired] Immutabl
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleSleep145State? Sleep145 { get; init; }
+    public NativeBattleSleep145State? Sleep145
+    {
+        get => effectState.Sleep145;
+        init => effectState = effectState with { Sleep145 = value };
+    }
 }
 
 public static class NativeBattleSleep145

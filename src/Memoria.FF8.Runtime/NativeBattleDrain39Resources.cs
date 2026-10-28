@@ -56,5 +56,9 @@ public sealed partial record NativeBattleOriginalEffectState
 
 public sealed partial record NativeBattleEffectMemory
 {
-    public NativeBattleDrain39BankState? Drain39Bank { get; init; }
+    public NativeBattleDrain39BankState? Drain39Bank
+    {
+        get => effectState.Drain39Bank;
+        init => effectState = effectState with { Drain39Bank = value };
+    }
 }

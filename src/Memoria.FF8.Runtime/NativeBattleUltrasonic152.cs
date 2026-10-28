@@ -14,7 +14,11 @@ public sealed record NativeBattleUltrasonic152State([property: JsonRequired] Imm
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleUltrasonic152State? Ultrasonic152 { get; init; }
+    public NativeBattleUltrasonic152State? Ultrasonic152
+    {
+        get => effectState.Ultrasonic152;
+        init => effectState = effectState with { Ultrasonic152 = value };
+    }
 }
 
 public static class NativeBattleUltrasonic152

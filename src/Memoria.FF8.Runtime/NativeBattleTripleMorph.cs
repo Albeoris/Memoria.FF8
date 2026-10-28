@@ -20,5 +20,9 @@ public sealed record NativeBattleTripleMorph([property: JsonRequired] ImmutableA
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleTripleMorph? TripleMorph { get; init; }
+    public NativeBattleTripleMorph? TripleMorph
+    {
+        get => effectState.TripleMorph;
+        init => effectState = effectState with { TripleMorph = value };
+    }
 }

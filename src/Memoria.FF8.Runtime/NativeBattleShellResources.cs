@@ -18,7 +18,11 @@ public sealed record NativeBattleShellState([property: JsonRequired] ImmutableAr
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleShellState? Shell33 { get; init; }
+    public NativeBattleShellState? Shell33
+    {
+        get => effectState.Shell33;
+        init => effectState = effectState with { Shell33 = value };
+    }
 }
 public sealed record NativeBattleShellFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleShellOperation;

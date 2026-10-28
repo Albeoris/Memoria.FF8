@@ -364,5 +364,9 @@ public sealed record NativeBattleQuake38State : INativeBattleStorageNode, IJsonO
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleQuake38State? Quake38 { get; init; }
+    public NativeBattleQuake38State? Quake38
+    {
+        get => effectState.Quake38;
+        init => effectState = effectState with { Quake38 = value };
+    }
 }

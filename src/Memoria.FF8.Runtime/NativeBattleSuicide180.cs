@@ -11,7 +11,11 @@ public sealed record NativeBattleSuicide180State([property: JsonRequired] Immuta
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleSuicide180State? Suicide180 { get; init; }
+    public NativeBattleSuicide180State? Suicide180
+    {
+        get => effectState.Suicide180;
+        init => effectState = effectState with { Suicide180 = value };
+    }
 }
 public static class NativeBattleSuicide180
 {

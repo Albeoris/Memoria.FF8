@@ -21,5 +21,9 @@ public sealed record NativeBattleDoubleMorph([property: JsonRequired] ImmutableA
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleDoubleMorph? DoubleMorph { get; init; }
+    public NativeBattleDoubleMorph? DoubleMorph
+    {
+        get => effectState.DoubleMorph;
+        init => effectState = effectState with { DoubleMorph = value };
+    }
 }

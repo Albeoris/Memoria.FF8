@@ -5,10 +5,18 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleRestorationExecutableState? Effect57Executable { get; init; }
+    public NativeBattleRestorationExecutableState? Effect57Executable
+    {
+        get => effectState.Effect57Executable;
+        init => effectState = effectState with { Effect57Executable = value };
+    }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleRestorationExecutableState? RemedyExecutable { get; init; }
+    public NativeBattleRestorationExecutableState? RemedyExecutable
+    {
+        get => effectState.RemedyExecutable;
+        init => effectState = effectState with { RemedyExecutable = value };
+    }
 
     public NativeBattleRestorationExecutableState? GetRestorationExecutable(ushort effect)
     {

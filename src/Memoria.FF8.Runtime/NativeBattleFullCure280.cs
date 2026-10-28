@@ -22,7 +22,11 @@ public sealed record NativeBattleFullCure280Execution([property: JsonRequired] i
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleFullCure280State? FullCure280 { get; init; }
+    public NativeBattleFullCure280State? FullCure280
+    {
+        get => effectState.FullCure280;
+        init => effectState = effectState with { FullCure280 = value };
+    }
 }
 
 public sealed partial record NativeBattleOriginalEffectState

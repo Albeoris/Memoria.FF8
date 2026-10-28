@@ -45,7 +45,11 @@ public sealed record NativeBattleTheEnd85State([property: JsonRequired] NativeBa
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleTheEnd85State? TheEnd85 { get; init; }
+    public NativeBattleTheEnd85State? TheEnd85
+    {
+        get => effectState.TheEnd85;
+        init => effectState = effectState with { TheEnd85 = value };
+    }
 }
 
 public sealed record NativeBattleTheEnd85Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);

@@ -10,7 +10,11 @@ public sealed record NativeBattleMoogle96State([property: JsonRequired] Immutabl
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleMoogle96State? Moogle96 { get; init; }
+    public NativeBattleMoogle96State? Moogle96
+    {
+        get => effectState.Moogle96;
+        init => effectState = effectState with { Moogle96 = value };
+    }
 }
 public sealed record NativeBattleMoogle96Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleMoogle96Operation;

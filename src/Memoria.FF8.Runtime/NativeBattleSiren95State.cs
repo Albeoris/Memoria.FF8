@@ -64,7 +64,11 @@ public sealed partial record NativeBattleSiren95State([property: JsonRequired] N
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleSiren95State? Siren95 { get; init; }
+    public NativeBattleSiren95State? Siren95
+    {
+        get => effectState.Siren95;
+        init => effectState = effectState with { Siren95 = value };
+    }
 }
 
 public sealed record NativeBattleSiren95Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);

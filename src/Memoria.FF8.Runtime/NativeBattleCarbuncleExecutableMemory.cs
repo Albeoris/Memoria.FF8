@@ -62,5 +62,9 @@ public sealed record NativeBattleCarbuncleExecutableMemory([property: JsonRequir
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleCarbuncleExecutableMemory? CarbuncleExecutableMemory { get; init; }
+    public NativeBattleCarbuncleExecutableMemory? CarbuncleExecutableMemory
+    {
+        get => effectState.CarbuncleExecutableMemory;
+        init => effectState = effectState with { CarbuncleExecutableMemory = value };
+    }
 }

@@ -14,7 +14,11 @@ public sealed record NativeBattleGastricJuice169State([property: JsonRequired] I
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGastricJuice169State? GastricJuice169 { get; init; }
+    public NativeBattleGastricJuice169State? GastricJuice169
+    {
+        get => effectState.GastricJuice169;
+        init => effectState = effectState with { GastricJuice169 = value };
+    }
 }
 
 public static class NativeBattleGastricJuice169

@@ -2,5 +2,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleEffectMemory
 {
-    public NativeBattleEffect314State? Effect314 { get; init; }
+    public NativeBattleEffect314State? Effect314
+    {
+        get => effectState.Effect314;
+        init => effectState = effectState with { Effect314 = value };
+    }
 }

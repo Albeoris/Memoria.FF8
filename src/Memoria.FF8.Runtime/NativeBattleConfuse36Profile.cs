@@ -68,6 +68,14 @@ public sealed partial record NativeBattleOriginalEffectState
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonConverter(typeof(NativeBattleNodeSource.Converter))]
-    public NativeBattleNodeSource? Confuse36Executable { get; init; }
-    public bool? Confuse36ExecutableInitialized { get; init; }
+    public NativeBattleNodeSource? Confuse36Executable
+    {
+        get => effectState.Confuse36Executable;
+        init => effectState = effectState with { Confuse36Executable = value };
+    }
+    public bool? Confuse36ExecutableInitialized
+    {
+        get => effectState.Confuse36ExecutableInitialized;
+        init => effectState = effectState with { Confuse36ExecutableInitialized = value };
+    }
 }

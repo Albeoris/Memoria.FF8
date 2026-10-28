@@ -124,5 +124,9 @@ public sealed record NativeBattleQuezacotlExecutableMemory : INativeBattleStorag
 
 public sealed partial record NativeBattleEffectMemory
 {
-    public NativeBattleQuezacotlExecutableMemory? QuezacotlExecutableMemory { get; init; }
+    public NativeBattleQuezacotlExecutableMemory? QuezacotlExecutableMemory
+    {
+        get => effectState.QuezacotlExecutableMemory;
+        init => effectState = effectState with { QuezacotlExecutableMemory = value };
+    }
 }

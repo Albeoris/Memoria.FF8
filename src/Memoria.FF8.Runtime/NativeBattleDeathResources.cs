@@ -18,7 +18,11 @@ public sealed record NativeBattleDeathState([property: JsonRequired] NativeBattl
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleDeathState? Death14 { get; init; }
+    public NativeBattleDeathState? Death14
+    {
+        get => effectState.Death14;
+        init => effectState = effectState with { Death14 = value };
+    }
 }
 public sealed record NativeBattleDeathFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random)
 {

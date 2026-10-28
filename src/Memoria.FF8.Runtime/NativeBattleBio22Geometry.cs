@@ -53,14 +53,30 @@ public sealed record NativeBattleBio22Geometry([property: JsonRequired] Immutabl
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleBio22Geometry? Bio22Geometry { get; init; }
+    public NativeBattleBio22Geometry? Bio22Geometry
+    {
+        get => effectState.Bio22Geometry;
+        init => effectState = effectState with { Bio22Geometry = value };
+    }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleBio22Geometry? Bio22SecondaryGeometry { get; init; }
+    public NativeBattleBio22Geometry? Bio22SecondaryGeometry
+    {
+        get => effectState.Bio22SecondaryGeometry;
+        init => effectState = effectState with { Bio22SecondaryGeometry = value };
+    }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleBio22Geometry? Bio22ThirdGeometry { get; init; }
+    public NativeBattleBio22Geometry? Bio22ThirdGeometry
+    {
+        get => effectState.Bio22ThirdGeometry;
+        init => effectState = effectState with { Bio22ThirdGeometry = value };
+    }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleBio22Geometry? Bio22FourthGeometry { get; init; }
+    public NativeBattleBio22Geometry? Bio22FourthGeometry
+    {
+        get => effectState.Bio22FourthGeometry;
+        init => effectState = effectState with { Bio22FourthGeometry = value };
+    }
 }

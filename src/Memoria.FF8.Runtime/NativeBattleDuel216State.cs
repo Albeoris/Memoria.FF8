@@ -69,7 +69,11 @@ public sealed record NativeBattleDuel216State([property: JsonRequired] bool Glob
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleDuel216State? Duel216 { get; init; }
+    public NativeBattleDuel216State? Duel216
+    {
+        get => effectState.Duel216;
+        init => effectState = effectState with { Duel216 = value };
+    }
 }
 
 public sealed record NativeBattleDuel216Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random);

@@ -34,5 +34,9 @@ public sealed record NativeBattleUltima149State([property: JsonRequired] Immutab
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleUltima149State? Ultima149 { get; init; }
+    public NativeBattleUltima149State? Ultima149
+    {
+        get => effectState.Ultima149;
+        init => effectState = effectState with { Ultima149 = value };
+    }
 }

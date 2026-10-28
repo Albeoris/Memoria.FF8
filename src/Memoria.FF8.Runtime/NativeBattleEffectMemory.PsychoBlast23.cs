@@ -5,10 +5,18 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattlePsychoBlast23State? PsychoBlast23 { get; init; }
+    public NativeBattlePsychoBlast23State? PsychoBlast23
+    {
+        get => effectState.PsychoBlast23;
+        init => effectState = effectState with { PsychoBlast23 = value };
+    }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleCuragaExecutableState? PsychoBlast23Executable { get; init; }
+    public NativeBattleCuragaExecutableState? PsychoBlast23Executable
+    {
+        get => effectState.PsychoBlast23Executable;
+        init => effectState = effectState with { PsychoBlast23Executable = value };
+    }
 
     public NativeBattlePsychoBlast23State RequirePsychoBlast23()
     {

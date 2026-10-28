@@ -11,5 +11,9 @@ public sealed record NativeBattleBombGlow179State([property: JsonRequired] Immut
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleBombGlow179State? BombGlow179 { get; init; }
+    public NativeBattleBombGlow179State? BombGlow179
+    {
+        get => effectState.BombGlow179;
+        init => effectState = effectState with { BombGlow179 = value };
+    }
 }

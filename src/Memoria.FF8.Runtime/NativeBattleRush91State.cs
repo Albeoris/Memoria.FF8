@@ -11,7 +11,11 @@ public sealed record NativeBattleRush91State([property: JsonRequired] ImmutableA
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleRush91State? Rush91 { get; init; }
+    public NativeBattleRush91State? Rush91
+    {
+        get => effectState.Rush91;
+        init => effectState = effectState with { Rush91 = value };
+    }
 }
 public sealed record NativeBattleRush91Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleRush91Operation;

@@ -28,5 +28,9 @@ public sealed record NativeBattleThundaga105State([property: JsonRequired] bool 
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleThundaga105State? Thundaga105 { get; init; }
+    public NativeBattleThundaga105State? Thundaga105
+    {
+        get => effectState.Thundaga105;
+        init => effectState = effectState with { Thundaga105 = value };
+    }
 }

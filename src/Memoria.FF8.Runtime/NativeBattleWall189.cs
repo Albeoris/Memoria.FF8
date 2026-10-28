@@ -23,7 +23,11 @@ public sealed record NativeBattleWall189State([property: JsonRequired] Immutable
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleWall189State? Wall189 { get; init; }
+    public NativeBattleWall189State? Wall189
+    {
+        get => effectState.Wall189;
+        init => effectState = effectState with { Wall189 = value };
+    }
 }
 
 public static class NativeBattleWall189Motion

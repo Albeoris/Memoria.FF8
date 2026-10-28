@@ -5,7 +5,11 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleEffect20State? Effect20 { get; init; }
+    public NativeBattleEffect20State? Effect20
+    {
+        get => effectState.Effect20;
+        init => effectState = effectState with { Effect20 = value };
+    }
 
     public NativeBattleEffect20State RequireEffect20()
     {

@@ -70,5 +70,9 @@ public sealed partial record NativeBattleRinoa88State([property: JsonRequired] i
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleRinoa88State? Rinoa88 { get; init; }
+    public NativeBattleRinoa88State? Rinoa88
+    {
+        get => effectState.Rinoa88;
+        init => effectState = effectState with { Rinoa88 = value };
+    }
 }

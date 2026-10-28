@@ -32,7 +32,11 @@ public sealed record NativeBattleGilgameshProcess([property: JsonRequired] Nativ
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleGilgameshProcess? Gilgamesh { get; init; }
+    public NativeBattleGilgameshProcess? Gilgamesh
+    {
+        get => effectState.Gilgamesh;
+        init => effectState = effectState with { Gilgamesh = value };
+    }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattlePcRenderRequest? PcRenderRequest { get; init; }
 }

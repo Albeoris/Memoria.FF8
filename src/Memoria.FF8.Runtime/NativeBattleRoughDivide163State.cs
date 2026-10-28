@@ -50,5 +50,9 @@ public sealed record NativeBattleRoughDivide163State([property: JsonRequired] bo
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleRoughDivide163State? RoughDivide163 { get; init; }
+    public NativeBattleRoughDivide163State? RoughDivide163
+    {
+        get => effectState.RoughDivide163;
+        init => effectState = effectState with { RoughDivide163 = value };
+    }
 }

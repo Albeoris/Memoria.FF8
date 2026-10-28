@@ -33,5 +33,9 @@ public sealed record NativeBattleBlizzardFaces([property: JsonRequired] Immutabl
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleBlizzardFaces? BlizzardFaces { get; init; }
+    public NativeBattleBlizzardFaces? BlizzardFaces
+    {
+        get => effectState.BlizzardFaces;
+        init => effectState = effectState with { BlizzardFaces = value };
+    }
 }

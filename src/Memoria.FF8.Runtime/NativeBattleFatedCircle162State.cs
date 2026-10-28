@@ -63,7 +63,11 @@ public sealed record NativeBattleFatedCircle162State([property: JsonRequired] bo
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleFatedCircle162State? FatedCircle162 { get; init; }
+    public NativeBattleFatedCircle162State? FatedCircle162
+    {
+        get => effectState.FatedCircle162;
+        init => effectState = effectState with { FatedCircle162 = value };
+    }
 }
 
 public sealed record NativeBattleFatedCircle162Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random);

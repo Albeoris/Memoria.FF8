@@ -90,5 +90,9 @@ public sealed record NativeBattleHoly175State([property: JsonRequired] bool Cold
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleHoly175State? Holy175 { get; init; }
+    public NativeBattleHoly175State? Holy175
+    {
+        get => effectState.Holy175;
+        init => effectState = effectState with { Holy175 = value };
+    }
 }

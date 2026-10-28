@@ -5,13 +5,25 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleEffect60State? Effect60 { get; init; }
+    public NativeBattleEffect60State? Effect60
+    {
+        get => effectState.Effect60;
+        init => effectState = effectState with { Effect60 = value };
+    }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleCuragaExecutableState? Effect60PrimaryExecutable { get; init; }
+    public NativeBattleCuragaExecutableState? Effect60PrimaryExecutable
+    {
+        get => effectState.Effect60PrimaryExecutable;
+        init => effectState = effectState with { Effect60PrimaryExecutable = value };
+    }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleCuragaExecutableState? Effect60SecondaryExecutable { get; init; }
+    public NativeBattleCuragaExecutableState? Effect60SecondaryExecutable
+    {
+        get => effectState.Effect60SecondaryExecutable;
+        init => effectState = effectState with { Effect60SecondaryExecutable = value };
+    }
 
     public NativeBattleEffect60State RequireEffect60()
     {

@@ -5,7 +5,11 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleDevour62State? Devour62 { get; init; }
+    public NativeBattleDevour62State? Devour62
+    {
+        get => effectState.Devour62;
+        init => effectState = effectState with { Devour62 = value };
+    }
 
     public NativeBattleDevour62State RequireDevour62()
     {

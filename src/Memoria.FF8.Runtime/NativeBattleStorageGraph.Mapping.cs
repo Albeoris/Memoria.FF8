@@ -9,6 +9,7 @@ namespace Memoria.FF8.Runtime;
 internal static class NativeBattleStorageGraphViews
 {
     private static readonly ConcurrentDictionary<Type, FieldInfo[]> Fields = new();
+    private static readonly PropertyInfo[] MemoryProperties = typeof(NativeBattleEffectMemory).GetProperties(BindingFlags.Instance | BindingFlags.Public).Where(property => property.GetMethod is not null && property.GetIndexParameters().Length == 0 && property.GetCustomAttribute<JsonIgnoreAttribute>() is not { Condition: JsonIgnoreCondition.Always }).ToArray();
 
     internal static IEnumerable<NativeBattleEffectArena> Enumerate(object graph)
     {
@@ -71,6 +72,14 @@ internal static class NativeBattleStorageGraphViews
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(KeyValuePair<,>))
             {
                 Visit(type.GetProperty("Value")!.GetValue(value), result, path);
+                return;
+            }
+            if (value is NativeBattleEffectMemory)
+            {
+                foreach (PropertyInfo property in MemoryProperties)
+                {
+                    Visit(property.GetValue(value), result, path);
+                }
                 return;
             }
             foreach (FieldInfo field in Fields.GetOrAdd(type, FindSerializedFields))

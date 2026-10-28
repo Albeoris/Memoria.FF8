@@ -7,7 +7,11 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableArray<byte>? BlizzagaCompanion { get; init; }
+    public ImmutableArray<byte>? BlizzagaCompanion
+    {
+        get => effectState.BlizzagaCompanion;
+        init => effectState = effectState with { BlizzagaCompanion = value };
+    }
 }
 
 public sealed record NativeBattleBlizzagaFaceInitialization(NativeBattleEffectMemory Memory, NativeBattleModulePoolTask Task);

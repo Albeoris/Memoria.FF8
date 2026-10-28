@@ -30,7 +30,11 @@ public sealed record NativeBattleThundaga105CaptureMemory([property: JsonRequire
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleThundaga105CaptureMemory? Thundaga105Capture { get; init; }
+    public NativeBattleThundaga105CaptureMemory? Thundaga105Capture
+    {
+        get => effectState.Thundaga105Capture;
+        init => effectState = effectState with { Thundaga105Capture = value };
+    }
 }
 
 public sealed record NativeBattleThundaga105CaptureWrite(NativeBattleEffectMemory Memory, NativeBattleStageState Stage, NativeBattleLogicalOrdering Ordering, int Cursor, int GeometryCount);

@@ -5,5 +5,9 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleCuragaExecutableState? DrawStock15Executable { get; init; }
+    public NativeBattleCuragaExecutableState? DrawStock15Executable
+    {
+        get => effectState.DrawStock15Executable;
+        init => effectState = effectState with { DrawStock15Executable = value };
+    }
 }

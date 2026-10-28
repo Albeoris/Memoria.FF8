@@ -15,12 +15,36 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
 {
     public NativeBattleEffectTextureState? Textures { get; init; }
     public byte? Parameter80 { get; init; }
-    public short? CureContextF4 { get; init; }
-    public short? CuraContextF4 { get; init; }
-    public int? CuraSceneFade { get; init; }
-    public NativeBattleCuragaExecutableState? CuragaExecutable { get; init; }
-    public NativeBattleRestorationExecutableState? EsunaExecutable { get; init; }
-    public NativeBattleRestorationExecutableState? FullLifeExecutable { get; init; }
+    public short? CureContextF4
+    {
+        get => effectState.CureContextF4;
+        init => effectState = effectState with { CureContextF4 = value };
+    }
+    public short? CuraContextF4
+    {
+        get => effectState.CuraContextF4;
+        init => effectState = effectState with { CuraContextF4 = value };
+    }
+    public int? CuraSceneFade
+    {
+        get => effectState.CuraSceneFade;
+        init => effectState = effectState with { CuraSceneFade = value };
+    }
+    public NativeBattleCuragaExecutableState? CuragaExecutable
+    {
+        get => effectState.CuragaExecutable;
+        init => effectState = effectState with { CuragaExecutable = value };
+    }
+    public NativeBattleRestorationExecutableState? EsunaExecutable
+    {
+        get => effectState.EsunaExecutable;
+        init => effectState = effectState with { EsunaExecutable = value };
+    }
+    public NativeBattleRestorationExecutableState? FullLifeExecutable
+    {
+        get => effectState.FullLifeExecutable;
+        init => effectState = effectState with { FullLifeExecutable = value };
+    }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleExecutionStack? ExecutionStack { get; init; }
 

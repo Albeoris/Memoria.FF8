@@ -13,7 +13,11 @@ public sealed partial record NativeBattleQuezacotlResources
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? QuezacotlTargetY1774 { get; init; }
+    public int? QuezacotlTargetY1774
+    {
+        get => effectState.QuezacotlTargetY1774;
+        init => effectState = effectState with { QuezacotlTargetY1774 = value };
+    }
 }
 
 public sealed record NativeBattleQuezacotlPathResources(uint Address, ImmutableArray<byte> Data)

@@ -30,5 +30,9 @@ public static class NativeBattleRinoa86Storage
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleRinoa86State? Rinoa86 { get; init; }
+    public NativeBattleRinoa86State? Rinoa86
+    {
+        get => effectState.Rinoa86;
+        init => effectState = effectState with { Rinoa86 = value };
+    }
 }

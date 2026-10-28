@@ -13,7 +13,11 @@ public sealed record NativeBattlePandemona291State([property: JsonRequired] uint
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattlePandemona291State? Pandemona291 { get; init; }
+    public NativeBattlePandemona291State? Pandemona291
+    {
+        get => effectState.Pandemona291;
+        init => effectState = effectState with { Pandemona291 = value };
+    }
 }
 
 public sealed record NativeBattlePandemona291Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);

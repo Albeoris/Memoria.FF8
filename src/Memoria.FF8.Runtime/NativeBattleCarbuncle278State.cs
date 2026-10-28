@@ -28,5 +28,9 @@ public sealed record NativeBattleCarbuncle278Frame(NativeBattleEffectMemory Memo
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleCarbuncle278State? Carbuncle278 { get; init; }
+    public NativeBattleCarbuncle278State? Carbuncle278
+    {
+        get => effectState.Carbuncle278;
+        init => effectState = effectState with { Carbuncle278 = value };
+    }
 }

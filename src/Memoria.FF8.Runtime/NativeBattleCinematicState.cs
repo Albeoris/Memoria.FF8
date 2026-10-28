@@ -8,5 +8,9 @@ public sealed record NativeBattleCinematicFrame(NativeBattleEffectMemory Memory,
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleCinematicState? Cinematic { get; init; }
+    public NativeBattleCinematicState? Cinematic
+    {
+        get => effectState.Cinematic;
+        init => effectState = effectState with { Cinematic = value };
+    }
 }

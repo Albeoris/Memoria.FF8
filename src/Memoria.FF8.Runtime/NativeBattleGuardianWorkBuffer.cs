@@ -81,8 +81,16 @@ public sealed partial record NativeBattleEffectMemory
     public NativeBattleGuardianWorkBuffer? GuardianWorkBuffer { get; init; }
     public NativeBattleEffectIoState? EffectIo { get; init; }
     public byte? GuardianCasterBank { get; init; }
-    public int? QuezacotlPause { get; init; }
-    public ImmutableArray<uint>? QuezacotlSecondaryHeads { get; init; }
+    public int? QuezacotlPause
+    {
+        get => effectState.QuezacotlPause;
+        init => effectState = effectState with { QuezacotlPause = value };
+    }
+    public ImmutableArray<uint>? QuezacotlSecondaryHeads
+    {
+        get => effectState.QuezacotlSecondaryHeads;
+        init => effectState = effectState with { QuezacotlSecondaryHeads = value };
+    }
 }
 
 /// <summary>Process1DCD6E8 callback; controller offsets are logical pointers into the current effect arena.</summary>

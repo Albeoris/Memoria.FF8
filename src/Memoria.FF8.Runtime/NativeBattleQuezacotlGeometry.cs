@@ -115,5 +115,9 @@ public static class NativeBattleQuezacotlGeometry
 public sealed partial record NativeBattleEffectMemory
 {
     //6C566D copies the composed matrix; selecting a new effect does not initialize this retained global.
-    public NativeBattleActionMatrix? QuezacotlCapturedMatrix1780 { get; init; }
+    public NativeBattleActionMatrix? QuezacotlCapturedMatrix1780
+    {
+        get => effectState.QuezacotlCapturedMatrix1780;
+        init => effectState = effectState with { QuezacotlCapturedMatrix1780 = value };
+    }
 }

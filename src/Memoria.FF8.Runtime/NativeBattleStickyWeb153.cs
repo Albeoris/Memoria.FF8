@@ -11,6 +11,10 @@ public sealed record NativeBattleStickyWeb153State([property: JsonRequired] Immu
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleStickyWeb153State? StickyWeb153 { get; init; }
+    public NativeBattleStickyWeb153State? StickyWeb153
+    {
+        get => effectState.StickyWeb153;
+        init => effectState = effectState with { StickyWeb153 = value };
+    }
 }
 

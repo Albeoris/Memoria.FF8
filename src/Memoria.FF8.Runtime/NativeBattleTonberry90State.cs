@@ -113,9 +113,17 @@ public sealed partial record NativeBattleTonberry90State([property: JsonRequired
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleTonberry90State? Tonberry90 { get; init; }
+    public NativeBattleTonberry90State? Tonberry90
+    {
+        get => effectState.Tonberry90;
+        init => effectState = effectState with { Tonberry90 = value };
+    }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattlePackedMatrix32? SharedEffectView2793E58 { get; init; }
+    public NativeBattlePackedMatrix32? SharedEffectView2793E58
+    {
+        get => effectState.SharedEffectView2793E58;
+        init => effectState = effectState with { SharedEffectView2793E58 = value };
+    }
 }
 
 public sealed record NativeBattleTonberry90Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);

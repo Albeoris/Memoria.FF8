@@ -117,5 +117,9 @@ public sealed class NativeBattleTornado146Work : IDisposable
 
 public sealed partial record NativeBattleEffectMemory
 {
-    public NativeBattleTornado146State? Tornado146 { get; init; }
+    public NativeBattleTornado146State? Tornado146
+    {
+        get => effectState.Tornado146;
+        init => effectState = effectState with { Tornado146 = value };
+    }
 }

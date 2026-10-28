@@ -12,7 +12,11 @@ public sealed record NativeBattleControl110EntryState([property: JsonRequired] i
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleControl110State? Control110 { get; init; }
+    public NativeBattleControl110State? Control110
+    {
+        get => effectState.Control110;
+        init => effectState = effectState with { Control110 = value };
+    }
 }
 public sealed partial record NativeBattleOriginalEffectState
 {

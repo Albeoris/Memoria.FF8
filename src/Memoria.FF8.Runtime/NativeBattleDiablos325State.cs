@@ -32,5 +32,9 @@ public sealed record NativeBattleDiablos325Frame(NativeBattleEffectMemory Memory
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleDiablos325State? Diablos325 { get; init; }
+    public NativeBattleDiablos325State? Diablos325
+    {
+        get => effectState.Diablos325;
+        init => effectState = effectState with { Diablos325 = value };
+    }
 }

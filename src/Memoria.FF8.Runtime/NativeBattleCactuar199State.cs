@@ -19,7 +19,11 @@ public sealed record NativeBattleCactuar199State([property: JsonRequired] Native
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleCactuar199State? Cactuar199 { get; init; }
+    public NativeBattleCactuar199State? Cactuar199
+    {
+        get => effectState.Cactuar199;
+        init => effectState = effectState with { Cactuar199 = value };
+    }
 }
 public sealed record NativeBattleCactuar199Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleCactuar199Operation;

@@ -62,7 +62,11 @@ public sealed record NativeBattleBlastingZone164State([property: JsonRequired] b
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleBlastingZone164State? BlastingZone164 { get; init; }
+    public NativeBattleBlastingZone164State? BlastingZone164
+    {
+        get => effectState.BlastingZone164;
+        init => effectState = effectState with { BlastingZone164 = value };
+    }
 }
 
 public sealed record NativeBattleBlastingZone164Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random)

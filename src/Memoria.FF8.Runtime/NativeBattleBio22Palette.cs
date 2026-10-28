@@ -64,7 +64,11 @@ public sealed record NativeBattleBio22Palette([property: JsonRequired] Immutable
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleBio22Palette? Bio22Palette { get; init; }
+    public NativeBattleBio22Palette? Bio22Palette
+    {
+        get => effectState.Bio22Palette;
+        init => effectState = effectState with { Bio22Palette = value };
+    }
 }
 
 public sealed record NativeBattleBio22PaletteStep(NativeBattleModulePoolTask Task, NativeBattleBio22Palette Palette, NativeCrtRandomState Random, bool QueueTim, uint Result);

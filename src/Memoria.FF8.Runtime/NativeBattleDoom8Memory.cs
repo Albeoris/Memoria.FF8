@@ -6,10 +6,18 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleDoom8State? Doom8 { get; init; }
+    public NativeBattleDoom8State? Doom8
+    {
+        get => effectState.Doom8;
+        init => effectState = effectState with { Doom8 = value };
+    }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? Doom8ColdSourcesPending { get; init; }
+    public bool? Doom8ColdSourcesPending
+    {
+        get => effectState.Doom8ColdSourcesPending;
+        init => effectState = effectState with { Doom8ColdSourcesPending = value };
+    }
 }
 
 public static class NativeBattleDoom8Memory

@@ -11,7 +11,11 @@ public sealed record NativeBattleSandStorm176State([property: JsonRequired] Nati
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleSandStorm176State? SandStorm176 { get; init; }
+    public NativeBattleSandStorm176State? SandStorm176
+    {
+        get => effectState.SandStorm176;
+        init => effectState = effectState with { SandStorm176 = value };
+    }
 }
 public sealed record NativeBattleSandStorm176Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleSandStorm176Operation;

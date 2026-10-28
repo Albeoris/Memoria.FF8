@@ -82,7 +82,11 @@ public sealed record NativeBattleNoMercy200State([property: JsonRequired] bool G
 public sealed partial record NativeBattleEffectMemory
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleNoMercy200State? NoMercy200 { get; init; }
+    public NativeBattleNoMercy200State? NoMercy200
+    {
+        get => effectState.NoMercy200;
+        init => effectState = effectState with { NoMercy200 = value };
+    }
 }
 
 public sealed record NativeBattleNoMercy200Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleFileStaging Staging, NativeCrtRandomState Random)
