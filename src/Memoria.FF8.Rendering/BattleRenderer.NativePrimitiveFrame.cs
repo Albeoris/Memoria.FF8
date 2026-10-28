@@ -275,7 +275,7 @@ public sealed partial class BattleRenderer
             PrimitiveVertex b = At(1);
             PrimitiveVertex c = At(2);
             int submitted = DrawnTriangles;
-            QueueNativePrimitive(a, b, c, texture, blend, resolved.Pass);
+            QueueNativePrimitive(a, b, c, texture, blend, resolved.Pass, centroidTextureSampling: textured);
             if (PilotDiagnosticsEnabled && DrawnTriangles > submitted)
             {
                 ObservePilotSubmittedTriangle(resolved, a, b, c, 0, 1, 2);
@@ -284,7 +284,7 @@ public sealed partial class BattleRenderer
             {
                 PrimitiveVertex d = At(3);
                 submitted = DrawnTriangles;
-                QueueNativePrimitive(b, d, c, texture, blend, resolved.Pass);
+                QueueNativePrimitive(b, d, c, texture, blend, resolved.Pass, centroidTextureSampling: textured);
                 if (PilotDiagnosticsEnabled && DrawnTriangles > submitted)
                 {
                     ObservePilotSubmittedTriangle(resolved, b, d, c, 1, 3, 2);
@@ -708,7 +708,7 @@ public sealed partial class BattleRenderer
         QueueNativePrimitive(b, At(x + width, y + height), c, null, semi ? blend : -1, resolved.Pass);
     }
 
-    private void QueueNativePrimitive(PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, PixelImage? texture, int blend, byte pass)
+    private void QueueNativePrimitive(PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, PixelImage? texture, int blend, byte pass, bool centroidTextureSampling = false)
     {
         static float Edge(PrimitiveVertex first, PrimitiveVertex second, float x, float y) => (second.X - first.X) * (y - first.Y) - (second.Y - first.Y) * (x - first.X);
         float area = Edge(a, b, c.X, c.Y);
@@ -738,7 +738,11 @@ public sealed partial class BattleRenderer
                 _ => throw new NotSupportedException("Unsupported native blend equation.")
             };
             float minimumAlpha = texture is null ? 0 : pass == 1 ? 112f / 255 : pass == 2 && blend == 0 ? 122f / 255 : 1f / 255;
-            TriangleMaterial material = new(texture, equation, TriangleDepthComparison.LessEqual, pass == 1, minimumAlpha, TriangleSampler.PointWrap);
+            TriangleMaterial material = new(texture, equation, TriangleDepthComparison.LessEqual, pass == 1, minimumAlpha, TriangleSampler.PointWrap)
+            {
+                // Covered MSAA edge samples must use UV inside the polygon; depth retains its center evaluation.
+                CentroidTextureSampling = centroidTextureSampling && texture is not null
+            };
             renderer.Draw(Convert(a), Convert(b), Convert(c), material);
             return;
         }
