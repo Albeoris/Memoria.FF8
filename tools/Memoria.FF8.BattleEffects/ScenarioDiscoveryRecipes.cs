@@ -138,6 +138,10 @@ public static partial class ScenarioDiscovery
             blocker = "ENEMY_TRIGGER_OR_TARGET_PRECONDITION: no actual turn-callback dispatch for this exact row/band/sequence has a proved self/party/group target selector. Counter/death/initialization-only, dynamic target and last-attacker paths require their original trigger recipe.";
             return false;
         }
+        if (!TrySelectEnemyRemovalRepeatParty(native, selectorProof.TargetSelector!.Value, initial.Records, initial.CombatParty, out byte[]? removalParty, out blocker))
+        {
+            return false;
+        }
         byte[]? shootParty = null;
         if (native.MagicId == 42 && !TrySelectShootParty(initial.Records, initial.CombatParty, out shootParty, out blocker))
         {
@@ -150,6 +154,10 @@ public static partial class ScenarioDiscovery
         }
         byte[]? preparedParty = shootParty;
         int initialLevel = NativeStatDefinitions.Level(initial.Records[0].Experience, initial.Definitions.Characters[initial.Records[0].CharacterId]);
+        if (removalParty is not null)
+        {
+            initialLevel = removalParty.Max(row => NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId]));
+        }
         int selectedLevel = initialLevel;
         int physical = -1;
         foreach (EnemyScenarioFormation context in owner.Formations.Where(context => context.Enabled && !context.Hidden && !context.Suspended && !context.Untargetable).OrderBy(context => context.FormationId).ThenBy(context => context.SceneSlot))
@@ -174,7 +182,7 @@ public static partial class ScenarioDiscovery
             {
                 continue;
             }
-            byte[]? candidateParty = shootParty ?? stageParty;
+            byte[]? candidateParty = removalParty ?? shootParty ?? stageParty;
             bool bandMatches = false;
             for (int partyLevel = initialLevel; partyLevel <= 100; partyLevel++)
             {
@@ -182,7 +190,7 @@ public static partial class ScenarioDiscovery
                 int[]? bands = null;
                 if (candidateParty is not null || !possibleBands.TryGetValue(key, out bands))
                 {
-                    byte[] partyLevels = (candidateParty ?? initial.CombatParty).Where(row => row != 255).Select(row => row == 0 ? checked((byte)partyLevel) : NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId])).ToArray();
+                    byte[] partyLevels = (candidateParty ?? initial.CombatParty).Where(row => row != 255).Select(row => row == 0 || removalParty is not null ? checked((byte)partyLevel) : NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId])).ToArray();
                     bands = ResolvePossibleEnemyLevels(checked((byte)context.SceneLevel), partyLevels).Select(level => assets.ReadEnemyAi(owner.ModelId, level).LevelBand).Distinct().Order().ToArray();
                     if (candidateParty is null)
                     {
@@ -249,6 +257,10 @@ public static partial class ScenarioDiscovery
             result["driver"]!["repairs"] = new JsonArray(new JsonObject { ["actor_id"] = "party-0", ["hit_points"] = prepared.GetMagicMaximumHitPoints(0), ["revive"] = false, ["remove_statuses0"] = 0, ["remove_statuses1"] = 0 });
         }
         DeclareEnemySupportingReactions(result, assets.LoadEncounter(chosen.FormationId), actor, native.MagicId, scripted);
+        if (removalParty is not null)
+        {
+            prepared = PrepareEnemyRemovalRepeatParty(result, initial, experienceDefinition, removalParty, selectedLevel);
+        }
         DeclareEnemyPartyKnockoutRearm(result, native, selectorProof.TargetSelector!.Value, preparedParty ?? initial.CombatParty, row => prepared.GetMagicMaximumHitPoints(row));
         recipe = result;
         return true;

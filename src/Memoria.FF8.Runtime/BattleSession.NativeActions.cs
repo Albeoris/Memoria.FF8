@@ -126,6 +126,7 @@ public sealed partial class BattleSession
             (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
         }
         (nativeActionPackets, _) = nativeActionPackets.Publish(produced.PublishedTargetCount);
+        ObserveDiagnosticPublishedReflectionHeader(headerIndex);
         nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = produced.PublishedTargetCount };
         if (queueGraphics && NativeGraphics is { } graphics)
         {
@@ -170,41 +171,9 @@ public sealed partial class BattleSession
                 available |= 1 << candidate.NativeIndex;
             }
         }
-        int result;
-        if ((modifiers & 4) != 0)
-        {
-            result = selected == 255 ? available : available & (selected <= 7 ? 7 : 248);
-        }
-        else
-        {
-            result = available & selected;
-            if (result == 0 && nativeScriptState.DisableAutomaticTargetReplacement)
-            {
-                result = selected;
-            }
-            else if (result == 0 && selected != 0)
-            {
-                int side = available & (selected <= 7 ? 7 : 248);
-                int shifted = selected;
-                for (int index = 0; index < 8 && result == 0; index++)
-                {
-                    shifted <<= 1;
-                    result = side & shifted;
-                }
-                shifted = selected;
-                for (int index = 0; index < 8 && result == 0; index++)
-                {
-                    shifted >>= 1;
-                    result = side & shifted;
-                }
-            }
-        }
-        bool unavailable = result == 0 && ((modifiers & 4) != 0 || !nativeScriptState.DisableAutomaticTargetReplacement);
+        (int result, bool unavailable) = NativeBattleActionTargetMask.Resolve(selected, modifiers, available, nativeScriptState.DisableAutomaticTargetReplacement);
         nativeActionScratch = nativeActionScratch with { TargetUnavailableB0E = unavailable };
-        if (unavailable && (modifiers & 4) == 0)
-        {
-            result = selected;
-        }
+        ObserveDiagnosticReflectionTargetResolution(targetMask, selected, modifiers, available, result);
         return combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 7 && (result & (1 << candidate.NativeIndex)) != 0).OrderBy(candidate => candidate.NativeIndex).ToArray();
     }
 

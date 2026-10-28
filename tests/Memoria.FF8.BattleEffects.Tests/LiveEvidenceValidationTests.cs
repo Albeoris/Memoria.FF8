@@ -19,6 +19,69 @@ public sealed class LiveEvidenceValidationTests
         Assert.Equal(2, result.Executions.Length);
     }
 
+    [Fact]
+    public void Reflected_child_uses_native_magic_semantics_for_a_player_draw_source()
+    {
+        JsonObject report = ReflectionReport();
+        report["input"]!["ability"] = "Draw";
+        foreach (JsonNode? execution in report["executions"]!.AsArray())
+        {
+            execution!["dispatches"]![0]!["ability"] = "Draw";
+        }
+        Assert.Equal("PASS", Validate(report).Verdict);
+        Execution(report, 1)["dispatches"]![1]!["ability"] = "EnemyAbility";
+        Assert.Contains("DISPATCH_IDENTITY_MISMATCH", Validate(report).Errors);
+    }
+
+    [Fact]
+    public void Reflected_child_accepts_original_unavailable_target_only_with_canonical_normalization_and_published_contacts()
+    {
+        JsonObject report = ReflectionReport(normalized: true);
+        JsonNode child = Execution(report, 1)["dispatches"]![1]!;
+        Assert.Equal(64, child["reflection"]!["reflected_target_mask"]!.GetValue<int>());
+        Assert.Equal(8, child["native_target_mask"]!.GetValue<int>());
+
+        LiveEvidenceVerdict result = Validate(report);
+        Assert.Equal("PASS", result.Verdict);
+        Assert.Equal(1, result.ReflectedChildDispatches);
+    }
+
+    [Theory]
+    [InlineData("available")]
+    [InlineData("result")]
+    [InlineData("contact")]
+    [InlineData("generation")]
+    [InlineData("producer")]
+    [InlineData("missing")]
+    public void Reflected_target_normalization_cannot_replace_tainted_canonical_evidence(string corruption)
+    {
+        JsonObject report = ReflectionReport(normalized: true);
+        JsonNode reflection = Execution(report, 1)["dispatches"]![1]!["reflection"]!;
+        JsonNode provenance = reflection["target_provenance"]!;
+        switch (corruption)
+        {
+            case "available":
+                provenance["resolutions"]![0]!["available_mask"] = 1;
+                break;
+            case "result":
+                provenance["resolutions"]![0]!["result_mask"] = 16;
+                break;
+            case "contact":
+                provenance["contact_recipients"]![0] = 4;
+                break;
+            case "generation":
+                provenance["header_generation"] = 4;
+                break;
+            case "producer":
+                provenance["producer_address"] = 0;
+                break;
+            case "missing":
+                reflection.AsObject().Remove("target_provenance");
+                break;
+        }
+        Assert.Contains("DISPATCH_IDENTITY_MISMATCH", Validate(report).Errors);
+    }
+
     [Theory]
     [InlineData("unlinked")]
     [InlineData("producer")]
@@ -104,7 +167,7 @@ public sealed class LiveEvidenceValidationTests
         Assert.Contains("DISPATCH_IDENTITY_MISMATCH", Validate(report).Errors);
     }
 
-    private static JsonObject ReflectionReport()
+    private static JsonObject ReflectionReport(bool normalized = false)
     {
         JsonObject report = Report();
         report["expected_effect"] = 106;
@@ -139,6 +202,16 @@ public sealed class LiveEvidenceValidationTests
         child["native_header_generation"] = 3;
         child["native_target_mask"] = 8;
         BattleDiagnosticReflection proof = new(0x487DF0, 2, 0, 2, 1, 3, "party0", 0, "party0", 0, 0x80, "enemy0", 3, 2, 31, 106, 8, 0x10, 31, 106, 0, 8);
+        if (normalized)
+        {
+            proof = proof with
+            {
+                RecipientId = "enemy6",
+                RecipientIndex = 6,
+                ReflectedTargetMask = 64,
+                TargetProvenance = new(0x48E830, 1, 3, 0, [new(64, 64, 0, 8, false, 8)], [3])
+            };
+        }
         child["reflection"] = JsonSerializer.SerializeToNode(proof, RecordJson.Options);
         Execution(report, 1)["dispatches"]!.AsArray().Add(child);
         return report;

@@ -1,8 +1,14 @@
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleDiagnosticReflection(uint ProducerAddress, long SourceDispatchSerial, int SourceHeaderIndex, long SourceHeaderGeneration, int ReflectedHeaderIndex, long ReflectedHeaderGeneration, string ActorId, byte ActorIndex, string ReflectorId, byte ReflectorIndex, uint ReflectorStatuses1, string RecipientId, byte RecipientIndex, byte SourceCommand, ushort SourceActionId, ushort SourceEffect, byte SourceAttackType, byte SourceAttackFlags, ushort ReflectedActionId, ushort ReflectedEffect, byte ReflectedTargetFlags, ushort ReflectedTargetMask);
+public sealed record BattleDiagnosticReflection(uint ProducerAddress, long SourceDispatchSerial, int SourceHeaderIndex, long SourceHeaderGeneration, int ReflectedHeaderIndex, long ReflectedHeaderGeneration, string ActorId, byte ActorIndex, string ReflectorId, byte ReflectorIndex, uint ReflectorStatuses1, string RecipientId, byte RecipientIndex, byte SourceCommand, ushort SourceActionId, ushort SourceEffect, byte SourceAttackType, byte SourceAttackFlags, ushort ReflectedActionId, ushort ReflectedEffect, byte ReflectedTargetFlags, ushort ReflectedTargetMask)
+{
+    public BattleDiagnosticReflectionTargetProvenance? TargetProvenance { get; init; }
+}
+public sealed record BattleDiagnosticReflectionTargetResolution(ushort InputMask, ushort SelectedMask, byte Modifiers, ushort AvailableMask, bool DisableAutomaticReplacement, ushort ResultMask);
+public sealed record BattleDiagnosticReflectionTargetProvenance(uint ProducerAddress, int HeaderIndex, long HeaderGeneration, int FirstContactIndex, ImmutableArray<BattleDiagnosticReflectionTargetResolution> Resolutions, ImmutableArray<byte> ContactRecipients);
 public sealed record BattleDiagnosticReflectionRejection(int? SourceHeaderIndex, long? ExpectedSourceGeneration, long? ActualSourceGeneration, long? SourceDispatchSerial, int PendingHeaderCount, int ObservedHeaderCount, BattleDiagnosticReflection? Candidate);
 
 public static class BattleDiagnosticReflectionLineage
@@ -22,13 +28,68 @@ public static class BattleDiagnosticReflectionLineage
             return false;
         }
         ushort mask = (ushort)((1 << proof.RecipientIndex) | ((proof.ReflectedTargetFlags & 1) != 0 ? 0x4000 : 0) | ((proof.ReflectedTargetFlags & 2) != 0 ? 0x2000 : 0));
-        return (proof.ReflectorIndex < 3) != (proof.RecipientIndex < 3) && child.Ability == (proof.ActorIndex < 3 ? BattleAbility.Magic : BattleAbility.EnemyAbility) && child.NativeCommand == 247 && proof.ReflectedActionId == unchecked((byte)proof.SourceActionId) && child.ActionId == proof.ReflectedActionId && child.RequestedEffect == proof.ReflectedEffect && child.ExecutedEffect == proof.ReflectedEffect && proof.ReflectedTargetMask == mask && child.NativeTargetMask == mask;
+        return (proof.ReflectorIndex < 3) != (proof.RecipientIndex < 3) && child.Ability == (proof.ActorIndex < 3 ? BattleAbility.Magic : BattleAbility.EnemyAbility) && child.NativeCommand == 247 && proof.ReflectedActionId == unchecked((byte)proof.SourceActionId) && child.ActionId == proof.ReflectedActionId && child.RequestedEffect == proof.ReflectedEffect && child.ExecutedEffect == proof.ReflectedEffect && proof.ReflectedTargetMask == mask && MatchesTargets(child, proof, mask);
+    }
+
+    private static bool MatchesTargets(BattleDiagnosticEffectDispatch child, BattleDiagnosticReflection proof, ushort selectedMask)
+    {
+        if (proof.TargetProvenance is not { } targets)
+        {
+            return child.NativeTargetMask == selectedMask;
+        }
+        if (targets.ProducerAddress != 0x48E830 || targets.HeaderIndex != proof.ReflectedHeaderIndex || targets.HeaderGeneration != proof.ReflectedHeaderGeneration || targets.FirstContactIndex is < 0 or >= NativeBattleActionPacketsState.ContactCapacity || targets.Resolutions.IsDefaultOrEmpty || targets.Resolutions.Length > NativeBattleActionPacketsState.ContactCapacity || targets.ContactRecipients.IsDefaultOrEmpty || targets.ContactRecipients.Length > NativeBattleActionPacketsState.ContactCapacity - targets.FirstContactIndex)
+        {
+            return false;
+        }
+        ushort resolved = 0;
+        foreach (BattleDiagnosticReflectionTargetResolution resolution in targets.Resolutions)
+        {
+            if (resolution is null)
+            {
+                return false;
+            }
+            int modifiers = selectedMask >> 13;
+            int selected = selectedMask & 0x1FFF;
+            if ((modifiers & 1) != 0)
+            {
+                selected = resolution.SelectedMask;
+                modifiers &= ~4;
+                if (selected != 0 && ((selected & (selected - 1)) != 0 || (selected & (proof.RecipientIndex < 3 ? 7 : 120)) == 0))
+                {
+                    return false;
+                }
+            }
+            if (resolution.InputMask != selectedMask || resolution.SelectedMask != selected || resolution.Modifiers != modifiers || (resolution.AvailableMask & ~0x7F) != 0)
+            {
+                return false;
+            }
+            (int result, _) = NativeBattleActionTargetMask.Resolve(selected, modifiers, resolution.AvailableMask, resolution.DisableAutomaticReplacement);
+            if (resolution.ResultMask != result || (result & ~0x7F) != 0)
+            {
+                return false;
+            }
+            resolved |= resolution.ResultMask;
+        }
+        ushort contacts = 0;
+        foreach (byte recipient in targets.ContactRecipients)
+        {
+            if (recipient >= 7 || (recipient < 3) == (proof.ReflectorIndex < 3))
+            {
+                return false;
+            }
+            contacts |= (ushort)(1 << recipient);
+        }
+        return contacts == resolved && child.NativeTargetMask == contacts;
     }
 }
 
 public sealed partial class BattleSession
 {
-    private sealed record PendingDiagnosticReflection(int SourceHeader, long SourceGeneration, string ActorId, byte ActorIndex, string ReflectorId, byte ReflectorIndex, uint ReflectorStatuses1, string RecipientId, byte RecipientIndex, byte SourceCommand, ushort SourceActionId, BattleNativeAction Source, BattleNativeAction Reflected, ushort TargetMask);
+    private sealed record PendingDiagnosticReflection(int SourceHeader, long SourceGeneration, string ActorId, byte ActorIndex, string ReflectorId, byte ReflectorIndex, uint ReflectorStatuses1, string RecipientId, byte RecipientIndex, byte SourceCommand, ushort SourceActionId, BattleNativeAction Source, BattleNativeAction Reflected, ushort TargetMask)
+    {
+        internal List<BattleDiagnosticReflectionTargetResolution>? Resolutions { get; set; }
+        internal BattleDiagnosticReflectionTargetProvenance? PublishedTargets { get; set; }
+    }
     private ConditionalWeakTable<BattleAttackCommand, PendingDiagnosticReflection>? diagnosticReflectedCommands;
     private Dictionary<int, long>? diagnosticHeaderGenerations;
     private Dictionary<int, BattleDiagnosticEffectDispatch>? diagnosticHeaderDispatches;
@@ -67,7 +128,7 @@ public sealed partial class BattleSession
         diagnosticHeaderGenerations[header] = ++diagnosticHeaderGeneration;
         diagnosticHeaderDispatches?.Remove(header);
         diagnosticReflectedHeaders?.Remove(header);
-        if (diagnosticReflectionProduction is { } proof)
+        if (diagnosticReflectionProduction is { } proof && nativeActionPackets.Headers[header].ReadByte(1) == 247)
         {
             diagnosticReflectedHeaders ??= [];
             diagnosticReflectedHeaders[header] = proof;
@@ -82,6 +143,36 @@ public sealed partial class BattleSession
         }
         NativeBattleActionHeaderSlot original = nativeActionPackets.Headers[header];
         return new(header, generation, actor.Id, checked((byte)actor.NativeIndex), reflector.Id, checked((byte)reflector.NativeIndex), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.NativeIndex), original.ReadByte(1), (ushort)(original.ReadByte(4) | original.ReadByte(5) << 8), source, reflected, targetMask);
+    }
+
+    private void ObserveDiagnosticReflectionTargetResolution(ushort input, int selected, int modifiers, int available, int result)
+    {
+        if (diagnosticReflectionProduction is not { } pending || nativeActionScratch.Command != 247)
+        {
+            return;
+        }
+        pending.Resolutions ??= [];
+        if (pending.Resolutions.Count < NativeBattleActionPacketsState.ContactCapacity)
+        {
+            pending.Resolutions.Add(new(input, checked((ushort)selected), checked((byte)modifiers), checked((ushort)available), nativeScriptState.DisableAutomaticTargetReplacement, checked((ushort)result)));
+        }
+    }
+
+    private void ObserveDiagnosticPublishedReflectionHeader(int header)
+    {
+        if (diagnosticReflectedHeaders is not { } reflectedHeaders || !reflectedHeaders.TryGetValue(header, out var pending) || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation))
+        {
+            return;
+        }
+        NativeBattleActionHeaderSlot slot = nativeActionPackets.Headers[header];
+        int firstContact = slot.FirstContactIndex!.Value;
+        int count = slot.ReadByte(16);
+        ImmutableArray<byte>.Builder recipients = ImmutableArray.CreateBuilder<byte>(count);
+        for (int index = 0; index < count; index++)
+        {
+            recipients.Add(nativeActionPackets.ReadContact(firstContact + index).Primary.ActorIndex);
+        }
+        pending.PublishedTargets = new(0x48E830, header, generation, firstContact, pending.Resolutions?.ToImmutableArray() ?? [], recipients.MoveToImmutable());
     }
 
     private BattleDiagnosticEffectDispatch CompleteDiagnosticReflection(BattleDiagnosticEffectDispatch dispatch)
@@ -111,7 +202,7 @@ public sealed partial class BattleSession
             }
             else
             {
-                BattleDiagnosticReflection proof = new(0x487DF0, source.Serial, pending.SourceHeader, pending.SourceGeneration, header, generation, pending.ActorId, pending.ActorIndex, pending.ReflectorId, pending.ReflectorIndex, pending.ReflectorStatuses1, pending.RecipientId, pending.RecipientIndex, pending.SourceCommand, pending.SourceActionId, pending.Source.MagicId, pending.Source.AttackType, pending.Source.AttackFlags, pending.Reflected.ActionId, pending.Reflected.MagicId, pending.Reflected.TargetFlags.GetValueOrDefault(), pending.TargetMask);
+                BattleDiagnosticReflection proof = new(0x487DF0, source.Serial, pending.SourceHeader, pending.SourceGeneration, header, generation, pending.ActorId, pending.ActorIndex, pending.ReflectorId, pending.ReflectorIndex, pending.ReflectorStatuses1, pending.RecipientId, pending.RecipientIndex, pending.SourceCommand, pending.SourceActionId, pending.Source.MagicId, pending.Source.AttackType, pending.Source.AttackFlags, pending.Reflected.ActionId, pending.Reflected.MagicId, pending.Reflected.TargetFlags.GetValueOrDefault(), pending.TargetMask) { TargetProvenance = pending.PublishedTargets };
                 BattleDiagnosticEffectDispatch candidate = dispatch with { Reflection = proof };
                 dispatch = BattleDiagnosticReflectionLineage.Matches(candidate, source) ? candidate : RejectDiagnosticReflection(dispatch, "LINEAGE_FIELDS_REJECTED", pending, sourceGeneration, source.Serial, proof);
             }

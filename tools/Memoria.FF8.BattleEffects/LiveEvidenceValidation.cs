@@ -153,7 +153,7 @@ public static class LiveEvidenceValidation
                     if (typed.Reflection is { } reflection)
                     {
                         BattleDiagnosticEffectDispatch[] parents = typedDispatches.Where(parent => parent.Reflection is null && parent.RequestedEffect == effect && parent.ExecutedEffect == effect && parent.Serial < typed.Serial && parent.Callback <= typed.Callback && parent.ActorId == actor && parent.Ability?.ToString() == ability && parent.ActionId == nativeAction && (nativeCommand is null || parent.NativeCommand == nativeCommand) && BattleDiagnosticReflectionLineage.Matches(typed, parent)).ToArray();
-                        invocationMatches = parents.Length == 1 && typed.Ability == parents[0].Ability && reflectedHeaders.Add((reflection.ReflectedHeaderIndex, reflection.ReflectedHeaderGeneration));
+                        invocationMatches = parents.Length == 1 && reflectedHeaders.Add((reflection.ReflectedHeaderIndex, reflection.ReflectedHeaderGeneration));
                     }
                     else
                     {

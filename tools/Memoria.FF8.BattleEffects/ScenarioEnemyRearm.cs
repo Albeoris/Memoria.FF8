@@ -8,7 +8,7 @@ public static partial class ScenarioDiscovery
     public static void DeclareEnemyPartyKnockoutRearm(JsonObject recipe, BattleNativeAction action, byte selector, IReadOnlyList<byte> party, Func<int, int> maximumHitPoints)
     {
         bool canKnockOut = (action.Statuses0 & 1) != 0 || action.Power > 0 && action.AttackType is 1 or 2 or 22 or 26 or 27;
-        if (!canKnockOut || selector is not (0 or 201 or 204))
+        if (!canKnockOut || (action.Statuses1 & 0x10000) != 0 || selector is not (0 or 201 or 204))
         {
             return;
         }
