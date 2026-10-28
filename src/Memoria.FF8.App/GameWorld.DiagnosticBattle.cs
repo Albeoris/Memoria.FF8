@@ -65,7 +65,7 @@ internal sealed partial class GameWorld
     internal DiagnosticBattleReceipt? DiagnosticReceipt { get; private set; }
     internal bool IsDiagnosticBattle => diagnosticBattle is not null;
 
-    internal DiagnosticBattleRequest PrepareDiagnosticEntryBeforePresentation(DiagnosticBattleRequest request)
+    internal DiagnosticBattleRequest PrepareDiagnosticEntryBeforePresentation(DiagnosticBattleRequest request, Action<DiagnosticPreparationProgress>? progress = null)
     {
         BattleSession active = battle ?? throw new InvalidOperationException("Diagnostic entry preparation requires its live battle.");
         if (diagnosticBattle is null || (active.NativeHostCallbacks ?? 0) != 0 || Field is not null || worldScene is not null)
@@ -73,6 +73,8 @@ internal sealed partial class GameWorld
             throw new InvalidOperationException("Entry preparation can run only before the diagnostic host's first presentation callback.");
         }
         long started = Stopwatch.GetTimestamp();
+        DiagnosticPreparationProgressObserver observer = new(active, progress);
+        observer.Report("entry", boundary: true);
         void RejectFocalWarmup(BattleDiagnosticEffectDispatch dispatch)
         {
             if (request.Driver is { } driver && dispatch.RequestedEffect == driver.ExpectedEffect)
@@ -85,7 +87,7 @@ internal sealed partial class GameWorld
         {
             if (request.Prelude is not null)
             {
-                request = PrepareDiagnosticPrelude(request, active);
+                request = PrepareDiagnosticPrelude(request, active, observer);
             }
             bool Ready()
             {
@@ -100,7 +102,9 @@ internal sealed partial class GameWorld
             {
                 active.Tick();
                 callbacks++;
+                observer.Report("entry");
             }
+            observer.Report("entry", boundary: true);
             if (!Ready())
             {
                 object facts = new

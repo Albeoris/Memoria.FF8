@@ -6,7 +6,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    private DiagnosticBattleRequest PrepareDiagnosticPrelude(DiagnosticBattleRequest request, BattleSession active)
+    private DiagnosticBattleRequest PrepareDiagnosticPrelude(DiagnosticBattleRequest request, BattleSession active, DiagnosticPreparationProgressObserver observer)
     {
         DiagnosticBattlePrelude declaration = request.Prelude ?? throw new InvalidOperationException("No ordinary attack prelude was declared.");
         declaration.Validate(request);
@@ -31,6 +31,7 @@ internal sealed partial class GameWorld
         long resets = active.DiagnosticResetCount;
         List<BattleEvent> events = [];
         List<BattleDiagnosticEffectDispatch> dispatches = [];
+        long ordinaryDamage = 0;
         void ObserveEvent(BattleEvent value)
         {
             if (events.Count >= 16384)
@@ -38,6 +39,10 @@ internal sealed partial class GameWorld
                 throw new NotSupportedException("Prelude event evidence exceeded its declared bounded capacity.");
             }
             events.Add(value);
+            if (value.Kind == "Damage" && value.ActorId == attacker.Id && value.TargetId == predecessor.Id && value.Amount > 0)
+            {
+                ordinaryDamage += value.Amount;
+            }
         }
         void ObserveDispatch(BattleDiagnosticEffectDispatch value)
         {
@@ -70,6 +75,7 @@ internal sealed partial class GameWorld
                         bool damaged = events.Any(value => value.Kind == "Damage" && value.ActorId == attacker.Id && value.TargetId == predecessor.Id && value.Amount > 0);
                         if (attacks > 0 && damaged && spawned == declaration.RequireNativeAllocation && (declaration.RequireNativeAllocation || target.Id == request.Target.ActorId) && observed.Alive && observed.StatisticsReady && observed.PhysicalIndex == request.Target.PhysicalIndex && (observed.Flags & request.Target.FlagsMask) == request.Target.FlagsValue)
                         {
+                            observer.Report("ordinary_attack_prelude", attacks, ordinaryDamage, predecessor, attacker, boundary: true);
                             NativeBattleAiDefinition ai = active.GetCombatantDefinition(target.Id).NativeAi ?? throw new NotSupportedException("Prelude target lacks its original initialized AI bank.");
                             if (ai.LevelBand != request.Driver!.EnemyAbility!.LevelBand)
                             {
@@ -96,8 +102,10 @@ internal sealed partial class GameWorld
                 if (callbacks != declaration.MaximumCallbacks)
                 {
                     active.Tick();
+                    observer.Report("ordinary_attack_prelude", attacks, ordinaryDamage, predecessor, attacker);
                 }
             }
+            observer.Report("ordinary_attack_prelude", attacks, ordinaryDamage, predecessor, attacker, boundary: true);
             throw new NotSupportedException("Ordinary command prelude did not reach the original initialized target within its callback budget.");
         }
         finally

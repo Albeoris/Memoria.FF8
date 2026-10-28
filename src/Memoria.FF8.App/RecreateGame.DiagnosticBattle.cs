@@ -16,7 +16,7 @@ internal sealed partial class RecreateGame
         world.StartDiagnosticBattle(request);
         if (request.PrepareEntryBeforePresentation)
         {
-            request = world.PrepareDiagnosticEntryBeforePresentation(request);
+            request = world.PrepareDiagnosticEntryBeforePresentation(request, PublishDiagnosticPreparationProgress);
         }
         gameMenus?.Close();
         if (request.Driver is { } driver)
@@ -24,5 +24,20 @@ internal sealed partial class RecreateGame
             StartDiagnosticDriver(driver);
         }
         Console.WriteLine(JsonSerializer.Serialize(new { DiagnosticInitialization = world.DiagnosticReceipt, Coverage = "PREPARATION_ONLY", Readiness = "Battle entry and case prerequisites must be verified by the driver; no acceptance verdict is available." }, DiagnosticBattleJson));
+    }
+
+    private void PublishDiagnosticPreparationProgress(DiagnosticPreparationProgress progress)
+    {
+        if (progress.Callback <= diagnosticProgressCallback)
+        {
+            return;
+        }
+        diagnosticProgressCallback = progress.Callback;
+        diagnosticProgressTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        diagnosticProgressSequence++;
+        if (options.ControlDirectory is { } control)
+        {
+            WriteDiagnosticJson(Path.Combine(control, "progress.json"), new { stage = "initialization", sequence = diagnosticProgressSequence, completed_stages = Array.Empty<string>(), callback = progress.Callback, frame = progress.Frame, preparation = progress });
+        }
     }
 }
