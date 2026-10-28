@@ -14,11 +14,14 @@ public sealed class OpeningMovieCompletionTests(ITestOutputHelper output)
         string source = TestResources.FixturePath("opening-completion-admission");
         string root = Path.Combine(Path.GetTempPath(), "memoria-movie-completion-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, "requests"));
+        string settings = Path.Combine(root, "settings");
+        Directory.CreateDirectory(settings);
+        File.WriteAllText(Path.Combine(settings, "ui-settings.json"), JsonSerializer.Serialize(new { MusicVolume = 0, SoundVolume = 0, VoiceVolume = 0 }));
         string capture = Path.Combine(root, "terminal.png");
         File.WriteAllText(Path.Combine(root, "requests", "001.json"), "{\"Id\":\"skip\",\"Command\":\"action\",\"Action\":{\"Kind\":\"SkipMovie\"}}");
         MovieClock clock = new(new GameSession(GameSession.Load(source)), game, Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS"));
         ProcessStartInfo start = new(Path.Combine(AppContext.BaseDirectory, "Memoria.FF8.exe")) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (string argument in new[] { "--state", source, "--game-dir", game, "--media-tools", clock.ToolsDirectory, "--control-dir", root, "--control-step", "--resolution", "320x240", "--capture-frame", capture, "--capture-after", "1", "--exit-after", "3" })
+        foreach (string argument in new[] { "--state", source, "--game-dir", game, "--media-tools", clock.ToolsDirectory, "--control-dir", root, "--settings-dir", settings, "--control-step", "--resolution", "320x240", "--capture-frame", capture, "--capture-after", "1", "--exit-after", "3" })
         {
             start.ArgumentList.Add(argument);
         }

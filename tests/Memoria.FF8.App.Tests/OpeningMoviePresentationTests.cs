@@ -18,11 +18,14 @@ public sealed class OpeningMoviePresentationTests
         Assert.SkipUnless(Directory.Exists(game), "Installed original opening movie and field corpus is required.");
         string root = Path.Combine(Path.GetTempPath(), "memoria-opening-host-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, "requests"));
+        string settings = Path.Combine(root, "settings");
+        Directory.CreateDirectory(settings);
+        File.WriteAllText(Path.Combine(settings, "ui-settings.json"), JsonSerializer.Serialize(new { MusicVolume = 0, SoundVolume = 0, VoiceVolume = 0 }));
         string capture = Path.Combine(root, "opening.png");
         File.WriteAllText(Path.Combine(root, "requests", "001.json"), "{\"Id\":\"new-game\",\"Command\":\"new-game\"}");
         MovieClock clock = new(GameSession.CreateColdProcess(), game, Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS"));
         ProcessStartInfo start = new(Path.Combine(AppContext.BaseDirectory, "Memoria.FF8.exe")) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (string argument in new[] { "--game-dir", game, "--media-tools", clock.ToolsDirectory, "--control-dir", root, "--resolution", "320x240", "--capture-frame", capture, "--capture-after", "10", "--exit-after", "12" })
+        foreach (string argument in new[] { "--game-dir", game, "--media-tools", clock.ToolsDirectory, "--control-dir", root, "--settings-dir", settings, "--resolution", "320x240", "--capture-frame", capture, "--capture-after", "10", "--exit-after", "12" })
         {
             start.ArgumentList.Add(argument);
         }
