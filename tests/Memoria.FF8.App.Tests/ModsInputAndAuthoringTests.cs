@@ -46,7 +46,11 @@ public sealed class ModsInputAndAuthoringTests
         Assert.Contains("Load a game", menu.Entries.Single(entry => entry.Id == "mods-edit-playthrough").Help);
         UiView view = menu.BuildView();
         UiElement[] buttons = Descendants(view.Root).OfType<UiButton>().ToArray();
-        Assert.Equal(5, buttons.Length);
+        Assert.Equal(buttons.Length, buttons.Select(button => button.Id).Distinct(StringComparer.Ordinal).Count());
+        foreach (string id in new[] { "mods-installed-tab", "mods-create-tab", "mods-create-new", "mods-edit-existing", "mods-edit-playthrough", "mods-localization-new", "mods-localization-convert" })
+        {
+            Assert.Contains(buttons, button => button.Id == id);
+        }
         Assert.All(buttons, button => Assert.StartsWith("mods-", button.Id));
         menu.SelectEntry("mods-create", "mods-create-new");
         menu.Navigate(MenuInput.Confirm);

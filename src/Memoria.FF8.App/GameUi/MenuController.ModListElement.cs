@@ -20,6 +20,7 @@ public sealed partial class MenuController
         private int first;
         private int selected;
         private readonly Func<string?> readNotice;
+        private readonly bool hasLibraryActivity;
         private string? notice => readNotice();
 
         public ModListElement(MenuController menus)
@@ -38,6 +39,11 @@ public sealed partial class MenuController
             }
             Button("installed-tab", menus.SystemText("mods.list.installed.mods", "Installed Mods"), () => { });
             Button("create-tab", menus.SystemText("mods.list.create.mods", "Create Mods"), () => menus.Push("mods-create"));
+            if (menus.modLibrary is not null)
+            {
+                Button("catalog-tab", "Catalog", () => menus.Push("mods-catalog"));
+                Button("downloads-tab", "Downloads", () => menus.Push("mods-downloads"));
+            }
             Button("mod-refresh", menus.SystemText("mods.list.refresh", "Refresh"), () => menus.Execute(new("mod-refresh")));
             controls["mod-refresh"].Enabled = snapshot.Outcome != ModUpdateOutcome.Updating;
             Button("mod-actions", menus.SystemText("mods.list.actions", "Actions"), () => menus.Push("mods-actions"));
@@ -79,6 +85,11 @@ public sealed partial class MenuController
             Button("mod-prev", menus.SystemText("mods.list.previous", "← Previous"), () => menus.MoveModSelection(-1, true));
             Button("mod-next", menus.SystemText("mods.list.next", "Next →"), () => menus.MoveModSelection(1, true));
             Button("mod-auto", (snapshot.AutoEnableNewMods ? "☑ " : "☐ ") + menus.SystemText("mods.list.automatically.enable.new.mods", "Automatically enable new mods"), () => menus.Execute(new("mod-auto")));
+            if (menus.modLibrarySnapshot?.Jobs.FirstOrDefault(job => job.Phase is not ("Installed" or "Cancelled")) is { } active)
+            {
+                hasLibraryActivity = true;
+                Button("mod-library-activity", "Downloads · " + active.Entry.Name + " · " + active.Phase, () => menus.Push("mods-downloads"));
+            }
         }
 
         private void TrackFocus(UiElement element)
@@ -133,6 +144,15 @@ public sealed partial class MenuController
             float createWidth = Math.Min(140 * unit, width * 0.4f);
             Place("installed-tab", x, top, installedWidth, control);
             Place("create-tab", x + installedWidth + gap, top, createWidth, control);
+            if (menus.modLibrary is not null)
+            {
+                float tabWidth = Math.Min(155 * unit, (width - gap * 3) / 4);
+                int tabIndex = 0;
+                foreach (string id in new[] { "installed-tab", "catalog-tab", "downloads-tab", "create-tab" })
+                {
+                    Place(id, x + tabIndex++ * (tabWidth + gap), top, tabWidth, control);
+                }
+            }
             top += control + gap;
             float statusWidth = Math.Min(width * 0.27f, 220 * unit);
             float formatWidth = Math.Min(width * 0.21f, 155 * unit);
@@ -156,7 +176,7 @@ public sealed partial class MenuController
                 Place("mod-review", right - 160 * unit, top + 6, 154 * unit, control);
                 top += banner.Height + gap;
             }
-            float footer = control * (condensed ? 1 : 2) + gap * 3;
+            float footer = control * (condensed && !hasLibraryActivity ? 1 : 2) + gap * 3;
             float bottom = Math.Max(top, bounds.Bottom - footer);
             float tableWidth = wide ? width * 0.66f : width;
             inspector = new UiRect(x + tableWidth + gap, top, Math.Max(0, width - tableWidth - gap), Math.Max(0, bottom - top));
@@ -173,6 +193,11 @@ public sealed partial class MenuController
             controls["mod-prev"].Enabled = first > 0;
             controls["mod-next"].Enabled = first + menus.modPageSize < packages.Length;
             Place("mod-auto", x, pagerY + control + gap, Math.Min(width, 330 * unit), control);
+            if (hasLibraryActivity)
+            {
+                float activityX = condensed ? x : controls["mod-auto"].Bounds.Right + gap;
+                Place("mod-library-activity", activityX, pagerY + control + gap, Math.Max(0, right - activityX), control);
+            }
             bool showInspector = wide || menus.modInspectorOpen;
             controls["commands"].Visible = wide || !showInspector;
             if (!wide && showInspector)
@@ -223,7 +248,7 @@ public sealed partial class MenuController
             canvas.Text(count, 15 * unit, new UiRect(Bounds.X + 110 * unit, y, Math.Max(0, Bounds.Width - 430 * unit), 36 * unit), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
             canvas.Text($"{first / menus.modPageSize + 1}/{Math.Max(1, (packages.Length + menus.modPageSize - 1) / menus.modPageSize)}", 15 * unit, new UiRect(controls["mod-prev"].Bounds.Right + 6, y, 60 * unit, 36 * unit), theme.Foreground, UiAlignment.Center, UiTextFlow.SingleLine);
             float hintX = controls["mod-auto"].Bounds.Right + 8;
-            if (controls["mod-auto"].Visible)
+            if (controls["mod-auto"].Visible && !hasLibraryActivity)
             {
                 canvas.Text(menus.FormatSystemText("ui.drawself.canvas.explicit.choices.are.kept.template", "Explicit choices are kept \u00B7 {0} {1} \u00B7 {2} Details", menus.CurrentBindingText(ControlAction.Confirm), (SelectedRequestedEnabled ? menus.SystemText("ui.drawself.canvas.disable", "Disable") : menus.SystemText("ui.drawself.canvas.enable", "Enable")), menus.CurrentBindingText(ControlAction.Card)), 14 * unit, new UiRect(hintX, controls["mod-auto"].Bounds.Y, Math.Max(0, Bounds.Right - hintX - 14), 36 * unit), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
             }

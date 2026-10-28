@@ -34,7 +34,9 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 Mods.ReportFailure(diagnostic);
             }
         };
+        RecoverModLibrary();
         Pump(true);
+        ValidateModLibraryStartup();
     }
 
     public bool NativeGameplayModsSupported => ModCompatibility.IsCompatible(source.Descriptor.Edition, ModFormat.Memoria);
@@ -360,6 +362,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     public void Dispose()
     {
+        modLibrary?.Dispose();
         localizationCancellation.Cancel();
         CommittedLocalizations?.InputRevision?.Dispose();
         if (localizationTask is { } pendingLocalization)
@@ -380,6 +383,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         recognition?.Clear();
         voiceStore.Dispose();
         source.Dispose();
+        modLibraryRuntimeLock?.Dispose();
         if (Directory.Exists(materializationDirectory))
         {
             try

@@ -26,6 +26,8 @@ public sealed record JunctionGameplayOverride(JunctionGameplaySetting Setting, d
 public sealed record JunctionManifestMetadata
 {
     public Guid? Id { get; init; }
+    public string? Version { get; init; }
+    public string? Author { get; init; }
     public bool? ContainsMovies { get; init; }
     public bool? ContainsMusic { get; init; }
     public bool? EnableFfmpegVideos { get; init; }
@@ -50,9 +52,10 @@ public static partial class JunctionModImporter
     private static JunctionManifestMetadata ReadManifestMetadata(XElement root)
     {
         Guid? id = null;
-        if (root.Element("ID") is XElement identity && !string.IsNullOrWhiteSpace(identity.Value))
+        string? identity = ReadIdentityText(root, "ID");
+        if (!string.IsNullOrWhiteSpace(identity))
         {
-            id = ParseModId(identity.Value);
+            id = ParseModId(identity);
         }
         List<JunctionSettingConstraint> settings = [];
         List<Guid> required = [];
@@ -103,6 +106,8 @@ public static partial class JunctionModImporter
         return new JunctionManifestMetadata
         {
             Id = id,
+            Version = ReadIdentityText(root, "Version"),
+            Author = ReadIdentityText(root, "Author"),
             ContainsMovies = ReadInformationFlag(root, "ContainsMovies"),
             ContainsMusic = ReadInformationFlag(root, "ContainsMusic"),
             SettingConstraints = settings.AsReadOnly(),
@@ -111,6 +116,16 @@ public static partial class JunctionModImporter
             Before = Array.AsReadOnly(before.Distinct().ToArray()),
             After = Array.AsReadOnly(after.Distinct().ToArray())
         };
+    }
+
+    private static string? ReadIdentityText(XElement root, string name)
+    {
+        XElement[] elements = root.Elements(name).ToArray();
+        if (elements.Length > 1)
+        {
+            throw new InvalidDataException($"Duplicate Junction metadata field: {name}.");
+        }
+        return elements.SingleOrDefault()?.Value.Trim();
     }
 
     private static JunctionSettingConstraint ReadSettingConstraint(XElement element)

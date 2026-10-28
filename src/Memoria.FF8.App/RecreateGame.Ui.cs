@@ -84,6 +84,7 @@ internal sealed partial class RecreateGame
             }
         };
         gameMenus.ConnectMods(resourceHost!.Mods);
+        gameMenus.ConnectModLibrary(resourceHost.ModLibrary);
         gameMenus.ConnectGameplayTuning(() =>
         {
             world ??= CreateWorld();
@@ -727,7 +728,7 @@ internal sealed partial class RecreateGame
                     keyboard.SuppressHeldUiInput();
                 }
             }
-            if (!searchOwnershipChanged && IsActive && gameMenus.ScreenId == "mods" && wheelDelta != 0)
+            if (!searchOwnershipChanged && IsActive && gameMenus.ScreenId is "mods" or "mods-catalog" or "mods-downloads" && wheelDelta != 0)
             {
                 gameMenus.HandleModsWheel(mouse.X, mouse.Y, wheelDelta);
             }

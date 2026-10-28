@@ -13,6 +13,11 @@ internal sealed class UiFontCanvas(IUiCanvas canvas, string fontFamily) : IUiCan
         canvas.Paper(bounds, color);
     }
 
+    public bool ModPreview(string url, UiRect bounds)
+    {
+        return canvas.ModPreview(url, bounds);
+    }
+
     public void Image(UiImageSource source, UiRect bounds)
     {
         canvas.Image(source, bounds);

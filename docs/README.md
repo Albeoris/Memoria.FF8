@@ -9,6 +9,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | Guide | What you will find |
 | --- | --- |
 | [Controls](players/controls.md) | Keyboard, controller, remapping and shortcuts. |
+| [Mod library](players/mod-library.md) | Browse Junction, download with recovery, check packages and prepare safe installations. |
 | [Magic rules and Smart Attack](players/magic-system.md) | Shared stock, limited uses, automatic attacks and save compatibility. |
 | [GF transformations](players/guardian-forms.md) | Optional Ifrit form, commands, HP, lifetime and finisher Skip. |
 | [GF ability editor](players/gf-ability-editor.md) | Create native GF mods or save-local changes from inside the game. |

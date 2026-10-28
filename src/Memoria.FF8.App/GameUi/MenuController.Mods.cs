@@ -26,6 +26,9 @@ public sealed partial class MenuController
         modSubscription?.Dispose();
         modSubscription = null;
         modService = null;
+        ScreenOpened -= RefreshCatalogOnOpen;
+        modLibrary = null;
+        modLibrarySnapshot = null;
     }
 
     internal void ConnectMods(IModService service)
@@ -94,6 +97,11 @@ public sealed partial class MenuController
         {
             actions.Insert(2, new("gf-review", SystemText("ui.modactions.entry.label.review.gf.changes", "Review GF changes"), SystemText("ui.modactions.entry.help.review.the.pending.gameplay.proposal", "Review the pending gameplay proposal."), Destination: "gf-mod-review"));
         }
+        if (modLibrary is not null)
+        {
+            actions.Add(new("catalog", "Catalog", "Browse the saved catalog and check packages.", Destination: "mods-catalog"));
+            actions.Add(new("downloads", "Downloads", "Review transfers and install checked packages.", Destination: "mods-downloads"));
+        }
         return actions;
     }
 
@@ -101,6 +109,7 @@ public sealed partial class MenuController
 
     internal void RefreshModView()
     {
+        RefreshLibraryView();
         if (ScreenId == "mods")
         {
             RestoreModSelection();
@@ -119,6 +128,11 @@ public sealed partial class MenuController
             new("mod-auto", SystemText("ui.modentries.entry.label.automatically.enable.new.mods", "Automatically enable new mods"), SystemText("ui.modentries.entry.help.explicit.choices.are.kept.turning.off.preserves.existing", "Explicit choices are kept; turning off preserves existing packages."), Action: new("mod-auto")),
             new("mod-refresh", SystemText("ui.modentries.entry.label.refresh", "Refresh"), SystemText("ui.modentries.entry.help.rescan.packages.in.both.game.and.application.mods", "Rescan packages in both game and application Mods directories and retry rejected changes."), Action: new("mod-refresh"))
         ];
+        if (modLibrary is not null)
+        {
+            entries.Insert(1, new("catalog-tab", "Catalog", "Browse the saved catalog.", Destination: "mods-catalog"));
+            entries.Insert(2, new("downloads-tab", "Downloads", "Review pending downloads and installations.", Destination: "mods-downloads"));
+        }
         entries.AddRange(FilteredModViews().Select(view => new MenuEntry(view.Package.Id, view.Package.Name, ModStatusText(view), Action: new("mod-toggle", view.Package.Id))));
         if (HasModReview)
         {
@@ -186,13 +200,24 @@ public sealed partial class MenuController
         while (Math.Abs(modWheelDelta) >= 120)
         {
             int direction = modWheelDelta > 0 ? -1 : 1;
-            MoveModSelection(direction, true);
+            if (IsLibraryScreen)
+            {
+                FocusableDescendants(BuildView().Root).FirstOrDefault(element => element.Id == "commands")?.Key(direction < 0 ? UiKey.PageUp : UiKey.PageDown);
+            }
+            else
+            {
+                MoveModSelection(direction, true);
+            }
             modWheelDelta += direction * 120;
         }
     }
 
     public bool EnterModSearchCharacter(char character)
     {
+        if (IsOpen && EnterCatalogSearchCharacter(character))
+        {
+            return true;
+        }
         if (!IsOpen || ScreenId != "mods-search")
         {
             return false;
@@ -295,6 +320,19 @@ public sealed partial class MenuController
         }
         switch (action.Kind)
         {
+            case "mod-catalog-letter":
+                foreach (char letter in action.Value)
+                {
+                    EnterCatalogSearchCharacter(letter);
+                }
+                return true;
+            case "mod-catalog-delete":
+                EnterCatalogSearchCharacter('\b');
+                return true;
+            case "mod-catalog-clear-search":
+                catalogSearch = "";
+                _view = null;
+                return true;
             case "mod-diagnostics-open":
                 diagnosticModId = action.SubjectId.Length == 0 ? null : action.SubjectId;
                 _selections["mods-package-diagnostics"] = 0;

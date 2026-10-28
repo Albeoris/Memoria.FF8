@@ -197,6 +197,7 @@ internal sealed partial class RecreateGame : Game
             world?.SynchronizeGameplayTuning();
             RefreshLocalizationPresentation();
             gameMenus?.RefreshModView();
+            UpdateModLibraryNotifications();
             UpdateDisplayFrame(gameTime);
             SynchronizeFieldVoices();
         }

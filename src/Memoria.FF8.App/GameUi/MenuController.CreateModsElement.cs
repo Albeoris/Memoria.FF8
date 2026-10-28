@@ -10,6 +10,7 @@ public sealed partial class MenuController
         private readonly MenuController menus;
         private readonly UiButton installed;
         private readonly UiButton create;
+        private readonly List<UiButton> libraryTabs = [];
         private readonly List<UiButton> actions = [];
 
         public CreateModsElement(MenuController menus)
@@ -19,6 +20,15 @@ public sealed partial class MenuController
             create = new UiButton { Id = "mods-create-tab", Text = menus.SystemText("mods.create", "Create Mods"), DrawBackground = false, TextInset = 10, Click = () => { } };
             Children.Add(installed);
             Children.Add(create);
+            if (menus.modLibrary is not null)
+            {
+                foreach ((string id, string label, string screen) in new[] { ("mods-catalog-tab", "Catalog", "mods-catalog"), ("mods-downloads-tab", "Downloads", "mods-downloads") })
+                {
+                    UiButton tab = new() { Id = id, Text = label, DrawBackground = false, TextInset = 10, Click = () => menus.Push(screen) };
+                    libraryTabs.Add(tab);
+                    Children.Add(tab);
+                }
+            }
             IReadOnlyList<MenuEntry> entries = menus.LocalizeSystemEntries(menus.CreateModEntries());
             for (int index = 1; index < entries.Count; index++)
             {
@@ -50,6 +60,16 @@ public sealed partial class MenuController
             create.FontSize = 17 * unit;
             installed.Arrange(new UiRect(x, top, 165 * unit, 36 * unit));
             create.Arrange(new UiRect(installed.Bounds.Right + 8, top, 140 * unit, 36 * unit));
+            if (libraryTabs.Count > 0)
+            {
+                float tabWidth = Math.Min(155 * unit, (bounds.Width - 52) / 4);
+                int ordinal = 0;
+                foreach (UiButton tab in new[] { installed, libraryTabs[0], libraryTabs[1], create })
+                {
+                    tab.FontSize = 17 * unit;
+                    tab.Arrange(new(x + ordinal++ * (tabWidth + 8), top, tabWidth, 36 * unit));
+                }
+            }
             top += 130 * unit;
             foreach (UiButton action in actions)
             {

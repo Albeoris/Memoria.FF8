@@ -22,6 +22,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     public void BeginFrame(TimeSpan time)
     {
         textOverflow.BeginFrame(time);
+        PumpModPreview();
     }
 
     public void PrepareTripleTriad(TripleTriadController controller)
@@ -395,6 +396,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public void Dispose()
     {
+        DisposeModPreviews();
         paper?.Dispose();
         menuPointer?.Dispose();
         foreach (Texture2D button in controllerButtons.Values)

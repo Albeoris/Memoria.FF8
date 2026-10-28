@@ -4,8 +4,8 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
-    internal bool IsModSearchEditing => IsOpen && ScreenId == "mods-search";
-    internal bool IsModManager => IsOpen && ScreenId is "mods" or "mods-create";
+    internal bool IsModSearchEditing => IsOpen && ScreenId is "mods-search" or "mods-catalog-search";
+    internal bool IsModManager => IsOpen && ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads";
 
     private bool NavigateModManager(MenuInput input)
     {
@@ -18,14 +18,21 @@ public sealed partial class MenuController
         {
             return false;
         }
+        if (IsLibraryScreen && input == MenuInput.Cancel && catalogNarrow && catalogInspectorOpen)
+        {
+            catalogInspectorOpen = false;
+            modFocusedControlId = "commands";
+            _view = null;
+            return true;
+        }
         if (input is MenuInput.PageLeft or MenuInput.PageRight)
         {
-            SwitchModTab();
+            SwitchModTab(input == MenuInput.PageLeft ? -1 : 1);
             return true;
         }
         if (input == MenuInput.Actions)
         {
-            Push("mods-actions");
+            Push(IsLibraryScreen ? "mods-library-details" : "mods-actions");
             return true;
         }
         UiView view = BuildView();
@@ -36,6 +43,14 @@ public sealed partial class MenuController
             if (ScreenId == "mods" && modInspectorOpen != showInspector)
             {
                 modInspectorOpen = showInspector;
+                _view = null;
+                view = BuildView();
+            }
+            if (IsLibraryScreen)
+            {
+                catalogInspectorOpen = showInspector;
+                target = showInspector ? "library-primary" : "commands";
+                modFocusedControlId = target;
                 _view = null;
                 view = BuildView();
             }
@@ -56,11 +71,11 @@ public sealed partial class MenuController
             }
             return true;
         }
-        if (view.FocusedElement?.Id is "installed-tab" or "create-tab" or "mods-installed-tab" or "mods-create-tab" && input is MenuInput.Left or MenuInput.Right)
+        if (view.FocusedElement?.Id is "installed-tab" or "catalog-tab" or "downloads-tab" or "create-tab" or "mods-installed-tab" or "mods-create-tab" or "mods-catalog-tab" or "mods-downloads-tab" && input is MenuInput.Left or MenuInput.Right)
         {
-            if (ScreenId == "mods" && input == MenuInput.Right || ScreenId == "mods-create" && input == MenuInput.Left)
+            if (modLibrary is not null || ScreenId == "mods" && input == MenuInput.Right || ScreenId == "mods-create" && input == MenuInput.Left)
             {
-                SwitchModTab();
+                SwitchModTab(input == MenuInput.Left ? -1 : 1);
             }
             return true;
         }
@@ -84,9 +99,13 @@ public sealed partial class MenuController
         return false;
     }
 
-    private void SwitchModTab()
+    private void SwitchModTab() => SwitchModTab(1);
+
+    private void SwitchModTab(int direction)
     {
-        string destination = ScreenId == "mods" ? "mods-create" : "mods";
+        string[] destinations = modLibrary is null ? ["mods", "mods-create"] : ["mods", "mods-catalog", "mods-downloads", "mods-create"];
+        int index = Math.Max(0, Array.IndexOf(destinations, ScreenId));
+        string destination = destinations[(index + direction + destinations.Length) % destinations.Length];
         if (_history.TryPeek(out string? previous) && previous == destination)
         {
             Back();

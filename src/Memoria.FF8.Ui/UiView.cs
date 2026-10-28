@@ -28,6 +28,8 @@ public sealed class UiView
     }
 
     public UiElement Root { get; }
+    public float ViewportWidth => _viewportWidth;
+    public float ViewportHeight => _viewportHeight;
     public float DesignWidth
     {
         get => _designWidth;
@@ -431,6 +433,11 @@ public sealed class UiView
         public void MenuPointer(UiRect bounds)
         {
             canvas.MenuPointer(Map(bounds));
+        }
+
+        public bool ModPreview(string url, UiRect bounds)
+        {
+            return canvas.ModPreview(url, Map(bounds));
         }
 
         public void Image(UiImageSource source, UiRect bounds)

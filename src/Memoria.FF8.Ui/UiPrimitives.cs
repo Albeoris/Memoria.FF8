@@ -168,6 +168,8 @@ public interface IUiCanvas
     }
     void MenuPointer(UiRect bounds);
     void Image(UiImageSource source, UiRect bounds);
+    /// <summary>Draws a cached catalog preview or schedules optional background loading and returns false for a placeholder.</summary>
+    bool ModPreview(string url, UiRect bounds) => false;
     /// <summary>Maps artwork to the complete destination, including nonuniform animation scaling.</summary>
     void ImageStretched(UiImageSource source, UiRect bounds)
     {
