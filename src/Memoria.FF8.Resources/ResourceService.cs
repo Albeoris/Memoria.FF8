@@ -6,7 +6,10 @@ namespace Memoria.FF8.Resources;
 /// <summary>The sole encoded-resource and decoded-texture entry point. The host owns publication timing.</summary>
 public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSource
 {
-    private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values, ImmutableDictionary<ResourceKey, StaticTextResource> Texts, ImmutableDictionary<ResourceKey, EncodedResource> Encoded, ImmutableArray<string> ExclusiveScopes, LocalizationCatalog Localization);
+    private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values, ImmutableDictionary<ResourceKey, StaticTextResource> Texts, ImmutableDictionary<ResourceKey, EncodedResource> Encoded, ImmutableArray<string> ExclusiveScopes, LocalizationCatalog Localization)
+    {
+        public long CatalogGeneration { get; init; }
+    }
     private readonly IResourceSource source;
     private readonly Dictionary<TextureKey, TextureBuildContext> contexts = [];
     private readonly Dictionary<TextureKey, TextureTransformContext> transforms = [];
@@ -58,6 +61,8 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         return new(this, version, resolver, affected.ToImmutableDictionary(key => key, key => values[key]), current.Texts, current.Encoded, current.ExclusiveScopes, [], localization);
     }
     public long Generation => Volatile.Read(ref published).Generation;
+    /// <summary>Advances only when a prepared resolver, encoded-resource or localization catalog is committed; native texture context updates and residency changes do not advance it.</summary>
+    public long CatalogGeneration => Volatile.Read(ref published).CatalogGeneration;
     public int ResidentTextureCount => handles.Count;
     public event Action<TextureKey, Exception>? ReplacementFailed;
 
@@ -448,7 +453,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
                 owner.mutationVersion++;
                 Publication previous = owner.published;
                 owner.resolver = resolver;
-                Volatile.Write(ref owner.published, new Publication(previous.Generation + 1, previous.Values.SetItems(values), texts, encoded, exclusiveScopes, localization));
+                Volatile.Write(ref owner.published, new Publication(previous.Generation + 1, previous.Values.SetItems(values), texts, encoded, exclusiveScopes, localization) { CatalogGeneration = previous.CatalogGeneration + 1 });
                 change = new ResourceChangeSet(previous.Generation, previous.Generation + 1, values.Keys.ToImmutableArray(), reason) { Texts = previous.Texts.Keys.Union(texts.Keys).Concat(previous.Localization.Fingerprint == localization.Fingerprint ? [] : new[] { new ResourceKey("localization/catalog") }).ToImmutableArray(), Resources = changedEncoded };
             }
             if (notify)

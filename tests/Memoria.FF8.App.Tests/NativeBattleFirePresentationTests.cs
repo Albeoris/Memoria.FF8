@@ -47,6 +47,7 @@ public sealed class NativeBattleFirePresentationTests
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalog(),
+            LimitProgress = game.ReadNewGameLimitProgress(),
             NativeSavedOptions = inputConfiguration.Options,
             NativeInputButtonMap = inputConfiguration.ButtonMap,
             NativeBattleSpeed = inputConfiguration.NativeBattleSpeedByte,
@@ -256,7 +257,7 @@ public sealed class NativeBattleFirePresentationTests
         NativeBattleFileIoState pending = NativeBattleFileIoState.FromColdProcess().Queue482610(40960, 0x508470, null);
         BattleSession probe = BattleSession.Restore(entry with { NativeFileIo = pending, NativeEffectIoResult = -1 });
         long callback = probe.NativeGraphics!.Callback;
-        probe.AdvanceNativeGraphicsPresentation(Callback);
+        probe.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(probe));
         Assert.Equal(callback + 1, probe.NativeGraphics.Callback);
         Assert.Equal((short)1, probe.NativeFileIo!.Rows[0].Countdown);
         Assert.Equal(-1, probe.NativeEffectIoResult);
@@ -266,8 +267,8 @@ public sealed class NativeBattleFirePresentationTests
         BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(mid)!);
         for (int step = 0; step < 2; step++)
         {
-            probe.AdvanceNativeGraphicsPresentation(Callback);
-            clone.AdvanceNativeGraphicsPresentation(Callback);
+            probe.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(probe));
+            clone.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(clone));
             Assert.Equal(JsonSerializer.Serialize(probe.Capture()), JsonSerializer.Serialize(clone.Capture()));
             Assert.Equal(step == 0 ? -1 : 40960, probe.NativeEffectIoResult);
         }
@@ -277,14 +278,22 @@ public sealed class NativeBattleFirePresentationTests
         NativeBattleGraphicsState graphics = entry.NativeGraphics!;
         NativeBattleUiServices services = graphics.UiServices!;
         BattleSession paused = BattleSession.Restore(entry with { NativeFileIo = pending, NativeEffectIoResult = -1, NativeGraphics = graphics with { UiServices = services with { Flags942 = (ushort)(services.Flags942 | 2), PauseDE9 = true } } });
-        paused.AdvanceNativeGraphicsPresentation(Callback);
+        paused.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(paused));
         Assert.Equal(callback, paused.NativeGraphics!.Callback);
         Assert.Equal((short)2, paused.NativeFileIo!.Rows[0].Countdown);
         Assert.Equal(-1, paused.NativeEffectIoResult);
         BattleSession old = BattleSession.Restore(entry with { NativeFileIo = null });
-        Assert.Throws<NotSupportedException>(() => old.AdvanceNativeGraphicsPresentation(Callback));
+        Assert.Throws<NotSupportedException>(() => old.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(old)));
         Assert.Null(old.NativeFileIo);
         Assert.Equal(entry.NativeGraphics!.Callback, old.NativeGraphics!.Callback);
+    }
+
+    private static TimeSpan NextGraphicsCallback(BattleSession battle)
+    {
+        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        //31/2 callbacks per second: admit exactly the next boundary from the retained rational remainder.
+        long remainingUnits = 2 * (TimeSpan.TicksPerSecond - graphics.PresentationSubticks) - (graphics.PresentationHalfSubtick ? 1 : 0);
+        return TimeSpan.FromTicks((remainingUnits + 30) / 31);
     }
 
     private static int DifferentPixels(byte[] visible, byte[] plain)

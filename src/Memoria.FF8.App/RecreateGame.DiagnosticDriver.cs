@@ -176,6 +176,7 @@ internal sealed partial class RecreateGame
         ReleaseDiagnosticTerminalHold(diagnosticDriverBattle!);
         PublishDiagnosticDriverProgress();
         diagnosticTelemetry!.Complete(diagnosticPresentedFrames, false, 0, driver.Blocker);
+        DisposeDiagnosticBattleImage();
         WriteDiagnosticFinalizationStage("telemetry-completed");
         PublishDiagnosticCandidate();
         WriteDiagnosticFinalizationStage("candidate-published");

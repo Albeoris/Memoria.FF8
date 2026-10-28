@@ -41,6 +41,10 @@ internal sealed partial class BattleScenePresentation
     private long renderedEffectTextureGeneration;
     private readonly BattlePilotPresentationTimeline pilotTimeline = new();
     internal bool SmoothCompatibleMotion { get; set; }
+    internal string? LastPilotFallbackReason => renderer?.LastPilotFallbackReason;
+    internal int LastPilotFallbackCount => renderer?.LastPilotFallbackCount ?? 0;
+    internal bool PilotDiagnosticsEnabled { get; set; }
+    internal NativeBattlePilotSubmission PilotSubmission => renderer?.PilotSubmission ?? default;
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
@@ -122,19 +126,30 @@ internal sealed partial class BattleScenePresentation
             renderedGpu = null;
         }
         renderer.TriangleRenderer = triangleRenderer;
+        renderer.PilotDiagnosticsEnabled = PilotDiagnosticsEnabled;
         NativeBattlePreparedPresentation? prepared = session.PreparedPresentation;
         NativeBattlePreparedPresentation? pilotNext = null;
         float pilotAlpha = 0;
+        bool pilotInterval = false;
         if (prepared is not null)
         {
             float alpha = session.NativeGraphics is { } clock ? (float)((clock.PresentationSubticks + (clock.PresentationHalfSubtick ? 0.5 : 0)) / TimeSpan.TicksPerSecond) : 0;
             (prepared, pilotNext, pilotAlpha) = pilotTimeline.Select(prepared, SmoothCompatibleMotion, alpha);
+            pilotInterval = pilotNext is not null;
+            if (pilotNext is not null && !renderer.CanSampleNativePilotInterval(prepared, pilotNext))
+            {
+                pilotNext = null;
+            }
         }
         if (session.NativeGraphics is not null && prepared is null)
         {
             throw new InvalidOperationException("Native battle rendering requires a completed prepared presentation.");
         }
         PresentedNativeFrame = prepared;
+        if (prepared is not null)
+        {
+            renderer.ObservePilotSource(prepared, pilotNext, pilotAlpha, pilotInterval);
+        }
         if (prepared?.GuardianAnimationSkipPending ?? session.GuardianAnimationSkipPending)
         {
             if (triangleRenderer is null && renderedPixels is not null)
@@ -154,7 +169,7 @@ internal sealed partial class BattleScenePresentation
         BattleCamera? selectedCamera = camera;
         if (prepared is not null)
         {
-            if ((pilotNext is null ? prepared.Camera : prepared.PilotCamera) is { FocalLength: > 0 } nativeCamera)
+            if ((pilotInterval ? prepared.PilotCamera : prepared.Camera) is { FocalLength: > 0 } nativeCamera)
             {
                 if (pilotNext?.PilotCamera is { } nextCamera)
                 {

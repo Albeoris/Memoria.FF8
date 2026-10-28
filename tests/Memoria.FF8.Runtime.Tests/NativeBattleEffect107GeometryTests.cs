@@ -153,6 +153,30 @@ public sealed class NativeBattleEffect107GeometryTests
         Assert.Equal(accepted ? 44 : 0, batch.AllocationBytes);
     }
 
+    [Fact]
+    public void Native_body_depth_4387_writes_the_adjacent_retained_OT_root_instead_of_clamping_or_drawing_in_the_active_table()
+    {
+        NativeBattleProjectedVertex[] vertices = [new(XY(80, 80), 17498), new(XY(160, 80), 17498), new(XY(80, 160), 17498)];
+        NativeBattleGfGeometryBatch batch = NativeBattleEffect107Geometry.Emit6BCB50([Body(false)], vertices, 0x123456, null);
+        Assert.Equal(4387, Assert.Single(batch.Attempts).Primitive!.Bucket);
+        NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
+        Assert.Equal((byte)0, process.Buffer80);
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, ordering, batch);
+        Assert.Equal(32, written.Process.ByteCursor);
+        Assert.Equal(new NativeBattlePrimitiveLink(false, 0), written.Ordering.Table[1]);
+        Assert.Equal(new NativeBattlePrimitiveLink(true, 0), written.Ordering.OtherTable!.Value[1]);
+        NativeBattleLogicalPacket packet = Assert.Single(written.Ordering.Packets);
+        Assert.Equal((byte)1, packet.NextTableBuffer);
+        Assert.Equal((byte)1, written.Ordering.Proxies[0].NextHigh22);
+        Assert.Equal(new byte[] { 0xE0, 0x24, 0xD9 }, written.Process.ReadCommonPacket(0, 3));
+        byte[] lengths = new byte[256];
+        lengths[0x26] = 7;
+        Assert.Empty(written.Ordering.Traverse(lengths.ToImmutableArray()));
+        written.Ordering.SelectTable(1);
+        Assert.Equal(1, Assert.Single(written.Ordering.Traverse(lengths.ToImmutableArray())).OrderingBucket);
+    }
+
     private static NativeBattleRawPolygon Body(bool quad)
     {
         byte[] bytes = new byte[quad ? 20 : 16];

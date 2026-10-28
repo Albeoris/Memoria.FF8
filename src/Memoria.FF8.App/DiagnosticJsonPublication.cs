@@ -9,7 +9,7 @@ internal static class DiagnosticJsonPublication
         string full = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         string temporary = full + ".tmp";
-        move ??= static (source, destination, overwrite) => File.Move(source, destination, overwrite);
+        move ??= PublishFile;
         delay ??= Thread.Sleep;
         for (int attempt = 1; ; attempt++)
         {
@@ -23,8 +23,6 @@ internal static class DiagnosticJsonPublication
                         stream.Flush(flushToDisk: true);
                     }
                 }
-                // A same-directory rename publishes a whole record without copying the
-                // destination's metadata, as ReplaceFile does on Windows.
                 move(temporary, full, progress);
                 return true;
             }
@@ -43,6 +41,20 @@ internal static class DiagnosticJsonPublication
                 // Required reports are published after the measured executions complete.
                 delay(TimeSpan.FromMilliseconds(10 * attempt));
             }
+        }
+    }
+
+    private static void PublishFile(string temporary, string destination, bool overwrite)
+    {
+        if (overwrite && File.Exists(destination))
+        {
+            // ReplaceFile preserves atomic publication while delete-sharing readers
+            // retain the old record. Move(overwrite: true) can reject those readers.
+            File.Replace(temporary, destination, destinationBackupFileName: null);
+        }
+        else
+        {
+            File.Move(temporary, destination);
         }
     }
 

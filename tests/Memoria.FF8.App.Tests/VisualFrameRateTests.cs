@@ -6,6 +6,60 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class VisualFrameRateTests
 {
+    [Fact]
+    public void ExistingTextureComparisonReportsSourceChangesWithSuccessfulPresentationReceipts()
+    {
+        using GpuTestDevice gpu = new();
+        using VisualFrameRate meter = new(gpu.Device);
+        using RenderTarget2D source = gpu.CreateTarget(64, 64);
+        using RenderTarget2D destination = gpu.CreateTarget(64, 64);
+        List<VisualFrameComparison> results = [];
+        meter.ComparisonResolved += results.Add;
+        for (int frame = 0; frame < 3; frame++)
+        {
+            Color image = frame == 2 ? Color.Blue : Color.Red;
+            gpu.Device.SetRenderTarget(source);
+            gpu.Device.Clear(image);
+            gpu.Device.SetRenderTarget(destination);
+            Color overlay = new(frame + 10, 20, 30);
+            gpu.Device.Clear(overlay);
+            Viewport viewport = new(7, 11, 32, 24);
+            gpu.Device.Viewport = viewport;
+            meter.ObserveTexture(source, frame + 100);
+            Assert.Equal(viewport, gpu.Device.Viewport);
+            Assert.Equal(destination, gpu.Device.GetRenderTargets().Single().RenderTarget);
+            Assert.All(GpuTestDevice.Read(destination), pixel => Assert.Equal(overlay, pixel));
+            Assert.All(GpuTestDevice.Read(source), pixel => Assert.Equal(image, pixel));
+            Assert.True(meter.HasAwaitingPresentation);
+            meter.Presented(TimeSpan.FromSeconds(frame));
+        }
+        meter.ResolveCompletedPresentations();
+        Assert.Equal(3, results.Count);
+        Assert.Equal(new VisualFrameComparison(100, TimeSpan.Zero, null), results[0]);
+        Assert.Equal(new VisualFrameComparison(101, TimeSpan.FromSeconds(1), false), results[1]);
+        Assert.Equal(new VisualFrameComparison(102, TimeSpan.FromSeconds(2), true), results[2]);
+        Assert.Equal(0, meter.DroppedComparisons);
+    }
+
+    [Fact]
+    public void ObservedTextureWithoutSuccessfulPresentationProducesNoComparisonReceipt()
+    {
+        using GpuTestDevice gpu = new();
+        using RenderTarget2D source = gpu.CreateTarget(64, 64);
+        List<VisualFrameComparison> results = [];
+        using (VisualFrameRate meter = new(gpu.Device))
+        {
+            meter.ComparisonResolved += results.Add;
+            gpu.Device.SetRenderTarget(source);
+            gpu.Device.Clear(Color.Red);
+            gpu.Device.SetRenderTarget(null);
+            meter.ObserveTexture(source, 42);
+            Assert.True(meter.HasAwaitingPresentation);
+            Assert.Equal(0, meter.PendingComparisons);
+        }
+        Assert.Empty(results);
+    }
+
     [Theory]
     [InlineData(false, 0)]
     [InlineData(true, 0.5)]

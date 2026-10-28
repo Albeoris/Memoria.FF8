@@ -26,6 +26,7 @@ public sealed class NativeBattleBlizzardPresentationTests
         BattleNativeAction native = action.NativeAction!;
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);
+        NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
         BattleCombatantDefinition[] actors =
         [
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
@@ -49,7 +50,10 @@ public sealed class NativeBattleBlizzardPresentationTests
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([144]),
-            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            LimitProgress = game.ReadNewGameLimitProgress(),
+            NativeSavedOptions = input.Options,
+            NativeInputButtonMap = input.ButtonMap,
+            NativeBattleSpeed = input.NativeBattleSpeedByte,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
@@ -119,7 +123,10 @@ public sealed class NativeBattleBlizzardPresentationTests
                     if (impulse != 0)
                     {
                         Assert.Equal((ushort)144, currentGraphics.OriginalEffect!.Binding.Effect);
-                        cameraImpulses++;
+                        if (currentGraphics.Callback != prior.NativeGraphics!.Callback)
+                        {
+                            cameraImpulses++;
+                        }
                     }
                 }
                 casting |= currentGraphics.ActionGraphics?.Callback == 0x50A9A0;

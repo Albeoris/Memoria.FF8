@@ -46,8 +46,8 @@ public sealed class NativeBattleBlizzardCompositeRenderingTests
         Assert.Contains(Enumerable.Range(0, 320 * 216), pixel => pixels[pixel * 4 + 1] > 0);
         Assert.All(Enumerable.Range(0, 320 * 216), pixel => Assert.Equal((byte)0, withoutPartner[pixel * 4 + 1]));
         Assert.NotEqual(pixels, withoutPartner);
-        NativeBattlePrimitiveFrame first = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(frame))!;
-        NativeBattlePrimitiveFrame second = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattlePrimitiveFrame first = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!;
+        NativeBattlePrimitiveFrame second = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!;
         byte[] restored = new BattleRenderer(320, 216).RenderNativePrimitiveFrame(second, textures, textureWindowCache: selectedCache).ToArray();
         Assert.Equal(pixels, new BattleRenderer(320, 216).RenderNativePrimitiveFrame(first, textures, textureWindowCache: selectedCache).ToArray());
         Assert.Equal(pixels, restored);

@@ -3,12 +3,106 @@ using System.Buffers.Binary;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattlePrimitiveFrameRenderingTests
 {
+    [Fact]
+    public void HeldWindowReusesItsFrozenProvenanceAcrossUnrelatedLiveMetadataButChecksLivePaletteAndHeldFrames()
+    {
+        const ushort page = 0;
+        const ushort clut = 0x4000;
+        uint bits = NativeBattleQuezacotlGeometryPackets.TextureWindowCommand(new(0, 0, 8, 8)) & 0xFFFFFF;
+        NativeBattleTextureOrigin origin = new("mag001_b.00", 0, NativeBattleTextureRole.Pixels, 4, 2, 8);
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess().EnqueueRectangle505DF0(new(0, 0, 2, 8), new("fixture:pixels", new byte[32].ToImmutableArray()), origin: origin).Drain505D20().State;
+        NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), (uint)clut << 16, Point(30, 10), 7, Point(10, 30), 7u << 8, Point(30, 30), 7u << 8 | 7], 1, [], null) { OrderingBucket = 50 };
+        NativeBattlePrimitiveDrawMode mode = TexturedMode(page, bits, clut) with { TexturePixelSnapshot = 0 };
+        NativeBattlePrimitiveFrame frame = Frame([new(command, mode, 1)]) with { LastTextureSnapshots = [held] };
+        using InMemoryResourceSource resources = new(new("fixture", GameDataEdition.Classic, ["classic-ffnx"]));
+        ResourceService service = new(resources);
+        CountingHeldTextureResolver resolver = new();
+        service.Prepare(resolver).Commit();
+        using NativeBattleEffectTextureSource effectTextures = new(service);
+        TextureCapture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: effectTextures);
+        PixelImage initial = capture.Texture!;
+        NativeBattleEffectTextureState unrelated = state with { LiveTextureSources = [], TextureRegistrations = [] };
+
+        renderer.RenderNativePrimitiveFrame(frame, unrelated, effectTextureSource: effectTextures);
+
+        Assert.Same(initial, capture.Texture);
+        Assert.Equal(1, resolver.Calls);
+        NativeBattleEffectTextureState palette = unrelated.PublishVramSpan(2 * (256 * 1024), new byte[] { 31, 0 });
+        renderer.RenderNativePrimitiveFrame(frame, palette, effectTextureSource: effectTextures);
+        Assert.Equal(2, resolver.Calls);
+        Assert.NotSame(initial, capture.Texture);
+        ImmutableArray<NativeBattleTextureRegistration> registrations = held.TextureRegistrations!.Value;
+        NativeBattleTextureRegistration registration = registrations[0];
+        NativeBattlePcTextureWindowPixels later = held with { TextureRegistrations = registrations.SetItem(0, registration with { CopyFrames = [new(0, 0, 2, 8)], CurrentFrame = 0, CopyHistoryKnown = true, PaletteOwnedSpans = [] }) };
+        renderer.RenderNativePrimitiveFrame(frame with { LastTextureSnapshots = [later] }, palette, effectTextureSource: effectTextures);
+        Assert.Equal(3, resolver.Calls);
+        Assert.Equal(0, resolver.LastFrame);
+    }
+
+    private sealed class CountingHeldTextureResolver : ITextureReplacementResolver
+    {
+        public int Calls { get; private set; }
+        public int LastFrame { get; private set; }
+
+        public TextureReplacement? Resolve(TextureBuildContext context)
+        {
+            Calls++;
+            LastFrame = Assert.Single(context.NativePage!.Members).Frame;
+            return new(new(context.LogicalWidth, context.LogicalHeight, Enumerable.Repeat(new Rgba32((byte)(Calls * 20), 0, 0, 127), context.LogicalWidth * context.LogicalHeight).ToArray()), "fixture:held", context.LogicalWidth, context.LogicalHeight);
+        }
+    }
+
+    [Fact]
+    public void EffectSourceReceivesNativePixelsBeforeModelReplacementWithoutChangingReplacementPriority()
+    {
+        const ushort page = 0x80;
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), 0, Point(30, 10), (uint)page << 16 | 7, Point(10, 30), 7u << 8, Point(30, 30), 7u << 8 | 7], 1, [], null) { OrderingBucket = 50 };
+        NativeBattlePrimitiveFrame frame = Frame([new(command, TexturedMode(page, 0), 1)]);
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
+        PixelImage modelImage = new(16, 16, Enumerable.Repeat(new Rgba32(90, 20, 30, 127), 256).ToArray());
+        NativeBattleTextureReplacement replacement = new(page, 0, 0, 0, 8, 8, modelImage, 4, new byte[64].ToImmutableArray(), new byte[512].ToImmutableArray());
+        DecodedNativeTextureSource source = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture() };
+
+        renderer.RenderNativePrimitiveFrame(frame, state, replacements: [replacement], effectTextureSource: source);
+
+        Assert.NotNull(source.DecodedNative);
+        Assert.NotNull(source.ModelFallback);
+        Assert.NotSame(source.DecodedNative, source.ModelFallback);
+        Assert.Equal((byte)0, source.DecodedNative[0, 0].R);
+        Assert.Equal((byte)90, source.ModelFallback[0, 0].R);
+        Assert.True(source.ModelFallback.Width > source.DecodedNative.Width);
+    }
+
+    private sealed class DecodedNativeTextureSource : INativeBattleEffectTextureSource
+    {
+        public long Generation => 0;
+        public PixelImage? DecodedNative { get; private set; }
+        public PixelImage? ModelFallback { get; private set; }
+
+        public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
+        {
+            throw new InvalidOperationException("The renderer must preserve its native decode separately.");
+        }
+
+        public PixelImage ApplyDecoded(PixelImage original, PixelImage? decodedNative, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
+        {
+            DecodedNative = decodedNative;
+            ModelFallback = original;
+            return original;
+        }
+    }
+
     [Fact]
     public void CopyFrameRegistrationChangesInvalidateTextureReuseWithoutChangingVramWords()
     {

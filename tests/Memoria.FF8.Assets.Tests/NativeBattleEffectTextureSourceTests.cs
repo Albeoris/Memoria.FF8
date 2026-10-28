@@ -7,6 +7,61 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleEffectTextureSourceTests
 {
+    [Fact]
+    public void FullDecodedNativeImageIsTheResolverOriginalWhileModelFallbackAndReloadRemainAuthoritative()
+    {
+        NativeBattleEffectTextureState state = PixelState(new("mag012_b.00", 2, NativeBattleTextureRole.Pixels, 4, 1, 1));
+        PixelImage decoded = NativeBattleEffectTextureReader.DecodePcRegion(state, 0, 0, 0, 0, 4, 1);
+        PixelImage modelFallback = new(8, 2);
+        using InMemoryResourceSource source = Source();
+        ResourceService resources = new(source);
+        RecordingResolver first = new(context =>
+        {
+            if (context.Layout == "native-effect-texture")
+            {
+                Assert.Same(decoded, context.Original);
+            }
+            return null;
+        });
+        resources.Prepare(first).Commit();
+        using NativeBattleEffectTextureSource textures = new(resources);
+        long catalog = textures.Generation;
+
+        Assert.Same(modelFallback, textures.ApplyDecoded(modelFallback, decoded, state, 0, 0, 0, 0, 4, 1));
+        NativeBattleEffectTextureState changed = state.PublishVramSpan(0, new byte[] { 1, 0 });
+        PixelImage nextDecoded = NativeBattleEffectTextureReader.DecodePcRegion(changed, 0, 0, 0, 0, 4, 1);
+        resources.GetTexture(new(new(new("fixture/unrelated"), "native"), resources.Source, 1, "native", 1, 1, () => new(1, 1)));
+        resources.GetTexture(new(new(new("fixture/unrelated"), "native"), resources.Source, 2, "native", 1, 1, () => new(1, 1)));
+        Assert.Equal(catalog, textures.Generation);
+
+        RecordingResolver second = new(context => Solid(context, new(90, 0, 0, 127)));
+        resources.Prepare(second).Commit();
+        Assert.True(textures.Generation > catalog);
+        Assert.Equal((byte)90, textures.ApplyDecoded(modelFallback, nextDecoded, changed, 0, 0, 0, 0, 4, 1)[0, 0].R);
+        TextureBuildContext current = Assert.Single(second.Contexts, context => context.Layout == "native-effect-texture" && ReferenceEquals(context.Original, nextDecoded));
+        Assert.Same(nextDecoded, current.Original);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FragmentedOrAlternatePaletteQueriesKeepTheirNativeDecodeFallback(bool alternate)
+    {
+        NativeBattleEffectTextureState state = PixelState(new("mag012_b.00", 2, NativeBattleTextureRole.Pixels, 4, 1, 1), alternate ? (short)0 : (short)1);
+        PixelImage decoded = new(alternate ? 4 : 12, 1);
+        using InMemoryResourceSource source = Source();
+        ResourceService resources = new(source);
+        RecordingResolver resolver = new(_ => null);
+        resources.Prepare(resolver).Commit();
+        using NativeBattleEffectTextureSource textures = new(resources);
+
+        textures.ApplyDecoded(decoded, decoded, state, 0, 0, 0, 0, decoded.Width, 1, alternatePaletteShift: alternate ? (byte)1 : null);
+
+        TextureBuildContext context = Assert.Single(resolver.Contexts);
+        Assert.NotSame(decoded, context.Original);
+        Assert.Equal(4, context.Original.Width);
+    }
+
     [Theory]
     [InlineData(NativeBattleTextureDomain.Magic, "magic")]
     [InlineData(NativeBattleTextureDomain.Battle, "battle")]

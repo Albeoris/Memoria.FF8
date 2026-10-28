@@ -197,7 +197,6 @@ public sealed record NativeBattleEffectTaskPool : INativeBattleStorageNode
     public bool HasCheckpoint => owner?.HasLocalCheckpoint ?? false;
     [JsonIgnore]
     internal object StorageIdentity => RequireOwner().Storage.BackingIdentity;
-    internal int PilotSlot => slot;
     [JsonIgnore]
     internal NativeBattleWorkingMemory CheckpointStorage => (owner ?? throw new InvalidOperationException("Frozen task pools have no working journal.")).Storage;
     [JsonIgnore]

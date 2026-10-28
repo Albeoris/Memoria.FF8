@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Memoria.FF8.BattleEffects;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Rendering;
 
 namespace Memoria.FF8;
 
@@ -9,6 +10,8 @@ internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool C
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticPacingSummary? PresentationPacing { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticVisualChangesSummary? VisualChanges { get; init; }
 }
 
 /// <summary>Observes one live session. Scored windows include ordinary admission, first-use work, cleanup and presented tails.</summary>
@@ -46,8 +49,44 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     private PresentationPacerObservation pacingObservation;
     private long presentBegin;
     private long presentEnd;
+    private readonly bool visualChangesEnabled = Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_VISUAL_CHANGES") == "1";
+    private DiagnosticVisualChanges? visualChanges;
+    private DiagnosticVisualChanges? firstVisualWindow;
+    private DiagnosticVisualChanges? secondVisualWindow;
+    private long observedVisualFrame = -1;
+    private long successfulVisualFrame = -1;
+    private long successfulVisualTimestamp;
+    private NativeBattlePilotSubmission observedVisualSubmission;
 
     internal bool PacingEnabled => pacingEnabled;
+    internal bool VisualChangesEnabled => visualChangesEnabled;
+
+    internal void ObserveBattleImageRendered(long frame, NativeBattlePilotSubmission submission)
+    {
+        if (visualChangesEnabled)
+        {
+            observedVisualFrame = frame;
+            observedVisualSubmission = submission;
+        }
+    }
+
+    internal void ObserveBattleImagePresented(long frame, long timestamp)
+    {
+        if (visualChangesEnabled)
+        {
+            successfulVisualFrame = frame;
+            successfulVisualTimestamp = timestamp;
+        }
+    }
+
+    internal void ResolveBattleImage(long frame, bool? changed, bool droppedComparison = false)
+    {
+        if (firstVisualWindow?.Resolve(frame, changed, droppedComparison) == true)
+        {
+            return;
+        }
+        secondVisualWindow?.Resolve(frame, changed, droppedComparison);
+    }
 
     internal void ObservePresentationPacing(long begin, long end, PresentationPacerObservation observation)
     {
@@ -88,6 +127,18 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         before = battle.ObserveDiagnosticCombatants();
         preceding = timestamp;
         pacing = pacingEnabled ? new(Stopwatch.Frequency, 65536, timestamp, pacingObservation) : null;
+        if (visualChangesEnabled)
+        {
+            visualChanges = new(Stopwatch.Frequency, 65536, timestamp, frame);
+            if (executions.Count == 0)
+            {
+                firstVisualWindow = visualChanges;
+            }
+            else
+            {
+                secondVisualWindow = visualChanges;
+            }
+        }
         start = Owners(frame);
         previousRender = rendererVersion;
         renders = dropped = 0;
@@ -131,6 +182,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         }
         previousRender = rendererVersion;
         pacing?.Record(frame, timestamp, presentBegin, presentEnd, pacingObservation);
+        visualChanges?.Presented(frame, successfulVisualFrame == frame ? successfulVisualTimestamp : timestamp, observedVisualFrame == frame, observedVisualFrame == frame ? observedVisualSubmission : default);
         presentationProgress.Presented(timestamp, effectStartedTicks, effectCompletedTicks);
         frames!.RecordPresentation(new(timestamp, frame, phase, battle.NativeHostCallbacks ?? battle.Frame, renders, drawCalls, textureUploads));
     }
@@ -153,9 +205,10 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         }
         double effectDuration = effectStartedTicks > 0 && effectCompletedTicks > effectStartedTicks ? (effectCompletedTicks - effectStartedTicks) * 1000.0 / Stopwatch.Frequency : 0;
         TelemetryProcessSample processAfter = TelemetryProcessSample.Capture();
-        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter) { PresentationPacing = pacing?.Complete() });
+        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter) { PresentationPacing = pacing?.Complete(), VisualChanges = visualChanges?.Complete(effectStartedTicks, effectCompletedTicks) });
         start = null;
         pacing = null;
+        visualChanges = null;
         frames = null;
         traffic = null;
     }

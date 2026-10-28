@@ -3,6 +3,8 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Memoria.FF8;
 
+internal readonly record struct VisualFrameComparison(long FrameOrdinal, TimeSpan Timestamp, bool? Changed, bool Dropped = false);
+
 /// <summary>Compares every displayed RGB pixel before drawing the FPS overlay. Only completed GPU query results cross to the CPU.</summary>
 internal sealed class VisualFrameRate : IDisposable
 {
@@ -37,6 +39,65 @@ internal sealed class VisualFrameRate : IDisposable
 
     public double? FramesPerSecond => counter.FramesPerSecond;
     public double? PresentationsPerSecond => presentationCounter.PresentationsPerSecond;
+    public event Action<VisualFrameComparison>? ComparisonResolved;
+    public long DroppedComparisons { get; private set; }
+    public int PendingComparisons => pending.Count;
+    public bool HasAwaitingPresentation => awaitingPresentation is not null;
+
+    /// <summary>Compares an already rendered image. Owns only its previous color image and never reads image pixels onto the CPU.</summary>
+    public void ObserveTexture(Texture2D source, long frameId = 0)
+    {
+        if (frameActive || awaitingPresentation is not null)
+        {
+            throw new InvalidOperationException("The preceding visual image must be presented before observing another.");
+        }
+        ResolveCompletedPresentations();
+        if (pending.Count >= MaximumPendingPresentations)
+        {
+            ResetMeasurement();
+        }
+        if (current is not null || previous is null || previous.Width != source.Width || previous.Height != source.Height || previous.Format != SurfaceFormat.Color)
+        {
+            ResetResources();
+            previous = new RenderTarget2D(device, source.Width, source.Height, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+        }
+        RenderTargetBinding[] savedTargets = device.GetRenderTargets();
+        Viewport savedViewport = device.Viewport;
+        Rectangle savedScissor = device.ScissorRectangle;
+        Rectangle bounds = new(0, 0, source.Width, source.Height);
+        OcclusionQuery? query = null;
+        try
+        {
+            // Color writes are disabled during comparison; the existing backbuffer is only a query destination.
+            device.SetRenderTarget(null);
+            device.Viewport = new(0, 0, source.Width, source.Height);
+            if (hasPrevious)
+            {
+                query = CompareImages(source, previous!, bounds, Vector2.Zero);
+            }
+            UnbindComparisonTextures();
+            device.SetRenderTarget(previous);
+            device.Viewport = new(0, 0, source.Width, source.Height);
+            batch.Begin(blendState: BlendState.Opaque, samplerState: SamplerState.PointClamp, depthStencilState: DepthStencilState.None, rasterizerState: RasterizerState.CullNone);
+            batch.Draw(source, bounds, Color.White);
+            batch.End();
+            device.Textures[0] = null;
+            hasPrevious = true;
+            awaitingPresentation = new(query) { FrameOrdinal = frameId };
+        }
+        catch
+        {
+            query?.Dispose();
+            hasPrevious = false;
+            throw;
+        }
+        finally
+        {
+            device.SetRenderTargets(savedTargets);
+            device.Viewport = savedViewport;
+            device.ScissorRectangle = savedScissor;
+        }
+    }
 
     public void BeginFrame()
     {
@@ -78,25 +139,13 @@ internal sealed class VisualFrameRate : IDisposable
         OcclusionQuery? query = null;
         if (hasPrevious)
         {
-            query = availableQueries.TryPop(out OcclusionQuery? reusable) ? reusable : new OcclusionQuery(device);
-            difference.Parameters["CurrentTexture"].SetValue(current);
-            difference.Parameters["PreviousTexture"].SetValue(previous);
-            difference.Parameters["InverseSize"].SetValue(new Vector2(1f / current!.Width, 1f / current.Height));
-            difference.Parameters["ViewportOrigin"].SetValue(new Vector2(destinationViewport.X, destinationViewport.Y));
-            query.Begin();
-            batch.Begin(SpriteSortMode.Immediate, queryBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone, difference);
-            batch.Draw(current!, bounds, Color.White);
-            batch.End();
-            query.End();
+            query = CompareImages(current!, previous!, bounds, new(destinationViewport.X, destinationViewport.Y));
         }
         batch.Begin(blendState: BlendState.Opaque, samplerState: SamplerState.PointClamp);
         batch.Draw(current!, bounds, Color.White);
         batch.End();
         // The next current surface was sampled as the previous image. Unbind it before using it as a render target.
-        device.Textures[0] = null;
-        device.Textures[1] = null;
-        difference.Parameters["CurrentTexture"].SetValue((Texture2D?)null);
-        difference.Parameters["PreviousTexture"].SetValue((Texture2D?)null);
+        UnbindComparisonTextures();
         (current, previous) = (previous, current);
         hasPrevious = true;
         frameActive = false;
@@ -126,11 +175,35 @@ internal sealed class VisualFrameRate : IDisposable
             }
             pending.Dequeue();
             counter.Presented(frame.Timestamp, frame.Query is { PixelCount: > 0 });
+            ComparisonResolved?.Invoke(new(frame.FrameOrdinal, frame.Timestamp, frame.Query is null ? null : frame.Query.PixelCount > 0));
             if (frame.Query is not null)
             {
                 availableQueries.Push(frame.Query);
             }
         }
+    }
+
+    private OcclusionQuery CompareImages(Texture2D image, Texture2D previousImage, Rectangle bounds, Vector2 viewportOrigin)
+    {
+        OcclusionQuery query = availableQueries.TryPop(out OcclusionQuery? reusable) ? reusable : new OcclusionQuery(device);
+        difference.Parameters["CurrentTexture"].SetValue(image);
+        difference.Parameters["PreviousTexture"].SetValue(previousImage);
+        difference.Parameters["InverseSize"].SetValue(new Vector2(1f / image.Width, 1f / image.Height));
+        difference.Parameters["ViewportOrigin"].SetValue(viewportOrigin);
+        query.Begin();
+        batch.Begin(SpriteSortMode.Immediate, queryBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone, difference);
+        batch.Draw(image, bounds, Color.White);
+        batch.End();
+        query.End();
+        return query;
+    }
+
+    private void UnbindComparisonTextures()
+    {
+        device.Textures[0] = null;
+        device.Textures[1] = null;
+        difference.Parameters["CurrentTexture"].SetValue((Texture2D?)null);
+        difference.Parameters["PreviousTexture"].SetValue((Texture2D?)null);
     }
 
     private RenderTarget2D CreateSurface(Viewport viewport, PresentationParameters presentation)
@@ -147,6 +220,8 @@ internal sealed class VisualFrameRate : IDisposable
     {
         foreach (PendingPresentation frame in pending)
         {
+            DroppedComparisons++;
+            ComparisonResolved?.Invoke(new(frame.FrameOrdinal, frame.Timestamp, null, true));
             frame.Query?.Dispose();
         }
         pending.Clear();
@@ -184,5 +259,6 @@ internal sealed class VisualFrameRate : IDisposable
     {
         public OcclusionQuery? Query { get; } = query;
         public TimeSpan Timestamp { get; set; }
+        public long FrameOrdinal { get; init; }
     }
 }

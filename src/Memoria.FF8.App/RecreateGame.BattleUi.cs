@@ -528,7 +528,14 @@ internal sealed partial class RecreateGame
         try
         {
             battleScene!.SmoothCompatibleMotion = uiPreferences.BattleMotion == BattleMotionMode.SmoothCompatible;
+            battleScene.PilotDiagnosticsEnabled = diagnosticTelemetry?.VisualChangesEnabled == true;
             pixels = battleScene.Render(active, size.Width, size.Height, battleGpu);
+            if (diagnosticTelemetry?.VisualChangesEnabled == true && battleGpu is not null)
+            {
+                long frameOrdinal = diagnosticPresentedFrames + 1;
+                diagnosticTelemetry.ObserveBattleImageRendered(frameOrdinal, battleScene.PilotSubmission);
+                ObserveDiagnosticBattleImage(battleGpu.Target, frameOrdinal);
+            }
         }
         catch
         {

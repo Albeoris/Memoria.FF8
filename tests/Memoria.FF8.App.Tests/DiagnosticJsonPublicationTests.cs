@@ -119,6 +119,24 @@ public sealed class DiagnosticJsonPublicationTests : IDisposable
         Assert.False(File.Exists(path));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PermissionDeniedIsNotTreatedAsTransientPublicationContention(bool progress)
+    {
+        string path = Path.Combine(directory, "report.json");
+        int attempts = 0;
+
+        Assert.Throws<UnauthorizedAccessException>(() => DiagnosticJsonPublication.Publish(path, "{}"u8.ToArray(), progress, move: (source, destination, overwrite) =>
+        {
+            attempts++;
+            throw new UnauthorizedAccessException("Injected permanent publication permission failure.");
+        }, delay: _ => throw new InvalidOperationException("Permission failures must not retry.")));
+
+        Assert.Equal(1, attempts);
+        Assert.False(File.Exists(path));
+    }
+
     private sealed class PublicationIOException : IOException
     {
         internal PublicationIOException(int error) : base("Injected publication failure.", unchecked((int)0x80070000) | error)

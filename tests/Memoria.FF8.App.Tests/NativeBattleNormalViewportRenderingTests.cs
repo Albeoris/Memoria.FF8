@@ -60,12 +60,13 @@ public sealed class NativeBattleNormalViewportRenderingTests
         byte[] oldPixels = renderer.RenderNativePrimitiveFrame(Frame(legacy), null).ToArray();
         byte[] pixels = renderer.RenderNativePrimitiveFrame(Frame(current), null).ToArray();
         Assert.Equal(oldPixels, pixels);
-        NativeBattlePrimitiveFrame cold = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(Frame(current)))!;
+        NativeBattlePrimitiveFrame snapshot = NativeBattleStorageSnapshots.Capture(Frame(current));
+        NativeBattlePrimitiveFrame cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(snapshot))!);
         Assert.Equal(pixels, new BattleRenderer(640, 432).RenderNativePrimitiveFrame(cold, null));
     }
 
     [Fact]
-    public void Nondefault_polygon_offset_moves_cpu_pixels_while_TILE_keeps_its_existing_path()
+    public void Nondefault_native_viewport_offset_moves_polygon_and_TILE_coordinates()
     {
         NativeBattlePrimitiveDrawMode mode = new(0) { NormalViewport = new(1, 1, 0.125f, 0.125f, 0, 19.5f, -0.5f), ViewportInputs = new(320, 216, 0, 0) };
         BattleRenderer renderer = new(320, 216);
@@ -78,7 +79,16 @@ public sealed class NativeBattleNormalViewportRenderingTests
         NativeBattleLogicalCommand tile = new(new("tile", 0, 0), 1, 0x60, [0x60808080, Point(10, 20), Point(20, 20)], 1, [], null) { OrderingBucket = 50 };
         byte[] tileBefore = renderer.RenderNativePrimitiveFrame(Frame(new(tile, new(0), 1)), null).ToArray();
         byte[] tileAfter = renderer.RenderNativePrimitiveFrame(Frame(new(tile, mode, 1)), null).ToArray();
-        Assert.Equal(tileBefore, tileAfter);
+        Assert.True(tileBefore[4 * (25 * 320 + 15)] > 0);
+        Assert.Equal(0, tileAfter[4 * (25 * 320 + 15)]);
+        Assert.True(tileAfter[4 * (25 * 320 + 35)] > 0);
+        Assert.Equal(0, tileBefore[4 * (25 * 320 + 35)]);
+        Capture capture = new();
+        renderer.TriangleRenderer = capture;
+        renderer.RenderNativePrimitiveFrame(Frame(new(tile, new(0), 1)), null);
+        Assert.Equal(new Vector2(10, 20), capture.Triangles[0].A.Position);
+        renderer.RenderNativePrimitiveFrame(Frame(new(tile, mode, 1)), null);
+        Assert.Equal(new Vector2(30, 20), capture.Triangles[0].A.Position);
     }
 
     [Theory]

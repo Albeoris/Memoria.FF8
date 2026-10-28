@@ -28,11 +28,17 @@ internal sealed partial class RecreateGame
         bool observePacing = diagnosticTelemetry?.PacingEnabled == true;
         long presentBegin = observePacing ? Stopwatch.GetTimestamp() : 0;
         base.EndDraw();
+        long visualTimestamp = diagnosticTelemetry?.VisualChangesEnabled == true ? Stopwatch.GetTimestamp() : 0;
         graphicsReadiness?.Presented(Window);
         if (observePacing)
         {
             long presentEnd = Stopwatch.GetTimestamp();
             diagnosticTelemetry!.ObservePresentationPacing(presentBegin, presentEnd, presentationPacer.TimingObservation);
+        }
+        if (visualTimestamp != 0)
+        {
+            diagnosticTelemetry!.ObserveBattleImagePresented(diagnosticPresentedFrames + 1, visualTimestamp);
+            PublishDiagnosticBattleImage(Stopwatch.GetElapsedTime(presentationClockStarted, visualTimestamp));
         }
         TimeSpan now = Stopwatch.GetElapsedTime(presentationClockStarted);
         visualFrameRate?.Presented(now);

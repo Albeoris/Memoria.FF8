@@ -6,6 +6,34 @@ namespace Memoria.FF8.Mods.Tests;
 public sealed class ResourceServiceTests
 {
     [Fact]
+    public void CatalogGenerationTracksPreparedCatalogsWithoutFollowingNativeContextsOrResidency()
+    {
+        using InMemoryResourceSource source = Source();
+        ResourceService service = new(source);
+        service.Prepare(null).Commit();
+        long catalog = service.CatalogGeneration;
+        long generation = service.Generation;
+        TextureBuildContext first = Context("first", 1, () => new(2, 2));
+        service.GetTexture(first);
+        service.GetTexture(Context("second", 1, () => new(2, 2)));
+        service.GetTexture(Context("first", 2, () => new(2, 2)));
+
+        Assert.True(service.Generation > generation);
+        Assert.Equal(catalog, service.CatalogGeneration);
+        service.Release([first.Key, Context("second", 1, () => new(2, 2)).Key]);
+        Assert.Equal(0, service.ResidentTextureCount);
+        Assert.Equal(catalog, service.CatalogGeneration);
+
+        service.Prepare(new Resolver(_ => null)).Commit();
+        Assert.Equal(++catalog, service.CatalogGeneration);
+        EncodedResource encoded = new(new("test/unconsumed.dat"), "raw", 1, "fixture", [1, 2]);
+        service.Prepare(null, encodedResources: [encoded]).Commit();
+        Assert.Equal(++catalog, service.CatalogGeneration);
+        service.PrepareLocalization(Memoria.FF8.Resources.Localization.LocalizationCatalog.Empty).Commit();
+        Assert.Equal(++catalog, service.CatalogGeneration);
+    }
+
+    [Fact]
     public void PathlessSourceOwnsEncodedBytesAndRetainsIndependentRevisions()
     {
         using InMemoryResourceSource source = new(new("memory", GameDataEdition.Remastered, ["native-hd"]));

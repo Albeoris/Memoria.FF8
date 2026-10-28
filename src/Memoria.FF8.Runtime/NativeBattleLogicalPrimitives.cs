@@ -580,18 +580,37 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
 
         private void PrependCore(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null, NativeBattlePilotVisualGeometry? pilotGeometry = null)
         {
-            ValidateInsertion(table.Count, bucket, reference, words, vertexPayload4);
+            (List<NativeBattlePrimitiveLink> roots, int rootIndex, byte rootBuffer) = ResolveInsertionRoot(bucket);
+            ValidateInsertion(roots.Count, rootIndex, reference, words, vertexPayload4);
             if (ProxyCount >= NativeBattlePrimitiveOrdering.ProxyCapacity)
             {
                 return;
             }
             int index = ProxyCount;
-            AppendProxy(reference, words, flags20, vertexPayload4, moduleDraw, table[bucket], tableBuffer!.Value, LinkAddress(table[bucket], tableBuffer!.Value), false, projectedCoordinates, textureSourceOwner, pilotGeometry);
+            AppendProxy(reference, words, flags20, vertexPayload4, moduleDraw, roots[rootIndex], rootBuffer, LinkAddress(roots[rootIndex], rootBuffer), false, projectedCoordinates, textureSourceOwner, pilotGeometry);
             if (HasMarks)
             {
-                tableUndo.Add((table, bucket, table[bucket]));
+                tableUndo.Add((roots, rootIndex, roots[rootIndex]));
             }
-            table[bucket] = new(true, index);
+            roots[rootIndex] = new(true, index);
+        }
+
+        private (List<NativeBattlePrimitiveLink> Roots, int Index, byte Buffer) ResolveInsertionRoot(int relativeBucket)
+        {
+            byte active = tableBuffer ?? throw new NotSupportedException("Native ordering insertion requires its actual retained table selector.");
+            if ((uint)relativeBucket < table.Count)
+            {
+                return (table, relativeBucket, active);
+            }
+            const int length = NativeBattlePrimitiveOrdering.BattleTableLength;
+            long physicalIndex = (long)active * length + relativeBucket;
+            if (tableDefault || table.Count != length || !otherTablePresent || otherTableDefault || otherTable is not { Count: length } || active > 1 || physicalIndex < 0 || physicalIndex >= 2L * length)
+            {
+                throw new InvalidDataException($"Native ordering insertion leaves its two retained physical root tables: active buffer {active}, relative bucket {relativeBucket}.");
+            }
+            byte target = physicalIndex >= length ? (byte)1 : (byte)0;
+            int index = checked((int)(physicalIndex - target * length));
+            return (target == active ? table : otherTable, index, target);
         }
 
         private void PrependAddressedCore(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null)

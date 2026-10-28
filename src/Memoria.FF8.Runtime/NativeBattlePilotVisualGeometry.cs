@@ -51,6 +51,19 @@ public sealed record NativeBattlePilotSpriteGeometry(Vector3 LocalA, Vector3 Loc
 public sealed record NativeBattlePilotVisualGeometry(NativeBattlePilotVisualIdentity Identity, Vector3 A, Vector3 B, Vector3 C, Vector3 D, byte CornerCount, bool Continuous = true)
 {
     public NativeBattlePilotSpriteGeometry? Sprite { get; init; }
+    public int DepthOffset { get; init; }
+    public int DepthQuantum { get; init; } = 1;
+    public Vector4? SourceDepths { get; init; }
+
+    public float SampleDepth(float cameraDepth)
+    {
+        if (DepthQuantum == 1)
+        {
+            return cameraDepth + DepthOffset;
+        }
+        int sourceDepth = Math.Clamp(NativeBattlePoseMatrices.RoundNative(cameraDepth), 0, ushort.MaxValue);
+        return sourceDepth / DepthQuantum * DepthQuantum + DepthOffset;
+    }
     public Vector3 Corner(int index) => index switch
     {
         0 => A,

@@ -69,6 +69,19 @@ public sealed class NativeBattlePilotVisualGeometryTests
         Assert.Equal(new Vector3(16777216, -16777216, 1000), captured.Origin);
     }
 
+    [Theory]
+    [InlineData(1024f, 724f)]
+    [InlineData(1025f, 724f)]
+    [InlineData(1027f, 724f)]
+    [InlineData(1028f, 728f)]
+    public void Shadow_samples_keep_native_quarter_depth_quantization_and_bias(float cameraDepth, float expected)
+    {
+        NativeBattlePilotVisualGeometry shadow = new(new(0, 0x5088A0, 0, 0, 0), Vector3.Zero, Vector3.UnitX, Vector3.UnitY, default, 3) { DepthOffset = -300, DepthQuantum = 4 };
+        Assert.Equal(expected, shadow.SampleDepth(cameraDepth));
+        NativeBattlePilotVisualGeometry ordinary = shadow with { DepthOffset = 0, DepthQuantum = 1 };
+        Assert.Equal(cameraDepth, ordinary.SampleDepth(cameraDepth));
+    }
+
     [Fact]
     public void Camera_endpoint_samples_preserve_exact_native_projection_objects()
     {

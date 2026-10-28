@@ -18,6 +18,7 @@ public sealed partial class BattleRenderer
     private IReadOnlyList<NativeBattleTextureReplacement>? nativeModelReplacements;
     private INativeBattleEffectTextureSource? nativeEffectTextureSource;
     private long effectTextureGeneration;
+    private bool sameNativeTextureOrigins;
     private readonly List<NativeRasterTriangle> nativeTriangles = [];
     private readonly record struct NativeRasterTriangle(PrimitiveVertex A, PrimitiveVertex B, PrimitiveVertex C, PixelImage? Texture, int Blend, byte Pass, float Area, int Left, int Right, int Top, int Bottom, bool Line = false);
 
@@ -29,6 +30,7 @@ public sealed partial class BattleRenderer
     {
         //The executed OT already owns projected XY/depth; a native WAIT can legitimately publish coincident eye and target.
         sceneProjectionReady = false;
+        BeginPilotSubmission();
         TriangleRenderer?.Begin(Width, Height, new Vector4(0, 0, 0, 1));
         if (TriangleRenderer is null)
         {
@@ -45,7 +47,8 @@ public sealed partial class BattleRenderer
         nativeTexturePages.Clear();
         NativeBattleEffectTextureState? previousTextureOwner = nativeTextureOwner;
         bool sameReplacements = ReferenceEquals(nativeModelReplacements, replacements) || nativeModelReplacements is not null && replacements is not null && nativeModelReplacements.SequenceEqual(replacements);
-        sameReplacements &= ReferenceEquals(nativeEffectTextureSource, effectTextureSource) && effectTextureGeneration == (effectTextureSource?.Generation ?? 0) && SameTextureOrigins(previousTextureOwner, textures);
+        sameReplacements &= ReferenceEquals(nativeEffectTextureSource, effectTextureSource) && effectTextureGeneration == (effectTextureSource?.Generation ?? 0);
+        sameNativeTextureOrigins = SameTextureOrigins(previousTextureOwner, textures);
         nativeEffectTextureSource = effectTextureSource;
         nativeModelReplacements = replacements?.ToArray();
         if (nativeDirectTextureFormat != capabilities?.DirectTextureFormat)
@@ -161,10 +164,21 @@ public sealed partial class BattleRenderer
             PrimitiveVertex a = At(0);
             PrimitiveVertex b = At(1);
             PrimitiveVertex c = At(2);
+            int submitted = DrawnTriangles;
             QueueNativePrimitive(a, b, c, texture, blend, resolved.Pass);
+            if (PilotDiagnosticsEnabled && DrawnTriangles > submitted)
+            {
+                ObservePilotSubmittedTriangle(resolved, a, b, c, 0, 1, 2);
+            }
             if (quad)
             {
-                QueueNativePrimitive(b, At(3), c, texture, blend, resolved.Pass);
+                PrimitiveVertex d = At(3);
+                submitted = DrawnTriangles;
+                QueueNativePrimitive(b, d, c, texture, blend, resolved.Pass);
+                if (PilotDiagnosticsEnabled && DrawnTriangles > submitted)
+                {
+                    ObservePilotSubmittedTriangle(resolved, b, d, c, 1, 3, 2);
+                }
             }
         }
         if (TriangleRenderer is not null)
@@ -244,17 +258,18 @@ public sealed partial class BattleRenderer
         NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey);
         if (!nativeTexturePages.TryGetValue(key, out texture))
         {
-            bool reusable = sameReplacements && previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
+            bool reusable = sameReplacements && (retainedPixels is not null || sameNativeTextureOrigins) && previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
             if (!reusable)
             {
                 texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
+                PixelImage? decodedNative = alternateShift is null ? texture : null;
                 if (replacements is not null && alternateShift is null)
                 {
                     texture = NativeBattleEffectTextureReader.ApplyModelReplacements(texture, textures!, page, clut, window.X, window.Y, retainedPixels, replacements, command.TextureSourceOwner);
                 }
                 if (nativeEffectTextureSource is not null)
                 {
-                    texture = nativeEffectTextureSource.Apply(texture, textures!, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels, alternateShift, capabilities?.DirectTextureFormat, primitiveSample);
+                    texture = nativeEffectTextureSource.ApplyDecoded(texture, decodedNative, textures!, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels, alternateShift, capabilities?.DirectTextureFormat, primitiveSample);
                     effectTextureGeneration = nativeEffectTextureSource.Generation;
                 }
             }

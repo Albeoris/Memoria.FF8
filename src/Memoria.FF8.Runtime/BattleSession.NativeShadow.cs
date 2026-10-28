@@ -37,7 +37,8 @@ public sealed partial class BattleSession
         if (NativePilotSceneIdentity(0x5088A0, model.Index) is { } identity)
         {
             System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shape.CameraMatrix, shape.Vertices[corner]), projection);
-            batch = batch with { Attempts = batch.Attempts.Select((attempt, index) => index is >= 1 and <= 8 && attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = index - 1 }, World(0), World(index), World(index + 1), default, 3) } } : attempt).ToImmutableArray() };
+            int Depth(int corner) => 4 * (vertices[corner].Depth >> 2) - 300;
+            batch = batch with { Attempts = batch.Attempts.Select((attempt, index) => index is >= 1 and <= 8 && attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = index - 1 }, World(0), World(index), World(index + 1), default, 3) { DepthOffset = -300, DepthQuantum = 4, SourceDepths = new(Depth(0), Depth(index), Depth(index + 1), 0) } } } : attempt).ToImmutableArray() };
         }
         if (privateOrderingAddress is uint table)
         {
