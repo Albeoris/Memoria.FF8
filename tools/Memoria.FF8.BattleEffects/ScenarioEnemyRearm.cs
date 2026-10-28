@@ -7,8 +7,8 @@ public static partial class ScenarioDiscovery
 {
     public static void DeclareEnemyPartyKnockoutRearm(JsonObject recipe, BattleNativeAction action, byte selector, IReadOnlyList<byte> party, Func<int, int> maximumHitPoints)
     {
-        bool canKnockOut = (action.Statuses0 & 1) != 0 || action.Power > 0 && action.AttackType is 1 or 2 or 22 or 26 or 27;
-        if (!canKnockOut || (action.Statuses1 & 0x10000) != 0 || selector is not (0 or 201 or 204))
+        bool canIncapacitateParty = (action.Statuses0 & 5) != 0 || action.Power > 0 && action.AttackType is 1 or 2 or 22 or 26 or 27;
+        if (!canIncapacitateParty || (action.Statuses1 & 0x10000) != 0 || selector is not (0 or 201 or 204))
         {
             return;
         }
@@ -39,10 +39,14 @@ public static partial class ScenarioDiscovery
             }
             repair["hit_points"] = hp;
             repair["revive"] = true;
+            if ((action.Statuses0 & 4) != 0)
+            {
+                repair["remove_statuses0"] = (repair["remove_statuses0"]?.GetValue<int>() ?? 0) | 4;
+            }
         }
         driver["terminal_hold"] = new JsonObject
         {
-            ["reason"] = "Declared two-execution enemy damage or KO repeat: prospectively hold native defeat until the normal presentation drains and explicit recipient repairs complete.",
+            ["reason"] = "Declared two-execution enemy damage or incapacitation repeat: prospectively hold native defeat until the normal presentation drains and explicit recipient repairs complete.",
             ["party_actor_ids"] = new JsonArray(recipients.Select(row => (JsonNode)JsonValue.Create($"party-{row}")!).ToArray()),
             ["maximum_callbacks"] = 18000
         };

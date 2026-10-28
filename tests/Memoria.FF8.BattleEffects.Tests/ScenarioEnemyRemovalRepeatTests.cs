@@ -72,6 +72,7 @@ public sealed class ScenarioEnemyRemovalRepeatTests
         ResourceService resources = new(source);
         byte[] kernel = resources.Read(new ResourceKey("main/kernel.bin"));
         NativeCharacterVitals initial = NativeCharacterInitialization.Read(resources.Read(new ResourceKey("main/init.out")), kernel);
+        byte[] originalParty = initial.CombatParty.ToArray();
         NativeBattleExperienceDefinition experience = NativeBattleExperienceDefinitionReader.Read(kernel);
         Assert.True(ScenarioDiscovery.TrySelectEnemyRemovalRepeatParty(Eject(), 201, initial.Records, initial.CombatParty, out byte[]? party, out string? blocker), blocker);
         JsonObject recipe = new()
@@ -92,7 +93,7 @@ public sealed class ScenarioEnemyRemovalRepeatTests
         }
         Assert.False(recipe["driver"]!.AsObject().ContainsKey("repairs"));
         Assert.False(recipe["driver"]!.AsObject().ContainsKey("terminal_hold"));
-        Assert.Equal(new byte[] { 0, 255, 255 }, initial.CombatParty);
+        Assert.Equal(originalParty, initial.CombatParty);
     }
 
     private static NativeCharacterVital[] Records() => Enumerable.Range(0, 8).Select(row => new NativeCharacterVital((byte)row, new(100, 100), 0, null!, 0, 0, 0, [], [], 0, 0)).ToArray();

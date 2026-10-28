@@ -33,6 +33,81 @@ public sealed class ScenarioEnemyRearmTests
         Assert.Equal(0u, repair.RemoveStatuses1);
     }
 
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(201, 3)]
+    [InlineData(204, 3)]
+    public void PowerZeroPetrifyDeclaresOnlyActualRecipientsWithTheirOwnMaximumHp(byte selector, int count)
+    {
+        JsonObject recipe = Recipe();
+        ScenarioDiscovery.DeclareEnemyPartyKnockoutRearm(recipe, Action(2, 0, 4), selector, new byte[] { 4, 0, 5 }, row => 1000 + row * 100);
+
+        BattleDiagnosticTerminalHoldDeclaration hold = recipe["driver"]!["terminal_hold"]!.Deserialize<BattleDiagnosticTerminalHoldDeclaration>(Json)!;
+        BattleDiagnosticCombatRepair[] repairs = recipe["driver"]!["repairs"]!.Deserialize<BattleDiagnosticCombatRepair[]>(Json)!;
+        hold.Validate();
+        Assert.Contains("incapacitation", hold.Reason);
+        Assert.Equal(count, repairs.Length);
+        Assert.Equal(new[] { "party-4", "party-0", "party-5" }.Take(count), repairs.Select(repair => repair.ActorId));
+        Assert.Equal(new[] { 1400, 1000, 1500 }.Take(count), repairs.Select(repair => repair.HitPoints));
+        Assert.Equal(repairs.Select(repair => repair.ActorId), hold.PartyActorIds);
+        Assert.All(repairs, repair =>
+        {
+            repair.Validate();
+            Assert.True(repair.Revive);
+            Assert.Equal((ushort)4, repair.RemoveStatuses0);
+            Assert.Equal(0u, repair.RemoveStatuses1);
+        });
+    }
+
+    [Theory]
+    [InlineData(4, 0, 4)]
+    [InlineData(36, 0, 4)]
+    [InlineData(4, 32, 36)]
+    [InlineData(1, 32, 32)]
+    public void PetrifyAddsOnlyItsProvedStatusBitAndPreservesExistingStatusDeclarations(ushort applied, ushort existing, ushort expected)
+    {
+        JsonObject recipe = Recipe();
+        recipe["driver"]!["repairs"] = new JsonArray(new JsonObject { ["actor_id"] = "party-0", ["hit_points"] = 486, ["revive"] = false, ["remove_statuses0"] = (int)existing, ["remove_statuses1"] = 256 });
+        ScenarioDiscovery.DeclareEnemyPartyKnockoutRearm(recipe, Action(2, 0, applied), 201, new byte[] { 0, 255, 255 }, _ => 486);
+
+        BattleDiagnosticCombatRepair repair = recipe["driver"]!["repairs"]![0]!.Deserialize<BattleDiagnosticCombatRepair>(Json)!;
+        repair.Validate();
+        Assert.Equal(expected, repair.RemoveStatuses0);
+        Assert.Equal(256u, repair.RemoveStatuses1);
+        Assert.Equal(486, repair.HitPoints);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(32)]
+    public void OrdinaryPowerZeroNonPetrifyStatusesDoNotAddAHoldOrRepair(ushort statuses)
+    {
+        JsonObject recipe = Recipe();
+        string before = recipe.ToJsonString();
+        ScenarioDiscovery.DeclareEnemyPartyKnockoutRearm(recipe, Action(2, 0, statuses), 201, new byte[] { 0, 255, 255 }, _ => throw new InvalidOperationException("No HP owner should be consulted."));
+        Assert.Equal(before, recipe.ToJsonString());
+    }
+
+    [Theory]
+    [InlineData(200)]
+    [InlineData(205)]
+    public void PetrifyOnANonPartySelectorDoesNotDeclarePartyRepairs(byte selector)
+    {
+        JsonObject recipe = Recipe();
+        string before = recipe.ToJsonString();
+        ScenarioDiscovery.DeclareEnemyPartyKnockoutRearm(recipe, Action(2, 0, 4), selector, new byte[] { 0, 255, 255 }, _ => throw new InvalidOperationException("No party HP owner should be consulted."));
+        Assert.Equal(before, recipe.ToJsonString());
+    }
+
+    [Fact]
+    public void PetrifyDoesNotOverrideTheOriginalEjectExclusion()
+    {
+        JsonObject recipe = Recipe();
+        string before = recipe.ToJsonString();
+        ScenarioDiscovery.DeclareEnemyPartyKnockoutRearm(recipe, Action(2, 0, 4) with { Statuses1 = 0x10000 }, 201, new byte[] { 0, 255, 255 }, _ => throw new InvalidOperationException("An ejected owner cannot be prepared for repair."));
+        Assert.Equal(before, recipe.ToJsonString());
+    }
+
     [Fact]
     public void GroupRecipientDeclarationsUseSavedPartyRowsAndTheirOwnMaximumHpWithoutClearingStatuses()
     {

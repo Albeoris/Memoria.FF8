@@ -141,7 +141,7 @@ public sealed class DiagnosticReflectionLineageTests
         Assert.False(BattleDiagnosticReflectionLineage.Matches(child with { Reflection = proof with { TargetProvenance = targets with { HeaderGeneration = targets.HeaderGeneration + 1 } } }, source));
         Assert.False(BattleDiagnosticReflectionLineage.Matches(child with { Reflection = proof with { TargetProvenance = targets with { ContactRecipients = [0] } } }, source));
         Assert.False(BattleDiagnosticReflectionLineage.Matches(child with { Reflection = proof with { TargetProvenance = targets with { Resolutions = [resolution with { ResultMask = 1 }] } } }, source));
-        Assert.False(BattleDiagnosticReflectionLineage.Matches(child with { Reflection = proof with { TargetProvenance = targets with { Resolutions = [resolution with { AvailableMask = 1 }] } } }, source));
+        Assert.False(BattleDiagnosticReflectionLineage.Matches(child with { Reflection = proof with { TargetProvenance = targets with { Resolutions = [resolution with { AvailableMask = 0x80 }] } } }, source));
     }
 
     [Fact]

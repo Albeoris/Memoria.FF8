@@ -138,6 +138,10 @@ public static partial class ScenarioDiscovery
             blocker = "ENEMY_TRIGGER_OR_TARGET_PRECONDITION: no actual turn-callback dispatch for this exact row/band/sequence has a proved self/party/group target selector. Counter/death/initialization-only, dynamic target and last-attacker paths require their original trigger recipe.";
             return false;
         }
+        if (HasGuaranteedNativeSelfKoProfile(native, selectorProof.TargetSelector!.Value) && !TryValidateNativeEnemyRepeatOwner(native, selectorProof.TargetSelector.Value, assets.ReadEnemyNativeStatusData(owner.ModelId), assets.ReadEnemyAi(owner.ModelId, 0).Scripts[0], out blocker))
+        {
+            return false;
+        }
         if (!TrySelectEnemyRemovalRepeatParty(native, selectorProof.TargetSelector!.Value, initial.Records, initial.CombatParty, out byte[]? removalParty, out blocker))
         {
             return false;

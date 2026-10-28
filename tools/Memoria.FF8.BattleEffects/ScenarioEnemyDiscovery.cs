@@ -331,6 +331,35 @@ public static class ScenarioEnemyDiscovery
         return false;
     }
 
+    public static bool InitializationPreservesParticipantStatuses(ReadOnlySpan<byte> code)
+    {
+        int pc = 0;
+        while (pc < code.Length)
+        {
+            byte opcode = code[pc];
+            int width = InstructionWidth(opcode);
+            if (width > code.Length - pc)
+            {
+                return false;
+            }
+            switch (opcode)
+            {
+                case 0:
+                    return true;
+                case 36:
+                    break;
+                case 14 when code[pc + 1] is >= 220 and <= 227 && code[pc + 2] != 203:
+                    // These selectors address only the current actor's eight local
+                    // DWORDs. Other selectors can alias retained participant fields.
+                    break;
+                default:
+                    return false;
+            }
+            pc += width;
+        }
+        return false;
+    }
+
     private static int InstructionWidth(byte opcode) => opcode switch
     {
         2 => 8,

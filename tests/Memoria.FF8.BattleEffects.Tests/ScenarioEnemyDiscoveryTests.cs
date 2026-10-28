@@ -9,6 +9,24 @@ namespace Memoria.FF8.BattleEffects.Tests;
 public sealed class ScenarioEnemyDiscoveryTests
 {
     [Theory]
+    [InlineData(new byte[] { 14, 220, 0, 14, 221, 0, 14, 222, 0, 36, 0, 0 }, true)]
+    [InlineData(new byte[] { 14, 227, 255, 0 }, true)]
+    [InlineData(new byte[] { 36, 0 }, true)]
+    [InlineData(new byte[] { 0, 59, 200, 64 }, true)]
+    [InlineData(new byte[] { 14, 219, 0, 0 }, false)]
+    [InlineData(new byte[] { 14, 228, 0, 0 }, false)]
+    [InlineData(new byte[] { 14, 220, 203, 0 }, false)]
+    [InlineData(new byte[] { 14, 220 }, false)]
+    [InlineData(new byte[] { 14, 220, 0 }, false)]
+    [InlineData(new byte[] { 59, 200, 64, 0 }, false)]
+    [InlineData(new byte[] { 2, 0 }, false)]
+    [InlineData(new byte[] { }, false)]
+    public void InitializationStatusProofAcceptsOnlyTerminatedLiteralLocalWritesAndAtbSetup(byte[] code, bool expected)
+    {
+        Assert.Equal(expected, ScenarioEnemyDiscovery.InitializationPreservesParticipantStatuses(code));
+    }
+
+    [Theory]
     [InlineData(new byte[] { 48, 36, 0 }, true)]
     [InlineData(new byte[] { 36, 48, 0 }, true)]
     [InlineData(new byte[] { 48, 47, 0 }, false)]
