@@ -5,6 +5,28 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffectNodeContextMemoryTests
 {
+    [Fact]
+    public void Published_slices_replace_all_lanes_but_retain_known_zero_suffix_and_detachment()
+    {
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
+        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, Enumerable.Range(0, NativeBattleEffectNodeContextMemory.Length).Select(index => unchecked((byte)(index + 1))).ToArray()).MarkUnknown(99, 2).MarkUnknown(179, 1);
+        var expected = view.ReadSnapshot(0, NativeBattleEffectNodeContextMemory.Length);
+
+        NativeBattleEffectMemory published = NativeBattleEffectNodeContextMemory.Publish(memory, view);
+        view.Write(0, new byte[NativeBattleEffectNodeContextMemory.Length]);
+        NativeBattleEffectArena restored = NativeBattleEffectNodeContextMemory.Capture(published);
+
+        Assert.Equal(expected.Data, restored.ReadSnapshot(0, NativeBattleEffectNodeContextMemory.Length).Data);
+        Assert.Equal(expected.Known, restored.ReadSnapshot(0, NativeBattleEffectNodeContextMemory.Length).Known);
+        Assert.Equal(new byte[8], published.NodeContextExtension!.Prefix2793DA4.Read(100, 8));
+        Assert.Equal(new byte[8], published.NodeContextExtension.Tail2793E38.Read(32, 8));
+        Assert.Equal(new byte[8], published.NodeScratch2793E30!.Prefix2793E08!.Read(40, 8));
+        Assert.Equal(NativeBattleEffectArena.Length, published.NodeContextExtension.Prefix2793DA4.LogicalLength);
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectNodeContextMemory.Publish(memory, NativeBattleEffectArena.CreateUnknown(149)));
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory)));
+    }
+
     [Theory]
     [InlineData(0, 2, 8)]
     [InlineData(2, 0, 8)]

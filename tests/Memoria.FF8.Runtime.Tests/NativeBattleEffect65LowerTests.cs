@@ -42,6 +42,25 @@ internal static class NativeBattleEffect65LowerFixture
 public sealed class NativeBattleEffect65LowerTests
 {
     [Fact]
+    public void Fresh_read_copy_covers_mixed_regions_and_keeps_outside_span_known_zero_and_detached()
+    {
+        NativeBattleEffect65Frame frame = NativeBattleEffect65LowerFixture.Frame();
+        uint address = 0x20DFAB8u + NativeBattleEffectArena.Length - 4u;
+        frame.Memory.Arena!.Write(NativeBattleEffectArena.Length - 4, [1, 2, 3, 4]).MarkUnknown(NativeBattleEffectArena.Length - 3, 1);
+        frame.Staging!.Write(address + 4, [5, 6, 7, 8]).MarkUnknown(address + 6, 1);
+
+        NativeBattleEffectArena view = NativeBattleEffect65Controller.ReadBytes(frame, address, 8);
+        NativeBattleEffect65Controller.WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, new byte[8]), 8);
+
+        Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, view.ReadSnapshot(0, 8).Data);
+        Assert.Equal(new[] { true, false, true, true, true, true, false, true }, view.ReadSnapshot(0, 8).Known);
+        Assert.Equal(NativeBattleEffectArena.Length, view.LogicalLength);
+        Assert.Equal(new byte[8], view.Read(8, 8));
+        Assert.Equal(new byte[4], view.Read(NativeBattleEffectArena.Length - 4, 4));
+        Assert.Equal(new byte[8], NativeBattleEffect65Controller.ReadBytes(frame, address, 8).Read(0, 8));
+    }
+
+    [Fact]
     public void Common_and_inactive_root_stores_keep_canonical_frame_and_memory_identity()
     {
         NativeBattleEffect65Frame frame = NativeBattleEffect65LowerFixture.Frame();

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -42,13 +43,102 @@ public sealed class NativeBattleStackBytesTests
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int index = 0; index < 8; index++)
         {
-            stack.Validate();
+            (stack with { }).Validate();
         }
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated < 32 * 1024, $"Eight bounded replays allocated {allocated} bytes.");
         Assert.Equal(256, stack.Observations.Length);
         Assert.Equal(255u, stack.ReadUInt32(-8));
     }
+
+    [Fact]
+    public void ValidatedRecordDoesNotAuthenticateAnyChangedFieldOnAClone()
+    {
+        NativeBattleStackBytes stack = ReceiptFixture();
+        stack.Validate();
+        Assert.Throws<InvalidDataException>(() => (stack with { FrameOwner = "" }).Validate());
+        Assert.Throws<OverflowException>(() => (stack with { FirstOffset = int.MaxValue }).Validate());
+        Assert.Throws<InvalidDataException>(() => (stack with { Bytes = stack.Bytes.SetItem(0, 99) }).Validate());
+        Assert.Throws<InvalidDataException>(() => (stack with { Known = stack.Known.SetItem(15, true) }).Validate());
+        Assert.Throws<InvalidDataException>(() => (stack with { Pointers = [] }).Validate());
+        Assert.Throws<InvalidDataException>(() => (stack with { Observations = [] }).Validate());
+        stack.Validate();
+        Assert.Equal(1u, stack.ReadUInt32(-16));
+    }
+
+    [Fact]
+    public void NestedWriterAndPointerTamperingAndNewStoreVersionsRetainFullValidation()
+    {
+        NativeBattleStackBytes stack = ReceiptFixture();
+        stack.Validate();
+        NativeBattleStackPointerCell cell = stack.Pointers[0];
+        NativeBattleStackBytes invalidPointer = stack with { Pointers = stack.Pointers.SetItem(0, cell with { Pointer = cell.Pointer with { Owner = "" } }) };
+        Assert.Throws<InvalidDataException>(invalidPointer.Validate);
+        Assert.Throws<InvalidDataException>(invalidPointer.Validate);
+        NativeBattleStackObservation writer = stack.Observations[1];
+        Assert.Throws<InvalidDataException>(() => (stack with { Observations = stack.Observations.SetItem(1, writer with { Pointer = writer.Pointer! with { Offset = 1 } }) }).Validate());
+        Assert.Throws<InvalidDataException>(() => (stack with { Observations = stack.Observations.SetItem(0, stack.Observations[0] with { Phase = "" }) }).Validate());
+
+        NativeBattleStackBytes next = stack.StoreLiteral(-7, new byte[] { 9 }, 0x1002, "partial-pointer-overwrite");
+        next.Validate();
+        Assert.Empty(next.Pointers);
+        Assert.Throws<InvalidDataException>(() => (next with { Pointers = stack.Pointers }).Validate());
+        Assert.True(stack.IsNonzero(-8));
+    }
+
+    [Fact]
+    public void JsonRestoreIsIndependentOfAnExistingReceiptAndRejectsChangedReplayBytes()
+    {
+        NativeBattleStackBytes stack = ReceiptFixture();
+        stack.Validate();
+        string json = JsonSerializer.Serialize(stack);
+        NativeBattleStackBytes restored = JsonSerializer.Deserialize<NativeBattleStackBytes>(json)!;
+        restored.Validate();
+        Assert.NotSame(stack, restored);
+        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        NativeBattleStackBytes tampered = JsonSerializer.Deserialize<NativeBattleStackBytes>(JsonSerializer.Serialize(stack with { Bytes = stack.Bytes.SetItem(0, 2) }))!;
+        Assert.Throws<InvalidDataException>(tampered.Validate);
+        Assert.Throws<InvalidDataException>(tampered.Validate);
+    }
+
+    [Fact]
+    public void RepeatedValidationOfTheSameRecordDoesNotAllocateReplayState()
+    {
+        NativeBattleStackBytes stack = ReceiptFixture();
+        stack.Validate();
+        stack.Validate();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 128; index++)
+        {
+            stack.Validate();
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < 1024, $"Repeated validated identity allocated {allocated} bytes.");
+    }
+
+    [Fact]
+    public void ValidationReceiptsDoNotRetainDeadStackHistories()
+    {
+        WeakReference<NativeBattleStackBytes> stack = ValidateTemporaryStack();
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        Assert.False(stack.TryGetTarget(out _));
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference<NativeBattleStackBytes> ValidateTemporaryStack()
+    {
+        NativeBattleStackBytes stack = ReceiptFixture();
+        stack.Validate();
+        return new(stack);
+    }
+
+    private static NativeBattleStackBytes ReceiptFixture() => NativeBattleStackBytes.Unknown("root", -16, 16)
+        .StoreUInt32(-16, 1, 0x1000, "literal")
+        .StorePointer(-8, new(NativeBattleStackPointerKind.Frame, "root", -4), 0x1001, "pointer");
 
     [Fact]
     public void Model_read_requires_actual_prior_glow_store_in_current_queue()

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -42,6 +43,9 @@ public sealed record NativeBattleStackPointerCell([property: JsonRequired] int O
 /// <summary>One physical stack interval relative to a retained execution-frame identity. Unknown bytes remain unknown.</summary>
 public sealed record NativeBattleStackBytes([property: JsonRequired] string FrameOwner, [property: JsonRequired] int FirstOffset, [property: JsonRequired] ImmutableArray<byte> Bytes, [property: JsonRequired] ImmutableArray<bool> Known, [property: JsonRequired] ImmutableArray<NativeBattleStackPointerCell> Pointers, [property: JsonRequired] ImmutableArray<NativeBattleStackObservation> Observations)
 {
+    private static readonly ConditionalWeakTable<NativeBattleStackBytes, object> ValidatedStacks = new();
+    private static readonly object ValidationReceipt = new();
+
     public static NativeBattleStackBytes Unknown(string frameOwner, int firstOffset, int length)
     {
         if (string.IsNullOrWhiteSpace(frameOwner) || length <= 0)
@@ -53,6 +57,15 @@ public sealed record NativeBattleStackBytes([property: JsonRequired] string Fram
     }
 
     public void Validate()
+    {
+        ValidatedStacks.GetValue(this, static stack =>
+        {
+            stack.ValidateCore();
+            return ValidationReceipt;
+        });
+    }
+
+    private void ValidateCore()
     {
         if (string.IsNullOrWhiteSpace(FrameOwner) || Bytes.IsDefaultOrEmpty || Known.IsDefault || Bytes.Length != Known.Length || Pointers.IsDefault || Observations.IsDefault)
         {

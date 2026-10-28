@@ -35,29 +35,31 @@ public static class NativeBattleTemporaryMemory
 
     public static NativeBattleEffectArena ReadView(NativeBattleFileStaging staging, uint address, int length)
     {
+        ValidateViewRange(staging, address, length);
+        return CopyToArenaValidated(staging, address, NativeBattleEffectArena.CreateUnknown(length), 0, length);
+    }
+
+    internal static NativeBattleEffectArena CopyToArena(NativeBattleFileStaging staging, uint address, NativeBattleEffectArena destination, int destinationOffset, int length)
+    {
+        ValidateViewRange(staging, address, length);
+        return CopyToArenaValidated(staging, address, destination, destinationOffset, length);
+    }
+
+    private static void ValidateViewRange(NativeBattleFileStaging staging, uint address, int length)
+    {
         if (length < 0 || length > NativeBattleEffectArena.Length || (ulong)address + (uint)length > (ulong)uint.MaxValue + 1)
         {
             throw new ArgumentOutOfRangeException(nameof(length));
         }
         staging.Validate();
-        NativeBattleEffectArena result = NativeBattleEffectArena.CreateUnknown(length);
-        (byte[] data, bool[] known) = staging.ReadSnapshot(address, length);
-        result.Write(0, data);
-        for (int index = 0; index < length;)
-        {
-            if (known[index])
-            {
-                index++;
-                continue;
-            }
-            int first = index++;
-            while (index < length && !known[index])
-            {
-                index++;
-            }
-            result.MarkUnknown(first, index - first);
-        }
-        return result;
+    }
+
+    private static NativeBattleEffectArena CopyToArenaValidated(NativeBattleFileStaging staging, uint address, NativeBattleEffectArena destination, int destinationOffset, int length)
+    {
+        Span<byte> data = length <= 512 ? stackalloc byte[length] : new byte[length];
+        Span<bool> known = length <= 512 ? stackalloc bool[length] : new bool[length];
+        staging.ReadWithKnownness(address, data, known);
+        return destination.WriteWithKnownness(destinationOffset, data, known);
     }
 
     public static NativeBattleFileStaging PublishView(NativeBattleFileStaging staging, uint address, NativeBattleEffectArena view, int length)

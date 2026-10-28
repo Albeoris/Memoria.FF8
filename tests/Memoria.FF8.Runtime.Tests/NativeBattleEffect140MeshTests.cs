@@ -9,6 +9,26 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect140MeshTests
 {
     [Fact]
+    public void Current_staged_vertex_reads_match_mesh_words_depth_and_state_without_aliasing()
+    {
+        NativeBattleStaticMeshResource mesh = Mesh();
+        NativeBattleEffect140Frame frame = Frame();
+        frame.Staging!.Write(mesh.Address, mesh.Bytes.AsSpan());
+        NativeBattleCameraProjection projection = new(null, 100, 160, 108);
+        NativeBattleEffect140MirroredStep expected = NativeBattleEffect140Meshes.DrawLoaded(frame.Memory, mesh, projection, Context(mesh), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattleEffect140MirroredStep actual = NativeBattleEffect140Meshes.DrawLoaded(frame.Memory, mesh, projection, Context(mesh), NativeBattleGteColorInterpolation.CodeConstants45F270, offset => ReadBytes(frame, mesh.Address + 8u + (uint)offset, 8));
+
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
+        NativeBattleEffectArena detached = ReadBytes(frame, mesh.Address + 8, 8);
+        var original = detached.ReadSnapshot(0, 8);
+        frame.Staging.Write(mesh.Address + 8, new byte[8]).MarkUnknown(mesh.Address + 8, 1);
+        Assert.Equal(original.Data, detached.ReadSnapshot(0, 8).Data);
+        Assert.Equal(original.Known, detached.ReadSnapshot(0, 8).Known);
+        Assert.Equal(new byte[4], detached.Read(8, 4));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect140Meshes.DrawLoaded(frame.Memory, mesh, projection, Context(mesh), NativeBattleGteColorInterpolation.CodeConstants45F270, offset => ReadBytes(frame, mesh.Address + 8u + (uint)offset, 8)));
+    }
+
+    [Fact]
     public void Mirrored_quads_keep_nonsequential_E2_links_full_SZ_and_unknown_caller_matrix()
     {
         NativeBattleStaticMeshResource mesh = Mesh();

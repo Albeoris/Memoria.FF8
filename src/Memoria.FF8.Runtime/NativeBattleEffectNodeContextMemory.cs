@@ -82,5 +82,5 @@ public static class NativeBattleEffectNodeContextMemory
         return destination.WriteWithKnownness(destinationOffset, data, known);
     }
 
-    private static NativeBattleEffectArena Slice(NativeBattleEffectArena source, int offset, int count) => Copy(source, offset, NativeBattleEffectArena.Clear().MarkUnknown(0, count), 0, count);
+    private static NativeBattleEffectArena Slice(NativeBattleEffectArena source, int offset, int count) => Copy(source, offset, NativeBattleEffectArena.Clear(), 0, count);
 }

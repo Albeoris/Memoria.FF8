@@ -39,14 +39,14 @@ public static partial class NativeBattleSonic139Controller
         {
             if (address >= pool.BankAddress && (ulong)address + (uint)length <= (ulong)pool.BankAddress + (uint)(pool.Stride * pool.Slots.Length))
             {
-                return Copy(NativeBattleEffectTaskMemory.CaptureBank(pool), checked((int)(address - pool.BankAddress)), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+                return Copy(NativeBattleEffectTaskMemory.CaptureBank(pool), checked((int)(address - pool.BankAddress)), NativeBattleEffectArena.Clear(), 0, length);
             }
         }
         if (address is >= 0x2517B50 and < 0x2520C48 || address is >= 0x11D7900 and < 0x11D8BF0)
         {
             return frame.State.ReadView(address, length);
         }
-        return Copy(frame.Memory.Arena ?? throw new NotSupportedException("Sonic Wave requires its current arena."), checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress)), NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+        return Copy(frame.Memory.Arena ?? throw new NotSupportedException("Sonic Wave requires its current arena."), checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress)), NativeBattleEffectArena.Clear(), 0, length);
     }
 
     public static NativeBattleSonic139Frame WriteBytes(NativeBattleSonic139Frame frame, uint address, NativeBattleEffectArena source, int length)
@@ -98,7 +98,7 @@ public static partial class NativeBattleSonic139Controller
     }
 
     public static NativeBattleSonic139Frame Release(NativeBattleSonic139Frame frame, int length) => frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), length) };
-    public static NativeBattleEffectArena Context(NativeBattleSonic139Frame frame, uint address, int length) => Copy(NativeBattleTemporaryMemory.ReadView(RequireStaging(frame), address, length), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+    public static NativeBattleEffectArena Context(NativeBattleSonic139Frame frame, uint address, int length) => NativeBattleTemporaryMemory.CopyToArena(RequireStaging(frame), address, NativeBattleEffectArena.Clear(), 0, length);
     public static NativeBattleSonic139Frame PublishContext(NativeBattleSonic139Frame frame, uint address, NativeBattleEffectArena context, int length) => frame with { Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), address, context, length) };
     private static NativeBattleFileStaging RequireStaging(NativeBattleSonic139Frame frame) => frame.Staging ?? throw new NotSupportedException("Sonic Wave requires its current temporary memory.");
     private static NativeBattleSonic139Frame WithPool(NativeBattleSonic139Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };

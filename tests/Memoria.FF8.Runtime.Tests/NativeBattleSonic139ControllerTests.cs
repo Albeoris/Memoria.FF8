@@ -10,6 +10,55 @@ public sealed class NativeBattleSonic139ControllerTests
     private static readonly NativeBattleSonic139Resources Resources = new(null!, null!, new(MainActAddress, []), new(TargetActAddress, []), null!, [], [], [], [0x4040FF, 0xFF40FF, 0xFF4040, 0x3167616D], 0x641C8);
 
     [Fact]
+    public void Temporary_context_single_copy_preserves_knownness_detachment_and_full_zero_tail()
+    {
+        byte[] bytes = Enumerable.Range(0, 76).Select(index => (byte)(index + 1)).ToArray();
+        bool[] known = Enumerable.Repeat(true, 76).ToArray();
+        known[4] = false;
+        known[70] = false;
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().WriteWithKnownness(NativeBattleTemporaryMemory.Address, bytes, known);
+        NativeBattleSonic139Frame frame = Frame(70) with { Staging = staging };
+        byte[] expected = new byte[76];
+        bool[] expectedKnown = new bool[76];
+        staging.ReadWithKnownness(NativeBattleTemporaryMemory.Address, expected, expectedKnown);
+        NativeBattleEffectArena context = Context(frame, NativeBattleTemporaryMemory.Address, 76);
+        (byte[] actual, bool[] actualKnown) = context.ReadSnapshot(0, 76);
+        Assert.Equal(expected, actual);
+        Assert.Equal(expectedKnown, actualKnown);
+        Assert.Throws<NotSupportedException>(() => context.Read(4, 1));
+        Assert.Throws<NotSupportedException>(() => context.Read(70, 1));
+        Assert.Equal(new byte[4], context.Read(76, 4));
+        Assert.Equal(new byte[1], context.Read(NativeBattleEffectArena.Length - 1, 1));
+        context = context.Write(0, new byte[] { 99 });
+        Assert.Equal(bytes[0], staging.Read(NativeBattleTemporaryMemory.Address, 1)[0]);
+        NativeBattleSonic139Frame published = PublishContext(frame, NativeBattleTemporaryMemory.Address, context, 76);
+        Assert.Equal(99, published.Staging!.Read(NativeBattleTemporaryMemory.Address, 1)[0]);
+        Assert.Throws<NotSupportedException>(() => published.Staging!.Read(NativeBattleTemporaryMemory.Address + 4, 1));
+        Assert.Same(frame.Memory, published.Memory);
+        Assert.Same(frame.Effect, published.Effect);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Task_and_arena_read_views_overwrite_the_whole_span_and_keep_the_zero_tail(bool task)
+    {
+        NativeBattleSonic139Frame frame = Frame(70);
+        uint address = task ? MainAddress + 0x20 : NativeBattleEffectNodeMemory.ArenaAddress + 0xF0000;
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, new byte[] { 1, 2, 3, 4 }).MarkUnknown(1, 2);
+        frame = WriteBytes(frame, address, source, 4);
+        NativeBattleEffectArena view = ReadBytes(frame, address, 4);
+        Assert.Equal(new byte[] { 1 }, view.Read(0, 1));
+        Assert.Equal(new byte[] { 4 }, view.Read(3, 1));
+        Assert.Throws<NotSupportedException>(() => view.Read(1, 1));
+        Assert.Throws<NotSupportedException>(() => view.Read(2, 1));
+        Assert.Equal(new byte[4], view.Read(4, 4));
+        Assert.Equal(new byte[1], view.Read(NativeBattleEffectArena.Length - 1, 1));
+        view = view.Write(0, new byte[] { 99 });
+        Assert.Equal(new byte[] { 1 }, ReadBytes(frame, address, 4).Read(0, 1));
+    }
+
+    [Fact]
     public void Completion_waits_for_lower_queue_then_requests_common_once_and_observes_actual_byte()
     {
         NativeBattleSonic139Frame frame = Frame(70);

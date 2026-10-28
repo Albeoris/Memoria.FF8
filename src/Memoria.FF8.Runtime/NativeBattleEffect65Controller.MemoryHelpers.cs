@@ -63,7 +63,7 @@ public static partial class NativeBattleEffect65Controller
             NativeBattleEffectArena queue = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(child.Head is int head ? checked(child.BankAddress + (uint)(head * child.Stride)) : 0u)).Write(4, BitConverter.GetBytes(child.Tail is int tail ? checked(child.BankAddress + (uint)(tail * child.Stride)) : 0u));
             return CopyBytes(queue, checked((int)(address - ChildDescriptor)), NativeBattleEffectArena.Clear(), 0, length);
         }
-        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().MarkUnknown(0, length);
+        NativeBattleEffectArena result = NativeBattleEffectArena.Clear();
         int copied = 0;
         while (copied < length)
         {
@@ -132,7 +132,7 @@ public static partial class NativeBattleEffect65Controller
         {
             uint current = checked(address + (uint)copied);
             int count = RegionLength(frame, current, length - copied, out int poolIndex, out int stateKind);
-            NativeBattleEffectArena selected = CopyBytes(source, copied, NativeBattleEffectArena.Clear().MarkUnknown(0, count), 0, count);
+            NativeBattleEffectArena selected = CopyBytes(source, copied, NativeBattleEffectArena.Clear(), 0, count);
             if (poolIndex >= 0)
             {
                 NativeBattleEffectTaskPool pool = frame.Effect.Pools[poolIndex];
