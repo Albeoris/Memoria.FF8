@@ -8,6 +8,38 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleStackBytesTests
 {
     [Fact]
+    public void CheckedAppendsMatchIndependentFullReplayForEveryStoreKind()
+    {
+        NativeBattleStackBytes stack = NativeBattleStackBytes.Unknown("frame", -32, 64);
+        Random random = new(1847);
+        for (int index = 0; index < 256; index++)
+        {
+            int offset = -32 + 4 * random.Next(0, 15);
+            uint value = unchecked((uint)random.NextInt64());
+            stack = (index % 4) switch
+            {
+                0 => stack.StoreUInt32(offset, value, 0x1000, "literal"),
+                1 => stack.StoreRegister32(offset, value, (byte)random.Next(0, 16), 0x1001, "register"),
+                2 => stack.StorePointer(offset, new(NativeBattleStackPointerKind.Frame, "frame", -4), 0x1002, "pointer"),
+                _ => stack.Invalidate(offset, random.Next(1, 5), 0x1003, "unknown")
+            };
+            stack.Validate();
+            NativeBattleStackBytes independent = stack with { };
+            independent.Validate();
+            Assert.Equal(index + 1, independent.Observations.Count);
+            Assert.Equal(JsonSerializer.Serialize(stack), JsonSerializer.Serialize(independent));
+            Assert.Throws<InvalidDataException>(() => (stack with { Observations = stack.Observations.SetItem(0, stack.Observations[0] with { Instruction = 0 }) }).Validate());
+        }
+        string before = JsonSerializer.Serialize(stack);
+        Assert.Throws<InvalidDataException>(() => stack.StoreUInt32(31, 1, 0x1000, "outside"));
+        Assert.Throws<InvalidDataException>(() => stack.Invalidate(-32, 1, 0, "missing-instruction"));
+        Assert.Throws<InvalidDataException>(() => stack.StoreUInt32(-32, 1, 0x1000, ""));
+        Assert.Throws<InvalidDataException>(() => stack.StoreRegister32(-32, 1, 16, 0x1000, "invalid-mask"));
+        Assert.Throws<ArgumentNullException>(() => stack.StorePointer(-32, null!, 0x1000, "null-pointer"));
+        Assert.Equal(before, JsonSerializer.Serialize(stack));
+    }
+
+    [Fact]
     public void SharedHistoryRetainsTheExistingJsonArrayAndIndependentContinuation()
     {
         NativeBattleStackBytes original = NativeBattleStackBytes.Unknown("frame", -8, 8).StoreUInt32(-8, 17, 0x1000, "first");

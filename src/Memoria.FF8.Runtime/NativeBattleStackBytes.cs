@@ -290,7 +290,11 @@ public sealed record NativeBattleStackBytes([property: JsonRequired] string Fram
             cells = cells.Add(new(offset, pointer, order));
         }
         NativeBattleStackObservation observation = new(order, operation, offset, length, instruction, phase, literal, pointer) { RegisterKnownBytes = registerKnown };
-        return this with { Bytes = bytes.ToImmutableArray(), Known = known.ToImmutableArray(), Pointers = cells, Observations = Observations.Add(observation) };
+        NativeBattleStackBytes result = this with { Bytes = bytes.ToImmutableArray(), Known = known.ToImmutableArray(), Pointers = cells, Observations = Observations.Add(observation) };
+        // This closed transition starts from validated state and its checked store operands reproduce replay exactly.
+        // Only its new immutable result receives the receipt; imports and with-expressions still require full replay.
+        ValidatedStacks.Add(result, ValidationReceipt);
+        return result;
     }
 
     private static ImmutableArray<NativeBattleStackPointerCell> WithoutOverlappingPointers(ImmutableArray<NativeBattleStackPointerCell> pointers, int offset, int length)
