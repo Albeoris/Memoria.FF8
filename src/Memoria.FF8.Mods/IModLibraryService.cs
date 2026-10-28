@@ -22,7 +22,11 @@ public sealed record ModLibrarySnapshot(long Revision, RemoteCatalogSnapshot Cat
     public string TargetLabel { get; init; } = TargetProfile;
 }
 
-public sealed record ModLibraryInstallation(string SourceId, Guid Id, string Version, string PackageId, bool Pending);
+public sealed record ModLibraryInstallation(string SourceId, Guid Id, string Version, string PackageId, bool Pending)
+{
+    public bool Available { get; init; } = true;
+    public string? Error { get; init; }
+}
 
 public sealed record ModLibraryJob(Guid Id, RemoteModEntry Entry, string Phase, long ReceivedBytes, long? TotalBytes, double BytesPerSecond, string? Error, string? Details, bool CanPause, bool CanResume, bool CanCancel, bool CanInstall, bool CanRetry)
 {

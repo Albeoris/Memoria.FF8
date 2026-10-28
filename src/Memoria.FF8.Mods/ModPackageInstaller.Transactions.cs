@@ -5,7 +5,10 @@ namespace Memoria.FF8.Mods;
 public sealed partial class ModPackageInstaller
 {
     private sealed record Receipt(int Schema, Guid InstallationId, string SourceId, Guid ModId, string Version, string Target, string DestinationName, string PayloadHash, bool Folder);
-    private sealed record Journal(int Schema, Guid TransactionId, Receipt Next, Receipt? Previous, string StageName, string ExpectedSettingsHash, string Settings, string Phase);
+    private sealed record Journal(int Schema, Guid TransactionId, Receipt Next, Receipt? Previous, string StageName, string ExpectedSettingsHash, string Settings, string Phase)
+    {
+        public Receipt? MissingPrevious { get; init; }
+    }
 
     public Task<ModPackageInstallResult> RequestInstallAsync(ModPackageInstallPlan plan, bool autoEnableNewMods = true, CancellationToken cancellationToken = default)
     {
@@ -31,8 +34,9 @@ public sealed partial class ModPackageInstaller
                 {
                     throw new InvalidOperationException("This installation already has a pending transaction. Restart to apply it first.");
                 }
-                CheckOwnership(plan.Entry, destination, previous);
-                if (previous?.PayloadHash == item.Hash)
+                CheckOwnership(plan.Entry, destination, previous, allowMissing: true);
+                bool previousPayloadExists = Exists(destination);
+                if (previousPayloadExists && previous?.PayloadHash == item.Hash)
                 {
                     prepared.Remove(plan.Token);
                     Directory.Delete(item.Root, true);
@@ -47,9 +51,13 @@ public sealed partial class ModPackageInstaller
                 Receipt next = new(1, previous?.InstallationId ?? Guid.NewGuid(), plan.Entry.SourceId, plan.Entry.Id, plan.Version, targetProfile, name, item.Hash, Directory.Exists(item.Payload));
                 string stage = StatePath("transactions", plan.Token.ToString("N"));
                 Directory.CreateDirectory(Path.GetDirectoryName(stage)!);
-                Directory.Move(item.Root, stage);
                 string payloadName = Path.GetRelativePath(item.Root, item.Payload);
-                Journal journal = new(1, plan.Token, next, previous, payloadName, SettingsHash(settingsPath), settings, "PendingRestart");
+                Directory.Move(item.Root, stage);
+                prepared[plan.Token] = item with { Root = stage, Payload = Path.Combine(stage, payloadName) };
+                Journal journal = new(1, plan.Token, next, previousPayloadExists ? previous : null, payloadName, SettingsHash(settingsPath), settings, "PendingRestart")
+                {
+                    MissingPrevious = previousPayloadExists ? null : previous
+                };
                 WriteAtomic(JournalPath(ManagedName(plan.Entry)), journal);
                 prepared.Remove(plan.Token);
                 return Result(next, true, false);
@@ -175,6 +183,24 @@ public sealed partial class ModPackageInstaller
             }
             return;
         }
+        RemoteModEntry pinned = new(next.SourceId, next.ModId, "", next.Version);
+        if (journal.Phase == "PendingRestart")
+        {
+            bool oldMoveInterrupted = journal.Previous is not null && !Exists(destination) && Exists(backup) && Fingerprint(backup, false) == journal.Previous.PayloadHash;
+            string settingsToCheck = oldMoveInterrupted && next.Folder ? Configuration(backup, true) : settingsPath;
+            if (SettingsHash(settingsToCheck) != journal.ExpectedSettingsHash)
+            {
+                throw new InvalidDataException("Installation settings changed after the plan was accepted; replan before updating.");
+            }
+            if (journal.Previous is null && Exists(destination))
+            {
+                throw new InvalidDataException("A payload appeared at the destination after the plan was accepted; no files were replaced.");
+            }
+            if (!oldMoveInterrupted)
+            {
+                CheckOwnership(pinned, destination, journal.Previous ?? journal.MissingPrevious, allowMissing: journal.MissingPrevious is not null);
+            }
+        }
         bool finalIsNew = Exists(destination) && Fingerprint(destination, false) == next.PayloadHash;
         if (!finalIsNew)
         {
@@ -186,7 +212,7 @@ public sealed partial class ModPackageInstaller
             ValidatePackage(payload, entry);
             if (journal.Previous is null)
             {
-                CheckOwnership(entry, destination, null);
+                CheckOwnership(entry, destination, journal.MissingPrevious, allowMissing: journal.MissingPrevious is not null);
             }
             if (Exists(destination))
             {
@@ -230,7 +256,7 @@ public sealed partial class ModPackageInstaller
         // Retain transaction backups for explicit recovery; cache eviction must never delete them.
     }
 
-    private void CheckOwnership(RemoteModEntry entry, string destination, Receipt? previous)
+    private void CheckOwnership(RemoteModEntry entry, string destination, Receipt? previous, bool allowMissing = false)
     {
         EnsureNoLinks(modsRoot);
         EnsureNoLinks(destination);
@@ -240,7 +266,7 @@ public sealed partial class ModPackageInstaller
             {
                 throw new InvalidDataException("Receipt ownership or target differs from the accepted plan.");
             }
-            if (!Exists(destination) || Fingerprint(destination, false) != previous.PayloadHash)
+            if (!Exists(destination) ? !allowMissing : Fingerprint(destination, false) != previous.PayloadHash)
             {
                 throw new InvalidDataException("This managed installation is missing or contains local changes.");
             }
@@ -289,6 +315,10 @@ public sealed partial class ModPackageInstaller
         if (journal.Schema != 1 || journal.Next.Schema != 1 || journal.Next.Target != targetProfile || journal.Next.DestinationName != name + (journal.Next.Folder ? "" : ".iroj") || journal.StageName != (journal.Next.Folder ? "content" : "content.iroj") || !Path.GetFullPath(path).Equals(JournalPath(name), StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("Unsupported journal schema, target or destination mapping.");
+        }
+        if (journal.MissingPrevious is { } missing && (journal.Previous is not null || missing.Schema != 1 || missing.SourceId != journal.Next.SourceId || missing.ModId != journal.Next.ModId || missing.Target != journal.Next.Target || missing.DestinationName != journal.Next.DestinationName || missing.Folder != journal.Next.Folder || missing.InstallationId != journal.Next.InstallationId))
+        {
+            throw new InvalidDataException("The missing-installation receipt does not match the journal ownership and target.");
         }
         if (journal.Phase is not ("PendingRestart" or "OldMoved" or "NewMoved" or "Committed" or "AwaitingValidation" or "RollingBack"))
         {

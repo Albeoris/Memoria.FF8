@@ -91,7 +91,9 @@ public sealed partial class ModPackageInstaller
                     return;
                 }
                 string expected = StatePath("prepared", plan.Token.ToString("N"));
-                if (!item.Root.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                string failedStage = StatePath("transactions", plan.Token.ToString("N"));
+                bool uncommittedStage = item.Root.Equals(failedStage, StringComparison.OrdinalIgnoreCase) && !File.Exists(JournalPath(ManagedName(plan.Entry)));
+                if (!item.Root.Equals(expected, StringComparison.OrdinalIgnoreCase) && !uncommittedStage)
                 {
                     throw new InvalidDataException("The prepared plan does not belong to this installation state.");
                 }

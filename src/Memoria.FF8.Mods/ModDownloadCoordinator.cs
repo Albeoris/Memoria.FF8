@@ -139,9 +139,24 @@ public sealed class ModDownloadCoordinator : IDisposable
                 string directory = JobDirectory(id);
                 if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) == 0)
                 {
-                    foreach (string name in new[] { "package.download", "download.part", "partial.json" })
+                    for (int attempt = 0; attempt < 30; attempt++)
                     {
-                        File.Delete(Path.Combine(directory, name));
+                        if (jobs[id].Phase != ModDownloadPhase.Cancelled)
+                        {
+                            break;
+                        }
+                        try
+                        {
+                            foreach (string name in new[] { "package.download", "download.part", "partial.json" })
+                            {
+                                File.Delete(Path.Combine(directory, name));
+                            }
+                            break;
+                        }
+                        catch (IOException) when (attempt < 29)
+                        {
+                            await Task.Delay(100).ConfigureAwait(false);
+                        }
                     }
                 }
             }
@@ -467,10 +482,3 @@ public sealed class ModDownloadCoordinator : IDisposable
         });
     }
 }
-
-
-
-
-
-
-

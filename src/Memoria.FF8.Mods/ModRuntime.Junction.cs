@@ -15,6 +15,12 @@ public sealed partial class ModRuntime
         {
             string name = Path.GetFileName(root);
             string id = $"Junction/{relativeName}";
+            if (junctionPackageAllowed is not null && !junctionPackageAllowed(root))
+            {
+                identities.Add($"resource-lease-denied\0{root}");
+                notices.Add(new("package-resource-lease", "This managed Junction package is unavailable because its backing directory could not be leased safely.", id));
+                continue;
+            }
             if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
             {
                 notices.Add(new("package-link-rejected", "Junction package roots must not be links.", id));

@@ -62,6 +62,64 @@ public sealed class ModLibraryStartupTests : IDisposable
         Assert.Empty(second.Mods.Catalog.Packages);
     }
 
+    [Fact]
+    public async Task ThirdHostCannotReplaceArchivesRetainedBySecondHostAfterFirstExits()
+    {
+        RemoteModEntry entry = new("synthetic", modId, "Example", "1");
+        using (GameResourceHost setup = Host())
+        {
+            ModPackageInstallPlan plan = await setup.PackageInstaller.InspectAsync(Package("1", true), entry, TestContext.Current.CancellationToken);
+            await setup.PackageInstaller.RequestInstallAsync(plan, true, TestContext.Current.CancellationToken);
+        }
+        GameResourceHost? first = Host();
+        try
+        {
+            using (GameResourceHost second = Host())
+            {
+                ModPackageInstallPlan update = await first.PackageInstaller.InspectAsync(Package("2", true), entry with { Version = "2" }, TestContext.Current.CancellationToken);
+                await first.PackageInstaller.RequestInstallAsync(update, true, TestContext.Current.CancellationToken);
+                first.Dispose();
+                first = null;
+                using GameResourceHost third = Host();
+                Assert.Equal("1", Assert.Single(second.Mods.InstalledPackages).JunctionMetadata?.Version);
+                Assert.Equal("1", Assert.Single(third.Mods.InstalledPackages).JunctionMetadata?.Version);
+                Assert.True(third.PackageInstaller.GetStatus(entry)!.RestartRequired);
+                Assert.Equal("retained media", File.ReadAllText(second.ResolveGameFile("movies/example.avi")));
+            }
+            using GameResourceHost next = Host();
+            Assert.Equal("2", Assert.Single(next.Mods.InstalledPackages).JunctionMetadata?.Version);
+            Assert.True(next.PackageInstaller.GetStatus(entry with { Version = "2" })!.Installed);
+        }
+        finally
+        {
+            first?.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task UnleasedManagedPackagesAreExcludedWhileManualPackagesRemainVisible()
+    {
+        RemoteModEntry entry = new("synthetic", modId, "Example", "1");
+        using (GameResourceHost setup = Host())
+        {
+            ModPackageInstallPlan plan = await setup.PackageInstaller.InspectAsync(Package("1", true), entry, TestContext.Current.CancellationToken);
+            await setup.PackageInstaller.RequestInstallAsync(plan, true, TestContext.Current.CancellationToken);
+        }
+        using (GameResourceHost installed = Host())
+        {
+            Assert.Single(installed.Mods.InstalledPackages);
+        }
+        string manual = Path.Combine(root, "Mods", "Junction", "manual");
+        Directory.CreateDirectory(manual);
+        await File.WriteAllTextAsync(Path.Combine(manual, "mod.xml"), "<ModInfo><Name>Manual</Name></ModInfo>", TestContext.Current.CancellationToken);
+        string runtime = Path.Combine(ModDirectoryResourceLease.StateDirectory(Path.Combine(root, "Mods")), "runtime.lock");
+        using FileStream blocked = new(runtime, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        using GameResourceHost reader = Host();
+        Assert.Contains(reader.Mods.InstalledPackages, package => package.Id == "Junction/manual");
+        Assert.DoesNotContain(reader.Mods.InstalledPackages, package => package.Id.StartsWith("Junction/managed-", StringComparison.Ordinal));
+        Assert.Contains(reader.Mods.Diagnostics, diagnostic => diagnostic.Code == "package-resource-lease");
+    }
+
     private GameResourceHost Host()
     {
         Directory.CreateDirectory(root);

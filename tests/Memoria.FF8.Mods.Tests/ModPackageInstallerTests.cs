@@ -154,6 +154,8 @@ public sealed class ModPackageInstallerTests : IDisposable
         {
             Directory.Move(Path.Combine(transaction, "content"), first.Destination);
             File.WriteAllText(Path.Combine(first.Destination, "mod.ini"), journal["Settings"]!.GetValue<string>());
+            journal["Phase"] = point == "receipt" ? "NewMoved" : "OldMoved";
+            File.WriteAllText(journalPath, journal.ToJsonString());
         }
         if (point == "receipt")
         {
@@ -277,6 +279,47 @@ public sealed class ModPackageInstallerTests : IDisposable
         await installer.DiscardAsync(second, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Single(Directory.GetFiles(Path.Combine(State, "journals")));
         Assert.True(Assert.Single(Installer().RecoverAndApply()).Installed);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ExplicitReinstallRetainsIdentityAndRestoresMissingReceiptOnRejection(bool archive, bool accept)
+    {
+        ModPackageInstaller installer = Installer();
+        string source = archive ? Iroj() : Zip(("mod.xml", Manifest()), ("a.bin", "old"));
+        ModPackageInstallPlan first = await installer.InspectAsync(source, Entry(), cancellationToken: TestContext.Current.CancellationToken);
+        ModPackageInstallResult firstPending = await installer.RequestInstallAsync(first, false, cancellationToken: TestContext.Current.CancellationToken);
+        installer.RecoverAndApply();
+        installer.CompleteStartupApplications([first.PackageId]);
+        string settingsPath = archive ? first.Destination + ".ini" : Path.Combine(first.Destination, "mod.ini");
+        File.WriteAllText(settingsPath, "enabled=0\npriority=17\n");
+        if (archive)
+        {
+            File.Delete(first.Destination);
+        }
+        else
+        {
+            Directory.Delete(first.Destination, true);
+        }
+        Assert.False(installer.GetStatus(Entry())!.Installed);
+        ModPackageInstallPlan reinstall = await installer.InspectAsync(source, Entry(), cancellationToken: TestContext.Current.CancellationToken);
+        ModPackageInstallResult pending = await installer.RequestInstallAsync(reinstall, false, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal(firstPending.InstallationId, pending.InstallationId);
+        Assert.True(pending.RestartRequired);
+        Assert.True(Assert.Single(Installer().RecoverAndApply()).Installed);
+        ModPackageInstallResult completion = Assert.Single(Installer().CompleteStartupApplications(accept ? [first.PackageId] : []));
+        Assert.Equal(accept, completion.Installed);
+        ModPackageInstallResult status = Installer().GetStatus(Entry())!;
+        Assert.Equal(accept, status.Installed);
+        Assert.Equal(firstPending.InstallationId, status.InstallationId);
+        if (archive)
+        {
+            Assert.Contains("priority=17", File.ReadAllText(settingsPath));
+        }
+        Assert.Empty(Installer().RecoverAndApply());
     }
 
     private string Iroj()

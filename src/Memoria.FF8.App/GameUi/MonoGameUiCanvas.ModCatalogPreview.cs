@@ -84,4 +84,3 @@ internal sealed partial class MonoGameUiCanvas
         modPreviewTextures.Clear();
     }
 }
-

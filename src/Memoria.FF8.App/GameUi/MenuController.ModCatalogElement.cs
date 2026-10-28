@@ -25,7 +25,7 @@ public sealed partial class MenuController
         private bool wide;
         private int Count => downloads ? jobs.Length : entries.Length;
         private RemoteModEntry? Entry => downloads ? Job?.Entry : entries.ElementAtOrDefault(selected) ?? menus.SelectedCatalog;
-        private ModLibraryJob? Job => downloads ? jobs.ElementAtOrDefault(selected) : Entry is { } entry ? menus.EntryJob(entry) : null;
+        private ModLibraryJob? Job => downloads ? jobs.ElementAtOrDefault(selected) : Entry is { } entry && menus.EntryJob(entry) is { } job && !(job.Phase == "Installed" && menus.ManagedRepairNeeded(entry)) ? job : null;
 
         public ModCatalogElement(MenuController menus)
         {
@@ -74,7 +74,7 @@ public sealed partial class MenuController
             Button("library-primary", PrimaryLabel(), Primary);
             controls["library-primary"].Enabled = CanPrimary();
             Button("library-secondary", Job?.CanOpenDownloadPage == true ? "Open download page" : Job?.CanPause == true ? "Pause" : Job?.CanResume == true ? "Resume" : "More details", Secondary);
-            Button("library-cancel", Job?.CanInstall == true ? "Remove cached download" : "Cancel job", () =>
+            Button("library-cancel", Job?.CanInstall == true || Job?.Phase == "Installed" ? "Remove cached download" : "Cancel job", () =>
             {
                 if (Job is { CanCancel: true } job)
                 {
@@ -90,11 +90,11 @@ public sealed partial class MenuController
             Children.Add(progress);
         }
 
-        private static int JobGroup(ModLibraryJob job) => job.Error is not null || job.CanInstall || job.CanResume || job.CanRetry ? 0 : job.Phase == "Installed" ? 3 : job.Phase == "Queued" ? 2 : 1;
+        private static int JobGroup(ModLibraryJob job) => job.Phase is "Installed" or "Cancelled" ? 3 : job.Error is not null || job.CanInstall || job.CanResume || job.CanRetry ? 0 : job.Phase == "Queued" ? 2 : 1;
         private static string JobGroupLabel(ModLibraryJob job) => JobGroup(job) switch { 0 => "Needs attention", 1 => "Active", 2 => "Queued", _ => "Recent" };
         private string ActivityLabel()
         {
-            ModLibraryJob? active = snapshot.Jobs.FirstOrDefault(job => job.Phase != "Installed");
+            ModLibraryJob? active = snapshot.Jobs.FirstOrDefault(job => job.Phase is not "Installed" and not "Cancelled");
             return active is null ? "Downloads · No pending work" : "Downloads · " + active.Entry.Name + " · " + active.Phase;
         }
 
@@ -103,6 +103,10 @@ public sealed partial class MenuController
             if (Job is { } job)
             {
                 return job.CanInstall ? "Install" : job.CanRetry ? "Retry" : job.CanResume ? "Resume" : downloads ? "Full details" : "View download";
+            }
+            if (Entry is { } missing && menus.ManagedRepairNeeded(missing))
+            {
+                return "Download & check repair";
             }
             if (Entry is { } update && menus.CatalogUpdateAvailable(update))
             {
@@ -147,6 +151,10 @@ public sealed partial class MenuController
                 if (menus.ManagedMod(entry) is { Pending: true })
                 {
                     menus.Push("mods-library-details");
+                }
+                else if (menus.ManagedRepairNeeded(entry))
+                {
+                    menus.modLibrary!.Queue(entry);
                 }
                 else if (menus.AssociatedMod(entry) is { } local && !menus.CatalogUpdateAvailable(entry))
                 {

@@ -20,7 +20,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         this.resourceLanguage = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage);
         source = GameDataSourceFactory.Open(gameDirectory, modelSourceDirectory);
         Resources = new ResourceService(source, this.resourceLanguage);
-        Mods = new ModRuntime(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory);
+        Mods = new ModRuntime(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory, junctionPackageAllowed: CanReadJunctionPackage);
         Resources.ReplacementFailed += (key, exception) =>
         {
             ModTextureLoadException? rejected = exception as ModTextureLoadException;
@@ -34,9 +34,17 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 Mods.ReportFailure(diagnostic);
             }
         };
-        RecoverModLibrary();
-        Pump(true);
-        ValidateModLibraryStartup();
+        try
+        {
+            RecoverModLibrary();
+            Pump(true);
+            ValidateModLibraryStartup();
+        }
+        catch
+        {
+            Dispose();
+            throw;
+        }
     }
 
     public bool NativeGameplayModsSupported => ModCompatibility.IsCompatible(source.Descriptor.Edition, ModFormat.Memoria);
@@ -383,7 +391,10 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         recognition?.Clear();
         voiceStore.Dispose();
         source.Dispose();
-        modLibraryRuntimeLock?.Dispose();
+        foreach (ModDirectoryResourceLease lease in modLibraryLeases.Values)
+        {
+            lease.Dispose();
+        }
         if (Directory.Exists(materializationDirectory))
         {
             try

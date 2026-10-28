@@ -168,6 +168,38 @@ public sealed class ModCatalogUiTests
     }
 
     [Theory]
+    [InlineData("Installed")]
+    [InlineData("Cancelled")]
+    public void MissingManagedPayloadOffersExplicitRepairWithoutInstalling(string previousPhase)
+    {
+        Library service = new();
+        RemoteModEntry entry = service.View.Catalog.Entries[0];
+        service.Managed(entry, entry.Version, available: false);
+        service.Publish(jobs: [Job(Guid.NewGuid(), entry, previousPhase)]);
+        MenuController menu = Menu(service);
+        UiView view = Arrange(menu);
+        Assert.Contains("Repair required", menu.Entries[0].Help);
+        Assert.Contains("Synthetic missing package.", menu.CurrentScreen.Details(menu));
+        Element(view, "commands").Key(UiKey.Confirm);
+        UiButton action = Assert.IsType<UiButton>(Element(Arrange(menu), "library-primary"));
+        Assert.Equal("Download & check repair", action.Text);
+        Assert.Empty(service.Commands);
+        action.Key(UiKey.Confirm);
+        Assert.Equal(["queue:Package 01"], service.Commands);
+    }
+
+    [Fact]
+    public void CancelledJobRemainsHistoryWithoutAppearingAsActiveActivity()
+    {
+        Library service = new();
+        service.Publish(jobs: [Job(Guid.NewGuid(), service.View.Catalog.Entries[0], "Cancelled")]);
+        MenuController menu = Menu(service, "mods-downloads");
+        UiView view = Arrange(menu);
+        Assert.Single(menu.Entries);
+        Assert.Equal("Downloads · No pending work", Assert.IsType<UiButton>(Element(view, "library-activity")).Text);
+    }
+
+    [Theory]
     [InlineData(640, 448)]
     [InlineData(1280, 896)]
     [InlineData(1920, 1080)]
@@ -301,7 +333,7 @@ public sealed class ModCatalogUiTests
         }).ToArray(), DateTimeOffset.Parse("2026-01-01T00:00:00Z"), false, false, null), [], "Steam 2013 · English", true);
         public List<string> Commands { get; } = [];
         public void MarkStale() => View = View with { Catalog = View.Catalog with { IsStale = true, Error = "Source unavailable" } };
-        public void Managed(RemoteModEntry entry, string version) => View = View with { Installations = [new(entry.SourceId, entry.Id, version, "local-package", false)] };
+        public void Managed(RemoteModEntry entry, string version, bool available = true) => View = View with { Installations = [new(entry.SourceId, entry.Id, version, "local-package", false) { Available = available, Error = available ? null : "Synthetic missing package." }] };
         public void Publish(IReadOnlyList<RemoteModEntry>? entries = null, IReadOnlyList<ModLibraryJob>? jobs = null) => View = View with { Revision = View.Revision + 1, Catalog = View.Catalog with { Entries = entries ?? View.Catalog.Entries }, Jobs = jobs ?? View.Jobs };
         public void RefreshCatalog() => Commands.Add("refresh");
         public void Queue(RemoteModEntry entry) => Commands.Add("queue:" + entry.Name);
@@ -313,5 +345,3 @@ public sealed class ModCatalogUiTests
         public void OpenDownloadPage(Guid id) => Commands.Add("open:" + id);
     }
 }
-
-

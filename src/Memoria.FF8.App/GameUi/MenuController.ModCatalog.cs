@@ -67,10 +67,11 @@ public sealed partial class MenuController
     private RemoteModEntry? SelectedCatalog => modLibrarySnapshot?.Catalog.Entries.FirstOrDefault(entry => CatalogIdentity(entry) == selectedCatalogId) ?? retainedCatalogEntry;
     private ModPackageView? AssociatedMod(RemoteModEntry entry) => modService?.View.Packages.FirstOrDefault(package => package.Package.JunctionMetadata?.Id == entry.Id);
     private ModLibraryInstallation? ManagedMod(RemoteModEntry entry) => modLibrarySnapshot?.Installations.FirstOrDefault(receipt => receipt.SourceId == entry.SourceId && receipt.Id == entry.Id);
+    private bool ManagedRepairNeeded(RemoteModEntry entry) => ManagedMod(entry) is { Pending: false, Available: false };
     private bool CatalogUpdateAvailable(RemoteModEntry entry) => ManagedMod(entry) is { Pending: false } receipt && RemoteModEntry.CompareRelease(entry.Version, receipt.Version) is > 0;
     private bool CatalogEntryListed(RemoteModEntry entry) => modLibrarySnapshot?.Catalog.Entries.Any(item => CatalogIdentity(item) == CatalogIdentity(entry)) == true;
-    private ModLibraryJob? EntryJob(RemoteModEntry entry) => modLibrarySnapshot?.Jobs.LastOrDefault(job => CatalogIdentity(job.Entry) == CatalogIdentity(entry) && (job.Entry.Version == entry.Version || RemoteModEntry.CompareRelease(job.Entry.Version, entry.Version) == 0) && job.Phase != "Cancelled");
-    private string CatalogStatus(RemoteModEntry entry) => EntryJob(entry)?.Phase ?? (!CatalogEntryListed(entry) ? "No longer listed" : ManagedMod(entry) is { } receipt ? receipt.Pending ? "Waiting to apply · restart required" : CatalogUpdateAvailable(entry) ? "Update available" : "Installed" : AssociatedMod(entry) is not null ? "Installed manually" : modLibrarySnapshot?.TargetSupported == true ? "Check required" : "Unavailable for this edition");
+    private ModLibraryJob? EntryJob(RemoteModEntry entry) => modLibrarySnapshot?.Jobs.LastOrDefault(job => CatalogIdentity(job.Entry) == CatalogIdentity(entry) && (job.Entry.Version == entry.Version || RemoteModEntry.CompareRelease(job.Entry.Version, entry.Version) == 0) && job.Phase is not ("Cancelled" or "Installed"));
+    private string CatalogStatus(RemoteModEntry entry) => ManagedRepairNeeded(entry) && EntryJob(entry) is null or { Phase: "Installed" } ? "Managed installation missing · Repair required" : EntryJob(entry)?.Phase ?? (!CatalogEntryListed(entry) ? "No longer listed" : ManagedMod(entry) is { } receipt ? receipt.Pending ? "Waiting to apply · restart required" : CatalogUpdateAvailable(entry) ? "Update available" : "Installed" : AssociatedMod(entry) is not null ? "Installed manually" : modLibrarySnapshot?.TargetSupported == true ? "Check required" : "Unavailable for this edition");
     private string[] CatalogCategories => ["All categories", .. (modLibrarySnapshot?.Catalog.Entries ?? []).Select(entry => entry.Category).Where(category => category.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(category => category, StringComparer.OrdinalIgnoreCase)];
     private RemoteModEntry[] FilteredCatalog() => (modLibrarySnapshot?.Catalog.Entries ?? []).Where(entry =>
         (catalogSearch.Length == 0 || (entry.Name + " " + entry.Author + " " + entry.Category + " " + entry.Description).Contains(catalogSearch, StringComparison.OrdinalIgnoreCase)) &&
@@ -118,6 +119,11 @@ public sealed partial class MenuController
         if (ManagedMod(entry) is { } receipt)
         {
             details.Add("Managed version: " + receipt.Version + (receipt.Pending ? " · Waiting to apply; restart required" : ""));
+            if (!receipt.Available)
+            {
+                details.Add("The managed package is missing. Download and check a repair before installing.");
+            }
+            details.Add(receipt.Error ?? "");
         }
         details.Add(modLibrarySnapshot?.Error ?? "");
         details.Add(modLibrarySnapshot?.Catalog.Error ?? "");

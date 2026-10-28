@@ -16,6 +16,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private readonly string modsRoot;
     private readonly string bundledModsRoot;
     private readonly Func<ModFormat, bool> isCompatible;
+    private readonly Func<string, bool>? junctionPackageAllowed;
     private readonly Func<ModCatalogSnapshot, ModPreparationResult> prepare;
     private readonly TimeSpan debounce;
     private readonly List<Action<ModCatalogSnapshot>> subscribers = [];
@@ -44,7 +45,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private string? lastIdentity;
     private string? pendingIdentity;
 
-    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null, string? modsDirectory = null)
+    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null, string? modsDirectory = null, Func<string, bool>? junctionPackageAllowed = null)
     {
         modsRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modsDirectory ?? DefaultModsDirectory(applicationBaseDirectory ?? AppContext.BaseDirectory)));
         IEnumerable<string> roots = (additionalBaseDirectories ?? []).Select(directory => Path.Combine(directory, "Mods")).Append(modsRoot);
@@ -56,6 +57,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         ModsDirectories = Array.AsReadOnly(roots.Select(directory => Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
         ReadLocalizationPreferences();
         this.isCompatible = isCompatible ?? (_ => true);
+        this.junctionPackageAllowed = junctionPackageAllowed;
         this.prepare = prepare ?? (_ => ModPreparationResult.Accepted);
         this.debounce = debounce ?? TimeSpan.FromMilliseconds(250);
         if (watch)

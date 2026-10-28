@@ -49,7 +49,8 @@ public sealed partial class ModPackageInstaller
                     }
                     WriteAtomic(path, journal with { Phase = "RollingBack" });
                     Rollback(journal, path);
-                    results.Add(Result(next, false, false, "The package failed startup resource validation. The previous installation was restored."));
+                    string recovery = journal.Previous is not null ? "The previous installation was restored." : journal.MissingPrevious is not null ? "The previous missing-installation state was restored." : "The rejected installation was removed.";
+                    results.Add(Result(next, false, false, "The package failed startup resource validation. " + recovery));
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException or ArgumentException or System.Text.Json.JsonException)
                 {
@@ -101,7 +102,7 @@ public sealed partial class ModPackageInstaller
                 throw new InvalidDataException("A different payload occupies the rejected installation destination.");
             }
             string settings = Configuration(destination, journal.Next.Folder);
-            if (!journal.Next.Folder && File.Exists(settings))
+            if (!journal.Next.Folder && journal.ExpectedSettingsHash == "missing" && File.Exists(settings))
             {
                 if (SettingsHash(settings) != TextHash(journal.Settings))
                 {
@@ -109,7 +110,15 @@ public sealed partial class ModPackageInstaller
                 }
                 File.Delete(settings);
             }
-            File.Delete(ReceiptPath(ManagedName(new(journal.Next.SourceId, journal.Next.ModId, "", journal.Next.Version))));
+            string receiptPath = ReceiptPath(ManagedName(new(journal.Next.SourceId, journal.Next.ModId, "", journal.Next.Version)));
+            if (journal.MissingPrevious is { } missing)
+            {
+                WriteAtomic(receiptPath, missing);
+            }
+            else
+            {
+                File.Delete(receiptPath);
+            }
         }
         File.Delete(path);
     }

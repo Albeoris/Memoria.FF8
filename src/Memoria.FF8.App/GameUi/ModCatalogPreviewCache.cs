@@ -233,4 +233,3 @@ internal sealed class ModCatalogPreviewCache : IDisposable
         }, TaskScheduler.Default);
     }
 }
-
