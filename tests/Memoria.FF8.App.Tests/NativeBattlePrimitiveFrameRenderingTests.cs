@@ -11,6 +11,40 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattlePrimitiveFrameRenderingTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Raw_cache_ignores_only_unconsumed_page_and_CLUT_bits_while_replacement_inputs_stay_exact(int depth)
+    {
+        NativeBattleEffectTextureState state = Texture(31);
+        NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(depth * 32, new(0, 0, 8, 8), state);
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture(), PilotDiagnosticsEnabled = true };
+        RawCacheTextureSource source = new();
+        ushort page = (ushort)(depth << 7);
+        ushort[] pages = [page, (ushort)(page | 0x20), (ushort)(page | 0x60), (ushort)(page | 0x20), (ushort)(page | 0x40)];
+        for (int index = 0; index < pages.Length; index++)
+        {
+            ushort clut = index == 3 ? depth == 2 ? (ushort)0xC001 : (ushort)0xC000 : (ushort)0x4000;
+            NativeBattlePrimitiveFrame frame = Frame([RawCacheQuad(page: pages[index], clut: clut)]) with { LastTextureSnapshots = [held] };
+            renderer.RenderNativePrimitiveFrame(frame, state, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8(), effectTextureSource: source);
+            Assert.Equal((pages[index], clut), source.SamplingInputs[index]);
+            if (index > 0 && (index < 4 || depth == 2))
+            {
+                Assert.Same(source.NativeImages[0], source.NativeImages[index]);
+                Assert.Equal(0, renderer.TextureDecoding!.Value.DecodeCount);
+            }
+            else if (index == 4)
+            {
+                Assert.NotSame(source.NativeImages[0], source.NativeImages[index]);
+                Assert.Equal(1, renderer.TextureDecoding!.Value.DecodeCount);
+            }
+        }
+        Assert.Equal(5, source.FinalImages.Count);
+        Assert.NotSame(source.FinalImages[0], source.FinalImages[3]);
+        Assert.Equal(depth == 2 ? 1 : 2, RawCacheCount(renderer, "nativeRawTexturePages"));
+    }
+
     [Fact]
     public void Raw_pixels_survive_a_held_final_frame_while_metadata_owner_and_catalog_reapply_replacements()
     {
@@ -307,6 +341,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         public long Generation { get; set; }
         public List<PixelImage> NativeImages { get; } = [];
         public List<PixelImage> FinalImages { get; } = [];
+        public List<(ushort Page, ushort Clut)> SamplingInputs { get; } = [];
 
         public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
         {
@@ -316,6 +351,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         public PixelImage ApplyDecoded(PixelImage original, PixelImage? decodedNative, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
         {
             NativeImages.Add(decodedNative ?? original);
+            SamplingInputs.Add((page, clut));
             PixelImage final = new(width, height, Enumerable.Repeat(new Rgba32((byte)(NativeImages.Count % 200 + 1), 0, 0, 127), width * height).ToArray());
             FinalImages.Add(final);
             return final;

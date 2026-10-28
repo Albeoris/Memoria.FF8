@@ -330,7 +330,9 @@ public sealed partial class BattleRenderer
         NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey);
         if (!nativeTexturePages.TryGetValue(key, out texture))
         {
-            NativeRawTextureKey rawKey = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, capabilities?.DirectTextureFormat);
+            int depth = (page >> 7) & 3;
+            // Raw sampling excludes blend bits; replacement selection still uses the complete key above.
+            NativeRawTextureKey rawKey = new((ushort)(page & 0x19F), depth == 2 ? (ushort)0 : (ushort)(clut & 0x7FFF), depth == 2 ? null : alternateShift, window.X, window.Y, window.Width, window.Height, depth == 2 ? capabilities?.DirectTextureFormat : null);
             bool reusable = sameReplacements && (retainedPixels is not null || sameNativeTextureOrigins) && previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
             if (!reusable)
             {
@@ -443,7 +445,7 @@ public sealed partial class BattleRenderer
         {
             return;
         }
-        if (((key.Page >> 7) & 3) < 2 && (palette is null || palette.Clut != key.Clut))
+        if (((key.Page >> 7) & 3) < 2 && (palette is null || (palette.Clut & 0x7FFF) != key.Clut))
         {
             throw new InvalidDataException("An indexed native image cache entry requires its decoder's exact CLUT receipt.");
         }

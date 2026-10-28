@@ -136,32 +136,44 @@ public static partial class NativeBattleEffectTextureReader
         bool[] decoded = paletteLength == 0 ? [] : new bool[paletteLength];
         Span<ushort> originalPalette = capturePalette && paletteLength > 0 ? stackalloc ushort[paletteLength] : Span<ushort>.Empty;
         int shift = depth == 0 ? 2 : depth == 1 ? 1 : 0;
+        int pixelsPerWord = 1 << shift;
+        int bitsPerPixel = 16 >> shift;
         for (int row = 0; row < height; row++)
         {
-            for (int column = 0; column < width; column++)
+            int y = pageY + ((v + row) & 255);
+            int output = row * width;
+            for (int column = 0; column < width;)
             {
                 int x = (u + column) & 255;
-                int y = pageY + ((v + row) & 255);
                 ushort word = pixelWords is not null ? pixelWords.ReadWord(pageX + (x >> shift), y) : Word(pageX + (x >> shift), y);
+                int first = x & (pixelsPerWord - 1);
+                int count = Math.Min(width - column, pixelsPerWord - first);
                 if (depth < 2)
                 {
-                    int index = depth == 0 ? (word >> (4 * (x & 3))) & 15 : (word >> (8 * (x & 1))) & 255;
-                    if (!decoded[index])
+                    int indices = word >> (bitsPerPixel * first);
+                    int mask = paletteLength - 1;
+                    for (int pixel = 0; pixel < count; pixel++)
                     {
-                        ushort color = Word(paletteX + index, paletteY);
-                        palette[index] = Decode(color);
-                        decoded[index] = true;
-                        if (capturePalette)
+                        int index = indices & mask;
+                        indices >>= bitsPerPixel;
+                        if (!decoded[index])
                         {
-                            originalPalette[index] = color;
+                            ushort color = Word(paletteX + index, paletteY);
+                            palette[index] = Decode(color);
+                            decoded[index] = true;
+                            if (capturePalette)
+                            {
+                                originalPalette[index] = color;
+                            }
                         }
+                        image.Pixels[output + column + pixel] = palette[index];
                     }
-                    image[column, row] = palette[index];
                 }
                 else
                 {
-                    image[column, row] = Decode(word);
+                    image.Pixels[output + column] = Decode(word);
                 }
+                column += count;
             }
         }
         if (capturePalette && paletteLength > 0)

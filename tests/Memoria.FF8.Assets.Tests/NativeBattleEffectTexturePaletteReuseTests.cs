@@ -8,6 +8,72 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeBattleEffectTexturePaletteReuseTests
 {
     [Theory]
+    [InlineData(0, NativeBattlePcDirectTextureFormat.Rgb555)]
+    [InlineData(1, NativeBattlePcDirectTextureFormat.Rgb555)]
+    [InlineData(2, NativeBattlePcDirectTextureFormat.Rgb555)]
+    [InlineData(2, NativeBattlePcDirectTextureFormat.Rgb565)]
+    public void Packed_word_expansion_matches_scalar_pixels_across_nonaligned_and_wrapped_retained_rows(int depth, NativeBattlePcDirectTextureFormat format)
+    {
+        byte[] bank = new byte[2 * 1024 * 512];
+        int perWord = 4 >> depth;
+        int bits = 16 / perWord;
+        int mask = depth == 0 ? 15 : 255;
+        for (int index = 0; index < 256; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(bank.AsSpan(2 * (300 * 1024 + index)), unchecked((ushort)(index * 211)));
+        }
+        for (int row = 0; row < 256; row++)
+        {
+            for (int column = 0; column < 256 / perWord; column++)
+            {
+                int word = 0;
+                for (int pixel = 0; pixel < perWord; pixel++)
+                {
+                    int value = depth == 2 ? (row * 211 + column * 73) & 65535 : (column * perWord + pixel + row * 3) & mask;
+                    word |= value << (pixel * bits);
+                }
+                BinaryPrimitives.WriteUInt16LittleEndian(bank.AsSpan(2 * (row * 1024 + column)), (ushort)word);
+            }
+        }
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, bank.ToImmutableArray())] };
+        NativeBattlePcTextureWindowPixels retained = NativeBattlePcTextureWindowPixels.Capture(depth * 32, new(0, 0, 256, 256), state);
+        ushort page = (ushort)(depth << 7 | 0x60);
+        ushort clut = 0xCB00;
+        PixelImage live = NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, 253, 255, 9, 2, 1, format);
+        PixelImage held = NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, 253, 255, 9, 2, out NativeBattlePcPaletteReceipt? receipt, 1, format, retained);
+        Assert.Equal(live.Pixels, held.Pixels);
+        SortedSet<byte> used = [];
+        for (int row = 0; row < 2; row++)
+        {
+            for (int column = 0; column < 9; column++)
+            {
+                int x = (253 + column) & 255;
+                int y = (255 + row) & 255;
+                ushort word = BinaryPrimitives.ReadUInt16LittleEndian(bank.AsSpan(2 * (y * 1024 + x / perWord)));
+                int index = word >> (bits * (x % perWord)) & mask;
+                ushort color = depth == 2 ? word : BinaryPrimitives.ReadUInt16LittleEndian(bank.AsSpan(2 * (300 * 1024 + index)));
+                uint packed = depth == 2 ? NativeBattlePcDirectTexture.DecodeArgb(color, format) : NativeBattlePcPalette.Decode467470(color, 1);
+                Assert.Equal(new Rgba32((byte)(packed >> 16), (byte)(packed >> 8), (byte)packed, (byte)(packed >> 24)), held[column, row]);
+                if (depth < 2)
+                {
+                    used.Add((byte)index);
+                }
+            }
+        }
+        if (depth == 2)
+        {
+            Assert.Null(receipt);
+        }
+        else
+        {
+            Assert.NotNull(receipt);
+            Assert.Equal(used, receipt.Entries.Select(entry => entry.Index));
+            Assert.True(receipt.Matches(state));
+        }
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, 253, 255, 9, 2, 1, format, retained with { X = 1 }));
+    }
+
+    [Theory]
     [InlineData(0, -1)]
     [InlineData(1, -1)]
     [InlineData(0, 0)]
