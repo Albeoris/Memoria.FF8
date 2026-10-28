@@ -140,11 +140,11 @@ public static partial class NativeBattleEffect65Controller
             }
             else if (stateKind == 1)
             {
-                frame = frame with { Memory = frame.Memory with { Arena = CopyBytes(selected, 0, frame.Memory.Arena ?? throw new NotSupportedException("Effect65 requires its current COMMON owner."), checked((int)(current - CommonAddress)), count) } };
+                CopyBytes(selected, 0, frame.Memory.Arena ?? throw new NotSupportedException("Effect65 requires its current COMMON owner."), checked((int)(current - CommonAddress)), count);
             }
             else if (stateKind == 2)
             {
-                frame = frame with { State = frame.State with { RootBankStorage = CopyBytes(selected, 0, frame.State.RootBankStorage ?? throw new NotSupportedException("Effect65 requires its inactive root bank."), checked((int)(current - RootBank)), count) } };
+                CopyBytes(selected, 0, frame.State.RootBankStorage ?? throw new NotSupportedException("Effect65 requires its inactive root bank."), checked((int)(current - RootBank)), count);
             }
             else if (stateKind == 3)
             {

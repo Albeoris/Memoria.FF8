@@ -163,6 +163,86 @@ public sealed class NativeBattlePacketBatchWordsTests
         Assert.Equal(batch.Attempts[0].WriteMask, resolved.Attempts[0].WriteMask);
     }
 
+    [Fact]
+    public void Lazy_prefix_materialization_observes_later_rejected_rewrites_after_first_retained_read()
+    {
+        NativeBattleGfGeometryAttempt quad = Quad();
+        NativeBattleGfGeometryAttempt inherited = quad with { WriteMask = quad.WriteMask.SetItem(4, NativeBattleGfPacketByteState.Untouched) };
+        NativeBattleGfGeometryAttempt rewrite = quad with { Data = quad.Data.SetItem(4, 0x7D), Primitive = null };
+        NativeBattleGfGeometryBatch batch = new([inherited, rewrite, inherited], 52);
+        List<int> reads = [];
+
+        NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.ResolveWithKnownness(batch, 16, 128, address =>
+        {
+            reads.Add(address);
+            return ((byte)0x5B, true);
+        });
+
+        Assert.Equal(new[] { 20 }, reads);
+        Assert.Equal(0x5Bu, resolved.Attempts[0].Primitive!.Words[1] & 0xFF);
+        Assert.Null(resolved.Attempts[1].Primitive);
+        Assert.Equal(0x7Du, resolved.Attempts[2].Primitive!.Words[1] & 0xFF);
+        for (int index = 0; index < batch.Attempts.Length; index++)
+        {
+            Assert.Equal(batch.Attempts[index].Data, resolved.Attempts[index].Data);
+            Assert.Equal(batch.Attempts[index].WriteMask, resolved.Attempts[index].WriteMask);
+        }
+
+        NativeBattleGfGeometryBatch unknownRewrite = batch with { Attempts = batch.Attempts.SetItem(1, rewrite with { WriteMask = rewrite.WriteMask.SetItem(4, NativeBattleGfPacketByteState.Unknown) }) };
+        Assert.Throws<NotSupportedException>(() => NativeBattlePacketBatchWords.ResolveWithKnownness(unknownRewrite, 16, 128, _ => ((byte)0x5B, true)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Deferred_observation_does_not_defer_invalid_mask_validation_or_read_future_attempts(bool retainedReadFirst)
+    {
+        NativeBattleGfGeometryAttempt quad = Quad();
+        NativeBattleGfGeometryAttempt inherited = quad with { WriteMask = quad.WriteMask.SetItem(4, NativeBattleGfPacketByteState.Untouched) };
+        NativeBattleGfGeometryAttempt invalid = quad with { Primitive = null, WriteMask = quad.WriteMask.SetItem(0, (NativeBattleGfPacketByteState)255) };
+        NativeBattleGfGeometryBatch batch = new(retainedReadFirst ? [inherited, invalid] : [invalid, inherited], 52);
+        List<int> reads = [];
+
+        Assert.Throws<InvalidDataException>(() => NativeBattlePacketBatchWords.ResolveWithKnownness(batch, 16, 128, address =>
+        {
+            reads.Add(address);
+            return ((byte)0x5B, true);
+        }));
+
+        Assert.Equal(retainedReadFirst ? new[] { 20 } : Array.Empty<int>(), reads);
+    }
+
+    [Fact]
+    public void Fully_authored_commands_do_not_allocate_a_per_byte_observation_map_for_rejected_prefixes()
+    {
+        NativeBattleGfGeometryAttempt quad = Quad();
+        NativeBattleGfGeometryAttempt rejected = new(0, new byte[2048].ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 2048).ToImmutableArray(), null);
+        NativeBattleGfGeometryBatch ordinary = new([quad], 52);
+        NativeBattleGfGeometryBatch withPrefix = new([rejected, quad], 52);
+        for (int index = 0; index < 16; index++)
+        {
+            Resolve(ordinary);
+            Resolve(withPrefix);
+        }
+
+        long ordinaryBytes = Allocated(ordinary);
+        long prefixBytes = Allocated(withPrefix);
+
+        Assert.True(prefixBytes - ordinaryBytes < 16 * 1024, $"A rejected prefix added {prefixBytes - ordinaryBytes} bytes across 16 resolutions.");
+        Assert.Equal(quad.Primitive!.Words, Resolve(withPrefix).Attempts[1].Primitive!.Words);
+
+        static NativeBattleGfGeometryBatch Resolve(NativeBattleGfGeometryBatch batch) => NativeBattlePacketBatchWords.ResolveWithKnownness(batch, 0, 4096, _ => throw new InvalidOperationException("Authored commands must not consume retained bytes."));
+        static long Allocated(NativeBattleGfGeometryBatch batch)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int index = 0; index < 16; index++)
+            {
+                Resolve(batch);
+            }
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+    }
+
     private static NativeBattleGfGeometryAttempt Quad()
     {
         byte[] bytes = new byte[52];

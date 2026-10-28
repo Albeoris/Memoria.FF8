@@ -42,6 +42,45 @@ internal static class NativeBattleEffect65LowerFixture
 public sealed class NativeBattleEffect65LowerTests
 {
     [Fact]
+    public void Common_and_inactive_root_stores_keep_canonical_frame_and_memory_identity()
+    {
+        NativeBattleEffect65Frame frame = NativeBattleEffect65LowerFixture.Frame();
+        NativeBattleEffectArena bytes = NativeBattleEffectArena.Clear().Write(0, [1, 2, 3, 4]).MarkUnknown(1, 1);
+
+        NativeBattleEffect65Frame common = NativeBattleEffect65Controller.WriteBytes(frame, 0x20DFAB8 + 64, bytes, 4);
+        NativeBattleEffect65Frame root = NativeBattleEffect65Controller.WriteBytes(common, RootBank + 4, bytes, 4);
+
+        Assert.Same(frame, common);
+        Assert.Same(frame, root);
+        Assert.Same(frame.Memory, root.Memory);
+        Assert.Same(frame.State, root.State);
+        Assert.Equal(bytes.ReadSnapshot(0, 4).Data, root.Memory.Arena!.ReadSnapshot(64, 4).Data);
+        Assert.Equal(bytes.ReadSnapshot(0, 4).Known, root.Memory.Arena.ReadSnapshot(64, 4).Known);
+        Assert.Equal(bytes.ReadSnapshot(0, 4).Data, root.State.RootBankStorage!.ReadSnapshot(4, 4).Data);
+        Assert.Equal(bytes.ReadSnapshot(0, 4).Known, root.State.RootBankStorage.ReadSnapshot(4, 4).Known);
+    }
+
+    [Fact]
+    public void Common_store_identity_elision_preserves_operation_rollback_and_resource_pointer_publication()
+    {
+        NativeBattleEffect65Frame frame = NativeBattleEffect65LowerFixture.Frame();
+        NativeBattleEffectArena arena = frame.Memory.Arena!;
+        arena.AdmitRetained(new());
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().WriteResourcePointer(0, new(null, 0x12345678));
+        using (NativeBattleTaskOperation operation = new([]))
+        {
+            Assert.Same(frame, NativeBattleEffect65Controller.WriteBytes(frame, 0x20DFAB8 + 64, source, 4));
+            Assert.Equal(0x12345678u, arena.ReadUInt32(64));
+            Assert.True(arena.TryGetResourcePointer(64, out NativeBattleResourcePointer? pointer));
+            Assert.Equal(source.ReadResourcePointer(0), pointer);
+        }
+
+        Assert.Equal(0u, arena.ReadUInt32(64));
+        Assert.False(arena.TryGetResourcePointer(64, out _));
+        Assert.False(arena.Working.HasCheckpoint);
+    }
+
+    [Fact]
     public void Camera_interpolation_publishes_saturated_IR_and_final_GTE_state()
     {
         List<NativeBattleEffect65Operation> operations = [];

@@ -7,6 +7,50 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleStackBytesTests
 {
     [Fact]
+    public void AdjacentStoresRetainTheSamePointerArrayAndPartialOverlapPreservesSurvivorOrder()
+    {
+        NativeBattleStackBytes original = NativeBattleStackBytes.Unknown("frame", -24, 24)
+            .StorePointer(-20, new(NativeBattleStackPointerKind.Frame, "frame", -4), 0x1000, "first-pointer")
+            .StorePointer(-12, new(NativeBattleStackPointerKind.Allocation, "temporary", 0), 0x1001, "second-pointer")
+            .StorePointer(-4, new(NativeBattleStackPointerKind.Frame, "frame", -8), 0x1002, "third-pointer");
+        NativeBattleStackBytes adjacent = original.StoreUInt32(-16, 7, 0x1003, "adjacent-literal").Invalidate(-8, 4, 0x1004, "adjacent-unknown");
+        Assert.True(original.Pointers.Equals(adjacent.Pointers));
+        Assert.Equal(5, adjacent.Observations.Length);
+
+        NativeBattleStackBytes overwritten = adjacent.StoreRegister32(-13, 0x12345678, 5, 0x1005, "partial-register");
+        Assert.Equal(new[] { -20, -4 }, overwritten.Pointers.Select(cell => cell.Offset));
+        Assert.Same(original.Pointers[0], overwritten.Pointers[0]);
+        Assert.Same(original.Pointers[2], overwritten.Pointers[1]);
+        Assert.Equal(3, original.Pointers.Length);
+        overwritten.Validate();
+        NativeBattleStackBytes restored = JsonSerializer.Deserialize<NativeBattleStackBytes>(JsonSerializer.Serialize(overwritten))!;
+        restored.Validate();
+        Assert.Equal(JsonSerializer.Serialize(overwritten), JsonSerializer.Serialize(restored));
+        Assert.Throws<InvalidDataException>(() => (restored with { Pointers = original.Pointers }).Validate());
+    }
+
+    [Fact]
+    public void ReplayDoesNotAllocateAPointerPredicateForEveryObservation()
+    {
+        NativeBattleStackBytes stack = NativeBattleStackBytes.Unknown("frame", -8, 8);
+        for (int index = 0; index < 256; index++)
+        {
+            stack = stack.StoreUInt32(-8, (uint)index, 0x1000, "repeated-literal");
+        }
+        stack.Validate();
+        stack.Validate();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 8; index++)
+        {
+            stack.Validate();
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < 32 * 1024, $"Eight bounded replays allocated {allocated} bytes.");
+        Assert.Equal(256, stack.Observations.Length);
+        Assert.Equal(255u, stack.ReadUInt32(-8));
+    }
+
+    [Fact]
     public void Model_read_requires_actual_prior_glow_store_in_current_queue()
     {
         NativeBattleStackBytes queue = NativeBattleStackBytes.Unknown("current-player-queue", -0x94, 4);

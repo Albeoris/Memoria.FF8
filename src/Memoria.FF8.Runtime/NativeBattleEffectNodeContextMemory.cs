@@ -75,24 +75,11 @@ public static class NativeBattleEffectNodeContextMemory
 
     public static NativeBattleEffectArena Copy(NativeBattleEffectArena source, int sourceOffset, NativeBattleEffectArena destination, int destinationOffset, int count)
     {
-        (byte[] data, bool[] known) = source.ReadSnapshot(sourceOffset, count);
-        destination = destination.Write(destinationOffset, data);
-        int offset = 0;
-        while (offset < count)
-        {
-            if (known[offset])
-            {
-                offset++;
-                continue;
-            }
-            int first = offset;
-            while (offset < count && !known[offset])
-            {
-                offset++;
-            }
-            destination = destination.MarkUnknown(destinationOffset + first, offset - first);
-        }
-        return destination;
+        source.RequireRange(sourceOffset, count);
+        Span<byte> data = count <= 512 ? stackalloc byte[count] : new byte[count];
+        Span<bool> known = count <= 512 ? stackalloc bool[count] : new bool[count];
+        source.ReadWithKnownness(sourceOffset, data, known);
+        return destination.WriteWithKnownness(destinationOffset, data, known);
     }
 
     private static NativeBattleEffectArena Slice(NativeBattleEffectArena source, int offset, int count) => Copy(source, offset, NativeBattleEffectArena.Clear().MarkUnknown(0, count), 0, count);

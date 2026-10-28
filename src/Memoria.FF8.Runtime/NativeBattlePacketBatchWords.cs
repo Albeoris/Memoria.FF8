@@ -17,7 +17,8 @@ public static class NativeBattlePacketBatchWords
             throw new InvalidDataException("Native packet allocation leaves its current physical owner.");
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = batch.Attempts.ToBuilder();
-        Dictionary<int, (byte Value, bool Known)> observed = [];
+        Dictionary<int, (byte Value, bool Known)>? observed = null;
+        int observedPrefixLength = 0;
         for (int index = 0; index < attempts.Count; index++)
         {
             NativeBattleGfGeometryAttempt attempt = attempts[index];
@@ -26,15 +27,22 @@ public static class NativeBattlePacketBatchWords
                 throw new InvalidDataException("Native packet delivery requires bounded ordered stores.");
             }
             int address = checked(cursor + attempt.ByteOffsetRelative);
+            observedPrefixLength = index + 1;
             for (int offset = 0; offset < attempt.PacketLength; offset++)
             {
                 switch (attempt.WriteMask[offset])
                 {
                     case NativeBattleGfPacketByteState.Known:
-                        observed[address + offset] = (attempt.Data[offset], true);
+                        if (observed is not null)
+                        {
+                            observed[address + offset] = (attempt.Data[offset], true);
+                        }
                         break;
                     case NativeBattleGfPacketByteState.Unknown:
-                        observed[address + offset] = (attempt.Data[offset], false);
+                        if (observed is not null)
+                        {
+                            observed[address + offset] = (attempt.Data[offset], false);
+                        }
                         break;
                     case NativeBattleGfPacketByteState.Untouched:
                         break;
@@ -100,6 +108,24 @@ public static class NativeBattlePacketBatchWords
 
         (byte Value, bool Known) ReadObserved(int address)
         {
+            if (observed is null)
+            {
+                // Fully authored commands never need a physical store map. On the first
+                // retained read, include every validated store through the current attempt.
+                observed = [];
+                for (int index = 0; index < observedPrefixLength; index++)
+                {
+                    NativeBattleGfGeometryAttempt prefix = attempts[index];
+                    int first = checked(cursor + prefix.ByteOffsetRelative);
+                    for (int offset = 0; offset < prefix.PacketLength; offset++)
+                    {
+                        if (prefix.WriteMask[offset] is NativeBattleGfPacketByteState.Known or NativeBattleGfPacketByteState.Unknown)
+                        {
+                            observed[first + offset] = (prefix.Data[offset], prefix.WriteMask[offset] == NativeBattleGfPacketByteState.Known);
+                        }
+                    }
+                }
+            }
             if (observed.TryGetValue(address, out var value))
             {
                 return value;

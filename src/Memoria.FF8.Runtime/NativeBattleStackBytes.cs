@@ -149,7 +149,7 @@ public sealed record NativeBattleStackBytes([property: JsonRequired] string Fram
                 bytes[index + item] = observation.Operation is NativeBattleStackOperation.LiteralStore or NativeBattleStackOperation.RegisterStore ? observation.Literal[item] : (byte)0;
                 known[index + item] = observation.Operation == NativeBattleStackOperation.LiteralStore || (observation.Operation == NativeBattleStackOperation.RegisterStore && observation.RegisterKnownBytes!.Value[item]);
             }
-            pointers = pointers.Where(cell => (long)cell.Offset + 4 <= observation.Offset || (long)observation.Offset + observation.Length <= cell.Offset).ToImmutableArray();
+            pointers = WithoutOverlappingPointers(pointers, observation.Offset, observation.Length);
             if (observation.Operation == NativeBattleStackOperation.PointerStore)
             {
                 pointers = pointers.Add(new(observation.Offset, observation.Pointer!, observation.Order));
@@ -271,13 +271,43 @@ public sealed record NativeBattleStackBytes([property: JsonRequired] string Fram
             bytes[index + item] = operation is NativeBattleStackOperation.LiteralStore or NativeBattleStackOperation.RegisterStore ? literal[item] : (byte)0;
             known[index + item] = operation == NativeBattleStackOperation.LiteralStore || (operation == NativeBattleStackOperation.RegisterStore && registerKnown!.Value[item]);
         }
-        ImmutableArray<NativeBattleStackPointerCell> cells = Pointers.Where(cell => (long)cell.Offset + 4 <= offset || (long)offset + length <= cell.Offset).ToImmutableArray();
+        ImmutableArray<NativeBattleStackPointerCell> cells = WithoutOverlappingPointers(Pointers, offset, length);
         if (pointer is not null)
         {
             cells = cells.Add(new(offset, pointer, order));
         }
         NativeBattleStackObservation observation = new(order, operation, offset, length, instruction, phase, literal, pointer) { RegisterKnownBytes = registerKnown };
         return this with { Bytes = bytes.ToImmutableArray(), Known = known.ToImmutableArray(), Pointers = cells, Observations = Observations.Add(observation) };
+    }
+
+    private static ImmutableArray<NativeBattleStackPointerCell> WithoutOverlappingPointers(ImmutableArray<NativeBattleStackPointerCell> pointers, int offset, int length)
+    {
+        long end = (long)offset + length;
+        int retained = 0;
+        foreach (NativeBattleStackPointerCell cell in pointers)
+        {
+            if ((long)cell.Offset + 4 <= offset || end <= cell.Offset)
+            {
+                retained++;
+            }
+        }
+        if (retained == pointers.Length)
+        {
+            return pointers;
+        }
+        if (retained == 0)
+        {
+            return [];
+        }
+        ImmutableArray<NativeBattleStackPointerCell>.Builder result = ImmutableArray.CreateBuilder<NativeBattleStackPointerCell>(retained);
+        foreach (NativeBattleStackPointerCell cell in pointers)
+        {
+            if ((long)cell.Offset + 4 <= offset || end <= cell.Offset)
+            {
+                result.Add(cell);
+            }
+        }
+        return result.MoveToImmutable();
     }
 
     private int Index(int offset, int length)

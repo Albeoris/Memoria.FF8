@@ -325,6 +325,25 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         return this;
     }
 
+    internal NativeBattleEffectArena WriteWithKnownness(int offset, ReadOnlySpan<byte> bytes, ReadOnlySpan<bool> known)
+    {
+        RequireWritable();
+        RequireRange(offset, bytes.Length);
+        if (bytes.Length != known.Length)
+        {
+            throw new ArgumentException("Native arena data and knownness sources must have equal lengths.", nameof(known));
+        }
+        if (TryEffectiveRoute(offset, bytes.Length, out NativeBattleEffectArenaTransaction? transaction, out int routedOffset))
+        {
+            transaction!.WriteWithKnownness(routedOffset, bytes, known);
+        }
+        else
+        {
+            Working.WriteWithKnownness(workingOffset + offset, bytes, known);
+        }
+        return this;
+    }
+
     public NativeBattleEffectArena MarkUnknown(int offset, int count)
     {
         RequireWritable();
