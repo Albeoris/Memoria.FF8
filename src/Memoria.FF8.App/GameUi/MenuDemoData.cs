@@ -97,8 +97,10 @@ public static class MenuDemoData
         data.Settings["Triple Triad width"] = "3";
         data.Settings["Triple Triad height"] = "3";
         data.Settings["Triple Triad hand size"] = "5";
+        data.Settings["Triple Triad blocked cells"] = "0";
         data.Settings["Triple Triad Random redraws"] = "0";
         data.Settings["Triple Triad assistance"] = "Off";
+        data.Settings["Triple Triad modified Same/Plus"] = "Off";
         data.Settings["Quick saves"] = "9";
         data.Settings["Anti-aliasing"] = "MSAA 8x";
         AddLimits(data);
@@ -211,9 +213,11 @@ public static class MenuSettings
         new("Battle policy", "Apply immediately: instant victory wins encounters automatically; full combat enables playable battles.", ["Instant victory", "Full combat"]),
         new("Triple Triad width", "Board columns, from 2 to 5. Hardcore requires at least 4.", ["2", "3", "4", "5"]),
         new("Triple Triad height", "Board rows, from 2 to 5. Hardcore requires at least 4.", ["2", "3", "4", "5"]),
-        new("Triple Triad hand size", "Cards dealt to each player; at least half the board rounded up. Extra cards remain in hand.", Enumerable.Range(2, 49).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
+        new("Triple Triad blocked cells", "Unplayable board cells, from zero to one third of the board rounded down. Hardcore requires at least two. Each match chooses their positions.", Enumerable.Range(0, 9).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
+        new("Triple Triad hand size", "Cards dealt to each player; at least half the playable board cells rounded up. Extra cards remain in hand.", Enumerable.Range(2, 49).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
         new("Triple Triad Random redraws", "Times you may replace your whole hand under the Random rule. Hardcore allows at most 1.", ["0", "1", "2", "3"]),
         new("Triple Triad assistance", "Off: no hints. Direct: ordinary captures. Rules: Same and Plus. Combo: chained captures. Hand: best move across your hand. Hardcore allows Off or Direct.", ["Off", "Direct", "Rules", "Combo", "Hand"]),
+        new("Triple Triad modified Same/Plus", "On: Same and Plus compare effective ranks after elemental bonuses and penalties. Off: Same and Plus compare original ranks. Saved with this game; Title sets the new-game default.", ["Off", "On"]),
         new("Rare card markers", "Show a rotating card above opponents who can currently offer a rare Triple Triad card. Off by default; shared by all saves.", ["Off", "On"]),
         new("Random encounters", "Enable or disable random encounters immediately in the running game.", ["On", "Off"]),
         new("Battle speed", "Original battle speed slider.", ["1", "2", "3", "4", "5"]),

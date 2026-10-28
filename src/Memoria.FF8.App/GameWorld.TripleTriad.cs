@@ -29,7 +29,7 @@ internal sealed partial class GameWorld
             }
             _ = request.Rules;
             tripleTriadCatalog ??= TripleTriadCatalog.Load(assets.GameDirectory, assets.Resources);
-            for (int empty = 1; empty <= request.Width * request.Height; empty++)
+            for (int empty = 1; empty <= request.Width * request.Height - request.BlockedCellCount; empty++)
             {
                 if (!TripleTriadNativeAi.SupportsParameters(tripleTriadCatalog.AiParameters, request.Argument4, request.Argument5, empty))
                 {
@@ -67,18 +67,18 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("CARDGAME has no saved native outcome counters.");
         }
-        TripleTriadSettings options = session.GameplayPreferences.TripleTriad with { Width = request.Width, Height = request.Height, HandSize = request.HandSize };
+        TripleTriadSettings options = session.GameplayPreferences.TripleTriad with { Width = request.Width, Height = request.Height, HandSize = request.HandSize, BlockedCellCount = request.BlockedCellCount, UseModifiedSamePlus = request.UseModifiedSamePlus };
         uint seed = cards.TripleTriadRandomState ?? throw new InvalidDataException("CARDGAME has no saved RNG.");
         NativeTripleTriadPlayState? play = session.State.TripleTriadPlay;
         bool entering = play is null;
         if (play is null)
         {
-            play = new NativeTripleTriadPlayState { Version = 1, Width = options.Width, Height = options.Height, HandSize = options.HandSize, RequestIdentity = TripleTriadIdentity(request), InitialRandomState = seed, RandomState = seed, DealRandomState = null, OpponentHand = [], SelectedCards = [], RulesAccepted = false, Prompt = TripleTriadPromptState.Create(seed), Match = null };
+            play = new NativeTripleTriadPlayState { Version = 1, BlockedCellCount = options.BlockedCellCount, UseModifiedSamePlus = options.UseModifiedSamePlus, Width = options.Width, Height = options.Height, HandSize = options.HandSize, RequestIdentity = TripleTriadIdentity(request), InitialRandomState = seed, RandomState = seed, DealRandomState = null, OpponentHand = [], SelectedCards = [], RulesAccepted = false, Prompt = TripleTriadPromptState.Create(seed), Match = null };
             session.SetTripleTriadPlay(play);
         }
         play.Validate();
-        options = options with { Width = play.Width, Height = play.Height, HandSize = play.HandSize };
-        if (play.RequestIdentity != TripleTriadIdentity(request) || play.InitialRandomState != seed)
+        options = options with { Width = play.Width, Height = play.Height, HandSize = play.HandSize, BlockedCellCount = play.BlockedCellCount, UseModifiedSamePlus = play.UseModifiedSamePlus };
+        if (play.BlockedCellCount != request.BlockedCellCount || play.UseModifiedSamePlus != request.UseModifiedSamePlus || play.RequestIdentity != TripleTriadIdentity(request) || play.InitialRandomState != seed)
         {
             throw new InvalidDataException("Saved Triple Triad module disagrees with its original request or saved RNG.");
         }
@@ -98,9 +98,10 @@ internal sealed partial class GameWorld
         {
             NativeTripleTriadPlayState current = session.State.TripleTriadPlay!;
             TripleTriadPreparedBoard board = TripleTriadPreparation.GenerateElements(request.Rules, current.RandomState, options.Width, options.Height);
-            TripleTriadStartingSide starter = TripleTriadPreparation.TossStartingSide(board.RandomState);
+            TripleTriadPreparedBlocks blocks = TripleTriadPreparation.GenerateBlockedCells(options.BlockedCellCount, board.RandomState, options.Width, options.Height);
+            TripleTriadStartingSide starter = TripleTriadPreparation.TossStartingSide(blocks.RandomState);
             session.SetTripleTriadPlay(current with { RandomState = starter.RandomState });
-            return TripleTriadMatch.Create(tripleTriadCatalog.Cards, selected, current.OpponentHand, request.Rules, 1 - starter.NativeSide, board.Elements, options.Width, options.Height);
+            return TripleTriadMatch.Create(tripleTriadCatalog.Cards, selected, current.OpponentHand, request.Rules, 1 - starter.NativeSide, board.Elements, options.Width, options.Height, options.UseModifiedSamePlus, blocks.Cells);
         };
         controller.ChooseOpponentMove = match =>
         {
@@ -226,7 +227,8 @@ internal sealed partial class GameWorld
             initialBoardSeed = expectedPlayer.RandomState;
         }
         TripleTriadPreparedBoard expectedBoard = TripleTriadPreparation.GenerateElements(request.Rules, initialBoardSeed, play.Width, play.Height);
-        TripleTriadStartingSide expectedStarter = TripleTriadPreparation.TossStartingSide(expectedBoard.RandomState);
+        TripleTriadPreparedBlocks expectedBlocks = TripleTriadPreparation.GenerateBlockedCells(play.BlockedCellCount, expectedBoard.RandomState, play.Width, play.Height);
+        TripleTriadStartingSide expectedStarter = TripleTriadPreparation.TossStartingSide(expectedBlocks.RandomState);
         uint redrawSeed = expectedStarter.RandomState;
         for (int redraw = 0; redraw < play.RedrawsUsed; redraw++)
         {
@@ -244,7 +246,7 @@ internal sealed partial class GameWorld
         {
             _ = TripleTriadMatch.Restore(tripleTriadCatalog!.Cards, savedMatch);
             int[] originalCards = play.SelectedCards.Concat(play.OpponentHand).ToArray();
-            if (savedMatch.Rules != request.Rules || Enumerable.Range(0, 2 * play.HandSize).Any(index => savedMatch.InitialHands[savedMatch.InstanceOrder[index] / play.HandSize][savedMatch.InstanceOrder[index] % play.HandSize] != originalCards[index]))
+            if (!savedMatch.BlockedCells.SequenceEqual(expectedBlocks.Cells) || savedMatch.UseModifiedSamePlus != request.UseModifiedSamePlus || savedMatch.Rules != request.Rules || Enumerable.Range(0, 2 * play.HandSize).Any(index => savedMatch.InitialHands[savedMatch.InstanceOrder[index] / play.HandSize][savedMatch.InstanceOrder[index] % play.HandSize] != originalCards[index]))
             {
                 throw new InvalidDataException("Saved Triple Triad rules or card instances disagree with their native request and selected decks.");
             }
@@ -268,7 +270,13 @@ internal sealed partial class GameWorld
         {
             return;
         }
-        session.SetTripleTriadPlay(play with { SelectedCards = tripleTriad.Deck.ToArray(), Match = tripleTriad.Match?.CaptureSnapshot() });
+        NativeTripleTriadPlayState candidate = play with { SelectedCards = tripleTriad.Deck.ToArray(), Match = tripleTriad.Match?.CaptureSnapshot() };
+        if (candidate.RewardParticipants is null && tripleTriad.Match is { Outcome: not TripleTriadOutcome.InProgress, CanRestartSuddenDeath: false } completed)
+        {
+            TripleTriadPreparedRewardPool pool = TripleTriadPreparation.GenerateRewardPool(completed.CaptureSnapshot(), candidate.RandomState);
+            candidate = candidate with { RewardParticipants = pool.Participants.ToArray(), RewardRandomState = candidate.RandomState, RandomState = pool.RandomState };
+        }
+        session.SetTripleTriadPlay(candidate);
         session.SetEventState(Events.Capture());
     }
 
@@ -281,11 +289,15 @@ internal sealed partial class GameWorld
             throw new InvalidOperationException("Finish all required rounds before trading cards.");
         }
         TripleTriadTradeRule rule = (TripleTriadTradeRule)request.TradeRule;
+        CaptureTripleTriad();
+        IReadOnlyList<bool> participants = session.State.TripleTriadPlay!.RewardParticipants!;
+        int losingSide = match.Outcome == TripleTriadOutcome.PlayerWin ? 1 : 0;
+        int[] eligibleSlots = Enumerable.Range(0, match.HandSize).Where(slot => participants[losingSide * match.HandSize + slot]).ToArray();
         int count = rule switch
         {
-            TripleTriadTradeRule.One => 1,
-            TripleTriadTradeRule.Diff => Math.Min(match.HandSize, Math.Abs(match.PlayerScore - match.OpponentScore)),
-            TripleTriadTradeRule.All => match.HandSize,
+            TripleTriadTradeRule.One => Math.Min(1, eligibleSlots.Length),
+            TripleTriadTradeRule.Diff => Math.Min(eligibleSlots.Length, Math.Abs(match.PlayerScore - match.OpponentScore)),
+            TripleTriadTradeRule.All => eligibleSlots.Length,
             _ => 0
         };
         if (match.Outcome == TripleTriadOutcome.Draw)
@@ -293,14 +305,14 @@ internal sealed partial class GameWorld
             count = 0;
         }
         NativeTripleTriadPlayState play = session.State.TripleTriadPlay!;
-        bool chooseCards = match.Outcome == TripleTriadOutcome.PlayerWin && count < match.HandSize && rule is TripleTriadTradeRule.One or TripleTriadTradeRule.Diff;
+        bool chooseCards = match.Outcome == TripleTriadOutcome.PlayerWin && count > 0 && count < eligibleSlots.Length && rule is TripleTriadTradeRule.One or TripleTriadTradeRule.Diff;
         IReadOnlyList<int> losingHand = match.Outcome == TripleTriadOutcome.PlayerWin ? play.OpponentHand : play.SelectedCards;
         int[] slots = [];
         if (!chooseCards)
         {
-            slots = count == match.HandSize ? Enumerable.Range(0, match.HandSize).ToArray() : Enumerable.Range(0, match.HandSize).OrderByDescending(slot => tripleTriadCatalog!.TradePriority(losingHand[slot])).ThenBy(slot => slot).Take(count).ToArray();
+            slots = eligibleSlots.OrderByDescending(slot => tripleTriadCatalog!.TradePriority(losingHand[slot])).ThenBy(slot => slot).Take(count).ToArray();
         }
-        tripleTriad!.BeginTradeSettlement(play.SelectedCards, play.OpponentHand, match.OriginalInstanceFinalOwners, rule, count, chooseCards, slots, CompleteTripleTriad);
+        tripleTriad!.BeginTradeSettlement(play.SelectedCards, play.OpponentHand, match.OriginalInstanceFinalOwners, rule, count, chooseCards, slots, CompleteTripleTriad, participants);
     }
 
     private void CompleteTripleTriad(int[] selectedSlots)
@@ -308,7 +320,7 @@ internal sealed partial class GameWorld
         NativeTripleTriadRequest request = Events.PendingTripleTriad!;
         NativeTripleTriadPlayState play = session.State.TripleTriadPlay!;
         TripleTriadMatch match = tripleTriad!.Match!;
-        TripleTriadTradeResult settlement = TripleTriadTrade.Settle(session.CardInventory!, play.SelectedCards, play.OpponentHand, match.OriginalInstanceFinalOwners, (TripleTriadTradeRule)request.TradeRule, request.OpponentOwner, selectedSlots);
+        TripleTriadTradeResult settlement = TripleTriadTrade.Settle(session.CardInventory!, play.SelectedCards, play.OpponentHand, match.OriginalInstanceFinalOwners, (TripleTriadTradeRule)request.TradeRule, request.OpponentOwner, play.RewardParticipants!, selectedSlots);
         int result = match.Outcome == TripleTriadOutcome.PlayerWin ? 0 : match.Outcome == TripleTriadOutcome.OpponentWin ? 1 : 2;
         NativeCardInventory next = settlement.Inventory.CompleteMatch(result, play.RandomState);
         bool rareCardLost = settlement.LostCardIds.Any(id => id >= NativeCardInventory.CommonCardCount);
@@ -330,6 +342,8 @@ internal sealed partial class GameWorld
         NativeTripleTriadPlayState play = new()
         {
             Version = 1,
+            BlockedCellCount = options.BlockedCellCount,
+            UseModifiedSamePlus = options.UseModifiedSamePlus,
             Width = options.Width,
             Height = options.Height,
             HandSize = options.HandSize,

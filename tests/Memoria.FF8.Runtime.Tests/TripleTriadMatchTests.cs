@@ -6,6 +6,203 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class TripleTriadMatchTests
 {
     [Theory]
+    [InlineData(2, 3, 2)]
+    [InlineData(3, 3, 3)]
+    [InlineData(5, 5, 8)]
+    public void BlockedBoardsUseOnlyPlayableCellsForHandsCompletionAndSnapshots(int width, int height, int blockedCount)
+    {
+        TripleTriadCard[] cards = Catalog();
+        int[] blocks = Enumerable.Range(0, blockedCount).ToArray();
+        int playable = width * height - blockedCount;
+        int handSize = (playable + 1) / 2;
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, Enumerable.Range(0, handSize).ToArray(), Enumerable.Range(handSize, handSize).ToArray(), width: width, height: height, blockedCells: blocks);
+        Assert.Equal(playable, match.PlayableCellCount);
+        Assert.Equal(playable * handSize, match.GetLegalMoves().Count);
+        Assert.Throws<ArgumentException>(() => match.Play(0, blocks[0]));
+        match.CompleteInstantly(true);
+        Assert.Equal(TripleTriadOutcome.PlayerWin, match.Outcome);
+        Assert.Equal(playable, match.OriginalInstancePlayed.Count(played => played));
+        Assert.All(blocks, cell => Assert.Null(match.Board[cell]));
+        TripleTriadMatch restored = TripleTriadMatch.Restore(cards, JsonSerializer.Deserialize<TripleTriadSnapshot>(JsonSerializer.Serialize(match.CaptureSnapshot()))!);
+        Assert.Equal(blocks, restored.BlockedCells);
+        Assert.Equal(match.OriginalInstancePlayed, restored.OriginalInstancePlayed);
+        TripleTriadSnapshot snapshot = restored.CaptureSnapshot();
+        snapshot.BlockedCells[0] = width * height - 1;
+        Assert.True(restored.IsBlocked(0));
+    }
+
+    [Fact]
+    public void BlockedNeighborActsAsAnActualCellWallForSameWithoutOrdinaryCaptures()
+    {
+        TripleTriadCard[] cards = Catalog();
+        cards[1] = cards[1] with { Top = 10 };
+        TripleTriadSnapshot snapshot = Position(cards, TripleTriadRules.Same | TripleTriadRules.SameWall, [(3, 1), (8, 0)]).CaptureSnapshot() with { BlockedCells = [1] };
+        TripleTriadMatch match = TripleTriadMatch.Restore(cards, snapshot);
+        TripleTriadMoveResult preview = match.PreviewMove(1, 4);
+        Assert.True(preview.Same);
+        Assert.Equal(new[] { 3 }, preview.CapturedCells);
+        Assert.Contains(preview.SameParticipants, participant => participant.IsWall && participant.CellIndex == 1 && participant.Direction == 0);
+        Assert.Null(match.Board[1]);
+        TripleTriadMatch ordinary = TripleTriadMatch.Restore(cards, snapshot with { Rules = TripleTriadRules.None });
+        Assert.Empty(ordinary.Play(1, 4).CapturedCells);
+    }
+
+    [Fact]
+    public void SuddenDeathPlayedMaskTracksOnlyFinalRoundOriginalIdentitiesAndPreservesBlocks()
+    {
+        TripleTriadCard[] cards = Catalog();
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], TripleTriadRules.SuddenDeath, blockedCells: [0, 4, 8]);
+        while (match.Outcome == TripleTriadOutcome.InProgress)
+        {
+            TripleTriadMove move = match.GetLegalMoves()[0];
+            match.Play(move.HandIndex, move.CellIndex);
+        }
+        TripleTriadSnapshot drawn = match.CaptureSnapshot();
+        drawn.Board[1] = drawn.Board[1]! with { Owner = 1 };
+        drawn.Board[2] = drawn.Board[2]! with { Owner = 0 };
+        match = TripleTriadMatch.Restore(cards, drawn);
+        Assert.True(match.OriginalInstancePlayed[0]);
+        match.RestartSuddenDeath(0);
+        Assert.Equal(5, match.OriginalInstanceIndex(0, 0));
+        Assert.Equal(0, match.OriginalInstanceIndex(1, 4));
+        Assert.Throws<ArgumentOutOfRangeException>(() => match.OriginalInstanceIndex(2, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => match.OriginalInstanceIndex(0, 5));
+        Assert.Equal(new[] { 0, 4, 8 }, match.BlockedCells);
+        Assert.All(match.OriginalInstancePlayed, played => Assert.False(played));
+        while (match.Outcome == TripleTriadOutcome.InProgress)
+        {
+            TripleTriadMove move = match.GetLegalMoves()[0];
+            match.Play(move.HandIndex, move.CellIndex);
+        }
+        Assert.False(match.OriginalInstancePlayed[0]);
+        Assert.Equal(new[] { 1, 2, 5, 6, 7, 8 }, match.OriginalInstancePlayed.Select((played, index) => (played, index)).Where(entry => entry.played).Select(entry => entry.index));
+        Assert.Equal(match.OriginalInstancePlayed, TripleTriadMatch.Restore(cards, match.CaptureSnapshot()).OriginalInstancePlayed);
+    }
+
+    [Fact]
+    public void BlockedCellValidationRejectsDuplicatesOutOfRangeExcessAndOccupiedCells()
+    {
+        TripleTriadCard[] cards = Catalog();
+        TripleTriadSnapshot snapshot = TripleTriadMatch.Create(cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9]).CaptureSnapshot();
+        Assert.Throws<InvalidDataException>(() => TripleTriadMatch.Restore(cards, snapshot with { BlockedCells = [1, 1] }));
+        Assert.Throws<InvalidDataException>(() => TripleTriadMatch.Restore(cards, snapshot with { BlockedCells = [-1] }));
+        Assert.Throws<InvalidDataException>(() => TripleTriadMatch.Restore(cards, snapshot with { BlockedCells = [9] }));
+        Assert.Throws<InvalidDataException>(() => TripleTriadMatch.Restore(cards, snapshot with { BlockedCells = [0, 1, 2, 3] }));
+        TripleTriadMatch match = TripleTriadMatch.Restore(cards, snapshot);
+        match.Play(0, 1);
+        Assert.Throws<InvalidDataException>(() => TripleTriadMatch.Restore(cards, match.CaptureSnapshot() with { BlockedCells = [1] }));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(1)]
+    public void ModifiedSameUsesBothCardsElementalRanks(int modifier)
+    {
+        TripleTriadCard[] cards = Catalog();
+        cards[0] = cards[0] with { Element = TripleTriadElement.Fire };
+        cards[1] = cards[1] with { Element = TripleTriadElement.Fire };
+        cards[5] = cards[5] with { Bottom = 5 + 2 * modifier, Element = TripleTriadElement.Fire };
+        TripleTriadElement[] elements = new TripleTriadElement[9];
+        elements[3] = elements[4] = modifier > 0 ? TripleTriadElement.Fire : TripleTriadElement.Ice;
+        elements[1] = modifier > 0 ? TripleTriadElement.Ice : TripleTriadElement.Fire;
+        TripleTriadMatch original = Position(cards, TripleTriadRules.Same | TripleTriadRules.Elemental, [(3, 1), (1, 1)], elements);
+        TripleTriadMatch modified = TripleTriadMatch.Restore(cards, original.CaptureSnapshot() with { UseModifiedSamePlus = true });
+        Assert.False(original.PreviewMove(1, 4).Same);
+        TripleTriadMoveResult move = modified.Play(1, 4);
+        Assert.True(move.Same);
+        Assert.Equal(new[] { 1, 3 }, move.CapturedCells);
+        Assert.All(move.SameParticipants, participant =>
+        {
+            Assert.Equal(5 + modifier, participant.OwnRank);
+            Assert.Equal(5 + modifier, participant.AdjacentRank);
+        });
+        Assert.Equal(0, original.GetDisplayElementModifier(1, 4));
+        Assert.Equal(modifier, modified.GetDisplayElementModifier(1, 4));
+    }
+
+    [Fact]
+    public void ModifiedPlusUsesModifiedSumsAndPreservesExactParticipantValues()
+    {
+        TripleTriadCard[] cards = Catalog();
+        cards[0] = cards[0] with { Right = 7, Element = TripleTriadElement.Fire };
+        cards[1] = cards[1] with { Element = TripleTriadElement.Fire };
+        cards[5] = cards[5] with { Element = TripleTriadElement.Fire };
+        TripleTriadElement[] elements = new TripleTriadElement[9];
+        elements[3] = TripleTriadElement.Ice;
+        elements[1] = elements[4] = TripleTriadElement.Fire;
+        TripleTriadMatch original = Position(cards, TripleTriadRules.Plus | TripleTriadRules.Elemental, [(3, 1), (1, 1)], elements);
+        TripleTriadMatch modified = TripleTriadMatch.Restore(cards, original.CaptureSnapshot() with { UseModifiedSamePlus = true });
+        Assert.False(original.PreviewMove(1, 4).Plus);
+        TripleTriadMoveResult move = modified.Play(1, 4);
+        Assert.True(move.Plus);
+        Assert.Equal(new[] { 1, 3 }, move.CapturedCells);
+        Assert.All(move.PlusParticipants, participant =>
+        {
+            Assert.Equal(6, participant.OwnRank);
+            Assert.Equal(6, participant.AdjacentRank);
+        });
+        Assert.All(move.Captures, capture => Assert.Equal(TripleTriadCaptureKind.Plus, capture.Kind));
+    }
+
+    [Theory]
+    [InlineData(9, TripleTriadElement.Fire, true)]
+    [InlineData(10, TripleTriadElement.Fire, false)]
+    [InlineData(10, TripleTriadElement.Ice, false)]
+    public void ModifiedSameWallComparesTheEffectiveEdgeAgainstAnUnmodifiedTen(int printedTop, TripleTriadElement cellElement, bool triggers)
+    {
+        TripleTriadCard[] cards = Catalog();
+        cards[1] = cards[1] with { Top = printedTop, Element = TripleTriadElement.Fire };
+        cards[5] = cards[5] with { Element = TripleTriadElement.Fire };
+        TripleTriadElement[] elements = new TripleTriadElement[9];
+        elements[0] = elements[1] = cellElement;
+        TripleTriadMatch match = Position(cards, TripleTriadRules.Same | TripleTriadRules.SameWall | TripleTriadRules.Elemental, [(8, 0), (1, 1)], elements);
+        match = TripleTriadMatch.Restore(cards, match.CaptureSnapshot() with { UseModifiedSamePlus = true });
+        TripleTriadMoveResult move = match.Play(1, 0);
+        Assert.Equal(triggers, move.Same);
+        if (triggers)
+        {
+            TripleTriadRuleParticipant wall = Assert.Single(move.SameParticipants, participant => participant.IsWall);
+            Assert.Equal(10, wall.OwnRank);
+            Assert.Equal(10, wall.AdjacentRank);
+        }
+    }
+
+    [Fact]
+    public void ModifiedSameSecondPassUsesEffectiveComparisonForOtherNeighbors()
+    {
+        TripleTriadCard[] cards = Catalog();
+        cards[3] = cards[3] with { Right = 6, Element = TripleTriadElement.Fire };
+        cards[0] = cards[0] with { Element = TripleTriadElement.Fire };
+        cards[1] = cards[1] with { Element = TripleTriadElement.Fire };
+        cards[7] = cards[7] with { Left = 5, Element = TripleTriadElement.Fire };
+        TripleTriadElement[] elements = new TripleTriadElement[9];
+        elements[1] = elements[3] = elements[4] = TripleTriadElement.Ice;
+        elements[5] = TripleTriadElement.Fire;
+        TripleTriadMatch match = Position(cards, TripleTriadRules.Same | TripleTriadRules.Elemental, [(1, 0), (0, 1), (3, 0), (8, 1), (6, 0), (5, 1)], elements);
+        Assert.True(match.PreviewMove(3, 4).Same);
+        match = TripleTriadMatch.Restore(cards, match.CaptureSnapshot() with { UseModifiedSamePlus = true });
+        TripleTriadMoveResult move = match.Play(3, 4);
+        Assert.False(move.Same);
+        Assert.DoesNotContain(5, move.CapturedCells);
+    }
+
+    [Fact]
+    public void ModifiedRuleModeSurvivesSnapshotsAndOldSnapshotsDefaultToPrintedRanks()
+    {
+        TripleTriadCard[] cards = Catalog();
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], useModifiedSamePlus: true);
+        string json = JsonSerializer.Serialize(match.CaptureSnapshot());
+        TripleTriadMatch restored = TripleTriadMatch.Restore(cards, JsonSerializer.Deserialize<TripleTriadSnapshot>(json)!);
+        Assert.True(restored.UseModifiedSamePlus);
+        string legacyJson = json.Replace("\"UseModifiedSamePlus\":true,", "");
+        Assert.False(TripleTriadMatch.Restore(cards, JsonSerializer.Deserialize<TripleTriadSnapshot>(legacyJson)!).UseModifiedSamePlus);
+        TripleTriadElement[] elements = new TripleTriadElement[9];
+        elements[0] = TripleTriadElement.Fire;
+        TripleTriadMatch elemental = TripleTriadMatch.Create(cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], TripleTriadRules.Elemental, boardElements: elements);
+        Assert.Equal(-1, elemental.GetDisplayElementModifier(0, 0));
+    }
+
+    [Theory]
     [InlineData(2, 2, 2)]
     [InlineData(2, 5, 5)]
     [InlineData(5, 2, 7)]
@@ -63,11 +260,12 @@ public sealed class TripleTriadMatchTests
     {
         TripleTriadCard[] cards = Catalog();
         TripleTriadMatch match = TripleTriadMatch.Create(cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9]);
-        string json = JsonSerializer.Serialize(match.CaptureSnapshot()).Replace("\"Width\":3,", "").Replace("\"Height\":3,", "");
+        string json = JsonSerializer.Serialize(match.CaptureSnapshot()).Replace("\"Width\":3,", "").Replace("\"Height\":3,", "").Replace("\"BlockedCells\":[],", "");
         TripleTriadMatch restored = TripleTriadMatch.Restore(cards, JsonSerializer.Deserialize<TripleTriadSnapshot>(json)!);
         Assert.Equal(3, restored.Width);
         Assert.Equal(3, restored.Height);
         Assert.Equal(5, restored.HandSize);
+        Assert.Empty(restored.BlockedCells);
     }
 
     [Fact]
@@ -137,7 +335,7 @@ public sealed class TripleTriadMatchTests
         {
             inventory = inventory.Acquire(card, out _);
         }
-        TripleTriadTradeResult trade = TripleTriadTrade.Settle(inventory, playerHand, opponentHand, restored.OriginalInstanceFinalOwners, TripleTriadTradeRule.Direct, 121);
+        TripleTriadTradeResult trade = TripleTriadTrade.Settle(inventory, playerHand, opponentHand, restored.OriginalInstanceFinalOwners, TripleTriadTradeRule.Direct, 121, Enumerable.Repeat(true, restored.HandSize * 2).ToArray());
         int[] owners = restored.OriginalInstanceFinalOwners.ToArray();
         Assert.Equal(opponentHand.Where((_, slot) => owners[5 + slot] == 0), trade.GainedCardIds);
         Assert.Equal(playerHand.Where((_, slot) => owners[slot] == 1), trade.LostCardIds);

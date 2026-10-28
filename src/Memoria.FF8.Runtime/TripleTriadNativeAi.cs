@@ -20,7 +20,7 @@ public static class TripleTriadNativeAi
         ArgumentNullException.ThrowIfNull(tradePriorities);
         ArgumentNullException.ThrowIfNull(match);
         ArgumentNullException.ThrowIfNull(parameters);
-        int emptyCells = match.Board.Count(card => card is null);
+        int emptyCells = match.Board.Where((card, cell) => !match.IsBlocked(cell)).Count(card => card is null);
         if (!SupportsParameters(parameters, intelligence, personality, emptyCells) || catalog.Count != 110 || tradePriorities.Count != 110)
         {
             throw new NotSupportedException("Native Triple Triad AI requires all original cards and a supported original search profile.");

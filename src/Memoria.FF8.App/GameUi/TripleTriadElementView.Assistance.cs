@@ -18,7 +18,7 @@ internal sealed partial class TripleTriadElementView
         }
         for (int cell = 0; cell < match.Board.Count; cell++)
         {
-            if (CellBounds(cell).Contains(x, y))
+            if (CellBounds(cell).Contains(x, y) && !match.IsBlocked(cell))
             {
                 controller.HoverCell(cell);
                 return;
@@ -52,13 +52,14 @@ internal sealed partial class TripleTriadElementView
             DrawHandHints(canvas, match);
         }
         int cell = controller.SelectedCell;
-        if (!controller.ChoosingCell || match.Board[cell] is not null || match.Hands[0][controller.SelectedHand] is not int id)
+        if (!controller.ChoosingCell || match.IsBlocked(cell) || match.Board[cell] is not null || match.Hands[0][controller.SelectedHand] is not int id)
         {
             return;
         }
         UiRect destination = CellBounds(cell);
-        int modifier = match.GetElementModifier(id, cell);
+        int modifier = match.GetDisplayElementModifier(id, cell);
         canvas.ImageStretched(new UiImageSource(UiImageKind.CardFace, id, 0, modifier, 135), destination);
+        DrawElementModifier(canvas, theme, match, id, cell, destination);
         IReadOnlyList<TripleTriadCapture> captures;
         TripleTriadMoveResult? preview = null;
         if (assistance >= TripleTriadAssistance.Rules)
@@ -75,7 +76,7 @@ internal sealed partial class TripleTriadElementView
         {
             TripleTriadPlacedCard placed = match.Board[capture.CellIndex]!;
             UiRect target = CellBounds(capture.CellIndex);
-            canvas.ImageStretched(new UiImageSource(UiImageKind.CardFace, placed.CardId, 0, match.GetElementModifier(placed.CardId, capture.CellIndex), (byte)(pulse * 210)), target);
+            canvas.ImageStretched(new UiImageSource(UiImageKind.CardFace, placed.CardId, 0, match.GetDisplayElementModifier(placed.CardId, capture.CellIndex), (byte)(pulse * 210)), target);
             DrawArrow(canvas, CellBounds(capture.SourceCellIndex), target, capture.Wave > 0);
         }
         if (preview is { } && (preview.Same || preview.Plus))
@@ -134,7 +135,7 @@ internal sealed partial class TripleTriadElementView
 
     private void DrawHandHints(IUiCanvas canvas, TripleTriadMatch match)
     {
-        string position = match.Rules + "/" + string.Join(',', match.BoardElements) + "/" + string.Join(',', match.Board.Select(placed => placed is null ? "-" : $"{placed.CardId}:{placed.Owner}")) + "/" + string.Join(',', match.Hands[0]);
+        string position = string.Join(',', match.BlockedCells) + "/" + match.UseModifiedSamePlus + "/" + match.Rules + "/" + string.Join(',', match.BoardElements) + "/" + string.Join(',', match.Board.Select(placed => placed is null ? "-" : $"{placed.CardId}:{placed.Owner}")) + "/" + string.Join(',', match.Hands[0]);
         if (position != hintPosition)
         {
             hintPosition = position;
@@ -149,7 +150,7 @@ internal sealed partial class TripleTriadElementView
                 bool plus = false;
                 for (int cell = 0; cell < match.Board.Count; cell++)
                 {
-                    if (match.Board[cell] is null)
+                    if (match.Board[cell] is null && !match.IsBlocked(cell))
                     {
                         TripleTriadMoveResult preview = match.PreviewMove(hand, cell);
                         same |= preview.Same;
@@ -180,11 +181,15 @@ internal sealed partial class TripleTriadElementView
         {
             foreach (TripleTriadRuleParticipant pair in participants)
             {
-                GlowRank(canvas, CellBounds(cell), pair.Direction, RankText(pair.OwnRank + match.GetElementModifier(cardId, cell)), pulse, match.GetElementModifier(cardId, cell));
+                GlowRank(canvas, CellBounds(cell), pair.Direction, RankText(pair.OwnRank), pulse, match.GetDisplayElementModifier(cardId, cell));
                 if (!pair.IsWall)
                 {
                     TripleTriadPlacedCard adjacent = match.Board[pair.CellIndex]!;
-                    GlowRank(canvas, CellBounds(pair.CellIndex), (pair.Direction + 2) % 4, RankText(pair.AdjacentRank + match.GetElementModifier(adjacent.CardId, pair.CellIndex)), pulse, match.GetElementModifier(adjacent.CardId, pair.CellIndex));
+                    GlowRank(canvas, CellBounds(pair.CellIndex), (pair.Direction + 2) % 4, RankText(pair.AdjacentRank), pulse, match.GetDisplayElementModifier(adjacent.CardId, pair.CellIndex));
+                }
+                if (pair.IsWall)
+                {
+                    DrawWallHint(canvas, cell, pair.Direction, pair.CellIndex, pulse);
                 }
                 string other = pair.IsWall ? "Wall A" : RankText(pair.AdjacentRank);
                 reason.Add(same ? $"{RankText(pair.OwnRank)}={other}" : $"{RankText(pair.OwnRank)}+{other}={pair.OwnRank + pair.AdjacentRank}");
@@ -192,6 +197,19 @@ internal sealed partial class TripleTriadElementView
         }
         string label = (preview.Same ? "Same" : "") + (preview.Same && preview.Plus ? " / " : "") + (preview.Plus ? "Plus" : "");
         canvas.OutlinedText(label + ": " + string.Join(" · ", reason.Distinct()), 17, new UiRect(210, 648, 540, 26), new UiColor(255, 240, 191), Ink, 1);
+    }
+
+    private static void DrawElementModifier(IUiCanvas canvas, UiTheme theme, TripleTriadMatch match, int cardId, int cell, UiRect bounds)
+    {
+        int modifier = match.GetElementModifier(cardId, cell);
+        if (modifier == 0)
+        {
+            return;
+        }
+        int displayModifier = match.GetDisplayElementModifier(cardId, cell);
+        UiColor color = displayModifier == 0 ? theme.Foreground : modifier > 0 ? new UiColor(90, 235, 105) : new UiColor(245, 75, 65);
+        float scale = Math.Min(1, bounds.Width / 160);
+        canvas.OutlinedText(modifier > 0 ? "+1" : "−1", 23 * scale, new UiRect(bounds.Right - 36 * scale, bounds.Bottom - 31 * scale, 35 * scale, 27 * scale), color, new UiColor(23, 18, 14), 1.4f * scale);
     }
 
     private static string RankText(int rank) => CardFaceComposer.RankText(rank);

@@ -187,8 +187,10 @@ Optional arguments: `--game-dir DIRECTORY`, `--resolution WIDTHxHEIGHT` (default
 | `--opponent IDS` | Hand-size comma-separated card IDs, each `0..109`; defaults to consecutive IDs from zero. |
 | `--rules FLAGS` | Case-insensitive rules: `None`, `Open`, `Same`, `Plus`, `SameWall`, `Elemental`, `SuddenDeath`, `Random`; combine with commas and quote the argument. Default `Open`. |
 | `--width N`, `--height N` | Board dimensions, each 2–5; default 3. |
-| `--hand-size N` | Cards per hand, default 5, raised to at least half the cells rounded up. Maximum 50; unused cards remain in hand. |
+| `--hand-size N` | Cards per hand, default 5, raised to at least half the playable cells rounded up. Maximum 50; unused cards remain in hand. |
 | `--redraws N` | Random-rule player hand redraw allowance, 0–3; default 0. |
+| `--blocked-cells N` | Random stone blocks, 0 to one third of full board area rounded down. |
+| `--modified-same-plus On/Off` | Calculate Same/Plus from elemental adjusted ranks; default `Off`. Also accepts `true`/`false`. |
 | `--assistance MODE` | `Off`, `Direct`, `Rules`, `Combo` or `Hand`; default `Off`. |
 | `--autoplay` | Automatically finish the practice match and save. |
 | `--preview PNG` | Render a `960x672` practice view, save the match and exit. Can be combined with `--autoplay`. |

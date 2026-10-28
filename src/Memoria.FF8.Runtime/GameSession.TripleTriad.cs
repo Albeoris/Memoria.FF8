@@ -33,6 +33,16 @@ public sealed partial class GameSession
         {
             throw new InvalidDataException("A saved Triple Triad module requires its frozen field request and original card RNG.");
         }
+        int requestedBlockedCells = request.TryGetProperty("BlockedCellCount", out JsonElement blockedCells) ? blockedCells.GetInt32() : 0;
+        if (play.BlockedCellCount != requestedBlockedCells)
+        {
+            throw new InvalidDataException("Saved Triple Triad blocked-cell count disagrees with its frozen request.");
+        }
+        bool requestedModifiedSamePlus = request.TryGetProperty("UseModifiedSamePlus", out JsonElement modifiedSamePlus) && modifiedSamePlus.GetBoolean();
+        if (play.UseModifiedSamePlus != requestedModifiedSamePlus)
+        {
+            throw new InvalidDataException("Saved Triple Triad comparison rules disagree with their frozen request.");
+        }
         string identity = string.Create(CultureInfo.InvariantCulture, $"{request.GetProperty("FieldId").GetInt32()}:{request.GetProperty("ProgramHash").GetString()}:{request.GetProperty("Frame").GetInt64()}:{request.GetProperty("ObjectId").GetInt32()}:{request.GetProperty("ScriptId").GetInt32()}:{request.GetProperty("Operation").GetInt32()}:{request.GetProperty("FiberSequence").GetInt64()}");
         if (identity != play.RequestIdentity || request.GetProperty("FieldId").GetInt32() != state.FieldId || play.SelectedCards.GroupBy(id => id).Any(group => state.CardInventory.AvailableCount(group.Key) < group.Count()))
         {

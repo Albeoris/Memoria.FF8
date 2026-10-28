@@ -80,12 +80,20 @@ internal static class SnapshotDefaults
     {
         foreach (string owner in new[] { nameof(GameState.GameplayPreferences), nameof(GameState.PendingGameplayPreferences) })
         {
-            if (saved[owner] is JsonObject preferences && !preferences.ContainsKey(nameof(GameplayPreferences.TripleTriad)))
+            if (saved[owner] is not JsonObject preferences)
             {
-                JsonNode? difficulty = preferences[nameof(GameplayPreferences.Difficulty)];
-                bool hardcore = difficulty is JsonValue value && (value.TryGetValue(out int number) && number == (int)BattleDifficulty.Hardcore || value.TryGetValue(out string? name) && name == nameof(BattleDifficulty.Hardcore));
+                continue;
+            }
+            JsonNode? difficulty = preferences[nameof(GameplayPreferences.Difficulty)];
+            bool hardcore = difficulty is JsonValue value && (value.TryGetValue(out int number) && number == (int)BattleDifficulty.Hardcore || value.TryGetValue(out string? name) && name == nameof(BattleDifficulty.Hardcore));
+            if (!preferences.ContainsKey(nameof(GameplayPreferences.TripleTriad)))
+            {
                 TripleTriadSettings defaults = new TripleTriadSettings().NormalizeForDifficulty(hardcore ? BattleDifficulty.Hardcore : BattleDifficulty.Normal);
                 preferences[nameof(GameplayPreferences.TripleTriad)] = JsonSerializer.SerializeToNode(defaults, options);
+            }
+            else if (hardcore && preferences[nameof(GameplayPreferences.TripleTriad)] is JsonObject triad && !triad.ContainsKey(nameof(TripleTriadSettings.BlockedCellCount)))
+            {
+                triad[nameof(TripleTriadSettings.BlockedCellCount)] = 2;
             }
         }
     }

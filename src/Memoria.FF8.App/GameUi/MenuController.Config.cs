@@ -22,9 +22,11 @@ public sealed partial class MenuController
     {
         "Triple Triad width" => "Board width",
         "Triple Triad height" => "Board height",
+        "Triple Triad blocked cells" => "Blocked cells",
         "Triple Triad hand size" => "Hand size",
         "Triple Triad Random redraws" => "Random redraws",
         "Triple Triad assistance" => "Move assistance",
+        "Triple Triad modified Same/Plus" => "Elemental Same/Plus",
         "Infinite magic" => "Limited magic",
         "Show FPS" => "Frame-rate counter",
         "Field FPS" => "Field and movies",
@@ -124,10 +126,13 @@ public sealed partial class MenuController
             width = Math.Max(4, width);
             height = Math.Max(4, height);
         }
+        int blocked = int.TryParse(Data.Settings.GetValueOrDefault("Triple Triad blocked cells"), CultureInfo.InvariantCulture, out int configuredBlocked) ? configuredBlocked : 0;
+        blocked = Math.Clamp(blocked, hardcore ? 2 : 0, width * height / 3);
         string[] values = setting.Id switch
         {
             "Triple Triad width" or "Triple Triad height" when hardcore => setting.Values.Where(value => int.Parse(value, CultureInfo.InvariantCulture) >= 4).ToArray(),
-            "Triple Triad hand size" => setting.Values.Where(value => int.Parse(value, CultureInfo.InvariantCulture) >= (width * height + 1) / 2).ToArray(),
+            "Triple Triad blocked cells" => setting.Values.Where(value => int.Parse(value, CultureInfo.InvariantCulture) >= (hardcore ? 2 : 0) && int.Parse(value, CultureInfo.InvariantCulture) <= width * height / 3).ToArray(),
+            "Triple Triad hand size" => setting.Values.Where(value => int.Parse(value, CultureInfo.InvariantCulture) >= (width * height - blocked + 1) / 2).ToArray(),
             "Triple Triad Random redraws" when hardcore => setting.Values.Take(2).ToArray(),
             "Triple Triad assistance" when hardcore => setting.Values.Take(2).ToArray(),
             _ => setting.Values

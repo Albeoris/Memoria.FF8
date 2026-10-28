@@ -18,19 +18,21 @@ public sealed record TripleTriadTradeResult(NativeCardInventory Inventory, IRead
 public static class TripleTriadTrade
 {
     /// <param name="finalOwners">Owners indexed by original side * hand size + original hand slot. Player is 0, opponent is 1; include the unplayed card.</param>
+    /// <param name="rewardParticipants">Whether each original instance belongs to the final reward pool. Cards outside the pool cannot change inventory ownership.</param>
     /// <param name="selectedLosingHandSlots">For One, Diff and All, the distinct slots in the losing original hand which the winner takes, including after Sudden Death.</param>
-    public static TripleTriadTradeResult Settle(NativeCardInventory inventory, IReadOnlyList<int> playerHand, IReadOnlyList<int> opponentHand, IReadOnlyList<int> finalOwners, TripleTriadTradeRule rule, int opponentOwner, IReadOnlyList<int>? selectedLosingHandSlots = null)
+    public static TripleTriadTradeResult Settle(NativeCardInventory inventory, IReadOnlyList<int> playerHand, IReadOnlyList<int> opponentHand, IReadOnlyList<int> finalOwners, TripleTriadTradeRule rule, int opponentOwner, IReadOnlyList<bool> rewardParticipants, IReadOnlyList<int>? selectedLosingHandSlots = null)
     {
-        return SettleAfterSuddenDeath(inventory, playerHand, opponentHand, playerHand, opponentHand, finalOwners, rule, opponentOwner, selectedLosingHandSlots);
+        return SettleAfterSuddenDeath(inventory, playerHand, opponentHand, playerHand, opponentHand, finalOwners, rule, opponentOwner, rewardParticipants, selectedLosingHandSlots);
     }
 
-    /// <summary>Sudden Death redistributes play instances; One/Diff/All still trade the original selection, while Direct uses final ownership.</summary>
-    public static TripleTriadTradeResult SettleAfterSuddenDeath(NativeCardInventory inventory, IReadOnlyList<int> originalPlayerHand, IReadOnlyList<int> originalOpponentHand, IReadOnlyList<int> playerHand, IReadOnlyList<int> opponentHand, IReadOnlyList<int> finalOwners, TripleTriadTradeRule rule, int opponentOwner, IReadOnlyList<int>? selectedLosingHandSlots = null)
+    /// <summary>Sudden Death redistributes play instances; One/Diff/All still trade the original selection, while Direct uses final ownership. Ownership and participation masks always use original instance order.</summary>
+    public static TripleTriadTradeResult SettleAfterSuddenDeath(NativeCardInventory inventory, IReadOnlyList<int> originalPlayerHand, IReadOnlyList<int> originalOpponentHand, IReadOnlyList<int> playerHand, IReadOnlyList<int> opponentHand, IReadOnlyList<int> finalOwners, TripleTriadTradeRule rule, int opponentOwner, IReadOnlyList<bool> rewardParticipants, IReadOnlyList<int>? selectedLosingHandSlots = null)
     {
         ArgumentNullException.ThrowIfNull(inventory);
         ArgumentNullException.ThrowIfNull(playerHand);
         ArgumentNullException.ThrowIfNull(opponentHand);
         ArgumentNullException.ThrowIfNull(finalOwners);
+        ArgumentNullException.ThrowIfNull(rewardParticipants);
         ArgumentNullException.ThrowIfNull(originalPlayerHand);
         ArgumentNullException.ThrowIfNull(originalOpponentHand);
         inventory.Validate();
@@ -39,7 +41,7 @@ public static class TripleTriadTrade
             throw new ArgumentException("Settlement requires a native trade rule and a non-player NPC ownership byte.");
         }
         int handSize = originalPlayerHand.Count;
-        if (handSize < 1 || originalOpponentHand.Count != handSize || playerHand.Count != handSize || opponentHand.Count != handSize || finalOwners.Count != handSize * 2 || finalOwners.Any(owner => owner is not (0 or 1)))
+        if (handSize < 1 || originalOpponentHand.Count != handSize || playerHand.Count != handSize || opponentHand.Count != handSize || finalOwners.Count != handSize * 2 || rewardParticipants.Count != handSize * 2 || finalOwners.Any(owner => owner is not (0 or 1)))
         {
             throw new ArgumentException("Settlement requires two equally sized original hands and every final owner.");
         }
@@ -72,26 +74,28 @@ public static class TripleTriadTrade
         }
         int playerScore = finalOwners.Count(owner => owner == 0);
         int winner = playerScore > handSize ? 0 : playerScore < handSize ? 1 : -1;
+        int losingOffset = winner == 0 ? handSize : 0;
+        int[] eligibleSlots = winner < 0 ? [] : Enumerable.Range(0, handSize).Where(slot => rewardParticipants[losingOffset + slot]).ToArray();
         int count = rule switch
         {
-            TripleTriadTradeRule.One when winner >= 0 => 1,
-            TripleTriadTradeRule.Diff when winner >= 0 => Math.Min(handSize, Math.Abs(playerScore * 2 - handSize * 2)),
-            TripleTriadTradeRule.All when winner >= 0 => handSize,
+            TripleTriadTradeRule.One when winner >= 0 => Math.Min(1, eligibleSlots.Length),
+            TripleTriadTradeRule.Diff when winner >= 0 => Math.Min(eligibleSlots.Length, Math.Abs(playerScore * 2 - handSize * 2)),
+            TripleTriadTradeRule.All when winner >= 0 => eligibleSlots.Length,
             _ => 0
         };
         int[] selected = selectedLosingHandSlots?.ToArray() ?? [];
         if (rule == TripleTriadTradeRule.All && winner >= 0 && selected.Length == 0)
         {
-            selected = Enumerable.Range(0, handSize).ToArray();
+            selected = eligibleSlots;
         }
-        if (selected.Length != count || selected.Any(slot => (uint)slot >= handSize) || selected.Distinct().Count() != selected.Length)
+        if (selected.Length != count || selected.Any(slot => (uint)slot >= handSize || !rewardParticipants[losingOffset + slot]) || selected.Distinct().Count() != selected.Length)
         {
             throw new ArgumentException("The selected losing-hand slots must match the native trade count and must be distinct.");
         }
         bool[] keep = Enumerable.Range(0, handSize * 2).Select(slot => slot < handSize).ToArray();
         if (rule == TripleTriadTradeRule.Direct)
         {
-            keep = finalOwners.Select(owner => owner == 0).ToArray();
+            keep = finalOwners.Select((owner, slot) => rewardParticipants[slot] ? owner == 0 : slot < handSize).ToArray();
         }
         else if (winner >= 0)
         {
@@ -109,8 +113,7 @@ public static class TripleTriadTrade
                 throw new InvalidOperationException("The validated original player hand could not be withdrawn.");
             }
         }
-        // Native534BC0 builds trade selection from unchanged1DCD76C. Only Direct5358F0 maps final instance ownership back to those original cards.
-        int[] settlementCards = rule == TripleTriadTradeRule.Direct ? cards : originalPlayerHand.Concat(originalOpponentHand).ToArray();
+        int[] settlementCards = originalPlayerHand.Concat(originalOpponentHand).ToArray();
         List<int> overflow = [];
         for (int slot = 0; slot < settlementCards.Length; slot++)
         {

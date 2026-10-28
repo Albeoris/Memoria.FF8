@@ -144,7 +144,13 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
             float width = controller.PresentedTradeWidth(index);
             UiRect turned = new(bounds.X + bounds.Width * (1 - width) / 2, bounds.Y, bounds.Width * width, bounds.Height);
             bool selected = selecting && index == controller.Selection + controller.TradeCards.Count / 2;
-            DrawCard(canvas, theme, turned, controller.PresentedTradeBack(index) ? null : id, controller.PresentedTradeOwner(index), selected);
+            bool eligible = controller.IsTradeCardEligible(index);
+            DrawCard(canvas, theme, turned, controller.PresentedTradeBack(index) ? null : id, controller.PresentedTradeOwner(index), selected, unavailable: !eligible);
+            if (!eligible && width > 0.8f)
+            {
+                canvas.Fill(new UiRect(bounds.X, bounds.Bottom - 24, bounds.Width, 24), new UiColor(32, 29, 28, 210));
+                canvas.Text(controller.SystemText("card.ui.outside-reward-pool", "Not in reward pool"), Math.Min(14, bounds.Width / 9), new UiRect(bounds.X + 2, bounds.Bottom - 23, bounds.Width - 4, 22), theme.Muted, UiAlignment.Center);
+            }
             if (controller.TradingCardIndex < 0 || index == controller.TradingCardIndex && controller.AwaitingTradeConfirmation)
             {
                 UiColor color = TradeNameColor(id, theme);
@@ -282,6 +288,11 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
         for (int cell = 0; cell < controller.Match!.Board.Count; cell++)
         {
             UiRect bounds = CellBounds(cell);
+            if (match.IsBlocked(cell))
+            {
+                DrawStone(canvas, bounds, cell);
+                continue;
+            }
             bool selected = controller.ChoosingCell && controller.SelectedCell == cell && match.Outcome == TripleTriadOutcome.InProgress && !controller.IsAnimating;
             if (cards[cell] is { } placed)
             {
@@ -291,12 +302,10 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
                 }
                 (int owner, float width, float height) = controller.PresentedCard(cell, placed.Owner);
                 UiRect turned = new(bounds.X + bounds.Width * (1 - width) / 2, bounds.Y + bounds.Height * (1 - height) / 2, bounds.Width * width, bounds.Height * height);
-                DrawCard(canvas, theme, turned, placed.CardId, owner, false, modifier: match.GetElementModifier(placed.CardId, cell));
-                if (match.Rules.HasFlag(TripleTriadRules.Elemental) && elements[cell] != TripleTriadElement.None && width > 0.8 && height > 0.8)
+                DrawCard(canvas, theme, turned, placed.CardId, owner, false, modifier: match.GetDisplayElementModifier(placed.CardId, cell));
+                if (width > 0.8 && height > 0.8)
                 {
-                    string modifier = controller.Card(placed.CardId).Element == elements[cell] ? "+1" : "−1";
-                    UiColor modifierColor = match.GetElementModifier(placed.CardId, cell) > 0 ? new UiColor(90, 235, 105) : new UiColor(245, 75, 65);
-                    canvas.OutlinedText(modifier, 23, new UiRect(bounds.Right - 36, bounds.Bottom - 31, 35, 27), modifierColor, new UiColor(23, 18, 14), 1.4f);
+                    DrawElementModifier(canvas, theme, match, placed.CardId, cell, bounds);
                 }
             }
             else
@@ -489,7 +498,7 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
         }
         for (int cell = 0; cell < controller.Match!.Board.Count; cell++)
         {
-            if (CellBounds(cell).Contains(x, y) && controller.ChoosingCell)
+            if (CellBounds(cell).Contains(x, y) && controller.ChoosingCell && !controller.Match.IsBlocked(cell))
             {
                 controller.Play(controller.SelectedHand, cell);
                 return;

@@ -99,9 +99,11 @@ public sealed partial class MenuController
             "Battle policy" => preferences.BattlePolicyLabel,
             "Triple Triad width" => preferences.TripleTriad.Width.ToString(),
             "Triple Triad height" => preferences.TripleTriad.Height.ToString(),
+            "Triple Triad blocked cells" => preferences.TripleTriad.BlockedCellCount.ToString(),
             "Triple Triad hand size" => preferences.TripleTriad.HandSize.ToString(),
             "Triple Triad Random redraws" => preferences.TripleTriad.RandomRedraws.ToString(),
             "Triple Triad assistance" => preferences.TripleTriad.Assistance.ToString(),
+            "Triple Triad modified Same/Plus" => preferences.TripleTriad.UseModifiedSamePlus ? "On" : "Off",
             "Rare card markers" => preferences.RareCardMarkers ? "On" : "Off",
             "Random encounters" => preferences.RandomEncounters ? "On" : "Off",
             _ => throw new NotSupportedException($"Unknown local setting '{key}'.")

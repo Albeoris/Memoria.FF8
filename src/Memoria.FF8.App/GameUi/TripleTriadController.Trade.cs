@@ -25,6 +25,7 @@ public sealed partial class TripleTriadController
     public const double TradeExitDuration = 15d / 60;
     private int[] tradeCards = [];
     private int[] tradeOwners = [];
+    private bool[] tradeEligibility = [];
     private readonly HashSet<int> removedTradeCards = [];
     private readonly Queue<int> automaticTradeChoices = [];
     private readonly Queue<int> directTradeChoices = [];
@@ -66,6 +67,8 @@ public sealed partial class TripleTriadController
 
     public bool HasAcquiredCard(int id) => collection.TryGetValue(id, out int count) && count >= 0;
     public int CollectionCount(int id) => collection.GetValueOrDefault(id, -1);
+    public bool IsTradeCardEligible(int index) => (uint)index < tradeEligibility.Length && tradeEligibility[index];
+    private bool IsLosingTradeSlotEligible(int slot) => IsTradeCardEligible((TradingToPlayer ? Options.HandSize : 0) + slot);
     public bool IsTradeCardRemoved(int index) => removedTradeCards.Contains(index);
 
     public int PresentedTradeOwner(int index)
@@ -80,18 +83,24 @@ public sealed partial class TripleTriadController
     public float PresentedTradeWidth(int index) => TradePhase == TripleTriadTradePhase.Flipping && index == flippingTradeSlot ? (float)Math.Max(0.015, Math.Abs(Math.Cos(TradeProgress * Math.PI * 2))) : 1;
     public bool PresentedTradeBack(int index) => TradePhase == TripleTriadTradePhase.Flipping && index == flippingTradeSlot && TradeProgress is > 0.25 and < 0.75;
 
-    public void BeginTradeSettlement(IReadOnlyList<int> playerHand, IReadOnlyList<int> opponentHand, IReadOnlyList<int> finalOwners, TripleTriadTradeRule rule, int required, bool chooseCards, IReadOnlyList<int> selectedSlots, Action<int[]> completed)
+    public void BeginTradeSettlement(IReadOnlyList<int> playerHand, IReadOnlyList<int> opponentHand, IReadOnlyList<int> finalOwners, TripleTriadTradeRule rule, int required, bool chooseCards, IReadOnlyList<int> selectedSlots, Action<int[]> completed, IReadOnlyList<bool>? rewardParticipants = null)
     {
         ArgumentNullException.ThrowIfNull(completed);
         if (playerHand.Count != Options.HandSize || opponentHand.Count != Options.HandSize || finalOwners.Count != 2 * Options.HandSize || finalOwners.Any(owner => owner is not (0 or 1)))
         {
             throw new ArgumentException("Card exchange requires all original card instances and their final owners.");
         }
+        bool[] eligible = rewardParticipants?.ToArray() ?? Enumerable.Repeat(true, playerHand.Count * 2).ToArray();
+        if (eligible.Length != playerHand.Count * 2)
+        {
+            throw new ArgumentException("Card exchange eligibility requires every original instance.");
+        }
         if (!presentationEnabled)
         {
             if (chooseCards)
             {
-                BeginTradeSelection(opponentHand, required, completed);
+                BeginTradeSelection(opponentHand, required, completed, eligible.Skip(Options.HandSize).ToArray());
+                tradeEligibility = eligible;
             }
             else
             {
@@ -106,15 +115,20 @@ public sealed partial class TripleTriadController
         tradeCompleted = completed;
         tradeSelection.Clear();
         tradeCards = playerHand.Concat(opponentHand).ToArray();
+        tradeEligibility = eligible;
         tradeOwners = Enumerable.Range(0, 2 * Options.HandSize).Select(index => index < Options.HandSize ? 0 : 1).ToArray();
         manualTrade = chooseCards;
-        Selection = 0;
+        Selection = Enumerable.Range(0, Options.HandSize).FirstOrDefault(IsLosingTradeSlotEligible);
         if (rule == TripleTriadTradeRule.Direct)
         {
-            Dictionary<int, int> retained = Enumerable.Range(0, 2 * Options.HandSize).Where(index => finalOwners[index] == 0).Select(index => tradeCards[index]).GroupBy(id => id).ToDictionary(group => group.Key, group => group.Count());
-            desiredTradeOwners = new int[2 * Options.HandSize];
-            for (int index = 0; index < 2 * Options.HandSize; index++)
+            Dictionary<int, int> retained = Enumerable.Range(0, tradeCards.Length).Where(index => eligible[index] && finalOwners[index] == 0).Select(index => tradeCards[index]).GroupBy(id => id).ToDictionary(group => group.Key, group => group.Count());
+            desiredTradeOwners = tradeOwners.ToArray();
+            for (int index = 0; index < tradeCards.Length; index++)
             {
+                if (!eligible[index])
+                {
+                    continue;
+                }
                 int id = tradeCards[index];
                 bool keep = retained.GetValueOrDefault(id) > 0;
                 desiredTradeOwners[index] = keep ? 0 : 1;
@@ -144,6 +158,11 @@ public sealed partial class TripleTriadController
 
     private void StartTradeChoice(int slot, bool human = false)
     {
+        if (!IsLosingTradeSlotEligible(slot))
+        {
+            RequestSound(TripleTriadSound.Error);
+            return;
+        }
         bool deselect = tradeSelection.Contains(slot);
         if (!deselect && tradeSelection.Count == RequiredTradeCards)
         {
@@ -299,6 +318,7 @@ public sealed partial class TripleTriadController
         SetTradePhase(TripleTriadTradePhase.None);
         tradeCards = [];
         tradeOwners = [];
+        tradeEligibility = [];
         removedTradeCards.Clear();
         automaticTradeChoices.Clear();
         directTradeChoices.Clear();

@@ -49,7 +49,7 @@ internal static class TripleTriadPractice
                 autoPlay = true;
                 continue;
             }
-            if (option is not ("--game-dir" or "--save" or "--state" or "--match" or "--preview" or "--player" or "--opponent" or "--rules" or "--width" or "--height" or "--hand-size" or "--redraws" or "--assistance") || ++index == args.Length)
+            if (option is not ("--game-dir" or "--save" or "--state" or "--match" or "--preview" or "--player" or "--opponent" or "--rules" or "--width" or "--height" or "--hand-size" or "--redraws" or "--assistance" or "--modified-same-plus" or "--blocked-cells") || ++index == args.Length)
             {
                 throw new ArgumentException($"Unknown or incomplete Triple Triad argument '{option}'.");
             }
@@ -76,6 +76,12 @@ internal static class TripleTriadPractice
                     break;
                 case "--opponent":
                     opponent = value;
+                    break;
+                case "--blocked-cells":
+                    options = options with { BlockedCellCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) };
+                    break;
+                case "--modified-same-plus":
+                    options = options with { UseModifiedSamePlus = value.ToLowerInvariant() switch { "on" => true, "off" => false, _ => bool.Parse(value) } };
                     break;
                 case "--width":
                     options = options with { Width = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) };
@@ -108,7 +114,7 @@ internal static class TripleTriadPractice
         TripleTriadCatalog catalog = TripleTriadCatalog.Load(gameDirectory);
         SavedMatch? saved = load is null ? null : Read(load, catalog);
         GameState? sourceState = source is null ? null : GameSession.Load(source);
-        options = saved?.Options ?? (saved is null ? sourceState?.GameplayPreferences.TripleTriad ?? options.NormalizeForDifficulty(BattleDifficulty.Normal) : new TripleTriadSettings { Width = saved.Match.Width, Height = saved.Match.Height, HandSize = saved.Match.InitialHands[0].Length });
+        options = saved?.Options ?? (saved is null ? sourceState?.GameplayPreferences.TripleTriad ?? options.NormalizeForDifficulty(BattleDifficulty.Normal) : new TripleTriadSettings { Width = saved.Match.Width, Height = saved.Match.Height, HandSize = saved.Match.InitialHands[0].Length, UseModifiedSamePlus = saved.Match.UseModifiedSamePlus, BlockedCellCount = saved.Match.BlockedCells.Length });
         options.Validate();
         NativeCardInventory? inventory = source is null ? null : sourceState!.CardInventory ?? throw new InvalidDataException("The story snapshot has no native card collection.");
         inventory?.Validate();
@@ -127,9 +133,10 @@ internal static class TripleTriadPractice
         controller.CreateMatch = selected =>
         {
             TripleTriadPreparedBoard board = TripleTriadPreparation.GenerateElements(controller.Rules, randomState, options.Width, options.Height);
-            TripleTriadStartingSide starter = TripleTriadPreparation.TossStartingSide(board.RandomState);
+            TripleTriadPreparedBlocks blocks = TripleTriadPreparation.GenerateBlockedCells(options.BlockedCellCount, board.RandomState, options.Width, options.Height);
+            TripleTriadStartingSide starter = TripleTriadPreparation.TossStartingSide(blocks.RandomState);
             randomState = starter.RandomState;
-            return TripleTriadMatch.Create(catalog.Cards, selected, opponentHand, controller.Rules, 1 - starter.NativeSide, board.Elements, options.Width, options.Height);
+            return TripleTriadMatch.Create(catalog.Cards, selected, opponentHand, controller.Rules, 1 - starter.NativeSide, board.Elements, options.Width, options.Height, options.UseModifiedSamePlus, blocks.Cells);
         };
         controller.RestartDraw = match =>
         {
@@ -228,7 +235,7 @@ internal static class TripleTriadPractice
             using TripleTriadPracticeGame game = new(controller, gameDirectory, Save, () =>
             {
                 SavedMatch restored = Read(savePath, catalog);
-                if (!collection.OrderBy(pair => pair.Key).SequenceEqual(restored.Collection.OrderBy(pair => pair.Key)) || !opponentHand.SequenceEqual(restored.Opponent))
+                if ((restored.Options?.UseModifiedSamePlus ?? restored.Match.UseModifiedSamePlus) != options.UseModifiedSamePlus || restored.Match.BlockedCells.Length != options.BlockedCellCount || !collection.OrderBy(pair => pair.Key).SequenceEqual(restored.Collection.OrderBy(pair => pair.Key)) || !opponentHand.SequenceEqual(restored.Opponent))
                 {
                     throw new InvalidDataException("Practice collection or opponent changed; open the saved match with --match.");
                 }
@@ -260,9 +267,9 @@ internal static class TripleTriadPractice
             throw new InvalidDataException("Invalid practice collection or opponent hand.");
         }
         TripleTriadMatch match = TripleTriadMatch.Restore(catalog.Cards, saved.Match);
-        TripleTriadSettings options = saved.Options ?? new TripleTriadSettings { Width = match.Width, Height = match.Height, HandSize = match.HandSize };
+        TripleTriadSettings options = saved.Options ?? new TripleTriadSettings { Width = match.Width, Height = match.Height, HandSize = match.HandSize, UseModifiedSamePlus = match.UseModifiedSamePlus, BlockedCellCount = match.BlockedCells.Count };
         options.Validate();
-        if (options.Width != match.Width || options.Height != match.Height || options.HandSize != match.HandSize || saved.RedrawsUsed < 0 || saved.RedrawsUsed > options.RandomRedraws)
+        if (options.BlockedCellCount != match.BlockedCells.Count || options.UseModifiedSamePlus != match.UseModifiedSamePlus || options.Width != match.Width || options.Height != match.Height || options.HandSize != match.HandSize || saved.RedrawsUsed < 0 || saved.RedrawsUsed > options.RandomRedraws)
         {
             throw new InvalidDataException("Practice options disagree with their saved match.");
         }

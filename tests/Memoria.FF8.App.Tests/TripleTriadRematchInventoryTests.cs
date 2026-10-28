@@ -52,16 +52,19 @@ public sealed class TripleTriadRematchInventoryTests
             Assert.Equal(5, original.Match!.HandSize);
         }
         session.SetEventState(world.Events.Capture());
-        GameplayPreferences futurePreferences = session.GameplayPreferences with { TripleTriad = new TripleTriadSettings { Width = 4, Height = 4, HandSize = 8 } };
+        GameplayPreferences futurePreferences = session.GameplayPreferences with { TripleTriad = new TripleTriadSettings { Width = 4, Height = 4, HandSize = 8, UseModifiedSamePlus = true } };
         JsonObject legacy = JsonSerializer.SerializeToNode(session.State with { GameplayPreferences = futurePreferences })!.AsObject();
         JsonObject request = legacy["EventState"]!["Scene"]!["TripleTriadRequest"]!.AsObject();
         request.Remove("Width");
         request.Remove("Height");
         request.Remove("HandSize");
+        request.Remove("UseModifiedSamePlus");
         GameSession migrated = new(legacy.Deserialize<GameState>()!);
         using GameWorld restored = CreateWorld(migrated, directory, TripleTriadTradeRule.One, true);
         Assert.Equal(5, restored.Events.PendingTripleTriad!.HandSize);
+        Assert.False(restored.Events.PendingTripleTriad.UseModifiedSamePlus);
         TripleTriadController resumed = restored.EnsureTripleTriad()!;
+        Assert.False(resumed.Options.UseModifiedSamePlus);
         Assert.Equal((3, 3, 5), (resumed.Options.Width, resumed.Options.Height, resumed.Options.HandSize));
         Assert.Equal((4, 4, 8), (migrated.GameplayPreferences.TripleTriad.Width, migrated.GameplayPreferences.TripleTriad.Height, migrated.GameplayPreferences.TripleTriad.HandSize));
         if (activeMatch)
@@ -81,18 +84,25 @@ public sealed class TripleTriadRematchInventoryTests
         nextWorld.Events.Step();
         Assert.Equal((4, 4, 8), (nextWorld.Events.PendingTripleTriad!.Width, nextWorld.Events.PendingTripleTriad.Height, nextWorld.Events.PendingTripleTriad.HandSize));
         Assert.Equal(8, nextWorld.EnsureTripleTriad()!.Options.HandSize);
+        Assert.True(nextWorld.Events.PendingTripleTriad.UseModifiedSamePlus);
+        Assert.True(nextWorld.ActiveTripleTriad!.Options.UseModifiedSamePlus);
     }
 
     [Theory]
-    [InlineData(2, 2)]
-    [InlineData(4, 8)]
-    [InlineData(5, 13)]
-    public void ConfiguredRandomHostPreservesRedrawAndNextTurnAcrossStandaloneReload(int size, int handSize)
+    [InlineData(2, 2, false, 0)]
+    [InlineData(4, 8, false, 0)]
+    [InlineData(5, 13, false, 0)]
+    [InlineData(4, 8, true, 0)]
+    [InlineData(2, 2, true, 1)]
+    [InlineData(4, 7, true, 3)]
+    [InlineData(5, 11, true, 4)]
+    [InlineData(3, 50, false, 2)]
+    public void ConfiguredRandomHostPreservesRedrawAndNextTurnAcrossStandaloneReload(int size, int handSize, bool useModifiedSamePlus, int blockedCount)
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed card resources are required.");
         NativeCardInventory cards = NativeCardInventory.CreateNewGame();
-        foreach (int id in Enumerable.Range(0, Math.Max(2, handSize)))
+        foreach (int id in Enumerable.Range(0, Math.Max(2, handSize)).SelectMany(id => new[] { id, id }))
         {
             cards = cards.Acquire(id, out _);
         }
@@ -105,7 +115,7 @@ public sealed class TripleTriadRematchInventoryTests
             FieldLoadContext = NativeFieldLoadContext.FromOriginalSave(600),
             CardInventory = cards,
             SeeD = null,
-            GameplayPreferences = cold.State.GameplayPreferences with { TripleTriad = new TripleTriadSettings { Width = size, Height = size, HandSize = handSize, RandomRedraws = 2 } },
+            GameplayPreferences = cold.State.GameplayPreferences with { TripleTriad = new TripleTriadSettings { Width = size, Height = size, HandSize = handSize, RandomRedraws = 2, UseModifiedSamePlus = useModifiedSamePlus, BlockedCellCount = blockedCount } },
             WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = 0x10 }
         });
         using GameWorld world = CreateWorld(session, directory, TripleTriadTradeRule.All, true);
@@ -121,7 +131,13 @@ public sealed class TripleTriadRematchInventoryTests
         {
             world.AdvanceTripleTriadPrompt();
         }
-        Assert.Equal(size * size, controller.Match!.Board.Count);
+        Assert.Equal(blockedCount, world.Events.PendingTripleTriad!.BlockedCellCount);
+        Assert.Equal(blockedCount, controller.Match!.BlockedCells.Count);
+        Assert.Equal(useModifiedSamePlus, world.Events.PendingTripleTriad.UseModifiedSamePlus);
+        Assert.Equal(useModifiedSamePlus, session.State.TripleTriadPlay!.UseModifiedSamePlus);
+        Assert.Equal(useModifiedSamePlus, controller.Match!.UseModifiedSamePlus);
+        Assert.Throws<InvalidDataException>(() => new GameSession(session.State with { TripleTriadPlay = session.State.TripleTriadPlay! with { UseModifiedSamePlus = !useModifiedSamePlus } }));
+        Assert.Equal(size * size, controller.Match.Board.Count);
         Assert.Equal(handSize, controller.Deck.Count);
         TripleTriadSnapshot opening = controller.Match.CaptureSnapshot();
         uint openingRandom = session.State.TripleTriadPlay!.RandomState;
@@ -129,14 +145,17 @@ public sealed class TripleTriadRematchInventoryTests
         Assert.True(controller.Redraw());
         Assert.Equal(opening.StartingPlayer, controller.Match.StartingPlayer);
         Assert.Equal(opening.BoardElements, controller.Match.BoardElements);
+        Assert.Equal(opening.BlockedCells, controller.Match.BlockedCells);
         Assert.Equal(expectedRedraw.RandomState, session.State.TripleTriadPlay!.RandomState);
         Assert.Equal(1, controller.RedrawsRemaining);
         Assert.Equal(1, session.State.TripleTriadPlay!.RedrawsUsed);
-        string path = TestResources.ArtifactFile($"configured-triad-{size}-redraw.json");
+        string path = TestResources.ArtifactFile($"configured-triad-{size}-{useModifiedSamePlus}-{blockedCount}-redraw.json");
         session.Save(path);
-        GameSession loadedSession = new(GameSession.Load(path));
+        GameSession loadedSession = new(GameSession.Load(path) with { GameplayPreferences = session.GameplayPreferences with { TripleTriad = session.GameplayPreferences.TripleTriad with { UseModifiedSamePlus = !useModifiedSamePlus } } });
         using GameWorld loadedWorld = CreateWorld(loadedSession, directory, TripleTriadTradeRule.All, true);
         TripleTriadController loaded = loadedWorld.EnsureTripleTriad()!;
+        Assert.Equal(useModifiedSamePlus, loaded.Options.UseModifiedSamePlus);
+        Assert.Equal(useModifiedSamePlus, loaded.Match!.UseModifiedSamePlus);
         Assert.Equal(1, loaded.RedrawsRemaining);
         Assert.Equal(controller.Deck, loaded.Deck);
         Assert.Equal(JsonSerializer.Serialize(controller.Match.CaptureSnapshot()), JsonSerializer.Serialize(loaded.Match!.CaptureSnapshot()));
@@ -158,8 +177,45 @@ public sealed class TripleTriadRematchInventoryTests
             loaded.Play(move.HandIndex, move.CellIndex);
         }
         Assert.False(loaded.CanRedraw);
+        Assert.Null(session.State.TripleTriadPlay!.RewardParticipants);
         Assert.Equal(JsonSerializer.Serialize(controller.Match.CaptureSnapshot()), JsonSerializer.Serialize(loaded.Match.CaptureSnapshot()));
         Assert.Equal(cards.Cards, loadedSession.CardInventory!.Cards);
+        while (controller.Match.Outcome == TripleTriadOutcome.InProgress)
+        {
+            if (controller.Match.CurrentPlayer == 1)
+            {
+                Assert.True(controller.AdvanceOpponent());
+            }
+            else
+            {
+                TripleTriadMove move = controller.Match.ChooseMove();
+                controller.Play(move.HandIndex, move.CellIndex);
+            }
+        }
+        NativeTripleTriadPlayState finalPlay = session.State.TripleTriadPlay!;
+        Assert.NotNull(finalPlay.RewardParticipants);
+        Assert.Equal(2 * Math.Min(handSize, (size * size + 1) / 2), finalPlay.RewardParticipants.Count(value => value));
+        bool[] tamperedPool = finalPlay.RewardParticipants.ToArray();
+        tamperedPool[0] = !tamperedPool[0];
+        Assert.Throws<InvalidDataException>(() => new GameSession(session.State with { TripleTriadPlay = finalPlay with { RewardParticipants = tamperedPool } }));
+        string finalPath = path + ".final.json";
+        session.Save(finalPath);
+        GameSession finalReload = new(GameSession.Load(finalPath));
+        using GameWorld finalWorld = CreateWorld(finalReload, directory, TripleTriadTradeRule.All, true);
+        Assert.NotNull(finalWorld.EnsureTripleTriad()!.Match);
+        Assert.Equal(finalPlay.RewardParticipants, finalReload.State.TripleTriadPlay!.RewardParticipants);
+        Assert.Equal(finalPlay.RandomState, finalReload.State.TripleTriadPlay.RandomState);
+        controller.Navigate(UiKey.Confirm);
+        Assert.True(controller.AwaitingReplay);
+        controller.Navigate(UiKey.Confirm);
+        TripleTriadController replay = world.EnsureTripleTriad()!;
+        NativeTripleTriadPlayState next = session.State.TripleTriadPlay!;
+        TripleTriadOpponentHand nextOpponent = TripleTriadOpponentGenerator.Generate(session.CardInventory!, 121, 200, 127, next.DealRandomState!.Value, handSize);
+        TripleTriadPreparedHand nextPlayer = TripleTriadPreparation.SelectRandomHand(session.CardInventory!, nextOpponent.RandomState, handSize);
+        TripleTriadPreparedBoard nextElements = TripleTriadPreparation.GenerateElements(replay.Rules, nextPlayer.RandomState, size, size);
+        TripleTriadPreparedBlocks nextBlocks = TripleTriadPreparation.GenerateBlockedCells(blockedCount, nextElements.RandomState, size, size);
+        Assert.Equal(nextBlocks.Cells, replay.Match!.BlockedCells);
+        Assert.Equal(TripleTriadPreparation.TossStartingSide(nextBlocks.RandomState).RandomState, next.RandomState);
     }
 
     [Theory]
@@ -242,7 +298,7 @@ public sealed class TripleTriadRematchInventoryTests
                 slots = [Enumerable.Range(0, 5).OrderByDescending(slot => catalog.TradePriority(selected[slot])).ThenBy(slot => slot).First()];
             }
             int result = match.Outcome == TripleTriadOutcome.PlayerWin ? 0 : match.Outcome == TripleTriadOutcome.OpponentWin ? 1 : 2;
-            TripleTriadTradeResult settlement = TripleTriadTrade.Settle(session.CardInventory!, selected, play.OpponentHand, match.OriginalInstanceFinalOwners, rule, 121, slots);
+            TripleTriadTradeResult settlement = TripleTriadTrade.Settle(session.CardInventory!, selected, play.OpponentHand, match.OriginalInstanceFinalOwners, rule, 121, play.RewardParticipants!, slots);
             NativeCardInventory expected = settlement.Inventory.CompleteMatch(result, play.RandomState);
             controller.Navigate(UiKey.Confirm);
             if (!controller.AwaitingReplay)

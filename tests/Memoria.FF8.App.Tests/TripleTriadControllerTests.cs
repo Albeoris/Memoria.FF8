@@ -10,6 +10,58 @@ public sealed class TripleTriadControllerTests
     private static readonly TripleTriadCard[] Cards = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 1 + id % 10, 1 + id % 9, 1 + id % 8, 1 + id % 7, TripleTriadElement.None)).ToArray();
 
     [Fact]
+    public void BlockedCellsCannotBeHoveredPlayedOrSelectedByNavigation()
+    {
+        TripleTriadController controller = new(Cards, Enumerable.Range(0, 20).ToDictionary(id => id, _ => 1), [10, 11, 12, 13, 14], id => id.ToString(), options: new TripleTriadSettings { BlockedCellCount = 3 });
+        controller.RestoreMatch(TripleTriadMatch.Create(Cards, [0, 1, 2, 3, 4], [10, 11, 12, 13, 14], blockedCells: [1, 4, 7]));
+        controller.SelectHand(0);
+        Assert.False(controller.Match!.IsBlocked(controller.SelectedCell));
+        int selected = controller.SelectedCell;
+        controller.HoverCell(4);
+        Assert.Equal(selected, controller.SelectedCell);
+        controller.Play(0, 4);
+        Assert.Null(controller.Match.Board[4]);
+        controller.HoverCell(3);
+        controller.Navigate(UiKey.Right);
+        Assert.Equal(5, controller.SelectedCell);
+    }
+
+    [Fact]
+    public void ManualTradeRejectsCardsOutsideTheRewardPool()
+    {
+        TripleTriadController controller = Create();
+        int[]? completed = null;
+        controller.BeginTradeSelection([5, 6, 7, 8, 9], 1, slots => completed = slots, [false, false, false, false, true]);
+        Assert.False(controller.IsTradeCardEligible(5));
+        Assert.True(controller.IsTradeCardEligible(9));
+        controller.SelectTradeCard(0);
+        Assert.Empty(controller.TradeSelection);
+        Assert.Null(completed);
+        controller.SelectTradeCard(4);
+        Assert.Equal(new[] { 4 }, completed);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ComparisonSettingSurvivesControllerCreationRedrawAndSnapshotRestore(bool modified)
+    {
+        TripleTriadSettings options = new() { RandomRedraws = 1, UseModifiedSamePlus = modified };
+        TripleTriadController controller = new(Cards, Enumerable.Range(0, 20).ToDictionary(id => id, _ => 1), [10, 11, 12, 13, 14], id => id.ToString(), TripleTriadRules.Random | TripleTriadRules.Same | TripleTriadRules.Plus, options: options);
+        foreach (int id in Enumerable.Range(0, 5))
+        {
+            controller.ChooseCard(id);
+        }
+        Assert.Equal(modified, controller.Match!.UseModifiedSamePlus);
+        controller.RedrawHand = () => new[] { 5, 6, 7, 8, 9 };
+        Assert.True(controller.Redraw());
+        Assert.Equal(modified, controller.Match.UseModifiedSamePlus);
+        TripleTriadSnapshot snapshot = System.Text.Json.JsonSerializer.Deserialize<TripleTriadSnapshot>(System.Text.Json.JsonSerializer.Serialize(controller.Match.CaptureSnapshot()))!;
+        controller.RestoreMatch(TripleTriadMatch.Restore(Cards, snapshot));
+        Assert.Equal(modified, controller.Match.UseModifiedSamePlus);
+    }
+
+    [Fact]
     public void ExpandedHandsSelectNavigateTradeAndFilterHistoryBySize()
     {
         TripleTriadSettings options = new() { Width = 4, Height = 4, HandSize = 8 };

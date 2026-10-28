@@ -123,10 +123,10 @@ public sealed class OriginalAchievementCatalogTests
         {
             inventory = inventory.Acquire(0, out _);
         }
-        TripleTriadTradeResult exchanged = TripleTriadTrade.Settle(inventory, [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 1, 1, 1, 1], TripleTriadTradeRule.Direct, 0xCA);
+        TripleTriadTradeResult exchanged = TripleTriadTrade.Settle(inventory, [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 1, 1, 1, 1], TripleTriadTradeRule.Direct, 0xCA, Enumerable.Repeat(true, 10).ToArray());
         Assert.True(exchanged.TookOpponentInstance);
         Assert.Empty(exchanged.GainedCardIds);
-        TripleTriadTradeResult keptOwnHand = TripleTriadTrade.Settle(inventory, [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 1, 1, 1, 1], TripleTriadTradeRule.Direct, 0xCA);
+        TripleTriadTradeResult keptOwnHand = TripleTriadTrade.Settle(inventory, [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 1, 1, 1, 1], TripleTriadTradeRule.Direct, 0xCA, Enumerable.Repeat(true, 10).ToArray());
         Assert.False(keptOwnHand.TookOpponentInstance);
     }
 

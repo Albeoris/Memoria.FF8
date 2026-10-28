@@ -53,7 +53,7 @@ public sealed record TripleTriadCapture(int CellIndex, int SourceCellIndex, int 
 {
     public TripleTriadCaptureKind Kind { get; init; }
 }
-/// <summary>A printed-rank comparison which participates in a triggered special rule. Wall entries have cell -1 and opposing rank 10.</summary>
+/// <summary>A rank comparison which participates in a triggered special rule. Wall entries have opposing rank 10; border walls have cell -1 and blocked walls retain their cell index.</summary>
 public sealed record TripleTriadRuleParticipant(int Direction, int CellIndex, int OwnRank, int AdjacentRank, bool IsWall);
 public sealed record TripleTriadMoveResult(int CardId, int Player, int HandIndex, int CellIndex, IReadOnlyList<int> CapturedCells, bool Same, bool Plus, bool Combo, TripleTriadOutcome Outcome)
 {
@@ -67,6 +67,8 @@ public sealed record TripleTriadSnapshot
 {
     public int Width { get; init; } = 3;
     public int Height { get; init; } = 3;
+    public bool UseModifiedSamePlus { get; init; }
+    public int[] BlockedCells { get; init; } = [];
     [JsonRequired]
     public required int Version { get; init; }
     [JsonRequired]
@@ -102,6 +104,7 @@ public sealed class TripleTriadMatch
     private int?[][] hands;
     private TripleTriadPlacedCard?[] board;
     private TripleTriadElement[] boardElements;
+    private readonly bool[] blocked;
 
     private TripleTriadMatch(TripleTriadCard[] cards, string catalogHash, TripleTriadSnapshot snapshot)
     {
@@ -109,6 +112,7 @@ public sealed class TripleTriadMatch
         this.catalogHash = catalogHash;
         Width = snapshot.Width;
         Height = snapshot.Height;
+        UseModifiedSamePlus = snapshot.UseModifiedSamePlus;
         Rules = snapshot.Rules;
         StartingPlayer = snapshot.StartingPlayer;
         CurrentPlayer = snapshot.CurrentPlayer;
@@ -117,12 +121,21 @@ public sealed class TripleTriadMatch
         instanceOrder = snapshot.InstanceOrder.ToArray();
         hands = snapshot.Hands.Select(hand => hand.ToArray()).ToArray();
         board = snapshot.Board.ToArray();
+        blocked = new bool[board.Length];
+        foreach (int cell in snapshot.BlockedCells)
+        {
+            blocked[cell] = true;
+        }
         boardElements = snapshot.BoardElements.ToArray();
     }
 
     public int Width { get; }
     public int Height { get; }
     public int HandSize => initialHands[0].Length;
+    public int PlayableCellCount => blocked.Count(value => !value);
+    public IReadOnlyList<int> BlockedCells => Array.AsReadOnly(Enumerable.Range(0, blocked.Length).Where(cell => blocked[cell]).ToArray());
+    public bool IsBlocked(int cellIndex) => (uint)cellIndex < blocked.Length ? blocked[cellIndex] : throw new ArgumentOutOfRangeException(nameof(cellIndex));
+    public bool UseModifiedSamePlus { get; }
     public TripleTriadRules Rules { get; }
     public int StartingPlayer { get; private set; }
     public int CurrentPlayer { get; private set; }
@@ -133,12 +146,23 @@ public sealed class TripleTriadMatch
     public IReadOnlyList<TripleTriadElement> BoardElements => Array.AsReadOnly(boardElements.ToArray());
     /// <summary>Final/current owners by original player hand slots, then original opponent hand slots, across every Sudden Death round.</summary>
     public IReadOnlyList<int> OriginalInstanceFinalOwners => Array.AsReadOnly(CurrentInstances().Select(card => card.Owner).ToArray());
+    public IReadOnlyList<bool> OriginalInstancePlayed => Array.AsReadOnly(instanceOrder.Select(source => board.Any(card => card?.SourcePlayer == source / HandSize && card.SourceHandIndex == source % HandSize)).ToArray());
+    public int OriginalInstanceIndex(int sourcePlayer, int handIndex)
+    {
+        ValidatePlayer(sourcePlayer);
+        if ((uint)handIndex >= HandSize)
+        {
+            throw new ArgumentOutOfRangeException(nameof(handIndex));
+        }
+        return Array.IndexOf(instanceOrder, sourcePlayer * HandSize + handIndex);
+    }
+
     public int PlayerScore => Score(0);
     public int OpponentScore => Score(1);
-    public TripleTriadOutcome Outcome => board.Any(card => card is null) ? TripleTriadOutcome.InProgress : PlayerScore > OpponentScore ? TripleTriadOutcome.PlayerWin : PlayerScore < OpponentScore ? TripleTriadOutcome.OpponentWin : TripleTriadOutcome.Draw;
+    public TripleTriadOutcome Outcome => board.Where((card, cell) => !blocked[cell]).Any(card => card is null) ? TripleTriadOutcome.InProgress : PlayerScore > OpponentScore ? TripleTriadOutcome.PlayerWin : PlayerScore < OpponentScore ? TripleTriadOutcome.OpponentWin : TripleTriadOutcome.Draw;
     public bool CanRestartSuddenDeath => Rules.HasFlag(TripleTriadRules.SuddenDeath) && Outcome == TripleTriadOutcome.Draw;
 
-    public static TripleTriadMatch Create(IReadOnlyList<TripleTriadCard> definitions, IReadOnlyList<int> playerHand, IReadOnlyList<int> opponentHand, TripleTriadRules rules = TripleTriadRules.None, int startingPlayer = 0, IReadOnlyList<TripleTriadElement>? boardElements = null, int width = 3, int height = 3)
+    public static TripleTriadMatch Create(IReadOnlyList<TripleTriadCard> definitions, IReadOnlyList<int> playerHand, IReadOnlyList<int> opponentHand, TripleTriadRules rules = TripleTriadRules.None, int startingPlayer = 0, IReadOnlyList<TripleTriadElement>? boardElements = null, int width = 3, int height = 3, bool useModifiedSamePlus = false, IReadOnlyList<int>? blockedCells = null)
     {
         ArgumentNullException.ThrowIfNull(playerHand);
         ArgumentNullException.ThrowIfNull(opponentHand);
@@ -152,6 +176,8 @@ public sealed class TripleTriadMatch
             Version = 1,
             Width = width,
             Height = height,
+            UseModifiedSamePlus = useModifiedSamePlus,
+            BlockedCells = blockedCells?.ToArray() ?? [],
             CatalogHash = HashCatalog(catalog),
             Rules = rules,
             StartingPlayer = startingPlayer,
@@ -180,6 +206,8 @@ public sealed class TripleTriadMatch
         Version = 1,
         Width = Width,
         Height = Height,
+        UseModifiedSamePlus = UseModifiedSamePlus,
+        BlockedCells = BlockedCells.ToArray(),
         CatalogHash = catalogHash,
         Rules = Rules,
         StartingPlayer = StartingPlayer,
@@ -225,7 +253,7 @@ public sealed class TripleTriadMatch
             }
             for (int cell = 0; cell < board.Length; cell++)
             {
-                if (board[cell] is null)
+                if (!blocked[cell] && board[cell] is null)
                 {
                     moves.Add(new TripleTriadMove(hand, cell));
                 }
@@ -248,7 +276,7 @@ public sealed class TripleTriadMatch
             for (int direction = 0; direction < 4; direction++)
             {
                 int neighbor = Neighbor(move.CellIndex, direction);
-                if (neighbor >= 0 && candidate.board[neighbor] is null)
+                if (neighbor >= 0 && !blocked[neighbor] && candidate.board[neighbor] is null)
                 {
                     value += candidate.EffectiveRank(card, move.CellIndex, direction);
                 }
@@ -275,6 +303,10 @@ public sealed class TripleTriadMatch
         return Rules.HasFlag(TripleTriadRules.Elemental) && element != TripleTriadElement.None ? cards[cardId].Element == element ? 1 : -1 : 0;
     }
 
+    public int GetDisplayElementModifier(int cardId, int cellIndex) => UseModifiedSamePlus || (Rules & (TripleTriadRules.Same | TripleTriadRules.Plus)) == 0 ? GetElementModifier(cardId, cellIndex) : 0;
+
+    private int SpecialRank(TripleTriadCard card, int cellIndex, int direction) => UseModifiedSamePlus ? EffectiveRank(card, cellIndex, direction) : Rank(card, direction);
+
     public int GetEffectiveRank(int cardId, int cellIndex, int direction) => Rank(cards[cardId], direction) + GetElementModifier(cardId, cellIndex);
 
     public TripleTriadMoveResult Play(int handIndex, int cellIndex) => PlayCore(handIndex, cellIndex, true);
@@ -288,7 +320,7 @@ public sealed class TripleTriadMatch
         {
             throw new InvalidOperationException("The round has ended.");
         }
-        if ((uint)handIndex >= HandSize || (uint)cellIndex >= board.Length || hands[CurrentPlayer][handIndex] is not int cardId || board[cellIndex] is not null)
+        if ((uint)handIndex >= HandSize || (uint)cellIndex >= board.Length || blocked[cellIndex] || hands[CurrentPlayer][handIndex] is not int cardId || board[cellIndex] is not null)
         {
             throw new ArgumentException("A move requires an unplayed hand slot and an empty board cell.");
         }
@@ -306,12 +338,12 @@ public sealed class TripleTriadMatch
         foreach (int direction in new[] { 0, 2, 3, 1 })
         {
             int neighbor = Neighbor(cellIndex, direction);
-            if (neighbor < 0)
+            if (neighbor < 0 || blocked[neighbor])
             {
-                if (Rules.HasFlag(TripleTriadRules.SameWall) && Rank(card, direction) == 10)
+                if (Rules.HasFlag(TripleTriadRules.SameWall) && SpecialRank(card, cellIndex, direction) == 10)
                 {
                     sameWalls++;
-                    sameParticipants.Add(new TripleTriadRuleParticipant(direction, -1, 10, 10, true));
+                    sameParticipants.Add(new TripleTriadRuleParticipant(direction, neighbor, 10, 10, true));
                 }
                 continue;
             }
@@ -319,8 +351,8 @@ public sealed class TripleTriadMatch
             {
                 continue;
             }
-            int ownRank = Rank(card, direction);
-            int adjacentRank = Rank(cards[adjacent.CardId], Opposite(direction));
+            int ownRank = SpecialRank(card, cellIndex, direction);
+            int adjacentRank = SpecialRank(cards[adjacent.CardId], neighbor, Opposite(direction));
             TripleTriadRuleParticipant comparison = new(direction, neighbor, ownRank, adjacentRank, false);
             comparisons.Add(comparison);
             if (ownRank == adjacentRank)
@@ -349,7 +381,7 @@ public sealed class TripleTriadMatch
         board[cellIndex] = new TripleTriadPlacedCard(cardId, player, player, handIndex);
         List<int> captured = [];
         Dictionary<int, TripleTriadCaptureKind> captureKinds = [];
-        // 53A950's second pass uses printed >= for every adjacent enemy after the two-match threshold.
+        // The native second pass uses >= for every adjacent enemy after the two-match threshold.
         bool sameTriggered = Rules.HasFlag(TripleTriadRules.Same) && same.Count + sameWalls >= 2 && sameCaptures.Any(cell => board[cell]!.Owner != player);
         if (sameTriggered)
         {
@@ -410,13 +442,16 @@ public sealed class TripleTriadMatch
         while (Outcome == TripleTriadOutcome.InProgress)
         {
             int handIndex = Array.FindIndex(hands[CurrentPlayer], card => card.HasValue);
-            int cellIndex = Array.FindIndex(board, card => card is null);
+            int cellIndex = Enumerable.Range(0, board.Length).First(cell => !blocked[cell] && board[cell] is null);
             Play(handIndex, cellIndex);
         }
         int winner = victory ? 0 : 1;
         for (int cell = 0; cell < board.Length; cell++)
         {
-            board[cell] = board[cell]! with { Owner = winner };
+            if (board[cell] is { } placed)
+            {
+                board[cell] = placed with { Owner = winner };
+            }
         }
     }
 
@@ -526,7 +561,12 @@ public sealed class TripleTriadMatch
         int handSize = snapshot.InitialHands is { Length: 2 } && snapshot.InitialHands[0] is { } firstHand ? firstHand.Length : 0;
         int cells = snapshot.Width * snapshot.Height;
         int instanceCount = handSize * 2;
-        if (snapshot.Width is < 2 or > 5 || snapshot.Height is < 2 or > 5 || handSize < (cells + 1) / 2 || snapshot.Version != 1 || snapshot.CatalogHash != hash || (snapshot.Rules & ~SupportedRules) != 0 || (uint)snapshot.StartingPlayer > 1 || (uint)snapshot.CurrentPlayer > 1 || snapshot.Round < 0 || snapshot.Round > 0 && !snapshot.Rules.HasFlag(TripleTriadRules.SuddenDeath) || snapshot.InitialHands is not { Length: 2 } || snapshot.Hands is not { Length: 2 } || snapshot.InitialHands.Any(hand => hand is null || hand.Length != handSize || hand.Any(id => (uint)id >= 110)) || snapshot.Hands.Any(hand => hand is null || hand.Length != handSize) || snapshot.Board is null || snapshot.Board.Length != cells || snapshot.InstanceOrder is null || snapshot.InstanceOrder.Length != instanceCount || snapshot.InstanceOrder.Distinct().Count() != instanceCount || snapshot.InstanceOrder.Any(source => (uint)source >= instanceCount))
+        if (snapshot.BlockedCells is null || snapshot.BlockedCells.Length > cells / 3 || snapshot.BlockedCells.Distinct().Count() != snapshot.BlockedCells.Length || snapshot.BlockedCells.Any(cell => (uint)cell >= cells))
+        {
+            throw new InvalidDataException("Blocked cells must be unique board indices and cover at most one third of the board.");
+        }
+        int playableCells = cells - snapshot.BlockedCells.Length;
+        if (snapshot.Width is < 2 or > 5 || snapshot.Height is < 2 or > 5 || handSize < (playableCells + 1) / 2 || snapshot.Version != 1 || snapshot.CatalogHash != hash || (snapshot.Rules & ~SupportedRules) != 0 || (uint)snapshot.StartingPlayer > 1 || (uint)snapshot.CurrentPlayer > 1 || snapshot.Round < 0 || snapshot.Round > 0 && !snapshot.Rules.HasFlag(TripleTriadRules.SuddenDeath) || snapshot.InitialHands is not { Length: 2 } || snapshot.Hands is not { Length: 2 } || snapshot.InitialHands.Any(hand => hand is null || hand.Length != handSize || hand.Any(id => (uint)id >= 110)) || snapshot.Hands.Any(hand => hand is null || hand.Length != handSize) || snapshot.Board is null || snapshot.Board.Length != cells || snapshot.BlockedCells.Any(cell => snapshot.Board[cell] is not null) || snapshot.InstanceOrder is null || snapshot.InstanceOrder.Length != instanceCount || snapshot.InstanceOrder.Distinct().Count() != instanceCount || snapshot.InstanceOrder.Any(source => (uint)source >= instanceCount))
         {
             throw new InvalidDataException("Malformed or incompatible Triple Triad snapshot.");
         }

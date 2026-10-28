@@ -123,9 +123,19 @@ internal sealed record UiPreferences
             {
                 "Triple Triad width" => TripleTriad with { Width = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) },
                 "Triple Triad height" => TripleTriad with { Height = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) },
+                "Triple Triad blocked cells" => TripleTriad with { BlockedCellCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) },
                 "Triple Triad hand size" => TripleTriad with { HandSize = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) },
                 "Triple Triad Random redraws" => TripleTriad with { RandomRedraws = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) },
                 "Triple Triad assistance" => TripleTriad with { Assistance = Enum.Parse<TripleTriadAssistance>(value) },
+                "Triple Triad modified Same/Plus" => TripleTriad with
+                {
+                    UseModifiedSamePlus = value switch
+                    {
+                        "On" => true,
+                        "Off" => false,
+                        _ => throw new ArgumentException("Elemental Same/Plus requires On or Off.")
+                    }
+                },
                 _ => throw new ArgumentException("Unknown Triple Triad setting.")
             };
             settings = settings.NormalizeForDifficulty(Difficulty);
@@ -396,7 +406,7 @@ internal sealed record UiPreferences
 
     private static bool ValidFps(int fps) => fps is 0 or 15 or 30 or 60 or 90 or 120 or 144 or 240;
 
-    internal static readonly string[] TripleTriadSettingKeys = ["Triple Triad width", "Triple Triad height", "Triple Triad hand size", "Triple Triad Random redraws", "Triple Triad assistance"];
+    internal static readonly string[] TripleTriadSettingKeys = ["Triple Triad width", "Triple Triad height", "Triple Triad blocked cells", "Triple Triad hand size", "Triple Triad Random redraws", "Triple Triad assistance", "Triple Triad modified Same/Plus"];
 
     private void Validate()
     {

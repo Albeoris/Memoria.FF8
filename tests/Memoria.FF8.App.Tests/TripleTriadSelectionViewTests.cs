@@ -423,6 +423,94 @@ public sealed class TripleTriadSelectionViewTests
         Assert.Equal(raisedSix.Pixels.ToArray(), composer.Compose(artwork, card, 0, null, 1).Pixels.ToArray());
     }
 
+    [Theory]
+    [InlineData(TripleTriadRules.Same, false, false)]
+    [InlineData(TripleTriadRules.Plus, false, false)]
+    [InlineData(TripleTriadRules.Same | TripleTriadRules.Plus, false, false)]
+    [InlineData(TripleTriadRules.Same, true, true)]
+    [InlineData(TripleTriadRules.Plus, true, true)]
+    [InlineData(TripleTriadRules.None, false, true)]
+    [InlineData(TripleTriadRules.None, true, true)]
+    [InlineData(TripleTriadRules.SameWall, false, true)]
+    public void ElementalRanksAndBadgesFollowTheChosenComparisonMode(TripleTriadRules rules, bool modified, bool displayEffective)
+    {
+        TripleTriadCard[] cards = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 5, 5, 5, 5, TripleTriadElement.None)).ToArray();
+        cards[0] = cards[0] with { Element = TripleTriadElement.Fire };
+        TripleTriadElement[] elements = new TripleTriadElement[9];
+        elements[8] = elements[1] = elements[4] = TripleTriadElement.Fire;
+        rules |= TripleTriadRules.Elemental | TripleTriadRules.Open;
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], rules, boardElements: elements, useModifiedSamePlus: modified);
+        match.Play(1, 8);
+        match.Play(0, 1);
+        TripleTriadController controller = new(cards, Enumerable.Range(0, 5).ToDictionary(id => id, _ => 1), [5, 6, 7, 8, 9], id => id.ToString(), rules, options: new() { UseModifiedSamePlus = modified, Assistance = TripleTriadAssistance.Direct });
+        controller.RestoreMatch(match);
+        controller.SelectHand(0);
+        controller.HoverCell(4);
+        RecordingCanvas canvas = Draw(controller.BuildView());
+        var ghost = Assert.Single(canvas.Images, image => image.Source.Opacity == 135);
+        Assert.Equal(displayEffective ? 1 : 0, ghost.Source.RankModifier);
+        Assert.All(canvas.Images.Where(image => image.Source.Kind == UiImageKind.CardFace && image.Source.Id is 1 or 5), image => Assert.Equal(displayEffective ? -1 : 0, image.Source.RankModifier));
+        Assert.Contains(canvas.TextColors, text => text.Text == "+1" && text.Color == (displayEffective ? new UiColor(90, 235, 105) : new UiTheme().Foreground));
+        Assert.Contains(canvas.TextColors, text => text.Text == "−1" && text.Color == (displayEffective ? new UiColor(245, 75, 65) : new UiTheme().Foreground));
+        Assert.Equal(6, match.GetEffectiveRank(0, 4, 0));
+        Assert.Equal(4, match.GetEffectiveRank(5, 1, 2));
+    }
+
+    [Fact]
+    public void BlockedCellCannotBeHoveredOrClickedAndExplainsSameWall()
+    {
+        TripleTriadCard[] cards = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 10, 10, 10, 10, TripleTriadElement.None)).ToArray();
+        TripleTriadRules rules = TripleTriadRules.Same | TripleTriadRules.SameWall;
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], rules, blockedCells: [3]);
+        match.Play(1, 8);
+        match.Play(0, 1);
+        TripleTriadController controller = new(cards, Enumerable.Range(0, 5).ToDictionary(id => id, _ => 1), [5, 6, 7, 8, 9], id => id.ToString(), rules, options: new() { BlockedCellCount = 1, Assistance = TripleTriadAssistance.Rules });
+        controller.RestoreMatch(match);
+        controller.SelectHand(0);
+        controller.HoverCell(4);
+        TripleTriadElementView element = new(controller);
+        element.PointerHover(300, 300);
+        Assert.Equal(4, controller.SelectedCell);
+        UiView view = controller.BuildView();
+        RecordingCanvas canvas = Draw(view);
+        Assert.Contains(canvas.Texts, text => text.Text.Contains("Wall A", StringComparison.Ordinal));
+        Assert.Contains(canvas.TextColors, text => text.Text == "A" && text.Color.R == 255 && text.Color.G >= 202);
+        string before = System.Text.Json.JsonSerializer.Serialize(match.CaptureSnapshot());
+        Click(view, new TripleTriadLayout(3, 3, 5).Cell(3));
+        Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(match.CaptureSnapshot()));
+        controller.HoverCell(3);
+        Assert.Equal(4, controller.SelectedCell);
+    }
+
+    [Fact]
+    public void OriginalArtworkRendersStoneWallsAndSameWallExplanation()
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Original resources required.");
+        TripleTriadCatalog catalog = TripleTriadCatalog.Load(directory);
+        TripleTriadCard source = catalog.Cards.First(card => card.Left == 10);
+        TripleTriadCard top = catalog.Cards.First(card => card.Bottom == source.Top && card.Id != source.Id);
+        int[] player = [source.Id, 1, 2, 3, 4];
+        int[] opponent = [top.Id, 5, 6, 7, 8];
+        TripleTriadRules rules = TripleTriadRules.Open | TripleTriadRules.Same | TripleTriadRules.SameWall;
+        TripleTriadMatch match = TripleTriadMatch.Create(catalog.Cards, player, opponent, rules, blockedCells: [3, 7]);
+        match.Play(1, 8);
+        match.Play(0, 1);
+        Assert.True(match.PreviewMove(0, 4).Same);
+        TripleTriadController controller = new(catalog.Cards, Enumerable.Range(0, 110).ToDictionary(id => id, _ => 1), opponent, catalog.Name, rules, options: new() { BlockedCellCount = 2, Assistance = TripleTriadAssistance.Hand });
+        controller.RestoreMatch(match);
+        controller.SelectHand(0);
+        controller.HoverCell(4);
+        using Bitmap bitmap = new(1440, 1008, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
+        using BattlePreviewCanvas canvas = new(bitmap, directory);
+        UiView view = controller.BuildView();
+        view.Resize(1440, 1008);
+        view.Draw(canvas, new UiTheme());
+        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_TRIAD_UI_OUTPUT_DIRECTORY") ?? Path.Combine(Path.GetTempPath(), "ff8-triad-extended");
+        Directory.CreateDirectory(output);
+        bitmap.SavePng(Path.Combine(output, "stone-same-wall.png"));
+    }
+
     private static TripleTriadController Create()
     {
         TripleTriadCard[] cards = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 1, 1, 1, 1, TripleTriadElement.None)).ToArray();
@@ -451,6 +539,7 @@ public sealed class TripleTriadSelectionViewTests
     {
         public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = [];
         public List<(string Text, UiRect Bounds)> Texts { get; } = [];
+        public List<(string Text, UiColor Color)> TextColors { get; } = [];
         public List<UiRect> Pointers { get; } = [];
         public List<string> Operations { get; } = [];
 
@@ -461,6 +550,7 @@ public sealed class TripleTriadSelectionViewTests
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
         {
             Texts.Add((text, bounds));
+            TextColors.Add((text, color));
         }
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)

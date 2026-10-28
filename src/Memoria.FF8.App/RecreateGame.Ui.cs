@@ -185,9 +185,11 @@ internal sealed partial class RecreateGame
         TripleTriadSettings triadSettings = currentTriadPreferences.TripleTriad;
         data.Settings["Triple Triad width"] = triadSettings.Width.ToString(System.Globalization.CultureInfo.InvariantCulture);
         data.Settings["Triple Triad height"] = triadSettings.Height.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data.Settings["Triple Triad blocked cells"] = triadSettings.BlockedCellCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
         data.Settings["Triple Triad hand size"] = triadSettings.HandSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
         data.Settings["Triple Triad Random redraws"] = triadSettings.RandomRedraws.ToString(System.Globalization.CultureInfo.InvariantCulture);
         data.Settings["Triple Triad assistance"] = triadSettings.Assistance.ToString();
+        data.Settings["Triple Triad modified Same/Plus"] = triadSettings.UseModifiedSamePlus ? "On" : "Off";
         data.SupportedActions.UnionWith(UiPreferences.TripleTriadSettingKeys.Select(key => "config:" + key));
         data.Settings["Rare card markers"] = uiPreferences.RareCardMarkers ? "On" : "Off";
         data.Settings["Random encounters"] = ReadCurrentUiPreferences().RandomEncounters ? "On" : "Off";
