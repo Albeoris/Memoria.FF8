@@ -112,6 +112,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     internal IReadOnlyList<DiagnosticLiveExecution> Executions => executions;
     internal bool Active => start is not null;
     internal DiagnosticPresentationProgressSnapshot PresentationProgress(int sequence) => presentationProgress.Snapshot(sequence, effectStartedTicks > 0, effectCompletedTicks > 0);
+    internal DiagnosticPacingProgress? PresentationPacingProgress() => pacing?.SnapshotProgress();
 
     private TelemetryOwnerState Owners(long frame)
     {

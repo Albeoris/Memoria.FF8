@@ -5,6 +5,8 @@ internal readonly record struct DiagnosticPacingSample(long Frame, long Presente
 internal sealed record DiagnosticPacingDuration(long Count, double TotalMilliseconds, double MinimumMilliseconds, double MedianMilliseconds, double P95Milliseconds, double MaximumMilliseconds);
 internal sealed record DiagnosticPacingLimit(int FrameLimit, int Samples);
 internal sealed record DiagnosticPacingSummary(long TimestampFrequency, int Capacity, long Observations, long InvalidObservations, long OverflowObservations, int Samples, long PacerCalls, long TimerCalls, long ResetCalls, DiagnosticPacingLimit[] FrameLimits, DiagnosticPacingDuration Interval, DiagnosticPacingDuration TimerWait, DiagnosticPacingDuration Present, DiagnosticPacingDuration Other);
+internal readonly record struct DiagnosticPacingProgressDuration(double TotalMilliseconds, double MaximumMilliseconds);
+internal sealed record DiagnosticPacingProgress(long TimestampFrequency, int Capacity, long Observations, long InvalidObservations, long OverflowObservations, int Samples, long PacerCalls, long TimerCalls, long ResetCalls, DiagnosticPacingProgressDuration Interval, DiagnosticPacingProgressDuration TimerWait, DiagnosticPacingProgressDuration Present, DiagnosticPacingProgressDuration Other);
 
 /// <summary>Optional bounded wall-time observations; no state capture or per-present materialization.</summary>
 internal sealed class DiagnosticPresentationPacing
@@ -48,6 +50,37 @@ internal sealed class DiagnosticPresentationPacing
         }
         preceding = presented;
         previous = observation;
+    }
+
+    internal DiagnosticPacingProgress SnapshotProgress()
+    {
+        double interval = 0;
+        double timer = 0;
+        double present = 0;
+        double other = 0;
+        long maximumInterval = 0;
+        long maximumTimer = 0;
+        long maximumPresent = 0;
+        long maximumOther = 0;
+        long pacerCalls = 0;
+        long timerCalls = 0;
+        foreach (DiagnosticPacingSample sample in samples.AsSpan(0, count))
+        {
+            long presentTicks = sample.PresentEndTicks - sample.PresentBeginTicks;
+            long otherTicks = sample.IntervalTicks - sample.TimerWaitTicks - presentTicks;
+            interval += sample.IntervalTicks;
+            timer += sample.TimerWaitTicks;
+            present += presentTicks;
+            other += otherTicks;
+            maximumInterval = Math.Max(maximumInterval, sample.IntervalTicks);
+            maximumTimer = Math.Max(maximumTimer, sample.TimerWaitTicks);
+            maximumPresent = Math.Max(maximumPresent, presentTicks);
+            maximumOther = Math.Max(maximumOther, otherTicks);
+            pacerCalls += sample.PacerCalls;
+            timerCalls += sample.TimerCalls;
+        }
+        double milliseconds = 1000d / frequency;
+        return new(frequency, samples.Length, observations, invalid, overflow, count, pacerCalls, timerCalls, previous.Resets - initialResets, new(interval * milliseconds, maximumInterval * milliseconds), new(timer * milliseconds, maximumTimer * milliseconds), new(present * milliseconds, maximumPresent * milliseconds), new(other * milliseconds, maximumOther * milliseconds));
     }
 
     internal DiagnosticPacingSummary Complete()
