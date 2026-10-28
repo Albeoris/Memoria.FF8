@@ -21,16 +21,16 @@ public sealed class GpuTriangleTextureCacheTests
         PixelImage second = Image(0, 255, 0);
         PixelImage third = Image(0, 0, 255);
 
-        Frame(renderer, new(first), new(second));
+        Frame(renderer, new TriangleMaterial(first), new(second));
         Assert.Equal(2, renderer.FrameTextureUploads);
-        Frame(renderer, new(first));
+        Frame(renderer, new TriangleMaterial(first));
         Assert.Equal(0, renderer.FrameTextureUploads);
         Frame(renderer);
-        Frame(renderer, new(third));
+        Frame(renderer, new TriangleMaterial(third));
         Assert.Equal(1, renderer.FrameTextureUploads);
-        Frame(renderer, new(first));
+        Frame(renderer, new TriangleMaterial(first));
         Assert.Equal(0, renderer.FrameTextureUploads);
-        Frame(renderer, new(second));
+        Frame(renderer, new TriangleMaterial(second));
         Assert.Equal(1, renderer.FrameTextureUploads);
     }
 
@@ -42,16 +42,16 @@ public sealed class GpuTriangleTextureCacheTests
         PixelImage cached = Image(255, 0, 0);
         PixelImage oversized = new(2, 1, [new Rgba32(0, 0, 255, 255), new Rgba32(0, 0, 255, 255)]);
 
-        Frame(renderer, new(cached), new(oversized), new(cached));
+        Frame(renderer, new TriangleMaterial(cached), new(oversized), new(cached));
         Assert.Equal(2, renderer.FrameTextureUploads);
         Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Red, pixel));
-        Frame(renderer, new(oversized));
+        Frame(renderer, new TriangleMaterial(oversized));
         Assert.Equal(1, renderer.FrameTextureUploads);
         Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Blue, pixel));
-        Frame(renderer, new(oversized), new(null));
+        Frame(renderer, new TriangleMaterial(oversized), new(null));
         Assert.Equal(1, renderer.FrameTextureUploads);
         Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.White, pixel));
-        Frame(renderer, new(cached));
+        Frame(renderer, new TriangleMaterial(cached));
         Assert.Equal(0, renderer.FrameTextureUploads);
     }
 
@@ -77,7 +77,7 @@ public sealed class GpuTriangleTextureCacheTests
         renderer.Abort();
         Assert.True(texture.IsDisposed);
 
-        Frame(renderer, new(null));
+        Frame(renderer, new TriangleMaterial(null));
         Assert.Same(outer, device.Device.GetRenderTargets()[0].RenderTarget);
         Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.White, pixel));
     }
@@ -88,7 +88,7 @@ public sealed class GpuTriangleTextureCacheTests
         using GpuTestDevice device = new();
         using GpuTriangleRenderer renderer = new(device.Device, 2, 8);
         PixelImage image = Image(255, 0, 0);
-        Frame(renderer, new(image));
+        Frame(renderer, new TriangleMaterial(image));
         image.Pixels[0] = new(0, 255, 0, 255);
         TriangleMaterial dynamicMaterial = new(image) { DynamicTexture = true };
         Frame(renderer, dynamicMaterial, dynamicMaterial with { AlphaMultiplier = 0.5f }, dynamicMaterial);
@@ -98,9 +98,9 @@ public sealed class GpuTriangleTextureCacheTests
         Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Lime, pixel));
 
         renderer.InvalidateTexture(image);
-        Frame(renderer, new(image));
+        Frame(renderer, new TriangleMaterial(image));
         Assert.Equal(1, renderer.FrameTextureUploads);
-        Frame(renderer, new(image));
+        Frame(renderer, new TriangleMaterial(image));
         Assert.Equal(0, renderer.FrameTextureUploads);
     }
 

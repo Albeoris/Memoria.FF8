@@ -630,9 +630,15 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         cache = cache with { Rows = cache.Rows.SetItem(selection.Row, row with { Regions = [changed] }) };
         renderer.RenderNativePrimitiveFrame(frame, changedPage, textureWindowCache: cache);
         Assert.NotSame(first, capture.Texture);
-        object retained = capture.Texture!;
-        renderer.RenderNativePrimitiveFrame(frame, Texture(0x3E0), textureWindowCache: cache);
+        PixelImage retained = capture.Texture!;
+        NativeBattleEffectTextureState unusedPalette = Texture(0x3E0);
+        renderer.RenderNativePrimitiveFrame(frame, unusedPalette, textureWindowCache: cache);
+        Assert.Same(retained, capture.Texture);
+        // The retained 0x2222 word uses entry2; entry1 is no longer sampled.
+        NativeBattleEffectTextureState usedPalette = unusedPalette.Upload45BD30(2, 256, 1, 1, [0, 0x7C]);
+        renderer.RenderNativePrimitiveFrame(frame, usedPalette, textureWindowCache: cache);
         Assert.NotSame(retained, capture.Texture);
+        Assert.NotEqual(retained[0, 0], capture.Texture![0, 0]);
     }
 
     private sealed class TextureCapture : ITriangleRenderer
