@@ -27,6 +27,7 @@ public sealed partial class DemasterTextureResolver
         int planeWidth = CompleteFieldModelPlaneWidth(decoded.Image);
         if (planeWidth == 0)
         {
+            List<int> partialWidthAnchors = [];
             foreach (int sibling in catalog.Files.Where(candidate => candidate.Format == ModFormat.Demaster).Select(candidate => FieldModelSiblingRow(candidate.RelativePath, name, variant)).Where(candidate => candidate >= 0).Distinct().Order())
             {
                 ModFile? companion = FieldModelSheetFile(name, sibling, variant);
@@ -35,8 +36,13 @@ public sealed partial class DemasterTextureResolver
                     continue;
                 }
                 int anchor = CompleteFieldModelPlaneWidth(ReferenceEquals(companion, file) ? decoded.Image : ModImageDecoder.Decode(companion).Image);
-                if (anchor == 0 || decoded.Image.Width != anchor && (long)decoded.Image.Width != 2L * anchor || decoded.Image.Height <= 0 || decoded.Image.Height > anchor)
+                if (anchor == 0 || decoded.Image.Width <= 0 || (long)decoded.Image.Width > 2L * anchor || decoded.Image.Height <= 0 || decoded.Image.Height > anchor)
                 {
+                    continue;
+                }
+                if (decoded.Image.Width != anchor && (long)decoded.Image.Width != 2L * anchor)
+                {
+                    partialWidthAnchors.Add(anchor);
                     continue;
                 }
                 if (planeWidth != 0 && planeWidth != anchor)
@@ -45,14 +51,23 @@ public sealed partial class DemasterTextureResolver
                 }
                 planeWidth = anchor;
             }
+            if (planeWidth == 0 && partialWidthAnchors.Count != 0)
+            {
+                int[] anchors = partialWidthAnchors.Distinct().ToArray();
+                if (anchors.Length != 1)
+                {
+                    throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Partial field model sheets have conflicting complete source-material plane widths."));
+                }
+                planeWidth = anchors[0];
+            }
         }
-        if (planeWidth == 0 || decoded.Image.Width != planeWidth && (long)decoded.Image.Width != 2L * planeWidth || decoded.Image.Height <= 0 || decoded.Image.Height > planeWidth)
+        if (planeWidth == 0 || decoded.Image.Width <= 0 || (long)decoded.Image.Width > 2L * planeWidth || decoded.Image.Height <= 0 || decoded.Image.Height > planeWidth)
         {
             throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Field model sheets require one or two horizontal native planes at an integral scale, with partial uploads anchored by a complete source material."));
         }
-        int planes = decoded.Image.Width / planeWidth;
-        List<PixelImage> levels = CropBodyPlane(decoded.MipLevels, address, planes, 0);
-        IReadOnlyDictionary<string, PixelImage>? variants = planes == 2 ? new Dictionary<string, PixelImage> { ["eyes-closed"] = CropBodyPlane([decoded.Image], address, planes, 1)[0] } : null;
+        int planes = decoded.Image.Width > planeWidth ? 2 : 1;
+        List<PixelImage> levels = CropAnchoredPlane(decoded.MipLevels, address, planeWidth, 0);
+        IReadOnlyDictionary<string, PixelImage>? variants = planes == 2 ? new Dictionary<string, PixelImage> { ["eyes-closed"] = CropAnchoredPlane([decoded.Image], address, planeWidth, 1)[0] } : null;
         return new(levels[0], $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, levels.AsReadOnly(), variants);
     }
 

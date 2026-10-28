@@ -54,6 +54,8 @@ Tests that need installed resources or external fixtures require explicit config
 | `MEMORIA_FF8_REMASTERED_PROOF_DIR` | Optional output root retaining the opening acceptance standalone save, image and report. |
 | `MEMORIA_FF8_AUTOPLAY_ACCEPTANCE` | Set to `1` to opt in to the full autonomous exploration acceptance test. This does not enable the CLI mode, which needs no environment flag. |
 | `FF8_DEMASTER_PACKAGE` | Optional texture-package root used by Demaster texture tests. |
+| `MEMORIA_FF8_CONTENT_TEXTURE_FIXTURES` | Optional external JSON array of isolated native upload fixtures for exact content matching, package toggle and revision acceptance. |
+| `MEMORIA_FF8_CONTENT_TEXTURE_ASSET_FIXTURES` | Optional external JSON image catalog for supplied texture dimensions, mip decoding and inactive content filename diagnostics. |
 | `MEMORIA_FF8_CARD_MOD_DIR` | Optional unpacked card texture package with the complete 31-file menu/mini-game layout for Demaster card routing tests. App integration checks also require `MEMORIA_FF8_GAME_DIR`. |
 | `MEMORIA_FF8_FIELD_MODEL_TEXTURE_PACKAGES` | External JSON array of unpacked model texture package directories, in ascending priority, for installed source coverage and CPU/GPU checks. |
 | `MEMORIA_FF8_REMASTERED_GAME_DIR` | Corresponding Remastered resources for model-profile and native field texture-plane tests. |

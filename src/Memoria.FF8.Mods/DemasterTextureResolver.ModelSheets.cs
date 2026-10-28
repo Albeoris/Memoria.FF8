@@ -28,6 +28,20 @@ public sealed partial class DemasterTextureResolver
         {
             return ResolveBodySheet(context, file, stem, address, decoded);
         }
+        if (address.Owner.Path.StartsWith("battle/c0m", StringComparison.Ordinal))
+        {
+            string prefix = stem[..stem.LastIndexOf('_')];
+            ModFile? anchor = WithExtensions($"{prefix}_0").SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
+            if (anchor is not null)
+            {
+                int planeWidth = ModImageDecoder.Decode(anchor).Image.Width;
+                if (planeWidth <= 0 || planeWidth % 128 != 0)
+                {
+                    throw new ModTextureLoadException(anchor.PackageId, anchor.RelativePath, new InvalidDataException("Monster sheet row zero must anchor a positive integral native plane scale."));
+                }
+                return ResolveMonsterPlane(context, file, address, decoded, planeWidth);
+            }
+        }
         if (decoded.Image.Width <= 0 || decoded.Image.Height <= 0 || decoded.Image.Width % address.CanvasWidth != 0 || decoded.Image.Height % address.CanvasHeight != 0 || decoded.Image.Width / address.CanvasWidth != decoded.Image.Height / address.CanvasHeight)
         {
             throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Demaster model sheets require equal positive integral scale over their source canvas."));
@@ -55,6 +69,50 @@ public sealed partial class DemasterTextureResolver
             levels.Add(crop);
         }
         return new(levels[0], $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, levels.AsReadOnly());
+    }
+
+    private static TextureReplacement ResolveMonsterPlane(TextureBuildContext context, ModFile file, TextureSourceAddress address, DecodedModImage decoded, int planeWidth)
+    {
+        if (decoded.Image.Width <= 0 || decoded.Image.Height <= 0 || decoded.Image.Width > planeWidth || decoded.Image.Height > planeWidth)
+        {
+            throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Monster image uploads must fit the native plane anchored by row zero."));
+        }
+        List<PixelImage> levels = CropAnchoredPlane(decoded.MipLevels, address, planeWidth, 0);
+        return new(levels[0], $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, levels.AsReadOnly());
+    }
+
+    private static List<PixelImage> CropAnchoredPlane(IReadOnlyList<PixelImage> images, TextureSourceAddress address, int planeWidth, int plane)
+    {
+        List<PixelImage> levels = [];
+        for (int level = 0; level < images.Count; level++)
+        {
+            PixelImage image = images[level];
+            int mipPlaneWidth = Math.Max(1, planeWidth >> level);
+            if ((long)address.X * mipPlaneWidth % 128 != 0 || (long)address.Y * mipPlaneWidth % 128 != 0 || (long)address.Width * mipPlaneWidth % 128 != 0 || (long)address.Height * mipPlaneWidth % 128 != 0)
+            {
+                break;
+            }
+            int sourceX = plane * mipPlaneWidth + (int)((long)address.X * mipPlaneWidth / 128);
+            int sourceY = (int)((long)address.Y * mipPlaneWidth / 128);
+            int width = (int)((long)address.Width * mipPlaneWidth / 128);
+            int height = (int)((long)address.Height * mipPlaneWidth / 128);
+            if (width <= 0 || height <= 0)
+            {
+                break;
+            }
+            PixelImage crop = new(width, height);
+            int copyWidth = Math.Min(width, image.Width - sourceX);
+            int copyHeight = Math.Min(height, image.Height - sourceY);
+            if (copyWidth > 0)
+            {
+                for (int row = 0; row < copyHeight; row++)
+                {
+                    image.Pixels.AsSpan((sourceY + row) * image.Width + sourceX, copyWidth).CopyTo(crop.Pixels.AsSpan(row * width, copyWidth));
+                }
+            }
+            levels.Add(crop);
+        }
+        return levels;
     }
 
     private TextureReplacement ResolveBodySheet(TextureBuildContext context, ModFile file, string stem, TextureSourceAddress address, DecodedModImage decoded)

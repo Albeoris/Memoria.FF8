@@ -36,6 +36,7 @@ Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate
 | Demaster battle stages | `native-battle-stage-page`: original stage pages 16–21 under `textures/battle.fs/hd_new/` | Independent 256 × 256 page canvases; static and numbered animation frames. Model and effect layouts are separate contracts. |
 | Demaster battle models | `native-battle-model-sheet`: original character, weapon and monster DAT owners with source-published TIM row identities | Body and monster rows use 128 × 128 canvases; weapon rows use 128 × 32. Only original TIM layouts that publish this contract are eligible. |
 | Demaster field models | `native-field-model-sheet`: original ONE/MCH owners with source-published material ordinals | 128 × 128 planes, including horizontal closed-eye planes and source-selected alternate materials. |
+| Demaster content textures | `demaster-content-upload`: exact source-published native upload bytes | `hashOutput/<16 hexadecimal digits>_HD.dds` or `.png`; complete primary 4/8-bit indexed battle windows, including retained pixels and the live palette. Other upload families require their own proved source contract. |
 | Demaster provider extensions | Explicit `demaster-world-wmset`, `demaster-world-wmset0`, `demaster-direct` | Available address contracts; these names do not promise that the selected provider publishes them. |
 | Junction Field backgrounds | `classic-field-tile` with a native MAP-record atlas address | Whole `field/mapdata/<field>/<field>.dds` or `.png` atlas; uniform positive integer scale over 16px native slots, with first native source identity/palette ownership. |
 | Junction menu artwork | Portrait atlases under `data/eng/menu/hires/` and split `iconfl00` through `iconfl03` pages | Portraits preserve the 256 × 256 canvas; icon pages preserve 128 × 128 and select the exact native palette. A complete `menu/icon` atlas uses 256 × 256 when no split pages match. |
@@ -122,6 +123,12 @@ Source material access supports both actual ONE placements and original MCH libr
 A complete square contains one 128 × 128 plane; an image twice as wide as it is tall contains two. The second plane supplies the `eyes-closed` variant. Short uploads require an unambiguous complete material from the same source owner to establish plane width, and receive transparent completion before cropping the original TIM rectangle. Complete materials may use different integer scales. Package refresh updates stable resource handles.
 
 Registered Remastered materials select the whole plane from retained native page state. Original explicit commands and automatic copy callbacks queue open/closed commands; the actual material bind consumes them. Source replacement clears current state while preserving explicitly retained pending commands. Refreshing a mod preserves this native state. Physical page identity and packed original UVs select the applicable half; a material spanning both halves currently fails explicitly. Draw submissions retain their selected resource values so later bindings cannot change an earlier actor's image. Older registered snapshots without the required native state need an explicit migration before use.
+
+### Demaster content uploads
+
+Content lookup uses the high 64 bits of seeded XXH128 over the exact native upload bytes. Channel order, palette expansion and the complete upload window belong to the source adapter; rendered RGBA images are not interchangeable with this input. The resolver retains the other 64 bits to reject conflicting uploads with the same filename identity.
+
+Lookup tries the canonical `_HD.dds` path before `_HD.png`. Named alternatives and bare fingerprints remain inactive and produce diagnostics. Replacements require uniform positive integral scaling of the source upload canvas; exact crop boundaries are retained at each usable mip level. A rejected resource keeps its original pixels and reports a per-mod diagnostic.
 
 ### Tonberry
 

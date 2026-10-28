@@ -11,6 +11,25 @@ public sealed class DemasterContentUploadTests
     private static readonly ResourceSourceDescriptor Source = new("test", GameDataEdition.Remastered, ["demaster-content-upload"]);
 
     [Fact]
+    public void CompleteUploadSharesDecodedPixelsAndMipsAcrossResolverGenerations()
+    {
+        TextureBuildContext context = Context();
+        ModFile file = Dds(Target(context) + ".dds", 32, 16);
+        DecodedModImage decoded = ModImageDecoder.Decode(file);
+        TextureReplacement first = Assert.IsType<TextureReplacement>(Resolver(file).Resolve(context));
+        TextureReplacement second = Assert.IsType<TextureReplacement>(Resolver(file).Resolve(Context()));
+        Assert.Same(decoded.Image, first.Image);
+        Assert.Same(first.Image, second.Image);
+        Assert.Equal(decoded.MipLevels.Count, first.MipLevels!.Count);
+        Assert.Equal(first.MipLevels.Count, second.MipLevels!.Count);
+        for (int level = 0; level < decoded.MipLevels.Count; level++)
+        {
+            Assert.Same(decoded.MipLevels[level], first.MipLevels[level]);
+            Assert.Same(first.MipLevels[level], second.MipLevels[level]);
+        }
+    }
+
+    [Fact]
     public void NativeRectangleCropsEveryRepresentableMipAndPreservesLogicalCanvas()
     {
         TextureBuildContext context = Context(x: 2, y: 2, regionWidth: 4, regionHeight: 4, logicalWidth: 12, logicalHeight: 20);

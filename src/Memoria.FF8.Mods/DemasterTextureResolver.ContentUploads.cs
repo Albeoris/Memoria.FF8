@@ -43,6 +43,10 @@ public sealed partial class DemasterTextureResolver
             {
                 throw ContentUploadFailure(file, "Demaster content texture requires equal positive integral scaling of the native upload canvas.");
             }
+            if (upload.X == 0 && upload.Y == 0 && upload.RegionWidth == upload.Width && upload.RegionHeight == upload.Height)
+            {
+                return new(decoded.Image, $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, decoded.MipLevels);
+            }
             List<PixelImage> levels = [];
             foreach (PixelImage mip in decoded.MipLevels)
             {

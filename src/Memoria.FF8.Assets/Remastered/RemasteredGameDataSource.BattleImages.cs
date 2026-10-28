@@ -1,7 +1,4 @@
-using System.Buffers.Binary;
 using System.Globalization;
-using System.Reflection.PortableExecutable;
-using System.Text;
 using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets.Remastered;
@@ -68,41 +65,18 @@ public sealed partial class RemasteredGameDataSource
 
     private Dictionary<int, string> ReadBattleImageNames()
     {
-        using FileStream file = OpenAuthenticatedRuntimeCode();
-        using PEReader image = new(file);
-        const uint address = 0x117733D8;
-        const int recordCount = 122;
-        byte[] records = image.GetSectionData(checked((int)(address - image.PEHeaders.PEHeader!.ImageBase))).GetContent(0, recordCount * 32).ToArray();
         Dictionary<int, string> result = [];
-        for (int index = 0; index < recordCount; index++)
+        foreach (RemasteredBattleImageRecord record in ReadBattleImageTable())
         {
-            ReadOnlySpan<byte> record = records.AsSpan(index * 32, 32);
-            uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(record);
-            if (pointer == 0)
-            {
-                if (index != recordCount - 1)
-                {
-                    throw new InvalidDataException("Native battle image table terminates unexpectedly.");
-                }
-                return result;
-            }
-            int identity = BinaryPrimitives.ReadInt32LittleEndian(record[8..]);
-            int part = BinaryPrimitives.ReadInt32LittleEndian(record[12..]);
-            if (identity < 1000 || part != -1)
+            if (record.Identity < 1000 || record.Member != -1)
             {
                 continue;
             }
-            byte[] encoded = image.GetSectionData(checked((int)(pointer - image.PEHeaders.PEHeader.ImageBase))).GetContent(0, 32).ToArray();
-            int end = Array.IndexOf(encoded, (byte)0);
-            if (end <= 0 || encoded.AsSpan(0, end).ContainsAnyExceptInRange((byte)'0', (byte)'z'))
-            {
-                throw new InvalidDataException("Native battle image table has an invalid resource name.");
-            }
-            if (!result.TryAdd(identity, Encoding.ASCII.GetString(encoded, 0, end)))
+            if (!result.TryAdd(record.Identity, record.Name))
             {
                 throw new InvalidDataException("Native battle image table has a repeated model identity.");
             }
         }
-        throw new InvalidDataException("Native battle image table has no terminating record.");
+        return result;
     }
 }
