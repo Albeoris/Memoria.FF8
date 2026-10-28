@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
@@ -9,7 +10,7 @@ namespace Memoria.FF8.Rendering;
 public sealed partial class BattleRenderer
 {
     private readonly record struct PrimitiveVertex(float X, float Y, float Z, float ReciprocalW, Vector2 Uv, Vector3 Color, float Alpha);
-    private readonly record struct NativeTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels, string? TextureSourceOwner);
+    private readonly record struct NativeTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels, string? TextureSourceOwner, int SampleKey);
     private Dictionary<NativeTextureKey, PixelImage> nativeTexturePages = [];
     private Dictionary<NativeTextureKey, PixelImage> previousNativeTexturePages = [];
     private NativeBattleEffectTextureState? nativeTextureOwner;
@@ -199,7 +200,7 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private PixelImage ResolveNativePrimitiveTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements)
+    private PixelImage ResolveNativePrimitiveTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, TexturePrimitiveSample? firstSample = null)
     {
         NativeBattleLogicalCommand command = resolved.Command;
         PixelImage? texture;
@@ -232,7 +233,9 @@ public sealed partial class BattleRenderer
             }
             alternateShift = colorState.AlternatePaletteShift ?? throw new NotSupportedException("Native PC ABR2 requires its retained45B540 alternate-palette shift.");
         }
-        NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner);
+        TexturePrimitiveSample primitiveSample = firstSample ?? new((byte)command.Words[2] * window.ScaleU, (byte)(command.Words[2] >> 8) * window.ScaleV);
+        int sampleKey = nativeEffectTextureSource?.GetPrimitiveSampleKey(primitiveSample) ?? 0;
+        NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey);
         if (!nativeTexturePages.TryGetValue(key, out texture))
         {
             bool reusable = sameReplacements && previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
@@ -245,7 +248,7 @@ public sealed partial class BattleRenderer
                 }
                 if (nativeEffectTextureSource is not null)
                 {
-                    texture = nativeEffectTextureSource.Apply(texture, textures!, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels, alternateShift, capabilities?.DirectTextureFormat);
+                    texture = nativeEffectTextureSource.Apply(texture, textures!, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels, alternateShift, capabilities?.DirectTextureFormat, primitiveSample);
                     effectTextureGeneration = nativeEffectTextureSource.Generation;
                 }
             }

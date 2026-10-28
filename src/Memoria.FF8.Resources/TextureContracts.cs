@@ -80,6 +80,7 @@ public sealed class TextureBuildContext
     public TextureSourceAddress? NativeSheet { get; init; }
     public TextureSourcePageAddress? NativePage { get; init; }
     public TextureSourceUpload? NativeUpload { get; init; }
+    public TextureSourceAtlasAddress? NativeAtlas { get; init; }
     public string? RequestedVariant { get; init; }
 }
 

@@ -21,6 +21,7 @@ public sealed partial class DemasterTextureResolver
         ModFile? file = WithExtensions(stem).SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
         if (file is null)
         {
+            RejectUnresolvedMonsterOverlap(stem, address);
             return null;
         }
         DecodedModImage decoded = ModImageDecoder.Decode(file);
@@ -39,7 +40,15 @@ public sealed partial class DemasterTextureResolver
                 {
                     throw new ModTextureLoadException(anchor.PackageId, anchor.RelativePath, new InvalidDataException("Monster sheet row zero must anchor a positive integral native plane scale."));
                 }
-                return ResolveMonsterPlane(context, file, address, decoded, planeWidth);
+                int row = int.Parse(address.Subresource.AsSpan(4), System.Globalization.CultureInfo.InvariantCulture);
+                int firstRow = row & ~1;
+                ModFile? first = WithExtensions($"{prefix}_{firstRow}").SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
+                ModFile? second = WithExtensions($"{prefix}_{firstRow + 1}").SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
+                if (first is not null && second is not null)
+                {
+                    return ResolveMonsterAtlas(context, file, address, row, first, second, planeWidth);
+                }
+                return ResolveMonsterMaterialUpload(context, file, address, decoded, planeWidth, row);
             }
         }
         if (decoded.Image.Width <= 0 || decoded.Image.Height <= 0 || decoded.Image.Width % address.CanvasWidth != 0 || decoded.Image.Height % address.CanvasHeight != 0 || decoded.Image.Width / address.CanvasWidth != decoded.Image.Height / address.CanvasHeight)
@@ -71,13 +80,114 @@ public sealed partial class DemasterTextureResolver
         return new(levels[0], $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, levels.AsReadOnly());
     }
 
-    private static TextureReplacement ResolveMonsterPlane(TextureBuildContext context, ModFile file, TextureSourceAddress address, DecodedModImage decoded, int planeWidth)
+    private void RejectUnresolvedMonsterOverlap(string stem, TextureSourceAddress address)
     {
-        if (decoded.Image.Width <= 0 || decoded.Image.Height <= 0 || decoded.Image.Width > planeWidth || decoded.Image.Height > planeWidth)
+        if (!address.Owner.Path.StartsWith("battle/c0m", StringComparison.Ordinal))
         {
-            throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Monster image uploads must fit the native plane anchored by row zero."));
+            return;
+        }
+        int row = int.Parse(address.Subresource.AsSpan(4), System.Globalization.CultureInfo.InvariantCulture);
+        if ((row & 1) == 0)
+        {
+            return;
+        }
+        string prefix = stem[..stem.LastIndexOf('_')];
+        ModFile? previous = WithExtensions($"{prefix}_{row - 1}").SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
+        ModFile? anchor = WithExtensions($"{prefix}_0").SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
+        if (previous is null || anchor is null)
+        {
+            return;
+        }
+        int pitch = ModImageDecoder.Decode(anchor).Image.Width;
+        if (pitch <= 0 || pitch % 128 != 0)
+        {
+            throw new ModTextureLoadException(anchor.PackageId, anchor.RelativePath, new InvalidDataException("Monster sheet row zero must anchor a positive integral native plane scale."));
+        }
+        PixelImage image = ModImageDecoder.Decode(previous).Image;
+        if ((long)address.X * pitch / 128 < image.Width && (long)(128 + address.Y) * pitch / 128 < image.Height)
+        {
+            throw new ModTextureLoadException(previous.PackageId, previous.RelativePath, new InvalidDataException("An overlapping monster upload requires its original companion pixels to compose the queried material."));
+        }
+    }
+
+    private static TextureReplacement ResolveMonsterMaterialUpload(TextureBuildContext context, ModFile file, TextureSourceAddress address, DecodedModImage decoded, int planeWidth, int row)
+    {
+        if (decoded.Image.Width <= 0 || decoded.Image.Height <= 0 || (long)decoded.Image.Width > 2L * planeWidth || (long)decoded.Image.Height > (2L - (row & 1)) * planeWidth)
+        {
+            throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Monster image copies must fit their native paired atlas allocation."));
         }
         List<PixelImage> levels = CropAnchoredPlane(decoded.MipLevels, address, planeWidth, 0);
+        return new(levels[0], $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, levels.AsReadOnly());
+    }
+
+    private static TextureReplacement ResolveMonsterAtlas(TextureBuildContext context, ModFile file, TextureSourceAddress address, int row, ModFile first, ModFile second, int planeWidth)
+    {
+        ModFile[] files = [first, second];
+        DecodedModImage[] images = files.Select(ModImageDecoder.Decode).ToArray();
+        for (int layer = 0; layer < images.Length; layer++)
+        {
+            PixelImage image = images[layer].Image;
+            if (image.Width <= 0 || image.Height <= 0 || (long)image.Width > 2L * planeWidth || (long)image.Height > (2L - layer) * planeWidth)
+            {
+                throw new ModTextureLoadException(files[layer].PackageId, files[layer].RelativePath, new InvalidDataException("Monster image copies must fit their native paired atlas allocation."));
+            }
+        }
+        int x = checked(address.X * (planeWidth / 128));
+        int y = checked(((row & 1) * 128 + address.Y) * (planeWidth / 128));
+        int width = checked(address.Width * (planeWidth / 128));
+        int height = checked(address.Height * (planeWidth / 128));
+        int mipCount = int.MaxValue;
+        for (int layer = 0; layer < images.Length; layer++)
+        {
+            PixelImage image = images[layer].Image;
+            if (x < image.Width && y < (long)layer * planeWidth + image.Height && (long)y + height > (long)layer * planeWidth)
+            {
+                mipCount = Math.Min(mipCount, images[layer].MipLevels.Count);
+            }
+        }
+        if (mipCount == int.MaxValue)
+        {
+            mipCount = images[row & 1].MipLevels.Count;
+        }
+        List<PixelImage> levels = [];
+        for (int level = 0; level < mipCount; level++)
+        {
+            int pitch = Math.Max(1, planeWidth >> level);
+            if ((long)address.X * pitch % 128 != 0 || (long)address.Y * pitch % 128 != 0 || (long)address.Width * pitch % 128 != 0 || (long)address.Height * pitch % 128 != 0)
+            {
+                break;
+            }
+            int queryX = (int)((long)address.X * pitch / 128);
+            int queryY = (row & 1) * pitch + (int)((long)address.Y * pitch / 128);
+            int cropWidth = (int)((long)address.Width * pitch / 128);
+            int cropHeight = (int)((long)address.Height * pitch / 128);
+            if (cropWidth <= 0 || cropHeight <= 0)
+            {
+                break;
+            }
+            PixelImage crop = new(cropWidth, cropHeight);
+            for (int layer = 0; layer < images.Length; layer++)
+            {
+                if (level >= images[layer].MipLevels.Count)
+                {
+                    continue;
+                }
+                PixelImage image = images[layer].MipLevels[level];
+                int left = Math.Max(queryX, 0);
+                int top = Math.Max(queryY, layer * pitch);
+                int right = (int)Math.Min((long)queryX + cropWidth, image.Width);
+                int bottom = (int)Math.Min((long)queryY + cropHeight, (long)layer * pitch + image.Height);
+                if (left >= right || top >= bottom)
+                {
+                    continue;
+                }
+                for (int line = top; line < bottom; line++)
+                {
+                    image.Pixels.AsSpan((line - layer * pitch) * image.Width + left, right - left).CopyTo(crop.Pixels.AsSpan((line - queryY) * cropWidth + left - queryX, right - left));
+                }
+            }
+            levels.Add(crop);
+        }
         return new(levels[0], $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, levels.AsReadOnly());
     }
 

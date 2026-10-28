@@ -37,6 +37,7 @@ Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate
 | Demaster battle models | `native-battle-model-sheet`: original character, weapon and monster DAT owners with source-published TIM row identities | Body and monster rows use 128 × 128 canvases; weapon rows use 128 × 32. Only original TIM layouts that publish this contract are eligible. |
 | Demaster field models | `native-field-model-sheet`: original ONE/MCH owners with source-published material ordinals | 128 × 128 planes, including horizontal closed-eye planes and source-selected alternate materials. |
 | Demaster content textures | `demaster-content-upload`: exact source-published native upload bytes | `hashOutput/<16 hexadecimal digits>_HD.dds` or `.png`; complete primary 4/8-bit indexed battle windows, including retained pixels and the live palette. Other upload families require their own proved source contract. |
+| Demaster GF atlases | `native-battle-gf-atlas`: primary Remastered source publishes native page ownership, image selectors and atlas sampling | Even `magNNN_N.dds` or `.png` images replace the complete bound atlas. Odd image contributions are inactive in this format. Model-resource selection alone does not change the primary GF resource source. |
 | Demaster provider extensions | Explicit `demaster-world-wmset`, `demaster-world-wmset0`, `demaster-direct` | Available address contracts; these names do not promise that the selected provider publishes them. |
 | Junction Field backgrounds | `classic-field-tile` with a native MAP-record atlas address | Whole `field/mapdata/<field>/<field>.dds` or `.png` atlas; uniform positive integer scale over 16px native slots, with first native source identity/palette ownership. |
 | Junction menu artwork | Portrait atlases under `data/eng/menu/hires/` and split `iconfl00` through `iconfl03` pages | Portraits preserve the 256 × 256 canvas; icon pages preserve 128 × 128 and select the exact native palette. A complete `menu/icon` atlas uses 256 × 256 when no split pages match. |
@@ -129,6 +130,12 @@ Registered Remastered materials select the whole plane from retained native page
 Content lookup uses the high 64 bits of seeded XXH128 over the exact native upload bytes. Channel order, palette expansion and the complete upload window belong to the source adapter; rendered RGBA images are not interchangeable with this input. The resolver retains the other 64 bits to reject conflicting uploads with the same filename identity.
 
 Lookup tries the canonical `_HD.dds` path before `_HD.png`. Named alternatives and bare fingerprints remain inactive and produce diagnostics. Replacements require uniform positive integral scaling of the source upload canvas; exact crop boundaries are retained at each usable mip level. A rejected resource keeps its original pixels and reports a per-mod diagnostic.
+
+### Demaster GF atlases
+
+The source selects the original component and full atlas canvas. Replacements preserve that canvas's aspect ratio and use a positive integral scale. The current whole-texture format consumes even image ordinals, rather than combining them with the odd legacy component images. Language variants follow the source's native selectors.
+
+Wide atlases can depend on the last matching texture-copy operation and the first vertex's sampling coordinates. These are supplied through resource metadata. Historical snapshots with unavailable copy order retain their original rendering; a replacement requiring that missing history reports a per-mod diagnostic. A real owner reload establishes new history. Original saves are not modified automatically.
 
 ### Tonberry
 

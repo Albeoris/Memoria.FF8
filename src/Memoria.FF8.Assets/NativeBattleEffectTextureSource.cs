@@ -11,6 +11,16 @@ public interface INativeBattleEffectTextureSource
 {
     long Generation { get; }
     PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null);
+
+    int GetPrimitiveSampleKey(TexturePrimitiveSample sample)
+    {
+        return 0;
+    }
+
+    PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, TexturePrimitiveSample sample)
+    {
+        return Apply(original, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat);
+    }
 }
 
 public sealed class NativeBattleEffectTextureSource(ResourceService resources) : INativeBattleEffectTextureSource, IDisposable
@@ -31,7 +41,26 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
 
     public long Generation => resources.Generation;
 
+    public int GetPrimitiveSampleKey(TexturePrimitiveSample sample)
+    {
+        if (!float.IsFinite(sample.FirstU) || !float.IsFinite(sample.FirstV))
+        {
+            throw new InvalidDataException("Native texture sampling requires finite primitive coordinates.");
+        }
+        return resources.Source.Layouts.Contains("native-battle-gf-atlas") ? sample.FirstV < 0.5f ? 1 : 2 : 0;
+    }
+
     public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
+    {
+        return ApplyCore(original, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat, null);
+    }
+
+    public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, TexturePrimitiveSample sample)
+    {
+        return ApplyCore(original, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat, sample);
+    }
+
+    private PixelImage ApplyCore(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, TexturePrimitiveSample? sample)
     {
         int depth = (page >> 7) & 3;
         if (depth == 3 || width <= 0 || height <= 0)
@@ -39,6 +68,22 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
             throw new InvalidDataException("Native effect texture queries require a supported depth and positive logical crop.");
         }
         long retainedRevision = retainedPixels is null ? 0 : retainedRevisions.GetValue(retainedPixels, _ => new()).Value;
+        ImmutableArray<NativeBattleTextureRegistration>? registrations = retainedPixels is null ? state.TextureRegistrations : retainedPixels.TextureRegistrations;
+        if (resources.Source.Layouts.Contains("native-battle-gf-atlas") && registrations is { } atlasRegistrations && resources.GetSource<INativeBattleGfAtlasSource>()?.TryGetGfAtlasAddress(atlasRegistrations, page, clut, u, v, width, height, sample) is { } atlas)
+        {
+            int sampleKey = sample is { } primitiveSample ? GetPrimitiveSampleKey(primitiveSample) : 0;
+            TextureKey atlasKey = new(new("battle/native-gf-atlas"), $"atlas/{scope}/{page}/{clut}/{u}/{v}/{width}/{height}/retained/{retainedRevision}/sample/{sampleKey}");
+            TextureBuildContext atlasContext = new(atlasKey, resources.Source, revisions.GetValue(state, _ => new()).Value, "native-battle-gf-atlas", width, height, () => original)
+            {
+                NativeAtlas = atlas
+            };
+            TextureValue atlasValue = resources.GetTexture(atlasContext, !retained.ContainsKey(atlasKey)).Value;
+            Retain(atlasKey);
+            if (atlasValue.IsReplacement)
+            {
+                return alternatePaletteShift is byte atlasShift ? Alternate(atlasValue.Image, atlasShift) : atlasValue.Image;
+            }
+        }
         TextureSourceUpload? upload = resources.Source.Layouts.Contains("demaster-content-upload") ? NativeBattlePcTextureUploadSource.Create(state, page, clut, u, v, width, height, retainedPixels) : null;
         if (upload is not null)
         {

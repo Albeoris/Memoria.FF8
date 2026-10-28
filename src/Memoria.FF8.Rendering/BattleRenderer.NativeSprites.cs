@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
@@ -24,7 +25,7 @@ public sealed partial class BattleRenderer
         ImmutableArray<NativeBattlePrimitiveDepthVertex> projected = depthState.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native sprite lacks its original OT bucket."), perspective, command.Flags20, depths);
         int mode = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native sprite diffuse color requires its executed ABR.");
         NativeBattlePrimitiveColor diffuse = colorState.Textured(command.Words[0], semi, mode, false);
-        PixelImage texture = ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements);
+        PixelImage texture = ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, new TexturePrimitiveSample(corners[0].TextureU, corners[0].TextureV));
         Submit(0, semi ? mode : -1);
         if (!semi)
         {

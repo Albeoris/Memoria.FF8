@@ -1,13 +1,50 @@
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Text.Json;
+using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleSprite64RenderingTests
 {
+    [Fact]
+    public void TextureQueriesReceiveTheRenderedFirstCornerAndSeparateSourceVariants()
+    {
+        Capture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        SampleSource source = new();
+        NativeBattleEffectTextureState state = Texture(31);
+        renderer.RenderNativePrimitiveFrame(Frame(Command(Mode(), u: 32, v: 64)), state, capabilities: Capabilities(), effectTextureSource: source);
+        renderer.RenderNativePrimitiveFrame(Frame(Command(Mode(), u: 32, v: 192)), state, capabilities: Capabilities(), effectTextureSource: source);
+        Assert.Equal(new[] { new TexturePrimitiveSample(32f / 256, 64f / 256), new TexturePrimitiveSample(32f / 256, 192f / 256) }, source.Samples);
+    }
+
+    private sealed class SampleSource : INativeBattleEffectTextureSource
+    {
+        public long Generation => 0;
+        public List<TexturePrimitiveSample> Samples { get; } = [];
+
+        public int GetPrimitiveSampleKey(TexturePrimitiveSample sample)
+        {
+            return sample.FirstV < 0.5f ? 1 : 2;
+        }
+
+        public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
+        {
+            throw new InvalidOperationException("The renderer must publish its actual primitive sampling coordinates.");
+        }
+
+        public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, TexturePrimitiveSample sample)
+        {
+            Samples.Add(sample);
+            return original;
+        }
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -129,7 +166,7 @@ public sealed class NativeBattleSprite64RenderingTests
         int offset = 4 * (23 * 320 + 13);
         Assert.True(red[offset] > red[offset + 1]);
         Assert.True(green[offset + 1] > green[offset]);
-        NativeBattlePrimitiveFrame restored = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattlePrimitiveFrame restored = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!;
         Assert.Equal(green, new BattleRenderer(320, 216).RenderNativePrimitiveFrame(restored, Texture(0x3E0), capabilities: Capabilities()));
     }
 

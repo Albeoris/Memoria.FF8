@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -11,6 +12,8 @@ public sealed record NativeBattleTextureRegistration(NativeBattleTextureOrigin O
     public int OwnerId => X + Y * 1024;
     public bool Active { get; init; } = true;
     public bool CopyHistoryKnown { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<int>? CopyOrder { get; init; }
     public int ExactFrame => CopyHistoryKnown && PaletteOwnedSpans is not null ? CurrentFrame : -1;
     public ImmutableArray<NativeBattleTextureOwnedSpan>? PaletteOwnedSpans { get; init; }
     public ImmutableArray<NativeBattleTextureOwnedSpan> OwnedSpans { get; init; } = [new(X, Y, WidthWords, Height)];
@@ -30,6 +33,10 @@ public sealed record NativeBattleTextureRegistration(NativeBattleTextureOrigin O
             {
                 throw new InvalidDataException("Native texture copy history cannot contain empty copy frames.");
             }
+        }
+        if (CopyOrder is { } order && (order.IsDefault || order.Length != CopyFrames.Length || order.Any(index => index < 0 || index >= CopyFrames.Length) || order.Distinct().Count() != order.Length))
+        {
+            throw new InvalidDataException("Native texture copy order requires every stable frame index exactly once.");
         }
         if (OwnedSpans.IsDefault)
         {
@@ -108,7 +115,7 @@ public static class NativeBattleTextureCopyHistory
         }
         if (registrations.Value.Any(owner => owner.PaletteOwnedSpans is null))
         {
-            return registrations.Value.Select(owner => owner with { CopyHistoryKnown = false }).ToImmutableArray();
+            return registrations.Value.Select(owner => owner with { CopyHistoryKnown = false, CopyOrder = null }).ToImmutableArray();
         }
         (int source, bool sourcePalette) = FindRole(registrations.Value, copy.SourceX, copy.SourceY);
         (int target, bool targetPalette) = FindRole(registrations.Value, copy.DestinationX, copy.DestinationY);
@@ -195,9 +202,9 @@ public static class NativeBattleTextureCopyHistory
         int index = registration.CopyFrames.IndexOf(frame);
         if (index >= 0)
         {
-            return registration with { CurrentFrame = index };
+            return registration with { CurrentFrame = index, CopyOrder = registration.CopyOrder is { } order ? order.Remove(index).Add(index) : null };
         }
-        return registration with { CopyFrames = registration.CopyFrames.Add(frame), CurrentFrame = registration.CopyFrames.Length };
+        return registration with { CopyFrames = registration.CopyFrames.Add(frame), CurrentFrame = registration.CopyFrames.Length, CopyOrder = registration.CopyOrder is { } previous ? previous.Add(registration.CopyFrames.Length) : null };
     }
 
     private const int PaletteFlag = 1 << 30;
@@ -290,7 +297,8 @@ public static class NativeBattleTextureCopyHistory
                 {
                     OwnedSpans = Spans(pixelSpans, newId),
                     PaletteOwnedSpans = Spans(paletteSpans, newId),
-                    CopyHistoryKnown = true
+                    CopyHistoryKnown = true,
+                    CopyOrder = []
                 });
             }
             return result.ToImmutable();

@@ -64,6 +64,12 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             supported |= modelTarget && HasLayout(models, ModelSheetLayout) && IsModelSheetTarget(models, stem);
             bool fieldModelTarget = IsFieldModelSheetFamily(stem);
             supported |= fieldModelTarget && HasLayout(models, FieldModelSheetLayout) && IsFieldModelSheetTarget(stem);
+            if (IsGfAtlasTarget(stem) && !IsGfAtlasImageTarget(stem))
+            {
+                diagnostics.Add(new ModDiagnostic("demaster-inactive-atlas-component", $"Texture '{path}' is an inactive component of the native whole-atlas format. Even image ordinals replace the complete atlas; odd contributions are not loaded.", file.PackageId, path));
+                continue;
+            }
+            supported |= IsGfAtlasImageTarget(stem) && HasLayout(source, GfAtlasLayout);
             supported |= !battleTarget && !fieldTarget && !modelTarget && !fieldModelTarget && source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-direct");
             if (supported)
             {
@@ -80,6 +86,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public TextureReplacement? Resolve(TextureBuildContext context)
     {
+        if (context.Layout == GfAtlasLayout)
+        {
+            return ResolveGfAtlas(context);
+        }
         if (ResolveContentUpload(context) is { } content)
         {
             return content;
@@ -130,6 +140,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public static IReadOnlyList<string> CandidatePaths(TextureBuildContext context)
     {
+        if (context.Layout == GfAtlasLayout)
+        {
+            return CandidateGfAtlasPaths(context);
+        }
         if (context.Layout == "classic-field-model")
         {
             return TryFieldModelSheetAddress(context, out string fieldModelName, out int fieldModelRow, out string fieldModelVariant, out _) ? FieldModelSheetPaths(fieldModelName, fieldModelRow, fieldModelVariant) : Array.Empty<string>();

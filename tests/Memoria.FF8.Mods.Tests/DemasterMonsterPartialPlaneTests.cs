@@ -61,7 +61,7 @@ public sealed class DemasterMonsterPartialPlaneTests
     }
 
     [Theory]
-    [InlineData(385, 384)]
+    [InlineData(769, 384)]
     [InlineData(384, 385)]
     public void AnUploadCannotEscapeItsSourceOwnersAnchoredPlane(int width, int height)
     {
@@ -97,6 +97,57 @@ public sealed class DemasterMonsterPartialPlaneTests
         Assert.Equal((384, 384), (replacement.Image.Width, replacement.Image.Height));
         Assert.Equal(Color(3, 3, 0), replacement.Image[3, 3]);
         Assert.Equal(default, replacement.Image[4, 3]);
+    }
+
+    [Fact]
+    public void AnUploadCanCrossThePlaneBoundaryWhileFittingTheWholeNativeAtlas()
+    {
+        TextureReplacement replacement = Assert.IsType<TextureReplacement>(Resolver(Image(0, 384, 384), Image(1, 768, 288)).Resolve(Context(1)));
+
+        Assert.Equal((384, 384), (replacement.Image.Width, replacement.Image.Height));
+        Assert.Equal(Color(383, 287, 0), replacement.Image[383, 287]);
+        Assert.Equal(default, replacement.Image[383, 288]);
+    }
+
+    [Fact]
+    public void OrderedPairCopiesPreserveAnEarlierUploadsPixelsOutsideTheLaterRectangle()
+    {
+        TextureReplacement replacement = Assert.IsType<TextureReplacement>(Resolver(Image(0, 384, 384), Image(2, 768, 576), Image(3, 192, 144)).Resolve(Context(3)));
+
+        Assert.Equal(Color(191, 143, 0), replacement.Image[191, 143]);
+        Assert.Equal(Color(192, 384 + 143, 0), replacement.Image[192, 143]);
+        Assert.Equal(Color(191, 384 + 144, 0), replacement.Image[191, 144]);
+        Assert.Equal(Color(383, 575, 0), replacement.Image[383, 191]);
+        Assert.Equal(default, replacement.Image[383, 192]);
+    }
+
+    [Fact]
+    public void ACompanionOutsideTheSelectedBanksPairCannotContributePixels()
+    {
+        TextureReplacement replacement = Assert.IsType<TextureReplacement>(Resolver(Image(0, 384, 384), Image(1, 768, 384), Image(2, 384, 384), Image(3, 4, 4)).Resolve(Context(3)));
+
+        Assert.Equal(Color(3, 3, 0), replacement.Image[3, 3]);
+        Assert.Equal(default, replacement.Image[4, 3]);
+    }
+
+    [Theory]
+    [InlineData(2, 768, 576)]
+    [InlineData(3, 768, 288)]
+    public void AProvidedRowsOwnQueryDoesNotNeedADisjointStockCompanion(int row, int width, int height)
+    {
+        TextureReplacement replacement = Assert.IsType<TextureReplacement>(Resolver(Image(0, 384, 384), Image(row, width, height)).Resolve(Context(row)));
+
+        Assert.Equal((384, 384), (replacement.Image.Width, replacement.Image.Height));
+        Assert.Equal(Color(383, Math.Min(383, height - 1), 0), replacement.Image[383, Math.Min(383, height - 1)]);
+    }
+
+    [Fact]
+    public void ACopyOverlappingAnUnprovidedMaterialRequiresItsOriginalCompanionPixels()
+    {
+        ModTextureLoadException failure = Assert.Throws<ModTextureLoadException>(() => Resolver(Image(0, 384, 384), Image(2, 768, 576)).Resolve(Context(3)));
+
+        Assert.Equal(Path(2), failure.RelativePath);
+        Assert.Null(Resolver(Image(0, 384, 384), Image(2, 384, 384)).Resolve(Context(3)));
     }
 
     private static string Path(int row) => $"textures/battle.fs/hd_new/c0m777_{row}.dds";
