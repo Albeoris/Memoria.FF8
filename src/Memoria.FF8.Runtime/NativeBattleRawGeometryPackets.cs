@@ -25,9 +25,15 @@ public static class NativeBattleRawGeometryPackets
             NativeBattleProjectedVertex[] projected;
             if (viewport is { } expanded)
             {
-                var unpacked = mesh.Vertices.Select(vertex => NativeBattleGeometryProjection.ProjectUnpacked50F900(vertex.Bone < matrices.Count ? matrices[vertex.Bone] : throw new InvalidDataException("Native5099D0 lacks the original selected bone matrix."), vertex.Position, projection, expanded)).ToArray();
-                coordinates = unpacked.Select(vertex => vertex.Position).ToArray();
-                projected = unpacked.Select(vertex => new NativeBattleProjectedVertex(unchecked((ushort)vertex.Position.X) | unchecked((uint)vertex.Position.Y << 16), vertex.DepthAndClip)).ToArray();
+                coordinates = new BattleSceneScreenPoint[mesh.Vertices.Length];
+                projected = new NativeBattleProjectedVertex[mesh.Vertices.Length];
+                for (int vertexIndex = 0; vertexIndex < mesh.Vertices.Length; vertexIndex++)
+                {
+                    NativeBattleRawVertex vertex = mesh.Vertices[vertexIndex];
+                    var unpacked = NativeBattleGeometryProjection.ProjectUnpacked50F900(vertex.Bone < matrices.Count ? matrices[vertex.Bone] : throw new InvalidDataException("Native5099D0 lacks the original selected bone matrix."), vertex.Position, projection, expanded);
+                    coordinates[vertexIndex] = unpacked.Position;
+                    projected[vertexIndex] = new(unchecked((ushort)unpacked.Position.X) | unchecked((uint)unpacked.Position.Y << 16), unpacked.DepthAndClip);
+                }
             }
             else
             {

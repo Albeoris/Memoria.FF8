@@ -82,6 +82,35 @@ public sealed class BattleSceneExpandedGeometryTests
     }
 
     [Fact]
+    public void ExpandedMultiMeshProjectionPreservesExactPacketOrderDepthCoordinatesAndNativeScratchClipping()
+    {
+        NativeBattleRawMesh first = Mesh(0, 0);
+        NativeBattleRawMesh rejected = Mesh(0, 0, reverse: true);
+        NativeBattleRawMesh second = Mesh(200, 0);
+        second = second with { Vertices = second.Vertices.Select(vertex => vertex with { Bone = 1 }).ToImmutableArray() };
+        NativeBattleActionMatrix translated = Identity with { X = 50 };
+        List<NativeBattleProjectedVertex[]> scratch = [];
+        ImmutableArray<NativeBattleGeometryPrimitive> packets = NativeBattleRawGeometryPackets.Emit5099D0([first, rejected, second], [Identity, translated], Projection, 0x808080, 7, null, 17, 4, null, publishProjectedScratch: vertices => scratch.Add(vertices.ToArray()), viewport: ExpandedViewport);
+
+        Assert.Equal(2, packets.Length);
+        Assert.Equal(new uint[] { 0x07000000, 0x24808080, 0x031004B0, 0, 0x03100550, 0, 0x03B00500, 0 }, packets[0].Words.ToArray());
+        Assert.Equal(new uint[] { 0x07000000, 0x24808080, 0x03100C80, 0, 0x03100D20, 0, 0x03B00CD0, 0 }, packets[1].Words.ToArray());
+        Assert.Equal(new[] { new BattleSceneScreenPoint(1200, 784), new BattleSceneScreenPoint(1360, 784), new BattleSceneScreenPoint(1280, 944) }, packets[0].ProjectedCoordinates!.Value.ToArray());
+        Assert.Equal(new[] { new BattleSceneScreenPoint(3200, 784), new BattleSceneScreenPoint(3360, 784), new BattleSceneScreenPoint(3280, 944) }, packets[1].ProjectedCoordinates!.Value.ToArray());
+        Assert.All(packets, packet =>
+        {
+            Assert.Equal(79, packet.Bucket);
+            Assert.Equal(new[] { 1000, 1000, 1000, 0 }, packet.VertexPayload4.ToArray());
+        });
+        Assert.Equal(3, scratch.Count);
+        Assert.All(scratch[0], vertex => Assert.Equal(0u, vertex.DepthAndClip & 0x3F00000));
+        Assert.All(scratch[2], vertex => Assert.NotEqual(0u, vertex.DepthAndClip & 0x3F00000));
+        Assert.Equal(packets[1].Words[2], scratch[2][0].Screen);
+        Assert.Equal((ushort)1, second.Vertices[0].Bone);
+        Assert.Equal((short)190, second.Vertices[0].Position.X);
+    }
+
+    [Fact]
     public void Expanded_scene_keeps_a_face_crossing_opposite_clip_edges()
     {
         Assert.Single(Emit(Triangle(new(-5000, -10, 1000), new(5000, -10, 1000), new(-5000, 10, 1000)), ExpandedViewport));

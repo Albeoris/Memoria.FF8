@@ -20,19 +20,33 @@ public static class NativeBattleCommonPacketArena
 
     public static ImmutableArray<NativeBattleCommonPacketStore> PrimitiveStores(int address, NativeBattleGeometryPrimitive primitive, bool linked)
     {
+        NativeBattleCommonPacketStore store = CreatePrimitiveStore(address, primitive);
+        return linked && primitive.PhysicalWriteMask is not null ? [store, new(address, UnknownLinkBytes, UnknownLinkMask)] : [store];
+    }
+
+    internal static void AppendPrimitiveStores(ImmutableArray<NativeBattleCommonPacketStore>.Builder stores, int address, NativeBattleGeometryPrimitive primitive, bool linked)
+    {
+        stores.Add(CreatePrimitiveStore(address, primitive));
+        if (linked && primitive.PhysicalWriteMask is not null)
+        {
+            stores.Add(new(address, UnknownLinkBytes, UnknownLinkMask));
+        }
+    }
+
+    private static NativeBattleCommonPacketStore CreatePrimitiveStore(int address, NativeBattleGeometryPrimitive primitive)
+    {
         if (primitive.PhysicalWriteMask is not { } mask)
         {
             // TODO(TD-009): Other logical emitters do not yet establish actual padding/rejected stores.
             int length = checked(4 * primitive.Words.Length);
-            return [new(address, ImmutableCollectionsMarshal.AsImmutableArray(new byte[length]), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, length).ToImmutableArray())];
+            return new(address, ImmutableCollectionsMarshal.AsImmutableArray(new byte[length]), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, length).ToImmutableArray());
         }
         byte[] data = new byte[checked(4 * primitive.Words.Length)];
         for (int index = 0; index < primitive.Words.Length; index++)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4 * index), primitive.Words[index]);
         }
-        NativeBattleCommonPacketStore store = new(address, ImmutableCollectionsMarshal.AsImmutableArray(data), mask);
-        return linked ? [store, new(address, UnknownLinkBytes, UnknownLinkMask)] : [store];
+        return new(address, ImmutableCollectionsMarshal.AsImmutableArray(data), mask);
     }
 
     public static NativeBattleCommonPacketWrite Append(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null)
@@ -83,7 +97,7 @@ public static class NativeBattleCommonPacketArena
             links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw, pilotGeometry: primitive.PilotGeometry);
             if (linked)
             {
-                stores.Add(new(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), KnownLinkMask));
+                stores.Add(new(address, ImmutableCollectionsMarshal.AsImmutableArray(NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink)), KnownLinkMask));
             }
             acceptedEnd = Math.Max(acceptedEnd, end);
         }

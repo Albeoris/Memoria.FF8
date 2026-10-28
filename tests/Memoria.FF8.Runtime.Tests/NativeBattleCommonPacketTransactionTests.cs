@@ -215,6 +215,33 @@ public sealed class NativeBattleCommonPacketTransactionTests
     }
 
     [Fact]
+    public void DirectPrimitiveStoresKeepCommittedPrefixWhenALaterBatchFailsValidation()
+    {
+        NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(0, Enumerable.Repeat((byte)0xA5, 64).ToImmutableArray(), Known(64));
+        NativeBattleGeometryPrimitive primitive = new(20, [0x03000000, 0x20030201, 0x000A000A, 0x00140014], []) { PhysicalWriteMask = Known(16) };
+        using NativeBattleCommonPacketTransaction transaction = new(source);
+        NativeBattlePrimitiveProcess current = transaction.View;
+        ImmutableArray<NativeBattleCommonPacketStore>.Builder prefix = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
+        NativeBattleCommonPacketArena.AppendPrimitiveStores(prefix, 0, primitive, true);
+        prefix.Add(new(0, [0x56, 0x34, 0x12], Known(3)));
+        transaction.BeginCheckpoint();
+        current = current.ApplyCommonWrites(prefix.ToImmutable());
+        transaction.CommitCheckpoint();
+        NativeBattlePrimitiveProcess published = NativeBattleStorageSnapshots.Capture(transaction.Freeze(current));
+        byte[] committed = current.ReadCommonPacket(0, 16);
+        Assert.Equal(new byte[] { 0x56, 0x34, 0x12, 3 }, committed[..4]);
+        ImmutableArray<NativeBattleCommonPacketStore>.Builder suffix = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
+        NativeBattleCommonPacketArena.AppendPrimitiveStores(suffix, 16, primitive, true);
+        suffix.Add(new(int.MaxValue, [8], [(NativeBattleGfPacketByteState)255]));
+        transaction.BeginCheckpoint();
+        Assert.Throws<InvalidDataException>(() => current.ApplyCommonWrites(suffix.ToImmutable()));
+        transaction.RollbackCheckpoint();
+        Assert.Equal(committed, current.ReadCommonPacket(0, 16));
+        Assert.Equal(Enumerable.Repeat((byte)0xA5, 16).ToArray(), current.ReadCommonPacket(16, 16));
+        Assert.Equal(committed, NativeBattleStorageSnapshots.Restore(published).ReadCommonPacket(0, 16));
+    }
+
+    [Fact]
     public void Whole_batch_validation_precedes_overlay_mutation_and_unknown_retains_backing_bytes()
     {
         NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(0, [1, 2, 3, 4], Known(4));

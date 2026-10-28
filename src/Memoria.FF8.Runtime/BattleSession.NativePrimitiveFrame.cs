@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -58,11 +59,11 @@ public sealed partial class BattleSession
             {
                 ordering.InvalidatePacketRange(new(bank, process.PacketBuffer, cursor), primitive.Words.Length * 4);
             }
-            stores.AddRange(NativeBattleCommonPacketArena.PrimitiveStores(cursor, primitive, linked));
+            NativeBattleCommonPacketArena.AppendPrimitiveStores(stores, cursor, primitive, linked);
             ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw, primitive.ProjectedCoordinates, textureSourceOwner, primitive.PilotGeometry);
             if (linked)
             {
-                stores.Add(new(cursor, NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink).ToImmutableArray(), NativeBattleCommonPacketArena.KnownLinkMask));
+                stores.Add(new(cursor, ImmutableCollectionsMarshal.AsImmutableArray(NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink)), NativeBattleCommonPacketArena.KnownLinkMask));
             }
             cursor = next;
         }

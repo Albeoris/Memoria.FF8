@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
@@ -13,6 +14,14 @@ public sealed partial class BattleRenderer
     private readonly record struct NativeTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels, string? TextureSourceOwner, int SampleKey);
     private Dictionary<NativeTextureKey, PixelImage> nativeTexturePages = [];
     private Dictionary<NativeTextureKey, PixelImage> previousNativeTexturePages = [];
+    private const int MaximumRawTextureCandidates = 128;
+    private const int MaximumRawTextureBytes = 16 * 1024 * 1024;
+    // Raw pixels can stay identical while provenance changes the replacement. Keep only two bounded render endpoints.
+    private readonly record struct NativeRawTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcDirectTextureFormat? DirectFormat);
+    private readonly record struct NativeRawTextureCandidate(PixelImage Image, NativeBattlePcTextureWindowPixels? Pixels, int Bytes);
+    private Dictionary<NativeRawTextureKey, NativeRawTextureCandidate> nativeRawTexturePages = [];
+    private Dictionary<NativeRawTextureKey, NativeRawTextureCandidate> previousNativeRawTexturePages = [];
+    private int nativeRawTextureBytes;
     private NativeBattleEffectTextureState? nativeTextureOwner;
     private NativeBattlePcDirectTextureFormat? nativeDirectTextureFormat;
     private IReadOnlyList<NativeBattleTextureReplacement>? nativeModelReplacements;
@@ -45,6 +54,9 @@ public sealed partial class BattleRenderer
         }
         (nativeTexturePages, previousNativeTexturePages) = (previousNativeTexturePages, nativeTexturePages);
         nativeTexturePages.Clear();
+        (nativeRawTexturePages, previousNativeRawTexturePages) = (previousNativeRawTexturePages, nativeRawTexturePages);
+        nativeRawTexturePages.Clear();
+        nativeRawTextureBytes = 0;
         NativeBattleEffectTextureState? previousTextureOwner = nativeTextureOwner;
         bool sameReplacements = ReferenceEquals(nativeModelReplacements, replacements) || nativeModelReplacements is not null && replacements is not null && nativeModelReplacements.SequenceEqual(replacements);
         sameReplacements &= ReferenceEquals(nativeEffectTextureSource, effectTextureSource) && effectTextureGeneration == (effectTextureSource?.Generation ?? 0);
@@ -54,6 +66,7 @@ public sealed partial class BattleRenderer
         if (nativeDirectTextureFormat != capabilities?.DirectTextureFormat)
         {
             previousNativeTexturePages.Clear();
+            previousNativeRawTexturePages.Clear();
         }
         nativeTextureOwner = textures;
         nativeDirectTextureFormat = capabilities?.DirectTextureFormat;
@@ -258,10 +271,16 @@ public sealed partial class BattleRenderer
         NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey);
         if (!nativeTexturePages.TryGetValue(key, out texture))
         {
+            NativeRawTextureKey rawKey = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, capabilities?.DirectTextureFormat);
             bool reusable = sameReplacements && (retainedPixels is not null || sameNativeTextureOrigins) && previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
             if (!reusable)
             {
-                texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
+                NativeBattleEffectTextureState textureState = textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner.");
+                if (!TryReuseNativeRawTexture(rawKey, retainedPixels, textureState, previousTextureOwner, out texture))
+                {
+                    texture = NativeBattleEffectTextureReader.DecodePcRegion(textureState, page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
+                }
+                RetainNativeRawTexture(rawKey, texture, retainedPixels);
                 PixelImage? decodedNative = alternateShift is null ? texture : null;
                 if (replacements is not null && alternateShift is null)
                 {
@@ -273,9 +292,57 @@ public sealed partial class BattleRenderer
                     effectTextureGeneration = nativeEffectTextureSource.Generation;
                 }
             }
+            else if (textures is not null && TryReuseNativeRawTexture(rawKey, retainedPixels, textures, previousTextureOwner, out PixelImage? raw))
+            {
+                RetainNativeRawTexture(rawKey, raw!, retainedPixels);
+            }
             nativeTexturePages.Add(key, texture!);
         }
         return texture!;
+    }
+
+    private bool TryReuseNativeRawTexture(NativeRawTextureKey key, NativeBattlePcTextureWindowPixels? pixels, NativeBattleEffectTextureState textures, NativeBattleEffectTextureState? previousTextures, [NotNullWhen(true)] out PixelImage? image)
+    {
+        if (nativeRawTexturePages.TryGetValue(key, out NativeRawTextureCandidate current) && SameNativeRawWords(current.Pixels, pixels) && NativeBattleEffectTextureReader.HasSamePcRegionSource(textures, textures, key.Page, key.Clut, key.X, key.Y, key.Width, key.Height, pixels))
+        {
+            image = current.Image;
+            return true;
+        }
+        if (previousTextures is not null && previousNativeRawTexturePages.TryGetValue(key, out NativeRawTextureCandidate previous) && SameNativeRawWords(previous.Pixels, pixels) && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextures, textures, key.Page, key.Clut, key.X, key.Y, key.Width, key.Height, pixels))
+        {
+            image = previous.Image;
+            return true;
+        }
+        image = null;
+        return false;
+    }
+
+    private static bool SameNativeRawWords(NativeBattlePcTextureWindowPixels? previous, NativeBattlePcTextureWindowPixels? current)
+    {
+        if (ReferenceEquals(previous, current))
+        {
+            return true;
+        }
+        if (previous is null || current is null)
+        {
+            return false;
+        }
+        previous.Validate();
+        current.Validate();
+        return previous.X == current.X && previous.Y == current.Y && previous.Width == current.Width && previous.Height == current.Height && previous.Data.AsSpan().SequenceEqual(current.Data.AsSpan());
+    }
+
+    private void RetainNativeRawTexture(NativeRawTextureKey key, PixelImage image, NativeBattlePcTextureWindowPixels? pixels)
+    {
+        int bytes = checked(image.Pixels.Length * 4 + (pixels?.Data.Length ?? 0));
+        bool exists = nativeRawTexturePages.TryGetValue(key, out NativeRawTextureCandidate previous);
+        int remaining = nativeRawTextureBytes - (exists ? previous.Bytes : 0);
+        if ((!exists && nativeRawTexturePages.Count >= MaximumRawTextureCandidates) || bytes > MaximumRawTextureBytes - remaining)
+        {
+            return;
+        }
+        nativeRawTexturePages[key] = new(image, pixels, bytes);
+        nativeRawTextureBytes = remaining + bytes;
     }
 
     private static bool SameTextureOrigins(NativeBattleEffectTextureState? previous, NativeBattleEffectTextureState? current)

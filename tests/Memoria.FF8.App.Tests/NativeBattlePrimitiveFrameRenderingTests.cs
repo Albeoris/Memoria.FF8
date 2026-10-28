@@ -11,6 +11,175 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattlePrimitiveFrameRenderingTests
 {
     [Fact]
+    public void Raw_pixels_survive_a_held_final_frame_while_metadata_owner_and_catalog_reapply_replacements()
+    {
+        NativeBattleEffectTextureState state = Texture(31);
+        NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
+        NativeBattlePrimitiveFrame frame = Frame([RawCacheQuad()]) with { LastTextureSnapshots = [held] };
+        TextureCapture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        RawCacheTextureSource source = new();
+        renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
+        PixelImage native = Assert.Single(source.NativeImages);
+        PixelImage firstFinal = capture.Texture!;
+        Assert.NotSame(native, firstFinal);
+
+        renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
+        Assert.Single(source.NativeImages);
+        Assert.Same(firstFinal, capture.Texture);
+
+        NativeBattlePcTextureWindowPixels metadata = held with { Data = held.Data.ToArray().ToImmutableArray(), LiveTextureSources = [] };
+        frame = frame with { LastTextureSnapshots = [metadata] };
+        renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
+        Assert.Equal(2, source.NativeImages.Count);
+        Assert.Same(native, source.NativeImages[1]);
+        Assert.NotSame(firstFinal, capture.Texture);
+        Assert.NotEqual(firstFinal[0, 0], capture.Texture![0, 0]);
+
+        frame = frame with { LastCommands = [RawCacheQuad(owner: "another-owner")] };
+        renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
+        Assert.Equal(3, source.NativeImages.Count);
+        Assert.Same(native, source.NativeImages[2]);
+        source.Generation++;
+        renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
+        Assert.Equal(4, source.NativeImages.Count);
+        Assert.All(source.NativeImages, image => Assert.Same(native, image));
+    }
+
+    [Fact]
+    public void Changed_retained_words_and_live_palette_do_not_reuse_native_RGBA()
+    {
+        NativeBattleEffectTextureState state = Texture(31).Upload45BD30(2, 256, 1, 1, [0xE0, 3]);
+        NativeBattlePcTextureWindowPixels first = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
+        byte[] words = first.Data.ToArray();
+        words[0] = 0x22;
+        NativeBattlePcTextureWindowPixels changed = first with { Data = words.ToImmutableArray() };
+        NativeBattlePrimitiveFrame frame = Frame([RawCacheQuad()]) with { LastTextureSnapshots = [first] };
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture() };
+        RawCacheTextureSource source = new();
+        renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
+        renderer.RenderNativePrimitiveFrame(frame with { LastTextureSnapshots = [changed] }, state, effectTextureSource: source);
+        Assert.NotSame(source.NativeImages[0], source.NativeImages[1]);
+        Assert.NotEqual(source.NativeImages[0][0, 0], source.NativeImages[1][0, 0]);
+
+        NativeBattleEffectTextureState palette = state.PublishVramSpan(2 * (256 * 1024 + 1), new byte[] { 0, 0x7C });
+        renderer.RenderNativePrimitiveFrame(frame, palette, effectTextureSource: source);
+        Assert.NotSame(source.NativeImages[0], source.NativeImages[2]);
+        Assert.NotSame(source.NativeImages[1], source.NativeImages[2]);
+        Assert.NotEqual(source.NativeImages[0][0, 0], source.NativeImages[2][0, 0]);
+        Assert.Throws<InvalidDataException>(() => renderer.RenderNativePrimitiveFrame(frame with { LastTextureSnapshots = [first with { Data = [] }] }, palette, effectTextureSource: source));
+    }
+
+    [Fact]
+    public void Same_frame_A_B_A_word_epochs_keep_their_exact_final_materials()
+    {
+        NativeBattleEffectTextureState state = Texture(31).Upload45BD30(2, 256, 1, 1, [0xE0, 3]);
+        NativeBattlePcTextureWindowPixels first = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
+        byte[] words = first.Data.ToArray();
+        words[0] = 0x22;
+        NativeBattlePcTextureWindowPixels second = first with { Data = words.ToImmutableArray() };
+        NativeBattlePrimitiveFrame frame = Frame([RawCacheQuad(), RawCacheQuad(snapshot: 1), RawCacheQuad()]) with { LastTextureSnapshots = [first, second] };
+        TextureCapture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        RawCacheTextureSource source = new();
+        renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
+        Assert.Equal(2, source.NativeImages.Count);
+        Assert.NotSame(source.NativeImages[0], source.NativeImages[1]);
+        Assert.Same(source.FinalImages[0], capture.Texture);
+    }
+
+    [Fact]
+    public void Crop_alternate_palette_and_retained_to_live_changes_are_raw_cache_misses()
+    {
+        NativeBattleEffectTextureState state = Texture(31);
+        NativeBattlePcTextureWindowPixels small = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
+        NativeBattlePcTextureWindowPixels large = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 16, 16), state);
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture() };
+        RawCacheTextureSource source = new();
+        renderer.RenderNativePrimitiveFrame(Frame([RawCacheQuad()]) with { LastTextureSnapshots = [small] }, state, effectTextureSource: source);
+        renderer.RenderNativePrimitiveFrame(Frame([RawCacheQuad(size: 16)]) with { LastTextureSnapshots = [large] }, state, effectTextureSource: source);
+        Assert.Equal(16, source.NativeImages[1].Width);
+        Assert.NotSame(source.NativeImages[0], source.NativeImages[1]);
+
+        NativeBattlePrimitiveFrame alternate = Frame([RawCacheQuad(page: 0x40)]) with { LastTextureSnapshots = [small] };
+        renderer.RenderNativePrimitiveFrame(alternate, state, effectTextureSource: source);
+        renderer.RenderNativePrimitiveFrame(alternate with { LastColorState = NativeBattlePrimitiveColorState.FromColdProcess() with { AlternatePaletteShift = 1 } }, state, effectTextureSource: source);
+        Assert.NotSame(source.NativeImages[2], source.NativeImages[3]);
+        renderer.RenderNativePrimitiveFrame(Frame([RawCacheQuad()]) with { LastTextureSnapshots = [small] }, state, effectTextureSource: source);
+        renderer.RenderNativePrimitiveFrame(Frame([RawCacheQuad(snapshot: null)]), state, effectTextureSource: source);
+        Assert.NotSame(source.NativeImages[4], source.NativeImages[5]);
+    }
+
+    [Fact]
+    public void Direct_format_changes_clear_both_cache_generations_and_required_owners_still_fail()
+    {
+        NativeBattleEffectTextureState state = Texture(31);
+        NativeBattlePrimitiveFrame frame = Frame([RawCacheQuad(page: 0x100, snapshot: null)]);
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture() };
+        RawCacheTextureSource source = new();
+        renderer.RenderNativePrimitiveFrame(frame, state, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8(), effectTextureSource: source);
+        Assert.Throws<NotSupportedException>(() => renderer.RenderNativePrimitiveFrame(frame, null, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8(), effectTextureSource: source));
+        renderer.RenderNativePrimitiveFrame(frame, state, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8() with { DirectTextureFormat = NativeBattlePcDirectTextureFormat.Rgb565 }, effectTextureSource: source);
+        Assert.NotSame(source.NativeImages[0], source.NativeImages[1]);
+        Assert.Equal(0, RawCacheCount(renderer, "previousNativeRawTexturePages"));
+        Assert.Equal(0, RawCacheCount(renderer, "previousNativeTexturePages"));
+        Assert.Throws<NotSupportedException>(() => renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source));
+    }
+
+    [Theory]
+    [InlineData(8, 129, 128)]
+    [InlineData(256, 64, 56)]
+    public void Raw_candidates_have_entry_and_byte_bounds_and_clear_after_two_empty_frames(int size, int materials, int expectedCandidates)
+    {
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
+        NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, size, size), state);
+        NativeBattleLogicalResolvedCommand[] commands = Enumerable.Range(0, materials).Select(index => RawCacheQuad(clut: checked((ushort)index), size: size)).ToArray();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture() };
+        renderer.RenderNativePrimitiveFrame(Frame(commands.ToImmutableArray()) with { LastTextureSnapshots = [held] }, state);
+        Assert.Equal(expectedCandidates, RawCacheCount(renderer, "nativeRawTexturePages"));
+        int bytes = (int)typeof(BattleRenderer).GetField("nativeRawTextureBytes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(renderer)!;
+        Assert.InRange(bytes, 1, 16 * 1024 * 1024);
+        renderer.RenderNativePrimitiveFrame(Frame([]), state);
+        Assert.Equal(0, RawCacheCount(renderer, "nativeRawTexturePages"));
+        Assert.Equal(expectedCandidates, RawCacheCount(renderer, "previousNativeRawTexturePages"));
+        renderer.RenderNativePrimitiveFrame(Frame([]), state);
+        Assert.Equal(0, RawCacheCount(renderer, "nativeRawTexturePages"));
+        Assert.Equal(0, RawCacheCount(renderer, "previousNativeRawTexturePages"));
+    }
+
+    private static int RawCacheCount(BattleRenderer renderer, string field)
+    {
+        return ((System.Collections.IDictionary)typeof(BattleRenderer).GetField(field, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(renderer)!).Count;
+    }
+
+    private static NativeBattleLogicalResolvedCommand RawCacheQuad(ushort page = 0, ushort clut = 0x4000, int size = 8, int? snapshot = 0, string? owner = null)
+    {
+        uint window = size == 256 ? 0 : NativeBattleQuezacotlGeometryPackets.TextureWindowCommand(new(0, 0, checked((short)size), checked((short)size))) & 0xFFFFFF;
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), (uint)clut << 16, Point(30, 10), (uint)page << 16 | 7, Point(10, 30), 7u << 8, Point(30, 30), 7u << 8 | 7], 1, [], null) { OrderingBucket = 50, TextureSourceOwner = owner };
+        return new(command, TexturedMode(page, window, clut) with { TexturePixelSnapshot = snapshot }, 1);
+    }
+
+    private sealed class RawCacheTextureSource : INativeBattleEffectTextureSource
+    {
+        public long Generation { get; set; }
+        public List<PixelImage> NativeImages { get; } = [];
+        public List<PixelImage> FinalImages { get; } = [];
+
+        public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
+        {
+            throw new InvalidOperationException("Expected the native image separately from the final material.");
+        }
+
+        public PixelImage ApplyDecoded(PixelImage original, PixelImage? decodedNative, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
+        {
+            NativeImages.Add(decodedNative ?? original);
+            PixelImage final = new(width, height, Enumerable.Repeat(new Rgba32((byte)(NativeImages.Count % 200 + 1), 0, 0, 127), width * height).ToArray());
+            FinalImages.Add(final);
+            return final;
+        }
+    }
+
+    [Fact]
     public void HeldWindowReusesItsFrozenProvenanceAcrossUnrelatedLiveMetadataButChecksLivePaletteAndHeldFrames()
     {
         const ushort page = 0;
@@ -82,6 +251,11 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         Assert.Equal((byte)0, source.DecodedNative[0, 0].R);
         Assert.Equal((byte)90, source.ModelFallback[0, 0].R);
         Assert.True(source.ModelFallback.Width > source.DecodedNative.Width);
+        PixelImage initialNative = source.DecodedNative!;
+        PixelImage nextModel = new(16, 16, Enumerable.Repeat(new Rgba32(10, 40, 50, 127), 256).ToArray());
+        renderer.RenderNativePrimitiveFrame(frame, state, replacements: [replacement with { Image = nextModel }], effectTextureSource: source);
+        Assert.Same(initialNative, source.DecodedNative);
+        Assert.Equal((byte)10, source.ModelFallback![0, 0].R);
     }
 
     private sealed class DecodedNativeTextureSource : INativeBattleEffectTextureSource

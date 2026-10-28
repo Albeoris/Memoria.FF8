@@ -7,6 +7,65 @@ public sealed class NativeBattleCommonPacketMemoryTests
 {
     private static NativeBattlePrimitiveProcess Process => NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
 
+    [Theory]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    public void DirectPrimitiveStoreAppendPreservesReceiptOrderKnownnessAndUntouchedPadding(bool quad, bool linked, bool physicalMask)
+    {
+        int length = quad ? 40 : 32;
+        uint[] words = Enumerable.Repeat(0x12345678u, length / 4).ToArray();
+        words[0] = (uint)(words.Length - 1) << 24;
+        words[1] = quad ? 0x2C030201u : 0x24030201u;
+        ImmutableArray<NativeBattleGfPacketByteState> mask = Known(length).SetItem(30, NativeBattleGfPacketByteState.Untouched).SetItem(31, NativeBattleGfPacketByteState.Untouched);
+        if (quad)
+        {
+            mask = mask.SetItem(38, NativeBattleGfPacketByteState.Untouched).SetItem(39, NativeBattleGfPacketByteState.Untouched);
+        }
+        NativeBattleGeometryPrimitive primitive = new(20, words.ToImmutableArray(), [100, 100, 100, 100]) { PhysicalWriteMask = physicalMask ? mask : null };
+        ImmutableArray<NativeBattleCommonPacketStore> expected = NativeBattleCommonPacketArena.PrimitiveStores(0, primitive, linked);
+        ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
+        stores.Add(new(64, [0xCC], Known(1)));
+        NativeBattleCommonPacketArena.AppendPrimitiveStores(stores, 0, primitive, linked);
+        Assert.Equal(1 + (linked && physicalMask ? 2 : 1), stores.Count);
+        for (int index = 0; index < expected.Length; index++)
+        {
+            Assert.Equal(expected[index].Offset, stores[index + 1].Offset);
+            Assert.Equal(expected[index].Data.ToArray(), stores[index + 1].Data.ToArray());
+            Assert.Equal(expected[index].Mask.ToArray(), stores[index + 1].Mask.ToArray());
+        }
+        NativeBattlePrimitiveProcess initial = Process.ApplyCommonWrite(0, Enumerable.Repeat((byte)0xA5, 65).ToImmutableArray(), Known(65));
+        NativeBattlePrimitiveProcess applied = initial.ApplyCommonWrites(stores.ToImmutable());
+        Assert.Equal(new byte[] { 0xCC }, applied.ReadCommonPacket(64, 1));
+        if (!physicalMask)
+        {
+            Assert.Throws<NotSupportedException>(() => applied.ReadCommonPacket(4, 4));
+        }
+        else
+        {
+            Assert.Equal(quad ? new byte[] { 1, 2, 3, 0x2C } : new byte[] { 1, 2, 3, 0x24 }, applied.ReadCommonPacket(4, 4));
+            Assert.Equal(new byte[] { 0xA5, 0xA5 }, applied.ReadCommonPacket(30, 2));
+            if (quad)
+            {
+                Assert.Equal(new byte[] { 0xA5, 0xA5 }, applied.ReadCommonPacket(38, 2));
+            }
+        }
+        if (linked)
+        {
+            Assert.Throws<NotSupportedException>(() => applied.ReadCommonPacket(0, 3));
+            NativeBattlePrimitiveProcess completed = applied.ApplyCommonWrite(0, [0x56, 0x34, 0x12], Known(3));
+            Assert.Equal(new byte[] { 0x56, 0x34, 0x12 }, completed.ReadCommonPacket(0, 3));
+            if (physicalMask)
+            {
+                Assert.Equal(new byte[] { checked((byte)(words.Length - 1)) }, completed.ReadCommonPacket(3, 1));
+            }
+            Assert.Equal(expected[0].Data.ToArray(), stores[1].Data.ToArray());
+        }
+    }
+
     [Fact]
     public void First_observed_write_initializes_only_active_bank_with_every_other_byte_unknown()
     {
