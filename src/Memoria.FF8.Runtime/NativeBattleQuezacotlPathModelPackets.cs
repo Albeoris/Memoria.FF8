@@ -64,7 +64,7 @@ public static class NativeBattleQuezacotlPathModelPackets
                 int length = (quad ? 20 : 16) + (group >= 2 ? 4 : 0);
                 for (int polygon = 0; polygon < counts[group]; polygon++)
                 {
-                    polygons.Add(new(quad, Read(cursor, length).ToArray().ToImmutableArray()));
+                    polygons.Add(new(quad, Read(cursor, length).ToImmutableArray()));
                     cursor = checked(cursor + length);
                 }
             }

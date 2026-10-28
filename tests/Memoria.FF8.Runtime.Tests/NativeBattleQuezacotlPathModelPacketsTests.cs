@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -8,6 +9,27 @@ public sealed class NativeBattleQuezacotlPathModelPacketsTests
 {
     private static NativeBattleActionMatrix Identity => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
     private static NativeBattleCameraProjection Projection => new(null, 128, 160, 108);
+
+    [Fact]
+    public void Transferred_private_geometry_read_keeps_packets_and_retained_source_independent()
+    {
+        ImmutableArray<byte> expectedSource = Geometry();
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(64, expectedSource.AsSpan());
+        ImmutableArray<byte> geometry = ImmutableCollectionsMarshal.AsImmutableArray(arena.Read(64, expectedSource.Length));
+        NativeBattleQuezacotlPathModelBatch expected = Emit(expectedSource);
+        string expectedJson = JsonSerializer.Serialize(expected);
+
+        NativeBattleQuezacotlPathModelBatch actual = Emit(geometry);
+        arena.Write(64, new byte[expectedSource.Length]);
+
+        Assert.True(expectedSource.AsSpan().SequenceEqual(geometry.AsSpan()));
+        Assert.Equal(expectedJson, JsonSerializer.Serialize(actual));
+        Assert.Equal(expectedJson, JsonSerializer.Serialize(Emit(geometry)));
+        Assert.Equal(132, actual.SourceEnd);
+        Assert.Equal(new uint[] { 0x24123456, 0x2C123456, 0x26ABCDEF, 0x2E010203 }, actual.Primitives.Select(packet => packet.Words[1]));
+        Assert.All(actual.Primitives, packet => Assert.Equal(81, packet.Bucket));
+        Assert.Equal(new byte[expectedSource.Length], arena.Read(64, expectedSource.Length));
+    }
 
     [Fact]
     public void All_four_original_polygon_groups_use_the_same_raw_core_and_explicit_zero_cue()
