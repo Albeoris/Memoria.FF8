@@ -10,6 +10,8 @@
 
 float2 InverseSize;
 float2 ViewportOrigin;
+float4 CentreBounds;
+float2 CentreDestinationSize;
 #if VULKAN || DIRECTX12
 Texture2D CurrentTexture : register(t0);
 #else
@@ -61,5 +63,23 @@ technique FrameDifference
     pass Pass0
     {
         PixelShader = compile PS_PROFILE DifferencePixel();
+    }
+}
+
+float4 CentreCapturePixel(float4 position : SV_POSITION) : SV_TARGET0
+{
+    uint2 destination = (uint2)position.xy;
+    uint2 extent = (uint2)CentreBounds.zw;
+    uint2 denominator = (uint2)(CentreDestinationSize * 2);
+    uint2 source = (uint2)CentreBounds.xy + min(extent - 1, ((destination * 2 + 1) * extent) / denominator);
+    float2 uv = ((float2)source + 0.5) * InverseSize;
+    return SAMPLE_TEXTURE(CurrentTexture, CurrentSampler, uv);
+}
+
+technique CentreCapture
+{
+    pass Pass0
+    {
+        PixelShader = compile PS_PROFILE CentreCapturePixel();
     }
 }

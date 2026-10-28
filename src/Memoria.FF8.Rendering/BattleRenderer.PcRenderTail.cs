@@ -40,21 +40,22 @@ public sealed partial class BattleRenderer
             throw new NotSupportedException("A retained PC capture texture cannot change device channel masks without an explicit resource recreation.");
         }
         pcCaptureFormat = profile.Format;
-        uint[]? source = null;
+        uint[]? nativeSurface = null;
         bool locked;
         if (TriangleRenderer is null)
         {
-            source = new uint[Width * Height];
+            uint[] source = new uint[Width * Height];
             for (int index = 0; index < source.Length; index++)
             {
                 int offset = index * 4;
                 source[index] = (uint)(pixels[offset + 3] << 24 | pixels[offset] << 16 | pixels[offset + 1] << 8 | pixels[offset + 2]);
             }
+            nativeSurface = IFramebufferCaptureRenderer.SampleArgbCentres(source, Width, Height, ProjectionBounds, profile.SurfaceWidth, profile.SurfaceHeight);
             locked = true;
         }
         else if (TriangleRenderer is IFramebufferCaptureRenderer capture)
         {
-            locked = capture.TryCaptureArgb(out source);
+            locked = capture.TryCaptureArgb(Width, Height, ProjectionBounds, profile.SurfaceWidth, profile.SurfaceHeight, out nativeSurface);
         }
         else
         {
@@ -62,19 +63,9 @@ public sealed partial class BattleRenderer
         }
         if (locked)
         {
-            if (source is null || source.Length != Width * Height)
+            if (nativeSurface is null || nativeSurface.Length != checked(profile.SurfaceWidth * profile.SurfaceHeight))
             {
-                throw new InvalidDataException("PC framebuffer capture requires the complete current raster target.");
-            }
-            uint[] nativeSurface = new uint[checked(profile.SurfaceWidth * profile.SurfaceHeight)];
-            for (int y = 0; y < profile.SurfaceHeight; y++)
-            {
-                int sourceY = ProjectionBounds.Y + Math.Min(ProjectionBounds.Height - 1, (int)(((long)y * 2 + 1) * ProjectionBounds.Height / (2 * profile.SurfaceHeight)));
-                for (int x = 0; x < profile.SurfaceWidth; x++)
-                {
-                    int sourceX = ProjectionBounds.X + Math.Min(ProjectionBounds.Width - 1, (int)(((long)x * 2 + 1) * ProjectionBounds.Width / (2 * profile.SurfaceWidth)));
-                    nativeSurface[y * profile.SurfaceWidth + x] = source[sourceY * Width + sourceX];
-                }
+                throw new InvalidDataException("PC framebuffer capture requires the complete selected native surface.");
             }
             byte[] words = NativeBattlePcFramebufferCaptureState.EncodeArgbSurface(nativeSurface, profile);
             pcCapture = pcCapture.Capture56D530(words, profile.SurfaceWidth * 2, receipt.Viewport, true);

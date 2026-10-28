@@ -20,6 +20,9 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     private long cachedTextureBytes;
     private Texture2D? transientTexture;
     private Color[] captureColors = [];
+    private RenderTarget2D? centreCaptureTarget;
+    private Effect? centreCaptureEffect;
+    private SpriteBatch? centreCaptureBatch;
     private readonly record struct CachedTexture(WeakReference<PixelImage> Image, Texture2D Texture, long Bytes);
     private readonly Dictionary<(TriangleBlend, bool, bool), BlendState> blends = [];
     private readonly Dictionary<(TriangleDepthComparison, bool), DepthStencilState> depths = [];
@@ -182,14 +185,126 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             device.SetRenderTarget(workingTarget);
             device.Viewport = viewport;
         }
-        pixels = new uint[colors.Length];
+        pixels = ConvertCaptureArgb(colors);
+        return true;
+    }
+
+    public bool TryCaptureArgb(int sourceWidth, int sourceHeight, PixelBounds sourceBounds, int destinationWidth, int destinationHeight, out uint[] pixels)
+    {
+        if (!active || workingTarget is null)
+        {
+            throw new InvalidOperationException("Active framebuffer capture requires a current triangle scene.");
+        }
+        IFramebufferCaptureRenderer.ValidateCaptureBounds(sourceWidth, sourceHeight, sourceBounds, destinationWidth, destinationHeight);
+        if (sourceWidth != width || sourceHeight != height)
+        {
+            throw new InvalidDataException("Framebuffer centre capture dimensions must identify the active raster target.");
+        }
+        Flush();
+        PrepareCentreCapture(destinationWidth, destinationHeight);
+        int pixelCount = checked(destinationWidth * destinationHeight);
+        if (captureColors.Length != pixelCount)
+        {
+            captureColors = new Color[pixelCount];
+        }
+        Color[] colors = captureColors;
+        RenderTargetBinding[] savedTargets = device.GetRenderTargets();
+        Viewport savedViewport = device.Viewport;
+        Rectangle savedScissor = device.ScissorRectangle;
+        BlendState savedBlend = device.BlendState;
+        DepthStencilState savedDepth = device.DepthStencilState;
+        RasterizerState savedRasterizer = device.RasterizerState;
+        SamplerState savedSampler0 = device.SamplerStates[0];
+        SamplerState savedSampler1 = device.SamplerStates[1];
+        Texture? savedTexture0 = device.Textures[0];
+        Texture? savedTexture1 = device.Textures[1];
+        IndexBuffer? savedIndices = device.Indices;
+        VertexBufferBinding[] savedVertices = device.GetVertexBuffers();
+        try
+        {
+            // Unbinding resolves the same MSAA surface used by the full-size capture.
+            device.SetRenderTarget(null);
+            device.SetRenderTarget(centreCaptureTarget);
+            device.Viewport = new(0, 0, destinationWidth, destinationHeight);
+            device.ScissorRectangle = new(0, 0, destinationWidth, destinationHeight);
+            centreCaptureEffect!.CurrentTechnique = centreCaptureEffect.Techniques["CentreCapture"];
+            centreCaptureEffect.Parameters["CurrentTexture"].SetValue(workingTarget);
+            centreCaptureEffect.Parameters["InverseSize"].SetValue(new Vector2(1f / sourceWidth, 1f / sourceHeight));
+            centreCaptureEffect.Parameters["CentreBounds"].SetValue(new Vector4(sourceBounds.X, sourceBounds.Y, sourceBounds.Width, sourceBounds.Height));
+            centreCaptureEffect.Parameters["CentreDestinationSize"].SetValue(new Vector2(destinationWidth, destinationHeight));
+            centreCaptureBatch!.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone, centreCaptureEffect);
+            try
+            {
+                centreCaptureBatch.Draw(workingTarget, new Rectangle(0, 0, destinationWidth, destinationHeight), Color.White);
+            }
+            finally
+            {
+                centreCaptureBatch.End();
+            }
+            device.Textures[0] = null;
+            centreCaptureEffect.Parameters["CurrentTexture"].SetValue((Texture2D?)null);
+            device.SetRenderTarget(null);
+            centreCaptureTarget!.GetData(colors);
+            NativeBattleTelemetry.Record(2003, NativeBattleTrafficKind.GpuReadback, checked((long)colors.Length * 4));
+        }
+        catch (InvalidOperationException)
+        {
+            pixels = [];
+            return false;
+        }
+        finally
+        {
+            device.Textures[0] = null;
+            centreCaptureEffect!.Parameters["CurrentTexture"].SetValue((Texture2D?)null);
+            device.SetRenderTargets(savedTargets);
+            device.Viewport = savedViewport;
+            device.ScissorRectangle = savedScissor;
+            foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+            }
+            device.BlendState = savedBlend;
+            device.DepthStencilState = savedDepth;
+            device.RasterizerState = savedRasterizer;
+            device.SamplerStates[0] = savedSampler0;
+            device.SamplerStates[1] = savedSampler1;
+            device.Textures[0] = savedTexture0;
+            device.Textures[1] = savedTexture1;
+            device.Indices = savedIndices;
+            device.SetVertexBuffers(savedVertices);
+        }
+        pixels = ConvertCaptureArgb(colors);
+        return true;
+    }
+
+    private void PrepareCentreCapture(int width, int height)
+    {
+        if (centreCaptureEffect is null)
+        {
+            using Stream stream = typeof(GpuTriangleRenderer).Assembly.GetManifestResourceStream("Memoria.FF8.Shaders.FrameDifference.mgfxo") ?? throw new InvalidOperationException("The framebuffer centre capture effect resource is missing.");
+            using MemoryStream bytes = new();
+            stream.CopyTo(bytes);
+            centreCaptureEffect = new Effect(device, bytes.ToArray());
+            centreCaptureEffect.CurrentTechnique = centreCaptureEffect.Techniques["CentreCapture"];
+        }
+        centreCaptureBatch ??= new SpriteBatch(device);
+        if (centreCaptureTarget is null || centreCaptureTarget.Width != width || centreCaptureTarget.Height != height)
+        {
+            centreCaptureTarget?.Dispose();
+            centreCaptureTarget = new RenderTarget2D(device, width, height, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+        }
+    }
+
+    private static uint[] ConvertCaptureArgb(Color[] colors)
+    {
+        uint[] pixels = new uint[colors.Length];
         NativeBattleTelemetry.Record(2004, NativeBattleTrafficKind.CpuCopyPayload, checked((long)colors.Length * 4));
         for (int index = 0; index < colors.Length; index++)
         {
             Color color = colors[index];
             pixels[index] = (uint)(color.A << 24 | color.R << 16 | color.G << 8 | color.B);
         }
-        return true;
+        return pixels;
     }
 
     private void Flush()
@@ -466,6 +581,9 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         Abort();
         target?.Dispose();
         workingTarget?.Dispose();
+        centreCaptureTarget?.Dispose();
+        centreCaptureEffect?.Dispose();
+        centreCaptureBatch?.Dispose();
         DisposeTerrainBuffers();
         foreach (CachedTexture cached in recentTextures)
         {
