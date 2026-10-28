@@ -56,7 +56,7 @@ public sealed class NativeBattleEffectNodeContextMemoryTests
         {
             using (NativeBattleEffectArenaTransaction transaction = new(owner))
             {
-                NativeBattleEffectNodeContextMemory.Copy(prefix, 0, owner, 36, 4);
+                NativeBattleEffectNodeContextMemory.Copy(prefix, 0, transaction.View, 36, 4);
                 owner.Working.ReadWithKnownness(36, physicalBytes, physicalKnown);
                 Assert.Equal(new byte[4], physicalBytes);
                 Assert.Throws<InvalidOperationException>(() => owner.Capture());
@@ -70,7 +70,8 @@ public sealed class NativeBattleEffectNodeContextMemoryTests
                 owner.Working.ReadWithKnownness(36, physicalBytes, physicalKnown);
                 Assert.Equal(prefix.ReadSnapshot(0, 4).Data, physicalBytes);
                 Assert.Equal(prefix.ReadSnapshot(0, 4).Known, physicalKnown);
-                Assert.Equal(suffix.ReadSnapshot(0, 4).Known, owner.ReadSnapshot(36, 4).Known);
+                Assert.Equal(suffix.ReadSnapshot(0, 4).Data, window.ReadSnapshot(4, 4).Data);
+                Assert.Equal(suffix.ReadSnapshot(0, 4).Known, window.ReadSnapshot(4, 4).Known);
                 transaction.Freeze();
             }
             Assert.Throws<InvalidDataException>(() => NativeBattleEffectNodeContextMemory.Copy(suffix, 0, owner, NativeBattleEffectArena.Length - 1, 4));
