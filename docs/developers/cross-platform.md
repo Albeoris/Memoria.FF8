@@ -15,6 +15,7 @@ Use PowerShell 7 and the SDK selected by `global.json`:
 ./Build.ps1 -RuntimeIdentifier win-x64
 ./Build.ps1 -RuntimeIdentifier linux-x64
 ./Build.ps1 -RuntimeIdentifier osx-x64
+./Build.ps1 -RuntimeIdentifier osx-arm64
 ```
 
 `Portable` compiles `Memoria.FF8.Portable.slnx` against plain `net10.0`, including portable tool and test roots. Its test selection excludes unrelated battle effects. `Launcher` produces a launcher payload under `artifacts/launcher/<RID>`. `Distribution` compiles the complete Native solution graph and packages the launcher, bootstrap, applicable engines and common x64 music worker under `artifacts/package/<RID>`. Windows retains its released layout and immutable updater gate. The [build guide](building-and-testing.md) gives full Native graph commands.
@@ -28,7 +29,7 @@ Run `./tools/Get-PlatformInventory.ps1` for a project-level JSON inventory, or a
 | Projects | Current build/validation surface |
 | --- | --- |
 | Platform, Runtime, Resources, Assets, Mods, Ui, Events, Rendering, Media, Diagnostics | Portable solution; focused tests on the affected contracts |
-| Launcher | Avalonia `net10.0`; separate self-contained win-x64/linux-x64/osx-x64 publishes |
+| Launcher | Avalonia `net10.0`; separate self-contained win-x64/linux-x64/osx-x64 publishes; local-only osx-arm64 |
 | Audio and Music | Shared managed parser, sequencer, synthesizer and PCM mixer; native SDL3 device adapter; x64 worker |
 | TitleScene | Shared Native GPU renderer under `net10.0`; WindowsDX remains a separate build family |
 | TitleScene.Preview | Portable `--crest` output and Native Vulkan animated GPU preview |
@@ -73,7 +74,7 @@ Portable CI, package ABI checks and software-rendered output are separate from r
 
 Windows preserves Memoria.Launcher.exe, Data/Memoria.FF8.exe and the real x64 worker at Data/audio-host/Memoria.FF8.Music.exe. Data/Game/dx11, vulkan and dx12 have separate runtime families and matching shaders. Linux uses corresponding extensionless executables and only Data/Game/vulkan. Extract Memoria-FF8-linux-x64.tar.gz with a mode-preserving archive tool and start ./Memoria.Launcher. A separately installed .NET runtime is unnecessary. Ubuntu 24.04 x64 is the CI baseline. A Vulkan-capable driver, desktop session, font/fontconfig, X11/Wayland dependencies and working audio are required; [Linux testing](linux-testing.md) gives explicit dependency setup and diagnostics.
 
-Intel macOS requires macOS 26.0 and a Metal-capable Intel Mac compatible with MoltenVK. Extract Memoria-FF8-osx-x64.tar.gz and move Memoria.FF8.app to a writable location. Its executable root is Contents/MacOS, with bootstrap/game/audio under Data; Contents/Info.plist declares the deployment baseline. Builds include official [MoltenVK 1.4.2](https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2), verified against a pinned SHA-256, and its license. The app selects that bundled library explicitly; no Vulkan SDK or Homebrew installation is required. Artifacts are unsigned and not notarized; Gatekeeper approval remains a user action. Signing credentials must stay outside the repository and PR jobs.
+Intel macOS requires macOS 26.0 and a Metal-capable Intel Mac compatible with MoltenVK. Extract Memoria-FF8-osx-x64.tar.gz and move Memoria.FF8.app to a writable location. Its executable root is Contents/MacOS, with bootstrap/game/audio under Data; Contents/Info.plist declares the deployment baseline. A local `osx-arm64` build uses the same bundle layout with native Apple Silicon executables; it is not released and cannot update itself. Builds include official [MoltenVK 1.4.2](https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2), verified against a pinned SHA-256, and its license. The app selects that bundled library explicitly; no Vulkan SDK or Homebrew installation is required. Artifacts are unsigned and not notarized; Gatekeeper approval remains a user action. Signing credentials must stay outside the repository and PR jobs.
 
 Descriptors record RID, layout, entry points, complete SHA-256 inventory and Unix modes. Windows retains schema 1 for released-updater compatibility; Unix uses schema 2. The music worker and every offered graphics host are mandatory inventory entries. Validation rejects links, traversal, duplicate/colliding entries, excessive expansion and foreign native architecture. macOS static validation checks bundled Mach-O imports and LC_RPATH, rejects developer-machine paths, verifies the Vulkan/Metal provider and compares native deployment versions with Info.plist.
 

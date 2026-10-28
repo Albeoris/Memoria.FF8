@@ -27,7 +27,12 @@ if [ -z "$RUNTIME_IDENTIFIER" ]; then
     if [ "$OS" = "Linux" ]; then
         RUNTIME_IDENTIFIER="linux-x64"
     elif [ "$OS" = "Darwin" ]; then
-        RUNTIME_IDENTIFIER="osx-x64"
+        # hw.optional.arm64 also identifies Apple Silicon when this shell runs under Rosetta.
+        if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ]; then
+            RUNTIME_IDENTIFIER="osx-arm64"
+        else
+            RUNTIME_IDENTIFIER="osx-x64"
+        fi
     else
         echo "Unsupported desktop host: $OS"
         exit 1
@@ -73,7 +78,7 @@ PACKAGE="$ARTIFACTS/package/$RUNTIME_IDENTIFIER"
 STAGING="$ARTIFACTS/staging-$(uuidgen | tr -d '-')"
 PAYLOAD="$STAGING"
 
-if [ "$RUNTIME_IDENTIFIER" = "osx-x64" ]; then
+if [[ "$RUNTIME_IDENTIFIER" == osx-* ]]; then
     PAYLOAD="$STAGING/Memoria.FF8.app/Contents/MacOS"
 fi
 
@@ -151,7 +156,7 @@ if [ "$RUNTIME_IDENTIFIER" = "linux-x64" ]; then
     cp -rf "$NATIVE_VULKAN/licenses/"* "$NATIVE_NOTICES/" 2>/dev/null || true
 fi
 
-if [ "$RUNTIME_IDENTIFIER" = "osx-x64" ]; then
+if [[ "$RUNTIME_IDENTIFIER" == osx-* ]]; then
     if [ -f "$ROOT_DIR/tools/Get-MoltenVK.sh" ]; then
         "$ROOT_DIR/tools/Get-MoltenVK.sh" --Destination "$HOST_OUTPUT"
     fi
@@ -227,13 +232,16 @@ for p in "$PAYLOAD/$LAUNCHER_NAME" "$DATA/$EXECUTABLE" "$DATA/audio-host/Memoria
     fi
 done
 
-if [ "$RUNTIME_IDENTIFIER" = "osx-x64" ]; then
+if [[ "$RUNTIME_IDENTIFIER" == osx-* ]]; then
     PLIST="$STAGING/Memoria.FF8.app/Contents/Info.plist"
     cp "$ROOT_DIR/tools/packaging/Info.plist" "$PLIST" 2>/dev/null || true
+    if [ "$RUNTIME_IDENTIFIER" = "osx-arm64" ] && [ -f "$PLIST" ]; then
+        sed -i '' 's|<key>LSArchitecturePriority</key><array><string>x86_64</string></array>|<key>LSArchitecturePriority</key><array><string>arm64</string></array>|' "$PLIST"
+    fi
 fi
 
 MANIFEST_ROOT="$PAYLOAD"
-if [ "$RUNTIME_IDENTIFIER" = "osx-x64" ]; then
+if [[ "$RUNTIME_IDENTIFIER" == osx-* ]]; then
     MANIFEST_ROOT="$STAGING/Memoria.FF8.app"
 fi
 if [ -f "$ROOT_DIR/tools/New-DistributionManifest.sh" ]; then

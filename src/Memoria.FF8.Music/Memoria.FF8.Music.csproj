@@ -2,8 +2,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <PlatformTarget>x64</PlatformTarget>
-    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64</RuntimeIdentifiers>
+    <PlatformTarget>$(MemoriaTargetArchitecture)</PlatformTarget>
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <SelfContained Condition="'$(SelfContained)' == ''">false</SelfContained>
     <ShouldBeValidatedAsExecutableReference>false</ShouldBeValidatedAsExecutableReference>
     <AssemblyName>Memoria.FF8.Music</AssemblyName>
@@ -12,7 +12,7 @@
     <ProjectReference Include="../Memoria.FF8.Audio/Memoria.FF8.Audio.csproj" />
     <PackageReference Include="SDL3-CS.Windows" Condition="'$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'win-x64'" />
     <PackageReference Include="SDL3-CS.Linux" Condition="'$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'linux-x64'" />
-    <PackageReference Include="SDL3-CS.macOS" Condition="'$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'osx-x64'" />
+    <PackageReference Include="SDL3-CS.macOS" Condition="'$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'osx-x64' Or '$(RuntimeIdentifier)' == 'osx-arm64'" />
   </ItemGroup>
   <Target Name="GetMusicHostFiles" Returns="@(MusicHostFile)">
     <ItemGroup>

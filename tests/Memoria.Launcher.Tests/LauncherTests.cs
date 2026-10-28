@@ -46,11 +46,14 @@ public sealed class LauncherTests : IDisposable
     }
 
     [Fact]
-    public void PlatformCapabilitiesRequireASupportedX64Desktop()
+    public void PlatformCapabilitiesRequireASupportedX64DesktopOrAppleSilicon()
     {
-        bool supported = (OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()) && System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.X64;
-        Assert.Equal(supported, LauncherCapabilities.CanUpdate);
-        Assert.Equal(supported, LauncherCapabilities.CanLaunchGame);
+        bool desktop = OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS();
+        System.Runtime.InteropServices.Architecture architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture;
+        bool x64 = desktop && architecture == System.Runtime.InteropServices.Architecture.X64;
+        bool appleSilicon = OperatingSystem.IsMacOS() && architecture == System.Runtime.InteropServices.Architecture.Arm64;
+        Assert.Equal(x64, LauncherCapabilities.CanUpdate);
+        Assert.Equal(x64 || appleSilicon, LauncherCapabilities.CanLaunchGame);
         Assert.Contains("x64", LauncherCapabilities.GameStatus);
         Assert.Contains("another operating system cannot be installed", LauncherCapabilities.UpdateStatus);
     }

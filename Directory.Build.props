@@ -10,8 +10,12 @@
     <MemoriaTargetRuntime Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</MemoriaTargetRuntime>
     <MemoriaTargetRuntime Condition="'$(MemoriaTargetRuntime)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">win-x64</MemoriaTargetRuntime>
     <MemoriaTargetRuntime Condition="'$(MemoriaTargetRuntime)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</MemoriaTargetRuntime>
+    <MemoriaTargetRuntime Condition="'$(MemoriaTargetRuntime)' == '' And $([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">osx-arm64</MemoriaTargetRuntime>
     <MemoriaTargetRuntime Condition="'$(MemoriaTargetRuntime)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">osx-x64</MemoriaTargetRuntime>
-    <MemoriaGraphicsBackend Condition="'$(MemoriaGraphicsBackend)' == '' And ('$(MemoriaTargetRuntime)' == 'linux-x64' Or '$(MemoriaTargetRuntime)' == 'osx-x64')">Vulkan</MemoriaGraphicsBackend>
+    <MemoriaTargetMac Condition="'$(MemoriaTargetRuntime)' == 'osx-x64' Or '$(MemoriaTargetRuntime)' == 'osx-arm64'">true</MemoriaTargetMac>
+    <MemoriaTargetArchitecture Condition="'$(MemoriaTargetRuntime)' == 'osx-arm64'">arm64</MemoriaTargetArchitecture>
+    <MemoriaTargetArchitecture Condition="'$(MemoriaTargetArchitecture)' == ''">x64</MemoriaTargetArchitecture>
+    <MemoriaGraphicsBackend Condition="'$(MemoriaGraphicsBackend)' == '' And ('$(MemoriaTargetRuntime)' == 'linux-x64' Or '$(MemoriaTargetMac)' == 'true')">Vulkan</MemoriaGraphicsBackend>
     <MemoriaGraphicsBackend Condition="'$(MemoriaGraphicsBackend)' == ''">Direct3D11</MemoriaGraphicsBackend>
     <MemoriaNativeGraphics Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' Or '$(MemoriaGraphicsBackend)' == 'Direct3D12'">true</MemoriaNativeGraphics>
     <DefineConstants Condition="'$(MemoriaNativeGraphics)' == 'true'">$(DefineConstants);MEMORIA_NATIVE</DefineConstants>

@@ -15,7 +15,7 @@ internal sealed record FfmpegDownloadOptions(Uri ReleaseUrl, string ArchiveName,
 {
     public static FfmpegDownloadOptions FromEnvironment()
     {
-        string rid = OperatingSystem.IsWindows() ? "win-x64" : OperatingSystem.IsLinux() ? "linux-x64" : OperatingSystem.IsMacOS() ? "osx-x64" : throw new PlatformNotSupportedException("FFmpeg setup requires Windows, Linux or macOS x64.");
+        string rid = HostPlatforms.Current.RuntimeIdentifier();
         string archive = rid == "win-x64" ? "ffmpeg-master-latest-win64-lgpl.zip" : rid == "linux-x64" ? "ffmpeg-master-latest-linux64-lgpl.tar.xz" : "";
         return new(new Uri(Environment.GetEnvironmentVariable("MEMORIA_FF8_FFMPEG_RELEASE_URL") ?? "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/"), Environment.GetEnvironmentVariable("MEMORIA_FF8_FFMPEG_ARCHIVE") ?? archive, rid);
     }
@@ -32,6 +32,8 @@ internal enum MediaToolsStage
     Downloading,
     Verifying,
     Extracting,
+    Configuring,
+    Compiling,
     Validating,
     Complete
 }
@@ -42,7 +44,7 @@ internal sealed record MediaToolsProgress(MediaToolsStage Stage, long BytesRecei
 internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOptions options, TimeSpan? responseTimeout = null, Func<string, Task<bool>>? validate = null)
 {
     public const string LatestReleaseUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/latest";
-    private static readonly string[] ToolNames = ["ffmpeg", "ffprobe"];
+    internal static readonly string[] ToolNames = ["ffmpeg", "ffprobe"];
     private static readonly string[] Executables = ["ffmpeg.exe", "ffprobe.exe"];
     private readonly TimeSpan timeout = responseTimeout ?? TimeSpan.FromSeconds(15);
     private readonly Func<string, Task<bool>> validator = validate ?? ValidateAsync;
@@ -77,9 +79,11 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
     private static string ManualInstructions(string directory, string? archiveName = null)
     {
         string tools = OperatingSystem.IsWindows() ? "ffmpeg.exe and ffprobe.exe" : "ffmpeg and ffprobe";
-        string source = OperatingSystem.IsMacOS() ? "Obtain trusted Intel x64 FFmpeg tools built for macOS; automatic macOS download is not configured. See https://ffmpeg.org/download.html and retain the matching source/license information." : $"Download {archiveName ?? (OperatingSystem.IsWindows() ? "ffmpeg-master-latest-win64-lgpl.zip" : "ffmpeg-master-latest-linux64-lgpl.tar.xz")} (x64, LGPL, static) from {LatestReleaseUrl}.";
-        return $"Continuing without FFmpeg video playback (and replacement audio decoding).\nManual installation: {source}\nPlace {tools} in:\n{directory}\nKeep copyright, license and other notices alongside the tools. Use native x64 builds with a reported build configuration that does not enable GPL or nonfree components. On Unix, grant executable permission to both tools. Movie-dependent scenes may require FFmpeg to continue.";
+        string source = OperatingSystem.IsMacOS() ? $"Obtain trusted FFmpeg tools built for macOS {HostArchitecture}; no prebuilt LGPL macOS download is configured, but the launcher's FFmpeg setup can build one from the official source release. See https://ffmpeg.org/download.html and retain the matching source/license information." : $"Download {archiveName ?? (OperatingSystem.IsWindows() ? "ffmpeg-master-latest-win64-lgpl.zip" : "ffmpeg-master-latest-linux64-lgpl.tar.xz")} (x64, LGPL, static) from {LatestReleaseUrl}.";
+        return $"Continuing without FFmpeg video playback (and replacement audio decoding).\nManual installation: {source}\nPlace {tools} in:\n{directory}\nKeep copyright, license and other notices alongside the tools. Use native {HostArchitecture} builds with a reported build configuration that does not enable GPL or nonfree components. On Unix, grant executable permission to both tools. Movie-dependent scenes may require FFmpeg to continue.";
     }
+
+    private static string HostArchitecture => RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64 (Apple Silicon)" : "x64";
 
     public static string ResolveExecutable(string directory, string toolName) => Memoria.FF8.Platform.MediaToolPaths.ResolveExecutable(directory, toolName);
 
@@ -153,7 +157,7 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         }
     }
 
-    private static bool IsUnmanagedPathDirectory(string directory)
+    internal static bool IsUnmanagedPathDirectory(string directory)
     {
         string managed = Path.GetFullPath(Path.Combine(ApplicationPaths.Current.LegacyState, "media-tools"));
         StringComparer comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
@@ -187,7 +191,7 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
                 return false;
             }
             Directory.CreateDirectory(directory);
-            if (options.RuntimeIdentifier == "osx-x64")
+            if (HostPlatforms.IsMacRuntime(options.RuntimeIdentifier))
             {
                 report(ManualInstructions(directory));
                 return false;
@@ -433,14 +437,14 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
 
     internal static bool IsHostExecutable(string path)
     {
-        if (RuntimeInformation.ProcessArchitecture != Architecture.X64)
+        if (!HostPlatforms.IsSupportedArchitecture)
         {
             return false;
         }
         try
         {
             using FileStream stream = File.OpenRead(path);
-            NativeImage.RequireX64(stream, HostPlatforms.Current.RuntimeIdentifier());
+            NativeImage.RequireAbi(stream, HostPlatforms.Current.RuntimeIdentifier());
             return true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or BadImageFormatException)
@@ -461,7 +465,7 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
             string path = ResolveExecutable(directory, tool);
             if (!isNativeExecutable(path))
             {
-                report?.Invoke($"{tool} is missing or is not a native x64 executable for this platform: {path}. Select a complete matching FFmpeg/FFprobe LGPL pair.");
+                report?.Invoke($"{tool} is missing or is not a native {HostArchitecture} executable for this platform: {path}. Select a complete matching FFmpeg/FFprobe LGPL pair.");
                 return false;
             }
             try
@@ -471,7 +475,7 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
                 string[] lines = output.Split('\n').Select(line => line.Trim()).ToArray();
                 if (result.ExitCode != 0 || !lines.Any(line => line.StartsWith(tool + " version ", StringComparison.Ordinal)))
                 {
-                    report?.Invoke($"{tool} did not report a successful FFmpeg tool version. Install a matching native x64 LGPL pair.");
+                    report?.Invoke($"{tool} did not report a successful FFmpeg tool version. Install a matching native {HostArchitecture} LGPL pair.");
                     return false;
                 }
                 string[] configurations = lines.Where(line => line.StartsWith("configuration:", StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -492,7 +496,7 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
             }
             catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or IOException or OperationCanceledException or InvalidOperationException)
             {
-                report?.Invoke($"Could not validate {tool}: {exception.Message}. Check executable permissions and install a native x64 LGPL pair.");
+                report?.Invoke($"Could not validate {tool}: {exception.Message}. Check executable permissions and install a native {HostArchitecture} LGPL pair.");
                 return false;
             }
         }

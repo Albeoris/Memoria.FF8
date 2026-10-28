@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$ArchivePath,
-    [Parameter(Mandatory)][ValidateSet('win-x64', 'linux-x64', 'osx-x64')][string]$RuntimeIdentifier,
+    [Parameter(Mandatory)][ValidateSet('win-x64', 'linux-x64', 'osx-x64', 'osx-arm64')][string]$RuntimeIdentifier,
     [string]$Configuration = 'Release'
 )
 $ErrorActionPreference = 'Stop'

@@ -20,7 +20,7 @@ public sealed record NativeDependency(string Name, string RuntimeIdentifier, str
             throw new InvalidDataException("A native dependency escaped its package.");
         }
         using FileStream stream = File.OpenRead(path);
-        NativeImage.RequireX64(stream, RuntimeIdentifier);
+        NativeImage.RequireAbi(stream, RuntimeIdentifier);
         if (Sha256 is not null)
         {
             stream.Position = 0;
@@ -36,7 +36,7 @@ public sealed record NativeDependency(string Name, string RuntimeIdentifier, str
 /// <summary>Checks native executable format and ABI without loading or executing the image.</summary>
 public static class NativeImage
 {
-    public static void RequireX64(Stream stream, string runtimeIdentifier)
+    public static void RequireAbi(Stream stream, string runtimeIdentifier)
     {
         if (!stream.CanSeek)
         {
@@ -49,7 +49,8 @@ public static class NativeImage
         {
             "win-x64" => IsWindowsX64(stream, header),
             "linux-x64" => header[..4].SequenceEqual("\u007fELF"u8) && header[4] == 2 && header[5] == 1 && BinaryPrimitives.ReadUInt16LittleEndian(header[18..]) == 62,
-            "osx-x64" => IsMacX64(stream, header),
+            "osx-x64" => IsMac(stream, header, MacX64),
+            "osx-arm64" => IsMac(stream, header, MacArm64),
             _ => throw new ArgumentOutOfRangeException(nameof(runtimeIdentifier), "Unsupported desktop runtime identifier.")
         };
         if (!valid)
@@ -70,13 +71,15 @@ public static class NativeImage
         return image.PEHeaders.CorHeader is null && image.PEHeaders.CoffHeader.Machine == Machine.Amd64 && image.PEHeaders.PEHeader?.Magic == PEMagic.PE32Plus;
     }
 
-    private static bool IsMacX64(Stream stream, ReadOnlySpan<byte> header)
+    private const uint MacX64 = 0x01000007;
+    private const uint MacArm64 = 0x0100000c;
+
+    private static bool IsMac(Stream stream, ReadOnlySpan<byte> header, uint cpuType)
     {
-        const uint X64 = 0x01000007;
         uint magic = BinaryPrimitives.ReadUInt32BigEndian(header);
         if (magic == 0xcffaedfe)
         {
-            return BinaryPrimitives.ReadUInt32LittleEndian(header[4..]) == X64;
+            return BinaryPrimitives.ReadUInt32LittleEndian(header[4..]) == cpuType;
         }
         if (magic is not (0xcafebabe or 0xcafebabf))
         {
@@ -93,7 +96,7 @@ public static class NativeImage
         {
             stream.Position = 8 + (long)index * entrySize;
             stream.ReadExactly(entry);
-            if (BinaryPrimitives.ReadUInt32BigEndian(entry) != X64)
+            if (BinaryPrimitives.ReadUInt32BigEndian(entry) != cpuType)
             {
                 continue;
             }
@@ -106,7 +109,7 @@ public static class NativeImage
             stream.Position = (long)offset;
             Span<byte> slice = stackalloc byte[8];
             stream.ReadExactly(slice);
-            return BinaryPrimitives.ReadUInt32BigEndian(slice) == 0xcffaedfe && BinaryPrimitives.ReadUInt32LittleEndian(slice[4..]) == X64;
+            return BinaryPrimitives.ReadUInt32BigEndian(slice) == 0xcffaedfe && BinaryPrimitives.ReadUInt32LittleEndian(slice[4..]) == cpuType;
         }
         return false;
     }

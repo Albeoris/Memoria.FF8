@@ -346,7 +346,19 @@ internal sealed partial class LauncherWindow : Window
         MediaToolsInstallation installation = new(client, options);
         try
         {
-            if (!OperatingSystem.IsMacOS() && !await MediaToolsInstallation.ValidateAsync(mediaDirectory) && !await LauncherDialogs.ConfirmAsync(this, "Memoria — FFmpeg setup", $"Download and verify {options.ArchiveName} for video and replacement audio playback?\n\nSource: {options.ReleaseUrl}\nInstall to: {mediaDirectory}\n\nFFmpeg is a separate third-party LGPL dependency. License notices are kept with the tools. Cancel to stay in the launcher."))
+            if (OperatingSystem.IsMacOS() && !await MediaToolsInstallation.ValidateAsync(mediaDirectory))
+            {
+                if (!await LauncherDialogs.ConfirmAsync(this, "Memoria — FFmpeg setup", MacFfmpegSourceBuild.Prompt(mediaDirectory)))
+                {
+                    // Declining keeps the manual LGPL instructions.
+                    return await installation.EnsureAsync(mediaDirectory, _ => false, message => status.Text = message);
+                }
+                await MacFfmpegSourceBuild.InstallAsync(client, mediaDirectory, UpdateMediaProgress, updateLifetime.Token);
+                await RefreshMediaStatusAsync();
+                status.Text = $"FFmpeg {MacFfmpegSourceBuild.Version} was built from source and validated.";
+                return true;
+            }
+            if (!OperatingSystem.IsMacOS() && !await MediaToolsInstallation.ValidateAsync(mediaDirectory) &&!await LauncherDialogs.ConfirmAsync(this, "Memoria — FFmpeg setup", $"Download and verify {options.ArchiveName} for video and replacement audio playback?\n\nSource: {options.ReleaseUrl}\nInstall to: {mediaDirectory}\n\nFFmpeg is a separate third-party LGPL dependency. License notices are kept with the tools. Cancel to stay in the launcher."))
             {
                 return false;
             }
@@ -378,6 +390,8 @@ internal sealed partial class LauncherWindow : Window
             MediaToolsStage.Downloading => $"Downloading FFmpeg — {progress.BytesReceived / 1048576d:F1} MiB received",
             MediaToolsStage.Verifying => "Verifying FFmpeg checksum…",
             MediaToolsStage.Extracting => "Extracting FFmpeg…",
+            MediaToolsStage.Configuring => "Configuring the FFmpeg LGPL build…",
+            MediaToolsStage.Compiling => "Compiling FFmpeg — this takes several minutes…",
             MediaToolsStage.Validating => "Checking FFmpeg executables…",
             MediaToolsStage.Complete => "FFmpeg is installed and ready.",
             _ => throw new ArgumentOutOfRangeException(nameof(progress))

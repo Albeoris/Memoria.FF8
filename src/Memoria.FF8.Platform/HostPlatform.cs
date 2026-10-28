@@ -17,17 +17,22 @@ public static class HostPlatforms
     {
         HostPlatform.Windows => "win-x64",
         HostPlatform.Linux => "linux-x64",
-        HostPlatform.MacOS => "osx-x64",
+        HostPlatform.MacOS => RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "osx-arm64" : "osx-x64",
         _ => throw new ArgumentOutOfRangeException(nameof(platform))
     };
 
+    public static bool IsMacRuntime(string runtimeIdentifier) => runtimeIdentifier is "osx-x64" or "osx-arm64";
+
+    /// <summary>Apple Silicon is supported only as a native macOS process; other hosts require x64.</summary>
+    public static bool IsSupportedArchitecture => RuntimeInformation.ProcessArchitecture == Architecture.X64 || (OperatingSystem.IsMacOS() && RuntimeInformation.ProcessArchitecture == Architecture.Arm64);
+
     public static string ExecutableName(this HostPlatform platform, string name) => platform == HostPlatform.Windows ? name + ".exe" : name;
 
-    public static void RequireX64()
+    public static void RequireSupportedArchitecture()
     {
-        if (RuntimeInformation.ProcessArchitecture != Architecture.X64)
+        if (!IsSupportedArchitecture)
         {
-            throw new PlatformNotSupportedException("This desktop application requires an x64 process.");
+            throw new PlatformNotSupportedException("This desktop application requires an x64 process or a native Apple Silicon process on macOS.");
         }
     }
 }
