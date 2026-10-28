@@ -14,7 +14,7 @@ internal sealed class NativeBattleEffect31PresentationObserver(BattleSnapshot so
     private readonly HashSet<int> banks = [];
     private readonly HashSet<string> markers = [];
     private readonly List<object> observations = [];
-    private readonly int priorStackObservations = source.NativeEffectMemory?.Effect31?.ReadCallbackStack().Observations.Length ?? 0;
+    private readonly int priorStackObservations = source.NativeEffectMemory?.Effect31?.ReadCallbackStack().Observations.Count ?? 0;
     private bool initializationRequired;
     private bool initialized;
     private bool camera;
@@ -231,7 +231,7 @@ internal sealed class NativeBattleEffect31PresentationObserver(BattleSnapshot so
             drained = true;
             Mark("all-native-pools-returned", current, cold);
         }
-        observations.Add(new { current.Frame, graphics.Callback, Cursor = state.ReadDword(CursorGlobal), Banks = banks.Order().ToArray(), Tasks = tasks.Select(task => new { task.Callback, Phase = task.ReadByte(0x29), Age = task.ReadWord(0x24) }), Programmes = programmes.Order().ToArray(), Hp = currentHp, HpTransitions = hpTransitions, Random = current.NativeCrtRandom, StackWrites = state.ReadCallbackStack().Observations.Length, Commands = commands.Length, Stage = current.NativeStage.Groups.Select((group, index) => new { Index = index, group.ColorDepth, group.ColorFlags }) });
+        observations.Add(new { current.Frame, graphics.Callback, Cursor = state.ReadDword(CursorGlobal), Banks = banks.Order().ToArray(), Tasks = tasks.Select(task => new { task.Callback, Phase = task.ReadByte(0x29), Age = task.ReadWord(0x24) }), Programmes = programmes.Order().ToArray(), Hp = currentHp, HpTransitions = hpTransitions, Random = current.NativeCrtRandom, StackWrites = state.ReadCallbackStack().Observations.Count, Commands = commands.Length, Stage = current.NativeStage.Groups.Select((group, index) => new { Index = index, group.ColorDepth, group.ColorFlags }) });
     }
 
     public void Accept(BattleSnapshot completed, string output)

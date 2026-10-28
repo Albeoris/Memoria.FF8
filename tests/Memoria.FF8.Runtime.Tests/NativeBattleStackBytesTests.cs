@@ -8,6 +8,42 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleStackBytesTests
 {
     [Fact]
+    public void SharedHistoryRetainsTheExistingJsonArrayAndIndependentContinuation()
+    {
+        NativeBattleStackBytes original = NativeBattleStackBytes.Unknown("frame", -8, 8).StoreUInt32(-8, 17, 0x1000, "first");
+        NativeBattleStackBytes extended = original.StoreUInt32(-4, 23, 0x1001, "second");
+        Assert.Single(original.Observations);
+        Assert.Same(original.Observations[0], extended.Observations[0]);
+        string legacy = JsonSerializer.Serialize(new { extended.FrameOwner, extended.FirstOffset, extended.Bytes, extended.Known, extended.Pointers, Observations = extended.Observations.ToImmutableArray() });
+        Assert.Equal(legacy, JsonSerializer.Serialize(extended));
+        NativeBattleStackBytes restored = JsonSerializer.Deserialize<NativeBattleStackBytes>(legacy)!;
+        restored.Validate();
+        Assert.Equal(JsonSerializer.Serialize(extended.StoreUInt32(-8, 31, 0x1002, "next")), JsonSerializer.Serialize(restored.StoreUInt32(-8, 31, 0x1002, "next")));
+        Assert.Throws<InvalidDataException>(() => (restored with { Observations = null! }).Validate());
+    }
+
+    [Fact]
+    public void AppendingHistoryDoesNotCopyTheCompleteObservationArrayAtEveryStore()
+    {
+        NativeBattleStackBytes stack = NativeBattleStackBytes.Unknown("frame", -4, 4);
+        for (int index = 0; index < 256; index++)
+        {
+            stack = stack.StoreUInt32(-4, (uint)index, 0x1000, "literal");
+        }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 256; index < 512; index++)
+        {
+            stack = stack.StoreUInt32(-4, (uint)index, 0x1000, "literal");
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < 768 * 1024, $"Appending 256 observations allocated {allocated} bytes.");
+        Assert.Equal(512, stack.Observations.Count);
+        Assert.Equal(Enumerable.Range(1, 512).Select(value => (long)value), stack.Observations.Select(observation => observation.Order));
+        Assert.Equal(511u, stack.ReadUInt32(-4));
+        stack.Validate();
+    }
+
+    [Fact]
     public void AdjacentStoresRetainTheSamePointerArrayAndPartialOverlapPreservesSurvivorOrder()
     {
         NativeBattleStackBytes original = NativeBattleStackBytes.Unknown("frame", -24, 24)
@@ -16,7 +52,7 @@ public sealed class NativeBattleStackBytesTests
             .StorePointer(-4, new(NativeBattleStackPointerKind.Frame, "frame", -8), 0x1002, "third-pointer");
         NativeBattleStackBytes adjacent = original.StoreUInt32(-16, 7, 0x1003, "adjacent-literal").Invalidate(-8, 4, 0x1004, "adjacent-unknown");
         Assert.True(original.Pointers.Equals(adjacent.Pointers));
-        Assert.Equal(5, adjacent.Observations.Length);
+        Assert.Equal(5, adjacent.Observations.Count);
 
         NativeBattleStackBytes overwritten = adjacent.StoreRegister32(-13, 0x12345678, 5, 0x1005, "partial-register");
         Assert.Equal(new[] { -20, -4 }, overwritten.Pointers.Select(cell => cell.Offset));
@@ -47,7 +83,7 @@ public sealed class NativeBattleStackBytesTests
         }
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated < 32 * 1024, $"Eight bounded replays allocated {allocated} bytes.");
-        Assert.Equal(256, stack.Observations.Length);
+        Assert.Equal(256, stack.Observations.Count);
         Assert.Equal(255u, stack.ReadUInt32(-8));
     }
 

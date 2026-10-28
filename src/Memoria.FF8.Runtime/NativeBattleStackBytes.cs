@@ -41,7 +41,7 @@ public sealed record NativeBattleStackObservation([property: JsonRequired] long 
 public sealed record NativeBattleStackPointerCell([property: JsonRequired] int Offset, [property: JsonRequired] NativeBattleStackPointer Pointer, [property: JsonRequired] long WriterOrder);
 
 /// <summary>One physical stack interval relative to a retained execution-frame identity. Unknown bytes remain unknown.</summary>
-public sealed record NativeBattleStackBytes([property: JsonRequired] string FrameOwner, [property: JsonRequired] int FirstOffset, [property: JsonRequired] ImmutableArray<byte> Bytes, [property: JsonRequired] ImmutableArray<bool> Known, [property: JsonRequired] ImmutableArray<NativeBattleStackPointerCell> Pointers, [property: JsonRequired] ImmutableArray<NativeBattleStackObservation> Observations)
+public sealed record NativeBattleStackBytes([property: JsonRequired] string FrameOwner, [property: JsonRequired] int FirstOffset, [property: JsonRequired] ImmutableArray<byte> Bytes, [property: JsonRequired] ImmutableArray<bool> Known, [property: JsonRequired] ImmutableArray<NativeBattleStackPointerCell> Pointers, [property: JsonRequired] ImmutableList<NativeBattleStackObservation> Observations)
 {
     private static readonly ConditionalWeakTable<NativeBattleStackBytes, object> ValidatedStacks = new();
     private static readonly object ValidationReceipt = new();
@@ -67,7 +67,7 @@ public sealed record NativeBattleStackBytes([property: JsonRequired] string Fram
 
     private void ValidateCore()
     {
-        if (string.IsNullOrWhiteSpace(FrameOwner) || Bytes.IsDefaultOrEmpty || Known.IsDefault || Bytes.Length != Known.Length || Pointers.IsDefault || Observations.IsDefault)
+        if (string.IsNullOrWhiteSpace(FrameOwner) || Bytes.IsDefaultOrEmpty || Known.IsDefault || Bytes.Length != Known.Length || Pointers.IsDefault || Observations is null)
         {
             throw new InvalidDataException("Native physical stack bytes require retained ownership and known-byte state.");
         }
@@ -130,7 +130,7 @@ public sealed record NativeBattleStackBytes([property: JsonRequired] string Fram
             ArgumentNullException.ThrowIfNull(cell.Pointer);
             cell.Pointer.Validate();
             int index = Index(cell.Offset, 4);
-            if (cell.WriterOrder <= 0 || cell.WriterOrder > Observations.Length)
+            if (cell.WriterOrder <= 0 || cell.WriterOrder > Observations.Count)
             {
                 throw new InvalidDataException("A native stack pointer requires its recorded writer.");
             }
@@ -276,7 +276,7 @@ public sealed record NativeBattleStackBytes([property: JsonRequired] string Fram
         {
             throw new InvalidDataException("Native stack updates require their actual instruction/call and callback phase.");
         }
-        long order = checked((long)Observations.Length + 1);
+        long order = checked((long)Observations.Count + 1);
         byte[] bytes = Bytes.ToArray();
         bool[] known = Known.ToArray();
         for (int item = 0; item < length; item++)
