@@ -36,7 +36,6 @@ public sealed class GpuFramebufferCaptureTests
         device.Device.BlendState = BlendState.NonPremultiplied;
         device.Device.DepthStencilState = DepthStencilState.DepthRead;
         device.Device.SamplerStates[0] = SamplerState.LinearWrap;
-        VertexBufferBinding[] vertices = device.Device.GetVertexBuffers();
         IndexBuffer? indices = device.Device.Indices;
         Texture? texture = device.Device.Textures[0];
 
@@ -50,7 +49,6 @@ public sealed class GpuFramebufferCaptureTests
         Assert.Same(SamplerState.LinearWrap, device.Device.SamplerStates[0]);
         Assert.Same(texture, device.Device.Textures[0]);
         Assert.Same(indices, device.Device.Indices);
-        Assert.Equal(vertices, device.Device.GetVertexBuffers());
 
         DrawSolid(renderer, width, height, new(0, 1, 0, 1));
         Assert.True(renderer.TryCaptureArgb(out uint[] next));

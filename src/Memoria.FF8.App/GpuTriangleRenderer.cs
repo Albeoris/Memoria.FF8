@@ -219,7 +219,6 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         Texture? savedTexture0 = device.Textures[0];
         Texture? savedTexture1 = device.Textures[1];
         IndexBuffer? savedIndices = device.Indices;
-        VertexBufferBinding[] savedVertices = device.GetVertexBuffers();
         try
         {
             // Unbinding resolves the same MSAA surface used by the full-size capture.
@@ -271,7 +270,9 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             device.Textures[0] = savedTexture0;
             device.Textures[1] = savedTexture1;
             device.Indices = savedIndices;
-            device.SetVertexBuffers(savedVertices);
+            // MonoGame exposes no vertex-binding getter. Each renderer draw binds its own
+            // user or terrain vertices, so release the capture batch's stream here.
+            device.SetVertexBuffer(null);
         }
         pixels = ConvertCaptureArgb(colors);
         return true;
