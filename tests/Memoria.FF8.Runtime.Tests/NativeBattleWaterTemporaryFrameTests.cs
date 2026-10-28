@@ -6,6 +6,38 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleWaterTemporaryFrameTests
 {
     [Fact]
+    public void BulkPrivateReadsPreserveCapturedParentLanesHiddenBackingAndNestedPublication()
+    {
+        NativeBattleWaterTemporaryFrame live = Create();
+        live.WriteWithKnownness(0, new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, new bool[] { true, false, true, false, true, false, true, false });
+        using NativeBattleWaterTemporaryFrame.PrivateWrite outer = live.BeginPrivateWrite();
+        outer.View.WriteByte(0, 20);
+        live.WriteWithKnownness(2, new byte[] { 90, 91 }, new bool[] { false, true });
+        using NativeBattleWaterTemporaryFrame.PrivateWrite child = outer.View.BeginPrivateWrite();
+        child.View.WriteByte(4, 50);
+        outer.View.WriteByte(6, 60);
+        byte[] bytes = new byte[8];
+        bool[] known = new bool[8];
+        child.View.ReadWithKnownness(0, bytes, known);
+        Assert.Equal(new byte[] { 20, 2, 3, 4, 50, 6, 7, 8 }, bytes);
+        Assert.Equal(new bool[] { true, false, true, false, true, false, true, false }, known);
+        byte[] unchanged = Enumerable.Repeat((byte)99, 8).ToArray();
+        Assert.Throws<NotSupportedException>(() => child.View.ReadInto(0, unchanged));
+        Assert.All(unchanged, item => Assert.Equal(99, item));
+
+        Assert.Same(outer.View, child.Publish());
+        outer.View.ReadWithKnownness(0, bytes, known);
+        Assert.Equal(new byte[] { 20, 2, 3, 4, 50, 6, 7, 8 }, bytes);
+        Assert.Equal(new bool[] { true, false, true, false, true, false, true, false }, known);
+        Assert.Throws<ObjectDisposedException>(() => child.View.ReadWithKnownness(0, bytes, known));
+        Assert.Same(live, outer.Publish());
+        live.ReadWithKnownness(0, bytes, known);
+        Assert.Equal(new byte[] { 20, 2, 3, 4, 50, 6, 7, 8 }, bytes);
+        Assert.Equal(new bool[] { true, false, true, false, true, false, true, false }, known);
+        Assert.Throws<ObjectDisposedException>(() => outer.View.ReadWithKnownness(0, bytes, known));
+    }
+
+    [Fact]
     public void Capture_preserves_in_memory_aliases_and_standalone_json_has_independent_restores()
     {
         NativeBattleWaterTemporaryFrame live = Create();

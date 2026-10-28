@@ -317,6 +317,8 @@ public sealed record NativeBattleWaterTemporaryFrame : INativeBattleStorageNode,
         known = flags[0];
     }
 
+    void INativeBattleReadWindowSource.ReadWindowWithKnownness(int absoluteOffset, Span<byte> destination, Span<bool> known) => ReadWithKnownness(absoluteOffset - storage.WorkingOffset, destination, known);
+
     object INativeBattleStorageNode.CaptureDetached(NativeBattleStorageCaptureContext context)
     {
         Validate();

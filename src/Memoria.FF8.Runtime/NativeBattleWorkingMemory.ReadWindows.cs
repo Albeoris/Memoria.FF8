@@ -7,6 +7,15 @@ internal interface INativeBattleReadWindowSource
     long ReadWindowGeneration { get; }
     void ValidateReadWindow(long generation);
     void ReadWindowByte(int absoluteOffset, out byte value, out bool known);
+    void ReadWindowWithKnownness(int absoluteOffset, Span<byte> destination, Span<bool> known)
+    {
+        for (int index = 0; index < destination.Length; index++)
+        {
+            ReadWindowByte(absoluteOffset + index, out byte value, out bool isKnown);
+            destination[index] = value;
+            known[index] = isKnown;
+        }
+    }
     void SeedReadWindow(NativeBattleReadWindowLease lease);
     bool ObservesLayer(INativeBattleReadWindowSource layer) => ReferenceEquals(this, layer);
 }
@@ -131,11 +140,29 @@ internal readonly struct NativeBattleReadWindow : IDisposable
         {
             throw new ArgumentException("Native temporal data and knownness destinations must have equal lengths.", nameof(known));
         }
-        for (int index = 0; index < destination.Length; index++)
+        if (!destination.IsEmpty && current.Original.Count == 0)
         {
-            NativeBattleReadWindowByte original = current.ByteAt(offset + index);
-            destination[index] = original.Value;
-            known[index] = original.Known;
+            current.Source!.ReadWindowWithKnownness(current.Offset + offset, destination, known);
+        }
+        else
+        {
+            int absolute = current.Offset + offset;
+            for (int index = 0; index < destination.Length;)
+            {
+                if (current.Original.TryGetValue((uint)(absolute + index), out NativeBattleReadWindowByte original))
+                {
+                    destination[index] = original.Value;
+                    known[index] = original.Known;
+                    index++;
+                    continue;
+                }
+                int first = index++;
+                while (index < destination.Length && !current.Original.TryGetValue((uint)(absolute + index), out _))
+                {
+                    index++;
+                }
+                current.Source!.ReadWindowWithKnownness(absolute + first, destination[first..index], known[first..index]);
+            }
         }
         NativeBattleTelemetry.Record(1002, NativeBattleTrafficKind.CpuCopyPayload, destination.Length * 2L);
     }
@@ -439,6 +466,8 @@ internal sealed partial class NativeBattleWorkingMemory : INativeBattleReadWindo
         value = ByteAt(absoluteOffset);
         isKnown = IsKnown(absoluteOffset);
     }
+
+    void INativeBattleReadWindowSource.ReadWindowWithKnownness(int absoluteOffset, Span<byte> destination, Span<bool> known) => ReadWithKnownness(absoluteOffset, destination, known);
 
     internal void ReadWindowCurrentByte(int absoluteOffset, out byte value, out bool isKnown)
     {

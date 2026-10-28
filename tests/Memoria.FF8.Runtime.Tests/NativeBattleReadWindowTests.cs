@@ -3,6 +3,108 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleReadWindowTests
 {
     [Fact]
+    public void UncapturedKnownnessReadUsesOneBulkSourceCallAndEmptyReadsDoNotTouchTheSource()
+    {
+        using NativeBattleWorkingMemory memory = new(32, initialKnownZero: false);
+        memory.WriteRetainedBytes(4, [1, 2, 3, 4]);
+        BulkSource source = new(memory);
+        using NativeBattleReadWindow window = memory.OpenReadWindow(source, 4, 8, 8);
+        byte[] bytes = new byte[8];
+        bool[] known = new bool[8];
+        window.ReadWithKnownness(0, bytes, known);
+        Assert.Equal(new byte[] { 1, 2, 3, 4, 0, 0, 0, 0 }, bytes);
+        Assert.All(known, item => Assert.False(item));
+        Assert.Equal(new[] { (4, 8) }, source.BulkReads);
+        Assert.Equal(0, source.ByteReads);
+        window.ReadWithKnownness(8, Span<byte>.Empty, Span<bool>.Empty);
+        Assert.Single(source.BulkReads);
+    }
+
+    [Fact]
+    public void MixedCapturedAndLiveRunsNeverReadChangedBackingForCapturedLanes()
+    {
+        using NativeBattleWorkingMemory memory = new(16, initialKnownZero: false);
+        memory.WriteWithKnownness(0, new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, new bool[] { true, false, true, false, true, false, true, false });
+        BulkSource source = new(memory);
+        using NativeBattleReadWindow window = memory.OpenReadWindow(source, 0, 8, 2);
+        memory.Write(2, [90, 91]);
+        source.ForbiddenFirst = 2;
+        source.ForbiddenEnd = 4;
+        source.BulkReads.Clear();
+        source.ByteReads = 0;
+        byte[] bytes = new byte[8];
+        bool[] known = new bool[8];
+        window.ReadWithKnownness(0, bytes, known);
+        Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, bytes);
+        Assert.Equal(new bool[] { true, false, true, false, true, false, true, false }, known);
+        Assert.Equal(new[] { (0, 2), (4, 4) }, source.BulkReads);
+        Assert.Equal(0, source.ByteReads);
+        Assert.Equal(2, window.RetainedByteCount);
+        Assert.Throws<InvalidOperationException>(() => memory.WriteByte(4, 99));
+        Assert.Equal(5, memory.ReadByte(4));
+    }
+
+    [Fact]
+    public void ScalarFallbackKeepsAcceptedPrefixAndReadIntoUnknownFailureKeepsDestinationUnchanged()
+    {
+        using NativeBattleWorkingMemory memory = new(16, initialKnownZero: false);
+        memory.WriteWithKnownness(0, new byte[] { 1, 2, 3, 4 }, new bool[] { true, false, true, true });
+        ScalarSource source = new(memory) { ForbiddenFirst = 2, ForbiddenEnd = 3 };
+        using NativeBattleReadWindow window = memory.OpenReadWindow(source, 0, 4, 4);
+        byte[] bytes = [99, 99, 99, 99];
+        bool[] known = [true, true, true, true];
+        Assert.Throws<InvalidOperationException>(() => window.ReadWithKnownness(0, bytes, known));
+        Assert.Equal(new byte[] { 1, 2, 99, 99 }, bytes);
+        Assert.Equal(new bool[] { true, false, true, true }, known);
+        bytes = [99, 99, 99, 99];
+        Assert.Throws<NotSupportedException>(() => window.ReadInto(0, bytes));
+        Assert.Equal(new byte[] { 99, 99, 99, 99 }, bytes);
+        Assert.Throws<InvalidDataException>(() => window.ReadWithKnownness(5, bytes, new bool[1]));
+        Assert.Throws<ArgumentException>(() => window.ReadWithKnownness(0, bytes, new bool[1]));
+        window.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => window.ReadWithKnownness(5, bytes, new bool[1]));
+    }
+
+    private class ScalarSource(NativeBattleWorkingMemory memory) : INativeBattleReadWindowSource
+    {
+        protected NativeBattleWorkingMemory Memory { get; } = memory;
+        public int ByteReads;
+        public int ForbiddenFirst = -1;
+        public int ForbiddenEnd = -1;
+        public long ReadWindowGeneration => 0;
+        public void ValidateReadWindow(long generation) => ((INativeBattleReadWindowSource)Memory).ValidateReadWindow(generation);
+        public void SeedReadWindow(NativeBattleReadWindowLease lease) => ((INativeBattleReadWindowSource)Memory).SeedReadWindow(lease);
+        public bool ObservesLayer(INativeBattleReadWindowSource layer) => ReferenceEquals(this, layer) || ReferenceEquals(Memory, layer);
+
+        protected void RequireReadable(int offset, int length)
+        {
+            if (offset < ForbiddenEnd && offset + length > ForbiddenFirst)
+            {
+                throw new InvalidOperationException("Captured backing must not be read.");
+            }
+        }
+
+        public void ReadWindowByte(int absoluteOffset, out byte value, out bool known)
+        {
+            ByteReads++;
+            RequireReadable(absoluteOffset, 1);
+            ((INativeBattleReadWindowSource)Memory).ReadWindowByte(absoluteOffset, out value, out known);
+        }
+    }
+
+    private sealed class BulkSource(NativeBattleWorkingMemory memory) : ScalarSource(memory), INativeBattleReadWindowSource
+    {
+        public List<(int Offset, int Length)> BulkReads { get; } = [];
+
+        void INativeBattleReadWindowSource.ReadWindowWithKnownness(int absoluteOffset, Span<byte> destination, Span<bool> known)
+        {
+            RequireReadable(absoluteOffset, destination.Length);
+            BulkReads.Add((absoluteOffset, destination.Length));
+            Memory.ReadWithKnownness(absoluteOffset, destination, known);
+        }
+    }
+
+    [Fact]
     public void Opening_copies_no_source_and_emit_like_writes_preserve_later_stream_reads()
     {
         using NativeBattleWorkingMemory memory = new(80 * 1024);
