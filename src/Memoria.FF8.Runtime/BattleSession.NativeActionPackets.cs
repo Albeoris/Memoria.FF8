@@ -34,6 +34,7 @@ public sealed partial class BattleSession
         memory = NativeBattleStorageSnapshots.Restore(memory);
         //47CCB0 initial entry calls48D1F0; the physical arenas, pointer and independent gates survive it.
         nativeActionPackets = memory.ActionPackets.ResetCounts();
+        ResetDiagnosticReflectionHeaders();
         nativePartyStatusMirrors = memory.PartyStatusMirrors;
         RestoreNativePresentationStatusMemory(memory.PresentationStatusMemory);
         nativeActionScratch = memory.ActionScratch;
@@ -57,6 +58,7 @@ public sealed partial class BattleSession
     {
         //47DD90 ->48D1F0 clears C0/C1 only, preserving C2, action pause and physical packet payload.
         nativeActionPackets = nativeActionPackets.ResetCounts();
+        ResetDiagnosticReflectionHeaders();
         return graphics;
     }
 }

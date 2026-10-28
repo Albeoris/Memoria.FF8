@@ -248,6 +248,8 @@ public static partial class ScenarioDiscovery
         {
             result["driver"]!["repairs"] = new JsonArray(new JsonObject { ["actor_id"] = "party-0", ["hit_points"] = prepared.GetMagicMaximumHitPoints(0), ["revive"] = false, ["remove_statuses0"] = 0, ["remove_statuses1"] = 0 });
         }
+        DeclareEnemySupportingReactions(result, assets.LoadEncounter(chosen.FormationId), actor, native.MagicId, scripted);
+        DeclareEnemyPartyKnockoutRearm(result, native, selectorProof.TargetSelector!.Value, preparedParty ?? initial.CombatParty, row => prepared.GetMagicMaximumHitPoints(row));
         recipe = result;
         return true;
     }

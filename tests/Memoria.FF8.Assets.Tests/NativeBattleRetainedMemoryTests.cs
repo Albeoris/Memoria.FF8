@@ -91,8 +91,14 @@ public sealed class NativeBattleRetainedMemoryTests
         }
         Assert.Equal(NativeBattleEffectStaticResourcesReader.Read(executable, 0x1298C68, 0x109FC).ToArray(), executableMemory.Data.AsSpan().Slice(0, 0x109FC).ToArray());
         Assert.Equal(NativeBattleEffectStaticResourcesReader.Read(executable, 0x12A9664, 0x4D9C).ToArray(), executableMemory.Data.AsSpan().Slice(0x109FC, 0x4D9C).ToArray());
-        Assert.Equal(0x1298C68u, NativeBattleQuezacotlWorkspace.Source(detachedEffect).Address);
-        Assert.Equal(executableMemory.Data.ToArray(), NativeBattleQuezacotlWorkspace.Source(detachedEffect).Data.ToArray());
+        NativeBattleGfAnimationSource animationSource = NativeBattleQuezacotlWorkspace.Source(actual.EffectMemory);
+        Assert.Equal(0x1298C68u, animationSource.Address);
+        byte[] animationBytes = new byte[animationSource.Length];
+        using (NativeBattleGfSourceReader reader = animationSource.OpenReader())
+        {
+            reader.ReadInto(0, animationBytes);
+        }
+        Assert.Equal(executableMemory.Data.ToArray(), animationBytes);
         NativeBattleDoubleMorph doubleMorph = Assert.IsType<NativeBattleDoubleMorph>(detachedEffect.DoubleMorph);
         Assert.Equal(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x163FFD0u).Bytes.ToArray(), doubleMorph.Bytes.ToArray());
         NativeBattleTripleMorph tripleMorph = Assert.IsType<NativeBattleTripleMorph>(detachedEffect.TripleMorph);
@@ -144,11 +150,11 @@ public sealed class NativeBattleRetainedMemoryTests
         byte[] cursor = image.ReadLoader(NativeBattleTemporaryMemory.Cursor, 4);
         byte[] shadow = image.ReadLoader(0x1D999D0, 80);
         Assert.Equal(shadow, actual.FileStaging!.Read(0x1D999D0, shadow.Length));
-        Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(0x1D999D0, shadow.Length));
+        Assert.Equal(shadow, generic.FileStaging!.Read(0x1D999D0, shadow.Length));
         Assert.Equal(temporary, actual.FileStaging!.Read(NativeBattleTemporaryMemory.Address, temporary.Length));
         Assert.Equal(cursor, actual.FileStaging.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
-        Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(NativeBattleTemporaryMemory.Address, temporary.Length));
-        Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
+        Assert.Equal(temporary, generic.FileStaging!.Read(NativeBattleTemporaryMemory.Address, temporary.Length));
+        Assert.Equal(cursor, generic.FileStaging!.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
         NativeBattleRetainedMemory authenticated = generic with { EffectMemory = authenticatedEffect, FileStaging = NativeBattleStorageSnapshots.Restore(generic.FileStaging!).Write(NativeBattleTemporaryMemory.Address, temporary).Write(NativeBattleTemporaryMemory.Cursor, cursor).Write(0x1D999D0, shadow) };
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(authenticated)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null, RecoveryExecutables = null } })));
         Assert.Same(actual, assets.ReadColdProcessNativeBattleMemory());

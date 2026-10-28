@@ -9,6 +9,7 @@ namespace Memoria.FF8.BattleEffects;
 public sealed record LiveEvidenceVerdict(string Verdict, string[] Errors, TelemetryFrameSummary[] Executions, double[] EffectDurationsMs, TelemetryFrameSummary? Combined, bool CampaignAcceptance, string AudioScope, string[] DiagnosticIssues, string CopyTrafficScope)
 {
     public TelemetryEffectFrameSummary[] EffectExecutions { get; init; } = [];
+    public int ReflectedChildDispatches { get; init; }
 }
 
 /// <summary>Independently checks retained live observations. Campaign fixture provenance and reviewer acceptance remain distinct from telemetry admission.</summary>
@@ -34,6 +35,8 @@ public static class LiveEvidenceValidation
         List<TelemetryFrameSummary> frames = [];
         List<TelemetryEffectFrameSummary> effectFrames = [];
         List<double> effectDurations = [];
+        int reflectedChildDispatches = 0;
+        HashSet<(int Header, long Generation)> reflectedHeaders = [];
         try
         {
             RejectDuplicateProperties(report);
@@ -134,7 +137,8 @@ public static class LiveEvidenceValidation
                     errors.Add("CONTINUITY_BROKEN");
                 }
                 JsonElement dispatches = execution.GetProperty("dispatches");
-                if (dispatches.EnumerateArray().Count(dispatch => Number(dispatch, "requested_effect") == effect) != 1)
+                BattleDiagnosticEffectDispatch[] typedDispatches = dispatches.Deserialize<BattleDiagnosticEffectDispatch[]>(Json) ?? throw new InvalidDataException("Dispatch observations must be an explicit array.");
+                if (typedDispatches.Count(dispatch => dispatch.RequestedEffect == effect && dispatch.Reflection is null) != 1)
                 {
                     errors.Add("DISPATCH_COUNT_INVALID");
                 }
@@ -142,12 +146,30 @@ public static class LiveEvidenceValidation
                 {
                     long serial = Number(dispatch, "serial");
                     long callback = Number(dispatch, "callback");
-                    bool focal = Number(dispatch, "requested_effect") == effect;
+                    BattleDiagnosticEffectDispatch typed = dispatch.Deserialize<BattleDiagnosticEffectDispatch>(Json) ?? throw new InvalidDataException("Dispatch observation is null.");
+                    bool focal = typed.RequestedEffect == effect && typed.Reflection is null;
                     bool sameActor = Text(dispatch, "actor_id") == actor;
-                    bool invocationMatches = focal ? sameActor && Text(dispatch, "ability") == ability && Number(dispatch, "action_id") == nativeAction && (nativeCommand is null || OptionalNumber(dispatch, "native_command") == nativeCommand) : sameActor ? supportingEffects.Contains(Number(dispatch, "requested_effect")) : HasSupportingInvocation(execution, dispatch, supportingInvocations);
+                    bool invocationMatches;
+                    if (typed.Reflection is { } reflection)
+                    {
+                        BattleDiagnosticEffectDispatch[] parents = typedDispatches.Where(parent => parent.Reflection is null && parent.RequestedEffect == effect && parent.ExecutedEffect == effect && parent.Serial < typed.Serial && parent.Callback <= typed.Callback && parent.ActorId == actor && parent.Ability?.ToString() == ability && parent.ActionId == nativeAction && (nativeCommand is null || parent.NativeCommand == nativeCommand) && BattleDiagnosticReflectionLineage.Matches(typed, parent)).ToArray();
+                        invocationMatches = parents.Length == 1 && typed.Ability == parents[0].Ability && reflectedHeaders.Add((reflection.ReflectedHeaderIndex, reflection.ReflectedHeaderGeneration));
+                    }
+                    else
+                    {
+                        invocationMatches = focal ? sameActor && Text(dispatch, "ability") == ability && Number(dispatch, "action_id") == nativeAction && (nativeCommand is null || OptionalNumber(dispatch, "native_command") == nativeCommand) : sameActor ? supportingEffects.Contains(Number(dispatch, "requested_effect")) : HasSupportingInvocation(execution, dispatch, supportingInvocations);
+                        if (typed.NativeCommand == 247 && (!focal || nativeCommand != 247))
+                        {
+                            invocationMatches = false;
+                        }
+                    }
                     if (serial <= previousSerial || callback < startCallback || callback > endCallback || !invocationMatches || Number(dispatch, "executed_effect") != Number(dispatch, "requested_effect"))
                     {
                         errors.Add("DISPATCH_IDENTITY_MISMATCH");
+                    }
+                    else if (typed.Reflection is not null)
+                    {
+                        reflectedChildDispatches++;
                     }
                     previousSerial = serial;
                 }
@@ -214,7 +236,7 @@ public static class LiveEvidenceValidation
         }
         string[] distinct = errors.Distinct(StringComparer.Ordinal).ToArray();
         string verdict = distinct.Length == 0 ? "PASS" : distinct.All(error => error == "PRESENTATION_BELOW_30_FPS") ? "FAIL" : "ERROR";
-        return new(verdict, distinct, frames.ToArray(), effectDurations.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.", diagnostics.Distinct().ToArray(), "Optional shared-operation payload counters are partial lower bounds. Complete effect-local/process copy traffic is not measured; unavailable is not zero.") { EffectExecutions = effectFrames.ToArray() };
+        return new(verdict, distinct, frames.ToArray(), effectDurations.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.", diagnostics.Distinct().ToArray(), "Optional shared-operation payload counters are partial lower bounds. Complete effect-local/process copy traffic is not measured; unavailable is not zero.") { EffectExecutions = effectFrames.ToArray(), ReflectedChildDispatches = reflectedChildDispatches };
     }
 
     private static BattleDiagnosticSupportingInvocation[] ReadSupportingInvocations(JsonElement report, string actor, long effect)

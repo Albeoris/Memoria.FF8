@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
@@ -71,6 +72,11 @@ public sealed record NativeBattleTextureSourceRegion(NativeBattleTextureOrigin O
 
 internal static class NativeBattleTextureProvenance
 {
+    private readonly record struct WordOrigin(NativeBattleTextureOrigin? Origin, int X, int Y);
+    private readonly record struct RunKey(NativeBattleTextureOrigin Origin, int X, int Width, int SourceX, int SourceYOffset);
+    private readonly record struct CopiedRun(NativeBattleTextureOrigin Origin, int X, int Y, int Width, int Height, int SourceX, int SourceY);
+    private static readonly ArrayPool<WordOrigin> OverlapWords = ArrayPool<WordOrigin>.Create(1024 * 512, 1);
+
     internal static ImmutableArray<NativeBattleTextureSourceRegion>? Overwrite(ImmutableArray<NativeBattleTextureSourceRegion>? sources, int x, int y, int width, int height, NativeBattleTextureOrigin? origin = null)
     {
         if (width == 0 || height == 0)
@@ -156,56 +162,99 @@ internal static class NativeBattleTextureProvenance
             }
             return copied.ToImmutable();
         }
-        // Mirror forward MOVSD/MOVSB semantics, including overlapping source and destination rows.
-        Dictionary<int, (NativeBattleTextureOrigin Origin, int X, int Y)?> changed = [];
-        for (int row = 0; row < copy.Height; row++)
-        {
-            for (int column = 0; column < copy.Width; column += 2)
-            {
-                var first = Read(copy.SourceX + column, copy.SourceY + row);
-                var second = column + 1 < copy.Width ? Read(copy.SourceX + column + 1, copy.SourceY + row) : null;
-                changed[(copy.DestinationY + row) * 1024 + copy.DestinationX + column] = first;
-                if (column + 1 < copy.Width)
-                {
-                    changed[(copy.DestinationY + row) * 1024 + copy.DestinationX + column + 1] = second;
-                }
-            }
-        }
-        var result = (Overwrite(sources, copy.DestinationX, copy.DestinationY, copy.Width, copy.Height) ?? []).ToBuilder();
-        for (int row = 0; row < copy.Height; row++)
-        {
-            for (int column = 0; column < copy.Width;)
-            {
-                int key = (copy.DestinationY + row) * 1024 + copy.DestinationX + column;
-                var first = changed[key];
-                int end = column + 1;
-                if (first is { } known)
-                {
-                    while (end < copy.Width && changed[key + end - column] is { } next && next.Origin == known.Origin && next.X == known.X + end - column && next.Y == known.Y)
-                    {
-                        end++;
-                    }
-                    result.Add(new(known.Origin, copy.DestinationX + column, copy.DestinationY + row, end - column, 1, known.X, known.Y));
-                }
-                column = end;
-            }
-        }
-        return result.ToImmutable();
+        return CopyOverlapping(sources.Value, copy);
+    }
 
-        (NativeBattleTextureOrigin Origin, int X, int Y)? Read(int x, int y)
+    private static ImmutableArray<NativeBattleTextureSourceRegion> CopyOverlapping(ImmutableArray<NativeBattleTextureSourceRegion> sources, NativeBattleEffectVramCopy copy)
+    {
+        int count = checked(copy.Width * copy.Height);
+        WordOrigin[] changed = OverlapWords.Rent(count);
+        int written = 0;
+        try
         {
-            if (changed.TryGetValue(y * 1024 + x, out var value))
+            // Each MOVSD reads both words before either destination word becomes visible.
+            for (int row = 0; row < copy.Height; row++)
             {
-                return value;
+                for (int column = 0; column < copy.Width; column += 2)
+                {
+                    WordOrigin first = Read(copy.SourceX + column, copy.SourceY + row);
+                    WordOrigin second = column + 1 < copy.Width ? Read(copy.SourceX + column + 1, copy.SourceY + row) : default;
+                    changed[written++] = first;
+                    if (column + 1 < copy.Width)
+                    {
+                        changed[written++] = second;
+                    }
+                }
             }
-            foreach (NativeBattleTextureSourceRegion source in sources.Value)
+            var result = (Overwrite(sources, copy.DestinationX, copy.DestinationY, copy.Width, copy.Height) ?? []).ToBuilder();
+            List<CopiedRun> runs = [];
+            Dictionary<RunKey, int> lastRuns = [];
+            for (int row = 0; row < copy.Height; row++)
+            {
+                for (int column = 0; column < copy.Width;)
+                {
+                    int key = row * copy.Width + column;
+                    WordOrigin first = changed[key];
+                    int end = column + 1;
+                    if (first.Origin is { } origin)
+                    {
+                        while (end < copy.Width)
+                        {
+                            WordOrigin next = changed[key + end - column];
+                            if (next.Origin != origin || next.X != first.X + end - column || next.Y != first.Y)
+                            {
+                                break;
+                            }
+                            end++;
+                        }
+                        int x = copy.DestinationX + column;
+                        int y = copy.DestinationY + row;
+                        RunKey keyForRun = new(origin, x, end - column, first.X, first.Y - y);
+                        if (lastRuns.TryGetValue(keyForRun, out int previousIndex) && runs[previousIndex] is { } previous && previous.Y + previous.Height == y)
+                        {
+                            runs[previousIndex] = previous with { Height = previous.Height + 1 };
+                        }
+                        else
+                        {
+                            lastRuns[keyForRun] = runs.Count;
+                            runs.Add(new(origin, x, y, end - column, 1, first.X, first.Y));
+                        }
+                    }
+                    column = end;
+                }
+            }
+            foreach (CopiedRun run in runs)
+            {
+                result.Add(new(run.Origin, run.X, run.Y, run.Width, run.Height, run.SourceX, run.SourceY));
+            }
+            return result.ToImmutable();
+        }
+        finally
+        {
+            // Pooled scratch must not keep resource origins alive after the copy completes.
+            OverlapWords.Return(changed, clearArray: true);
+        }
+
+        WordOrigin Read(int x, int y)
+        {
+            int column = x - copy.DestinationX;
+            int row = y - copy.DestinationY;
+            if ((uint)column < copy.Width && (uint)row < copy.Height)
+            {
+                int index = row * copy.Width + column;
+                if (index < written)
+                {
+                    return changed[index];
+                }
+            }
+            foreach (NativeBattleTextureSourceRegion source in sources)
             {
                 if (x >= source.X && y >= source.Y && x < source.X + source.WidthWords && y < source.Y + source.Height)
                 {
-                    return (source.Origin, source.SourceXWords + x - source.X, source.SourceY + y - source.Y);
+                    return new(source.Origin, source.SourceXWords + x - source.X, source.SourceY + y - source.Y);
                 }
             }
-            return null;
+            return default;
         }
     }
 }

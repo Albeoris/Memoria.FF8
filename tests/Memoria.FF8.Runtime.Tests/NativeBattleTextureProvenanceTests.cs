@@ -210,6 +210,80 @@ public sealed class NativeBattleTextureProvenanceTests
         Assert.Equal(new(64, 32, 2, 1), Assert.Single(frame.CopyFrames));
     }
 
+    [Theory]
+    [InlineData(1, 0, 12)]
+    [InlineData(-1, 0, 12)]
+    [InlineData(0, 1, 12)]
+    [InlineData(0, -1, 12)]
+    [InlineData(1, 1, 11)]
+    [InlineData(-1, -1, 11)]
+    [InlineData(3, 0, 11)]
+    public void Overlapping_provenance_matches_physical_forward_word_transfers_including_unknown_holes(int dx, int dy, short width)
+    {
+        NativeBattleTextureOrigin first = new("first.tim", 0, NativeBattleTextureRole.Pixels, 8, 8, 10);
+        NativeBattleTextureOrigin second = new("second.tim", 0, NativeBattleTextureRole.Pixels, 8, 10, 10);
+        ImmutableArray<NativeBattleTextureSourceRegion> sources = [new(first, 64, 31, 8, 10), new(second, 74, 31, 10, 10)];
+        NativeBattleEffectVramCopy copy = new(66, 33, width, 5, checked((short)(66 + dx)), checked((short)(33 + dy)));
+        (NativeBattleTextureOrigin Origin, int X, int Y)?[,] physical = new (NativeBattleTextureOrigin, int, int)?[32, 16];
+        foreach (NativeBattleTextureSourceRegion source in sources)
+        {
+            for (int y = 0; y < source.Height; y++)
+            {
+                for (int x = 0; x < source.WidthWords; x++)
+                {
+                    physical[source.X + x - 60, source.Y + y - 30] = (source.Origin, source.SourceXWords + x, source.SourceY + y);
+                }
+            }
+        }
+        for (int row = 0; row < copy.Height; row++)
+        {
+            for (int column = 0; column < copy.Width; column += 2)
+            {
+                var a = physical[copy.SourceX + column - 60, copy.SourceY + row - 30];
+                var b = column + 1 < copy.Width ? physical[copy.SourceX + column + 1 - 60, copy.SourceY + row - 30] : null;
+                physical[copy.DestinationX + column - 60, copy.DestinationY + row - 30] = a;
+                if (column + 1 < copy.Width)
+                {
+                    physical[copy.DestinationX + column + 1 - 60, copy.DestinationY + row - 30] = b;
+                }
+            }
+        }
+        ImmutableArray<NativeBattleTextureSourceRegion> copied = NativeBattleTextureProvenance.Copy(sources, copy)!.Value;
+        foreach (NativeBattleTextureSourceRegion source in copied)
+        {
+            source.Validate();
+        }
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 32; x++)
+            {
+                NativeBattleTextureSourceRegion? source = copied.FirstOrDefault(region => Contains(region, x + 60, y + 30));
+                (NativeBattleTextureOrigin Origin, int X, int Y)? actual = source is null ? null : (source.Origin, source.SourceXWords + x + 60 - source.X, source.SourceY + y + 30 - source.Y);
+                Assert.Equal(physical[x, y], actual);
+            }
+        }
+    }
+
+    [Fact]
+    public void Horizontal_overlap_coalesces_equal_row_mappings_without_fragmenting_every_source_word()
+    {
+        NativeBattleTextureOrigin origin = new("effect.tim", 0, NativeBattleTextureRole.Pixels, 8, 300, 128);
+        ImmutableArray<NativeBattleTextureSourceRegion> sources = [new(origin, 64, 32, 300, 128)];
+        NativeBattleEffectVramCopy copy = new(64, 32, 256, 128, 66, 32);
+        ImmutableArray<NativeBattleTextureSourceRegion> copied = NativeBattleTextureProvenance.Copy(sources, copy)!.Value;
+        NativeBattleTextureSourceRegion[] transferred = copied.Where(region => region.X >= 66 && region.X < 322).ToArray();
+        Assert.Equal(128, transferred.Length);
+        Assert.All(transferred, region =>
+        {
+            Assert.Equal(2, region.WidthWords);
+            Assert.Equal(128, region.Height);
+            Assert.Equal(0, region.SourceXWords);
+            Assert.Equal(0, region.SourceY);
+            region.Validate();
+        });
+        Assert.Equal(130, copied.Length);
+    }
+
     private static bool Contains(NativeBattleTextureSourceRegion region, int x, int y) => x >= region.X && y >= region.Y && x < region.X + region.WidthWords && y < region.Y + region.Height;
 
     private static NativeBattleEffectHeapAllocation Tim(string name)

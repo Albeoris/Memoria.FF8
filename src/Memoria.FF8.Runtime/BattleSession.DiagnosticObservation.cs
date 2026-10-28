@@ -9,6 +9,10 @@ public sealed record BattleDiagnosticEffectDispatch(long Serial, long Callback, 
     public byte? NativeAiCallbackStage { get; init; }
     public string? NativeAiScriptSha256 { get; init; }
     public ushort? NativeTargetMask { get; init; }
+    public byte? NativeActorIndex { get; init; }
+    public int? NativeHeaderIndex { get; init; }
+    public long? NativeHeaderGeneration { get; init; }
+    public BattleDiagnosticReflection? Reflection { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -158,7 +162,8 @@ public sealed partial class BattleSession
         BattleAttackCommand? callbackBound = bound ?? nativeCommandBanks.BoundCommands.FirstOrDefault(command => command.ActorId == actorId && command.NativeAction?.MagicId == effect.RequestedEffect);
         byte? callbackStage = action?.NativeAiCallbackStage ?? callbackBound?.NativeAiCallbackStage;
         string? scriptSha256 = callbackStage is byte stage && actorId is not null && byId.TryGetValue(actorId, out BattleCombatant? scriptActor) && scriptActor.NativeAi is { } ai && stage < ai.Scripts.Length ? Convert.ToHexString(SHA256.HashData(ai.Scripts[stage])) : null;
-        observer(new(diagnosticDispatchSerial, NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand) { NativeAiCallbackStage = callbackStage, NativeAiScriptSha256 = scriptSha256, NativeTargetMask = effect.Parameters?.TargetMask7A });
+        BattleDiagnosticEffectDispatch dispatch = new(diagnosticDispatchSerial, NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand) { NativeAiCallbackStage = callbackStage, NativeAiScriptSha256 = scriptSha256, NativeTargetMask = effect.Parameters?.TargetMask7A, NativeActorIndex = effect.Parameters?.Actor78, NativeHeaderIndex = effect.Parameters?.HeaderIndex7C };
+        observer(CompleteDiagnosticReflection(dispatch));
     }
 
     private static BattleAbility ResolveDiagnosticHeaderAbility(bool isPlayer, BattleAbility? knownAbility, byte? limitCommand, byte nativeCommand)

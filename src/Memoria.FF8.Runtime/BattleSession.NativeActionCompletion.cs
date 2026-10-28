@@ -56,6 +56,7 @@ public sealed partial class BattleSession
         }
         FlushNativeReactions();
         nativeActionPackets = nativeActionPackets.ResetCounts();
+        ResetDiagnosticReflectionHeaders();
         foreach (BattleCombatant player in combatants.Where(actor => actor.NativeIndex is >= 0 and < 3 && actor.IsActive))
         {
             ReprojectNativePlayerStatistics(player);

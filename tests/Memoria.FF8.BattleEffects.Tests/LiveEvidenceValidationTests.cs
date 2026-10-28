@@ -9,6 +9,142 @@ namespace Memoria.FF8.BattleEffects.Tests;
 public sealed class LiveEvidenceValidationTests
 {
     [Fact]
+    public void Reflect106_second_cast_counts_one_focal_dispatch_and_one_proved_reflected_child()
+    {
+        LiveEvidenceVerdict result = Validate(ReflectionReport());
+
+        Assert.Equal("PASS", result.Verdict);
+        Assert.Empty(result.Errors);
+        Assert.Equal(1, result.ReflectedChildDispatches);
+        Assert.Equal(2, result.Executions.Length);
+    }
+
+    [Theory]
+    [InlineData("unlinked")]
+    [InlineData("producer")]
+    [InlineData("wrong_parent")]
+    [InlineData("borrow_previous_execution")]
+    [InlineData("source_generation")]
+    [InlineData("child_generation")]
+    [InlineData("actor")]
+    [InlineData("command")]
+    [InlineData("action")]
+    [InlineData("effect")]
+    [InlineData("reflect_status")]
+    [InlineData("mask")]
+    [InlineData("reused_header")]
+    public void Reflected_children_require_unique_same_execution_focal_lineage(string corruption)
+    {
+        JsonObject report = ReflectionReport();
+        JsonObject child = Execution(report, 1)["dispatches"]![1]!.AsObject();
+        switch (corruption)
+        {
+            case "unlinked":
+                child.Remove("reflection");
+                child["requested_effect"] = 2;
+                child["executed_effect"] = 2;
+                report["supporting_effects"] = new JsonArray(2);
+                break;
+            case "producer":
+                child["reflection"]!["producer_address"] = 0;
+                break;
+            case "wrong_parent":
+                child["reflection"]!["source_dispatch_serial"] = 99;
+                break;
+            case "borrow_previous_execution":
+                child["reflection"]!["source_dispatch_serial"] = 1;
+                break;
+            case "source_generation":
+                child["reflection"]!["source_header_generation"] = 1;
+                break;
+            case "child_generation":
+                child["native_header_generation"] = 4;
+                break;
+            case "actor":
+                child["actor_id"] = "another-actor";
+                break;
+            case "command":
+                child["native_command"] = 2;
+                break;
+            case "action":
+                child["action_id"] = 32;
+                break;
+            case "effect":
+                child["executed_effect"] = 2;
+                break;
+            case "reflect_status":
+                child["reflection"]!["reflector_statuses1"] = 0;
+                break;
+            case "mask":
+                child["native_target_mask"] = 16;
+                break;
+            case "reused_header":
+                JsonObject duplicate = child.DeepClone().AsObject();
+                duplicate["serial"] = 4;
+                Execution(report, 1)["dispatches"]!.AsArray().Add(duplicate);
+                break;
+        }
+
+        Assert.Contains("DISPATCH_IDENTITY_MISMATCH", Validate(report).Errors);
+    }
+
+    [Fact]
+    public void Original_command247_requires_explicit_original_invocation_and_no_reflection_receipt()
+    {
+        JsonObject report = Report();
+        report["expected_native_action"] = 21;
+        report["expected_native_command"] = 247;
+        foreach (JsonNode? execution in report["executions"]!.AsArray())
+        {
+            execution!["dispatches"]![0]!["native_command"] = 247;
+        }
+        Assert.Equal("PASS", Validate(report).Verdict);
+        report.AsObject().Remove("expected_native_action");
+        report.AsObject().Remove("expected_native_command");
+        Assert.Contains("DISPATCH_IDENTITY_MISMATCH", Validate(report).Errors);
+    }
+
+    private static JsonObject ReflectionReport()
+    {
+        JsonObject report = Report();
+        report["expected_effect"] = 106;
+        report["expected_native_action"] = 31;
+        report["expected_native_command"] = 2;
+        report["input"]!["action_id"] = 31;
+        for (int index = 0; index < 2; index++)
+        {
+            JsonObject execution = Execution(report, index);
+            JsonNode source = execution["dispatches"]![0]!;
+            source["action_id"] = 31;
+            source["native_command"] = 2;
+            source["requested_effect"] = 106;
+            source["executed_effect"] = 106;
+            source["native_actor_index"] = 0;
+            source["native_header_index"] = 0;
+            source["native_header_generation"] = index + 1;
+            source["native_target_mask"] = 1;
+            foreach (string boundary in new[] { "before", "after" })
+            {
+                execution[boundary]![0]!["magic_stocks"]![0]!["magic_id"] = 31;
+            }
+        }
+        Execution(report, 0)["after"]![0]!["statuses1"] = 128;
+        Execution(report, 1)["before"]![0]!["statuses1"] = 128;
+        Execution(report, 1)["after"]![0]!["statuses1"] = 128;
+        JsonObject child = Execution(report, 1)["dispatches"]![0]!.DeepClone().AsObject();
+        child["serial"] = 3;
+        child["callback"] = 22;
+        child["native_command"] = 247;
+        child["native_header_index"] = 1;
+        child["native_header_generation"] = 3;
+        child["native_target_mask"] = 8;
+        BattleDiagnosticReflection proof = new(0x487DF0, 2, 0, 2, 1, 3, "party0", 0, "party0", 0, 0x80, "enemy0", 3, 2, 31, 106, 8, 0x10, 31, 106, 0, 8);
+        child["reflection"] = JsonSerializer.SerializeToNode(proof, RecordJson.Options);
+        Execution(report, 1)["dispatches"]!.AsArray().Add(child);
+        return report;
+    }
+
+    [Fact]
     public void Short_effect_metrics_are_unavailable_without_changing_the_original_window_verdict_or_report()
     {
         JsonObject report = Report();

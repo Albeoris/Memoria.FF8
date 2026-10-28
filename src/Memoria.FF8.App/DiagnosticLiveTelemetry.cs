@@ -10,6 +10,7 @@ internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool C
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticPacingSummary? PresentationPacing { get; init; }
+    public int ReflectionDispatchCount => Dispatches.Count(dispatch => dispatch.Reflection is not null);
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticVisualChangesSummary? VisualChanges { get; init; }
 }

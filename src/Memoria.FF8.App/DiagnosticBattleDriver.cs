@@ -98,6 +98,8 @@ internal sealed class DiagnosticBattleDriver
     private long lastDispatchSerial;
     private string? blockedCampaignStage;
     private readonly List<BattleDiagnosticEffectDispatch> dispatches = [];
+    private readonly List<BattleDiagnosticEffectDispatch> reflectionDispatches = [];
+    private BattleDiagnosticEffectDispatch? currentFocalDispatch;
 
     internal DiagnosticBattleDriver(DiagnosticBattleDriverRecipe recipe, double seconds)
     {
@@ -110,6 +112,7 @@ internal sealed class DiagnosticBattleDriver
     internal int Execution { get; private set; } = 1;
     internal string? Blocker { get; private set; }
     internal IReadOnlyList<BattleDiagnosticEffectDispatch> Dispatches => dispatches;
+    internal IReadOnlyList<BattleDiagnosticEffectDispatch> ReflectionDispatches => reflectionDispatches;
     internal string[] LastDrainBlockers { get; private set; } = [];
     internal bool Finished => Stage is DiagnosticDriverStage.Completed or DiagnosticDriverStage.Blocked;
     internal string CampaignStage => Stage == DiagnosticDriverStage.Blocked ? blockedCampaignStage ?? "initialization" : Stage == DiagnosticDriverStage.Completed ? "teardown" : Execution == 1 ? Stage is DiagnosticDriverStage.Readiness or DiagnosticDriverStage.Baseline ? "initialization" : "action_one" : Stage is DiagnosticDriverStage.Readiness ? "cleanup_rearm" : "action_two";
@@ -130,6 +133,22 @@ internal sealed class DiagnosticBattleDriver
         {
             return;
         }
+        if (dispatch.Reflection is not null)
+        {
+            if (Stage is not (DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) || currentFocalDispatch is null || !BattleDiagnosticReflectionLineage.Matches(dispatch, currentFocalDispatch) || reflectionDispatches.Any(previous => previous.NativeHeaderIndex == dispatch.NativeHeaderIndex && previous.NativeHeaderGeneration == dispatch.NativeHeaderGeneration))
+            {
+                Fail("REFLECTION_LINEAGE_MISMATCH");
+                return;
+            }
+            reflectionDispatches.Add(dispatch);
+            Stage = DiagnosticDriverStage.Drain;
+            return;
+        }
+        if (dispatch.NativeCommand == 247 && recipe.ExpectedNativeCommand != 247)
+        {
+            Fail("REFLECTION_LINEAGE_UNAVAILABLE");
+            return;
+        }
         if (recipe.SupportingEffects.Contains(dispatch.RequestedEffect) && dispatch.ExecutedEffect == dispatch.RequestedEffect)
         {
             return;
@@ -147,6 +166,7 @@ internal sealed class DiagnosticBattleDriver
         if (Stage == DiagnosticDriverStage.AwaitDispatch)
         {
             dispatches.Add(dispatch);
+            currentFocalDispatch = dispatch;
             Stage = DiagnosticDriverStage.Drain;
         }
     }
@@ -193,6 +213,7 @@ internal sealed class DiagnosticBattleDriver
             else if (observation.Ready && observation.Drained)
             {
                 Stage = Execution == 1 ? DiagnosticDriverStage.Baseline : DiagnosticDriverStage.AwaitDispatch;
+                currentFocalDispatch = null;
                 stageStarted = observation.Seconds;
                 if (Execution == 2)
                 {

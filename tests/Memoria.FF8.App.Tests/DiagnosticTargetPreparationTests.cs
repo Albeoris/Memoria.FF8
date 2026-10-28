@@ -43,8 +43,8 @@ public sealed class DiagnosticTargetPreparationTests
             Assert.True(target.StatisticsReady);
             NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(active.NativeGraphics);
             Assert.DoesNotContain(graphics.Models, model => model.ModelId4 == 140);
-            Assert.Equal(139, graphics.Models[3].ModelId4);
-            Assert.Equal(138, graphics.Models[4].ModelId4);
+            Assert.Equal((byte?)139, graphics.Models[3].ModelId4);
+            Assert.Equal((byte?)138, graphics.Models[4].ModelId4);
             Assert.False(RecreateGame.DiagnosticCommandReady(active, driver));
         }
         finally
