@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:memoria:ff8:battle-effects:ordinary-attack-prelude:v1",
+  "type": "object",
+  "properties": {
+    "input": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "enum": ["Action", "action"] },
+        "actor_id": { "type": "string", "minLength": 1 },
+        "target_id": { "type": "string", "minLength": 1 },
+        "ability": { "type": "string", "enum": ["Attack", "attack"] },
+        "action_id": { "type": "integer", "const": 0 }
+      },
+      "required": ["kind", "actor_id", "target_id", "ability", "action_id"],
+      "additionalProperties": false
+    },
+    "defeated_model": { "type": "integer", "minimum": 0, "maximum": 238 },
+    "defeated_scene_slot": { "type": "integer", "minimum": 0, "maximum": 7 },
+    "death_script_sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "require_native_allocation": { "type": "boolean" },
+    "maximum_attacks": { "type": "integer", "minimum": 1, "maximum": 1024 },
+    "maximum_callbacks": { "type": "integer", "minimum": 1, "maximum": 18000 }
+  },
+  "required": ["input", "defeated_model", "defeated_scene_slot", "death_script_sha256", "require_native_allocation"],
+  "additionalProperties": false
+}

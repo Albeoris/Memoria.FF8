@@ -40,6 +40,7 @@ public static class LiveEvidenceValidation
         try
         {
             RejectDuplicateProperties(report);
+            PreludeEvidenceValidation.ValidateReport(report);
             if (Number(report, "schema_version") != 1 || !Guid.TryParse(Text(report, "battle_instance_id"), out Guid identity) || identity == Guid.Empty)
             {
                 errors.Add("REPORT_IDENTITY_INVALID");

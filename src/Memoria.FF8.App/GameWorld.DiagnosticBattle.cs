@@ -20,11 +20,13 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
     public int EntryCallbackBudget { get; init; } = 1024;
     public bool InstantGuardianForceCharge { get; init; } = true;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
+    public DiagnosticBattlePrelude? Prelude { get; init; }
 
     internal void Validate()
     {
         Driver?.Validate();
         Fixture?.Validate();
+        Prelude?.Validate(this);
         if (!Enum.IsDefined(AtbMode))
         {
             throw new InvalidDataException("Diagnostic ATB mode must select an existing battle mode.");
@@ -51,6 +53,7 @@ internal sealed record DiagnosticBattleReceipt(Guid BattleInstanceId, string Ini
     public DiagnosticTargetReceipt? Target { get; init; }
     public DiagnosticEntryPreparationReceipt? EntryPreparation { get; init; }
     public bool InstantGuardianForceCharge { get; init; }
+    public DiagnosticBattlePreludeReceipt? Prelude { get; init; }
 }
 
 internal sealed record DiagnosticEntryPreparationReceipt(long NativeCallbacks, double Milliseconds, string Scope);
@@ -62,7 +65,7 @@ internal sealed partial class GameWorld
     internal DiagnosticBattleReceipt? DiagnosticReceipt { get; private set; }
     internal bool IsDiagnosticBattle => diagnosticBattle is not null;
 
-    internal void PrepareDiagnosticEntryBeforePresentation(DiagnosticBattleRequest request)
+    internal DiagnosticBattleRequest PrepareDiagnosticEntryBeforePresentation(DiagnosticBattleRequest request)
     {
         BattleSession active = battle ?? throw new InvalidOperationException("Diagnostic entry preparation requires its live battle.");
         if (diagnosticBattle is null || (active.NativeHostCallbacks ?? 0) != 0 || Field is not null || worldScene is not null)
@@ -80,6 +83,10 @@ internal sealed partial class GameWorld
         active.DiagnosticEffectDispatched += RejectFocalWarmup;
         try
         {
+            if (request.Prelude is not null)
+            {
+                request = PrepareDiagnosticPrelude(request, active);
+            }
             bool Ready()
             {
                 if (!active.NativeEntryReady || active.ObserveDiagnosticDrainBlockers().Count != 0 || request.Target is not null && VerifyDiagnosticTarget() is null)
@@ -116,6 +123,7 @@ internal sealed partial class GameWorld
         {
             active.DiagnosticEffectDispatched -= RejectFocalWarmup;
         }
+        return request;
     }
 
     internal BattleSession StartDiagnosticBattle(DiagnosticBattleRequest request)

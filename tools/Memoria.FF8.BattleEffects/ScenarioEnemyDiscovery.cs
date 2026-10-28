@@ -360,7 +360,7 @@ public static class ScenarioEnemyDiscovery
         return false;
     }
 
-    private static int InstructionWidth(byte opcode) => opcode switch
+    internal static int InstructionWidth(byte opcode) => opcode switch
     {
         2 => 8,
         11 or 45 => 4,

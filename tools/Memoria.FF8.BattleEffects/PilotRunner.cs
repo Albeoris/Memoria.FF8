@@ -328,7 +328,7 @@ public static class PilotRunner
         {
             throw new InvalidDataException("Pilot candidate differs from its submitted effect or battle identity.");
         }
-        JsonElement submitted = driver.GetProperty("input");
+        JsonElement submitted = PreludeEvidenceValidation.ResolveSubmittedInput(bootstrap.RootElement, observation);
         JsonElement admitted = observation.GetProperty("input");
         if (!SameSemanticInput(submitted, admitted))
         {

@@ -156,7 +156,8 @@ public static partial class ScenarioDiscovery
         {
             return false;
         }
-        if (ScenarioEnemyDiscovery.InitializationUnconditionallyDisablesTargeting(assets.ReadEnemyAi(owner.ModelId, 0).Scripts[0]))
+        bool activationRequired = ScenarioEnemyDiscovery.InitializationUnconditionallyDisablesTargeting(assets.ReadEnemyAi(owner.ModelId, 0).Scripts[0]);
+        if (activationRequired && owner.ModelId != 100)
         {
             blocker = "ENEMY_ACTIVATION_PRECONDITION: the original initialization callback unconditionally disables this participant's targeting; a genuine encounter phase transition is required before the declared targetable participant contract.";
             return false;
@@ -169,9 +170,15 @@ public static partial class ScenarioDiscovery
         }
         int selectedLevel = initialLevel;
         int physical = -1;
-        foreach (EnemyScenarioFormation context in owner.Formations.Where(context => context.Enabled && !context.Hidden && !context.Suspended && !context.Untargetable).OrderBy(context => context.FormationId).ThenBy(context => context.SceneSlot))
+        JsonObject? selectedPrelude = null;
+        foreach (EnemyScenarioFormation context in owner.Formations.Where(context => context.Enabled && !context.Hidden && !context.Suspended && !context.Untargetable || owner.ModelId == 122 && context.FormationId == 511 && context.SceneSlot == 2).OrderBy(context => context.FormationId).ThenBy(context => context.SceneSlot))
         {
             BattleEncounter formation = assets.LoadEncounter(context.FormationId);
+            JsonObject? prelude = CreateProvedEnemyPrelude(assets, owner, context);
+            if (activationRequired && prelude is null)
+            {
+                continue;
+            }
             if (!TryValidateFreshEnemyEntry(formation, scripted, out string? entryBlocker, startups))
             {
                 blocker = entryBlocker;
@@ -217,12 +224,13 @@ public static partial class ScenarioDiscovery
             {
                 continue;
             }
-            int index = Array.FindIndex(active, slot => slot.Slot == context.SceneSlot && slot.ModelId == owner.ModelId);
+            int index = prelude?["require_native_allocation"]?.GetValue<bool>() == true ? Array.FindIndex(active, slot => slot.Slot == prelude!["defeated_scene_slot"]!.GetValue<int>()) : Array.FindIndex(active, slot => slot.Slot == context.SceneSlot && slot.ModelId == owner.ModelId);
             if (index < 0)
             {
                 continue;
             }
             chosen = context;
+            selectedPrelude = prelude;
             preparedParty = candidateParty;
             physical = index + 3;
             break;
@@ -241,6 +249,12 @@ public static partial class ScenarioDiscovery
             result["fixture"]!["combat_party"] = new JsonArray(preparedParty.Select(row => (JsonNode)JsonValue.Create(row)!).ToArray());
         }
         result["encounter"] = chosen.FormationId;
+        if (selectedPrelude is not null)
+        {
+            result["prelude"] = selectedPrelude;
+            result["atb_mode"] = "Normal";
+            result["prepare_entry_before_presentation"] = true;
+        }
         result["target"] = new JsonObject { ["actor_id"] = actor, ["stage"] = chosen.StageId, ["model"] = owner.ModelId, ["scene_slot"] = chosen.SceneSlot, ["physical_index"] = physical, ["flags_mask"] = 195, ["flags_value"] = 1, ["opening_action"] = null, ["opening_effect"] = null };
         JsonObject character = result["fixture"]!["characters"]![0]!.AsObject();
         character["stocks"] = new JsonArray();
