@@ -40,7 +40,7 @@ public sealed class PilotRunnerTests : IDisposable
         PilotBatchSummary summary = await PilotRunner.RunAsync(manifest, TestContext.Current.CancellationToken, measurementPath: Path.Combine(directory, "measurement.lock"));
         PilotCaseSummary result = Assert.Single(summary.Cases);
         Assert.Equal("ERROR", result.Verdict);
-        Assert.Contains("SUPERVISION", result.Errors);
+        Assert.Contains(result.Errors, error => error.StartsWith("SUPERVISION:", StringComparison.Ordinal));
         Assert.True(result.ProcessExited);
         string settings = Path.Combine(result.Directory, "settings", "ui-settings.json");
         Assert.Equal(muteOutput, File.Exists(settings));
