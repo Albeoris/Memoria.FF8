@@ -29,25 +29,34 @@ public static partial class ScenarioDiscovery
 
     public static NativeCharacterVitals PrepareEnemyRemovalRepeatParty(JsonObject recipe, NativeCharacterVitals initial, NativeBattleExperienceDefinition experience, byte[] party, int level)
     {
+        NativeCharacterVitals prepared = PrepareEnemyRepeatParty(recipe, initial, experience, party, level);
+        recipe["driver"]!.AsObject().Remove("repairs");
+        recipe["driver"]!.AsObject().Remove("terminal_hold");
+        return prepared;
+    }
+
+    public static NativeCharacterVitals PrepareEnemyRepeatParty(JsonObject recipe, NativeCharacterVitals initial, NativeBattleExperienceDefinition experience, byte[] party, int level)
+    {
         NativeCharacterVitals prepared = initial with { CombatParty = party.ToArray() };
         foreach (byte row in party)
         {
             prepared = prepared.WithDiagnosticBattleLevel(row, level, experience);
         }
         JsonObject fixture = recipe["fixture"]!.AsObject();
-        JsonObject first = fixture["characters"]![0]!.DeepClone().AsObject();
-        JsonArray characters = [];
+        JsonArray characters = fixture["characters"]!.AsArray();
         foreach (byte row in party)
         {
-            JsonObject character = row == 0 ? first : new JsonObject { ["row"] = row, ["character_id"] = prepared.Records[row].CharacterId, ["stocks"] = new JsonArray(), ["guardian_forces"] = new JsonArray() };
+            JsonObject? character = characters.OfType<JsonObject>().SingleOrDefault(candidate => candidate["row"]?.GetValue<int>() == row);
+            if (character is null)
+            {
+                character = new JsonObject { ["row"] = (int)row, ["character_id"] = prepared.Records[row].CharacterId, ["stocks"] = new JsonArray(), ["guardian_forces"] = new JsonArray() };
+                characters.Add(character);
+            }
+            character["character_id"] = prepared.Records[row].CharacterId;
             character["level"] = level;
             character["hit_points"] = prepared.GetMagicMaximumHitPoints(row);
-            characters.Add(character);
         }
         fixture["combat_party"] = new JsonArray(party.Select(row => (JsonNode)JsonValue.Create(row)!).ToArray());
-        fixture["characters"] = characters;
-        recipe["driver"]!.AsObject().Remove("repairs");
-        recipe["driver"]!.AsObject().Remove("terminal_hold");
         return prepared;
     }
 

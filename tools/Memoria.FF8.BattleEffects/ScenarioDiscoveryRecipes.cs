@@ -146,6 +146,11 @@ public static partial class ScenarioDiscovery
         {
             return false;
         }
+        if (!TrySelectEnemyPetrifyRepeatParty(native, selectorProof.TargetSelector.Value, initial.Records, initial.CombatParty, out byte[]? petrifyParty, out blocker))
+        {
+            return false;
+        }
+        byte[]? sameLevelParty = removalParty ?? petrifyParty;
         byte[]? shootParty = null;
         if (native.MagicId == 42 && !TrySelectShootParty(initial.Records, initial.CombatParty, out shootParty, out blocker))
         {
@@ -158,9 +163,9 @@ public static partial class ScenarioDiscovery
         }
         byte[]? preparedParty = shootParty;
         int initialLevel = NativeStatDefinitions.Level(initial.Records[0].Experience, initial.Definitions.Characters[initial.Records[0].CharacterId]);
-        if (removalParty is not null)
+        if (sameLevelParty is not null)
         {
-            initialLevel = removalParty.Max(row => NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId]));
+            initialLevel = sameLevelParty.Max(row => NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId]));
         }
         int selectedLevel = initialLevel;
         int physical = -1;
@@ -186,7 +191,7 @@ public static partial class ScenarioDiscovery
             {
                 continue;
             }
-            byte[]? candidateParty = removalParty ?? shootParty ?? stageParty;
+            byte[]? candidateParty = sameLevelParty ?? shootParty ?? stageParty;
             bool bandMatches = false;
             for (int partyLevel = initialLevel; partyLevel <= 100; partyLevel++)
             {
@@ -194,7 +199,7 @@ public static partial class ScenarioDiscovery
                 int[]? bands = null;
                 if (candidateParty is not null || !possibleBands.TryGetValue(key, out bands))
                 {
-                    byte[] partyLevels = (candidateParty ?? initial.CombatParty).Where(row => row != 255).Select(row => row == 0 || removalParty is not null ? checked((byte)partyLevel) : NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId])).ToArray();
+                    byte[] partyLevels = (candidateParty ?? initial.CombatParty).Where(row => row != 255).Select(row => row == 0 || sameLevelParty is not null ? checked((byte)partyLevel) : NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId])).ToArray();
                     bands = ResolvePossibleEnemyLevels(checked((byte)context.SceneLevel), partyLevels).Select(level => assets.ReadEnemyAi(owner.ModelId, level).LevelBand).Distinct().Order().ToArray();
                     if (candidateParty is null)
                     {
@@ -264,6 +269,10 @@ public static partial class ScenarioDiscovery
         if (removalParty is not null)
         {
             prepared = PrepareEnemyRemovalRepeatParty(result, initial, experienceDefinition, removalParty, selectedLevel);
+        }
+        else if (petrifyParty is not null)
+        {
+            prepared = PrepareEnemyRepeatParty(result, initial, experienceDefinition, petrifyParty, selectedLevel);
         }
         DeclareEnemyPartyKnockoutRearm(result, native, selectorProof.TargetSelector!.Value, preparedParty ?? initial.CombatParty, row => prepared.GetMagicMaximumHitPoints(row));
         recipe = result;

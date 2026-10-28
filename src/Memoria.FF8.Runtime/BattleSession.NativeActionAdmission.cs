@@ -168,7 +168,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native invocation did not produce its original48E830 factual header.");
             }
-            if (lane != 0)
+            if (nativeProductionContext.MultiCastMode != 0)
             {
                 nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(firstHeader, nativeProductionContext.RepeatMode);
             }

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
 
@@ -78,12 +79,46 @@ public sealed class NativeBattleRegenCallbackTests
         Assert.Equal(0, primary.HitFlags3 & 1);
     }
 
+    [Theory]
+    [InlineData(false, 550)]
+    [InlineData(true, 450)]
+    public void QueuedRegenBankZeroHeaderNormalizesAndCompletesItsGraphicalContactService(bool zombie, int expected)
+    {
+        BattleSession battle = Create(zombie, 500);
+        Method("DispatchNativeStatusTimers").Invoke(battle, null);
+        Produce(battle);
+
+        // This focused graphical consumer fixture leaves model resources unloaded.
+        // The native control service still normalizes and publishes its actual header contacts.
+        BattleDefinition definition = (BattleDefinition)Field("definition").GetValue(battle)!;
+        NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
+        Field("definition").SetValue(battle, definition with { NativeGraphics = new(rules, [], []) });
+        ImmutableArray<NativeBattleGraphicsModel> models = NativeBattleGraphicsModels.ClearBank().ToImmutableArray();
+        models = models.SetItem(0, models[0] with { Flags0 = 8, ModelId4 = 0 });
+        NativeBattleGraphicsState graphics = new(models, ["party", null, null, "enemy", null, null, null], 0, 0);
+
+        graphics = (NativeBattleGraphicsState)Method("BeginNativeActionGraphics").Invoke(battle, [graphics, 0x1D280C4u])!;
+        Assert.Equal(0x50BD80u, graphics.ActionGraphics!.Callback);
+        Assert.Equal((byte)0, battle.NativeActionPackets.Headers[0].ReadByte(17));
+        Assert.Equal(500, battle.ReadPresentedVital("party").HitPoints);
+
+        var result = ((NativeBattleGraphicsState Graphics, byte Phase, bool Complete))Method("PollNativeActionGraphics").Invoke(battle, [graphics, (byte)0])!;
+        Assert.True(result.Complete);
+        Assert.Equal((byte)1, result.Phase);
+        Assert.Equal(expected, battle.ReadPresentedVital("party").HitPoints);
+        Assert.Equal(expected, battle.Combatants[0].CurrentHp);
+        Method("RunNativeDescriptorActionCallback").Invoke(battle, [result.Graphics, 0x47DDA0u]);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Equal(expected, battle.Combatants[0].CurrentHp);
+    }
+
     [Fact]
     public void QueuedRegenSkipsAnActorThatBecameKoBeforeCallbackDispatch()
     {
         BattleSession battle = Create(false, 500);
         Method("DispatchNativeStatusTimers").Invoke(battle, null);
         battle.Combatants[0].CurrentHp = 0;
+        battle.Combatants[0].NativeStatus0 |= 1;
         TakeAndDispatch(battle);
         Assert.Equal(0, battle.Combatants[0].CurrentHp);
         Assert.Empty(battle.QueuedActions);
@@ -93,6 +128,10 @@ public sealed class NativeBattleRegenCallbackTests
 
     private static NativeBattleContactHalf Produce(BattleSession battle)
     {
+        // The component FIFO roundtrip has no graphical definition or cache.
+        // Attach this contact-consumer fixture only after that valid boundary.
+        int hp = battle.Combatants[0].CurrentHp;
+        Field("nativePartyPresentation").SetValue(battle, new NativeBattlePartyPresentation([new(checked((ushort)hp), 1000, null, null) { DisplayedHitPointsQ12 = hp << 12 }, null, null]));
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, new NativeBattleGraphicsState([], [], 0, 0));
         TakeAndDispatch(battle);
         Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
@@ -130,7 +169,6 @@ public sealed class NativeBattleRegenCallbackTests
                 new() { Id = "enemy", Name = "Enemy", ModelId = 1, MaximumHp = 1000, CurrentHp = 1000 }
             ]
         }, BattleAtbMode.Normal);
-        Field("nativePartyPresentation").SetValue(battle, new NativeBattlePartyPresentation([new(checked((ushort)hp), 1000, null, null), null, null]));
         BattleSnapshot snapshot = battle.Capture();
         snapshot.Combatants[0].NativeStatus!.Timers[4] = 60;
         return BattleSession.Restore(snapshot);
