@@ -19,7 +19,22 @@ The script publishes a self-contained x64 launcher, dispatcher and isolated Wind
 
 Generated directories live under `artifacts/package/<RID>`. Linux produces `Memoria-FF8-linux-x64.tar.gz`; Intel macOS produces `Memoria-FF8-osx-x64.tar.gz` containing `Memoria.FF8.app`. The pinned MonoGame Mac runtime requires **macOS 26.0 on Intel**. An older Intel CI runner can build and statically inspect this payload; that does not establish a runtime pass. Unix archives preserve executable modes even when cross-published from Windows.
 
-macOS distribution and launcher builds require Microsoft's .NET SDK (the `dotnet-sdk` Homebrew cask or the official installer). Homebrew's source-built `dotnet` formula publishes a runtime linked against Homebrew libraries, so the build stops early when it is active.
+### macOS toolchain
+
+macOS distribution and launcher builds require Microsoft's .NET SDK (the `dotnet-sdk` Homebrew cask or the official installer). Homebrew's source-built `dotnet` formula publishes a runtime linked against Homebrew libraries, so the build stops early when it is active. The Homebrew `powershell` formula depends on that formula, so install PowerShell 7 as a .NET tool or from its official package instead:
+
+```bash
+brew uninstall powershell dotnet   # only if the formulae are installed
+brew install --cask dotnet-sdk
+hash -r
+dotnet --info | grep "Base Path"   # expect /usr/local/share/dotnet/sdk/...
+dotnet tool install --global PowerShell
+echo 'export PATH="$PATH:$HOME/.dotnet/tools"' >> ~/.zprofile
+export PATH="$PATH:$HOME/.dotnet/tools"
+pwsh ./Build.ps1
+```
+
+The official `powershell-<version>-osx-arm64.pkg` (or `-osx-x64.pkg`) from the [PowerShell releases](https://github.com/PowerShell/PowerShell/releases) is a self-contained alternative to the .NET tool. `Build.sh` does not yet run the MoltenVK, manifest and package-validation steps, so use `Build.ps1` for macOS packages.
 
 Apple Silicon Macs produce `Memoria-FF8-osx-arm64.tar.gz` with native arm64 executables; on a Mac, the default RID follows the hardware, including when the shell runs under Rosetta. This is a local build only: releases and CI do not publish it, so its launcher disables online updates. FFmpeg and FFprobe must then also be native arm64 (or universal) LGPL builds; Homebrew's `ffmpeg` enables GPL components and is rejected. On macOS the launcher's FFmpeg setup offers to build FFmpeg 9.0.2 from the official source release (pinned SHA-256, signature checked against the FFmpeg release key when pinned) with LGPL-only, system-library configuration; it needs the Xcode Command Line Tools and writes `ffmpeg-build.log` beside the tools.
 
