@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -289,6 +290,19 @@ public static partial class ScenarioDiscovery
             prepared = PrepareEnemyRepeatParty(result, initial, experienceDefinition, petrifyParty, selectedLevel);
         }
         DeclareEnemyPartyKnockoutRearm(result, native, selectorProof.TargetSelector!.Value, preparedParty ?? initial.CombatParty, row => prepared.GetMagicMaximumHitPoints(row));
+        if (selectedPrelude is not null)
+        {
+            if (result["fixture"]!["combat_party"] is null)
+            {
+                result["fixture"]!["combat_party"] = new JsonArray(0, 255, 255);
+            }
+            int preparationRow = result["fixture"]!["combat_party"]?[0]?.Deserialize<int>() ?? prepared.CombatParty[0];
+            if ((uint)preparationRow >= 8)
+            {
+                throw new InvalidDataException("Ordinary attack preparation requires a present first saved party row.");
+            }
+            PrepareEnemyPreludeStrength(result, prepared, assets.ReadPlayerNativeStatRules(prepared, preparationRow));
+        }
         recipe = result;
         return true;
     }

@@ -43,6 +43,7 @@ public sealed class ScenarioOrdinaryAttackPreludeTests
             Assert.True(ScenarioDiscovery.TryPrepareEnemyRecipe(assets, initial, NativeBattleExperienceDefinitionReader.Read(kernel), owner, discovery.ScriptedActions, template, out JsonObject? recipe, out EnemyScenarioFormation? chosen, out _, out string? blocker, discovery.Startups), blocker);
             Assert.Equal(carrier, chosen!.FormationId);
             Assert.Equal(carrier, recipe!["encounter"]!.GetValue<int>());
+            Assert.Equal(new[] { 0, 255, 255 }, recipe["fixture"]!["combat_party"]!.AsArray().Select(value => value!.GetValue<int>()).ToArray());
             Assert.Equal("Normal", recipe["atb_mode"]!.GetValue<string>());
             Assert.Equal(physical, recipe["target"]!["physical_index"]!.GetValue<int>());
             Assert.Equal("enemy-2", recipe["driver"]!["input"]!["actor_id"]!.GetValue<string>());

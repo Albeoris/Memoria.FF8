@@ -15,6 +15,9 @@ internal sealed record DiagnosticMagicCommandPreparation([property: JsonRequired
 internal sealed record DiagnosticCommandPreparation([property: JsonRequired] int Slot, [property: JsonRequired] int Ability);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record DiagnosticMagicJunctionPreparation([property: JsonRequired] int Slot, [property: JsonRequired] int Action);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record DiagnosticItemPreparation([property: JsonRequired] int Id, [property: JsonRequired] int Count);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -43,6 +46,7 @@ internal sealed record DiagnosticCharacterPreparation([property: JsonRequired] i
 {
     public DiagnosticMagicCommandPreparation? MagicCommand { get; init; }
     public ImmutableArray<DiagnosticCommandPreparation> Commands { get; init; } = [];
+    public ImmutableArray<DiagnosticMagicJunctionPreparation> MagicJunctions { get; init; } = [];
     public ushort? HitPoints { get; init; }
     public int? Level { get; init; }
 }
@@ -93,6 +97,10 @@ internal sealed record DiagnosticBattlePreparation([property: JsonRequired] Immu
             if (character.Level is < 1 or > 100)
             {
                 throw new InvalidDataException("Diagnostic character level must be within1..100.");
+            }
+            if (character.MagicJunctions.IsDefault || character.MagicJunctions.Length > 19 || character.MagicJunctions.Any(junction => junction is null || junction.Slot is < 0 or >= 19 || junction.Action is < 1 or >= 57) || character.MagicJunctions.Select(junction => junction.Slot).Distinct().Count() != character.MagicJunctions.Length || character.MagicJunctions.Select(junction => junction.Action).Distinct().Count() != character.MagicJunctions.Length)
+            {
+                throw new InvalidDataException("Diagnostic magic junctions require distinct native slots and stocked kernel magic identities.");
             }
         }
     }
@@ -233,6 +241,10 @@ internal sealed partial class GameWorld
                     throw new InvalidDataException("The declared command ability is absent from the installed kernel.");
                 }
                 next = next.SetJunctionAbility(character.Row, command.Slot, command.Ability, command: true);
+            }
+            foreach (DiagnosticMagicJunctionPreparation junction in character.MagicJunctions)
+            {
+                next = next.SetJunctionMagic(character.Row, junction.Slot, junction.Action);
             }
             if (character.Level is int level)
             {
