@@ -649,6 +649,7 @@ internal sealed partial class RecreateGame
     {
         battleTexture?.Dispose();
         battleTexture = null;
+        battleScene?.ClearNativeRawTextureCache();
         battleScene = null;
     }
 

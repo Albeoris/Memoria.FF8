@@ -12,8 +12,13 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 {
     private readonly GraphicsDevice device;
     private readonly Effect effect;
-    private readonly Dictionary<PixelImage, Texture2D> textures = new(ReferenceEqualityComparer.Instance);
-    private readonly HashSet<PixelImage> usedTextures = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<PixelImage, LinkedListNode<CachedTexture>> textures = new(ReferenceEqualityComparer.Instance);
+    private readonly LinkedList<CachedTexture> recentTextures = new();
+    private readonly int maximumCachedTextures;
+    private readonly long maximumCachedTextureBytes;
+    private long cachedTextureBytes;
+    private Texture2D? transientTexture;
+    private readonly record struct CachedTexture(PixelImage Image, Texture2D Texture, long Bytes);
     private readonly Dictionary<(TriangleBlend, bool, bool), BlendState> blends = [];
     private readonly Dictionary<(TriangleDepthComparison, bool), DepthStencilState> depths = [];
     private readonly GpuVertex[] vertices = new GpuVertex[12288];
@@ -29,10 +34,25 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     private int width;
     private int height;
     private const int MaximumCachedTextures = 512;
+    private const long MaximumCachedTextureBytes = 256L * 1024 * 1024;
 
-    public GpuTriangleRenderer(GraphicsDevice device)
+    public GpuTriangleRenderer(GraphicsDevice device) : this(device, MaximumCachedTextures, MaximumCachedTextureBytes)
     {
+    }
+
+    internal GpuTriangleRenderer(GraphicsDevice device, int maximumCachedTextures, long maximumCachedTextureBytes)
+    {
+        if (maximumCachedTextures < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumCachedTextures));
+        }
+        if (maximumCachedTextureBytes < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumCachedTextureBytes));
+        }
         this.device = device;
+        this.maximumCachedTextures = maximumCachedTextures;
+        this.maximumCachedTextureBytes = maximumCachedTextureBytes;
         using Stream stream = typeof(GpuTriangleRenderer).Assembly.GetManifestResourceStream("Memoria.FF8.Shaders.Triangles.mgfxo") ?? throw new InvalidOperationException("The GPU triangle effect resource is missing.");
         using MemoryStream bytes = new();
         stream.CopyTo(bytes);
@@ -68,7 +88,6 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         }
         this.width = width;
         this.height = height;
-        usedTextures.Clear();
         dynamicUploads.Clear();
         vertexCount = 0;
         FrameDrawCalls = 0;
@@ -169,16 +188,48 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             return;
         }
         effect.CurrentTechnique = effect.Techniques["TriangleTechnique"];
-        SamplerState sampler = ApplyMaterial(pendingMaterial);
-        foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+        try
         {
-            pass.Apply();
-            device.SamplerStates[0] = sampler;
-            device.DrawUserPrimitives(pendingPrimitiveType, vertices, 0, vertexCount / (pendingPrimitiveType == PrimitiveType.LineList ? 2 : 3));
-            NativeBattleTelemetry.Record(2001, NativeBattleTrafficKind.GpuUpload, checked((long)vertexCount * vertices[0].VertexDeclaration.VertexStride));
-            FrameDrawCalls++;
+            SamplerState sampler = ApplyMaterial(pendingMaterial);
+            foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                device.SamplerStates[0] = sampler;
+                device.DrawUserPrimitives(pendingPrimitiveType, vertices, 0, vertexCount / (pendingPrimitiveType == PrimitiveType.LineList ? 2 : 3));
+                NativeBattleTelemetry.Record(2001, NativeBattleTrafficKind.GpuUpload, checked((long)vertexCount * vertices[0].VertexDeclaration.VertexStride));
+                FrameDrawCalls++;
+            }
+            vertexCount = 0;
         }
-        vertexCount = 0;
+        finally
+        {
+            // An image larger than the cache budget remains valid for its submitted batch.
+            ReleaseTransientTexture();
+        }
+    }
+
+    private void ReleaseTransientTexture()
+    {
+        if (transientTexture is not { } oversized)
+        {
+            return;
+        }
+        transientTexture = null;
+        try
+        {
+            if (ReferenceEquals(device.Textures[0], oversized))
+            {
+                device.Textures[0] = null;
+            }
+            if (ReferenceEquals(effect.Parameters["SourceTexture"].GetValueTexture2D(), oversized))
+            {
+                effect.Parameters["SourceTexture"].SetValue((Texture2D?)null);
+            }
+        }
+        finally
+        {
+            oversized.Dispose();
+        }
     }
 
     private SamplerState ApplyMaterial(in TriangleMaterial material)
@@ -229,47 +280,69 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         (target, workingTarget) = (workingTarget, target);
         PresentationVersion++;
         TrimTerrainBuffers();
-        foreach (PixelImage image in textures.Keys.Where(image => !usedTextures.Contains(image)).ToArray())
-        {
-            textures[image].Dispose();
-            textures.Remove(image);
-        }
     }
 
     /// <summary>Invalidate mutable source pixels explicitly before their next use.</summary>
     public void InvalidateTexture(PixelImage image)
     {
         PresentationVersion++;
-        if (textures.Remove(image, out Texture2D? texture))
+        if (textures.TryGetValue(image, out LinkedListNode<CachedTexture>? node))
         {
-            texture.Dispose();
+            RemoveCachedTexture(node);
         }
+    }
+
+    private void RemoveCachedTexture(LinkedListNode<CachedTexture> node)
+    {
+        textures.Remove(node.Value.Image);
+        recentTextures.Remove(node);
+        cachedTextureBytes -= node.Value.Bytes;
+        node.Value.Texture.Dispose();
     }
 
     private Texture2D Texture(PixelImage image, bool refresh)
     {
-        usedTextures.Add(image);
-        if (textures.TryGetValue(image, out Texture2D? texture))
+        if (textures.TryGetValue(image, out LinkedListNode<CachedTexture>? node))
         {
+            recentTextures.Remove(node);
+            recentTextures.AddLast(node);
             if (refresh)
             {
-                texture.SetData(image.Pixels);
+                node.Value.Texture.SetData(image.Pixels);
                 NativeBattleTelemetry.Record(2002, NativeBattleTrafficKind.GpuUpload, checked((long)image.Pixels.Length * 4));
                 FrameTextureUploads++;
             }
-            return texture;
+            return node.Value.Texture;
         }
-        if (textures.Count >= MaximumCachedTextures)
+        long bytes = checked((long)image.Pixels.Length * 4);
+        bool cacheable = bytes <= maximumCachedTextureBytes;
+        while (cacheable && (textures.Count >= maximumCachedTextures || cachedTextureBytes > maximumCachedTextureBytes - bytes))
         {
-            PixelImage oldest = textures.Keys.First();
-            textures[oldest].Dispose();
-            textures.Remove(oldest);
+            LinkedListNode<CachedTexture> oldest = recentTextures.First!;
+            RemoveCachedTexture(oldest);
         }
-        texture = new Texture2D(device, image.Width, image.Height, false, SurfaceFormat.Color);
-        texture.SetData(image.Pixels);
+        Texture2D texture = new(device, image.Width, image.Height, false, SurfaceFormat.Color);
+        try
+        {
+            texture.SetData(image.Pixels);
+        }
+        catch
+        {
+            texture.Dispose();
+            throw;
+        }
         NativeBattleTelemetry.Record(2002, NativeBattleTrafficKind.GpuUpload, checked((long)image.Pixels.Length * 4));
         FrameTextureUploads++;
-        textures.Add(image, texture);
+        if (cacheable)
+        {
+            textures.Add(image, recentTextures.AddLast(new CachedTexture(image, texture, bytes)));
+            cachedTextureBytes += bytes;
+        }
+        else
+        {
+            // Oversized images bypass retention instead of changing accepted rendering inputs.
+            transientTexture = texture;
+        }
         return texture;
     }
 
@@ -322,12 +395,18 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 
     public void Abort()
     {
-        if (!active)
-        {
-            return;
-        }
         vertexCount = 0;
-        RestoreDevice();
+        try
+        {
+            ReleaseTransientTexture();
+        }
+        finally
+        {
+            if (active)
+            {
+                RestoreDevice();
+            }
+        }
     }
 
     private void RestoreDevice()
@@ -350,9 +429,9 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         workingTarget?.Dispose();
         effect.Dispose();
         DisposeTerrainBuffers();
-        foreach (Texture2D texture in textures.Values)
+        foreach (LinkedListNode<CachedTexture> node in textures.Values)
         {
-            texture.Dispose();
+            node.Value.Texture.Dispose();
         }
         foreach (BlendState blend in blends.Values)
         {
@@ -363,6 +442,8 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             depth.Dispose();
         }
         textures.Clear();
+        recentTextures.Clear();
+        cachedTextureBytes = 0;
         active = false;
     }
 

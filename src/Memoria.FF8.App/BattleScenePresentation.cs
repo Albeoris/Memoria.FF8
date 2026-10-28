@@ -46,6 +46,7 @@ internal sealed partial class BattleScenePresentation
     internal bool PilotDiagnosticsEnabled { get; set; }
     internal NativeBattlePilotSubmission PilotSubmission => renderer?.PilotSubmission ?? default;
     internal NativeBattleTextureDecodingObservation? TextureDecoding => renderer?.TextureDecoding;
+    internal void ClearNativeRawTextureCache() => renderer?.ClearNativeRawTextureCache();
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
@@ -122,6 +123,7 @@ internal sealed partial class BattleScenePresentation
     {
         if (renderer?.Width != width || renderer.Height != height)
         {
+            renderer?.ClearNativeRawTextureCache();
             renderer = new BattleRenderer(width, height, ViewportLayout.Fit(320, 240, width, height));
             renderedPixels = null;
             renderedGpu = null;

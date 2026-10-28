@@ -8,6 +8,60 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeBattleEffectTexturePaletteReuseTests
 {
     [Theory]
+    [InlineData(0, -1)]
+    [InlineData(1, -1)]
+    [InlineData(0, 0)]
+    [InlineData(1, 1)]
+    public void Optional_receipt_preserves_exact_used_words_and_default_decode_pixels(int depth, int alternateShift)
+    {
+        byte[] palette = new byte[depth == 0 ? 32 : 512];
+        BinaryPrimitives.WriteUInt16LittleEndian(palette.AsSpan(2), 0x801F);
+        BinaryPrimitives.WriteUInt16LittleEndian(palette.AsSpan(4), 0x03E0);
+        ImmutableArray<byte> words = depth == 0 ? [0x12, 0x21] : [1, 2];
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, palette.ToImmutableArray()), new(2048, words)] };
+        ushort page = checked((ushort)(depth << 7));
+        int width = depth == 0 ? 4 : 2;
+        byte? shift = alternateShift < 0 ? null : checked((byte)alternateShift);
+        PixelImage expected = NativeBattleEffectTextureReader.DecodePcRegion(state, page, 0, 0, 1, width, 1, shift);
+        PixelImage actual = NativeBattleEffectTextureReader.DecodePcRegion(state, page, 0, 0, 1, width, 1, out NativeBattlePcPaletteReceipt? receipt, shift);
+        Assert.Equal(expected.Pixels, actual.Pixels);
+        Assert.NotNull(receipt);
+        Assert.Equal(new NativeBattlePcPaletteEntry[] { new(1, 0x801F), new(2, 0x03E0) }, receipt.Entries);
+        Assert.True(receipt.Matches(state));
+        NativeBattleEffectTextureState unused = state.PublishVramSpan(0, new byte[] { 0, 0x7C });
+        Assert.True(receipt.Matches(unused));
+        NativeBattleEffectTextureState used = unused.PublishVramSpan(2, new byte[] { 31, 0 });
+        Assert.False(receipt.Matches(used));
+    }
+
+    [Fact]
+    public void Optional_receipt_never_reads_unused_out_of_row_CLUT_entries_and_used_invalid_entries_still_fail()
+    {
+        byte[] palette = new byte[32];
+        palette[4] = 31;
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(2 * 1008, palette.ToImmutableArray()), new(2048, [2, 17])] };
+        PixelImage image = NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 63, 0, 1, 1, 1, out NativeBattlePcPaletteReceipt? receipt);
+        Assert.Equal(new Rgba32(255, 0, 0, 127), image[0, 0]);
+        Assert.NotNull(receipt);
+        Assert.Equal(new NativeBattlePcPaletteEntry(2, 31), Assert.Single(receipt.Entries));
+        Assert.True(receipt.Matches(state));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 63, 0, 1, 2, 1, out _));
+    }
+
+    [Theory]
+    [InlineData(NativeBattlePcDirectTextureFormat.Rgb555)]
+    [InlineData(NativeBattlePcDirectTextureFormat.Rgb565)]
+    public void Direct_PC_decode_has_no_palette_receipt_and_keeps_its_required_format_guard(NativeBattlePcDirectTextureFormat format)
+    {
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, [0xE0, 3])] };
+        PixelImage expected = NativeBattleEffectTextureReader.DecodePcRegion(state, 0x100, 0xFFFF, 0, 0, 1, 1, directTextureFormat: format);
+        PixelImage actual = NativeBattleEffectTextureReader.DecodePcRegion(state, 0x100, 0xFFFF, 0, 0, 1, 1, out NativeBattlePcPaletteReceipt? receipt, directTextureFormat: format);
+        Assert.Null(receipt);
+        Assert.Equal(expected.Pixels, actual.Pixels);
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x100, 0xFFFF, 0, 0, 1, 1, out _));
+    }
+
+    [Theory]
     [InlineData(0, false, -1)]
     [InlineData(1, false, -1)]
     [InlineData(0, true, -1)]

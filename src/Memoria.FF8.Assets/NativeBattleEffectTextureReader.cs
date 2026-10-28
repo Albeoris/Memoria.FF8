@@ -1,4 +1,5 @@
 using Albeoris.Games.FF8.Imaging;
+using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -89,7 +90,7 @@ public static partial class NativeBattleEffectTextureReader
 
     public static PixelImage DecodeRegion(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height)
     {
-        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, false, null, null, null);
+        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, false, null, null, null, false, out _);
     }
 
     public static PixelImage DecodePcRegion(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null, NativeBattlePcTextureWindowPixels? pixelWords = null)
@@ -99,11 +100,22 @@ public static partial class NativeBattleEffectTextureReader
             throw new NotSupportedException("Native PC direct16-bit texture sampling requires its selected original555/565 device format.");
         }
         pixelWords?.Validate();
-        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, true, alternatePaletteShift, directTextureFormat, pixelWords);
+        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, true, alternatePaletteShift, directTextureFormat, pixelWords, false, out _);
     }
 
-    private static PixelImage DecodeRegionCore(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, bool pcPalette, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, NativeBattlePcTextureWindowPixels? pixelWords)
+    public static PixelImage DecodePcRegion(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, out NativeBattlePcPaletteReceipt? paletteReceipt, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null, NativeBattlePcTextureWindowPixels? pixelWords = null)
     {
+        if ((texturePage & 0x180) == 0x100 && directTextureFormat is null)
+        {
+            throw new NotSupportedException("Native PC direct16-bit texture sampling requires its selected original555/565 device format.");
+        }
+        pixelWords?.Validate();
+        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, true, alternatePaletteShift, directTextureFormat, pixelWords, true, out paletteReceipt);
+    }
+
+    private static PixelImage DecodeRegionCore(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, bool pcPalette, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, NativeBattlePcTextureWindowPixels? pixelWords, bool capturePalette, out NativeBattlePcPaletteReceipt? paletteReceipt)
+    {
+        paletteReceipt = null;
         if (u is < 0 or > 255 || v is < 0 or > 255 || width is < 1 or > 256 || height is < 1 or > 256)
         {
             throw new InvalidDataException("Native texture region requires byte UVs and dimensions within one256x256 page.");
@@ -122,6 +134,7 @@ public static partial class NativeBattleEffectTextureReader
         int paletteLength = depth == 0 ? 16 : depth == 1 ? 256 : 0;
         Rgba32[] palette = paletteLength == 0 ? [] : new Rgba32[paletteLength];
         bool[] decoded = paletteLength == 0 ? [] : new bool[paletteLength];
+        Span<ushort> originalPalette = capturePalette && paletteLength > 0 ? stackalloc ushort[paletteLength] : Span<ushort>.Empty;
         int shift = depth == 0 ? 2 : depth == 1 ? 1 : 0;
         for (int row = 0; row < height; row++)
         {
@@ -135,8 +148,13 @@ public static partial class NativeBattleEffectTextureReader
                     int index = depth == 0 ? (word >> (4 * (x & 3))) & 15 : (word >> (8 * (x & 1))) & 255;
                     if (!decoded[index])
                     {
-                        palette[index] = Decode(Word(paletteX + index, paletteY));
+                        ushort color = Word(paletteX + index, paletteY);
+                        palette[index] = Decode(color);
                         decoded[index] = true;
+                        if (capturePalette)
+                        {
+                            originalPalette[index] = color;
+                        }
                     }
                     image[column, row] = palette[index];
                 }
@@ -145,6 +163,26 @@ public static partial class NativeBattleEffectTextureReader
                     image[column, row] = Decode(word);
                 }
             }
+        }
+        if (capturePalette && paletteLength > 0)
+        {
+            int used = 0;
+            foreach (bool entry in decoded)
+            {
+                if (entry)
+                {
+                    used++;
+                }
+            }
+            ImmutableArray<NativeBattlePcPaletteEntry>.Builder entries = ImmutableArray.CreateBuilder<NativeBattlePcPaletteEntry>(used);
+            for (int index = 0; index < decoded.Length; index++)
+            {
+                if (decoded[index])
+                {
+                    entries.Add(new(checked((byte)index), originalPalette[index]));
+                }
+            }
+            paletteReceipt = new(clut, entries.MoveToImmutable());
         }
         return image;
 
