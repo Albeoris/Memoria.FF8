@@ -70,6 +70,10 @@ try {
     if ($before.Version -cne 'nightly' -or $nightlyInfo.SelectSingleNode('/plist/dict/key[text()="CFBundleShortVersionString"]/following-sibling::string[1]').InnerText -cne '0.0.0') {
         throw 'Nightly bundle version generation is inconsistent.'
     }
+    # plutil and LaunchServices reject a DOCTYPE with an empty internal subset.
+    if ((Get-Content -LiteralPath (Join-Path $macRoot 'Contents/Info.plist') -Raw) -notmatch '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1\.0//EN" "http://www\.apple\.com/DTDs/PropertyList-1\.0\.dtd">') {
+        throw 'The stamped Info.plist must keep the standard property-list DOCTYPE.'
+    }
     $macArchive = Join-Path $temporary 'mac.tar.gz'
     Invoke-Checker @('--validate-mac-bundle-version', (Join-Path $macRoot 'Contents/Info.plist'), 'v1.2.3') -ExpectFailure
     Invoke-Checker @('--create-tar', $macParent, $macArchive)
