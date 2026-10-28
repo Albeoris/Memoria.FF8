@@ -7,9 +7,9 @@ public sealed record BattleNativeCallback([property: JsonRequired] byte ActorInd
 {
     public void Validate()
     {
-        if (ActorIndex >= 7 || Stage is not (0 or 1 or 2 or 3 or 7 or 8))
+        if (ActorIndex >= 7 || Stage is not (0 or 1 or 2 or 3 or 6 or 7 or 8))
         {
-            throw new InvalidDataException("Native queued callback is outside the owned0/2/3/7/8 physical packet contract.");
+            throw new InvalidDataException("Native queued callback is outside the owned0/1/2/3/6/7/8 physical packet contract.");
         }
     }
 }
@@ -84,6 +84,16 @@ public sealed partial class BattleSession
                 else
                 {
                     RunNativeAi(actor, callback.Stage);
+                }
+            }
+            else if (callback.Stage == 6)
+            {
+                //4877F0 rechecks KO when the serialized status event is dispatched.
+                if ((NativeSavedStatusBits(actor) & 1) == 0)
+                {
+                    BeginNativeBattleActionPause();
+                    QueueNativeCommand(actor, 0, 4, 0, checked((ushort)(1 << callback.ActorIndex)));
+                    QueueNativeActionClockCompletion(0x47DDA0);
                 }
             }
             else if (callback.Stage == 7)

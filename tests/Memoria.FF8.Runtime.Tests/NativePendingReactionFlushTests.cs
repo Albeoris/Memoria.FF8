@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
 
@@ -47,13 +48,52 @@ public sealed class NativePendingReactionFlushTests
         AssertStableAfterRestoreAndRepeatedFlush(snapshot);
     }
 
-    private static BattleSession Create()
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(3, false)]
+    public void PetrifyDefeatHoldDoesNotBypassNativeReactionGateAndOtherCapablePartyAllowsFlush(int partyCount, bool held)
+    {
+        BattleSession session = Create(partyCount);
+        session.ConfigureDiagnosticTerminalHold(new("Declared Petrify repetition", session.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id).ToImmutableArray(), 100));
+        BattleCombatant recipient = session.Combatants[0];
+        SetPending(recipient, 0, 0, 4);
+        SetOrder(session, 0);
+        typeof(BattleSession).GetMethod("QueueNativeReaction", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [recipient, 2]);
+        Assert.Equal(new NativeBattlePendingReaction(2, 0), ReadPending(recipient));
+        Assert.True(Pending(session));
+        typeof(BattleSession).GetMethod("CompleteBattleIfNeeded", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, null);
+
+        Assert.Equal(BattleOutcome.Active, session.Outcome);
+        Assert.Equal(held ? BattleDiagnosticTerminalHoldPhase.Held : BattleDiagnosticTerminalHoldPhase.Armed, session.DiagnosticTerminalHold!.Phase);
+        Flush(session);
+
+        Assert.Equal(held, Pending(session));
+        Assert.Equal(held ? new NativeBattlePendingReaction(2, 0) : new NativeBattlePendingReaction(0, 0), ReadPending(recipient));
+        BattleSnapshot snapshot = session.Capture();
+        Assert.Equal((byte)1, snapshot.NativeReactionOrder);
+        Assert.Equal((ushort)4, session.ObserveDiagnosticCombatants()[0].Statuses0);
+        BattleAttackCommand[] callbacks = snapshot.NativeCommandBanks!.BoundCommands.ToArray();
+        if (held)
+        {
+            Assert.Empty(callbacks);
+            Assert.Single(session.DiagnosticTerminalHoldReceipts);
+        }
+        else
+        {
+            Assert.Single(callbacks);
+            Assert.Equal(new BattleNativeCallback(0, 2), callbacks[0].NativeCallback);
+            Assert.Empty(session.DiagnosticTerminalHoldReceipts);
+            Assert.All(session.Combatants.Where(actor => actor.IsPlayer).Skip(1), actor => Assert.Equal((ushort)0, session.ObserveDiagnosticCombatants().Single(state => state.Id == actor.Id).Statuses0));
+        }
+    }
+
+    private static BattleSession Create(int partyCount = 1)
     {
         return new(new()
         {
             Combatants =
             [
-                new() { Id = "party", Name = "Party", IsPlayer = true, CurrentHp = 100, MaximumHp = 100 },
+                .. Enumerable.Range(0, partyCount).Select(index => new BattleCombatantDefinition { Id = index == 0 ? "party" : $"party{index}", Name = "Party", IsPlayer = true, CurrentHp = 100, MaximumHp = 100 }),
                 new() { Id = "enemy0", Name = "Enemy0", CurrentHp = 100, MaximumHp = 100 },
                 new() { Id = "enemy1", Name = "Enemy1", CurrentHp = 100, MaximumHp = 100 },
                 new() { Id = "enemy2", Name = "Enemy2", CurrentHp = 100, MaximumHp = 100 }

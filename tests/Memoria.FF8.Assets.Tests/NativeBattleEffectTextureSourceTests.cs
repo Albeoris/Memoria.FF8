@@ -7,6 +7,37 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleEffectTextureSourceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MissingFragmentReplacementDoesNotDecodeAnUnusedOriginalCrop(bool alternate)
+    {
+        NativeBattleEffectTextureState state = PixelState(new("mag012_b.00", 2, NativeBattleTextureRole.Pixels, 4, 1, 1), alternate ? (short)0 : (short)1);
+        PixelImage decoded = new(alternate ? 4 : 12, 1);
+        using InMemoryResourceSource source = Source();
+        ResourceService resources = new(source);
+        RecordingResolver resolver = new(_ => null);
+        resources.Prepare(resolver).Commit();
+        using NativeBattleEffectTextureSource textures = new(resources);
+
+        Assert.Same(decoded, textures.ApplyDecoded(decoded, decoded, state, 0, 0, 0, 0, decoded.Width, 1, alternatePaletteShift: alternate ? (byte)1 : null));
+        TextureBuildContext context = Assert.Single(resolver.Contexts);
+        Lazy<PixelImage> original = (Lazy<PixelImage>)typeof(TextureBuildContext).GetField("original", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(context)!;
+        Assert.False(original.IsValueCreated);
+        Assert.Equal(0, resources.ResidentTextureCount);
+
+        resources.Prepare(new RecordingResolver(candidate => Solid(candidate, new(90, 20, 30, 127)))).Commit();
+        Assert.False(original.IsValueCreated);
+        Assert.NotSame(decoded, textures.ApplyDecoded(decoded, decoded, state, 0, 0, 0, 0, decoded.Width, 1, alternatePaletteShift: alternate ? (byte)1 : null));
+        Assert.Equal(1, resources.ResidentTextureCount);
+        resources.Prepare(null).Commit();
+        Assert.Same(decoded, textures.ApplyDecoded(decoded, decoded, state, 0, 0, 0, 0, decoded.Width, 1, alternatePaletteShift: alternate ? (byte)1 : null));
+        Assert.Equal(0, resources.ResidentTextureCount);
+        Assert.NotSame(decoded, context.Original);
+        Assert.Equal(4, context.Original.Width);
+        Assert.True(original.IsValueCreated);
+    }
+
     [Fact]
     public void FullDecodedNativeImageIsTheResolverOriginalWhileModelFallbackAndReloadRemainAuthoritative()
     {

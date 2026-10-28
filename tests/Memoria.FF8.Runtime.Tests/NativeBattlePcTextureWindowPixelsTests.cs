@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -36,11 +38,132 @@ public sealed class NativeBattlePcTextureWindowPixelsTests
         NativeBattlePcTextureWindowPixels first = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 2), owner);
         Assert.Same(first, NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 2), owner));
         Assert.NotSame(first, NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 4, 2), owner));
-        Assert.NotSame(first, NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 2), owner with { }));
+        Assert.Same(first, NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 2), owner with { }));
         Assert.Equal((ushort)0x1234, first.ReadWord(0, 0));
         NativeBattlePcTextureWindowPixels[] concurrent = new NativeBattlePcTextureWindowPixels[16];
         Parallel.For(0, concurrent.Length, index => concurrent[index] = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 2), owner));
         Assert.All(concurrent, capture => Assert.Same(first, capture));
+    }
+
+    [Fact]
+    public void NewStateRecordsWithTheSamePublicationAndExactInputsReuseWithoutAllocating()
+    {
+        NativeBattleEffectTextureState owner = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [0x34, 0x12]);
+        NativeBattleEffectTextureState[] states = Enumerable.Range(0, 16).Select(_ => owner with { Count = 0 }).ToArray();
+        NativeBattlePrimitiveTextureWindow rectangle = new(0, 0, 8, 2);
+        NativeBattlePcTextureWindowPixels first = NativeBattlePcTextureWindowPixels.Capture(0, rectangle, owner);
+        foreach (NativeBattleEffectTextureState state in states)
+        {
+            Assert.Same(owner.VramPublicationIdentity, state.VramPublicationIdentity);
+            Assert.Same(first, NativeBattlePcTextureWindowPixels.Capture(0, rectangle, state));
+        }
+        for (int index = 0; index < 32; index++)
+        {
+            _ = NativeBattlePcTextureWindowPixels.Capture(0, rectangle, states[index % states.Length]);
+        }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1000; index++)
+        {
+            _ = NativeBattlePcTextureWindowPixels.Capture(0, rectangle, states[index % states.Length]);
+        }
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    [Fact]
+    public void SamePublicationDoesNotAliasChangedSourceRegistrationOrNullableProvenance()
+    {
+        NativeBattleTextureOrigin origin = new("sample.tex", 1, NativeBattleTextureRole.Pixels, 16, 8, 8);
+        NativeBattleEffectTextureState owner = NativeBattleEffectTextureState.FromColdProcess() with
+        {
+            LiveTextureSources = [new(origin, 0, 0, 8, 8)],
+            TextureRegistrations = [new(origin, 0, 0, 8, 8, [new(0, 0, 8, 8)])]
+        };
+        NativeBattlePrimitiveTextureWindow rectangle = new(0, 0, 8, 8);
+        NativeBattlePcTextureWindowPixels first = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, owner);
+        NativeBattleEffectTextureState changedSource = owner with { LiveTextureSources = [new(origin with { Member = 2 }, 0, 0, 8, 8)] };
+        NativeBattlePcTextureWindowPixels source = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, changedSource);
+        Assert.NotSame(first, source);
+        Assert.Equal(1, first.LiveTextureSources!.Value[0].Origin.Member);
+        Assert.Equal(2, source.LiveTextureSources!.Value[0].Origin.Member);
+        NativeBattleEffectTextureState changedFrame = owner with { TextureRegistrations = owner.TextureRegistrations!.Value.SetItem(0, owner.TextureRegistrations.Value[0] with { CurrentFrame = 0 }) };
+        NativeBattlePcTextureWindowPixels frame = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, changedFrame);
+        Assert.NotSame(first, frame);
+        Assert.Equal(-1, first.TextureRegistrations!.Value[0].CurrentFrame);
+        Assert.Equal(0, frame.TextureRegistrations!.Value[0].CurrentFrame);
+        NativeBattleEffectTextureState unknown = owner with { LiveTextureSources = null, TextureRegistrations = null };
+        NativeBattlePcTextureWindowPixels missing = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, unknown);
+        NativeBattlePcTextureWindowPixels empty = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, unknown with { LiveTextureSources = [], TextureRegistrations = [] });
+        Assert.NotSame(missing, empty);
+        Assert.Null(missing.LiveTextureSources);
+        Assert.Empty(empty.LiveTextureSources!.Value);
+        Assert.Throws<InvalidDataException>(() => NativeBattlePcTextureWindowPixels.Capture(64, rectangle, unknown with { LiveTextureSources = default(ImmutableArray<NativeBattleTextureSourceRegion>) }));
+    }
+
+    [Fact]
+    public void ChangedTailCannotReuseAnEarlierCaptureEvenWhenVramPublicationMatches()
+    {
+        NativeBattleEffectTextureState owner = NativeBattleEffectTextureState.FromColdProcess();
+        NativeBattlePrimitiveTextureWindow rectangle = new(0, 0, 256, 256);
+        NativeBattlePcTextureWindowPixels first = NativeBattlePcTextureWindowPixels.Capture(95, rectangle, owner);
+        NativeBattleEffectTextureState changed = owner with { VramReadTail = owner.VramReadTail!.Value.SetItem(0, 0x34).SetItem(1, 0x12) };
+        Assert.Same(owner.VramPublicationIdentity, changed.VramPublicationIdentity);
+        NativeBattlePcTextureWindowPixels second = NativeBattlePcTextureWindowPixels.Capture(95, rectangle, changed);
+        Assert.NotSame(first, second);
+        Assert.Equal((ushort)0, first.ReadWord(1024, 511));
+        Assert.Equal((ushort)0x1234, second.ReadWord(1024, 511));
+        Assert.Throws<NotSupportedException>(() => NativeBattlePcTextureWindowPixels.Capture(95, rectangle, changed with { VramReadTail = null }));
+    }
+
+    [Fact]
+    public void BoundedWindowEvictionDoesNotMutatePublishedCaptures()
+    {
+        NativeBattleEffectTextureState owner = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [0x34, 0x12]);
+        NativeBattlePcTextureWindowPixels first = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), owner);
+        for (int index = 1; index <= 128; index++)
+        {
+            _ = NativeBattlePcTextureWindowPixels.Capture(64, new(index % 16 * 8, index / 16 * 8, 8, 8), owner);
+        }
+        NativeBattlePcTextureWindowPixels afterEviction = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), owner);
+        Assert.NotSame(first, afterEviction);
+        Assert.Equal((ushort)0x1234, first.ReadWord(0, 0));
+        Assert.Equal(first.Data.ToArray(), afterEviction.Data.ToArray());
+        Assert.Same(afterEviction, NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), owner with { }));
+    }
+
+    [Fact]
+    public void FreshLargeCaptureDoesNotAllocateASecondFullPixelArray()
+    {
+        NativeBattleEffectTextureState owner = NativeBattleEffectTextureState.FromColdProcess();
+        _ = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), owner);
+        NativeBattlePrimitiveTextureWindow rectangle = new(0, 0, 256, 256);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        NativeBattlePcTextureWindowPixels captured = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, owner);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(131072, captured.Data.Length);
+        Assert.InRange(allocated, captured.Data.Length, captured.Data.Length + 32768L);
+    }
+
+    [Fact]
+    public void PublicationBucketDoesNotRetainObsoleteTextureStateRecords()
+    {
+        (NativeBattleEffectTextureState owner, NativeBattlePcTextureWindowPixels captured, WeakReference<NativeBattleEffectTextureState> previous) = CaptureTemporaryState();
+        for (int index = 0; index < 3; index++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        Assert.False(previous.TryGetTarget(out _));
+        Assert.Same(captured, NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), owner));
+        GC.KeepAlive(owner);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (NativeBattleEffectTextureState Owner, NativeBattlePcTextureWindowPixels Captured, WeakReference<NativeBattleEffectTextureState> Previous) CaptureTemporaryState()
+    {
+        NativeBattleEffectTextureState owner = NativeBattleEffectTextureState.FromColdProcess();
+        NativeBattleEffectTextureState previous = owner with { };
+        NativeBattlePcTextureWindowPixels captured = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), previous);
+        return (owner, captured, new(previous));
     }
 
     [Fact]

@@ -7,9 +7,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleDiagnosticPeriodicStatusTests
 {
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(true, false, true)]
+    [InlineData(false, true, false)]
     [InlineData(false, true, true)]
     public void Common_timer_receipt_preserves_self_attribution_and_state(bool zombie, bool doom, bool unrelatedAction)
     {

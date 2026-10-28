@@ -164,7 +164,16 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
                 NativeAlias = alias,
                 NativePage = nativePage
             };
-            AssetHandle<TextureValue> handle = resources.GetTexture(context, !retained.ContainsKey(key));
+            AssetHandle<TextureValue>? handle = resources.GetTextureReplacement(context, !retained.ContainsKey(key));
+            if (handle is null)
+            {
+                if (retained.Remove(key, out LinkedListNode<TextureKey>? removed))
+                {
+                    recent.Remove(removed);
+                    resources.Release([key]);
+                }
+                continue;
+            }
             Retain(key);
             TextureValue value = handle.Value;
             if (value.IsReplacement)

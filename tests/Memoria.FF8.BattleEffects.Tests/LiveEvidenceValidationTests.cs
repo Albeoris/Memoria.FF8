@@ -9,6 +9,110 @@ namespace Memoria.FF8.BattleEffects.Tests;
 public sealed class LiveEvidenceValidationTests
 {
     [Fact]
+    public void NativeEjectionProofAllowsStatusDrivenHpRemovalWithoutChangingTheZeroFormula()
+    {
+        Assert.Equal("PASS", Validate(StatusRemovalReport()).Verdict);
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("producer")]
+    [InlineData("action_status")]
+    [InlineData("applied_status")]
+    [InlineData("actor_index")]
+    [InlineData("recipient_index")]
+    [InlineData("command")]
+    [InlineData("action")]
+    [InlineData("mask")]
+    [InlineData("after_hp")]
+    [InlineData("ko")]
+    public void NativeEjectionCannotBypassFormulaBoundsWithoutMatchingStatusOwnerDispatchAndHpProof(string forgery)
+    {
+        JsonObject report = StatusRemovalReport();
+        JsonObject execution = Execution(report, 0);
+        JsonObject resolution = execution["resolutions"]![0]!.AsObject();
+        JsonObject proof = resolution["native_status_removal"]!.AsObject();
+        switch (forgery)
+        {
+            case "missing":
+                resolution.Remove("native_status_removal");
+                break;
+            case "producer":
+                proof["producer_address"] = 0x483470;
+                break;
+            case "action_status":
+                proof["action_statuses1"] = 0;
+                break;
+            case "applied_status":
+                proof["applied_battle_statuses"] = 0;
+                break;
+            case "actor_index":
+                proof["actor_index"] = 4;
+                break;
+            case "recipient_index":
+                proof["recipient_index"] = 1;
+                break;
+            case "command":
+                proof["native_command"] = 2;
+                break;
+            case "action":
+                proof["native_action_id"] = 73;
+                break;
+            case "mask":
+                execution["dispatches"]![0]!["native_target_mask"] = 2;
+                break;
+            case "after_hp":
+                resolution["after_hp"] = 1;
+                break;
+            case "ko":
+                execution["after"]![0]!["statuses0"] = 0;
+                break;
+        }
+        LiveEvidenceVerdict verdict = Validate(report);
+        Assert.Contains("SEMANTIC_RESOLUTION_INVALID", verdict.Errors);
+        if (forgery != "missing")
+        {
+            Assert.Contains("NATIVE_STATUS_REMOVAL_PROVENANCE_INVALID", verdict.Errors);
+        }
+    }
+
+    private static JsonObject StatusRemovalReport()
+    {
+        JsonObject report = Report();
+        report["input"] = new JsonObject { ["actor_id"] = "enemy", ["target_id"] = "party0", ["ability"] = "EnemyAbility", ["action_id"] = 72, ["draw_cast"] = false };
+        report["expected_effect"] = 174;
+        report["expected_native_action"] = 72;
+        report["expected_native_command"] = 8;
+        for (int index = 0; index < 2; index++)
+        {
+            JsonObject execution = Execution(report, index);
+            int victim = index;
+            long callback = 11 + index * 10;
+            JsonObject State(string id, int physical, int hp, bool ko = false) => new() { ["id"] = id, ["native_index"] = physical, ["current_hp"] = hp, ["maximum_hp"] = 500, ["statuses0"] = ko ? 1 : 0, ["statuses1"] = 0, ["magic_stocks"] = new JsonArray() };
+            execution["before"] = new JsonArray(State("party0", 0, index == 0 ? 100 : 0, index != 0), State("party1", 1, 200), State("party2", 2, 300), State("enemy", 3, 500));
+            execution["after"] = new JsonArray(State("party0", 0, 0, true), State("party1", 1, index == 0 ? 200 : 0, index != 0), State("party2", 2, 300), State("enemy", 3, 500));
+            execution["events"] = new JsonArray(new JsonObject { ["kind"] = "ActionComplete", ["actor_id"] = "enemy" });
+            execution["dispatches"] = new JsonArray(new JsonObject { ["serial"] = index + 1, ["callback"] = callback, ["actor_id"] = "enemy", ["native_actor_index"] = 3, ["ability"] = "EnemyAbility", ["action_id"] = 72, ["requested_effect"] = 174, ["executed_effect"] = 174, ["native_command"] = 8, ["native_target_mask"] = 1 << victim });
+            execution["resolutions"] = new JsonArray(new JsonObject
+            {
+                ["frame"] = index * 10 + 1,
+                ["callback"] = callback,
+                ["kind"] = "damage",
+                ["actor_id"] = "enemy",
+                ["original_target_id"] = $"party{victim}",
+                ["actual_target_id"] = $"party{victim}",
+                ["resolved_amount"] = 0,
+                ["actual_amount"] = victim == 0 ? 100 : 200,
+                ["before_hp"] = victim == 0 ? 100 : 200,
+                ["after_hp"] = 0,
+                ["hp_owner"] = "character",
+                ["native_status_removal"] = JsonSerializer.SerializeToNode(new BattleDiagnosticNativeStatusRemoval(0x494410, 3, checked((byte)victim), 8, 72, 0x10000, 0x10000), RecordJson.Options)
+            });
+        }
+        return report;
+    }
+
+    [Fact]
     public void Reflect106_second_cast_counts_one_focal_dispatch_and_one_proved_reflected_child()
     {
         LiveEvidenceVerdict result = Validate(ReflectionReport());

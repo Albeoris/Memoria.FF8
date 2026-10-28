@@ -31,11 +31,13 @@ public sealed record BattleDiagnosticSupportingInvocation([property: JsonRequire
 public sealed record BattleDiagnosticNativeContact([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] long DispatchSerial, [property: JsonRequired] string SubmittedTargetId, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] ImmutableArray<byte> HeaderPayload, [property: JsonRequired] uint HeaderUnknownByteMask, [property: JsonRequired] int? FirstContactIndex, [property: JsonRequired] int RetainedContactIndex, [property: JsonRequired] ImmutableArray<byte> ContactPayload);
 public sealed record BattleDiagnosticPeriodicStatus([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int StatusBit, [property: JsonRequired] short TimerBefore, [property: JsonRequired] int Decrement, [property: JsonRequired] short TimerAfter, [property: JsonRequired] ushort SavedStatuses, [property: JsonRequired] uint BattleStatuses, [property: JsonRequired] int MaximumHp, [property: JsonRequired] int ResolvedAmount, [property: JsonRequired] long Callback);
 public sealed record BattleDiagnosticNativeHpWord([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int ModelId, [property: JsonRequired] int ScriptIndex, [property: JsonRequired] int ProgramCounter, [property: JsonRequired] ImmutableArray<byte> ScriptBytes, [property: JsonRequired] byte Opcode, [property: JsonRequired] ushort Operand, [property: JsonRequired] short Amount, [property: JsonRequired] ushort BeforeHpWord, [property: JsonRequired] ushort AfterHpWord, [property: JsonRequired] long Callback);
+public sealed record BattleDiagnosticNativeStatusRemoval([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] byte NativeCommand, [property: JsonRequired] ushort NativeActionId, [property: JsonRequired] uint ActionStatuses1, [property: JsonRequired] uint AppliedBattleStatuses);
 public sealed record BattleDiagnosticResolution(long Frame, long Callback, string Kind, string? ActorId, string? OriginalTargetId, string ActualTargetId, int ResolvedAmount, int ActualAmount, int BeforeHp, int AfterHp, string HpOwner)
 {
     public BattleDiagnosticNativeContact? NativeContact { get; init; }
     public BattleDiagnosticPeriodicStatus? PeriodicStatus { get; init; }
     public BattleDiagnosticNativeHpWord? NativeHpWord { get; init; }
+    public BattleDiagnosticNativeStatusRemoval? NativeStatusRemoval { get; init; }
 }
 public sealed record BattleDiagnosticStock(int MagicId, int Quantity);
 public sealed record BattleDiagnosticCombatant(string Id, int CurrentHp, int MaximumHp, ushort Statuses0, uint Statuses1, BattleDiagnosticStock[] MagicStocks)
@@ -110,7 +112,12 @@ public sealed partial class BattleSession
             BattleDiagnosticPeriodicStatus? periodic = diagnosticPeriodicStatus is { } receipt && receipt.RecipientId == target.Id && receipt.ResolvedAmount == amount ? receipt : null;
             string? actorId = periodic is null ? actor?.Id ?? action?.ActorId : null;
             BattleDiagnosticNativeContact? contact = diagnosticNativeContact is { } current && current.ActorId == actorId && current.RecipientId == action?.TargetId ? current : null;
-            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, periodic is null ? action?.TargetId ?? target.Id : target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { NativeContact = periodic is null ? contact : null, PeriodicStatus = periodic });
+            BattleDiagnosticNativeStatusRemoval? removal = null;
+            if (periodic is null && contact is null && kind == "damage" && before > amount && after == 0 && actor is not null && actor.Id == action?.ActorId && action.NativeAction is { } native && (native.Statuses1 & 0x10000) != 0 && (NativeBattleStatusBits(target) & 0x10000) != 0)
+            {
+                removal = new(0x494410, checked((byte)actor.NativeIndex), checked((byte)target.NativeIndex), action.NativeQueuedCommand ?? native.Command, native.ActionId, native.Statuses1, NativeBattleStatusBits(target));
+            }
+            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, periodic is null ? action?.TargetId ?? target.Id : target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { NativeContact = periodic is null ? contact : null, PeriodicStatus = periodic, NativeStatusRemoval = removal });
         }
     }
 

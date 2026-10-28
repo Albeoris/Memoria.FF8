@@ -569,6 +569,8 @@ public static class LiveEvidenceValidation
             bool periodic = resolution.TryGetProperty("periodic_status", out JsonElement receipt) && receipt.ValueKind != JsonValueKind.Null;
             bool nativeWord = resolution.TryGetProperty("native_hp_word", out JsonElement hpReceipt) && hpReceipt.ValueKind != JsonValueKind.Null;
             bool nativeContact = resolution.TryGetProperty("native_contact", out JsonElement contactReceipt) && contactReceipt.ValueKind != JsonValueKind.Null;
+            bool nativeRemoval = resolution.TryGetProperty("native_status_removal", out JsonElement removalReceipt) && removalReceipt.ValueKind != JsonValueKind.Null;
+            bool validNativeRemoval = nativeRemoval && !periodic && !nativeWord && !nativeContact && HasNativeStatusRemovalProvenance(execution, resolution, beforeStates, afterStates);
             string originalTarget = Text(resolution, "original_target_id");
             if (!beforeStates.ContainsKey(originalTarget) && !afterStates.ContainsKey(originalTarget))
             {
@@ -586,6 +588,10 @@ public static class LiveEvidenceValidation
             {
                 errors.Add("PERIODIC_STATUS_PROVENANCE_INVALID");
             }
+            if (nativeRemoval && !validNativeRemoval)
+            {
+                errors.Add("NATIVE_STATUS_REMOVAL_PROVENANCE_INVALID");
+            }
             if (!periodic && !nativeWord && (resolution.GetProperty("actor_id").ValueKind != JsonValueKind.String || !beforeStates.ContainsKey(Text(resolution, "actor_id"))))
             {
                 errors.Add("RESOLUTION_ACTOR_UNKNOWN");
@@ -593,7 +599,7 @@ public static class LiveEvidenceValidation
             long delta = after - before;
             bool healing = kind.Contains("heal", StringComparison.OrdinalIgnoreCase);
             bool damage = kind.Contains("damage", StringComparison.OrdinalIgnoreCase);
-            if (callback < startCallback || callback > endCallback || string.IsNullOrWhiteSpace(Text(resolution, "hp_owner")) || string.IsNullOrWhiteSpace(Text(resolution, "original_target_id")) || !nativeWord && (actual < 0 || resolved < actual || before < 0 || after < 0 || !healing && !damage || delta != (healing ? actual : -actual)))
+            if (callback < startCallback || callback > endCallback || string.IsNullOrWhiteSpace(Text(resolution, "hp_owner")) || string.IsNullOrWhiteSpace(Text(resolution, "original_target_id")) || !nativeWord && (actual < 0 || resolved < 0 || resolved < actual && !validNativeRemoval || before < 0 || after < 0 || !healing && !damage || delta != (healing ? actual : -actual)))
             {
                 errors.Add("SEMANTIC_RESOLUTION_INVALID");
             }
@@ -622,6 +628,18 @@ public static class LiveEvidenceValidation
                 errors.Add("SPELL_STOCK_CONSUMPTION_UNVERIFIED");
             }
         }
+    }
+
+    private static bool HasNativeStatusRemovalProvenance(JsonElement execution, JsonElement resolution, Dictionary<string, JsonElement> before, Dictionary<string, JsonElement> after)
+    {
+        BattleDiagnosticNativeStatusRemoval? proof = resolution.GetProperty("native_status_removal").Deserialize<BattleDiagnosticNativeStatusRemoval>(Json);
+        string actor = Text(resolution, "actor_id");
+        string recipient = Text(resolution, "actual_target_id");
+        if (proof is null || proof.ProducerAddress != 0x494410 || (proof.ActionStatuses1 & 0x10000) == 0 || (proof.AppliedBattleStatuses & 0x10000) == 0 || Text(resolution, "kind") != "damage" || recipient != Text(resolution, "original_target_id") || !HasPhysicalIdentity(before, actor, proof.ActorIndex) || !HasPhysicalIdentity(after, actor, proof.ActorIndex) || !HasPhysicalIdentity(before, recipient, proof.RecipientIndex) || !HasPhysicalIdentity(after, recipient, proof.RecipientIndex) || Text(resolution, "hp_owner") != (proof.RecipientIndex < 3 ? "character" : "enemy") || Number(resolution, "resolved_amount") < 0 || Number(resolution, "actual_amount") != Number(resolution, "before_hp") || Number(resolution, "before_hp") <= 0 || Number(resolution, "after_hp") != 0 || Number(after[recipient], "current_hp") != 0 || (Number(after[recipient], "statuses0") & 1) == 0)
+        {
+            return false;
+        }
+        return execution.GetProperty("dispatches").EnumerateArray().Any(dispatch => Text(dispatch, "actor_id") == actor && OptionalNumber(dispatch, "native_actor_index") == proof.ActorIndex && OptionalNumber(dispatch, "native_command") == proof.NativeCommand && Number(dispatch, "action_id") == proof.NativeActionId && OptionalNumber(dispatch, "native_target_mask") is long mask && (mask & (1L << proof.RecipientIndex)) != 0 && Number(dispatch, "callback") >= Number(resolution, "callback"));
     }
 
     private static bool HasNativeHpWordProvenance(JsonElement resolution, Dictionary<string, JsonElement> before, Dictionary<string, JsonElement> after)

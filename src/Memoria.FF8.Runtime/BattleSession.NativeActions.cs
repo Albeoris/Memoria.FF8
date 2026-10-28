@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         {
             return NativePhoenixRevivalAction();
         }
-        if (command == 0 && id is 2 or 6)
+        if (command == 0 && id is 2 or 4 or 6)
         {
             return NativePostActionEffect(id);
         }

@@ -133,6 +133,17 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
 
     public AssetHandle<TextureValue> GetTexture(TextureBuildContext context, bool retain = false)
     {
+        return GetTextureCore(context, retain, false)!;
+    }
+
+    /// <summary>Resolves and retains replacements normally; a miss does not decode or register the unused native fallback.</summary>
+    public AssetHandle<TextureValue>? GetTextureReplacement(TextureBuildContext context, bool retain = false)
+    {
+        return GetTextureCore(context, retain, true);
+    }
+
+    private AssetHandle<TextureValue>? GetTextureCore(TextureBuildContext context, bool retain, bool replacementOnly)
+    {
         long expectedVersion = mutationVersion;
         if (notifying)
         {
@@ -145,21 +156,33 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         bool exists = contexts.TryGetValue(context.Key, out TextureBuildContext? previous);
         if (exists && previous!.Revision == context.Revision && previous.Layout == context.Layout && previous.RequestedVariant == context.RequestedVariant)
         {
+            if (replacementOnly && !published.Values[context.Key].IsReplacement)
+            {
+                return null;
+            }
             if (retain)
             {
                 owners[context.Key]++;
             }
             return handles[context.Key];
         }
-        TextureValue value;
+        TextureValue? value;
         try
         {
-            value = Resolve(context, resolver);
+            value = replacementOnly ? ResolveReplacement(context, resolver) : Resolve(context, resolver);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException)
         {
-            value = Resolve(context, null);
+            value = replacementOnly ? ResolveReplacement(context, null) : Resolve(context, null);
             ReportReplacementFailure(context.Key, exception);
+        }
+        if (value is null)
+        {
+            if (mutationVersion != expectedVersion)
+            {
+                throw new InvalidOperationException("The source or preparation graph changed while resolving the texture replacement.");
+            }
+            return null;
         }
         Publication current = published;
         ImmutableDictionary<TextureKey, TextureValue>.Builder candidate = current.Values.ToBuilder();
@@ -370,8 +393,17 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
 
     private TextureValue Resolve(TextureBuildContext context, ITextureReplacementResolver? replacementResolver, LocalizationCatalog? localization = null)
     {
+        return ResolveReplacement(context, replacementResolver, localization) ?? new TextureValue(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id);
+    }
+
+    private TextureValue? ResolveReplacement(TextureBuildContext context, ITextureReplacementResolver? replacementResolver, LocalizationCatalog? localization = null)
+    {
         TextureReplacement? replacement = (localization ?? published.Localization).ResolveArtwork(context) ?? replacementResolver?.Resolve(context) ?? (source as ITextureReplacementResolver)?.Resolve(context);
-        TextureValue value = replacement is null ? new TextureValue(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id) : new TextureValue(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true, Animation = replacement.Animation };
+        if (replacement is null)
+        {
+            return null;
+        }
+        TextureValue value = new(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true, Animation = replacement.Animation };
         return context.RequestedVariant is { } variant && value.Variants is { } variants && variants.TryGetValue(variant, out var image) ? value with { Image = image, MipLevels = null, Animation = null } : value;
     }
 

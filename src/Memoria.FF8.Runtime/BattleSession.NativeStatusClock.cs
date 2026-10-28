@@ -39,19 +39,8 @@ public sealed partial class BattleSession
                     }
                     if (bit == 4 && decrement != 0 && timer / decrement % (60 / decrement) == 0)
                     {
-                        int amount = actor.MaximumHp / 20;
-                        if ((NativeSavedStatusBits(actor) & 0x40) != 0)
-                        {
-                            if (amount >= actor.CurrentHp)
-                            {
-                                StoreNativeActionMemory(actor, actor, BattleAbility.EnemyAbility, 0, 4, 0, 3);
-                            }
-                            ApplyDiagnosticPeriodicStatus(actor, bit, timer, decrement, unchecked((short)(timer - decrement)), amount, true, "Regen");
-                        }
-                        else
-                        {
-                            ApplyDiagnosticPeriodicStatus(actor, bit, timer, decrement, unchecked((short)(timer - decrement)), amount, false, "Regen");
-                        }
+                        //483470 requests callback6; its later0/4 command owns HP and presentation contacts.
+                        QueueNativeCallback(actor, 6);
                     }
                     actor.NativeStatusTimers[bit] = unchecked((short)(timer - decrement));
                     continue;
