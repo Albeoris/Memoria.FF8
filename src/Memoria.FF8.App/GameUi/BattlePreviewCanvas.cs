@@ -106,6 +106,8 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
 
     private void DrawImage(UiImageSource source, UiRect bounds, bool stretch, float opacity = 1)
     {
+        opacity *= source.Opacity / 255f;
+        source = source with { Opacity = 255 };
         if (artworkGeneration != artwork.Generation)
         {
             foreach (UiImageSource key in images.Keys.Where(MenuArtworkProvider.IsResourceImage).ToArray())

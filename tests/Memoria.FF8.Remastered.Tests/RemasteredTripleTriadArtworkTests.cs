@@ -25,6 +25,15 @@ public sealed class RemasteredTripleTriadArtworkTests
         Assert.Equal("C926A7B340C6F23CC595AA59508A299C0CAE5FB144DC44FB895B0F61F1176A06", Hash(artwork.GetFront(0)));
         Assert.Equal(CardArtwork.CardCount, Enumerable.Range(0, CardArtwork.CardCount).Select(id => Hash(artwork.GetFront(id))).Distinct().Count());
         Assert.Equal(8, Enum.GetValues<TripleTriadElement>().Where(element => element != TripleTriadElement.None).Select(element => Hash(artwork.GetElement(element))).Distinct().Count());
+        Assert.Equal(3, Enumerable.Range(0, 3).Select(id => Hash(artwork.GetCaptureBanner(id))).Distinct().Count());
+        for (int capture = 0; capture < 3; capture++)
+        {
+            PixelImage banner = artwork.GetCaptureBanner(capture);
+            Assert.Equal(255, banner.Width);
+            Assert.Equal(64, banner.Height);
+            Assert.Contains(banner.Pixels, pixel => pixel.A == 0);
+            Assert.Contains(banner.Pixels, pixel => pixel.A == 255);
+        }
         Assert.Equal(64, artwork.Back.Width);
         Assert.Equal(64, artwork.Back.Height);
     }

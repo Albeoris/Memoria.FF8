@@ -8,9 +8,9 @@ namespace Memoria.FF8.GameUi;
 internal sealed class CardFaceComposer(string fontFamily)
 {
     public const int Size = 256;
-    private readonly Dictionary<(int Value, int Scale), PixelImage> ranks = [];
+    private readonly Dictionary<(int Value, int Scale, int Modifier), PixelImage> ranks = [];
 
-    public PixelImage Compose(PixelImage artwork, TripleTriadCard card, int owner, PixelImage? element)
+    public PixelImage Compose(PixelImage artwork, TripleTriadCard card, int owner, PixelImage? element, int rankModifier = 0)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(owner);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(owner, 1);
@@ -35,10 +35,10 @@ internal sealed class CardFaceComposer(string fontFamily)
         }
         Overlay(result, artwork, 0, 0, size, size);
         // Native 53A100: C75B10 rank quads, in top/bottom/left/right order.
-        Rank(card.Top, 6, 2);
-        Rank(card.Bottom, 6, 18);
-        Rank(card.Left, 2, 10);
-        Rank(card.Right, 10, 10);
+        Rank(card.Top + rankModifier, 6, 2);
+        Rank(card.Bottom + rankModifier, 6, 18);
+        Rank(card.Left + rankModifier, 2, 10);
+        Rank(card.Right + rankModifier, 10, 10);
         if (element is not null)
         {
             Overlay(result, element, 44 * scale, 4 * scale, 16 * scale, 16 * scale);
@@ -47,18 +47,20 @@ internal sealed class CardFaceComposer(string fontFamily)
 
         void Rank(int value, int x, int y)
         {
-            if (!ranks.TryGetValue((value, scale), out PixelImage? rank))
+            if (!ranks.TryGetValue((value, scale, rankModifier), out PixelImage? rank))
             {
-                rank = RasterizeRank(value, scale);
-                ranks.Add((value, scale), rank);
+                rank = RasterizeRank(value, scale, rankModifier);
+                ranks.Add((value, scale, rankModifier), rank);
             }
             Overlay(result, rank, x * scale, y * scale, 12 * scale, 12 * scale);
         }
     }
 
-    private PixelImage RasterizeRank(int value, int scale)
+    internal static string RankText(int value) => value == 10 ? "A" : value == 11 ? "B" : value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private PixelImage RasterizeRank(int value, int scale, int modifier)
     {
-        using SKBitmap mask = SystemTextLayout.Rasterize(value == 10 ? "A" : value.ToString(System.Globalization.CultureInfo.InvariantCulture), 8 * scale, float.PositiveInfinity, fontFamily);
+        using SKBitmap mask = SystemTextLayout.Rasterize(RankText(value), 8 * scale, float.PositiveInfinity, fontFamily);
         PixelImage rank = new(12 * scale, 12 * scale);
         int height = 9 * scale;
         int width = Math.Min(8 * scale, Math.Max(1, (int)MathF.Round(mask.Width * height / (float)mask.Height)));
@@ -85,7 +87,12 @@ internal sealed class CardFaceComposer(string fontFamily)
         for (int y = 0; y < height; y++)
         {
             float amount = y / (float)(height - 1);
-            Rgba32 color = new((byte)(255 - 24 * amount), (byte)(251 - 77 * amount), (byte)(220 - 128 * amount));
+            Rgba32 color = modifier switch
+            {
+                > 0 => new((byte)(178 - 139 * amount), (byte)(255 - 65 * amount), (byte)(142 - 80 * amount)),
+                < 0 => new((byte)(255 - 25 * amount), (byte)(172 - 130 * amount), (byte)(145 - 111 * amount)),
+                _ => new((byte)(255 - 24 * amount), (byte)(251 - 77 * amount), (byte)(220 - 128 * amount))
+            };
             for (int x = 0; x < width; x++)
             {
                 byte alpha = mask.GetPixel(x * mask.Width / width, y * mask.Height / height).Alpha;

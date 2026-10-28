@@ -274,7 +274,7 @@ public sealed partial class MenuController
             Select(Math.Clamp(SelectedIndex + (input == MenuInput.PageUp ? -ConfigRowsPerPage : ConfigRowsPerPage), 0, Math.Max(0, entries.Count - 1)), entries.Count);
             return;
         }
-        if (IsConfigSettingsScreen && input == MenuInput.Confirm && SelectedEntry?.Action?.Kind == "config" && MenuSettings.Definitions.FirstOrDefault(setting => setting.Id == SelectedEntry?.Id) is { } numericSetting && TryConfigNumbers(numericSetting, out _))
+        if (IsConfigSettingsScreen && input == MenuInput.Confirm && SelectedEntry?.Action?.Kind == "config" && MenuSettings.Definitions.FirstOrDefault(setting => setting.Id == SelectedEntry?.Id) is { } numericSetting && TryConfigNumbers(ResolveConfigSetting(numericSetting), out _))
         {
             return;
         }
@@ -675,6 +675,10 @@ public sealed partial class MenuController
         if (setting == null)
         {
             return;
+        }
+        if (IsConfigSettingsScreen)
+        {
+            setting = ResolveConfigSetting(setting);
         }
         if (setting.Id is "UI font" or "Dialogue font" or "Quick saves")
         {

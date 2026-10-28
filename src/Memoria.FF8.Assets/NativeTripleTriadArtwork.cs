@@ -13,12 +13,14 @@ public sealed class NativeTripleTriadArtwork
     private readonly PixelImage[] elements;
     private readonly PixelImage[] fronts;
     private readonly PixelImage[] outcomes;
+    private readonly PixelImage[] captures;
 
-    private NativeTripleTriadArtwork(PixelImage[] elements, PixelImage[] fronts, PixelImage[] outcomes, PixelImage back, PixelImage background, PixelImage boardBackground)
+    private NativeTripleTriadArtwork(PixelImage[] elements, PixelImage[] fronts, PixelImage[] outcomes, PixelImage[] captures, PixelImage back, PixelImage background, PixelImage boardBackground)
     {
         this.elements = elements;
         this.fronts = fronts;
         this.outcomes = outcomes;
+        this.captures = captures;
         Back = back;
         Background = background;
         BoardBackground = boardBackground;
@@ -48,6 +50,14 @@ public sealed class NativeTripleTriadArtwork
         return outcomes[outcome];
     }
 
+    /// <summary>Original capture announcement order: Same, Plus, Combo.</summary>
+    public PixelImage GetCaptureBanner(int capture)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(capture);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(capture, captures.Length);
+        return captures[capture];
+    }
+
     public PixelImage GetElement(TripleTriadElement element)
     {
         int index = (int)element - 1;
@@ -64,9 +74,10 @@ public sealed class NativeTripleTriadArtwork
         PixelImage back = NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.Back, subresource: "back", resources: resources);
         PixelImage[] elements = Enumerable.Range(0, original.elements.Length).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.elements[id], subresource: $"element/{id}", resources: resources)).ToArray();
         PixelImage[] outcomes = Enumerable.Range(0, original.outcomes.Length).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.outcomes[id], subresource: $"outcome/{id}", resources: resources)).ToArray();
+        PixelImage[] captures = Enumerable.Range(0, original.captures.Length).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.captures[id], subresource: $"capture/{id}", resources: resources)).ToArray();
         PixelImage background = NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.Background, subresource: "background", resources: resources);
         PixelImage boardBackground = NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.BoardBackground, subresource: "board-background", resources: resources);
-        return new NativeTripleTriadArtwork(elements, fronts, outcomes, back, background, boardBackground);
+        return new NativeTripleTriadArtwork(elements, fronts, outcomes, captures, back, background, boardBackground);
     }
 
     public static NativeTripleTriadArtwork ReadExecutable(byte[] executable)
@@ -94,6 +105,7 @@ public sealed class NativeTripleTriadArtwork
         }
         // Native 538B30 submits the three result masks from the middle page using CLUT (0,255).
         PixelImage[] outcomes = Enumerable.Range(0, 3).Select(id => CropIndexed(sprites, 256, id * 48, 256, 48, 31 * 48)).ToArray();
+        PixelImage[] captures = Enumerable.Range(0, 3).Select(id => CropIndexed(sprites, 512, id * 64, 255, 64, id * 48 + 32)).ToArray();
         // Native 53A428..53A4BA uses a separate 128-color half-row CLUT for each card.
         // Its keyed background differs from the opaque inventory-menu mcXX.TEX artwork.
         TimImage cards = ReadTim(memory, 0xBA9B10, 487456);
@@ -113,7 +125,7 @@ public sealed class NativeTripleTriadArtwork
         PixelImage background = ReadFramebuffer(memory.Read(0xC4AB58, 384 * 224 * 2));
         // Native 5370E0 queues C20B44 through the same framebuffer drawing contract.
         PixelImage boardBackground = ReadFramebuffer(memory.Read(0xC20B44, 384 * 224 * 2));
-        return new NativeTripleTriadArtwork(elements, fronts, outcomes, back, background, boardBackground);
+        return new NativeTripleTriadArtwork(elements, fronts, outcomes, captures, back, background, boardBackground);
     }
 
     private static PixelImage ReadFramebuffer(byte[] bytes)

@@ -17,7 +17,7 @@ public sealed record TripleTriadTradeResult(NativeCardInventory Inventory, IRead
 /// <summary>Atomic equivalent of native deck withdrawal (537380) and final acquisition (535AE0).</summary>
 public static class TripleTriadTrade
 {
-    /// <param name="finalOwners">Ten owners, indexed by original side * 5 + original hand slot. Player is 0, opponent is 1; include the unplayed card.</param>
+    /// <param name="finalOwners">Owners indexed by original side * hand size + original hand slot. Player is 0, opponent is 1; include the unplayed card.</param>
     /// <param name="selectedLosingHandSlots">For One, Diff and All, the distinct slots in the losing original hand which the winner takes, including after Sudden Death.</param>
     public static TripleTriadTradeResult Settle(NativeCardInventory inventory, IReadOnlyList<int> playerHand, IReadOnlyList<int> opponentHand, IReadOnlyList<int> finalOwners, TripleTriadTradeRule rule, int opponentOwner, IReadOnlyList<int>? selectedLosingHandSlots = null)
     {
@@ -38,14 +38,15 @@ public static class TripleTriadTrade
         {
             throw new ArgumentException("Settlement requires a native trade rule and a non-player NPC ownership byte.");
         }
-        if (originalPlayerHand.Count != 5 || originalOpponentHand.Count != 5 || playerHand.Count != 5 || opponentHand.Count != 5 || finalOwners.Count != 10 || finalOwners.Any(owner => owner is not (0 or 1)))
+        int handSize = originalPlayerHand.Count;
+        if (handSize < 1 || originalOpponentHand.Count != handSize || playerHand.Count != handSize || opponentHand.Count != handSize || finalOwners.Count != handSize * 2 || finalOwners.Any(owner => owner is not (0 or 1)))
         {
-            throw new ArgumentException("Settlement requires two original five-card hands and all ten final owners.");
+            throw new ArgumentException("Settlement requires two equally sized original hands and every final owner.");
         }
         int[] cards = playerHand.Concat(opponentHand).ToArray();
         if (!cards.Order().SequenceEqual(originalPlayerHand.Concat(originalOpponentHand).Order()))
         {
-            throw new ArgumentException("Sudden Death must preserve exactly the original ten card instances.");
+            throw new ArgumentException("Sudden Death must preserve exactly the original card instances.");
         }
         if (cards.Any(card => (uint)card >= NativeCardInventory.CardCount))
         {
@@ -70,24 +71,24 @@ public static class TripleTriadTrade
             }
         }
         int playerScore = finalOwners.Count(owner => owner == 0);
-        int winner = playerScore > 5 ? 0 : playerScore < 5 ? 1 : -1;
+        int winner = playerScore > handSize ? 0 : playerScore < handSize ? 1 : -1;
         int count = rule switch
         {
             TripleTriadTradeRule.One when winner >= 0 => 1,
-            TripleTriadTradeRule.Diff when winner >= 0 => Math.Min(5, Math.Abs(playerScore * 2 - 10)),
-            TripleTriadTradeRule.All when winner >= 0 => 5,
+            TripleTriadTradeRule.Diff when winner >= 0 => Math.Min(handSize, Math.Abs(playerScore * 2 - handSize * 2)),
+            TripleTriadTradeRule.All when winner >= 0 => handSize,
             _ => 0
         };
         int[] selected = selectedLosingHandSlots?.ToArray() ?? [];
         if (rule == TripleTriadTradeRule.All && winner >= 0 && selected.Length == 0)
         {
-            selected = [0, 1, 2, 3, 4];
+            selected = Enumerable.Range(0, handSize).ToArray();
         }
-        if (selected.Length != count || selected.Any(slot => (uint)slot >= 5) || selected.Distinct().Count() != selected.Length)
+        if (selected.Length != count || selected.Any(slot => (uint)slot >= handSize) || selected.Distinct().Count() != selected.Length)
         {
             throw new ArgumentException("The selected losing-hand slots must match the native trade count and must be distinct.");
         }
-        bool[] keep = Enumerable.Range(0, 10).Select(slot => slot < 5).ToArray();
+        bool[] keep = Enumerable.Range(0, handSize * 2).Select(slot => slot < handSize).ToArray();
         if (rule == TripleTriadTradeRule.Direct)
         {
             keep = finalOwners.Select(owner => owner == 0).ToArray();
@@ -96,7 +97,7 @@ public static class TripleTriadTrade
         {
             foreach (int slot in selected)
             {
-                keep[(winner == 0 ? 5 : 0) + slot] = winner == 0;
+                keep[(winner == 0 ? handSize : 0) + slot] = winner == 0;
             }
         }
         NativeCardInventory next = inventory.DeepCopy();
@@ -122,10 +123,10 @@ public static class TripleTriadTrade
                 }
             }
         }
-        int[] keptCards = Enumerable.Range(0, 10).Where(slot => keep[slot]).Select(slot => settlementCards[slot]).ToArray();
+        int[] keptCards = Enumerable.Range(0, handSize * 2).Where(slot => keep[slot]).Select(slot => settlementCards[slot]).ToArray();
         int[] gains = Difference(keptCards, originalPlayerHand);
         int[] losses = Difference(originalPlayerHand, keptCards);
-        return new TripleTriadTradeResult(next, gains, losses, overflow.ToArray()) { TookOpponentInstance = keep.Skip(5).Any(value => value) };
+        return new TripleTriadTradeResult(next, gains, losses, overflow.ToArray()) { TookOpponentInstance = keep.Skip(handSize).Any(value => value) };
     }
 
     private static int[] Difference(IEnumerable<int> source, IEnumerable<int> subtract)

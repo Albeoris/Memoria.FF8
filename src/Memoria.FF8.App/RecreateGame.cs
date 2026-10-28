@@ -943,7 +943,7 @@ internal sealed partial class RecreateGame : Game
     {
         GameSession fresh = GameWorld.CreateColdProcess(options.GameDirectory);
         fresh.StartNewGame(fresh.State.NativeBattleMemory);
-        fresh.SetGameplayPreferences(newGameMagicPreferences with { ChocoboWorldMode = newGameMagicPreferences.ChocoboWorldMode ?? DefaultChocoboWorldMode, WeaponMagazineRequired = uiPreferences.WeaponMagazineRequired, WeaponUpgradeOrder = uiPreferences.WeaponUpgradeOrder, CardModOnce = uiPreferences.CardModOnce, LimitOncePerTurn = uiPreferences.LimitOncePerTurn, SelphieCardSlots = uiPreferences.SelphieCardSlots, DrawOncePerSpell = uiPreferences.DrawOncePerSpell, Difficulty = uiPreferences.Difficulty, AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });
+        fresh.SetGameplayPreferences(newGameMagicPreferences with { ChocoboWorldMode = newGameMagicPreferences.ChocoboWorldMode ?? DefaultChocoboWorldMode, WeaponMagazineRequired = uiPreferences.WeaponMagazineRequired, WeaponUpgradeOrder = uiPreferences.WeaponUpgradeOrder, CardModOnce = uiPreferences.CardModOnce, LimitOncePerTurn = uiPreferences.LimitOncePerTurn, SelphieCardSlots = uiPreferences.SelphieCardSlots, DrawOncePerSpell = uiPreferences.DrawOncePerSpell, Difficulty = uiPreferences.Difficulty, AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, TripleTriad = uiPreferences.TripleTriad, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });
         StopAutoPlayForPlayerSession();
         ReplacePlayerSession(fresh);
         BattleInput[] battleSettingsInputs = uiPreferences.CreateBattleSettingsInputs();

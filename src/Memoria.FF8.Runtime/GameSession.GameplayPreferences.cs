@@ -125,6 +125,10 @@ public sealed partial class GameSession
 
     private void RequireBattleGameplayPreferenceBoundary(GameplayPreferences preferences)
     {
+        if (State.TripleTriadPlay is not null && preferences.TripleTriad != State.GameplayPreferences.TripleTriad)
+        {
+            throw new InvalidOperationException("Triple Triad settings cannot change until the match ends.");
+        }
         if (preferences.DrawOncePerSpell != State.GameplayPreferences.DrawOncePerSpell && (HasActiveBattle || State.PendingBattleEncounter is not null))
         {
             throw new InvalidOperationException("Draw once per spell cannot change until the battle ends.");

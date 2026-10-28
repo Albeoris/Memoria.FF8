@@ -6,6 +6,100 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class TripleTriadMatchTests
 {
     [Theory]
+    [InlineData(2, 2, 2)]
+    [InlineData(2, 5, 5)]
+    [InlineData(5, 2, 7)]
+    [InlineData(5, 5, 13)]
+    public void RectangularBoardsRetainEveryPlayedAndUnusedInstance(int width, int height, int handSize)
+    {
+        TripleTriadCard[] cards = Catalog();
+        int[] playerHand = Enumerable.Range(0, handSize).ToArray();
+        int[] opponentHand = Enumerable.Range(handSize, handSize).ToArray();
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, playerHand, opponentHand, width: width, height: height);
+        Assert.Equal(width, match.Width);
+        Assert.Equal(height, match.Height);
+        Assert.Equal(handSize, match.HandSize);
+        Assert.Equal(handSize * width * height, match.GetLegalMoves().Count);
+        for (int cell = 0; cell < width * height; cell++)
+        {
+            match.Play(cell / 2, cell);
+        }
+        Assert.Equal(TripleTriadOutcome.Draw, match.Outcome);
+        Assert.Equal(handSize * 2 - width * height, match.Hands.SelectMany(hand => hand).Count(card => card.HasValue));
+        Assert.Equal(handSize * 2, match.OriginalInstanceFinalOwners.Count);
+        TripleTriadMatch restored = TripleTriadMatch.Restore(cards, JsonSerializer.Deserialize<TripleTriadSnapshot>(JsonSerializer.Serialize(match.CaptureSnapshot()))!);
+        Assert.Equal(width, restored.Width);
+        Assert.Equal(height, restored.Height);
+        Assert.Equal(match.OriginalInstanceFinalOwners, restored.OriginalInstanceFinalOwners);
+    }
+
+    [Theory]
+    [InlineData(2, 2, 3)]
+    [InlineData(5, 4, 12)]
+    [InlineData(5, 5, 13)]
+    public void RectangularSuddenDeathPreservesOriginalInstancesAcrossRounds(int width, int height, int handSize)
+    {
+        TripleTriadCard[] cards = Catalog();
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, Enumerable.Range(0, handSize).ToArray(), Enumerable.Range(handSize, handSize).ToArray(), TripleTriadRules.SuddenDeath, width: width, height: height);
+        for (int round = 0; round < 3; round++)
+        {
+            while (match.Outcome == TripleTriadOutcome.InProgress)
+            {
+                TripleTriadMove move = match.GetLegalMoves()[0];
+                match.Play(move.HandIndex, move.CellIndex);
+            }
+            Assert.Equal(TripleTriadOutcome.Draw, match.Outcome);
+            Assert.Equal(handSize, match.PlayerScore);
+            Assert.Equal(handSize, match.OpponentScore);
+            match.RestartSuddenDeath(round % 2);
+            match = TripleTriadMatch.Restore(cards, match.CaptureSnapshot());
+            Assert.Equal(handSize, match.Hands[0].Count);
+            Assert.Equal(Enumerable.Range(0, handSize * 2), match.InitialHands.SelectMany(hand => hand).Order());
+        }
+    }
+
+    [Fact]
+    public void LegacySnapshotWithoutDimensionsDefaultsToThreeByThree()
+    {
+        TripleTriadCard[] cards = Catalog();
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9]);
+        string json = JsonSerializer.Serialize(match.CaptureSnapshot()).Replace("\"Width\":3,", "").Replace("\"Height\":3,", "");
+        TripleTriadMatch restored = TripleTriadMatch.Restore(cards, JsonSerializer.Deserialize<TripleTriadSnapshot>(json)!);
+        Assert.Equal(3, restored.Width);
+        Assert.Equal(3, restored.Height);
+        Assert.Equal(5, restored.HandSize);
+    }
+
+    [Fact]
+    public void RectangularAdjacencyAndElementPreviewDoNotMutateTheMatch()
+    {
+        TripleTriadCard[] cards = Catalog();
+        cards[0] = cards[0] with { Top = 8, Right = 8, Bottom = 8, Left = 8, Element = TripleTriadElement.Fire };
+        TripleTriadElement[] elements = new TripleTriadElement[10];
+        elements[4] = TripleTriadElement.Fire;
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], TripleTriadRules.Elemental, width: 5, height: 2, boardElements: elements);
+        match.Play(1, 0);
+        match.Play(0, 5);
+        string before = JsonSerializer.Serialize(match.CaptureSnapshot());
+        Assert.Empty(match.PreviewMove(0, 4).CapturedCells);
+        Assert.Equal(1, match.GetElementModifier(0, 4));
+        Assert.Equal(9, match.GetEffectiveRank(0, 4, 0));
+        TripleTriadMoveResult preview = match.PreviewMove(0, 6);
+        Assert.Equal(new[] { 5 }, preview.CapturedCells);
+        Assert.Equal(before, JsonSerializer.Serialize(match.CaptureSnapshot()));
+        Assert.Equal(preview.CapturedCells, match.Play(0, 6).CapturedCells);
+    }
+
+    [Fact]
+    public void InvalidDimensionsOrInsufficientAndUnequalHandsFail()
+    {
+        TripleTriadCard[] cards = Catalog();
+        Assert.Throws<ArgumentOutOfRangeException>(() => TripleTriadMatch.Create(cards, [0, 1], [2, 3], width: 1));
+        Assert.Throws<InvalidDataException>(() => TripleTriadMatch.Create(cards, [0, 1], [2, 3], width: 5, height: 5));
+        Assert.Throws<InvalidDataException>(() => TripleTriadMatch.Create(cards, [0, 1, 2], [3, 4], width: 2, height: 2));
+    }
+
+    [Theory]
     [InlineData(true, 0)]
     [InlineData(false, 0)]
     [InlineData(true, 1)]
@@ -83,6 +177,7 @@ public sealed class TripleTriadMatchTests
         TripleTriadMatch match = Position(cards, TripleTriadRules.None, [(0, 0), (neighbor, 1)]);
         TripleTriadMoveResult move = match.Play(1, 4);
         Assert.Equal(new[] { neighbor }, move.CapturedCells);
+        Assert.Equal(TripleTriadCaptureKind.Normal, Assert.Single(move.Captures).Kind);
         Assert.Equal(0, match.Board[neighbor]!.Owner);
         Assert.Equal(6, match.PlayerScore);
         Assert.Equal(4, match.OpponentScore);
@@ -116,7 +211,7 @@ public sealed class TripleTriadMatchTests
         Assert.True(move.Same);
         Assert.True(move.Combo);
         Assert.Equal(new[] { 1, 2 }, move.CapturedCells);
-        Assert.Equal(new[] { new TripleTriadCapture(1, 4, 0), new TripleTriadCapture(2, 1, 1) }, move.Captures);
+        Assert.Equal(new[] { new TripleTriadCapture(1, 4, 0) { Kind = TripleTriadCaptureKind.Same }, new TripleTriadCapture(2, 1, 1) { Kind = TripleTriadCaptureKind.Combo } }, move.Captures);
         Assert.Equal(0, match.Board[2]!.Owner);
     }
 
@@ -183,6 +278,9 @@ public sealed class TripleTriadMatchTests
         TripleTriadMoveResult move = match.Play(2, 4);
         Assert.True(move.Plus);
         Assert.Equal(new[] { 1 }, move.CapturedCells);
+        Assert.Equal(TripleTriadCaptureKind.Plus, Assert.Single(move.Captures).Kind);
+        Assert.Equal(new[] { 0, 3 }, move.PlusParticipants.Select(participant => participant.Direction));
+        Assert.All(move.PlusParticipants, participant => Assert.Equal(9, participant.OwnRank + participant.AdjacentRank));
         Assert.Equal(1, match.Board[5]!.Owner);
     }
 
@@ -198,6 +296,11 @@ public sealed class TripleTriadMatchTests
             TripleTriadMoveResult move = match.Play(1, 0);
             Assert.Equal(rule == (TripleTriadRules.Same | TripleTriadRules.SameWall), move.Same);
             Assert.Equal(move.Same ? 0 : 1, match.Board[1]!.Owner);
+            if (move.Same)
+            {
+                Assert.Contains(move.SameParticipants, participant => participant.Direction == 0 && participant.IsWall && participant.OwnRank == 10 && participant.AdjacentRank == 10);
+                Assert.Contains(move.SameParticipants, participant => participant.Direction == 1 && participant.CellIndex == 1 && !participant.IsWall);
+            }
         }
     }
 
@@ -214,6 +317,8 @@ public sealed class TripleTriadMatchTests
         TripleTriadMoveResult move = match.Play(2, 4);
         Assert.True(move.Same);
         Assert.True(move.Combo);
+        Assert.Equal(TripleTriadCaptureKind.Same, move.Captures.Single(capture => capture.CellIndex == 1).Kind);
+        Assert.Equal(TripleTriadCaptureKind.Combo, move.Captures.Single(capture => capture.CellIndex == 2).Kind);
         Assert.Equal(0, match.Board[2]!.Owner);
     }
 

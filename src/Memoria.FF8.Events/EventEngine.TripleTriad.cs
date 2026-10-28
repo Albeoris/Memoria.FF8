@@ -7,6 +7,10 @@ namespace Memoria.FF8.Events;
 
 public sealed record NativeTripleTriadRequest(int Version, int FieldId, string ProgramHash, long Frame, int ObjectId, int ScriptId, int Operation, long FiberSequence, ImmutableArray<int> RawOperands, byte OpponentOwner, int NativeRuleMask, byte TradeRule, byte RareChance, byte Argument4, byte Argument5, byte CommonLevelMask, int AvailableCards)
 {
+    public int Width { get; init; } = 3;
+    public int Height { get; init; } = 3;
+    public int HandSize { get; init; } = 5;
+
     [JsonIgnore]
     public TripleTriadRules Rules => DecodeRules(NativeRuleMask);
 
@@ -54,7 +58,7 @@ public sealed partial class EventEngine
     {
         ImmutableArray<int> raw = fiber.Stack.Take(7).Reverse().ToImmutableArray();
         int count = services.CardInventory!.TotalAvailableCount;
-        return new NativeTripleTriadRequest(1, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position, fiber.Sequence, raw, unchecked((byte)raw[0]), raw[1], unchecked((byte)raw[2]), unchecked((byte)raw[3]), unchecked((byte)raw[4]), unchecked((byte)raw[5]), unchecked((byte)raw[6]), count);
+        return new NativeTripleTriadRequest(1, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position, fiber.Sequence, raw, unchecked((byte)raw[0]), raw[1], unchecked((byte)raw[2]), unchecked((byte)raw[3]), unchecked((byte)raw[4]), unchecked((byte)raw[5]), unchecked((byte)raw[6]), count) { Width = services.GameplayPreferences.TripleTriad.Width, Height = services.GameplayPreferences.TripleTriad.Height, HandSize = services.GameplayPreferences.TripleTriad.HandSize };
     }
 
     private string? UnsupportedTripleTriad(Fiber fiber, JsmOperation operation)
@@ -77,7 +81,7 @@ public sealed partial class EventEngine
         }
         services.CardInventory.Validate();
         NativeTripleTriadRequest request = PrepareTripleTriad(fiber);
-        if (request.AvailableCards < 5)
+        if (request.AvailableCards < services.GameplayPreferences.TripleTriad.HandSize)
         {
             return null;
         }
@@ -100,14 +104,14 @@ public sealed partial class EventEngine
     {
         // Execute's caller has advanced the PC; retain the original issuing operation.
         NativeTripleTriadRequest request = PrepareTripleTriad(fiber) with { Operation = fiber.Position - 1 };
-        if (request.AvailableCards >= 5)
+        if (request.AvailableCards >= services.GameplayPreferences.TripleTriad.HandSize)
         {
             ResetNativeSalaryForTransition(fiber);
         }
         int[] operands = Pop(fiber, 7);
         fiber.Results[0] = request.AvailableCards;
         fiber.Results[1] = 0;
-        if (request.AvailableCards >= 5)
+        if (request.AvailableCards >= services.GameplayPreferences.TripleTriad.HandSize)
         {
             Scene.TripleTriadRequest = request;
             fiber.WaitReason = WaitReason.TripleTriad;
@@ -127,7 +131,7 @@ public sealed partial class EventEngine
             }
             return;
         }
-        if (request.Version != 1 || request.FieldId != saved.FieldId || request.ProgramHash != saved.ProgramHash || request.Frame < 0 || request.Frame > saved.Frame || request.AvailableCards < 5 || request.RawOperands.IsDefault || request.RawOperands.Length != 7 || waiting.Length != 1 || waiting[0].Sequence != request.FiberSequence || waiting[0].Complete || waiting[0].ObjectId != request.ObjectId || waiting[0].Script.Id != request.ScriptId || waiting[0].Position != request.Operation + 1 || (uint)request.Operation >= program!.Operations.Count || program.Operations[request.Operation].Opcode != Jsm.Opcode.CARDGAME || !waiting[0].Results.TryGetValue(0, out NativeScalarValue? count) || count is null || !count.IsExact || (int)count != request.AvailableCards || !waiting[0].Results.TryGetValue(1, out NativeScalarValue? result) || result is null || !result.IsExact || (int)result != 0 || saved.CardInventory is null || saved.Scene.NativeBattleWaits?.Count > 0 || saved.TransitionRequested || saved.PartyMenu is not null)
+        if (request.Version != 1 || request.FieldId != saved.FieldId || request.ProgramHash != saved.ProgramHash || request.Frame < 0 || request.Frame > saved.Frame || request.Width is < 2 or > 5 || request.Height is < 2 or > 5 || request.HandSize < (request.Width * request.Height + 1) / 2 || request.HandSize > 50 || request.AvailableCards < request.HandSize || request.RawOperands.IsDefault || request.RawOperands.Length != 7 || waiting.Length != 1 || waiting[0].Sequence != request.FiberSequence || waiting[0].Complete || waiting[0].ObjectId != request.ObjectId || waiting[0].Script.Id != request.ScriptId || waiting[0].Position != request.Operation + 1 || (uint)request.Operation >= program!.Operations.Count || program.Operations[request.Operation].Opcode != Jsm.Opcode.CARDGAME || !waiting[0].Results.TryGetValue(0, out NativeScalarValue? count) || count is null || !count.IsExact || (int)count != request.AvailableCards || !waiting[0].Results.TryGetValue(1, out NativeScalarValue? result) || result is null || !result.IsExact || (int)result != 0 || saved.CardInventory is null || saved.Scene.NativeBattleWaits?.Count > 0 || saved.TransitionRequested || saved.PartyMenu is not null)
         {
             throw new InvalidDataException("Saved CARDGAME request disagrees with its exact issuing program, fiber, result bank or scene owner.");
         }

@@ -63,6 +63,10 @@ public sealed partial class FfnxTextureResolver
         {
             return ReadCardIconRegion(context, 256, outcome * 48, 256, 48, 0, 255);
         }
+        if (part.StartsWith("capture/", StringComparison.Ordinal) && Number(part[8..], out int capture) && capture < 3)
+        {
+            return ReadCardIconRegion(context, 512, capture * 64, 255, 64, 32, 224 + capture);
+        }
         if (part is "background" or "board-background")
         {
             return ReadRegion(context, part == "background" ? "cardgame/intro" : "cardgame/game", 0, 0, 0, 384, 224, 384, 224);

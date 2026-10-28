@@ -181,6 +181,14 @@ internal sealed partial class RecreateGame
         data.DrawOncePerSpellPreferenceLocked = data.GuardianFormsPreferenceLocked;
         data.SupportedActions.Add("config:GF Transformations");
         data.Settings["Battle policy"] = ReadCurrentUiPreferences().BattlePolicyLabel;
+        UiPreferences currentTriadPreferences = ReadCurrentUiPreferences();
+        TripleTriadSettings triadSettings = currentTriadPreferences.TripleTriad;
+        data.Settings["Triple Triad width"] = triadSettings.Width.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data.Settings["Triple Triad height"] = triadSettings.Height.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data.Settings["Triple Triad hand size"] = triadSettings.HandSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data.Settings["Triple Triad Random redraws"] = triadSettings.RandomRedraws.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data.Settings["Triple Triad assistance"] = triadSettings.Assistance.ToString();
+        data.SupportedActions.UnionWith(UiPreferences.TripleTriadSettingKeys.Select(key => "config:" + key));
         data.Settings["Rare card markers"] = uiPreferences.RareCardMarkers ? "On" : "Off";
         data.Settings["Random encounters"] = ReadCurrentUiPreferences().RandomEncounters ? "On" : "Off";
         data.SupportedActions.Add("config:Music volume");
@@ -461,7 +469,7 @@ internal sealed partial class RecreateGame
             RandomEncounters = session.State.RandomEncounters?.Enabled == true
         };
         GameplayPreferences gameplay = session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
-        return current with { WeaponMagazineRequired = session.State.Scene == SceneKind.Title ? uiPreferences.WeaponMagazineRequired : gameplay.WeaponMagazineRequired, WeaponUpgradeOrder = session.State.Scene == SceneKind.Title ? uiPreferences.WeaponUpgradeOrder : gameplay.WeaponUpgradeOrder, CardModOnce = session.State.Scene == SceneKind.Title ? uiPreferences.CardModOnce : gameplay.CardModOnce, LimitOncePerTurn = session.State.Scene == SceneKind.Title ? uiPreferences.LimitOncePerTurn : gameplay.LimitOncePerTurn, SelphieCardSlots = session.State.Scene == SceneKind.Title ? uiPreferences.SelphieCardSlots : gameplay.SelphieCardSlots, DrawOncePerSpell = session.State.Scene == SceneKind.Title ? uiPreferences.DrawOncePerSpell : gameplay.DrawOncePerSpell, Difficulty = session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : gameplay.Difficulty, AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : gameplay.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : gameplay.GunbladeMode, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : gameplay.GuardianFormsEnabled };
+        return current with { WeaponMagazineRequired = session.State.Scene == SceneKind.Title ? uiPreferences.WeaponMagazineRequired : gameplay.WeaponMagazineRequired, WeaponUpgradeOrder = session.State.Scene == SceneKind.Title ? uiPreferences.WeaponUpgradeOrder : gameplay.WeaponUpgradeOrder, CardModOnce = session.State.Scene == SceneKind.Title ? uiPreferences.CardModOnce : gameplay.CardModOnce, LimitOncePerTurn = session.State.Scene == SceneKind.Title ? uiPreferences.LimitOncePerTurn : gameplay.LimitOncePerTurn, SelphieCardSlots = session.State.Scene == SceneKind.Title ? uiPreferences.SelphieCardSlots : gameplay.SelphieCardSlots, DrawOncePerSpell = session.State.Scene == SceneKind.Title ? uiPreferences.DrawOncePerSpell : gameplay.DrawOncePerSpell, Difficulty = session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : gameplay.Difficulty, AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : gameplay.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : gameplay.GunbladeMode, TripleTriad = session.State.Scene == SceneKind.Title ? uiPreferences.TripleTriad : gameplay.TripleTriad, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : gameplay.GuardianFormsEnabled };
     }
 
     private void ApplyCurrentBattleSettings(UiPreferences preferences, string key)
@@ -494,10 +502,10 @@ internal sealed partial class RecreateGame
                 world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: preferences.RandomEncounters));
             }
         }
-        if (session.State.Scene != SceneKind.Title && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations")
+        if (session.State.Scene != SceneKind.Title && (UiPreferences.TripleTriadSettingKeys.Contains(key) || key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations"))
         {
             world ??= CreateWorld();
-            world.ConfigureGameplayPreferences((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { WeaponMagazineRequired = preferences.WeaponMagazineRequired, WeaponUpgradeOrder = preferences.WeaponUpgradeOrder, CardModOnce = preferences.CardModOnce, LimitOncePerTurn = preferences.LimitOncePerTurn, SelphieCardSlots = preferences.SelphieCardSlots, DrawOncePerSpell = preferences.DrawOncePerSpell, Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
+            world.ConfigureGameplayPreferences((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { WeaponMagazineRequired = preferences.WeaponMagazineRequired, WeaponUpgradeOrder = preferences.WeaponUpgradeOrder, CardModOnce = preferences.CardModOnce, LimitOncePerTurn = preferences.LimitOncePerTurn, SelphieCardSlots = preferences.SelphieCardSlots, DrawOncePerSpell = preferences.DrawOncePerSpell, Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, TripleTriad = preferences.TripleTriad, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
         }
         if (key == "Difficulty" && debugBattle is not null)
         {

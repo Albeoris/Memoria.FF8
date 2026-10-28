@@ -75,6 +75,7 @@ internal sealed record UiPreferences
     public bool GuardianFormsEnabled { get; init; }
     public bool RandomEncounters { get; init; } = true;
     public bool RareCardMarkers { get; init; }
+    public TripleTriadSettings TripleTriad { get; init; } = new();
     public bool CursorMemory { get; init; }
     public int FieldMessageSpeed { get; init; } = 3;
 
@@ -115,6 +116,21 @@ internal sealed record UiPreferences
         if (NewGameSettings.IsLocked(key, Difficulty))
         {
             throw new InvalidOperationException("Hardcore is permanent and its gameplay rules cannot be changed.");
+        }
+        if (TripleTriadSettingKeys.Contains(key))
+        {
+            TripleTriadSettings settings = key switch
+            {
+                "Triple Triad width" => TripleTriad with { Width = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) },
+                "Triple Triad height" => TripleTriad with { Height = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) },
+                "Triple Triad hand size" => TripleTriad with { HandSize = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) },
+                "Triple Triad Random redraws" => TripleTriad with { RandomRedraws = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) },
+                "Triple Triad assistance" => TripleTriad with { Assistance = Enum.Parse<TripleTriadAssistance>(value) },
+                _ => throw new ArgumentException("Unknown Triple Triad setting.")
+            };
+            settings = settings.NormalizeForDifficulty(Difficulty);
+            settings.Validate(Difficulty);
+            return this with { TripleTriad = settings };
         }
         if (key == "UI presentation")
         {
@@ -380,6 +396,8 @@ internal sealed record UiPreferences
 
     private static bool ValidFps(int fps) => fps is 0 or 15 or 30 or 60 or 90 or 120 or 144 or 240;
 
+    internal static readonly string[] TripleTriadSettingKeys = ["Triple Triad width", "Triple Triad height", "Triple Triad hand size", "Triple Triad Random redraws", "Triple Triad assistance"];
+
     private void Validate()
     {
         if (Graphics is null)
@@ -387,6 +405,11 @@ internal sealed record UiPreferences
             throw new InvalidDataException("Graphics preferences must be an object.");
         }
         Graphics.Validate();
+        if (TripleTriad is null)
+        {
+            throw new InvalidDataException("Triple Triad settings are missing.");
+        }
+        TripleTriad.Validate(Difficulty);
         if (WindowWidth < 1 || WindowHeight < 1)
         {
             throw new InvalidDataException("Window dimensions must be positive.");

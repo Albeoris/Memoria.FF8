@@ -36,7 +36,7 @@ public sealed class ConfigSettingsTests
         List<MenuAction> applied = [];
         MenuController controller = new(() => data, applied.Add);
         controller.Open("config");
-        Assert.Equal(["config-graphics", "config-audio", "config-controls", "config-interface", "config-gameplay", "config-mods"], controller.Entries.Select(entry => entry.Id));
+        Assert.Equal(["config-graphics", "config-audio", "config-controls", "config-interface", "config-gameplay", "config-triple-triad", "config-mods"], controller.Entries.Select(entry => entry.Id));
         controller.Open("config-interface");
         Assert.Contains(controller.Entries, entry => entry.Id == "Cursor");
         UiView view = controller.BuildView();
@@ -166,8 +166,8 @@ public sealed class ConfigSettingsTests
         {
             UiView view = controller.BuildView();
             view.Resize(width, height);
-            UiChoiceRow[] rows = Descendants(view.Root).OfType<UiChoiceRow>().ToArray();
-            foreach (UiChoiceRow row in rows)
+            UiSettingRow[] rows = Descendants(view.Root).OfType<UiSettingRow>().ToArray();
+            foreach (UiSettingRow row in rows)
             {
                 seen.Add(row.Id!);
                 Assert.True(row.Bounds.Height >= 24 * controller.TextScale);

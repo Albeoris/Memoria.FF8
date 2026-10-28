@@ -11,7 +11,7 @@ public static class TripleTriadNativeAi
 {
     public static bool SupportsParameters(TripleTriadNativeAiParameters parameters, byte intelligence, byte personality, int emptyCells)
     {
-        return parameters is not null && parameters.Depths.Length == 73 && parameters.Profiles.Length == 8 && emptyCells is >= 1 and <= 9 && parameters.Depths[(intelligence & 7) * 9 + emptyCells] is >= 1 and <= 4 && parameters.Depths[(intelligence & 7) * 9 + emptyCells] <= emptyCells;
+        return parameters is not null && parameters.Depths.Length == 73 && parameters.Profiles.Length == 8 && emptyCells is >= 1 and <= 25 && parameters.Depths[(intelligence & 7) * 9 + Math.Min(emptyCells, 9)] is >= 1 and <= 4 && parameters.Depths[(intelligence & 7) * 9 + Math.Min(emptyCells, 9)] <= emptyCells;
     }
 
     public static TripleTriadNativeAiResult ChooseMove(IReadOnlyList<TripleTriadCard> catalog, IReadOnlyList<byte> tradePriorities, TripleTriadMatch match, TripleTriadNativeAiParameters parameters, byte intelligence, byte personality, uint randomState, IReadOnlyList<int>? originalAiHand = null)
@@ -25,10 +25,31 @@ public static class TripleTriadNativeAi
         {
             throw new NotSupportedException("Native Triple Triad AI requires all original cards and a supported original search profile.");
         }
-        int depth = parameters.Depths[(intelligence & 7) * 9 + emptyCells];
+        int depth = parameters.Depths[(intelligence & 7) * 9 + Math.Min(emptyCells, 9)];
         if (depth > emptyCells)
         {
             throw new InvalidDataException("Native Triple Triad search depth exceeds the remaining board cells.");
+        }
+        // Larger optional boards retain the native score channels and traversal order.
+        // Bound the exhaustive horizon by its worst-case leaf count to keep interaction responsive.
+        if (match.Width != 3 || match.Height != 3 || match.HandSize != 5)
+        {
+            long leaves = 1;
+            int available = match.Hands[match.CurrentPlayer].Count(card => card.HasValue);
+            int oppositeAvailable = !match.Rules.HasFlag(TripleTriadRules.Open) && (intelligence & 0x10) == 0 ? match.HandSize : match.Hands[1 - match.CurrentPlayer].Count(card => card.HasValue);
+            int boundedDepth = 0;
+            while (boundedDepth < depth)
+            {
+                int remainingHand = boundedDepth % 2 == 0 ? available - boundedDepth / 2 : oppositeAvailable - boundedDepth / 2;
+                long next = leaves * remainingHand * (emptyCells - boundedDepth);
+                if (boundedDepth > 0 && next > 20000)
+                {
+                    break;
+                }
+                leaves = next;
+                boundedDepth++;
+            }
+            depth = boundedDepth;
         }
         TripleTriadNativeAiWeights weights = parameters.Profiles[personality & 7];
         int[] values = tradePriorities.Select(priority => unchecked(priority * weights.CardPriorityScale) / 200 >> 12).ToArray();
@@ -42,9 +63,9 @@ public static class TripleTriadNativeAi
             throw new NotSupportedException("Native hidden-hand search after Sudden Death requires the original pre-match AI hand.");
         }
         IReadOnlyList<int> initialAiHand = originalAiHand ?? match.InitialHands[aiPlayer];
-        if (initialAiHand.Count != 5 || initialAiHand.Any(id => (uint)id >= 110))
+        if (initialAiHand.Count != match.HandSize || initialAiHand.Any(id => (uint)id >= 110))
         {
-            throw new InvalidDataException("Native Triple Triad AI requires its five original pre-Sudden-Death card IDs.");
+            throw new InvalidDataException("Native Triple Triad AI requires its original pre-Sudden-Death card IDs.");
         }
         int Next()
         {
@@ -58,7 +79,7 @@ public static class TripleTriadNativeAi
             // 53AE70 replaces every opposite simulated slot, including used ones.
             // Guessed levels are bounded by the AI's corresponding original card.
             int?[][] guessed = match.Hands.Select(hand => hand.ToArray()).ToArray();
-            for (int hand = 0; hand < 5; hand++)
+            for (int hand = 0; hand < match.HandSize; hand++)
             {
                 int levels = initialAiHand[hand] / 11 + 1;
                 guessed[1 - aiPlayer][hand] = Next() % levels * 11 + Next() % 11;

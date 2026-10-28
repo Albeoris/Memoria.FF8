@@ -21,6 +21,8 @@ internal static class TripleTriadPractice
         public required int[] Opponent { get; init; }
         [JsonRequired]
         public required TripleTriadSnapshot Match { get; init; }
+        public TripleTriadSettings? Options { get; init; }
+        public int RedrawsUsed { get; init; }
         [JsonRequired]
         public required uint RandomState { get; init; }
     }
@@ -35,7 +37,8 @@ internal static class TripleTriadPractice
         string? load = null;
         string? preview = null;
         string? player = null;
-        string opponent = "0,1,2,3,4";
+        string? opponent = null;
+        TripleTriadSettings options = new();
         TripleTriadRules rules = TripleTriadRules.Open;
         bool autoPlay = false;
         for (int index = 0; index < args.Length; index++)
@@ -46,7 +49,7 @@ internal static class TripleTriadPractice
                 autoPlay = true;
                 continue;
             }
-            if (option is not ("--game-dir" or "--save" or "--state" or "--match" or "--preview" or "--player" or "--opponent" or "--rules") || ++index == args.Length)
+            if (option is not ("--game-dir" or "--save" or "--state" or "--match" or "--preview" or "--player" or "--opponent" or "--rules" or "--width" or "--height" or "--hand-size" or "--redraws" or "--assistance") || ++index == args.Length)
             {
                 throw new ArgumentException($"Unknown or incomplete Triple Triad argument '{option}'.");
             }
@@ -74,6 +77,21 @@ internal static class TripleTriadPractice
                 case "--opponent":
                     opponent = value;
                     break;
+                case "--width":
+                    options = options with { Width = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) };
+                    break;
+                case "--height":
+                    options = options with { Height = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) };
+                    break;
+                case "--hand-size":
+                    options = options with { HandSize = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) };
+                    break;
+                case "--redraws":
+                    options = options with { RandomRedraws = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) };
+                    break;
+                case "--assistance":
+                    options = options with { Assistance = Enum.Parse<TripleTriadAssistance>(value, true) };
+                    break;
                 case "--rules":
                     rules = Enum.Parse<TripleTriadRules>(value, true);
                     break;
@@ -89,11 +107,15 @@ internal static class TripleTriadPractice
         }
         TripleTriadCatalog catalog = TripleTriadCatalog.Load(gameDirectory);
         SavedMatch? saved = load is null ? null : Read(load, catalog);
-        NativeCardInventory? inventory = source is null ? null : GameSession.Load(source).CardInventory ?? throw new InvalidDataException("The story snapshot has no native card collection.");
+        GameState? sourceState = source is null ? null : GameSession.Load(source);
+        options = saved?.Options ?? (saved is null ? sourceState?.GameplayPreferences.TripleTriad ?? options.NormalizeForDifficulty(BattleDifficulty.Normal) : new TripleTriadSettings { Width = saved.Match.Width, Height = saved.Match.Height, HandSize = saved.Match.InitialHands[0].Length });
+        options.Validate();
+        NativeCardInventory? inventory = source is null ? null : sourceState!.CardInventory ?? throw new InvalidDataException("The story snapshot has no native card collection.");
         inventory?.Validate();
         Dictionary<int, int> collection = saved?.Collection ?? Enumerable.Range(0, 110).ToDictionary(id => id, id => inventory is null ? 1 : Math.Max(0, inventory.AvailableCount(id)));
-        int[] opponentHand = saved?.Opponent ?? ParseDeck(opponent);
-        TripleTriadController controller = new(catalog.Cards, collection, opponentHand, catalog.Name, saved?.Match.Rules ?? rules);
+        int[] opponentHand = saved?.Opponent ?? (opponent is null ? Enumerable.Range(0, options.HandSize).ToArray() : ParseDeck(opponent, options.HandSize));
+        TripleTriadController controller = new(catalog.Cards, collection, opponentHand, catalog.Name, saved?.Match.Rules ?? rules, options: options);
+        controller.RestoreRedrawsUsed(saved?.RedrawsUsed ?? 0);
         new TripleTriadDeckHistory(new GlobalSettingsPaths().TripleTriadDeckHistoryPath).Connect(controller);
         uint randomState = saved?.RandomState ?? inventory?.TripleTriadRandomState ?? 0;
         controller.ChooseOpponentMove = match =>
@@ -104,16 +126,33 @@ internal static class TripleTriadPractice
         };
         controller.CreateMatch = selected =>
         {
-            TripleTriadPreparedBoard board = TripleTriadPreparation.GenerateElements(controller.Rules, randomState);
+            TripleTriadPreparedBoard board = TripleTriadPreparation.GenerateElements(controller.Rules, randomState, options.Width, options.Height);
             TripleTriadStartingSide starter = TripleTriadPreparation.TossStartingSide(board.RandomState);
             randomState = starter.RandomState;
-            return TripleTriadMatch.Create(catalog.Cards, selected, opponentHand, controller.Rules, 1 - starter.NativeSide, board.Elements);
+            return TripleTriadMatch.Create(catalog.Cards, selected, opponentHand, controller.Rules, 1 - starter.NativeSide, board.Elements, options.Width, options.Height);
         };
         controller.RestartDraw = match =>
         {
-            TripleTriadPreparedBoard board = TripleTriadPreparation.GenerateElements(match.Rules, randomState);
+            TripleTriadPreparedBoard board = TripleTriadPreparation.GenerateElements(match.Rules, randomState, options.Width, options.Height);
             randomState = board.RandomState;
             match.RestartSuddenDeath(match.CurrentPlayer, board.Elements);
+        };
+        NativeCardInventory practiceCards = inventory ?? NativeCardInventory.CreateNewGame();
+        if (inventory is null)
+        {
+            foreach ((int id, int count) in collection)
+            {
+                for (int copy = 0; copy < count; copy++)
+                {
+                    practiceCards = practiceCards.Acquire(id, out _);
+                }
+            }
+        }
+        controller.RedrawHand = () =>
+        {
+            TripleTriadPreparedHand hand = TripleTriadPreparation.SelectRandomHand(practiceCards, randomState, options.HandSize);
+            randomState = hand.RandomState;
+            return hand.Cards;
         };
         if (saved is not null)
         {
@@ -125,24 +164,14 @@ internal static class TripleTriadPractice
             {
                 throw new ArgumentException("Random selects its hand; omit --player.");
             }
-            NativeCardInventory practiceCards = inventory ?? NativeCardInventory.CreateNewGame();
-            if (inventory is null)
-            {
-                foreach (int id in collection.Keys)
-                {
-                    practiceCards = practiceCards.Acquire(id, out _);
-                }
-            }
-            TripleTriadPreparedHand hand = TripleTriadPreparation.SelectRandomHand(practiceCards, randomState);
-            randomState = hand.RandomState;
-            foreach (int id in hand.Cards)
+            foreach (int id in controller.RedrawHand())
             {
                 controller.ChooseCard(id);
             }
         }
         else if (player is not null || preview is not null || autoPlay)
         {
-            int[] hand = player is null ? collection.SelectMany(pair => Enumerable.Repeat(pair.Key, pair.Value)).Take(5).ToArray() : ParseDeck(player);
+            int[] hand = player is null ? collection.SelectMany(pair => Enumerable.Repeat(pair.Key, pair.Value)).Take(options.HandSize).ToArray() : ParseDeck(player, options.HandSize);
             foreach (int id in hand)
             {
                 controller.ChooseCard(id);
@@ -156,12 +185,13 @@ internal static class TripleTriadPractice
         {
             if (controller.Match is not null)
             {
-                Write(savePath, new SavedMatch { Version = 1, Collection = collection, Opponent = opponentHand, Match = controller.Match.CaptureSnapshot(), RandomState = randomState });
+                Write(savePath, new SavedMatch { Version = 1, Collection = collection, Opponent = opponentHand, Match = controller.Match.CaptureSnapshot(), RandomState = randomState, Options = options, RedrawsUsed = options.RandomRedraws - controller.RedrawsRemaining });
             }
         }
         controller.Changed += Save;
         if (autoPlay)
         {
+            controller.Navigate(UiKey.Confirm);
             TripleTriadMatch match = controller.Match!;
             while (match.Outcome == TripleTriadOutcome.InProgress)
             {
@@ -202,6 +232,7 @@ internal static class TripleTriadPractice
                 {
                     throw new InvalidDataException("Practice collection or opponent changed; open the saved match with --match.");
                 }
+                controller.RestoreRedrawsUsed(restored.RedrawsUsed);
                 controller.RestoreMatch(TripleTriadMatch.Restore(catalog.Cards, restored.Match));
                 randomState = restored.RandomState;
             }, resourceHost);
@@ -211,12 +242,12 @@ internal static class TripleTriadPractice
         return 0;
     }
 
-    private static int[] ParseDeck(string value)
+    private static int[] ParseDeck(string value, int handSize)
     {
         int[] deck = value.Split(',').Select(id => int.Parse(id, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
-        if (deck.Length != 5 || deck.Any(id => id is < 0 or >= 110))
+        if (deck.Length != handSize || deck.Any(id => id is < 0 or >= 110))
         {
-            throw new ArgumentException("A hand requires five comma-separated card IDs in 0..109.");
+            throw new ArgumentException("A hand requires the configured number of comma-separated card IDs in 0..109.");
         }
         return deck;
     }
@@ -224,13 +255,19 @@ internal static class TripleTriadPractice
     internal static SavedMatch Read(string path, TripleTriadCatalog catalog)
     {
         SavedMatch saved = JsonSerializer.Deserialize<SavedMatch>(File.ReadAllText(path), JsonOptions) ?? throw new InvalidDataException("Empty practice match.");
-        if (saved.Version != 1 || saved.Collection is null || saved.Collection.Count != 110 || Enumerable.Range(0, 110).Any(id => !saved.Collection.TryGetValue(id, out int count) || count < 0 || count > (id < 77 ? 100 : 1)) || saved.Opponent is not { Length: 5 } || saved.Opponent.Any(id => id is < 0 or >= 110) || saved.Match is null)
+        if (saved.Version != 1 || saved.Collection is null || saved.Collection.Count != 110 || Enumerable.Range(0, 110).Any(id => !saved.Collection.TryGetValue(id, out int count) || count < 0 || count > (id < 77 ? 100 : 1)) || saved.Opponent is null || saved.Opponent.Length < 2 || saved.Opponent.Any(id => id is < 0 or >= 110) || saved.Match is null)
         {
             throw new InvalidDataException("Invalid practice collection or opponent hand.");
         }
-        _ = TripleTriadMatch.Restore(catalog.Cards, saved.Match);
-        int[] originals = saved.Match.InstanceOrder.Select(source => saved.Match.InitialHands[source / 5][source % 5]).ToArray();
-        if (!saved.Opponent.SequenceEqual(originals.Skip(5)) || originals.Take(5).GroupBy(id => id).Any(group => saved.Collection.GetValueOrDefault(group.Key) < group.Count()))
+        TripleTriadMatch match = TripleTriadMatch.Restore(catalog.Cards, saved.Match);
+        TripleTriadSettings options = saved.Options ?? new TripleTriadSettings { Width = match.Width, Height = match.Height, HandSize = match.HandSize };
+        options.Validate();
+        if (options.Width != match.Width || options.Height != match.Height || options.HandSize != match.HandSize || saved.RedrawsUsed < 0 || saved.RedrawsUsed > options.RandomRedraws)
+        {
+            throw new InvalidDataException("Practice options disagree with their saved match.");
+        }
+        int[] originals = saved.Match.InstanceOrder.Select(source => saved.Match.InitialHands[source / saved.Match.InitialHands[0].Length][source % saved.Match.InitialHands[0].Length]).ToArray();
+        if (!saved.Opponent.SequenceEqual(originals.Skip(saved.Match.InitialHands[0].Length)) || originals.Take(saved.Match.InitialHands[0].Length).GroupBy(id => id).Any(group => saved.Collection.GetValueOrDefault(group.Key) < group.Count()))
         {
             throw new InvalidDataException("Practice match card instances disagree with its collection or original opponent.");
         }

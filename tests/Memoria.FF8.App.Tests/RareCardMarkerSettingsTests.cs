@@ -53,7 +53,7 @@ public sealed class RareCardMarkerSettingsTests
             preferences = preferences.WithSetting(action.SubjectId, action.Value);
             data.Settings[action.SubjectId] = action.Value;
         });
-        menus.Open("config-exploration");
+        menus.Open("config-triple-triad");
         MenuEntry marker = menus.Entries.Single(entry => entry.Id == "Rare card markers");
         Assert.Equal("Off", menus.Data.Settings["Rare card markers"]);
         menus.Execute(marker.Action!);

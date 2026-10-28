@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
@@ -10,6 +11,157 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class TripleTriadRematchInventoryTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LegacyRequestKeepsOriginalBoardWhileFuturePreferencesUseLargerBoard(bool activeMatch)
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed card resources are required.");
+        NativeCardInventory cards = NativeCardInventory.CreateNewGame();
+        foreach (int id in Enumerable.Range(0, 5))
+        {
+            cards = cards.Acquire(id, out _);
+        }
+        GameSession cold = GameSession.CreateColdProcess();
+        cold.StartNewGame();
+        GameSession session = new(cold.State with
+        {
+            Scene = SceneKind.Field,
+            FieldId = 600,
+            FieldLoadContext = NativeFieldLoadContext.FromOriginalSave(600),
+            CardInventory = cards,
+            SeeD = null,
+            WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = 0x10 }
+        });
+        using GameWorld world = CreateWorld(session, directory, TripleTriadTradeRule.One, true);
+        Assert.True(world.Events.TalkTo(0, true));
+        world.Events.Step();
+        if (activeMatch)
+        {
+            TripleTriadController original = world.EnsureTripleTriad()!;
+            for (int tick = 0; tick < 15; tick++)
+            {
+                world.AdvanceTripleTriadPrompt();
+            }
+            world.AdvanceTripleTriadPrompt(0);
+            for (int tick = 0; tick < 15 && original.AwaitingRules; tick++)
+            {
+                world.AdvanceTripleTriadPrompt();
+            }
+            Assert.Equal(5, original.Match!.HandSize);
+        }
+        session.SetEventState(world.Events.Capture());
+        GameplayPreferences futurePreferences = session.GameplayPreferences with { TripleTriad = new TripleTriadSettings { Width = 4, Height = 4, HandSize = 8 } };
+        JsonObject legacy = JsonSerializer.SerializeToNode(session.State with { GameplayPreferences = futurePreferences })!.AsObject();
+        JsonObject request = legacy["EventState"]!["Scene"]!["TripleTriadRequest"]!.AsObject();
+        request.Remove("Width");
+        request.Remove("Height");
+        request.Remove("HandSize");
+        GameSession migrated = new(legacy.Deserialize<GameState>()!);
+        using GameWorld restored = CreateWorld(migrated, directory, TripleTriadTradeRule.One, true);
+        Assert.Equal(5, restored.Events.PendingTripleTriad!.HandSize);
+        TripleTriadController resumed = restored.EnsureTripleTriad()!;
+        Assert.Equal((3, 3, 5), (resumed.Options.Width, resumed.Options.Height, resumed.Options.HandSize));
+        Assert.Equal((4, 4, 8), (migrated.GameplayPreferences.TripleTriad.Width, migrated.GameplayPreferences.TripleTriad.Height, migrated.GameplayPreferences.TripleTriad.HandSize));
+        if (activeMatch)
+        {
+            Assert.Equal(9, resumed.Match!.Board.Count);
+        }
+        string path = TestResources.ArtifactFile($"legacy-triad-request-{activeMatch}.json");
+        migrated.Save(path);
+        _ = GameSession.Load(path);
+        foreach (int id in Enumerable.Range(5, 3))
+        {
+            cards = cards.Acquire(id, out _);
+        }
+        GameSession future = new(migrated.State with { EventState = null, TripleTriadPlay = null, CardInventory = cards });
+        using GameWorld nextWorld = CreateWorld(future, directory, TripleTriadTradeRule.One, true);
+        Assert.True(nextWorld.Events.TalkTo(0, true));
+        nextWorld.Events.Step();
+        Assert.Equal((4, 4, 8), (nextWorld.Events.PendingTripleTriad!.Width, nextWorld.Events.PendingTripleTriad.Height, nextWorld.Events.PendingTripleTriad.HandSize));
+        Assert.Equal(8, nextWorld.EnsureTripleTriad()!.Options.HandSize);
+    }
+
+    [Theory]
+    [InlineData(2, 2)]
+    [InlineData(4, 8)]
+    [InlineData(5, 13)]
+    public void ConfiguredRandomHostPreservesRedrawAndNextTurnAcrossStandaloneReload(int size, int handSize)
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed card resources are required.");
+        NativeCardInventory cards = NativeCardInventory.CreateNewGame();
+        foreach (int id in Enumerable.Range(0, Math.Max(2, handSize)))
+        {
+            cards = cards.Acquire(id, out _);
+        }
+        GameSession cold = GameSession.CreateColdProcess();
+        cold.StartNewGame();
+        GameSession session = new(cold.State with
+        {
+            Scene = SceneKind.Field,
+            FieldId = 600,
+            FieldLoadContext = NativeFieldLoadContext.FromOriginalSave(600),
+            CardInventory = cards,
+            SeeD = null,
+            GameplayPreferences = cold.State.GameplayPreferences with { TripleTriad = new TripleTriadSettings { Width = size, Height = size, HandSize = handSize, RandomRedraws = 2 } },
+            WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = 0x10 }
+        });
+        using GameWorld world = CreateWorld(session, directory, TripleTriadTradeRule.All, true);
+        Assert.True(world.Events.TalkTo(0, true));
+        world.Events.Step();
+        TripleTriadController controller = world.EnsureTripleTriad()!;
+        for (int tick = 0; tick < 15; tick++)
+        {
+            world.AdvanceTripleTriadPrompt();
+        }
+        world.AdvanceTripleTriadPrompt(0);
+        for (int tick = 0; tick < 15 && controller.AwaitingRules; tick++)
+        {
+            world.AdvanceTripleTriadPrompt();
+        }
+        Assert.Equal(size * size, controller.Match!.Board.Count);
+        Assert.Equal(handSize, controller.Deck.Count);
+        TripleTriadSnapshot opening = controller.Match.CaptureSnapshot();
+        uint openingRandom = session.State.TripleTriadPlay!.RandomState;
+        TripleTriadPreparedHand expectedRedraw = TripleTriadPreparation.SelectRandomHand(cards, openingRandom, handSize);
+        Assert.True(controller.Redraw());
+        Assert.Equal(opening.StartingPlayer, controller.Match.StartingPlayer);
+        Assert.Equal(opening.BoardElements, controller.Match.BoardElements);
+        Assert.Equal(expectedRedraw.RandomState, session.State.TripleTriadPlay!.RandomState);
+        Assert.Equal(1, controller.RedrawsRemaining);
+        Assert.Equal(1, session.State.TripleTriadPlay!.RedrawsUsed);
+        string path = TestResources.ArtifactFile($"configured-triad-{size}-redraw.json");
+        session.Save(path);
+        GameSession loadedSession = new(GameSession.Load(path));
+        using GameWorld loadedWorld = CreateWorld(loadedSession, directory, TripleTriadTradeRule.All, true);
+        TripleTriadController loaded = loadedWorld.EnsureTripleTriad()!;
+        Assert.Equal(1, loaded.RedrawsRemaining);
+        Assert.Equal(controller.Deck, loaded.Deck);
+        Assert.Equal(JsonSerializer.Serialize(controller.Match.CaptureSnapshot()), JsonSerializer.Serialize(loaded.Match!.CaptureSnapshot()));
+        Assert.True(controller.Redraw());
+        Assert.True(loaded.Redraw());
+        Assert.Equal(0, loaded.RedrawsRemaining);
+        Assert.False(loaded.Redraw());
+        Assert.Equal(JsonSerializer.Serialize(controller.Match!.CaptureSnapshot()), JsonSerializer.Serialize(loaded.Match!.CaptureSnapshot()));
+        Assert.Equal(session.State.TripleTriadPlay.RandomState, loadedSession.State.TripleTriadPlay!.RandomState);
+        if (controller.Match.CurrentPlayer == 1)
+        {
+            Assert.True(controller.AdvanceOpponent());
+            Assert.True(loaded.AdvanceOpponent());
+        }
+        else
+        {
+            TripleTriadMove move = controller.Match.ChooseMove();
+            controller.Play(move.HandIndex, move.CellIndex);
+            loaded.Play(move.HandIndex, move.CellIndex);
+        }
+        Assert.False(loaded.CanRedraw);
+        Assert.Equal(JsonSerializer.Serialize(controller.Match.CaptureSnapshot()), JsonSerializer.Serialize(loaded.Match.CaptureSnapshot()));
+        Assert.Equal(cards.Cards, loadedSession.CardInventory!.Cards);
+    }
+
     [Theory]
     [InlineData(TripleTriadTradeRule.One, false, false)]
     [InlineData(TripleTriadTradeRule.All, false, false)]

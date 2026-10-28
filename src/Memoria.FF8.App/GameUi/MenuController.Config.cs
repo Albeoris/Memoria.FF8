@@ -12,6 +12,7 @@ public sealed partial class MenuController
         ("controls", "Controls", "Player bindings and controller settings."),
         ("interface", "Interface", "Interface style, text and battle cursor memory."),
         ("gameplay", "Gameplay", "Combat, magic, exploration and saving."),
+        ("triple-triad", "Triple Triad", "Board dimensions, cards, Random redraws and move assistance for this game."),
         ("mods", "Mods", "Installed packages, requested enable state and resource status.")
     ];
     private bool IsConfigSettingsScreen => ScreenId == "config" || SettingsPlacement.Pages.ContainsKey(ScreenId) || ScreenId == "new-game-options";
@@ -19,6 +20,11 @@ public sealed partial class MenuController
 
     private string ConfigLabel(string id) => LocalizeSettingLabel(id, id switch
     {
+        "Triple Triad width" => "Board width",
+        "Triple Triad height" => "Board height",
+        "Triple Triad hand size" => "Hand size",
+        "Triple Triad Random redraws" => "Random redraws",
+        "Triple Triad assistance" => "Move assistance",
         "Infinite magic" => "Limited magic",
         "Show FPS" => "Frame-rate counter",
         "Field FPS" => "Field and movies",
@@ -60,7 +66,7 @@ public sealed partial class MenuController
                 entries.Add(new MenuEntry(id, label + "…", SystemText("ui.configentries.entry.help.player.controls.shared.across.saves.for.this.user", "Player controls shared across saves for this user."), id));
                 continue;
             }
-            MenuSetting setting = MenuSettings.Definitions.Single(setting => setting.Id == id);
+            MenuSetting setting = ResolveConfigSetting(MenuSettings.Definitions.Single(setting => setting.Id == id));
             if (!IsDemo && !Data.SupportedActions.Contains("config") && !Data.SupportedActions.Contains("config:" + setting.Id))
             {
                 continue;
@@ -103,6 +109,31 @@ public sealed partial class MenuController
     }
 
     private string ConfigValue(string id) => id == "UI font" ? (IsFixtureContext ? demoFontPreferences : _readPreferences?.Invoke() ?? demoFontPreferences).GetUiFontFamily(Presentation) : Data.Settings.GetValueOrDefault(id, MenuSettings.Definitions.Single(setting => setting.Id == id).Values[0]);
+
+    private MenuSetting ResolveConfigSetting(MenuSetting setting)
+    {
+        if (!UiPreferences.TripleTriadSettingKeys.Contains(setting.Id))
+        {
+            return setting;
+        }
+        bool hardcore = ConfigValue("Difficulty") == nameof(Memoria.FF8.Runtime.BattleDifficulty.Hardcore);
+        int width = int.TryParse(Data.Settings.GetValueOrDefault("Triple Triad width"), CultureInfo.InvariantCulture, out int configuredWidth) ? configuredWidth : 3;
+        int height = int.TryParse(Data.Settings.GetValueOrDefault("Triple Triad height"), CultureInfo.InvariantCulture, out int configuredHeight) ? configuredHeight : 3;
+        if (hardcore)
+        {
+            width = Math.Max(4, width);
+            height = Math.Max(4, height);
+        }
+        string[] values = setting.Id switch
+        {
+            "Triple Triad width" or "Triple Triad height" when hardcore => setting.Values.Where(value => int.Parse(value, CultureInfo.InvariantCulture) >= 4).ToArray(),
+            "Triple Triad hand size" => setting.Values.Where(value => int.Parse(value, CultureInfo.InvariantCulture) >= (width * height + 1) / 2).ToArray(),
+            "Triple Triad Random redraws" when hardcore => setting.Values.Take(2).ToArray(),
+            "Triple Triad assistance" when hardcore => setting.Values.Take(2).ToArray(),
+            _ => setting.Values
+        };
+        return setting with { Values = values };
+    }
 
     private static bool TryConfigNumbers(MenuSetting setting, out float[] numbers)
     {
@@ -165,6 +196,7 @@ public sealed partial class MenuController
                 Click = () => Activate(index)
             };
         }
+        setting = ResolveConfigSetting(setting);
         string value = ConfigValue(setting.Id);
         UiElement row;
         if (TryConfigNumbers(setting, out float[] numbers))

@@ -26,27 +26,76 @@ public sealed partial class TripleTriadController
     private Action? acceptRules;
     private Action? cancelRules;
 
-    public TripleTriadController(IReadOnlyList<TripleTriadCard> definitions, IReadOnlyDictionary<int, int> collection, IReadOnlyList<int> opponent, Func<int, string> name, TripleTriadRules rules = TripleTriadRules.Open, IReadOnlyList<int[]>? recentDecks = null)
+    public TripleTriadController(IReadOnlyList<TripleTriadCard> definitions, IReadOnlyDictionary<int, int> collection, IReadOnlyList<int> opponent, Func<int, string> name, TripleTriadRules rules = TripleTriadRules.Open, IReadOnlyList<int[]>? recentDecks = null, TripleTriadSettings? options = null)
     {
         ArgumentNullException.ThrowIfNull(definitions);
         ArgumentNullException.ThrowIfNull(collection);
         ArgumentNullException.ThrowIfNull(opponent);
         ArgumentNullException.ThrowIfNull(name);
+        Options = options ?? new TripleTriadSettings();
+        Options.Validate();
+        RedrawsRemaining = Options.RandomRedraws;
+        SelectedCell = (Options.Height / 2) * Options.Width + Options.Width / 2;
         this.definitions = definitions;
         this.collection = collection.ToDictionary();
         this.opponent = opponent.ToArray();
         Name = name;
         Rules = rules;
         available = collection.Where(pair => pair.Value > 0).Select(pair => pair.Key).OrderDescending().ToArray();
-        if (available.Sum(id => collection[id]) < 5 || available.Any(id => !definitions.Any(card => card.Id == id)) || this.opponent.Length is not (0 or 5))
+        if (available.Sum(id => collection[id]) < Options.HandSize || available.Any(id => !definitions.Any(card => card.Id == id)) || this.opponent.Length != 0 && this.opponent.Length != Options.HandSize)
         {
-            throw new ArgumentException("Triple Triad requires five available player cards and a complete opponent hand.");
+            throw new ArgumentException("Triple Triad requires enough available player cards and a complete opponent hand.");
         }
         SetRecentDecks(recentDecks ?? []);
         // Validate the supplied opponent without consuming any collection or random state.
-        if (this.opponent.Length == 5)
+        if (this.opponent.Length == Options.HandSize)
         {
-            _ = TripleTriadMatch.Create(definitions, available.SelectMany(id => Enumerable.Repeat(id, collection[id])).Take(5).ToArray(), this.opponent, rules);
+            _ = TripleTriadMatch.Create(definitions, available.SelectMany(id => Enumerable.Repeat(id, collection[id])).Take(Options.HandSize).ToArray(), this.opponent, rules, width: Options.Width, height: Options.Height);
+        }
+    }
+
+    public TripleTriadSettings Options { get; }
+    public int RedrawsRemaining { get; private set; }
+    public Func<IReadOnlyList<int>>? RedrawHand { get; set; }
+    private bool openingConfirmed;
+    public bool AwaitingOpeningConfirmation => CanRedraw && !openingConfirmed && Match?.CurrentPlayer == 1;
+    public bool CanRedraw => RedrawsRemaining > 0 && Rules.HasFlag(TripleTriadRules.Random) && !AwaitingRules && !AwaitingReplay && !IsAnimating && TradingHand is null && Match is { Round: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Board.All(card => card is null) && RedrawHand is not null;
+
+    public bool Redraw()
+    {
+        if (!CanRedraw)
+        {
+            return false;
+        }
+        openingConfirmed = false;
+        int[] replacement = RedrawHand!().ToArray();
+        TripleTriadMatch original = Match!;
+        TripleTriadMatch redrawn = TripleTriadMatch.Create(definitions, replacement, original.InitialHands[1], original.Rules, original.StartingPlayer, original.BoardElements, original.Width, original.Height);
+        deck.Clear();
+        deck.AddRange(replacement);
+        Match = redrawn;
+        RedrawsRemaining--;
+        ChoosingCell = false;
+        ResetTurnSelection();
+        SetSystemMessage(() => SystemText("card.ui.completedeckselection.choose.a.card.then.a.square", "Choose a card, then a square."));
+        DeckConfirmed?.Invoke(deck.ToArray());
+        RequestSound(TripleTriadSound.Confirm);
+        Changed?.Invoke();
+        return true;
+    }
+
+    public void RestoreRedrawsUsed(int used)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(used);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(used, Options.RandomRedraws);
+        RedrawsRemaining = Options.RandomRedraws - used;
+    }
+
+    public void HoverCell(int cell)
+    {
+        if (ChoosingCell && Match is not null && (uint)cell < Match.Board.Count && Match.Board[cell] is null)
+        {
+            SelectedCell = cell;
         }
     }
 
@@ -81,7 +130,7 @@ public sealed partial class TripleTriadController
     private Func<string>? systemMessage;
     public string Message
     {
-        get => systemMessage?.Invoke() ?? message ?? SystemText("card.ui.initial-prompt", "Choose five cards. Cancel removes the last choice.");
+        get => AwaitingOpeningConfirmation ? "Redraw your hand or confirm to begin." : systemMessage?.Invoke() ?? message ?? (Options.HandSize == 5 ? SystemText("card.ui.initial-prompt", "Choose five cards. Cancel removes the last choice.") : $"Choose {Options.HandSize} cards. Cancel removes the last choice.");
         private set
         {
             systemMessage = null;
@@ -103,7 +152,7 @@ public sealed partial class TripleTriadController
     public void SetRecentDecks(IReadOnlyList<int[]> decks)
     {
         ArgumentNullException.ThrowIfNull(decks);
-        recentDecks = decks.Where(hand => hand is { Length: 5 } && hand.All(id => definitions.Any(card => card.Id == id))).Take(3).Select(hand => hand.ToArray()).ToArray();
+        recentDecks = decks.Where(hand => hand is not null && hand.Length == Options.HandSize && hand.All(id => definitions.Any(card => card.Id == id))).Take(3).Select(hand => hand.ToArray()).ToArray();
         RecentDeckSelection = recentDecks.Length > 0 && SelectionPage == 0 ? 0 : -1;
     }
 
@@ -121,7 +170,7 @@ public sealed partial class TripleTriadController
             return;
         }
         deck.Clear();
-        for (int slot = 0; slot < 5; slot++)
+        for (int slot = 0; slot < Options.HandSize; slot++)
         {
             if (IsRecentDeckCardAvailable(index, slot))
             {
@@ -130,7 +179,7 @@ public sealed partial class TripleTriadController
         }
         Selection = 0;
         RecentDeckSelection = -1;
-        completingRecentDeck = deck.Count < 5;
+        completingRecentDeck = deck.Count < Options.HandSize;
         RequestSound(TripleTriadSound.Confirm);
         CompleteDeckSelection();
         Changed?.Invoke();
@@ -138,22 +187,22 @@ public sealed partial class TripleTriadController
 
     private void CompleteDeckSelection()
     {
-        if (deck.Count == 5)
+        if (deck.Count == Options.HandSize)
         {
-            Match = CreateMatch?.Invoke(deck) ?? TripleTriadMatch.Create(definitions, deck, opponent, Rules);
+            Match = CreateMatch?.Invoke(deck) ?? TripleTriadMatch.Create(definitions, deck, opponent, Rules, width: Options.Width, height: Options.Height);
             ResetTurnSelection();
             SetSystemMessage(() => SystemText("card.ui.completedeckselection.choose.a.card.then.a.square", "Choose a card, then a square."));
             DeckConfirmed?.Invoke(deck.ToArray());
         }
         else if (completingRecentDeck)
         {
-            SetSystemMessage(() => FormatSystemText("card.ui.completedeckselection.deck.incomplete.choose.more.card.s", "Deck incomplete: choose {0} more card(s).", 5 - deck.Count));
+            SetSystemMessage(() => FormatSystemText("card.ui.completedeckselection.deck.incomplete.choose.more.card.s", "Deck incomplete: choose {0} more card(s).", Options.HandSize - deck.Count));
         }
     }
 
     public void ChooseCard(int id)
     {
-        if (AwaitingRules || AwaitingReplay || Match is not null || deck.Count >= 5 || !available.Contains(id) || Remaining(id) <= 0)
+        if (AwaitingRules || AwaitingReplay || Match is not null || deck.Count >= Options.HandSize || !available.Contains(id) || Remaining(id) <= 0)
         {
             return;
         }
@@ -182,7 +231,7 @@ public sealed partial class TripleTriadController
 
     public void RestoreDeck(IReadOnlyList<int> selected)
     {
-        if (Match is not null || selected.Count > 5 || selected.GroupBy(id => id).Any(group => collection.GetValueOrDefault(group.Key) < group.Count()))
+        if (Match is not null || selected.Count > Options.HandSize || selected.GroupBy(id => id).Any(group => collection.GetValueOrDefault(group.Key) < group.Count()))
         {
             throw new InvalidDataException("Saved Triple Triad selection exceeds its original collection.");
         }
@@ -249,11 +298,11 @@ public sealed partial class TripleTriadController
             }
             if (key is UiKey.Up or UiKey.Left)
             {
-                Selection = (Selection + 4) % 5;
+                Selection = (Selection + TradingHand.Count - 1) % TradingHand.Count;
             }
             else if (key is UiKey.Down or UiKey.Right)
             {
-                Selection = (Selection + 1) % 5;
+                Selection = (Selection + 1) % TradingHand.Count;
             }
             else if (key == UiKey.Confirm)
             {
@@ -338,6 +387,17 @@ public sealed partial class TripleTriadController
             }
             return;
         }
+        if (key is UiKey.PageUp or UiKey.PageDown && CanRedraw)
+        {
+            Redraw();
+            return;
+        }
+        if (key == UiKey.Confirm && AwaitingOpeningConfirmation)
+        {
+            openingConfirmed = true;
+            Changed?.Invoke();
+            return;
+        }
         if (Match.CurrentPlayer != 0)
         {
             return;
@@ -366,13 +426,13 @@ public sealed partial class TripleTriadController
         }
         if (ChoosingCell)
         {
-            SelectedCell = (SelectedCell + (key is UiKey.Up or UiKey.Down ? 3 * direction : direction) + 9) % 9;
+            SelectedCell = (SelectedCell + (key is UiKey.Up or UiKey.Down ? Match.Width * direction : direction) + Match.Board.Count) % Match.Board.Count;
         }
         else
         {
             do
             {
-                SelectedHand = (SelectedHand + direction + 5) % 5;
+                SelectedHand = (SelectedHand + direction + Match.HandSize) % Match.HandSize;
             }
             while (Match.Hands[0][SelectedHand] is null);
         }
@@ -384,7 +444,7 @@ public sealed partial class TripleTriadController
         {
             return;
         }
-        if ((uint)handIndex >= 5 || (uint)cellIndex >= 9 || Match is null || Match.CurrentPlayer != 0 || Match.Outcome != TripleTriadOutcome.InProgress || Match.Hands[0][handIndex] is null || Match.Board[cellIndex] is not null)
+        if (Match is null || (uint)handIndex >= Match.HandSize || (uint)cellIndex >= Match.Board.Count || Match.CurrentPlayer != 0 || Match.Outcome != TripleTriadOutcome.InProgress || Match.Hands[0][handIndex] is null || Match.Board[cellIndex] is not null)
         {
             SetSystemMessage(() => SystemText("card.ui.play.choose.an.empty.square", "Choose an empty square."));
             RequestSound(TripleTriadSound.Error);
@@ -405,7 +465,7 @@ public sealed partial class TripleTriadController
 
     public bool AdvanceOpponent()
     {
-        if (AwaitingReplay || IsAnimating || Match is null || Match.CurrentPlayer != 1 || Match.Outcome != TripleTriadOutcome.InProgress)
+        if (AwaitingReplay || AwaitingOpeningConfirmation || IsAnimating || Match is null || Match.CurrentPlayer != 1 || Match.Outcome != TripleTriadOutcome.InProgress)
         {
             return false;
         }
@@ -439,7 +499,7 @@ public sealed partial class TripleTriadController
 
     public void SelectHand(int index)
     {
-        if (!AwaitingReplay && !IsAnimating && (uint)index < 5 && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Hands[0][index] is not null)
+        if (!AwaitingReplay && !IsAnimating && (uint)index < Options.HandSize && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Hands[0][index] is not null)
         {
             SelectedHand = index;
             ChoosingCell = true;
@@ -450,14 +510,14 @@ public sealed partial class TripleTriadController
     {
         ArgumentNullException.ThrowIfNull(losingHand);
         ArgumentNullException.ThrowIfNull(completed);
-        if (losingHand.Count != 5 || required is < 1 or > 5)
+        if (losingHand.Count != Options.HandSize || required < 1 || required > Options.HandSize)
         {
-            throw new ArgumentException("Card trading requires five losing-hand cards and one to five choices.");
+            throw new ArgumentException("Card trading requires a complete losing hand and a valid number of choices.");
         }
         if (presentationEnabled)
         {
-            IReadOnlyList<int> playerHand = Match?.InitialHands[0] ?? available.SelectMany(id => Enumerable.Repeat(id, collection[id])).Take(5).ToArray();
-            BeginTradeSettlement(playerHand, losingHand, Enumerable.Range(0, 10).Select(index => index < 5 ? 0 : 1).ToArray(), TripleTriadTradeRule.One, required, true, [], completed);
+            IReadOnlyList<int> playerHand = Match?.InitialHands[0] ?? available.SelectMany(id => Enumerable.Repeat(id, collection[id])).Take(Options.HandSize).ToArray();
+            BeginTradeSettlement(playerHand, losingHand, Enumerable.Range(0, 2 * Options.HandSize).Select(index => index < Options.HandSize ? 0 : 1).ToArray(), TripleTriadTradeRule.One, required, true, [], completed);
             return;
         }
         TradingHand = losingHand.ToArray();
@@ -466,9 +526,9 @@ public sealed partial class TripleTriadController
         tradeSelection.Clear();
         Selection = 0;
         TradingToPlayer = true;
-        IReadOnlyList<int> originalPlayerHand = Match?.InitialHands[0] ?? available.SelectMany(id => Enumerable.Repeat(id, collection[id])).Take(5).ToArray();
+        IReadOnlyList<int> originalPlayerHand = Match?.InitialHands[0] ?? available.SelectMany(id => Enumerable.Repeat(id, collection[id])).Take(Options.HandSize).ToArray();
         tradeCards = originalPlayerHand.Concat(losingHand).ToArray();
-        tradeOwners = Enumerable.Range(0, 10).Select(index => index < 5 ? 0 : 1).ToArray();
+        tradeOwners = Enumerable.Range(0, 2 * Options.HandSize).Select(index => index < Options.HandSize ? 0 : 1).ToArray();
         SetTradePhase(TripleTriadTradePhase.Selecting);
         SetSystemMessage(() => FormatSystemText("card.ui.begintradeselection.choose.card.s.to.take", "Choose {0} card(s) to take.", required));
     }
@@ -500,7 +560,7 @@ public sealed partial class TripleTriadController
         if (accepted)
         {
             AwaitingRules = false;
-            SetSystemMessage(() => SystemText("card.ui.completerulesprompt.choose.five.cards", "Choose five cards."));
+            SetSystemMessage(() => Options.HandSize == 5 ? SystemText("card.ui.completerulesprompt.choose.five.cards", "Choose five cards.") : $"Choose {Options.HandSize} cards.");
             acceptRules?.Invoke();
         }
         else
@@ -511,7 +571,7 @@ public sealed partial class TripleTriadController
 
     public void SelectTradeCard(int slot)
     {
-        if (IsAnimating || AwaitingTradeConfirmation || TradePhase == TripleTriadTradePhase.ConfirmingSelection || TradingHand is null || (uint)slot >= 5)
+        if (IsAnimating || AwaitingTradeConfirmation || TradePhase == TripleTriadTradePhase.ConfirmingSelection || TradingHand is null || (uint)slot >= TradingHand.Count)
         {
             return;
         }
@@ -546,10 +606,10 @@ public sealed partial class TripleTriadController
 
     private void ResetTurnSelection()
     {
-        SelectedCell = 4;
+        SelectedCell = (Options.Height / 2) * Options.Width + Options.Width / 2;
         if (Match is not null)
         {
-            SelectedHand = Enumerable.Range(0, 5).FirstOrDefault(index => Match.Hands[0][index] is not null);
+            SelectedHand = Enumerable.Range(0, Match.HandSize).FirstOrDefault(index => Match.Hands[0][index] is not null);
         }
     }
 

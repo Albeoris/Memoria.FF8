@@ -38,6 +38,7 @@ public sealed partial class TripleTriadController
     public event Action<TripleTriadSound>? SoundRequested;
     public TripleTriadMoveResult? PresentedMove { get; private set; }
     public bool IsAnimating => PresentedMove is not null || IsTradeAnimating;
+    public double PresentationSeconds { get; private set; }
     public double PlacementProgress => Math.Clamp(presentationTime / PlacementDuration, 0, 1);
     public string? CaptureAnnouncement
     {
@@ -97,6 +98,7 @@ public sealed partial class TripleTriadController
         {
             throw new ArgumentOutOfRangeException(nameof(elapsed));
         }
+        PresentationSeconds += elapsed.TotalSeconds;
         if (TradePhase != TripleTriadTradePhase.None)
         {
             AdvanceTradePresentation(elapsed);

@@ -100,10 +100,20 @@ public sealed class TripleTriadDeckHistoryTests
         Assert.Equal(before, File.ReadAllText(path));
     }
 
+    [Fact]
+    public void HistoryRetainsHandsForDifferentBoardSizes()
+    {
+        string path = TestResources.ArtifactFile(Guid.NewGuid().ToString("N") + ".json");
+        TripleTriadDeckHistory history = new(path);
+        history.Record([0, 1, 2, 3, 4]);
+        history.Record(Enumerable.Range(0, 8).ToArray());
+        Assert.Equal(new[] { 8, 5 }, history.Load().Select(hand => hand.Length));
+    }
+
     [Theory]
     [InlineData("null")]
     [InlineData("[null]")]
-    [InlineData("[[0,1,2,3]]")]
+    [InlineData("[[0]]")]
     [InlineData("[[0,1,2,3,110]]")]
     public void InvalidHistoryIsRejected(string json)
     {

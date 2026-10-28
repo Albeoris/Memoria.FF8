@@ -3,6 +3,15 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class TripleTriadOpponentGeneratorTests
 {
     [Fact]
+    public void ExpandedOpponentUsesWholeLevelPoolBeforeRepeatingCommonCards()
+    {
+        TripleTriadOpponentHand hand = TripleTriadOpponentGenerator.Generate(NativeCardInventory.CreateNewGame(), 0, 0, 1, 1, 50);
+        Assert.Equal(50, hand.Cards.Count);
+        Assert.Equal(11, hand.Cards.Take(11).Distinct().Count());
+        Assert.All(hand.Cards, card => Assert.InRange(card, 0, 10));
+    }
+
+    [Fact]
     public void NativeIndependentRandomSequenceIncludesUnsignedOverflow()
     {
         TripleTriadRandom random = new(1);

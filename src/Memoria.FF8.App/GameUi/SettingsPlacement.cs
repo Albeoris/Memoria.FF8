@@ -40,8 +40,10 @@ internal static class SettingsPlacement
             ["Difficulty", "Battle ATB mode", "Limit once per turn", "Selphie card Slots", "Gunblade trigger"]),
         ["config-magic"] = new("Magic and Guardian Forces", "Changes can require review or remain pending until a safe boundary. Save the game to retain game rules.",
             ["Draw once per spell", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations"]),
-        ["config-exploration"] = new("Exploration and saving", "Exploration: rare-card markers and item rules. Saving: rotating quick-save retention.",
-            ["Rare card markers", "Card Mod once", "Weapon magazine required", "Weapon upgrade order", "Quick saves"])
+        ["config-triple-triad"] = new("Triple Triad", "Rules apply to this game; Title sets new-game defaults. Rare-card markers are shared across saves.",
+            [.. UiPreferences.TripleTriadSettingKeys, "Rare card markers"]),
+        ["config-exploration"] = new("Exploration and saving", "Exploration item rules and rotating quick-save retention.",
+            ["Card Mod once", "Weapon magazine required", "Weapon upgrade order", "Quick saves"])
     };
 
     internal static readonly IReadOnlyList<SettingPlacement> All = Create();
@@ -79,6 +81,11 @@ internal static class SettingsPlacement
             ["GF Transformations"] = "guardian-forms",
             ["Gunblade trigger"] = "gunblade",
             ["Battle policy"] = "encounter-execution",
+            ["Triple Triad width"] = "triple-triad-width",
+            ["Triple Triad height"] = "triple-triad-height",
+            ["Triple Triad hand size"] = "triple-triad-hand-size",
+            ["Triple Triad Random redraws"] = "triple-triad-random-redraws",
+            ["Triple Triad assistance"] = "triple-triad-assistance",
             ["Rare card markers"] = "rare-card-markers",
             ["Random encounters"] = "random-encounters",
             ["Battle speed"] = "native-battle-speed",
@@ -120,6 +127,7 @@ internal static class SettingsPlacement
             }
             string scope = setting.Id switch
             {
+                _ when UiPreferences.TripleTriadSettingKeys.Contains(setting.Id) => "Game / Title default",
                 "Shared magic stock" or "Infinite magic" or "Smart Attack" => "Game / Title session",
                 "Chocobo World" or "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
                 _ => audience is SettingsAudience.Excluded or SettingsAudience.Fixture ? "Fixture" : "Global"
@@ -152,6 +160,11 @@ internal static class SettingsPlacement
                 "GF Transformations" => "GameplayPreferences.GuardianFormsEnabled",
                 "Gunblade trigger" => "GameplayPreferences.GunbladeMode",
                 "Battle policy" => "BattlePolicy.FullBattlePlaythrough",
+                "Triple Triad width" => "GameplayPreferences.TripleTriad.Width",
+                "Triple Triad height" => "GameplayPreferences.TripleTriad.Height",
+                "Triple Triad hand size" => "GameplayPreferences.TripleTriad.HandSize",
+                "Triple Triad Random redraws" => "GameplayPreferences.TripleTriad.RandomRedraws",
+                "Triple Triad assistance" => "GameplayPreferences.TripleTriad.Assistance",
                 "Rare card markers" => "UiPreferences.RareCardMarkers",
                 "Random encounters" => "RandomEncounters.Enabled",
                 "Field message" => "UiPreferences.FieldMessageSpeed",

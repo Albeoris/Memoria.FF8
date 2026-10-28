@@ -161,6 +161,8 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     private void DrawImage(UiImageSource source, UiRect bounds, bool stretch, float opacity = 1)
     {
+        opacity *= source.Opacity / 255f;
+        source = source with { Opacity = 255 };
         if (bounds.IsEmpty)
         {
             return;

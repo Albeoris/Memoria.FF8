@@ -112,6 +112,25 @@ public sealed class FfnxWorldVramTests
         Assert.Empty(FfnxTextureResolver.Inspect(Source(), new(1, [], [file])).Diagnostics);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void CardCaptureUsesItsExactPageAndPalette(int capture)
+    {
+        using MagickImage image = new(new MagickColor((byte)13, (byte)27, (byte)39), 768, 768);
+        byte[] bytes = image.ToByteArray(MagickFormat.Png);
+        ModFile file = new("test", ModFormat.Junction, $"mods/textures/cardgame/icons_2_32_{224 + capture}.png", 1, () => bytes);
+        FfnxTextureResolver resolver = new(new(1, [], [file]));
+        TextureBuildContext context = new(new(new("cards/cards"), $"capture/{capture}"), Source(), 1, "native-artwork", 255, 64, () => new(255, 64));
+        TextureReplacement value = Assert.IsType<TextureReplacement>(resolver.Resolve(context));
+        Assert.Equal(765, value.Image.Width);
+        Assert.Equal(192, value.Image.Height);
+        Assert.Equal(new Rgba32(13, 27, 39), value.Image[0, 0]);
+        Assert.Equal(255, value.LogicalWidth);
+        Assert.Equal(64, value.LogicalHeight);
+    }
+
     [Fact]
     public void InstalledCardOutcomeVariantUsesExactPagePixels()
     {

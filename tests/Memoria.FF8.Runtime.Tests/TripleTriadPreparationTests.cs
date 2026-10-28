@@ -5,6 +5,22 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class TripleTriadPreparationTests
 {
     [Fact]
+    public void ExpandedRandomHandReservesEveryCopyAndElementsCoverWholeBoard()
+    {
+        NativeCardInventory inventory = NativeCardInventory.CreateNewGame();
+        for (int card = 0; card < 8; card++)
+        {
+            inventory = inventory.Acquire(card, out _);
+        }
+        TripleTriadPreparedHand hand = TripleTriadPreparation.SelectRandomHand(inventory, 1, 8);
+        Assert.Equal(Enumerable.Range(0, 8), hand.Cards.Order());
+        Assert.Equal(8, inventory.TotalAvailableCount);
+        TripleTriadPreparedBoard board = TripleTriadPreparation.GenerateElements(TripleTriadRules.Elemental, 1, 4, 5);
+        Assert.Equal(20, board.Elements.Count);
+        Assert.Equal(TripleTriadPreparation.GenerateElements(TripleTriadRules.Elemental, 1).Elements, board.Elements.Take(9));
+    }
+
+    [Fact]
     public void NativeElementalGenerationPinsRowOrderConditionalDrawsAndNextSavedState()
     {
         TripleTriadPreparedBoard board = TripleTriadPreparation.GenerateElements(TripleTriadRules.Elemental, 1);

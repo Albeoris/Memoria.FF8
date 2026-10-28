@@ -51,9 +51,9 @@ internal sealed class TripleTriadDeckHistory(string path)
 
     private static void Validate(int[]? deck)
     {
-        if (deck is null || deck.Length != 5 || deck.Any(id => id is < 0 or >= 110))
+        if (deck is null || deck.Length is < 2 or > 50 || deck.Any(id => id is < 0 or >= 110))
         {
-            throw new InvalidDataException("Triple Triad history requires five valid card IDs per deck.");
+            throw new InvalidDataException("Triple Triad history requires valid card IDs per deck.");
         }
     }
 }

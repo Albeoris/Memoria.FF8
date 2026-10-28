@@ -45,6 +45,13 @@ public sealed class FfnxTextureTests
         {
             Assert.Equal(new Rgba32((byte)(element % 4 * 64), (byte)((element / 4 + 1) * 16), 7), resolver.Resolve(Context("cards/cards", $"element/{element}", "native-artwork", 16, 16))!.Image[0, 0]);
         }
+        for (int capture = 0; capture < 3; capture++)
+        {
+            TextureReplacement value = Assert.IsType<TextureReplacement>(resolver.Resolve(Context("cards/cards", $"capture/{capture}", "native-artwork", 255, 64)));
+            Assert.Equal(510, value.Image.Width);
+            Assert.Equal(128, value.Image.Height);
+            Assert.Equal(new Rgba32(0, (byte)(capture * 64), 7), value.Image[0, 0]);
+        }
         Assert.Equal(768, resolver.Resolve(Context("cards/cards", "background", "native-artwork", 384, 224))!.Image.Width);
         Assert.Equal(448, resolver.Resolve(Context("cards/cards", "board-background", "native-artwork", 384, 224))!.Image.Height);
         Assert.Equal(512, resolver.Resolve(Context("menu/mc05.tex", "atlas", "native-artwork", 256, 256))!.Image.Width);

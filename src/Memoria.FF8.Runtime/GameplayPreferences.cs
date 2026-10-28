@@ -32,6 +32,7 @@ public sealed record GameplayPreferences
     public BattleGunbladeMode GunbladeMode { get; init; } = BattleGunbladeMode.Automatic;
     public ChocoboWorldMode? ChocoboWorldMode { get; init; }
     public GameplayTuning Tuning { get; init; } = new();
+    public TripleTriadSettings TripleTriad { get; init; } = new();
 
     [NewGameOption("Limit once per turn")]
     public bool LimitOncePerTurn { get; init; }
@@ -59,11 +60,11 @@ public sealed record GameplayPreferences
 
     public GameplayPreferences NormalizeForDifficulty()
     {
+        GameplayPreferences normalized = this with { TripleTriad = (TripleTriad ?? new()).NormalizeForDifficulty(Difficulty) };
         if (Difficulty != BattleDifficulty.Hardcore)
         {
-            return this;
+            return normalized;
         }
-        GameplayPreferences normalized = this with { };
         foreach (NewGameOption option in NewGameOptions)
         {
             option.Enable(normalized);
@@ -78,6 +79,11 @@ public sealed record GameplayPreferences
             throw new InvalidDataException("Gameplay rules are missing.");
         }
         Tuning.Validate();
+        if (TripleTriad is null)
+        {
+            throw new InvalidDataException("Triple Triad settings are missing.");
+        }
+        TripleTriad.Validate(Difficulty);
         if (!Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || ChocoboWorldMode is { } mode && !Enum.IsDefined(mode))
         {
             throw new InvalidDataException("Invalid saved gameplay preferences.");

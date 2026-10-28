@@ -183,11 +183,17 @@ Optional arguments: `--game-dir DIRECTORY`, `--resolution WIDTHxHEIGHT` (default
 | `--save JSON` | Practice save destination; default `%LOCALAPPDATA%/Memoria.FF8/triple-triad-practice.json`. |
 | `--state JSON` | Read an available card collection from a story snapshot; story state is not written. |
 | `--match JSON` | Restore a practice save. Cannot be combined with `--state` or `--player`. |
-| `--player IDS` | Five comma-separated card IDs, each `0..109`, available in the starting collection. |
-| `--opponent IDS` | Five comma-separated card IDs, each `0..109`; default `0,1,2,3,4`. |
+| `--player IDS` | Hand-size comma-separated card IDs, each `0..109`, available in the starting collection. |
+| `--opponent IDS` | Hand-size comma-separated card IDs, each `0..109`; defaults to consecutive IDs from zero. |
 | `--rules FLAGS` | Case-insensitive rules: `None`, `Open`, `Same`, `Plus`, `SameWall`, `Elemental`, `SuddenDeath`, `Random`; combine with commas and quote the argument. Default `Open`. |
+| `--width N`, `--height N` | Board dimensions, each 2–5; default 3. |
+| `--hand-size N` | Cards per hand, default 5, raised to at least half the cells rounded up. Maximum 50; unused cards remain in hand. |
+| `--redraws N` | Random-rule player hand redraw allowance, 0–3; default 0. |
+| `--assistance MODE` | `Off`, `Direct`, `Rules`, `Combo` or `Hand`; default `Off`. |
 | `--autoplay` | Automatically finish the practice match and save. |
 | `--preview PNG` | Render a `960x672` practice view, save the match and exit. Can be combined with `--autoplay`. |
+
+See [Triple Triad settings and assistance](../players/triple-triad.md) for the in-game options.
 
 Without a story source, the practice collection starts with one of each card. Omit `--player` for `Random` rules. Practice JSON, preview PNG and source story snapshot must use separate paths.
 

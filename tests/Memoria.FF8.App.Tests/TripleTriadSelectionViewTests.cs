@@ -68,13 +68,14 @@ public sealed class TripleTriadSelectionViewTests
     }
 
     [Fact]
-    public void SelectionDrawsNativeBackgroundPagedRowsAndHandsOnTheirPlayingSides()
+    public void SelectionDrawsVectorBoardPagedRowsAndHandsOnTheirPlayingSides()
     {
         TripleTriadController controller = Create();
         controller.ChooseCard(22);
         UiView view = controller.BuildView();
         RecordingCanvas canvas = Draw(view);
-        Assert.Single(canvas.Images, image => image.Source.Kind == UiImageKind.TripleTriadBoardBackground);
+        Assert.DoesNotContain(canvas.Images, image => image.Source.Kind == UiImageKind.TripleTriadBoardBackground);
+        Assert.Contains(canvas.Texts, text => text.Text == "Triple Triad");
         var backs = canvas.Images.Where(image => image.Source.Kind == UiImageKind.CardBack).ToArray();
         Assert.Equal(5, backs.Length);
         Assert.All(backs, image => Assert.True(image.Bounds.Right < 480));
@@ -254,6 +255,172 @@ public sealed class TripleTriadSelectionViewTests
         Click(view, Assert.Single(canvas.Texts, line => line.Text == "Recent deck 2").Bounds);
         Assert.Equal([20, 19, 18, 17, 16], controller.Deck);
         Assert.NotNull(controller.Match);
+    }
+
+    [Theory]
+    [InlineData(2, 2, 2)]
+    [InlineData(4, 4, 8)]
+    [InlineData(5, 5, 30)]
+    public void ExtendedLayoutKeepsEveryHandCardVisibleAndCellsClickable(int width, int height, int handSize)
+    {
+        TripleTriadLayout layout = new(width, height, handSize);
+        for (int cell = 0; cell < width * height; cell++)
+        {
+            UiRect bounds = layout.Cell(cell);
+            Assert.InRange(bounds.X, 220, 740);
+            Assert.InRange(bounds.Bottom, 48, 624);
+        }
+        for (int owner = 0; owner < 2; owner++)
+        {
+            for (int hand = 0; hand < handSize; hand++)
+            {
+                UiRect bounds = layout.Hand(hand, owner);
+                Assert.InRange(bounds.X, 0, 960);
+                Assert.InRange(bounds.Right, 0, 960);
+                Assert.InRange(bounds.Bottom, 0, 624);
+                Assert.True(bounds.Width > 20);
+            }
+        }
+        if (handSize > 5)
+        {
+            Assert.True(Enumerable.Range(0, handSize).Select(hand => layout.Hand(hand, 0).X).Distinct().Count() > 1);
+        }
+        TripleTriadCard[] cards = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 1, 1, 1, 1, TripleTriadElement.None)).ToArray();
+        TripleTriadController controller = new(cards, Enumerable.Range(0, 110).ToDictionary(id => id, _ => 1), Enumerable.Range(50, handSize).ToArray(), id => id.ToString(), options: new() { Width = width, Height = height, HandSize = handSize });
+        foreach (int id in Enumerable.Range(0, handSize))
+        {
+            controller.ChooseCard(id);
+        }
+        controller.SelectHand(handSize - 1);
+        UiView view = controller.BuildView();
+        _ = Draw(view);
+        Click(view, layout.Cell(width * height - 1));
+        Assert.Equal(handSize - 1, controller.Match!.Board[^1]!.CardId);
+    }
+
+    [Theory]
+    [InlineData(TripleTriadAssistance.Direct, 0)]
+    [InlineData(TripleTriadAssistance.Rules, 2)]
+    [InlineData(TripleTriadAssistance.Combo, 4)]
+    [InlineData(TripleTriadAssistance.Hand, 4)]
+    public void AssistanceSeparatesDirectRuleAndComboCapturesWithoutChangingMatch(TripleTriadAssistance assistance, int flips)
+    {
+        TripleTriadCard[] cards = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 1, 1, 1, 1, TripleTriadElement.None)).ToArray();
+        cards[0] = new(0, 5, 5, 5, 5, TripleTriadElement.Fire);
+        cards[5] = new(5, 5, 9, 5, 1, TripleTriadElement.None);
+        cards[6] = new(6, 5, 5, 5, 5, TripleTriadElement.None);
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], TripleTriadRules.Same);
+        match.Play(1, 8);
+        match.Play(0, 1);
+        match.Play(2, 6);
+        match.Play(1, 5);
+        match.Play(3, 0);
+        match.Play(2, 2);
+        TripleTriadController controller = new(cards, Enumerable.Range(0, 5).ToDictionary(id => id, _ => 1), [5, 6, 7, 8, 9], id => id.ToString(), TripleTriadRules.Same, options: new() { Assistance = assistance });
+        controller.RestoreMatch(match);
+        controller.SelectHand(0);
+        controller.HoverCell(4);
+        var before = match.CaptureSnapshot();
+        RecordingCanvas canvas = Draw(controller.BuildView());
+        Assert.Single(canvas.Images, image => image.Source.Opacity == 135 && image.Source.Id == 0);
+        Assert.Equal(flips, canvas.Images.Count(image => image.Source.Opacity == 105));
+        Assert.Equal(before.Board, match.CaptureSnapshot().Board);
+        Assert.Equal(before.Hands[0], match.Hands[0]);
+        Assert.Equal(assistance >= TripleTriadAssistance.Rules, canvas.Texts.Any(text => text.Text.StartsWith("Same:", StringComparison.Ordinal)));
+        Assert.Equal(assistance >= TripleTriadAssistance.Combo, canvas.Images.Any(image => image.Source.Kind == UiImageKind.TripleTriadCapture && image.Source.Id == 2));
+        Assert.Equal(assistance == TripleTriadAssistance.Hand, canvas.Texts.Any(text => text.Text == "Same"));
+    }
+
+    [Theory]
+    [InlineData(2, 2, 5)]
+    [InlineData(3, 3, 5)]
+    [InlineData(4, 4, 13)]
+    [InlineData(5, 5, 30)]
+    public void OriginalArtworkRendersExtendedBoardsAndHands(int width, int height, int handSize)
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Original resources required.");
+        TripleTriadCatalog catalog = TripleTriadCatalog.Load(directory);
+        TripleTriadSettings settings = new() { Width = width, Height = height, HandSize = handSize, Assistance = TripleTriadAssistance.Hand };
+        TripleTriadController controller = new(catalog.Cards, Enumerable.Range(0, 110).ToDictionary(id => id, _ => 1), Enumerable.Range(55, handSize).ToArray(), catalog.Name, TripleTriadRules.Open | TripleTriadRules.Same | TripleTriadRules.Plus, options: settings);
+        foreach (int id in Enumerable.Range(0, handSize))
+        {
+            controller.ChooseCard(id);
+        }
+        controller.Match!.Play(0, 0);
+        controller.Match.Play(0, 1);
+        if (width * height > 4)
+        {
+            controller.Match.Play(1, width);
+            controller.Match.Play(1, width + 1);
+        }
+        controller.SelectHand(width * height > 4 ? 2 : 1);
+        controller.HoverCell(width * height - 1);
+        using Bitmap bitmap = new(1440, 1008, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
+        using BattlePreviewCanvas canvas = new(bitmap, directory);
+        UiView view = controller.BuildView();
+        view.Resize(1440, 1008);
+        view.Draw(canvas, new UiTheme());
+        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_TRIAD_UI_OUTPUT_DIRECTORY") ?? Path.Combine(Path.GetTempPath(), "ff8-triad-extended");
+        Directory.CreateDirectory(output);
+        bitmap.SavePng(Path.Combine(output, $"extended-{width}x{height}-hand{handSize}.png"));
+    }
+
+    [Theory]
+    [InlineData(0, "0")]
+    [InlineData(9, "9")]
+    [InlineData(10, "A")]
+    [InlineData(11, "B")]
+    public void ElementalRanksUseTheExtendedCardAlphabet(int value, string text)
+    {
+        Assert.Equal(text, CardFaceComposer.RankText(value));
+    }
+
+    [Fact]
+    public void OriginalArtworkRendersRuleArrowsComboAndElementalB()
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Original resources required.");
+        TripleTriadCatalog catalog = TripleTriadCatalog.Load(directory);
+        TripleTriadCard source = catalog.Cards[0];
+        int top = catalog.Cards.First(card => card.Bottom == source.Top).Id;
+        int bottom = catalog.Cards.First(card => card.Top == source.Bottom).Id;
+        TripleTriadMatch match = TripleTriadMatch.Create(catalog.Cards, [0, 1, 2, 3, 4], [top, bottom, 5, 6, 7], TripleTriadRules.Open | TripleTriadRules.Same);
+        match.Play(1, 8);
+        match.Play(0, 1);
+        match.Play(2, 6);
+        match.Play(1, 7);
+        TripleTriadController controller = new(catalog.Cards, Enumerable.Range(0, 110).ToDictionary(id => id, _ => 1), [top, bottom, 5, 6, 7], catalog.Name, match.Rules, options: new() { Assistance = TripleTriadAssistance.Hand });
+        controller.RestoreMatch(match);
+        controller.SelectHand(0);
+        controller.HoverCell(4);
+        Assert.True(match.PreviewMove(0, 4).Same);
+        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_TRIAD_UI_OUTPUT_DIRECTORY") ?? Path.Combine(Path.GetTempPath(), "ff8-triad-extended");
+        Directory.CreateDirectory(output);
+        using Bitmap bitmap = new(1440, 1008, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
+        using BattlePreviewCanvas canvas = new(bitmap, directory);
+        UiView view = controller.BuildView();
+        view.Resize(1440, 1008);
+        view.Draw(canvas, new UiTheme());
+        bitmap.SavePng(Path.Combine(output, "assistance-rules.png"));
+        canvas.ImageStretched(new UiImageSource(UiImageKind.CardFace, catalog.Cards.First(card => card.Top == 10).Id, 0, 1), new UiRect(400, 250, 160, 192));
+        bitmap.SavePng(Path.Combine(output, "elemental-b.png"));
+    }
+
+    [Fact]
+    public void ElementalDigitsHaveDistinctGreenAndRedPalettesEvenWhenCached()
+    {
+        CardFaceComposer composer = new("Arial");
+        Albeoris.Games.FF8.Imaging.PixelImage artwork = new(256, 256);
+        TripleTriadCard card = new(0, 5, 5, 5, 5, TripleTriadElement.None);
+        var normalSix = composer.Compose(artwork, card with { Top = 6, Right = 6, Bottom = 6, Left = 6 }, 0, null);
+        var raisedSix = composer.Compose(artwork, card, 0, null, 1);
+        var loweredSix = composer.Compose(artwork, card with { Top = 7, Right = 7, Bottom = 7, Left = 7 }, 0, null, -1);
+        var region = Enumerable.Range(0, 48).SelectMany(y => Enumerable.Range(0, 48).Select(x => (X: 24 + x, Y: 8 + y))).ToArray();
+        Assert.Contains(region, pixel => raisedSix[pixel.X, pixel.Y].G > raisedSix[pixel.X, pixel.Y].R + 40 && raisedSix[pixel.X, pixel.Y].G > raisedSix[pixel.X, pixel.Y].B + 40);
+        Assert.Contains(region, pixel => loweredSix[pixel.X, pixel.Y].R > loweredSix[pixel.X, pixel.Y].G + 70 && loweredSix[pixel.X, pixel.Y].R > loweredSix[pixel.X, pixel.Y].B + 70);
+        Assert.NotEqual(normalSix.Pixels.ToArray(), raisedSix.Pixels.ToArray());
+        Assert.Equal(raisedSix.Pixels.ToArray(), composer.Compose(artwork, card, 0, null, 1).Pixels.ToArray());
     }
 
     private static TripleTriadController Create()

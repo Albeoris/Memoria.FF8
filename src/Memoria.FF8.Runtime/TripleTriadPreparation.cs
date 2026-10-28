@@ -8,19 +8,20 @@ public sealed record TripleTriadStartingSide(int NativeSide, uint RandomState);
 public static class TripleTriadPreparation
 {
     /// <summary>Native 537110's Random player selection. Reservation is private and must not debit the live inventory twice.</summary>
-    public static TripleTriadPreparedHand SelectRandomHand(NativeCardInventory inventory, uint randomState)
+    public static TripleTriadPreparedHand SelectRandomHand(NativeCardInventory inventory, uint randomState, int handSize = 5)
     {
         ArgumentNullException.ThrowIfNull(inventory);
         inventory.Validate();
-        if (Enumerable.Range(0, 110).Sum(card => Math.Max(0, inventory.AvailableCount(card))) < 5)
+        ArgumentOutOfRangeException.ThrowIfLessThan(handSize, 1);
+        if (Enumerable.Range(0, 110).Sum(card => Math.Max(0, inventory.AvailableCount(card))) < handSize)
         {
-            throw new InvalidOperationException("Random requires at least five owned card instances.");
+            throw new InvalidOperationException("Random requires enough owned card instances for the selected hand size.");
         }
         NativeCardInventory reserved = inventory.DeepCopy();
         TripleTriadRandom random = new(randomState);
         List<int> hand = [];
         int draws = 0;
-        while (hand.Count < 5)
+        while (hand.Count < handSize)
         {
             random = random.Draw(out int value);
             draws++;
@@ -37,9 +38,9 @@ public static class TripleTriadPreparation
     }
 
     /// <summary>Native 53A690: one draw per row-major cell, with an additional element draw on a 30% test.</summary>
-    public static TripleTriadPreparedBoard GenerateElements(TripleTriadRules rules, uint randomState)
+    public static TripleTriadPreparedBoard GenerateElements(TripleTriadRules rules, uint randomState, int width = 3, int height = 3)
     {
-        TripleTriadElement[] elements = new TripleTriadElement[9];
+        TripleTriadElement[] elements = new TripleTriadElement[checked(width * height)];
         TripleTriadRandom random = new(randomState);
         int draws = 0;
         if (rules.HasFlag(TripleTriadRules.Elemental))

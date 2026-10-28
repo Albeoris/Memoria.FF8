@@ -83,9 +83,9 @@ public sealed partial class TripleTriadController
     public void BeginTradeSettlement(IReadOnlyList<int> playerHand, IReadOnlyList<int> opponentHand, IReadOnlyList<int> finalOwners, TripleTriadTradeRule rule, int required, bool chooseCards, IReadOnlyList<int> selectedSlots, Action<int[]> completed)
     {
         ArgumentNullException.ThrowIfNull(completed);
-        if (playerHand.Count != 5 || opponentHand.Count != 5 || finalOwners.Count != 10 || finalOwners.Any(owner => owner is not (0 or 1)))
+        if (playerHand.Count != Options.HandSize || opponentHand.Count != Options.HandSize || finalOwners.Count != 2 * Options.HandSize || finalOwners.Any(owner => owner is not (0 or 1)))
         {
-            throw new ArgumentException("Card exchange requires the original ten instances and their final owners.");
+            throw new ArgumentException("Card exchange requires all original card instances and their final owners.");
         }
         if (!presentationEnabled)
         {
@@ -106,14 +106,14 @@ public sealed partial class TripleTriadController
         tradeCompleted = completed;
         tradeSelection.Clear();
         tradeCards = playerHand.Concat(opponentHand).ToArray();
-        tradeOwners = Enumerable.Range(0, 10).Select(index => index < 5 ? 0 : 1).ToArray();
+        tradeOwners = Enumerable.Range(0, 2 * Options.HandSize).Select(index => index < Options.HandSize ? 0 : 1).ToArray();
         manualTrade = chooseCards;
         Selection = 0;
         if (rule == TripleTriadTradeRule.Direct)
         {
-            Dictionary<int, int> retained = Enumerable.Range(0, 10).Where(index => finalOwners[index] == 0).Select(index => tradeCards[index]).GroupBy(id => id).ToDictionary(group => group.Key, group => group.Count());
-            desiredTradeOwners = new int[10];
-            for (int index = 0; index < 10; index++)
+            Dictionary<int, int> retained = Enumerable.Range(0, 2 * Options.HandSize).Where(index => finalOwners[index] == 0).Select(index => tradeCards[index]).GroupBy(id => id).ToDictionary(group => group.Key, group => group.Count());
+            desiredTradeOwners = new int[2 * Options.HandSize];
+            for (int index = 0; index < 2 * Options.HandSize; index++)
             {
                 int id = tradeCards[index];
                 bool keep = retained.GetValueOrDefault(id) > 0;
@@ -123,7 +123,7 @@ public sealed partial class TripleTriadController
                     retained[id]--;
                 }
             }
-            foreach (int index in Enumerable.Range(5, 5).Concat(Enumerable.Range(0, 5)))
+            foreach (int index in Enumerable.Range(Options.HandSize, Options.HandSize).Concat(Enumerable.Range(0, Options.HandSize)))
             {
                 if (tradeOwners[index] != desiredTradeOwners[index])
                 {
@@ -162,7 +162,7 @@ public sealed partial class TripleTriadController
         {
             RequestSound(deselect ? TripleTriadSound.Cancel : TripleTriadSound.Confirm);
         }
-        flippingTradeSlot = (TradingToPlayer ? 5 : 0) + slot;
+        flippingTradeSlot = (TradingToPlayer ? Options.HandSize : 0) + slot;
         tradeOwners[flippingTradeSlot] = deselect ? TradingToPlayer ? 1 : 0 : TradingToPlayer ? 0 : 1;
         RequestSound(TripleTriadSound.Flip);
         SetTradePhase(TripleTriadTradePhase.Flipping);
@@ -240,14 +240,14 @@ public sealed partial class TripleTriadController
 
     private void PrepareTradeTransfers()
     {
-        for (int index = 5; index < 10; index++)
+        for (int index = Options.HandSize; index < 2 * Options.HandSize; index++)
         {
             if (tradeOwners[index] == 0)
             {
                 tradeTransfers.Enqueue(index);
             }
         }
-        for (int index = 0; index < 5; index++)
+        for (int index = 0; index < Options.HandSize; index++)
         {
             if (tradeOwners[index] == 1)
             {

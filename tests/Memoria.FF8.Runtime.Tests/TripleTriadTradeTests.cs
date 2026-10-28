@@ -3,6 +3,21 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class TripleTriadTradeTests
 {
     [Theory]
+    [InlineData(TripleTriadTradeRule.One, 1)]
+    [InlineData(TripleTriadTradeRule.Diff, 2)]
+    [InlineData(TripleTriadTradeRule.All, 13)]
+    public void LargerHandsSettleEveryOriginalInstance(TripleTriadTradeRule rule, int count)
+    {
+        int[] player = Enumerable.Range(0, 13).ToArray();
+        int[] opponent = Enumerable.Range(20, 13).ToArray();
+        int[] owners = Enumerable.Range(0, 26).Select(index => index < 14 ? 0 : 1).ToArray();
+        TripleTriadTradeResult result = TripleTriadTrade.Settle(Own(player), player, opponent, owners, rule, 121, Enumerable.Range(0, count).ToArray());
+        Assert.Equal(opponent.Take(count), result.GainedCardIds);
+        Assert.Empty(result.LostCardIds);
+        Assert.True(result.TookOpponentInstance);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(4)]
     [InlineData(5)]

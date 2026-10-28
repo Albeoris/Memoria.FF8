@@ -15,6 +15,7 @@ internal static class SnapshotDefaults
             throw new InvalidDataException("Enabled magic rules require their saved magic-system owner.");
         }
         CompleteSelphieCardSlots(saved);
+        CompleteTripleTriadSettings(saved, options);
         PreserveHistoricalWorldGlobals(saved);
         // Execution snapshots require their saved counters and matching retained-memory copies verbatim.
         if (saved["Battle"] is JsonObject existingBattle && !IsIdleBattle(existingBattle))
@@ -72,6 +73,20 @@ internal static class SnapshotDefaults
         if (saved["Battle"] is JsonObject battle && battle["Definition"] is JsonObject definition && !definition.ContainsKey("SelphieCardSlots"))
         {
             definition["SelphieCardSlots"] = saved["GameplayPreferences"]?["SelphieCardSlots"]?.DeepClone() ?? JsonValue.Create(false);
+        }
+    }
+
+    internal static void CompleteTripleTriadSettings(JsonObject saved, JsonSerializerOptions options)
+    {
+        foreach (string owner in new[] { nameof(GameState.GameplayPreferences), nameof(GameState.PendingGameplayPreferences) })
+        {
+            if (saved[owner] is JsonObject preferences && !preferences.ContainsKey(nameof(GameplayPreferences.TripleTriad)))
+            {
+                JsonNode? difficulty = preferences[nameof(GameplayPreferences.Difficulty)];
+                bool hardcore = difficulty is JsonValue value && (value.TryGetValue(out int number) && number == (int)BattleDifficulty.Hardcore || value.TryGetValue(out string? name) && name == nameof(BattleDifficulty.Hardcore));
+                TripleTriadSettings defaults = new TripleTriadSettings().NormalizeForDifficulty(hardcore ? BattleDifficulty.Hardcore : BattleDifficulty.Normal);
+                preferences[nameof(GameplayPreferences.TripleTriad)] = JsonSerializer.SerializeToNode(defaults, options);
+            }
         }
     }
 

@@ -5,6 +5,25 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class TripleTriadNativeAiTests
 {
+    [Theory]
+    [InlineData(2, 2, 3)]
+    [InlineData(5, 2, 5)]
+    [InlineData(5, 5, 13)]
+    public void OptionalBoardsUseBoundedNativeSearchAndGuessEveryHandSlot(int width, int height, int handSize)
+    {
+        TripleTriadCard[] cards = Cards();
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, Enumerable.Range(0, handSize).ToArray(), Enumerable.Range(handSize, handSize).ToArray(), width: width, height: height);
+        TripleTriadNativeAiParameters parameters = Parameters() with { Depths = Enumerable.Range(0, 73).Select(index => (byte)Math.Clamp(index % 9, 1, 4)).ToImmutableArray() };
+        // Native profiles encode nine empty cells at each row's next boundary.
+        parameters = parameters with { Depths = parameters.Depths.SetItem(Math.Min(width * height, 9), 4) };
+        TripleTriadNativeAiResult result = TripleTriadNativeAi.ChooseMove(cards, new byte[110], match, parameters, 0, 0, 123);
+        Assert.Contains(result.Move, match.GetLegalMoves());
+        Assert.InRange(result.Depth, 1, 4);
+        Assert.InRange(result.EvaluatedMoves, 1, 20000);
+        Assert.Equal(handSize * 2, result.RandomDraws);
+        Assert.All(match.Board, card => Assert.Null(card));
+    }
+
     [Fact]
     public void EqualScoresKeepFirstHandAndRowMajorCellWithoutMutatingTheMatch()
     {

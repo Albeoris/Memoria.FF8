@@ -5,6 +5,10 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The suspended card module's current deal, independent of the field VM wait record.</summary>
 public sealed record NativeTripleTriadPlayState
 {
+    public int Width { get; init; } = 3;
+    public int Height { get; init; } = 3;
+    public int HandSize { get; init; } = 5;
+    public int RedrawsUsed { get; init; }
     [JsonRequired]
     public required int Version { get; init; }
     [JsonRequired]
@@ -35,11 +39,11 @@ public sealed record NativeTripleTriadPlayState
         {
             throw new InvalidDataException("An active card module cannot contain a returned quit prompt or random draws during its initial fade.");
         }
-        if (Version != 1 || string.IsNullOrWhiteSpace(RequestIdentity) || OpponentHand is null || OpponentHand.Length != (RulesAccepted ? 5 : 0) || OpponentHand.Any(id => id is < 0 or >= 110) || DealRandomState.HasValue != RulesAccepted || SelectedCards is null || SelectedCards.Length > 5 || SelectedCards.Any(id => id is < 0 or >= 110) || (Match is not null) != (SelectedCards.Length == 5))
+        if (RedrawsUsed is < 0 or > 3 || Width is < 2 or > 5 || Height is < 2 or > 5 || HandSize < (Width * Height + 1) / 2 || Version != 1 || string.IsNullOrWhiteSpace(RequestIdentity) || OpponentHand is null || OpponentHand.Length != (RulesAccepted ? HandSize : 0) || OpponentHand.Any(id => id is < 0 or >= 110) || DealRandomState.HasValue != RulesAccepted || SelectedCards is null || SelectedCards.Length > HandSize || SelectedCards.Any(id => id is < 0 or >= 110) || (Match is not null) != (SelectedCards.Length == HandSize))
         {
             throw new InvalidDataException("Native Triple Triad requires its exact suspended request, deal and selected cards.");
         }
-        if (Match is { } match && (match.InitialHands is not { Length: 2 } || match.InitialHands.Any(hand => hand is not { Length: 5 }) || match.Hands is not { Length: 2 } || match.Hands.Any(hand => hand is not { Length: 5 }) || match.Board is not { Length: 9 } || match.BoardElements is not { Length: 9 } || match.InstanceOrder is not { Length: 10 }))
+        if (Match is { } match && (match.Width != Width || match.Height != Height || match.InitialHands is not { Length: 2 } || match.InitialHands.Any(hand => hand is null || hand.Length != HandSize) || match.Hands is not { Length: 2 } || match.Hands.Any(hand => hand is null || hand.Length != HandSize) || match.Board is null || match.Board.Length != Width * Height || match.BoardElements is null || match.BoardElements.Length != Width * Height || match.InstanceOrder is null || match.InstanceOrder.Length != HandSize * 2))
         {
             throw new InvalidDataException("Native Triple Triad match arrays are incomplete.");
         }

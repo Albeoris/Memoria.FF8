@@ -9,6 +9,54 @@ public sealed class TripleTriadControllerTests
 {
     private static readonly TripleTriadCard[] Cards = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 1 + id % 10, 1 + id % 9, 1 + id % 8, 1 + id % 7, TripleTriadElement.None)).ToArray();
 
+    [Fact]
+    public void ExpandedHandsSelectNavigateTradeAndFilterHistoryBySize()
+    {
+        TripleTriadSettings options = new() { Width = 4, Height = 4, HandSize = 8 };
+        TripleTriadController controller = new(Cards, Enumerable.Range(0, 30).ToDictionary(id => id, _ => 1), Enumerable.Range(20, 8).ToArray(), id => id.ToString(), options: options);
+        controller.SetRecentDecks([new[] { 0, 1, 2, 3, 4 }, Enumerable.Range(0, 8).ToArray()]);
+        Assert.Single(controller.RecentDecks);
+        controller.ChooseDeck(0);
+        Assert.Equal(8, controller.Match!.HandSize);
+        Assert.Equal(16, controller.Match.Board.Count);
+        controller.SelectHand(7);
+        controller.HoverCell(15);
+        controller.Navigate(UiKey.Up);
+        Assert.Equal(11, controller.SelectedCell);
+        controller.Play(7, 15);
+        Assert.NotNull(controller.Match.Board[15]);
+        controller.BeginTradeSelection(Enumerable.Range(20, 8).ToArray(), 1, slots => Assert.Equal(new[] { 7 }, slots));
+        controller.SelectTradeCard(7);
+        Assert.Null(controller.TradingHand);
+    }
+
+    [Fact]
+    public void RandomRedrawIsLimitedToUntouchedOpeningAndWaitsForOpponentConfirmation()
+    {
+        TripleTriadController controller = new(Cards, Enumerable.Range(0, 20).ToDictionary(id => id, _ => 1), [10, 11, 12, 13, 14], id => id.ToString(), TripleTriadRules.Random, options: new TripleTriadSettings { RandomRedraws = 2 });
+        controller.CreateMatch = hand => TripleTriadMatch.Create(Cards, hand, [10, 11, 12, 13, 14], TripleTriadRules.Random, startingPlayer: 1);
+        controller.RedrawHand = () => new[] { 5, 6, 7, 8, 9 };
+        foreach (int id in Enumerable.Range(0, 5))
+        {
+            controller.ChooseCard(id);
+        }
+        Assert.True(controller.AwaitingOpeningConfirmation);
+        Assert.False(controller.AdvanceOpponent());
+        TripleTriadMatch opening = controller.Match!;
+        controller.CreateMatch = _ => throw new InvalidOperationException("Redraw must preserve the opening board and starter.");
+        Assert.True(controller.Redraw());
+        Assert.Equal(opening.BoardElements, controller.Match!.BoardElements);
+        Assert.Equal(opening.StartingPlayer, controller.Match.StartingPlayer);
+        Assert.Equal(opening.InitialHands[1], controller.Match.InitialHands[1]);
+        Assert.Equal(1, controller.RedrawsRemaining);
+        Assert.Equal(new[] { 5, 6, 7, 8, 9 }, controller.Deck);
+        controller.Navigate(UiKey.Confirm);
+        Assert.False(controller.AwaitingOpeningConfirmation);
+        Assert.True(controller.AdvanceOpponent());
+        Assert.False(controller.CanRedraw);
+        Assert.False(controller.Redraw());
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

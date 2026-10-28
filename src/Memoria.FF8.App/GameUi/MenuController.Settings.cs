@@ -97,6 +97,11 @@ public sealed partial class MenuController
             "Battle ATB mode" => preferences.AtbMode == Memoria.FF8.Runtime.BattleAtbMode.Normal ? "Classic" : "Turn Based",
             "Gunblade trigger" => preferences.GunbladeMode.ToString(),
             "Battle policy" => preferences.BattlePolicyLabel,
+            "Triple Triad width" => preferences.TripleTriad.Width.ToString(),
+            "Triple Triad height" => preferences.TripleTriad.Height.ToString(),
+            "Triple Triad hand size" => preferences.TripleTriad.HandSize.ToString(),
+            "Triple Triad Random redraws" => preferences.TripleTriad.RandomRedraws.ToString(),
+            "Triple Triad assistance" => preferences.TripleTriad.Assistance.ToString(),
             "Rare card markers" => preferences.RareCardMarkers ? "On" : "Off",
             "Random encounters" => preferences.RandomEncounters ? "On" : "Off",
             _ => throw new NotSupportedException($"Unknown local setting '{key}'.")
