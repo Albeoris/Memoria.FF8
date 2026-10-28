@@ -94,8 +94,9 @@ public static partial class NativeBattleEffect65Controller
             }
             else
             {
-                source = NativeBattleTemporaryMemory.ReadView(RequireStaging(frame), current, count);
-                offset = 0;
+                NativeBattleTemporaryMemory.CopyToArena(RequireStaging(frame), current, result, copied, count);
+                copied += count;
+                continue;
             }
             result = CopyBytes(source, offset, result, copied, count);
             copied += count;

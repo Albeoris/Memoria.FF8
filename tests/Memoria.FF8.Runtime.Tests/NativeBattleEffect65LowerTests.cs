@@ -42,6 +42,50 @@ internal static class NativeBattleEffect65LowerFixture
 public sealed class NativeBattleEffect65LowerTests
 {
     [Theory]
+    [InlineData(8)]
+    [InlineData(513)]
+    public void Staged_reads_keep_live_transaction_payload_unknownness_and_detachment_without_pointer_metadata(int length)
+    {
+        NativeBattleEffect65Frame frame = NativeBattleEffect65LowerFixture.Frame();
+        uint address = NativeBattleTemporaryMemory.Address + 64;
+        byte[] bytes = Enumerable.Range(0, length).Select(index => unchecked((byte)(index + 1))).ToArray();
+        NativeBattleFileStaging source = frame.Staging!.Write(address, bytes);
+        using NativeBattleFileStagingTransaction transaction = new(source);
+        transaction.View.WriteByte(address, 9).MarkUnknown(address + 2, 1).WriteResourcePointer(address + 4, null);
+        var expected = transaction.View.ReadSnapshot(address, length);
+        frame = frame with { Staging = transaction.View };
+
+        NativeBattleEffectArena result = NativeBattleEffect65Controller.ReadBytes(frame, address, length);
+        transaction.View.Write(address, new byte[length]);
+
+        Assert.Equal(expected.Data, result.ReadSnapshot(0, length).Data);
+        Assert.Equal(expected.Known, result.ReadSnapshot(0, length).Known);
+        Assert.False(result.TryGetResourcePointer(4, out _));
+        Assert.Throws<NotSupportedException>(() => result.Read(2, 1));
+        Assert.Equal(new byte[4], result.Read(length, 4));
+        Assert.Equal(NativeBattleEffectArena.Length, result.LogicalLength);
+        Assert.Equal((byte)1, source.ReadByte(address));
+    }
+
+    [Fact]
+    public void Staged_read_failure_keeps_original_range_source_order_and_retained_owners_unchanged()
+    {
+        NativeBattleEffect65Frame frame = NativeBattleEffect65LowerFixture.Frame();
+        NativeBattleFileStagingTransaction transaction = new(frame.Staging!);
+        NativeBattleFileStaging disposed = transaction.View;
+        transaction.Dispose();
+        NativeBattleEffect65Frame invalid = frame with { Staging = disposed };
+        uint address = NativeBattleTemporaryMemory.Address + 64;
+
+        Assert.Equal("length", Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleEffect65Controller.ReadBytes(invalid, uint.MaxValue, 2)).ParamName);
+        Assert.Throws<ObjectDisposedException>(() => NativeBattleEffect65Controller.ReadBytes(invalid, address, 8));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect65Controller.ReadBytes(frame with { Staging = null }, address, 8));
+        Assert.Equal(new byte[8], frame.Staging!.Read(address, 8));
+        Assert.Equal(new byte[8], frame.Memory.Arena!.Read(0, 8));
+        Assert.False(frame.Memory.Arena.Working.HasCheckpoint);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void Copy_pointer_check_keeps_explicit_null_numeric_symbolic_and_contained_span_metadata(bool frozen)
