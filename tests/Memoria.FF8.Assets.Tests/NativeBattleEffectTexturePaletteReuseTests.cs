@@ -12,6 +12,56 @@ public sealed class NativeBattleEffectTexturePaletteReuseTests
     [InlineData(1, NativeBattlePcDirectTextureFormat.Rgb555)]
     [InlineData(2, NativeBattlePcDirectTextureFormat.Rgb555)]
     [InlineData(2, NativeBattlePcDirectTextureFormat.Rgb565)]
+    public void Retained_row_spans_preserve_physical_offsets_stride_and_partial_word_crops(int depth, NativeBattlePcDirectTextureFormat format)
+    {
+        int perWord = 4 >> depth;
+        int bits = 16 / perWord;
+        int firstWord = 64 + 5 / perWord;
+        int lastWord = 64 + 15 / perWord;
+        int stride = lastWord - firstWord + 3;
+        byte[] words = new byte[2 * stride * 3];
+        for (int index = 0; index < words.Length / 2; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(words.AsSpan(index * 2), unchecked((ushort)(index * 211 + 0x801F)));
+        }
+        NativeBattlePcTextureWindowPixels retained = new(firstWord - 1, 356, stride, 3, words.ToImmutableArray());
+        byte[] palette = new byte[512];
+        for (int index = 0; index < 256; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(palette.AsSpan(index * 2), unchecked((ushort)(index * 123)));
+        }
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, palette.ToImmutableArray())] };
+        PixelImage image = NativeBattleEffectTextureReader.DecodePcRegion(state, (ushort)(0x11 | depth << 7), 0, 5, 101, 11, 2, out _, directTextureFormat: format, pixelWords: retained);
+        for (int row = 0; row < image.Height; row++)
+        {
+            for (int column = 0; column < image.Width; column++)
+            {
+                int x = 5 + column;
+                ushort word = retained.ReadWord(64 + x / perWord, 357 + row);
+                int index = word >> (bits * (x % perWord)) & (depth == 0 ? 15 : 255);
+                ushort color = depth == 2 ? word : BinaryPrimitives.ReadUInt16LittleEndian(palette.AsSpan(index * 2));
+                uint packed = depth == 2 ? NativeBattlePcDirectTexture.DecodeArgb(color, format) : NativeBattlePcPalette.Decode467370(color);
+                Assert.Equal(new Rgba32((byte)(packed >> 16), (byte)(packed >> 8), (byte)packed, (byte)(packed >> 24)), image[column, row]);
+            }
+        }
+    }
+
+    [Fact]
+    public void Invalid_retained_runs_fail_on_the_first_consumed_palette_or_word_without_prefetching()
+    {
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
+        NativeBattlePcTextureWindowPixels retained = new(0, 1, 1, 1, [17, 2]);
+        InvalidDataException palette = Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 63, 0, 1, 3, 1, pixelWords: retained));
+        Assert.Equal("Native texture page or CLUT sample leaves1024x512 word VRAM.", palette.Message);
+        InvalidDataException word = Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodePcRegion(state, 0x80, 63, 0, 1, 3, 1, pixelWords: retained with { Data = [2, 2] }));
+        Assert.Equal("Native cached texture sample leaves its retained pixel-word rectangle.", word.Message);
+    }
+
+    [Theory]
+    [InlineData(0, NativeBattlePcDirectTextureFormat.Rgb555)]
+    [InlineData(1, NativeBattlePcDirectTextureFormat.Rgb555)]
+    [InlineData(2, NativeBattlePcDirectTextureFormat.Rgb555)]
+    [InlineData(2, NativeBattlePcDirectTextureFormat.Rgb565)]
     public void Packed_word_expansion_matches_scalar_pixels_across_nonaligned_and_wrapped_retained_rows(int depth, NativeBattlePcDirectTextureFormat format)
     {
         byte[] bank = new byte[2 * 1024 * 512];

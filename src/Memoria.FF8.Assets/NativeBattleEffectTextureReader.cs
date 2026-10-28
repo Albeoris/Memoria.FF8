@@ -1,4 +1,5 @@
 using Albeoris.Games.FF8.Imaging;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
@@ -142,10 +143,28 @@ public static partial class NativeBattleEffectTextureReader
         {
             int y = pageY + ((v + row) & 255);
             int output = row * width;
+            ReadOnlySpan<byte> retainedRun = default;
+            int runFirstWord = 0;
+            int runEnd = 0;
             for (int column = 0; column < width;)
             {
                 int x = (u + column) & 255;
-                ushort word = pixelWords is not null ? pixelWords.ReadWord(pageX + (x >> shift), y) : Word(pageX + (x >> shift), y);
+                int wordX = pageX + (x >> shift);
+                if (pixelWords is not null && column == runEnd)
+                {
+                    int runPixels = Math.Min(width - column, 256 - x);
+                    int lastWord = pageX + ((x + runPixels - 1) >> shift);
+                    runFirstWord = wordX;
+                    runEnd = column + runPixels;
+                    retainedRun = default;
+                    if (y >= pixelWords.Y && y < pixelWords.Y + pixelWords.Height && wordX >= pixelWords.X && lastWord < pixelWords.X + pixelWords.Width)
+                    {
+                        int offset = 2 * ((y - pixelWords.Y) * pixelWords.Width + wordX - pixelWords.X);
+                        retainedRun = pixelWords.Data.AsSpan(offset, 2 * (lastWord - wordX + 1));
+                    }
+                    // Invalid runs retain scalar reads so the first invalid sample or used CLUT entry still fails in order.
+                }
+                ushort word = pixelWords is null ? Word(wordX, y) : retainedRun.IsEmpty ? pixelWords.ReadWord(wordX, y) : BinaryPrimitives.ReadUInt16LittleEndian(retainedRun[(2 * (wordX - runFirstWord))..]);
                 int first = x & (pixelsPerWord - 1);
                 int count = Math.Min(width - column, pixelsPerWord - first);
                 if (depth < 2)
