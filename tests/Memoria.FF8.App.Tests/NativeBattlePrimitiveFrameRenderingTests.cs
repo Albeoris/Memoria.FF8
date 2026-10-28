@@ -17,22 +17,30 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
         NativeBattlePrimitiveFrame frame = Frame([RawCacheQuad()]) with { LastTextureSnapshots = [held] };
         TextureCapture capture = new();
-        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture, PilotDiagnosticsEnabled = true };
         RawCacheTextureSource source = new();
         renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
         PixelImage native = Assert.Single(source.NativeImages);
         PixelImage firstFinal = capture.Texture!;
         Assert.NotSame(native, firstFinal);
+        Assert.Equal(1, renderer.TextureDecoding!.Value.DecodeCount);
+        Assert.Equal(64, renderer.TextureDecoding!.Value.DecodedPixels);
+        Assert.Equal(1, renderer.TextureDecoding!.Value.RawNoCandidate);
 
         renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
         Assert.Single(source.NativeImages);
         Assert.Same(firstFinal, capture.Texture);
+        Assert.Equal(0, renderer.TextureDecoding!.Value.DecodeCount);
+        Assert.Equal(1, renderer.TextureDecoding!.Value.FullFinalPreviousHits);
+        Assert.Equal(1, renderer.TextureDecoding!.Value.RawPromotions);
 
         NativeBattlePcTextureWindowPixels metadata = held with { Data = held.Data.ToArray().ToImmutableArray(), LiveTextureSources = [] };
         frame = frame with { LastTextureSnapshots = [metadata] };
         renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
         Assert.Equal(2, source.NativeImages.Count);
         Assert.Same(native, source.NativeImages[1]);
+        Assert.Equal(1, renderer.TextureDecoding!.Value.RawPreviousHits);
+        Assert.Equal(0, renderer.TextureDecoding!.Value.DecodeCount);
         Assert.NotSame(firstFinal, capture.Texture);
         Assert.NotEqual(firstFinal[0, 0], capture.Texture![0, 0]);
 
@@ -55,18 +63,23 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         words[0] = 0x22;
         NativeBattlePcTextureWindowPixels changed = first with { Data = words.ToImmutableArray() };
         NativeBattlePrimitiveFrame frame = Frame([RawCacheQuad()]) with { LastTextureSnapshots = [first] };
-        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture() };
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture(), PilotDiagnosticsEnabled = true };
         RawCacheTextureSource source = new();
         renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
         renderer.RenderNativePrimitiveFrame(frame with { LastTextureSnapshots = [changed] }, state, effectTextureSource: source);
         Assert.NotSame(source.NativeImages[0], source.NativeImages[1]);
         Assert.NotEqual(source.NativeImages[0][0, 0], source.NativeImages[1][0, 0]);
+        Assert.Equal(1, renderer.TextureDecoding!.Value.RawWordMismatches);
+        Assert.Equal(0, renderer.TextureDecoding!.Value.RawPaletteMismatches);
+        renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
 
         NativeBattleEffectTextureState palette = state.PublishVramSpan(2 * (256 * 1024 + 1), new byte[] { 0, 0x7C });
         renderer.RenderNativePrimitiveFrame(frame, palette, effectTextureSource: source);
-        Assert.NotSame(source.NativeImages[0], source.NativeImages[2]);
-        Assert.NotSame(source.NativeImages[1], source.NativeImages[2]);
-        Assert.NotEqual(source.NativeImages[0][0, 0], source.NativeImages[2][0, 0]);
+        Assert.NotSame(source.NativeImages[0], source.NativeImages[3]);
+        Assert.NotSame(source.NativeImages[1], source.NativeImages[3]);
+        Assert.NotEqual(source.NativeImages[0][0, 0], source.NativeImages[3][0, 0]);
+        Assert.Equal(1, renderer.TextureDecoding!.Value.RawPaletteMismatches);
+        Assert.Equal(0, renderer.TextureDecoding!.Value.RawWordMismatches);
         Assert.Throws<InvalidDataException>(() => renderer.RenderNativePrimitiveFrame(frame with { LastTextureSnapshots = [first with { Data = [] }] }, palette, effectTextureSource: source));
     }
 
@@ -80,12 +93,13 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         NativeBattlePcTextureWindowPixels second = first with { Data = words.ToImmutableArray() };
         NativeBattlePrimitiveFrame frame = Frame([RawCacheQuad(), RawCacheQuad(snapshot: 1), RawCacheQuad()]) with { LastTextureSnapshots = [first, second] };
         TextureCapture capture = new();
-        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture, PilotDiagnosticsEnabled = true };
         RawCacheTextureSource source = new();
         renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
         Assert.Equal(2, source.NativeImages.Count);
         Assert.NotSame(source.NativeImages[0], source.NativeImages[1]);
         Assert.Same(source.FinalImages[0], capture.Texture);
+        Assert.Equal(1, renderer.TextureDecoding!.Value.FullFinalCurrentHits);
     }
 
     [Fact]
@@ -134,9 +148,12 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
         NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, size, size), state);
         NativeBattleLogicalResolvedCommand[] commands = Enumerable.Range(0, materials).Select(index => RawCacheQuad(clut: checked((ushort)index), size: size)).ToArray();
-        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture() };
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture(), PilotDiagnosticsEnabled = true };
         renderer.RenderNativePrimitiveFrame(Frame(commands.ToImmutableArray()) with { LastTextureSnapshots = [held] }, state);
         Assert.Equal(expectedCandidates, RawCacheCount(renderer, "nativeRawTexturePages"));
+        Assert.Equal(materials - expectedCandidates, renderer.TextureDecoding!.Value.RawBudgetSkips);
+        Assert.Equal(materials, renderer.TextureDecoding!.Value.DecodeCount);
+        Assert.Equal((long)materials * size * size, renderer.TextureDecoding!.Value.DecodedPixels);
         int bytes = (int)typeof(BattleRenderer).GetField("nativeRawTextureBytes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(renderer)!;
         Assert.InRange(bytes, 1, 16 * 1024 * 1024);
         renderer.RenderNativePrimitiveFrame(Frame([]), state);
@@ -145,6 +162,34 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         renderer.RenderNativePrimitiveFrame(Frame([]), state);
         Assert.Equal(0, RawCacheCount(renderer, "nativeRawTexturePages"));
         Assert.Equal(0, RawCacheCount(renderer, "previousNativeRawTexturePages"));
+    }
+
+    [Fact]
+    public void Texture_decode_observation_is_opt_in_and_counts_same_frame_raw_reuse()
+    {
+        NativeBattleEffectTextureState state = Texture(31);
+        NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
+        NativeBattlePcTextureWindowPixels metadata = held with { LiveTextureSources = [] };
+        NativeBattlePrimitiveFrame frame = Frame([RawCacheQuad(), RawCacheQuad(snapshot: 1)]) with { LastTextureSnapshots = [held, metadata] };
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = new TextureCapture() };
+        Assert.Null(renderer.TextureDecoding);
+        renderer.RenderNativePrimitiveFrame(Frame([]), state);
+        Assert.Null(renderer.TextureDecoding);
+        renderer.PilotDiagnosticsEnabled = true;
+        renderer.RenderNativePrimitiveFrame(frame, state);
+        NativeBattleTextureDecodingObservation observation = renderer.TextureDecoding!.Value;
+        Assert.Equal(1, observation.DecodeCount);
+        Assert.Equal(1, observation.RawCurrentHits);
+        Assert.Equal(1, observation.RawNoCandidate);
+        Assert.Equal(1, observation.CurrentCandidates);
+        renderer.RenderNativePrimitiveFrame(Frame([]), state);
+        NativeBattleTextureDecodingObservation empty = renderer.TextureDecoding!.Value;
+        Assert.Equal(observation.RenderOrdinal + 1, empty.RenderOrdinal);
+        Assert.Equal(0, empty.DecodeCount);
+        Assert.Equal(0, empty.RawCurrentHits);
+        Assert.Equal(0, empty.CurrentCandidates);
+        renderer.PilotDiagnosticsEnabled = false;
+        Assert.Null(renderer.TextureDecoding);
     }
 
     private static int RawCacheCount(BattleRenderer renderer, string field)

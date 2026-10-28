@@ -220,7 +220,7 @@ internal sealed partial class RecreateGame
         diagnosticProgressSequence++;
         if (options.ControlDirectory is { } control)
         {
-            WriteDiagnosticJson(Path.Combine(control, "progress.json"), new { stage, sequence = diagnosticProgressSequence, completed_stages = diagnosticCompletedStages.ToArray(), driver_phase = driver.Stage.ToString(), execution = driver.Execution, callback, frame = diagnosticDriverBattle?.Frame, native_graphics_callback = diagnosticDriverBattle?.NativeGraphics?.Callback, native_ui_pause = diagnosticDriverBattle?.NativeGraphics?.UiServices?.PauseDE9, terminal_hold_phase = diagnosticDriverBattle?.DiagnosticTerminalHold?.Phase.ToString(), drain_blockers = driver.LastDrainBlockers, loop_metrics = metrics.Latest });
+            WriteDiagnosticJson(Path.Combine(control, "progress.json"), new { stage, sequence = diagnosticProgressSequence, completed_stages = diagnosticCompletedStages.ToArray(), driver_phase = driver.Stage.ToString(), execution = driver.Execution, callback, frame = diagnosticDriverBattle?.Frame, native_graphics_callback = diagnosticDriverBattle?.NativeGraphics?.Callback, native_ui_pause = diagnosticDriverBattle?.NativeGraphics?.UiServices?.PauseDE9, terminal_hold_phase = diagnosticDriverBattle?.DiagnosticTerminalHold?.Phase.ToString(), drain_blockers = driver.LastDrainBlockers, loop_metrics = metrics.Latest, texture_decoding = battleScene?.TextureDecoding });
             if (diagnosticTelemetry is { Active: true } telemetry)
             {
                 WriteDiagnosticJson(Path.Combine(control, "presentation-progress.json"), telemetry.PresentationProgress(diagnosticProgressSequence));

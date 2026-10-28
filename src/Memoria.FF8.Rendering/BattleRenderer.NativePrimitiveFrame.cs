@@ -8,6 +8,9 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
 
+/// <summary>Last-render counters; candidate comparison misses may exceed decode count. Promotions do not require a new final material.</summary>
+public readonly record struct NativeBattleTextureDecodingObservation(long RenderOrdinal, long FullFinalCurrentHits, long FullFinalPreviousHits, long RawCurrentHits, long RawPreviousHits, long RawPromotions, long DecodeCount, long DecodedPixels, long RawNoCandidate, long RawWordMismatches, long RawPaletteMismatches, long RawBudgetSkips, int CurrentCandidates, int CurrentBytes);
+
 public sealed partial class BattleRenderer
 {
     private readonly record struct PrimitiveVertex(float X, float Y, float Z, float ReciprocalW, Vector2 Uv, Vector3 Color, float Alpha);
@@ -22,6 +25,19 @@ public sealed partial class BattleRenderer
     private Dictionary<NativeRawTextureKey, NativeRawTextureCandidate> nativeRawTexturePages = [];
     private Dictionary<NativeRawTextureKey, NativeRawTextureCandidate> previousNativeRawTexturePages = [];
     private int nativeRawTextureBytes;
+    private long textureDiagnosticRender;
+    private long textureDiagnosticFinalCurrent;
+    private long textureDiagnosticFinalPrevious;
+    private long textureDiagnosticRawCurrent;
+    private long textureDiagnosticRawPrevious;
+    private long textureDiagnosticPromotions;
+    private long textureDiagnosticDecodes;
+    private long textureDiagnosticPixels;
+    private long textureDiagnosticNoCandidate;
+    private long textureDiagnosticWordMismatch;
+    private long textureDiagnosticPaletteMismatch;
+    private long textureDiagnosticBudgetSkip;
+    public NativeBattleTextureDecodingObservation? TextureDecoding => PilotDiagnosticsEnabled ? new(textureDiagnosticRender, textureDiagnosticFinalCurrent, textureDiagnosticFinalPrevious, textureDiagnosticRawCurrent, textureDiagnosticRawPrevious, textureDiagnosticPromotions, textureDiagnosticDecodes, textureDiagnosticPixels, textureDiagnosticNoCandidate, textureDiagnosticWordMismatch, textureDiagnosticPaletteMismatch, textureDiagnosticBudgetSkip, nativeRawTexturePages.Count, nativeRawTextureBytes) : null;
     private NativeBattleEffectTextureState? nativeTextureOwner;
     private NativeBattlePcDirectTextureFormat? nativeDirectTextureFormat;
     private IReadOnlyList<NativeBattleTextureReplacement>? nativeModelReplacements;
@@ -39,6 +55,21 @@ public sealed partial class BattleRenderer
     {
         //The executed OT already owns projected XY/depth; a native WAIT can legitimately publish coincident eye and target.
         sceneProjectionReady = false;
+        if (PilotDiagnosticsEnabled)
+        {
+            textureDiagnosticRender++;
+            textureDiagnosticFinalCurrent = 0;
+            textureDiagnosticFinalPrevious = 0;
+            textureDiagnosticRawCurrent = 0;
+            textureDiagnosticRawPrevious = 0;
+            textureDiagnosticPromotions = 0;
+            textureDiagnosticDecodes = 0;
+            textureDiagnosticPixels = 0;
+            textureDiagnosticNoCandidate = 0;
+            textureDiagnosticWordMismatch = 0;
+            textureDiagnosticPaletteMismatch = 0;
+            textureDiagnosticBudgetSkip = 0;
+        }
         BeginPilotSubmission();
         TriangleRenderer?.Begin(Width, Height, new Vector4(0, 0, 0, 1));
         if (TriangleRenderer is null)
@@ -279,6 +310,11 @@ public sealed partial class BattleRenderer
                 if (!TryReuseNativeRawTexture(rawKey, retainedPixels, textureState, previousTextureOwner, out texture))
                 {
                     texture = NativeBattleEffectTextureReader.DecodePcRegion(textureState, page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
+                    if (PilotDiagnosticsEnabled)
+                    {
+                        textureDiagnosticDecodes++;
+                        textureDiagnosticPixels += texture.Pixels.Length;
+                    }
                 }
                 RetainNativeRawTexture(rawKey, texture, retainedPixels);
                 PixelImage? decodedNative = alternateShift is null ? texture : null;
@@ -292,29 +328,125 @@ public sealed partial class BattleRenderer
                     effectTextureGeneration = nativeEffectTextureSource.Generation;
                 }
             }
-            else if (textures is not null && TryReuseNativeRawTexture(rawKey, retainedPixels, textures, previousTextureOwner, out PixelImage? raw))
+            else
             {
-                RetainNativeRawTexture(rawKey, raw!, retainedPixels);
+                if (PilotDiagnosticsEnabled)
+                {
+                    textureDiagnosticFinalPrevious++;
+                }
+                if (textures is not null && TryReuseNativeRawTexture(rawKey, retainedPixels, textures, previousTextureOwner, out PixelImage? raw, promotion: true))
+                {
+                    RetainNativeRawTexture(rawKey, raw, retainedPixels);
+                }
             }
             nativeTexturePages.Add(key, texture!);
+        }
+        else if (PilotDiagnosticsEnabled)
+        {
+            textureDiagnosticFinalCurrent++;
         }
         return texture!;
     }
 
-    private bool TryReuseNativeRawTexture(NativeRawTextureKey key, NativeBattlePcTextureWindowPixels? pixels, NativeBattleEffectTextureState textures, NativeBattleEffectTextureState? previousTextures, [NotNullWhen(true)] out PixelImage? image)
+    private bool TryReuseNativeRawTexture(NativeRawTextureKey key, NativeBattlePcTextureWindowPixels? pixels, NativeBattleEffectTextureState textures, NativeBattleEffectTextureState? previousTextures, [NotNullWhen(true)] out PixelImage? image, bool promotion = false)
     {
-        if (nativeRawTexturePages.TryGetValue(key, out NativeRawTextureCandidate current) && SameNativeRawWords(current.Pixels, pixels) && NativeBattleEffectTextureReader.HasSamePcRegionSource(textures, textures, key.Page, key.Clut, key.X, key.Y, key.Width, key.Height, pixels))
+        bool hadCandidate = false;
+        if (nativeRawTexturePages.TryGetValue(key, out NativeRawTextureCandidate current))
         {
-            image = current.Image;
-            return true;
+            hadCandidate = true;
+            if (SameNativeRawWords(current.Pixels, pixels))
+            {
+                if (NativeBattleEffectTextureReader.HasSamePcRegionSource(textures, textures, key.Page, key.Clut, key.X, key.Y, key.Width, key.Height, pixels))
+                {
+                    if (PilotDiagnosticsEnabled)
+                    {
+                        if (promotion)
+                        {
+                            textureDiagnosticPromotions++;
+                        }
+                        else
+                        {
+                            textureDiagnosticRawCurrent++;
+                        }
+                    }
+                    image = current.Image;
+                    return true;
+                }
+                RecordRawSourceMismatch(key, pixels, textures, textures, promotion);
+            }
+            else if (PilotDiagnosticsEnabled && !promotion)
+            {
+                textureDiagnosticWordMismatch++;
+            }
         }
-        if (previousTextures is not null && previousNativeRawTexturePages.TryGetValue(key, out NativeRawTextureCandidate previous) && SameNativeRawWords(previous.Pixels, pixels) && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextures, textures, key.Page, key.Clut, key.X, key.Y, key.Width, key.Height, pixels))
+        if (previousTextures is not null && previousNativeRawTexturePages.TryGetValue(key, out NativeRawTextureCandidate previous))
         {
-            image = previous.Image;
-            return true;
+            hadCandidate = true;
+            if (SameNativeRawWords(previous.Pixels, pixels))
+            {
+                if (NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextures, textures, key.Page, key.Clut, key.X, key.Y, key.Width, key.Height, pixels))
+                {
+                    if (PilotDiagnosticsEnabled)
+                    {
+                        if (promotion)
+                        {
+                            textureDiagnosticPromotions++;
+                        }
+                        else
+                        {
+                            textureDiagnosticRawPrevious++;
+                        }
+                    }
+                    image = previous.Image;
+                    return true;
+                }
+                RecordRawSourceMismatch(key, pixels, previousTextures, textures, promotion);
+            }
+            else if (PilotDiagnosticsEnabled && !promotion)
+            {
+                textureDiagnosticWordMismatch++;
+            }
+        }
+        if (PilotDiagnosticsEnabled && !promotion && !hadCandidate)
+        {
+            textureDiagnosticNoCandidate++;
         }
         image = null;
         return false;
+    }
+
+    private void RecordRawSourceMismatch(NativeRawTextureKey key, NativeBattlePcTextureWindowPixels? pixels, NativeBattleEffectTextureState previous, NativeBattleEffectTextureState current, bool promotion)
+    {
+        if (!PilotDiagnosticsEnabled || promotion)
+        {
+            return;
+        }
+        if (pixels is not null)
+        {
+            textureDiagnosticPaletteMismatch++;
+            return;
+        }
+        bool samePalette = true;
+        int depth = (key.Page >> 7) & 3;
+        if (depth < 2)
+        {
+            int x = (key.Clut & 63) * 16;
+            int y = (key.Clut & 0x7FFF) >> 6;
+            int count = depth == 0 ? 16 : 256;
+            samePalette = x + count <= 1024;
+            for (int index = 0; samePalette && index < count; index++)
+            {
+                samePalette = previous.ReadVramWord(x + index, y) == current.ReadVramWord(x + index, y);
+            }
+        }
+        if (!samePalette)
+        {
+            textureDiagnosticPaletteMismatch++;
+        }
+        else
+        {
+            textureDiagnosticWordMismatch++;
+        }
     }
 
     private static bool SameNativeRawWords(NativeBattlePcTextureWindowPixels? previous, NativeBattlePcTextureWindowPixels? current)
@@ -339,6 +471,10 @@ public sealed partial class BattleRenderer
         int remaining = nativeRawTextureBytes - (exists ? previous.Bytes : 0);
         if ((!exists && nativeRawTexturePages.Count >= MaximumRawTextureCandidates) || bytes > MaximumRawTextureBytes - remaining)
         {
+            if (PilotDiagnosticsEnabled)
+            {
+                textureDiagnosticBudgetSkip++;
+            }
             return;
         }
         nativeRawTexturePages[key] = new(image, pixels, bytes);

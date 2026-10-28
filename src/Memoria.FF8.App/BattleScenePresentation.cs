@@ -45,6 +45,7 @@ internal sealed partial class BattleScenePresentation
     internal int LastPilotFallbackCount => renderer?.LastPilotFallbackCount ?? 0;
     internal bool PilotDiagnosticsEnabled { get; set; }
     internal NativeBattlePilotSubmission PilotSubmission => renderer?.PilotSubmission ?? default;
+    internal NativeBattleTextureDecodingObservation? TextureDecoding => renderer?.TextureDecoding;
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
