@@ -5,6 +5,30 @@ namespace Memoria.FF8.App.Tests;
 public sealed class UiPresentationPreferencesTests
 {
     [Fact]
+    public void Battle_motion_defaults_to_native_and_round_trips_the_compatible_option()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            File.WriteAllText(path, "{}");
+            UiPreferences original = UiPreferences.Load(path);
+            Assert.Equal(BattleMotionMode.Native, original.BattleMotion);
+            UiPreferences smooth = original.WithInstallationSetting("Battle motion", "Smooth compatible", activeGame: true);
+            Assert.Equal(original.BattleFps, smooth.BattleFps);
+            smooth.Save(path);
+            Assert.Equal(BattleMotionMode.SmoothCompatible, UiPreferences.Load(path).BattleMotion);
+            Assert.Equal(BattleMotionMode.Native, smooth.WithSetting("Battle motion", "Native").BattleMotion);
+            Assert.Throws<ArgumentException>(() => original.WithSetting("Battle motion", "Unknown"));
+            File.WriteAllText(path, "{\"BattleMotion\":99}");
+            Assert.Throws<InvalidDataException>(() => UiPreferences.Load(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void Missing_preference_defaults_to_vector_and_classic_round_trips()
     {
         string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");

@@ -145,11 +145,17 @@ public sealed partial class BattleRenderer
                 Vector2 position = command.ProjectedCoordinates is { } points
                     ? NativePrimitivePosition(points[corner].X, points[corner].Y, command.Flags20, resolved.DrawMode)
                     : NativePrimitivePosition(coordinate, command.Flags20, resolved.DrawMode);
+                NativeBattlePrimitiveDepthVertex selectedDepth = projected[corner];
+                if (TrySamplePilotVertex(command, corner, resolved.DrawMode, state, perspective, out Vector2 sampledPosition, out NativeBattlePrimitiveDepthVertex sampledDepth))
+                {
+                    position = sampledPosition;
+                    selectedDepth = sampledDepth;
+                }
                 if (fullViewport)
                 {
                     position = new((corner & 1) == 0 ? 0 : Width, corner < 2 ? 0 : Height);
                 }
-                return new(position.X, position.Y, projected[corner].Depth, projected[corner].ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
+                return new(position.X, position.Y, selectedDepth.Depth, selectedDepth.ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
             int blend = semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
             PrimitiveVertex a = At(0);

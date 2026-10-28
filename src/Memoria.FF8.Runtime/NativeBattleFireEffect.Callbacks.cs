@@ -22,12 +22,14 @@ public static partial class NativeBattleFireEffect
         ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
         ImmutableArray<NativeBattleFireSound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleFireSound>();
         bool frozen = (inputs.GraphicsFlags & 0x201) != 0;
+        NativeBattlePilotVisualIdentity? drawingIdentity = null;
         NativeBattleOriginalEffectState advanced = Advance(effect, Callback);
         return new(advanced with { FireModelCompletion = completion }, random, draws.ToImmutable(), contacts.ToImmutable(), sounds.ToImmutable());
 
         NativeBattleEffectTaskCallback Callback(NativeBattleEffectTaskPool pool, int slot, uint drawBuffer)
         {
             NativeBattleModulePoolTask task = pool.Slots[slot];
+            drawingIdentity = new(2, pool.DescriptorAddress, slot, NativeBattlePilotVisualLifetimes.Generation(task, slot), 0);
             short phase = Word(task, 12);
             short delay = Word(task, 14);
             if (task.Callback is 0x62A380 or 0x629990)
@@ -226,7 +228,7 @@ public static partial class NativeBattleFireEffect
         void Draw(uint address, int phase, NativeBattleModuleAnchor anchor, int scale, int depthOffset, ushort flags, uint color = 0x808080, ImmutableArray<short> rotation = default, ImmutableArray<byte> paletteOffsets = default)
         {
             NativeBattleModuleResource resource = inputs.Resources.Single(resource => resource.Address == address);
-            draws.Add(new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Anchor = anchor, Phase = unchecked((ushort)phase), Scale = scale, DepthOffset = depthOffset, Direction = 4096, SpriteFlags = flags, SpriteColor = color, SpriteWorldRotation = rotation.IsDefault ? [] : rotation, SpritePaletteOffsets = paletteOffsets.IsDefault ? [] : paletteOffsets });
+            draws.Add(new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = drawingIdentity is { } identity ? identity with { Primitive = unchecked((int)address) } : null, Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Anchor = anchor, Phase = unchecked((ushort)phase), Scale = scale, DepthOffset = depthOffset, Direction = 4096, SpriteFlags = flags, SpriteColor = color, SpriteWorldRotation = rotation.IsDefault ? [] : rotation, SpritePaletteOffsets = paletteOffsets.IsDefault ? [] : paletteOffsets });
         }
     }
 

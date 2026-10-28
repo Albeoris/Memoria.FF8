@@ -53,6 +53,32 @@ public sealed class NativeBattleEntrySessionTests
         Assert.Contains("informationBYTE254", Assert.Throws<NotSupportedException>(() => new BattleSession(definition, BattleAtbMode.Normal)).Message);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void NativeAuxiliaryParticipantsPreserveTheirOriginalBlankDisplayNames(string name)
+    {
+        BattleDefinition definition = Definition(0);
+        definition = definition with { Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { Name = name }).ToArray() };
+
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+
+        Assert.Equal(name, battle.Combatants.Single(actor => !actor.IsPlayer).Name);
+        Assert.Equal(name, battle.Capture().Definition.Combatants.Single(actor => !actor.IsPlayer).Name);
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("", false)]
+    [InlineData(" ", false)]
+    public void NullNativeNamesAndBlankSyntheticNamesRemainInvalid(string? name, bool native)
+    {
+        BattleDefinition definition = Definition(0);
+        definition = definition with { Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { Name = name!, NativeTemplate = native ? actor.NativeTemplate : null }).ToArray() };
+
+        Assert.Throws<ArgumentException>(() => new BattleSession(definition, BattleAtbMode.Normal));
+    }
+
     private static BattleDefinition Definition(byte randomIndex)
     {
         NativeBattleEnemyLevel level = new(100, 20, 5, 20, 5, 100, Enumerable.Repeat(800, 8).ToArray(), [], [], 0);

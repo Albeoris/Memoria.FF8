@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleRawGeometryPackets
 {
-    public static ImmutableArray<NativeBattleGeometryPrimitive> Emit5099D0(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null)
+    public static ImmutableArray<NativeBattleGeometryPrimitive> Emit5099D0(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint colorFlags28, uint objectMask32, short? colorDepth36, int tableBaseBucket, byte depthShift, NativeBattleModelTextureBinding? textureBinding, NativeBattleSummonColors? colorRules = null, Action<IReadOnlyList<NativeBattleProjectedVertex>>? publishProjectedScratch = null, NativeBattleGeometryViewport? viewport = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (meshes.IsDefault)
         {
@@ -38,7 +38,14 @@ public static class NativeBattleRawGeometryPackets
                 // Retain native scratch flags while allowing presentation to submit a wider bounded canvas.
                 publishProjectedScratch(viewport.HasValue ? Project(new(0, 0, 320, 216)) : projected);
             }
-            result.AddRange(EmitProjected5099D0(mesh.Polygons, projected, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules, coordinates));
+            System.Numerics.Vector3[]? world = null;
+            NativeBattlePilotVisualIdentity? meshIdentity = null;
+            if (pilotIdentity is { } identity)
+            {
+                meshIdentity = identity with { Generation = NativeBattlePilotVisualLifetimes.EpochFor(mesh), Primitive = unchecked(identity.Primitive * 257 + index) };
+                world = mesh.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrices[vertex.Bone], vertex.Position), projection)).ToArray();
+            }
+            result.AddRange(EmitProjected5099D0(mesh.Polygons, projected, colorFlags28, tableBaseBucket, depthShift, colorDepth36, textureBinding, colorRules, coordinates, world, meshIdentity));
 
             NativeBattleProjectedVertex[] Project(NativeBattleGeometryViewport bounds)
             {
@@ -48,19 +55,29 @@ public static class NativeBattleRawGeometryPackets
         return result.ToImmutable();
     }
 
-    public static ImmutableArray<NativeBattleGeometryPrimitive> EmitProjected5099D0(ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> projected, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleModelTextureBinding? textureBinding = null, NativeBattleSummonColors? colorRules = null, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates = null)
+    public static ImmutableArray<NativeBattleGeometryPrimitive> EmitProjected5099D0(ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> projected, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleModelTextureBinding? textureBinding = null, NativeBattleSummonColors? colorRules = null, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates = null, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (polygons.IsDefault)
         {
             throw new NotSupportedException("Native5099D0 requires its actual four-group polygon records.");
         }
         ImmutableArray<NativeBattleGeometryPrimitive>.Builder result = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
-        foreach (NativeBattleRawPolygon polygon in polygons)
+        for (int polygonIndex = 0; polygonIndex < polygons.Length; polygonIndex++)
         {
+            NativeBattleRawPolygon polygon = polygons[polygonIndex];
             ImmutableArray<byte> source = textureBinding is null ? polygon.Bytes : Relocate507550(polygon, textureBinding);
             NativeBattleGeometryPrimitive? primitive = NativeBattleGeometryPackets.EmitRaw50FDF0(source.AsSpan(), projected, polygon.Quad, colorFlags28, tableBaseBucket, depthShift, colorDepth36, colorRules, projectedCoordinates);
             if (primitive is not null)
             {
+                if (pilotIdentity is { } identity && pilotWorldVertices is not null)
+                {
+                    System.Numerics.Vector3 Corner(int corner)
+                    {
+                        ushort selector = BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan().Slice(corner * 2));
+                        return pilotWorldVertices[corner == 0 ? selector & 0xFFF : selector];
+                    }
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + polygonIndex) }, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)(polygon.Quad ? 4 : 3)) };
+                }
                 result.Add(primitive);
             }
         }

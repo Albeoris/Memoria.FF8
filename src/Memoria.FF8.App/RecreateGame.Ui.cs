@@ -219,6 +219,8 @@ internal sealed partial class RecreateGame
         data.Settings["Field FPS"] = uiPreferences.FieldFps.ToString(System.Globalization.CultureInfo.InvariantCulture);
         data.Settings["World FPS"] = uiPreferences.WorldFps.ToString();
         data.Settings["Battle FPS"] = uiPreferences.BattleFps == 0 ? "Unlimited" : uiPreferences.BattleFps.ToString();
+        data.Settings["Battle motion"] = uiPreferences.BattleMotion == BattleMotionMode.Native ? "Native" : "Smooth compatible";
+        data.SupportedActions.Add("config:Battle motion");
         data.Settings["Menu FPS"] = uiPreferences.MenuFps == 0 ? "Unlimited" : uiPreferences.MenuFps.ToString();
         data.Settings["Show FPS"] = uiPreferences.ShowFps ? "On" : "Off";
         data.SupportedActions.Add("config:Show FPS");

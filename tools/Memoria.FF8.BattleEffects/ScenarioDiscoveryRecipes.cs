@@ -143,6 +143,12 @@ public static partial class ScenarioDiscovery
         {
             return false;
         }
+        if (ScenarioEnemyDiscovery.InitializationUnconditionallyDisablesTargeting(assets.ReadEnemyAi(owner.ModelId, 0).Scripts[0]))
+        {
+            blocker = "ENEMY_ACTIVATION_PRECONDITION: the original initialization callback unconditionally disables this participant's targeting; a genuine encounter phase transition is required before the declared targetable participant contract.";
+            return false;
+        }
+        byte[]? preparedParty = shootParty;
         int initialLevel = NativeStatDefinitions.Level(initial.Records[0].Experience, initial.Definitions.Characters[initial.Records[0].CharacterId]);
         int selectedLevel = initialLevel;
         int physical = -1;
@@ -159,16 +165,21 @@ public static partial class ScenarioDiscovery
                 //The original programme anchors physical3 and4 at bone38; its actual turn producer is the second actor.
                 continue;
             }
+            if (!TrySelectStageEntryParty(formation.StageId, formation.Id, initial.Records, initial.CombatParty, out byte[]? stageParty, out blocker))
+            {
+                continue;
+            }
+            byte[]? candidateParty = shootParty ?? stageParty;
             bool bandMatches = false;
             for (int partyLevel = initialLevel; partyLevel <= 100; partyLevel++)
             {
                 (int, int, int) key = (owner.ModelId, context.SceneLevel, partyLevel);
                 int[]? bands = null;
-                if (shootParty is not null || !possibleBands.TryGetValue(key, out bands))
+                if (candidateParty is not null || !possibleBands.TryGetValue(key, out bands))
                 {
-                    byte[] partyLevels = (shootParty ?? initial.CombatParty).Where(row => row != 255).Select(row => row == 0 ? checked((byte)partyLevel) : NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId])).ToArray();
+                    byte[] partyLevels = (candidateParty ?? initial.CombatParty).Where(row => row != 255).Select(row => row == 0 ? checked((byte)partyLevel) : NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId])).ToArray();
                     bands = ResolvePossibleEnemyLevels(checked((byte)context.SceneLevel), partyLevels).Select(level => assets.ReadEnemyAi(owner.ModelId, level).LevelBand).Distinct().Order().ToArray();
-                    if (shootParty is null)
+                    if (candidateParty is null)
                     {
                         possibleBands.Add(key, bands);
                     }
@@ -190,20 +201,22 @@ public static partial class ScenarioDiscovery
                 continue;
             }
             chosen = context;
+            preparedParty = candidateParty;
             physical = index + 3;
             break;
         }
         if (chosen is null)
         {
-            blocker = "ENEMY_PHASE_OR_LEVEL_PRECONDITION: no original enabled, visible, unsuspended, targetable scene slot preserves this exact ability level band for every native entry RNG roll at any legitimate increased Squall level through100. Hidden reinforcements and phase actors require genuine activation; a different level/formation is not fabricated.";
+            blocker ??= "ENEMY_PHASE_OR_LEVEL_PRECONDITION: no original enabled, visible, unsuspended, targetable scene slot preserves this exact ability level band for every native entry RNG roll at any legitimate increased Squall level through100. Hidden reinforcements and phase actors require genuine activation; a different level/formation is not fabricated.";
             return false;
         }
+        blocker = null;
         string actor = $"enemy-{chosen.SceneSlot}";
         string target = selectorProof.TargetSelector is 200 or 205 ? actor : "party-0";
         JsonObject result = JsonNode.Parse(File.ReadAllText(templatePath))!.AsObject();
-        if (shootParty is not null)
+        if (preparedParty is not null)
         {
-            result["fixture"]!["combat_party"] = new JsonArray(shootParty.Select(row => (JsonNode)JsonValue.Create(row)!).ToArray());
+            result["fixture"]!["combat_party"] = new JsonArray(preparedParty.Select(row => (JsonNode)JsonValue.Create(row)!).ToArray());
         }
         result["encounter"] = chosen.FormationId;
         result["target"] = new JsonObject { ["actor_id"] = actor, ["stage"] = chosen.StageId, ["model"] = owner.ModelId, ["scene_slot"] = chosen.SceneSlot, ["physical_index"] = physical, ["flags_mask"] = 195, ["flags_value"] = 1, ["opening_action"] = null, ["opening_effect"] = null };

@@ -113,7 +113,7 @@ public sealed partial class BattleSession
             int address = checked(cursor + allocated.ByteOffset);
             links.InvalidatePacketRange(new(bank, process.PacketBuffer, address), primitive.Words.Length * 4);
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-            links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, allocated.Flags20, primitive.VertexPayload4, moduleDraw);
+            links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, allocated.Flags20, primitive.VertexPayload4, moduleDraw, pilotGeometry: primitive.PilotGeometry);
             stores.AddRange(NativeBattleCommonPacketArena.PrimitiveStores(address, primitive, linked));
             if (linked)
             {

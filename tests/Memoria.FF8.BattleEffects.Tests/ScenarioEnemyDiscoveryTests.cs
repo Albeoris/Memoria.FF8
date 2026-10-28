@@ -8,6 +8,20 @@ namespace Memoria.FF8.BattleEffects.Tests;
 
 public sealed class ScenarioEnemyDiscoveryTests
 {
+    [Theory]
+    [InlineData(new byte[] { 48, 36, 0 }, true)]
+    [InlineData(new byte[] { 36, 48, 0 }, true)]
+    [InlineData(new byte[] { 48, 47, 0 }, false)]
+    [InlineData(new byte[] { 47, 48, 0 }, true)]
+    [InlineData(new byte[] { 48, 2, 0 }, false)]
+    [InlineData(new byte[] { 48, 35, 0 }, false)]
+    [InlineData(new byte[] { 48 }, false)]
+    [InlineData(new byte[] { 0, 48, 0 }, false)]
+    public void InitializationTargetabilityProofRequiresAKnownTerminatedStraightLinePrefix(byte[] code, bool expected)
+    {
+        Assert.Equal(expected, ScenarioEnemyDiscovery.InitializationUnconditionallyDisablesTargeting(code));
+    }
+
     [Fact]
     public void ScriptDiscoveryFindsPreparedDirectActionsGraphicsAndDynamicDrawWithoutInventedIds()
     {

@@ -1,5 +1,7 @@
 using System.Buffers;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -75,6 +77,8 @@ public sealed record NativeBattleTextureRegistration(NativeBattleTextureOrigin O
 /// <summary>Tracks upload ownership independently of copied pixel provenance.</summary>
 public static class NativeBattleTextureCopyHistory
 {
+    private static readonly ConditionalWeakTable<NativeBattleTextureRegistration[], object> ValidatedCollections = new();
+    private static readonly object ValidationReceipt = new();
     public static ImmutableArray<NativeBattleTextureRegistration>? Upload(ImmutableArray<NativeBattleTextureRegistration>? registrations, int x, int y, int width, int height, NativeBattleTextureOrigin? origin = null)
     {
         Validate(registrations);
@@ -156,9 +160,19 @@ public static class NativeBattleTextureCopyHistory
         {
             throw new InvalidDataException("Native texture registrations require an explicit owner collection.");
         }
+        NativeBattleTextureRegistration[] values = ImmutableCollectionsMarshal.AsArray(known)!;
+        ValidatedCollections.GetValue(values, static registrations =>
+        {
+            ValidateCollection(registrations);
+            return ValidationReceipt;
+        });
+    }
+
+    private static void ValidateCollection(ReadOnlySpan<NativeBattleTextureRegistration> registrations)
+    {
         HashSet<int> owners = [];
         List<NativeBattleTextureOwnedSpan> occupied = [];
-        foreach (NativeBattleTextureRegistration registration in known)
+        foreach (NativeBattleTextureRegistration registration in registrations)
         {
             registration.Validate();
             if (!owners.Add(registration.OwnerId))

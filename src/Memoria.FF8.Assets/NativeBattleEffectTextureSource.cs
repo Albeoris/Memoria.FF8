@@ -33,6 +33,11 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
     private readonly ConditionalWeakTable<NativeBattlePcTextureWindowPixels, SourceRevision> retainedRevisions = new();
     private readonly Dictionary<TextureKey, LinkedListNode<TextureKey>> retained = [];
     private readonly LinkedList<TextureKey> recent = [];
+    private object? lastVramPublication;
+    private ImmutableArray<NativeBattleTextureSourceRegion>? lastLiveSources;
+    private ImmutableArray<NativeBattleTextureRegistration>? lastRegistrations;
+    private ImmutableArray<byte>? lastVramReadTail;
+    private SourceRevision? lastRevision;
 
     private sealed class SourceRevision
     {
@@ -138,7 +143,7 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
             int localX = left - queryX;
             int localY = top - queryY;
             TextureSourcePageAddress nativePage = Page(retainedPixels is null ? state.TextureRegistrations : retainedPixels.TextureRegistrations, source, page, paletteX, paletteY, u, v, width, height, left - pageX * pixelsPerWord, top - pageY, cropWidth, cropHeight);
-            TextureBuildContext context = new(key, resources.Source, revisions.GetValue(state, _ => new()).Value, "native-effect-texture", cropWidth, cropHeight, () => NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, u + localX, v + localY, cropWidth, cropHeight, directTextureFormat: directTextureFormat, pixelWords: retainedPixels), new(source.X, source.Y, source.Origin.BitsPerPixel, source.Origin.WidthWords * pixelsPerWord, source.Origin.Height, paletteX, paletteY), paletteCount: source.Origin.PaletteRectangle?.Height ?? 1)
+            TextureBuildContext context = new(key, resources.Source, Revision(state).Value, "native-effect-texture", cropWidth, cropHeight, () => NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, u + localX, v + localY, cropWidth, cropHeight, directTextureFormat: directTextureFormat, pixelWords: retainedPixels), new(source.X, source.Y, source.Origin.BitsPerPixel, source.Origin.WidthWords * pixelsPerWord, source.Origin.Height, paletteX, paletteY), paletteCount: source.Origin.PaletteRectangle?.Height ?? 1)
             {
                 NativeAlias = alias,
                 NativePage = nativePage
@@ -152,6 +157,25 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
             }
         }
         return Compose(original, width, height, replacements);
+    }
+
+    private SourceRevision Revision(NativeBattleEffectTextureState state)
+    {
+        if (!revisions.TryGetValue(state, out SourceRevision? revision))
+        {
+            bool samePublication = ReferenceEquals(lastVramPublication, state.VramPublicationIdentity)
+                && lastLiveSources == state.LiveTextureSources
+                && lastRegistrations == state.TextureRegistrations
+                && lastVramReadTail == state.VramReadTail;
+            revision = samePublication && lastRevision is not null ? lastRevision : new();
+            revisions.Add(state, revision);
+        }
+        lastVramPublication = state.VramPublicationIdentity;
+        lastLiveSources = state.LiveTextureSources;
+        lastRegistrations = state.TextureRegistrations;
+        lastVramReadTail = state.VramReadTail;
+        lastRevision = revision;
+        return revision;
     }
 
     private static int PaletteRow(NativeBattleTextureSourceRegion pixels, int x, int y)
@@ -243,5 +267,10 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
         resources.Release(retained.Keys.ToArray());
         retained.Clear();
         recent.Clear();
+        lastVramPublication = null;
+        lastLiveSources = null;
+        lastRegistrations = null;
+        lastVramReadTail = null;
+        lastRevision = null;
     }
 }

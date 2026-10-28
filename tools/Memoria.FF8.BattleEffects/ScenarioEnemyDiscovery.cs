@@ -288,6 +288,32 @@ public static class ScenarioEnemyDiscovery
         }
     }
 
+    public static bool InitializationUnconditionallyDisablesTargeting(ReadOnlySpan<byte> code)
+    {
+        bool untargetable = false;
+        foreach (byte opcode in code)
+        {
+            switch (opcode)
+            {
+                case 0:
+                    return untargetable;
+                case 36:
+                    break;
+                case 47:
+                    untargetable = false;
+                    break;
+                case 48:
+                    untargetable = true;
+                    break;
+                default:
+                    // Only these operand-free, straight-line initialization operations
+                    // establish this proof. Other scripts require their actual execution.
+                    return false;
+            }
+        }
+        return false;
+    }
+
     private static int InstructionWidth(byte opcode) => opcode switch
     {
         2 => 8,

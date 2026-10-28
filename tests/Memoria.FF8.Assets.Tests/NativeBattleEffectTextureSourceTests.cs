@@ -316,6 +316,104 @@ public sealed class NativeBattleEffectTextureSourceTests
     }
 
     [Fact]
+    public void RecordCopiesWithTheSameTexturePublicationReuseTheResourceRevisionAndReloadNormally()
+    {
+        NativeBattleEffectTextureState state = PixelState(new("mag012_b.00", 2, NativeBattleTextureRole.Pixels, 4, 1, 1));
+        using InMemoryResourceSource source = Source();
+        ResourceService resources = new(source);
+        RecordingResolver first = new(context => Solid(context, new(20, 0, 0, 127)));
+        resources.Prepare(first).Commit();
+        using NativeBattleEffectTextureSource textures = new(resources);
+        PixelImage original = new(4, 1);
+        textures.Apply(original, state, 0, 0, 0, 0, 4, 1);
+        long generation = resources.Generation;
+
+        for (int frame = 0; frame < 32; frame++)
+        {
+            NativeBattleEffectTextureState alias = state.OpenTextureFile(new($"mag{frame:000}.tim", NativeBattleTextureDomain.Magic));
+            Assert.Same(state.VramPublicationIdentity, alias.VramPublicationIdentity);
+            Assert.Equal((byte)20, textures.Apply(original, alias, 0, 0, 0, 0, 4, 1)[0, 0].R);
+            state = alias;
+        }
+
+        Assert.Single(first.Contexts);
+        Assert.Equal(generation, resources.Generation);
+        Assert.Equal(1, resources.ResidentTextureCount);
+        RecordingResolver second = new(context => Solid(context, new(90, 0, 0, 127)));
+        resources.Prepare(second).Commit();
+        NativeBattleEffectTextureState reloadedAlias = state with { Count = 1 };
+        Assert.Equal((byte)90, textures.Apply(original, reloadedAlias, 0, 0, 0, 0, 4, 1)[0, 0].R);
+        Assert.Single(second.Contexts);
+        Assert.Equal(1, resources.ResidentTextureCount);
+    }
+
+    [Theory]
+    [InlineData("pixels")]
+    [InlineData("palette")]
+    [InlineData("source")]
+    [InlineData("registration")]
+    [InlineData("tail")]
+    public void EveryTexturePublicationInputInvalidatesTheResourceRevision(string change)
+    {
+        NativeBattleEffectTextureState state = AnchoredState().PublishVramSpan(2 * (33 * 1024 + 1), new byte[] { 31, 0 });
+        using InMemoryResourceSource source = Source();
+        ResourceService resources = new(source);
+        RecordingResolver resolver = new(context => Solid(context, context.Original[0, 0]));
+        resources.Prepare(resolver).Commit();
+        using NativeBattleEffectTextureSource textures = new(resources);
+        PixelImage original = new(8, 1);
+        textures.Apply(original, state, 17, Clut(0, 33), 0, 0, 8, 1);
+        long generation = resources.Generation;
+        NativeBattleEffectTextureState changed;
+        switch (change)
+        {
+            case "pixels":
+                changed = state.PublishVramSpan(2 * (256 * 1024 + 64), new byte[] { 0x11, 0x11 });
+                break;
+            case "palette":
+                changed = state.PublishVramSpan(2 * (33 * 1024), new byte[] { 0, 124 });
+                break;
+            case "source":
+                ImmutableArray<NativeBattleTextureSourceRegion> sources = state.LiveTextureSources!.Value;
+                NativeBattleTextureSourceRegion pixels = sources[0];
+                changed = state with { LiveTextureSources = sources.SetItem(0, pixels with { Origin = pixels.Origin with { WidthWords = pixels.Origin.WidthWords + 1 } }) };
+                break;
+            case "registration":
+                ImmutableArray<NativeBattleTextureRegistration> registrations = state.TextureRegistrations!.Value;
+                NativeBattleTextureRegistration registration = registrations[0];
+                changed = state with { TextureRegistrations = registrations.SetItem(0, registration with { CopyFrames = [new(64, 256, 1, 1)], CurrentFrame = 0, CopyHistoryKnown = true, PaletteOwnedSpans = [] }) };
+                break;
+            default:
+                changed = state with { VramReadTail = state.VramReadTail!.Value.SetItem(0, 1) };
+                break;
+        }
+
+        textures.Apply(original, changed, 17, Clut(0, 33), 0, 0, 8, 1);
+        textures.Apply(original, changed.OpenTextureFile(new("next.tim", NativeBattleTextureDomain.Magic)), 17, Clut(0, 33), 0, 0, 8, 1);
+
+        Assert.Equal(2, resolver.Contexts.Count);
+        Assert.NotEqual(resolver.Contexts[0].Revision, resolver.Contexts[1].Revision);
+        Assert.True(resources.Generation > generation);
+        Assert.Equal(1, resources.ResidentTextureCount);
+        if (change is "pixels" or "palette")
+        {
+            Assert.NotEqual(resolver.Contexts[0].Original[0, 0], resolver.Contexts[1].Original[0, 0]);
+        }
+        else
+        {
+            Assert.Same(state.VramPublicationIdentity, changed.VramPublicationIdentity);
+        }
+        if (change == "source")
+        {
+            Assert.Equal(12, resolver.Contexts[1].NativeAlias!.CanvasWidth);
+        }
+        if (change == "registration")
+        {
+            Assert.Equal(0, Assert.Single(resolver.Contexts[1].NativePage!.Members).Frame);
+        }
+    }
+
+    [Fact]
     public void ALongSequenceOfPaletteQueriesKeepsOnlyBoundedResidentContexts()
     {
         NativeBattleEffectTextureState state = PixelState(new("mag012_b.00", 2, NativeBattleTextureRole.Pixels, 4, 1, 1));

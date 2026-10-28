@@ -3,6 +3,12 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.GameUi;
 
+internal enum BattleMotionMode
+{
+    Native,
+    SmoothCompatible
+}
+
 /// <summary>Local presentation preferences and battle settings applied to the running game.</summary>
 internal sealed record UiPreferences
 {
@@ -16,6 +22,7 @@ internal sealed record UiPreferences
     public int FieldFps { get; init; } = 60;
     public int WorldFps { get; init; } = 60;
     public int BattleFps { get; init; } = 60;
+    public BattleMotionMode BattleMotion { get; init; } = BattleMotionMode.Native;
     public int MenuFps { get; init; } = 60;
     public int MusicVolume { get; init; } = 100;
     public int SoundVolume { get; init; } = 100;
@@ -192,6 +199,15 @@ internal sealed record UiPreferences
                 "On" => this with { VSync = true },
                 "Off" => this with { VSync = false },
                 _ => throw new ArgumentException("V-Sync requires On or Off.")
+            };
+        }
+        if (key == "Battle motion")
+        {
+            return value switch
+            {
+                "Native" => this with { BattleMotion = BattleMotionMode.Native },
+                "Smooth compatible" => this with { BattleMotion = BattleMotionMode.SmoothCompatible },
+                _ => throw new ArgumentException("Battle motion requires Native or Smooth compatible.")
             };
         }
         if (key is "Battle FPS" or "Menu FPS")
@@ -420,6 +436,10 @@ internal sealed record UiPreferences
             throw new InvalidDataException("Triple Triad settings are missing.");
         }
         TripleTriad.Validate(Difficulty);
+        if (!Enum.IsDefined(BattleMotion))
+        {
+            throw new InvalidDataException("Battle motion mode is unsupported.");
+        }
         if (WindowWidth < 1 || WindowHeight < 1)
         {
             throw new InvalidDataException("Window dimensions must be positive.");

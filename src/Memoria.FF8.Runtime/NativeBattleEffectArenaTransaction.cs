@@ -22,6 +22,7 @@ internal sealed partial class NativeBattleEffectArenaTransaction : IDisposable
         {
             if (!privateLayer)
             {
+                NativeBattleTaskOperation.EnlistRetained(source.Working);
                 RegisterRoute();
             }
         }

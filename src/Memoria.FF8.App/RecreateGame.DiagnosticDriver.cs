@@ -228,9 +228,11 @@ internal sealed partial class RecreateGame
         string? receipt = diagnosticDriverRecipe!.ProgressPath ?? (string.IsNullOrWhiteSpace(output) ? null : Path.Combine(output, "diagnostic-driver.json"));
         if (receipt is not null && (stage != diagnosticLastReceiptStage || driver.Stage != diagnosticLastReceiptDriverStage || driver.Finished))
         {
-            diagnosticLastReceiptStage = stage;
-            diagnosticLastReceiptDriverStage = driver.Stage;
-            WriteDiagnosticJson(receipt, new { Status = driver.Stage == DiagnosticDriverStage.Completed ? "CANDIDATE_COMPLETED" : driver.Finished ? "BLOCKED" : "RUNNING", Coverage = "LIVE_DIAGNOSTIC", Stage = driver.Stage.ToString(), driver.Execution, driver.Blocker, driver.LastDrainBlockers, Dispatches = driver.Dispatches, Initialization = world?.DiagnosticReceipt, Callback = callback, Frame = diagnosticDriverBattle?.Frame });
+            if (WriteDiagnosticJson(receipt, new { Status = driver.Stage == DiagnosticDriverStage.Completed ? "CANDIDATE_COMPLETED" : driver.Finished ? "BLOCKED" : "RUNNING", Coverage = "LIVE_DIAGNOSTIC", Stage = driver.Stage.ToString(), driver.Execution, driver.Blocker, driver.LastDrainBlockers, Dispatches = driver.Dispatches, Initialization = world?.DiagnosticReceipt, Callback = callback, Frame = diagnosticDriverBattle?.Frame }))
+            {
+                diagnosticLastReceiptStage = stage;
+                diagnosticLastReceiptDriverStage = driver.Stage;
+            }
         }
     }
 
@@ -305,21 +307,11 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private static void WriteDiagnosticJson(string path, object value, bool replace = true)
+    private static bool WriteDiagnosticJson(string path, object value, bool replace = true)
     {
-        string full = Path.GetFullPath(path);
-        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-        string temporary = full + ".tmp";
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(value, DiagnosticBattleJson);
-        File.WriteAllBytes(temporary, bytes);
+        bool published = DiagnosticJsonPublication.Publish(path, bytes, progress: replace);
         NativeBattleTelemetry.Record(2005, NativeBattleTrafficKind.DiagnosticOutput, bytes.Length);
-        if (replace && File.Exists(full))
-        {
-            File.Replace(temporary, full, destinationBackupFileName: null);
-        }
-        else
-        {
-            File.Move(temporary, full);
-        }
+        return published;
     }
 }

@@ -22,7 +22,7 @@ internal static class SettingsPlacement
     internal static readonly IReadOnlyDictionary<string, SettingsPage> Pages = new Dictionary<string, SettingsPage>(StringComparer.Ordinal)
     {
         ["config-graphics"] = new("Graphics", "Presentation preferences shared across saves.",
-            ["Anti-aliasing", "Graphics backend", "Window mode", "V-Sync", "config-frame-limits", "Show FPS"]),
+            ["Anti-aliasing", "Graphics backend", "Window mode", "V-Sync", "config-frame-limits", "Battle motion", "Show FPS"]),
         ["config-frame-limits"] = new("Frame rate limits", "Presentation caps; simulation speed is unchanged. V-Sync can limit output further.",
             ["Field FPS", "World FPS", "Battle FPS", "Menu FPS"]),
         ["config-audio"] = new("Audio", "Output levels shared across saves.",
@@ -60,6 +60,7 @@ internal static class SettingsPlacement
             ["Field FPS"] = "field-cap",
             ["World FPS"] = "world-cap",
             ["Battle FPS"] = "battle-cap",
+            ["Battle motion"] = "battle-motion",
             ["Menu FPS"] = "menu-cap",
             ["Sound"] = "native-sound",
             ["Controller"] = "native-controller",
@@ -144,6 +145,7 @@ internal static class SettingsPlacement
                 "Field FPS" => "UiPreferences.FieldFps",
                 "World FPS" => "UiPreferences.WorldFps",
                 "Battle FPS" => "UiPreferences.BattleFps",
+                "Battle motion" => "UiPreferences.BattleMotion",
                 "Menu FPS" => "UiPreferences.MenuFps",
                 "Quick saves" => "UiPreferences.QuickSaveCount",
                 "Cursor" => "UiPreferences.CursorMemory",

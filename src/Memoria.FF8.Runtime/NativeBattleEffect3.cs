@@ -58,6 +58,7 @@ public static class NativeBattleEffect3
         ImmutableArray<int>.Builder contacts = ImmutableArray.CreateBuilder<int>();
         ImmutableArray<NativeBattleEffect3Sound>.Builder sounds = ImmutableArray.CreateBuilder<NativeBattleEffect3Sound>();
         int? drawArenaOffset = effect.DrawArenaOffset;
+        NativeBattlePilotVisualIdentity? drawingIdentity = null;
         NativeBattleEffectTaskStep main = effect.Pools[0].Advance((pool, slot) =>
         {
             NativeBattleModulePoolTask task = pool.Slots[slot];
@@ -113,6 +114,7 @@ public static class NativeBattleEffect3
         NativeBattleEffectTaskCallback AdvanceChild(NativeBattleEffectTaskPool pool, int slot)
         {
             NativeBattleModulePoolTask task = pool.Slots[slot];
+            drawingIdentity = new(3, pool.DescriptorAddress, slot, NativeBattlePilotVisualLifetimes.Generation(task, slot), 0);
             if (task.Callback != 0x700DE0)
             {
                 throw new NotSupportedException("Native effect3 child lost its700DE0 callback.");
@@ -173,7 +175,7 @@ public static class NativeBattleEffect3
                 return;
             }
             NativeBattleModuleResource resource = resources.Sprites.Single(resource => resource.Address == address);
-            draws.Add(new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(phase - first), Phase = (ushort)(phase - first), Anchor = anchor, Scale = 4096, DepthOffset = depth, Direction = 4096, SpriteFlags = 0, SpriteWorldRotation = ground ? NativeBattlePoseMatrices.RotationWords(new(90, 0, 0)) : [], SpriteCameraZOffset = ground ? 500 : 0 });
+            draws.Add(new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = drawingIdentity is { } identity ? identity with { Primitive = unchecked((int)address) } : null, PilotContinuous = false, Resource = resource, SpriteFrame = resource.SpriteFrame(phase - first), Phase = (ushort)(phase - first), Anchor = anchor, Scale = 4096, DepthOffset = depth, Direction = 4096, SpriteFlags = 0, SpriteWorldRotation = ground ? NativeBattlePoseMatrices.RotationWords(new(90, 0, 0)) : [], SpriteCameraZOffset = ground ? 500 : 0 });
         }
 
         NativeBattleActionHeaderSlot Header(int sequence)

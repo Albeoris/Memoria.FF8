@@ -527,7 +527,8 @@ internal sealed partial class RecreateGame
         byte[] pixels;
         try
         {
-            pixels = battleScene!.Render(active, size.Width, size.Height, battleGpu);
+            battleScene!.SmoothCompatibleMotion = uiPreferences.BattleMotion == BattleMotionMode.SmoothCompatible;
+            pixels = battleScene.Render(active, size.Width, size.Height, battleGpu);
         }
         catch
         {

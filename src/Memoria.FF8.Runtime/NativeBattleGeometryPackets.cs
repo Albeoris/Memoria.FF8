@@ -8,6 +8,8 @@ public sealed record NativeBattleGeometryPrimitive(int Bucket, ImmutableArray<ui
 {
     public ImmutableArray<NativeBattleGfPacketByteState>? PhysicalWriteMask { get; init; }
     public ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualGeometry? PilotGeometry { get; init; }
 }
 
 /// <summary>50FDF0's original FT3/FT4 packet emission; inputs are original records, never float-renderer depth estimates.</summary>

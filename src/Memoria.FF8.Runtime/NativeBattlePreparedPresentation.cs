@@ -67,4 +67,10 @@ public sealed record NativeBattlePreparedScan(NativeBattleScanTextFrame Text, Na
 }
 
 /// <summary>One completed host presentation, composed from stable immutable components after immediate UI publication.</summary>
-public sealed record NativeBattlePreparedPresentation(long Version, long Callback, long Frame, bool GuardianAnimationSkipPending, NativeBattlePreparedPrimitiveFrame Primitives, NativeBattleEffectTextureState? Textures, NativeBattlePcTextureWindowCache? TextureWindows, NativeBattlePcUiFrame? UiFrame, NativeBattleCameraPose? Camera, ImmutableArray<NativeBattleDamageTextDraw> DamageText, int? StageResourceId, long? StageTextureAnimationStartCallback, ImmutableArray<NativeBattlePreparedActor> Actors, NativeBattlePreparedScan? Scan);
+public sealed record NativeBattlePreparedPresentation(long Version, long Callback, long Frame, bool GuardianAnimationSkipPending, NativeBattlePreparedPrimitiveFrame Primitives, NativeBattleEffectTextureState? Textures, NativeBattlePcTextureWindowCache? TextureWindows, NativeBattlePcUiFrame? UiFrame, NativeBattleCameraPose? Camera, ImmutableArray<NativeBattleDamageTextDraw> DamageText, int? StageResourceId, long? StageTextureAnimationStartCallback, ImmutableArray<NativeBattlePreparedActor> Actors, NativeBattlePreparedScan? Scan)
+{
+    public ushort? PilotEffect { get; init; }
+    public long PilotGeneration { get; init; }
+    public NativeBattleCameraProjection? PilotProjection { get; init; }
+    public NativeBattleCameraPose? PilotCamera { get; init; }
+}

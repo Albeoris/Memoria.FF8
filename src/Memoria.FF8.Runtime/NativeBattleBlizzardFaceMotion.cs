@@ -114,7 +114,12 @@ public static class NativeBattleBlizzardFaceMotion
             }
             ImmutableArray<NativeBattleModuleProjectedVertex> corners = vertices.Select(vertex => NativeBattleModuleProjection.Project45FE10(matrix, vertex, projection)).ToImmutableArray();
             NativeBattleBlizzardFacePacketContext context = new(primaryColor, phase >= 40 ? 0xC3u : 0, phase >= 40 ? 0u : null, phase >= 40 ? (phase - 40) << 9 : null, phase * 8 % 128, new(0, 128, 128, 128), new(0, 0, 0, 0), 17, 2);
-            emit(NativeBattleBlizzardFacePackets.EmitFace61B9A0(primary, partner, corners, Read(14), Read(22), context, colors));
+            NativeBattleGfGeometryBatch emitted = NativeBattleBlizzardFacePackets.EmitFace61B9A0(primary, partner, corners, Read(14), Read(22), context, colors);
+            System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertices[corner]), projection);
+            NativeBattlePilotVisualIdentity identity = new(144, 0x24BD788, task.PilotSlot, NativeBattlePilotVisualLifetimes.Generation(task, task.PilotSlot), sequence * 80 + index);
+            NativeBattlePilotVisualGeometry visual = new(identity, World(0), World(1), World(2), default, 3);
+            emitted = emitted with { Attempts = emitted.Attempts.Select((attempt, layer) => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = visual with { Identity = identity with { Primitive = identity.Primitive * 2 + layer } } } } : attempt).ToImmutableArray() };
+            emit(emitted);
 
             short Read(int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(row + offset));
             void Write(int offset, int value) => BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(row + offset), unchecked((ushort)value));

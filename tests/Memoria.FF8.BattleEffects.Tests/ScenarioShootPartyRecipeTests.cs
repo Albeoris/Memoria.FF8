@@ -55,5 +55,42 @@ public sealed class ScenarioShootPartyRecipeTests
         Assert.Equal(new byte[] { 0, 2, 3 }, party);
     }
 
+    [Theory]
+    [InlineData(136)]
+    [InlineData(1000)]
+    public void Stage147IntroPreparesItsRequiredPhysicalPartySlotsFromOriginalLivingRecords(int encounter)
+    {
+        NativeCharacterVital[] records = Records();
+
+        Assert.True(ScenarioDiscovery.TrySelectStageEntryParty(147, encounter, records, new byte[] { 0, 255, 255 }, out byte[]? party, out string? blocker), blocker);
+
+        Assert.Equal(new byte[] { 0, 1, 2 }, party);
+        Assert.All(records, record => Assert.Equal(new NativeHpWord(100, 100), record.HitPoints));
+    }
+
+    [Theory]
+    [InlineData(147, 137)]
+    [InlineData(34, 136)]
+    public void OrdinaryStagesDoNotAddPartyMembers(int stage, int encounter)
+    {
+        Assert.True(ScenarioDiscovery.TrySelectStageEntryParty(stage, encounter, Records(), new byte[] { 0, 255, 255 }, out byte[]? party, out string? blocker));
+        Assert.Null(party);
+        Assert.Null(blocker);
+    }
+
+    [Fact]
+    public void Stage147IntroDoesNotInventARequiredLivingPartyRecord()
+    {
+        NativeCharacterVital[] records = Records();
+        for (int row = 2; row < records.Length; row++)
+        {
+            records[row] = records[row] with { HitPoints = new(0, 0) };
+        }
+
+        Assert.False(ScenarioDiscovery.TrySelectStageEntryParty(147, 136, records, new byte[] { 0, 255, 255 }, out byte[]? party, out string? blocker));
+        Assert.Null(party);
+        Assert.StartsWith("STAGE_ENTRY_PARTY_PRECONDITION:", blocker);
+    }
+
     private static NativeCharacterVital[] Records() => Enumerable.Range(0, 8).Select(index => new NativeCharacterVital((byte)index, new(100, 100), 0, null!, 0, 0, 0, [], [], 0, 0)).ToArray();
 }

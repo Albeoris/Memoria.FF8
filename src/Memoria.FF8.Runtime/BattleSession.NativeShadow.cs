@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -32,6 +34,11 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveProcess packets = memory.PrimitiveProcess ?? throw new NotSupportedException("Native5088A0 requires its actual common packet cursor.");
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native5088A0 requires its initialized OT.");
         NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native5088A0 requires modelDWORD44."), gouraud, tableBaseBucket, depthShift);
+        if (NativePilotSceneIdentity(0x5088A0, model.Index) is { } identity)
+        {
+            System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shape.CameraMatrix, shape.Vertices[corner]), projection);
+            batch = batch with { Attempts = batch.Attempts.Select((attempt, index) => index is >= 1 and <= 8 && attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = index - 1 }, World(0), World(index), World(index + 1), default, 3) } } : attempt).ToImmutableArray() };
+        }
         if (privateOrderingAddress is uint table)
         {
             NativeBattleRinoa89Frame capture = new(memory, graphics.OriginalEffect ?? throw new NotSupportedException("Native private shadow capture requires its actual effect owner."), NativeFileStaging ?? throw new NotSupportedException("Native private shadow capture requires its actual staging owner."), nativeCrtRandom ?? throw new NotSupportedException("Native private capture requires its actual CRT owner."));

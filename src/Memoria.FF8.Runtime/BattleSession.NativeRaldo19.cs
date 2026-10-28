@@ -103,8 +103,7 @@ public sealed partial class BattleSession
         NativeBattleRaldo19Frame DrawDebris(NativeBattleRaldo19Frame current, NativeBattleRaldo19DebrisSprite sprite)
         {
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging ?? throw new NotSupportedException("Raldo debris requires its retained temporary memory."), NativeBattleRaldo19DebrisRendering.TemporaryLength);
-            NativeBattleEffectArena captured = NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, NativeBattleRaldo19DebrisRendering.TemporaryLength);
-            NativeBattleEffectArena bounded = new(captured.Regions) { UnknownRegions = captured.UnknownRegions.Where(region => region.Offset < NativeBattleRaldo19DebrisRendering.TemporaryLength).Select(region => region with { Length = Math.Min(region.Length, NativeBattleRaldo19DebrisRendering.TemporaryLength - region.Offset) }).ToImmutableArray() };
+            NativeBattleEffectArena bounded = NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, NativeBattleRaldo19DebrisRendering.TemporaryLength);
             NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(sprite.TaskAddress);
             NativeBattleRaldo19DebrisHead head = NativeBattleRaldo19DebrisRendering.PrepareHead(current, task, camera.CapturePackedView1D97778(), bounded);
             NativeBattleRaldo19DebrisDraw drawn = NativeBattleRaldo19DebrisRendering.Draw(head, resources, projection, camera.Roll, 17);

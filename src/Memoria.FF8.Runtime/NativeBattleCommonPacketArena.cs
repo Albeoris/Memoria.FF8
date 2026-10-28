@@ -80,7 +80,7 @@ public static class NativeBattleCommonPacketArena
                 throw new InvalidDataException("Native linked common packet leaves its accepted allocation.");
             }
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-            links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
+            links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw, pilotGeometry: primitive.PilotGeometry);
             if (linked)
             {
                 stores.Add(new(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), KnownLinkMask));

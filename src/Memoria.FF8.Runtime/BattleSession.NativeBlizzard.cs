@@ -64,7 +64,7 @@ public sealed partial class BattleSession
                         NativeBattleActionMatrix world = NativeBattleBlizzardFaceMotion.World(task, new(0, 0, 0), scale, 4096, scale);
                         NativeBattleActionMatrix matrix = NativeBattleBlizzardFaceMotion.Compose(view, world);
                         NativeBattleGfGeometryContext context = new(phase >= 8 ? 0xC3u : 3u, 0, phase >= 8 ? (phase - 8) * 682 : 0, null, null, 0, 17, 2);
-                        return Append(current, NativeBattleGfGeometryPackets.EmitBatch7043B0(resources.BurstMesh.Bytes, 0, default, matrix, projection, context, colors));
+                        return Append(current, NativeBattleGfGeometryPackets.EmitBatch7043B0(resources.BurstMesh.Bytes, 0, default, matrix, projection, context, colors, pilotIdentity: new(144, 0x24BD788, task.PilotSlot, NativeBattlePilotVisualLifetimes.Generation(task, task.PilotSlot), unchecked((int)task.Callback))));
                     }
                     bool five = task.Callback == 0x61B660;
                     short spriteScale = NativeBattleBlizzardController.Word(task, task.Callback == 0x61B4F0 ? 32 : 28);
@@ -73,6 +73,7 @@ public sealed partial class BattleSession
                     uint color = five && phase >= 4 ? unchecked((uint)(byte)(phase * 224)) * 0x10101u : 0x808080;
                     NativeBattleModuleDraw sprite = new(NativeBattleModuleDrawKind.Sprite, 0)
                     {
+                        PilotIdentity = new(144, 0x24BD788, task.PilotSlot, NativeBattlePilotVisualLifetimes.Generation(task, task.PilotSlot), unchecked((int)task.Callback)),
                         Resource = resource,
                         SpriteFrame = resource.SpriteFrame(spritePhase),
                         Phase = unchecked((ushort)spritePhase),

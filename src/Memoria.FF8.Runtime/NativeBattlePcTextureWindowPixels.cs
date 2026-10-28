@@ -15,7 +15,19 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
     public ImmutableArray<NativeBattleTextureRegistration>? TextureRegistrations { get; init; }
     private static readonly ConditionalWeakTable<NativeBattleEffectTextureState, ConcurrentDictionary<(int Row, NativeBattlePrimitiveTextureWindow Rectangle), NativeBattlePcTextureWindowPixels>> Captures = new();
 
+    private static readonly ConditionalWeakTable<NativeBattlePcTextureWindowPixels, object> ValidatedPixels = new();
+    private static readonly object ValidationReceipt = new();
+
     public void Validate()
+    {
+        ValidatedPixels.GetValue(this, static pixels =>
+        {
+            pixels.ValidateCore();
+            return ValidationReceipt;
+        });
+    }
+
+    private void ValidateCore()
     {
         NativeBattleTextureCopyHistory.Validate(TextureRegistrations);
         if (X is < 0 or >= 1024 || Y is < 0 or >= 512 || Width is < 1 or > 256 || Height is < 1 or > 256 || Y + Height > 512 || 2 * ((Y + Height - 1) * 1024 + X + Width) > NativeBattleEffectArena.Length + NativeBattleEffectTextureState.PcPageReadTailLength || Data.IsDefault || Data.Length != 2 * Width * Height)

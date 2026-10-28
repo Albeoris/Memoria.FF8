@@ -4,6 +4,64 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleTaskOperationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Newly_reached_retained_arena_enlists_before_its_public_overlay_and_rolls_back_with_nested_passes(bool nested)
+    {
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+        arena.AdmitRetained(new());
+        using (NativeBattleTaskOperation outer = new([]))
+        {
+            if (nested)
+            {
+                using NativeBattleTaskOperation inner = new([]);
+                Publish();
+                inner.Commit();
+            }
+            else
+            {
+                Publish();
+            }
+            Assert.Equal(10u, arena.ReadUInt32(0));
+        }
+        Assert.Equal(0u, arena.ReadUInt32(0));
+        Assert.False(arena.Working.HasCheckpoint);
+
+        void Publish()
+        {
+            using NativeBattleEffectArenaTransaction transaction = new(arena);
+            transaction.View.WriteUInt32(0, 10);
+            Assert.Equal(0u, arena.Working.ReadUInt32(0));
+            transaction.Freeze();
+        }
+    }
+
+    [Fact]
+    public void Newly_reached_retained_arena_keeps_accepted_prefix_and_rolls_back_later_overlay_publication()
+    {
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+        arena.AdmitRetained(new());
+        using (NativeBattleTaskOperation operation = new([]))
+        {
+            using (NativeBattleEffectArenaTransaction prefix = new(arena))
+            {
+                prefix.View.WriteUInt32(0, 10);
+                prefix.Freeze();
+            }
+            NativeBattleTaskOperation.AcceptPublishedArena(arena.Working);
+            using (NativeBattleEffectArenaTransaction suffix = new(arena))
+            {
+                suffix.View.WriteUInt32(0, 20);
+                suffix.View.WriteUInt32(4, 30);
+                suffix.Freeze();
+            }
+        }
+        Assert.Equal(10u, arena.ReadUInt32(0));
+        Assert.Equal(0u, arena.ReadUInt32(4));
+        Assert.False(arena.Working.HasCheckpoint);
+    }
+
     [Fact]
     public void Standalone_failed_pass_rolls_back_completed_callbacks_queue_removals_and_same_pass_appends()
     {

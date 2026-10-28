@@ -4,6 +4,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleModuleDraw
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool PilotContinuous { get; init; } = true;
     /// <summary>571C80 receiptWORD36; ordinary570BC0 sprites publish3.</summary>
     public ushort SpriteFlags { get; init; } = 3;
     public uint SpriteColor { get; init; } = 0x808080;

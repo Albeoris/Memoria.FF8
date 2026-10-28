@@ -39,6 +39,8 @@ internal sealed partial class BattleScenePresentation
     private readonly Dictionary<(BattleModel Model, NativeBattleModelTextureBinding Binding, bool Weapon), (object[] Materials, IReadOnlyList<NativeBattleTextureReplacement> Replacements)> replacementBindings = [];
     private IReadOnlyList<NativeBattleTextureReplacement>? renderedModelReplacements;
     private long renderedEffectTextureGeneration;
+    private readonly BattlePilotPresentationTimeline pilotTimeline = new();
+    internal bool SmoothCompatibleMotion { get; set; }
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
@@ -121,6 +123,13 @@ internal sealed partial class BattleScenePresentation
         }
         renderer.TriangleRenderer = triangleRenderer;
         NativeBattlePreparedPresentation? prepared = session.PreparedPresentation;
+        NativeBattlePreparedPresentation? pilotNext = null;
+        float pilotAlpha = 0;
+        if (prepared is not null)
+        {
+            float alpha = session.NativeGraphics is { } clock ? (float)((clock.PresentationSubticks + (clock.PresentationHalfSubtick ? 0.5 : 0)) / TimeSpan.TicksPerSecond) : 0;
+            (prepared, pilotNext, pilotAlpha) = pilotTimeline.Select(prepared, SmoothCompatibleMotion, alpha);
+        }
         if (session.NativeGraphics is not null && prepared is null)
         {
             throw new InvalidOperationException("Native battle rendering requires a completed prepared presentation.");
@@ -145,8 +154,12 @@ internal sealed partial class BattleScenePresentation
         BattleCamera? selectedCamera = camera;
         if (prepared is not null)
         {
-            if (prepared.Camera is { FocalLength: > 0 } nativeCamera)
+            if ((pilotNext is null ? prepared.Camera : prepared.PilotCamera) is { FocalLength: > 0 } nativeCamera)
             {
+                if (pilotNext?.PilotCamera is { } nextCamera)
+                {
+                    nativeCamera = NativeBattlePilotVisualGeometry.SampleCamera(nativeCamera, nextCamera, pilotAlpha);
+                }
                 selectedCamera = BattleCamera.FromNative(new(new(nativeCamera.Eye.X, nativeCamera.Eye.Y, nativeCamera.Eye.Z), new(nativeCamera.Target.X, nativeCamera.Target.Y, nativeCamera.Target.Z), nativeCamera.FocalLength!.Value), nativeCamera.Roll);
             }
             NativeBattlePreparedPrimitiveFrame frame = prepared.Primitives;
@@ -154,7 +167,7 @@ internal sealed partial class BattleScenePresentation
             NativeBattlePcUiFrame? uiFrame = prepared.UiFrame;
             NativeBattlePcTextureWindowCache? windows = prepared.TextureWindows;
             IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeModelReplacements(prepared);
-            bool unchanged = ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedPcUiFrame, uiFrame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements) && renderedEffectTextureGeneration == assets.EffectTextureSource.Generation;
+            bool unchanged = pilotNext is null && ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedPcUiFrame, uiFrame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements) && renderedEffectTextureGeneration == assets.EffectTextureSource.Generation;
             if (triangleRenderer is null && renderedPixels is not null && unchanged)
             {
                 return renderedPixels;
@@ -166,7 +179,7 @@ internal sealed partial class BattleScenePresentation
             if (triangleRenderer is not null)
             {
                 renderedPixels = null;
-                byte[] result = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements, uiFrame, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve, assets.EffectTextureSource);
+                byte[] result = RenderNative();
                 renderedPrimitiveFrame = frame;
                 renderedPcRenderTail = frame.LastPcRenderTail;
                 renderedPcUiFrame = uiFrame;
@@ -180,7 +193,7 @@ internal sealed partial class BattleScenePresentation
                 return result;
             }
             renderedGpu = null;
-            renderedPixels = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements, uiFrame, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve, assets.EffectTextureSource);
+            renderedPixels = RenderNative();
             renderedPrimitiveFrame = frame;
             renderedPcRenderTail = frame.LastPcRenderTail;
             renderedPcUiFrame = uiFrame;
@@ -190,6 +203,13 @@ internal sealed partial class BattleScenePresentation
             renderedEffectTextureGeneration = assets.EffectTextureSource.Generation;
             renderedCamera = selectedCamera;
             return renderedPixels;
+
+            byte[] RenderNative()
+            {
+                return pilotNext is null
+                    ? renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements, uiFrame, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve, assets.EffectTextureSource)
+                    : renderer.RenderNativePilotPrimitiveFrame(prepared, pilotNext, pilotAlpha, selectedCamera, primitiveCapabilities, replacements.Count == 0 ? null : replacements, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve, assets.EffectTextureSource);
+            }
         }
         renderedCamera = selectedCamera;
         List<BattleActorDraw> actors = [];

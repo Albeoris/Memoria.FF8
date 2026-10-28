@@ -87,7 +87,7 @@ public static partial class NativeBattleEffectPacketArena
                 }
                 else
                 {
-                    links.Prepend(primitive.Bucket, new(bank, 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw);
+                    links.Prepend(primitive.Bucket, new(bank, 0, address), primitive.Words, flags20, primitive.VertexPayload4, moduleDraw, pilotGeometry: primitive.PilotGeometry);
                 }
                 if (linked)
                 {

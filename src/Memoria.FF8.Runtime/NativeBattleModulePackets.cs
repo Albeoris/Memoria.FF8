@@ -76,7 +76,13 @@ public static partial class NativeBattleModulePackets
                 //571DC0 reserves52 bytes, puts E1 at+40, inserts it first, then inserts the FT4 at+0.
                 result.Add(new(new(bucket, [0x1000000, 0xE1000220], [0, 0, 0, 0]), allocated + 40, 0));
             }
-            result.Add(new(new(bucket, NativeBattleTelemetry.Immutable(1119, words), vertices.Select(vertex => (int)vertex.Depth).ToImmutableArray()), allocated, 0));
+            NativeBattleGeometryPrimitive primitive = new(bucket, NativeBattleTelemetry.Immutable(1119, words), vertices.Select(vertex => (int)vertex.Depth).ToImmutableArray());
+            if (draw.PilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 World(int x, int y) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, new(unchecked((short)x), unchecked((short)y), 0)), projection);
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + offset / 20) }, World(-width, -height), World(width, -height), World(-width, height), World(width, height), 4, draw.PilotContinuous) { Sprite = draw.PilotContinuous ? NativeBattlePilotSpriteGeometry.Capture(main, quad, width, height, projection) : null } };
+            }
+            result.Add(new(primitive, allocated, 0));
             allocated += extended ? 52 : 40;
             //571DC0 stores the first accepted AVSZ4 in contextDWORD60 and reuses its bucket for subsequent quads.
             retainedBucket = bucket;

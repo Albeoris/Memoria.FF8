@@ -102,11 +102,14 @@ public sealed class NativeBattleRaldo19DebrisTests
         frame = frame with { Memory = frame.Memory with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() } };
         NativeBattleModulePoolTask task = Assert.Single(frame.Effect.Pools[4].Slots, item => item.Callback == 0x8AAA30);
         task = task.WriteWord(0x1C, 100).WriteWord(0x1E, unchecked((ushort)-200)).WriteWord(0x20, 300).WriteDword(0x4C, 0x162A0C0).WriteWord(0x50, 3).WriteWord(0x56, 0xFFF0);
-        NativeBattleEffectArena temporary = NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 216).ToArray());
+        NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()), NativeBattleRaldo19DebrisRendering.TemporaryLength);
+        NativeBattleFileStaging staging = allocation.Staging.Write(allocation.Address, Enumerable.Repeat((byte)0xA5, NativeBattleRaldo19DebrisRendering.TemporaryLength).ToArray());
         if (!knownPadding)
         {
-            temporary = temporary.MarkUnknown(0xCA, 2);
+            staging = staging.WriteWithKnownness(allocation.Address + 0xCA, new byte[] { 0xA5, 0xA5 }, new bool[2]);
         }
+        NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(staging, allocation.Address, NativeBattleRaldo19DebrisRendering.TemporaryLength);
+        Assert.Equal(NativeBattleRaldo19DebrisRendering.TemporaryLength, temporary.Bound);
         NativeBattleActionMatrix camera = NativeBattleCuragaMatrices.Identity8DD770() with { X = 11, Y = -22, Z = 33 };
         NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(camera, 0x1234);
         NativeBattleRaldo19DebrisHead head = NativeBattleRaldo19DebrisRendering.PrepareHead(frame, task, packed, temporary);

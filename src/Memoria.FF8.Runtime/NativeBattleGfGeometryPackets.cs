@@ -44,9 +44,9 @@ public static class NativeBattleGfGeometryPackets
         return EmitBatch7043B0(source, geometryOffset, selectedVertices, matrix, projection, context, colors).Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => attempt.Primitive!).ToImmutableArray();
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch7043B0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
+    public static NativeBattleGfGeometryBatch EmitBatch7043B0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize(context), colors, readSelectedVertex, observeDepth);
+        return EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize(context), colors, readSelectedVertex, observeDepth, pilotIdentity: pilotIdentity);
     }
 
     internal static NativeBattleGfGeometryBatch EmitBatch7043B0(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
@@ -54,13 +54,13 @@ public static class NativeBattleGfGeometryPackets
         return EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize(context), colors, readSelectedVertex, observeDepth);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null, NativeBattleMeshPacketVariant? variant = null)
+    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null, NativeBattleMeshPacketVariant? variant = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader reader = new(source);
-        return EmitBatch(reader, geometryOffset, selectedVertices, matrix, projection, context, colors, readSelectedVertex, observeDepth, observeSourceCursor, variant);
+        return EmitBatch(reader, geometryOffset, selectedVertices, matrix, projection, context, colors, readSelectedVertex, observeDepth, observeSourceCursor, variant, pilotIdentity);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null, NativeBattleMeshPacketVariant? variant = null)
+    internal static NativeBattleGfGeometryBatch EmitBatch(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null, NativeBattleMeshPacketVariant? variant = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (source.IsDefault || context.DepthShift > 31)
         {
@@ -98,6 +98,17 @@ public static class NativeBattleGfGeometryPackets
                 }
                 ProjectedCorners corners = new(offsets, Project);
                 NativeBattleGfGeometryAttempt attempt = EmitAttempt(face, corners, group, context, colors, allocated, observeDepth, variant);
+                if (pilotIdentity is { } identity && attempt.Primitive is { } primitive && (context.Flags & 0x2000) == 0)
+                {
+                    System.Numerics.Vector3 World(ushort offset)
+                    {
+                        Span<byte> xyz = stackalloc byte[6];
+                        source.ReadInto(checked(geometryOffset + 8 + offset * 4), xyz);
+                        NativeBattleVector local = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
+                        return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, local), projection);
+                    }
+                    attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, World(offsets[0]), World(offsets[1]), World(offsets[2]), offsets.Length == 4 ? World(offsets[3]) : default, (byte)offsets.Length) } };
+                }
                 attempts.Add(attempt);
                 if (attempt.Primitive is not null)
                 {

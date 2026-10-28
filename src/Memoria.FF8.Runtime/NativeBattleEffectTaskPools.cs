@@ -56,6 +56,7 @@ public sealed partial record NativeBattleModulePoolTask : INativeBattleStorageNo
     public bool IsSnapshot => owner is null;
     [JsonIgnore]
     internal object StorageIdentity => RequireOwner().Storage.BackingIdentity;
+    internal int PilotSlot => slot;
 
     public NativeBattleModulePoolTask UpdateHeader(ushort flags, ushort state, int? next, uint callback)
     {
@@ -196,6 +197,7 @@ public sealed record NativeBattleEffectTaskPool : INativeBattleStorageNode
     public bool HasCheckpoint => owner?.HasLocalCheckpoint ?? false;
     [JsonIgnore]
     internal object StorageIdentity => RequireOwner().Storage.BackingIdentity;
+    internal int PilotSlot => slot;
     [JsonIgnore]
     internal NativeBattleWorkingMemory CheckpointStorage => (owner ?? throw new InvalidOperationException("Frozen task pools have no working journal.")).Storage;
     [JsonIgnore]
@@ -319,6 +321,7 @@ public sealed record NativeBattleEffectTaskPool : INativeBattleStorageNode
         NativeBattleModulePoolTask selected = Slots[index];
         int? oldTail = Tail;
         selected.UpdateHeader((ushort)(selected.Flags | 1), 0, null, callback);
+        NativeBattlePilotVisualLifetimes.Allocated(this, index);
         if (oldTail is int tail)
         {
             NativeBattleModulePoolTask previous = Slots[tail];
