@@ -8,6 +8,8 @@
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>Memoria.FF8</AssemblyName>
     <RootNamespace>Memoria.FF8</RootNamespace>
+    <!-- Optimize application methods on first use to avoid frame-time warmup. -->
+    <TieredCompilationQuickJit Condition="'$(Configuration)' == 'Release'">false</TieredCompilationQuickJit>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
