@@ -7,6 +7,102 @@ public sealed class NativeBattleFileStagingOwnedStorageTests
 {
     private const uint Address = NativeBattleFileStaging.Address;
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(4096)]
+    [InlineData(4097)]
+    public void Child_publication_scratch_preserves_accepted_prefix_when_later_child_is_rolled_back(int length)
+    {
+        uint first = Address + 64;
+        byte[] bytes = Enumerable.Range(0, length).Select(index => unchecked((byte)(index + 1))).ToArray();
+        NativeBattleFileStaging source = NativeBattleFileStaging.FromColdProcess();
+        NativeBattleFileStaging expected = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(source))!;
+        expected.Write(first, bytes);
+        if (length > 1)
+        {
+            expected.MarkUnknown(first + 1, 1);
+        }
+        using NativeBattleFileStagingTransaction parent = new(source);
+        using (NativeBattleFileStagingTransaction child = NativeBattleFileStagingTransaction.CreatePrivateChild(parent.View))
+        {
+            child.View.Write(first, bytes);
+            if (length > 1)
+            {
+                child.View.MarkUnknown(first + 1, 1);
+            }
+            child.Freeze(child.View);
+        }
+        Assert.Equal(bytes, parent.View.ReadSnapshot(first, length).Data);
+        Assert.Equal(new byte[length], source.Read(first, length));
+        parent.Freeze(parent.View);
+        string accepted = NativeBattleTestSnapshots.Json(source);
+
+        using (NativeBattleFileStagingTransaction child = NativeBattleFileStagingTransaction.CreatePrivateChild(parent.View))
+        {
+            child.BeginCheckpoint();
+            child.View.Write(first, [9, 8, 7, 6]);
+            Assert.Throws<InvalidOperationException>(() => child.Freeze(child.View));
+            child.RollbackCheckpoint();
+        }
+        parent.Freeze(parent.View);
+
+        Assert.Equal(accepted, NativeBattleTestSnapshots.Json(source));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), accepted);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(4096)]
+    [InlineData(4097)]
+    public void Publication_scratch_covers_empty_scalar_page_and_cross_page_stores_with_exact_knownness(int length)
+    {
+        uint first = Address + 64;
+        NativeBattleFileStaging source = NativeBattleFileStaging.FromColdProcess().WriteResourcePointer(Address + 8192, new(null, 0x12345678));
+        NativeBattleFileStaging expected = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(source))!;
+        byte[] bytes = Enumerable.Range(0, length).Select(index => unchecked((byte)(index + 1))).ToArray();
+        expected.Write(first, bytes);
+        using NativeBattleFileStagingTransaction transaction = new(source);
+        transaction.View.Write(first, bytes);
+        if (length > 1)
+        {
+            expected.MarkUnknown(first + 1, 1);
+            transaction.View.MarkUnknown(first + 1, 1);
+        }
+
+        Assert.Same(source, transaction.Freeze(transaction.View));
+
+        Assert.Equal(bytes, source.ReadSnapshot(first, length).Data);
+        Assert.Equal(expected.ReadSnapshot(first, length).Known, source.ReadSnapshot(first, length).Known);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(source));
+        Assert.Equal(0x12345678u, source.ReadResourcePointer(Address + 8192)!.StagingAddress);
+    }
+
+    [Fact]
+    public void Small_publication_scratch_does_not_fill_sparse_holes_or_lose_unknown_only_sidecars()
+    {
+        NativeBattleFileStaging source = NativeBattleFileStaging.Unknown().Write(Address + 100, [0xA5, 0xB6]).WriteResourcePointer(Address + 200, new(null, 0x12345678));
+        NativeBattleFileStaging expected = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(source))!;
+        expected.Write(Address + 4, [1, 2]).Write(Address + 9000, [3, 4]).MarkUnknown(Address + 5, 1).MarkUnknown(Address + 201, 1);
+        using (NativeBattleFileStagingTransaction transaction = new(source))
+        {
+            transaction.View.Write(Address + 4, [1, 2]).Write(Address + 9000, [3, 4]).MarkUnknown(Address + 5, 1).MarkUnknown(Address + 201, 1);
+            transaction.Freeze(transaction.View);
+        }
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(source));
+        Assert.Equal(new byte[] { 0xA5, 0xB6 }, source.Read(Address + 100, 2));
+        Assert.Throws<NotSupportedException>(() => source.Read(Address + 6, 1));
+        Assert.False(source.TryGetResourcePointerMetadata(Address + 200, out _));
+        using (NativeBattleFileStagingTransaction transaction = new(source))
+        {
+            transaction.View.MarkUnknown(Address + 100, 1);
+            transaction.Freeze(transaction.View);
+        }
+        Assert.Equal(new byte[] { 0xA5, 0xB6 }, source.ReadSnapshot(Address + 100, 2).Data);
+        Assert.Equal(new[] { false, true }, source.ReadSnapshot(Address + 100, 2).Known);
+    }
+
     [Fact]
     public void Loader_zero_reads_and_bulk_unknown_marks_do_not_materialize_sparse_pages()
     {

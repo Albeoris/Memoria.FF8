@@ -356,8 +356,9 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
                 sorted.Add(address);
             }
             sorted.Sort();
-            Span<byte> data = stackalloc byte[NativeBattleFileStagingWorkingOwner.PageLength];
-            Span<bool> known = stackalloc bool[NativeBattleFileStagingWorkingOwner.PageLength];
+            int bufferLength = Math.Min(NativeBattleFileStagingWorkingOwner.PageLength, sorted.Count);
+            Span<byte> data = stackalloc byte[bufferLength];
+            Span<bool> known = stackalloc bool[bufferLength];
             for (int index = 0; index < sorted.Count;)
             {
                 uint first = sorted[index];
