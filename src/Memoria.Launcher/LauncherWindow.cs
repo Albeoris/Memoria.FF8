@@ -55,7 +55,7 @@ internal sealed partial class LauncherWindow : Window
         this.updateResume = updateResume;
         Title = "Memoria — FINAL FANTASY VIII";
         Width = 740;
-        Height = 750;
+        Height = 840;
         MinWidth = 600;
         MinHeight = 620;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -96,6 +96,7 @@ internal sealed partial class LauncherWindow : Window
         languageSelection.Children.Add(resourceLanguage);
         mediaSection.Children.Add(languageSelection);
         mediaSection.Children.Add(new TextBlock { Text = "Auto uses the installed resource language. Choose the language of your game text and matching mod resources. Applies on the next start.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray, Margin = new Thickness(0, 6, 0, 0) });
+        mediaSection.Children.Add(CreateModelSourceSelection());
         Add(layout, mediaSection, 3);
         Add(layout, CreateUpdatePanel(), 4);
         Add(layout, status, 5);
@@ -144,6 +145,7 @@ internal sealed partial class LauncherWindow : Window
             LauncherSettings settings = LauncherSettings.Load(LauncherSettings.DefaultPath);
             await LoadGraphicsBackendAsync();
             string? previous = settings.LastGameDirectory;
+            SetModelSourceDirectory(settings.ModelSourceDirectory);
             achievementsLocalOnly.IsChecked = settings.AchievementsLocalOnly;
             string? language = GameResourceLanguages.Normalize(settings.ResourceLanguage);
             resourceLanguage.SelectedItem = resourceLanguage.Items.Cast<ResourceLanguageChoice>().Single(choice => choice.Code == language);
@@ -305,7 +307,7 @@ internal sealed partial class LauncherWindow : Window
         }
         try
         {
-            new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage).Save(LauncherSettings.DefaultPath);
+            new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory).Save(LauncherSettings.DefaultPath);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -455,7 +457,7 @@ internal sealed partial class LauncherWindow : Window
             bool localOnly = resume?.AchievementsLocalOnly ?? achievementsLocalOnly.IsChecked == true;
             achievementsLocalOnly.IsChecked = localOnly;
             runningAchievementsLocalOnly = localOnly;
-            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, graphicsBackend: requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage);
+            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, graphicsBackend: requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory);
             if (!File.Exists(start.FileName))
             {
                 throw new FileNotFoundException("The engine is missing. Extract the complete Memoria package, keeping its Data folder beside the launcher executable.", start.FileName);
@@ -464,7 +466,7 @@ internal sealed partial class LauncherWindow : Window
             {
                 return;
             }
-            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage);
+            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend, resourceLanguage: SelectedResourceLanguage, modelSourceDirectory: selectedModelSourceDirectory);
             status.Text = "Starting the game…";
             GameUpdateSession control = new();
             start.ArgumentList.Add("--update-control-dir");
@@ -572,7 +574,7 @@ internal sealed partial class LauncherWindow : Window
     {
         try
         {
-            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage).Save(LauncherSettings.DefaultPath);
+            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory).Save(LauncherSettings.DefaultPath);
             installations.ItemsSource = GameInstallationSelection.Order(directory, installations.Items.Cast<GameInstallation>());
             installations.SelectedIndex = 0;
         }
@@ -595,6 +597,8 @@ internal sealed partial class LauncherWindow : Window
         browse.IsEnabled = !busy;
         achievementsLocalOnly.IsEnabled = !busy;
         resourceLanguage.IsEnabled = !busy;
+        browseModelSource.IsEnabled = !busy;
+        resetModelSource.IsEnabled = !busy;
         graphicsBackend.IsEnabled = !savingGraphicsBackend && !updating && !loadingGraphicsBackend && (!busy || runningGame is not null) && HostPlatforms.Current == HostPlatform.Windows;
         tryAuto.IsEnabled = !busy;
         mediaSetup.IsEnabled = !busy;

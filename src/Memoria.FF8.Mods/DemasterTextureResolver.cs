@@ -18,8 +18,9 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
     }
 
     /// <summary>Inspects target names against source-published layouts without opening image content.</summary>
-    public static DemasterInspection Inspect(ResourceSourceDescriptor source, ModCatalogSnapshot catalog)
+    public static DemasterInspection Inspect(ResourceSourceDescriptor source, ModCatalogSnapshot catalog, ResourceSourceDescriptor? modelSource = null)
     {
+        ResourceSourceDescriptor models = modelSource ?? source;
         HashSet<string> usable = new(StringComparer.OrdinalIgnoreCase);
         List<ModDiagnostic> diagnostics = [];
         foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Demaster))
@@ -47,9 +48,9 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             bool fieldTarget = stem.StartsWith(FieldPagePrefix, StringComparison.OrdinalIgnoreCase);
             supported |= fieldTarget && HasLayout(source, FieldPageLayout) && IsFieldPageTarget(stem);
             bool modelTarget = IsModelSheetFamily(stem);
-            supported |= modelTarget && HasLayout(source, ModelSheetLayout) && IsModelSheetTarget(source, stem);
+            supported |= modelTarget && HasLayout(models, ModelSheetLayout) && IsModelSheetTarget(models, stem);
             bool fieldModelTarget = IsFieldModelSheetFamily(stem);
-            supported |= fieldModelTarget && HasLayout(source, FieldModelSheetLayout) && IsFieldModelSheetTarget(stem);
+            supported |= fieldModelTarget && HasLayout(models, FieldModelSheetLayout) && IsFieldModelSheetTarget(stem);
             supported |= !battleTarget && !fieldTarget && !modelTarget && !fieldModelTarget && source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-direct");
             if (supported)
             {
@@ -57,7 +58,8 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             }
             else
             {
-                diagnostics.Add(new ModDiagnostic("demaster-unsupported-target", $"Texture target '{path}' has no compatible layout published by source '{source.Id}' ({source.Edition}).", file.PackageId, path));
+                ResourceSourceDescriptor selected = modelTarget || fieldModelTarget ? models : source;
+                diagnostics.Add(new ModDiagnostic("demaster-unsupported-target", $"Texture target '{path}' has no compatible layout published by source '{selected.Id}' ({selected.Edition}).", file.PackageId, path));
             }
         }
         return new(usable.ToFrozenSet(StringComparer.OrdinalIgnoreCase), diagnostics.AsReadOnly());

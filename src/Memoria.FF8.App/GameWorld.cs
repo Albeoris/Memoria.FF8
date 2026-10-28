@@ -288,6 +288,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.ReadNativeEmptyAnimationTerminals = models => assets.ReadNativeEmptyAnimationTerminals(next.Id, models);
         Events.ReadNativeEyes = model => (uint)model < next.Models.Count ? next.Models[model].NativeEyes : null;
         Events.ReadNativeModelParts = model => (uint)model < next.Models.Count ? next.Models[model].NativeParts : null;
+        Events.ReadNativeModelRegistrationParts = model => (uint)model < next.Models.Count ? next.Models[model].NativeRegistrationParts ?? next.Models[model].NativeParts : null;
         Events.CaptureFootstepModelOrigin = query => NativeFootstepSoundAdapter.Capture(ReadNativeFootstepCamera(next, false), Events.Scene.CameraIndex, query);
         Events.ResolveFootstepSound = (actor, mode, beforeCameraSelection) => NativeFootstepSoundAdapter.Resolve(ReadNativeFootstepCamera(next, beforeCameraSelection), actor, mode, () => assets.LoadFieldSoundEffects(next.Id));
         Events.ReadFaceBaseline = actor =>

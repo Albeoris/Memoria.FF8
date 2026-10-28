@@ -26,6 +26,7 @@ public sealed record BattlePose(Vector3 Translation, IReadOnlyList<Vector3> Rota
 public sealed record BattleAnimation(IReadOnlyList<BattlePose> Frames);
 public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, IReadOnlyList<BattleMesh> Meshes, IReadOnlyList<PixelImage> Textures, IReadOnlyList<BattleAnimation> Animations, float Scale)
 {
+    public ResourceSourceDescriptor? TextureSourceDescriptor { get; init; }
     public EditableModel? EditableOverride { get; init; }
     public IReadOnlyList<BattleMesh>? NativeControlMeshes { get; init; }
     public System.Collections.Immutable.ImmutableArray<byte>? NativeGeometryBytes { get; init; }

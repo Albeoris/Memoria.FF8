@@ -17,6 +17,7 @@ public sealed record NativeFieldModelPartsState([property: JsonRequired] Diction
 public sealed partial class EventEngine
 {
     public Func<int, NativeModelPartsDefinition?>? ReadNativeModelParts { get; set; }
+    public Func<int, NativeModelPartsDefinition?>? ReadNativeModelRegistrationParts { get; set; }
 
     public bool IsNativeModelDrawPending
     {

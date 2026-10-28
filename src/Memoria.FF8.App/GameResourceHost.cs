@@ -14,11 +14,11 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     private TonberryRecognitionCache? recognition;
     private readonly string gameDirectory;
 
-    public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null)
+    public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null)
     {
         this.gameDirectory = gameDirectory;
         this.resourceLanguage = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage);
-        source = GameDataSourceFactory.Open(gameDirectory);
+        source = GameDataSourceFactory.Open(gameDirectory, modelSourceDirectory);
         Resources = new ResourceService(source, this.resourceLanguage);
         Mods = new ModRuntime(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory);
         Resources.ReplacementFailed += (key, exception) =>
@@ -61,7 +61,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         ModFile? replacement = FindJunctionFile(relative);
         if (replacement is null)
         {
-            if (source is IGameFileSource files)
+            if (Resources.GetSource<IGameFileSource>() is { } files)
             {
                 return files.ResolveFile(relative);
             }
@@ -296,14 +296,14 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction && !file.RelativePath.StartsWith("voice/", StringComparison.OrdinalIgnoreCase) && !(JunctionEncodedResources.Address(file.RelativePath) is ResourceKey key && JunctionEncodedResources.FieldGroup(key) is not null) && !JunctionEncodedResources.IsFieldMetadata(file.RelativePath) && !JunctionEncodedResources.IsUnusedFieldMember(file.RelativePath) && !JunctionEncodedResources.IsAncillaryFile(file.RelativePath)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(encodedResources.Select(resource => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance).PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(behaviorPackages.Select(package => package.Id));
-        DemasterInspection demaster = DemasterTextureResolver.Inspect(source.Descriptor, catalog);
+        DemasterInspection demaster = DemasterTextureResolver.Inspect(source.Descriptor, catalog, (source as SelectedModelResourceSource)?.ModelSourceDescriptor);
         if (catalog.Files.Any(file => file.Format == ModFormat.Demaster))
         {
             resolvers.Add(new DemasterTextureResolver(catalog));
             usable.AddRange(demaster.UsablePackageIds);
         }
         using ResourceSourceView candidateSource = new(source, encodedResources, resourceLanguage);
-        DemasterInspection ffnx = FfnxTextureResolver.Inspect(source.Descriptor, catalog, candidateSource, source as IGameNativeMemorySource);
+        DemasterInspection ffnx = FfnxTextureResolver.Inspect(source.Descriptor, catalog, candidateSource, Resources.GetSource<IGameNativeMemorySource>());
         if (catalog.Files.Any(file => file.Format == ModFormat.Junction && (file.RelativePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase) || FfnxTextureResolver.IsNativeFieldBackgroundFamilyPath(file.RelativePath) || FfnxTextureResolver.IsNativeMenuArtworkFamilyPath(file.RelativePath))))
         {
             resolvers.Add(new FfnxTextureResolver(catalog));

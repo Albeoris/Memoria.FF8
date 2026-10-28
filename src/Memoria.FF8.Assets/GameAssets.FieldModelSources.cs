@@ -45,8 +45,9 @@ public sealed partial class GameAssets
             throw new ArgumentException("A main-character material source requires its canonical library name.", nameof(name));
         }
         ResourceKey owner = new($"field/main_chr/{name}.mch");
-        FieldModel model = FieldModelReader.ReadMainCharacterMaterials(name, resources.Read(owner));
-        AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) => textureScope.Register(new(owner, $"texture/{ordinal}"), image, "classic-field-model", nativeSheet: NativeFieldModelTextureSheets.Address(model, ordinal))!).ToArray();
+        byte[] content = resources.Read(owner);
+        FieldModel model = resources.GetSource<IFieldModelSource>()?.ReadMainCharacterMaterials(owner, content) ?? FieldModelReader.ReadMainCharacterMaterials(name, content);
+        AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) => textureScope.Register(new(owner, $"texture/{ordinal}"), image, "classic-field-model", nativeSheet: NativeFieldModelTextureSheets.Address(model, ordinal), sourceDescriptor: model.TextureSourceDescriptor)!).ToArray();
         return new ResourceTextureList(handles);
     }
 

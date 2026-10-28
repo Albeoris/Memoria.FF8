@@ -9,4 +9,22 @@ public static class GameDataSourceFactory
     {
         return File.Exists(Path.Combine(gameDirectory, "main.zzz")) ? new Remastered.RemasteredGameDataSource(gameDirectory) : new ClassicGameDataSource(gameDirectory);
     }
+
+    public static IResourceSource Open(string gameDirectory, string? modelSourceDirectory)
+    {
+        IResourceSource primary = Open(gameDirectory);
+        if (string.IsNullOrWhiteSpace(modelSourceDirectory))
+        {
+            return primary;
+        }
+        try
+        {
+            return new SelectedModelResourceSource(primary, Open(modelSourceDirectory));
+        }
+        catch
+        {
+            primary.Dispose();
+            throw;
+        }
+    }
 }

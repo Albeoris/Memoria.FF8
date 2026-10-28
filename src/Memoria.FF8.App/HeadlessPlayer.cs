@@ -113,7 +113,7 @@ internal static class HeadlessPlayer
         }
         Directory.CreateDirectory(outputDirectory);
         var session = new GameSession(options.InitialState);
-        using var resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage);
+        using var resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
         using var world = new GameWorld(session, options.GameDirectory, resources: resourceHost.Resources, resolveGameFile: resourceHost.ResolveGameFile, readSceneMods: () => resourceHost.SceneMods, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost.GameplayPolicy);
         world.EnsureField();
         world.SetRenderSize(options.Width, options.Height);

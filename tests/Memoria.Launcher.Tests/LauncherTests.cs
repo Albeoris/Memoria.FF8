@@ -140,6 +140,24 @@ public sealed class LauncherTests : IDisposable
     }
 
     [Fact]
+    public void ModelResourceSelectionPersistsWithoutChangingTheGameplayInstallation()
+    {
+        string modelDirectory = Path.Combine(directory, "Other installation");
+        string settingsPath = Path.Combine(directory, "model-source.json");
+        new LauncherSettings(directory, false, "fr", modelDirectory).Save(settingsPath);
+        LauncherSettings settings = LauncherSettings.Load(settingsPath);
+        Assert.Equal(modelDirectory, settings.ModelSourceDirectory);
+        ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(directory, directory, resourceLanguage: settings.ResourceLanguage, modelSourceDirectory: settings.ModelSourceDirectory);
+        Assert.Equal(Path.GetFullPath(directory), start.ArgumentList[start.ArgumentList.IndexOf("--game-dir") + 1]);
+        Assert.Equal(Path.GetFullPath(modelDirectory), start.ArgumentList[start.ArgumentList.IndexOf("--model-source-dir") + 1]);
+        Assert.Equal("fr", start.ArgumentList[start.ArgumentList.IndexOf("--resource-language") + 1]);
+        Assert.False(start.Environment.ContainsKey("MEMORIA_FF8_MODEL_SOURCE_DIR"));
+        File.WriteAllText(settingsPath, "{}");
+        Assert.Null(LauncherSettings.Load(settingsPath).ModelSourceDirectory);
+        Assert.DoesNotContain("--model-source-dir", GameInstallationSelection.CreateStartInfo(directory, directory).ArgumentList);
+    }
+
+    [Fact]
     public void ResourceLanguageLaunchArgumentIsNormalizedAndValidated()
     {
         ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(directory, directory, resourceLanguage: "FR");

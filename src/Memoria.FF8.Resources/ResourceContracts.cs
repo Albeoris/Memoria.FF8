@@ -44,6 +44,12 @@ public interface IResourceSource : IDisposable
     ResourceContent? Find(ResourceKey key);
 }
 
+/// <summary>Exposes capabilities of composed sources without changing the primary resource identity.</summary>
+public interface IResourceSourceProvider
+{
+    object? GetSource(Type capability);
+}
+
 public sealed class InMemoryResourceSource : IResourceSource
 {
     private readonly Dictionary<ResourceKey, ResourceContent> entries = [];

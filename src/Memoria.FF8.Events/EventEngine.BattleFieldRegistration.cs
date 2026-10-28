@@ -57,7 +57,8 @@ public sealed partial class EventEngine
         foreach (NativeFieldRegisteredResource resource in step.State.Resources)
         {
             NativeModelPartsDefinition definition = ReadNativeModelParts?.Invoke(resource.ModelId) ?? throw new NotSupportedException("Native kind3 requires the original registered model's part definitions.");
-            if (definition.SourceHash != resource.SourceHash || definition.SourceOffset != resource.SourceOffset)
+            NativeModelPartsDefinition registrationDefinition = (ReadNativeModelRegistrationParts is { } readRegistration ? readRegistration(resource.ModelId) : definition) ?? throw new NotSupportedException("Native kind3 requires the physical registration model's part definitions.");
+            if (registrationDefinition.SourceHash != resource.SourceHash || registrationDefinition.SourceOffset != resource.SourceOffset)
             {
                 throw new InvalidDataException("Native kind3 part projection differs from its actually registered geometry source.");
             }

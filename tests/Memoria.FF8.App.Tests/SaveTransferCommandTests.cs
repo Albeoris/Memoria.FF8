@@ -7,6 +7,17 @@ public sealed class SaveTransferCommandTests : IDisposable
 {
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-save-transfer-" + Guid.NewGuid().ToString("N"));
 
+    [Fact]
+    public void ImportCanSelectModelResourcesWithoutChangingTheGameSource()
+    {
+        string primary = Path.Combine(directory, "game");
+        string models = Path.Combine(directory, "models");
+        SaveTransferCommand.Options options = SaveTransferCommand.Parse([Path.Combine(directory, "source.ff8"), "--output", Path.Combine(directory, "new.json"), "--game-dir", primary, "--model-source-dir", models], true);
+        Assert.Equal(Path.GetFullPath(primary), options.GameDirectory);
+        Assert.Equal(Path.GetFullPath(models), options.ModelSourceDirectory);
+        Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.ff8", "--output", "new.ff8", "--model-source-dir", models], false));
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

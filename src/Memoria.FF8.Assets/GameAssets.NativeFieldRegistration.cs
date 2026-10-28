@@ -108,7 +108,7 @@ public sealed partial class GameAssets
         FieldModel[] models = field.Models.ToArray();
         foreach (NativeFieldRegisteredResource resource in registration.Resources)
         {
-            if ((uint)resource.ModelId >= models.Length || models[resource.ModelId].NativeParts is not { } parts || parts.SourceHash != resource.SourceHash || parts.SourceOffset != resource.SourceOffset || resource.Textures.Length != models[resource.ModelId].Textures.Count)
+            if ((uint)resource.ModelId >= models.Length || (models[resource.ModelId].NativeRegistrationParts ?? models[resource.ModelId].NativeParts) is not { } parts || parts.SourceHash != resource.SourceHash || parts.SourceOffset != resource.SourceOffset || resource.Textures.Length != models[resource.ModelId].Textures.Count)
             {
                 throw new InvalidDataException("Native registered texture bindings disagree with their original model source.");
             }
@@ -135,6 +135,11 @@ public sealed partial class GameAssets
                     bool? firstHalf = NativeMaterialHalf(model, ordinal, texture);
                     variants[ordinal] = firstHalf is { } half && planes.IsClosed(page, half) ? "eyes-closed" : null;
                 }
+            }
+            else if (model.TextureSourceDescriptor?.Edition == GameDataEdition.Remastered && resource.Textures.Length > 0)
+            {
+                variants = new string?[resource.Textures.Length];
+                variants[0] = ReadClassicFieldModelVariant(model, resource, textures);
             }
             models[resource.ModelId] = RegisterFieldModelTextures(field.Name, resource.ModelId, model, revision, pages, variants);
         }
@@ -176,6 +181,65 @@ public sealed partial class GameAssets
         }
     }
 
+    /// <summary>Projects an unambiguous original Classic eye-copy result onto a selected visual material plane.</summary>
+    public static string? ReadClassicFieldModelVariant(FieldModel model, NativeFieldRegisteredResource resource, NativeBattleEffectTextureState textures)
+    {
+        if (model.NativeEyes is not { Bank.Length: > 0 } eyes)
+        {
+            return null;
+        }
+        if ((model.NativeRegistrationParts ?? model.NativeParts) is not { } parts || parts.SourceHash != resource.SourceHash || parts.SourceOffset != resource.SourceOffset || eyes.ModelHash != resource.SourceHash || eyes.ModelOffset != resource.SourceOffset || resource.Textures.Length == 0)
+        {
+            throw new InvalidDataException("Classic eye material projection requires its original registered model owner.");
+        }
+        NativeEyeCopy open = eyes.Copy(false) ?? throw new InvalidDataException("Classic eye material has no original open copy.");
+        NativeEyeCopy closed = eyes.Copy(true) ?? throw new InvalidDataException("Classic eye material has no original closed copy.");
+        NativeEyeTexture original = eyes.Texture!;
+        NativeFieldRegisteredTexture texture = resource.Textures[0];
+        if (texture.Mode != original.Depth || texture.WidthWords != original.WidthWords || texture.Height != original.Height || open.Words.AsSpan().SequenceEqual(closed.Words))
+        {
+            throw new NotSupportedException("Classic eye material projection requires distinct original copies and the complete original texture0 allocation.");
+        }
+        bool matchesOpen = true;
+        bool matchesClosed = true;
+        int originalDifferences = 0;
+        int openDifferences = 0;
+        int closedDifferences = 0;
+        for (int y = 0; y < original.Height; y++)
+        {
+            for (int x = 0; x < original.WidthWords; x++)
+            {
+                int offset = (y * original.WidthWords + x) * 2;
+                ushort expectedOpen = BinaryPrimitives.ReadUInt16LittleEndian(original.Words.AsSpan(offset));
+                ushort expectedOriginal = expectedOpen;
+                ushort expectedClosed = expectedOpen;
+                if (x >= open.DestinationXWords && x < open.DestinationXWords + open.WidthWords && y >= open.DestinationY && y < open.DestinationY + open.Height)
+                {
+                    int copiedOffset = ((y - open.DestinationY) * open.WidthWords + x - open.DestinationXWords) * 2;
+                    expectedOpen = BinaryPrimitives.ReadUInt16LittleEndian(open.Words.AsSpan(copiedOffset));
+                    expectedClosed = BinaryPrimitives.ReadUInt16LittleEndian(closed.Words.AsSpan(copiedOffset));
+                }
+                ushort actual = textures.ReadVramWord(texture.X + x, texture.Y + y);
+                originalDifferences += actual == expectedOriginal ? 0 : 1;
+                openDifferences += actual == expectedOpen ? 0 : 1;
+                closedDifferences += actual == expectedClosed ? 0 : 1;
+                matchesOpen &= actual == expectedOpen;
+                matchesClosed &= actual == expectedClosed;
+            }
+        }
+        // The uploaded original texture can contain distinct neutral artwork before any eye copy.
+        // It selects the visual resource's default plane without fabricating a copied-open command.
+        if (originalDifferences == 0 && !matchesClosed)
+        {
+            return null;
+        }
+        if (matchesOpen == matchesClosed)
+        {
+            throw new NotSupportedException($"Classic eye material {model.TextureResourceName} does not uniquely match an original complete base/open/closed texture (different WORDs: base {originalDifferences}, open {openDifferences}, closed {closedDifferences}).");
+        }
+        return matchesClosed ? "eyes-closed" : null;
+    }
+
     private FieldModel RegisterFieldModelTextures(string fieldName, int index, FieldModel model, long? revision = null, IReadOnlyList<TextureSourcePageAddress>? pages = null, IReadOnlyList<string?>? requestedVariants = null)
     {
         model = model with { TextureSourceVariant = NativeFieldModelTextureSheets.Variant(model.TextureResourceName, Array.IndexOf(fieldNames, fieldName)) };
@@ -183,7 +247,7 @@ public sealed partial class GameAssets
         string prefix = model.TextureResourceName is { } name ? $"model/{index}/{(model.MainCharacterTextures ? "main" : "second")}/{name}{registration}/texture" : $"model/{index}{registration}/texture";
         string layout = model.TextureResourceName is null ? "classic-model" : "classic-field-model";
         ResourceKey owner = new($"field/{fieldName}/chara.one");
-        AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) => textureScope.Register(new TextureKey(owner, $"{prefix}/{ordinal}"), image, layout, revision: revision, nativePage: pages?[ordinal], nativeSheet: NativeFieldModelTextureSheets.Address(model, ordinal), requestedVariant: requestedVariants?[ordinal])!).ToArray();
+        AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) => textureScope.Register(new TextureKey(owner, $"{prefix}/{ordinal}"), image, layout, revision: revision, nativePage: pages?[ordinal], nativeSheet: NativeFieldModelTextureSheets.Address(model, ordinal), requestedVariant: requestedVariants?[ordinal], sourceDescriptor: model.TextureSourceDescriptor)!).ToArray();
         return model with { Textures = new ResourceTextureList(handles) };
     }
 

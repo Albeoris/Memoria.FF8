@@ -1,4 +1,4 @@
-﻿using Memoria.FF8.Assets;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Mods;
 
@@ -23,7 +23,7 @@ internal static class SaveTransferCommand
             {
                 throw new DirectoryNotFoundException("Import requires an installed game directory. Pass --game-dir or set MEMORIA_FF8_GAME_DIR or FF8_GAME_DIRECTORY.");
             }
-            using GameResourceHost host = new(options.GameDirectory!, watch: false, modsDirectory: options.ModsDirectory);
+            using GameResourceHost host = new(options.GameDirectory!, watch: false, modsDirectory: options.ModsDirectory, modelSourceDirectory: options.ModelSourceDirectory);
             if (host.Mods.View.Outcome is ModUpdateOutcome.Failed or ModUpdateOutcome.Blocked or ModUpdateOutcome.ReviewRequired)
             {
                 throw new InvalidDataException("Save import requires a successfully prepared mod resource selection: " + string.Join(" ", host.Mods.Diagnostics.Select(diagnostic => diagnostic.Message)));
@@ -70,10 +70,11 @@ internal static class SaveTransferCommand
         string? output = null;
         string? gameDirectory = null;
         string? modsDirectory = null;
+        string? modelSourceDirectory = null;
         for (int index = 1; index < args.Length; index++)
         {
             string argument = args[index];
-            if (argument != "--output" && (!import || argument is not ("--game-dir" or "--mods-dir")))
+            if (argument != "--output" && (!import || argument is not ("--game-dir" or "--mods-dir" or "--model-source-dir")))
             {
                 throw new ArgumentException($"Unknown save transfer argument: {argument}");
             }
@@ -98,6 +99,14 @@ internal static class SaveTransferCommand
                 }
                 gameDirectory = value;
             }
+            else if (argument == "--model-source-dir")
+            {
+                if (modelSourceDirectory is not null)
+                {
+                    throw new ArgumentException("Specify --model-source-dir only once.");
+                }
+                modelSourceDirectory = value;
+            }
             else
             {
                 if (modsDirectory is not null)
@@ -119,7 +128,7 @@ internal static class SaveTransferCommand
         {
             gameDirectory = Path.GetFullPath(LaunchOptions.ConfiguredGameDirectory);
         }
-        return new(source, output, gameDirectory, modsDirectory);
+        return new(source, output, gameDirectory, modsDirectory, modelSourceDirectory);
     }
 
     private static void WriteNewOutput(string output, Action<string> write)
@@ -141,5 +150,5 @@ internal static class SaveTransferCommand
         }
     }
 
-    internal sealed record Options(string SourcePath, string OutputPath, string? GameDirectory, string? ModsDirectory);
+    internal sealed record Options(string SourcePath, string OutputPath, string? GameDirectory, string? ModsDirectory, string? ModelSourceDirectory = null);
 }

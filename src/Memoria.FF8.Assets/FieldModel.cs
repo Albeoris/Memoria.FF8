@@ -19,6 +19,7 @@ public sealed record ModelControlBones(int First, int Second, int Additional, ui
 public readonly record struct FieldAnimationBlend(float PreviousFrame, float CurrentFrame, float Fraction, int FirstFrame = 0, int? TerminalFrame = null, bool Loop = false);
 public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IReadOnlyList<ModelVertex> Vertices, IReadOnlyList<ModelFace> Faces, IReadOnlyList<PixelImage> Textures, IReadOnlyList<ModelAnimation> Animations)
 {
+    public ResourceSourceDescriptor? TextureSourceDescriptor { get; init; }
     public EditableModel? EditableOverride { get; init; }
     public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
     public string? TextureResourceName { get; init; }
@@ -26,6 +27,7 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
     public string? TextureSourceVariant { get; init; }
 
     public NativeModelPartsDefinition? NativeParts { get; init; }
+    public NativeModelPartsDefinition? NativeRegistrationParts { get; init; }
     public NativeFieldEyeDefinition? NativeEyes { get; init; }
 
     public ModelControlBones ControlBones { get; init; } = new(-1, -1, -1, 0);

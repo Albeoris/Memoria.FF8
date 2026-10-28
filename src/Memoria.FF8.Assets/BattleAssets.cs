@@ -337,7 +337,7 @@ public sealed partial class BattleAssets : IDisposable
         {
             byte[] content = Read(name);
             model = resources.GetSource<IBattleModelSource>()?.ReadWeapon(new ResourceKey("battle/" + name), content, character) ?? BattleResourceReader.ReadWeapon(name, content, character);
-            model = model with { Textures = RegisterBattleTextures(new ResourceKey("battle/" + name), model.Textures, model.TextureSourceAddresses, model.TextureRegions) };
+            model = model with { Textures = RegisterBattleTextures(new ResourceKey("battle/" + name), model.Textures, model.TextureSourceAddresses, model.TextureRegions, model.TextureSourceDescriptor) };
             models.Add(key, model);
         }
         return modelOverrides?.Apply("battle/" + name.ToLowerInvariant(), model) ?? model;
@@ -365,19 +365,19 @@ public sealed partial class BattleAssets : IDisposable
             {
                 model = resources.GetSource<IBattleModelSource>()?.ReadModel(new ResourceKey("battle/" + name), content) ?? BattleResourceReader.ReadModel(name, content);
             }
-            model = model with { Textures = RegisterBattleTextures(new ResourceKey("battle/" + name), model.Textures, model.TextureSourceAddresses, model.TextureRegions) };
+            model = model with { Textures = RegisterBattleTextures(new ResourceKey("battle/" + name), model.Textures, model.TextureSourceAddresses, model.TextureRegions, model.TextureSourceDescriptor) };
             models.Add(name, model);
         }
         return modelOverrides?.Apply("battle/" + name.ToLowerInvariant(), model) ?? model;
     }
 
-    private IReadOnlyList<Albeoris.Games.FF8.Imaging.PixelImage> RegisterBattleTextures(ResourceKey owner, IReadOnlyList<Albeoris.Games.FF8.Imaging.PixelImage> images, IReadOnlyList<TextureSourceAddress> addresses, IReadOnlyList<TextureSourceRegion>? regions = null)
+    private IReadOnlyList<Albeoris.Games.FF8.Imaging.PixelImage> RegisterBattleTextures(ResourceKey owner, IReadOnlyList<Albeoris.Games.FF8.Imaging.PixelImage> images, IReadOnlyList<TextureSourceAddress> addresses, IReadOnlyList<TextureSourceRegion>? regions = null, ResourceSourceDescriptor? sourceDescriptor = null)
     {
         AssetHandle<TextureValue>[] handles = images.Select((image, index) =>
         {
             TextureSourceRegion? region = regions is not null && index < regions.Count ? regions[index] : null;
             TextureSourceAddress? sheet = region is not null && region.CanvasWidth == image.Width && region.CanvasHeight == image.Height ? BattleModelSheetAddress(owner, region, images.Count) : null;
-            return textureScope.Register(new TextureKey(owner, $"texture/{index}"), image, "classic-battle", region, nativeAlias: index < addresses.Count ? addresses[index] : null, nativeSheet: sheet)!;
+            return textureScope.Register(new TextureKey(owner, $"texture/{index}"), image, "classic-battle", region, nativeAlias: index < addresses.Count ? addresses[index] : null, nativeSheet: sheet, sourceDescriptor: sourceDescriptor)!;
         }).ToArray();
         return new ResourceTextureList(handles);
     }

@@ -85,7 +85,7 @@ internal static class GameInstallationSelection
         return null;
     }
 
-    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null, Memoria.FF8.Platform.HostPlatform? hostPlatform = null, string? configurationDirectory = null, string? resourceLanguage = null)
+    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null, Memoria.FF8.Platform.HostPlatform? hostPlatform = null, string? configurationDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null)
     {
         Memoria.FF8.Platform.HostPlatform platform = hostPlatform ?? Memoria.FF8.Platform.HostPlatforms.Current;
         string dataDirectory = Path.Combine(packageDirectory, "Data");
@@ -101,6 +101,12 @@ internal static class GameInstallationSelection
         };
         result.ArgumentList.Add("--game-dir");
         result.ArgumentList.Add(Path.GetFullPath(gameDirectory));
+        result.Environment.Remove("MEMORIA_FF8_MODEL_SOURCE_DIR");
+        if (!string.IsNullOrWhiteSpace(modelSourceDirectory))
+        {
+            result.ArgumentList.Add("--model-source-dir");
+            result.ArgumentList.Add(Path.GetFullPath(modelSourceDirectory));
+        }
         result.ArgumentList.Add("--mods-dir");
         result.ArgumentList.Add(ApplicationInstallation.ResolveModsDirectory(Path.GetFullPath(packageDirectory), platform, configurationDirectory ?? ApplicationPaths.Current.Configuration));
         result.ArgumentList.Add("--media-tools");
