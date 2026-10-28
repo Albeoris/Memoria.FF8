@@ -18,6 +18,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     private readonly long maximumCachedTextureBytes;
     private long cachedTextureBytes;
     private Texture2D? transientTexture;
+    private Color[] captureColors = [];
     private readonly record struct CachedTexture(PixelImage Image, Texture2D Texture, long Bytes);
     private readonly Dictionary<(TriangleBlend, bool, bool), BlendState> blends = [];
     private readonly Dictionary<(TriangleDepthComparison, bool), DepthStencilState> depths = [];
@@ -86,6 +87,10 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             workingTarget?.Dispose();
             workingTarget = new RenderTarget2D(device, width, height, false, SurfaceFormat.Color, DepthFormat.Depth24, multiSampleCount, RenderTargetUsage.PreserveContents);
         }
+        if (this.width != width || this.height != height)
+        {
+            captureColors = [];
+        }
         this.width = width;
         this.height = height;
         dynamicUploads.Clear();
@@ -152,7 +157,12 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             throw new InvalidOperationException("Active framebuffer capture requires a current triangle scene.");
         }
         Flush();
-        Color[] colors = new Color[width * height];
+        int pixelCount = checked(width * height);
+        if (captureColors.Length != pixelCount)
+        {
+            captureColors = new Color[pixelCount];
+        }
+        Color[] colors = captureColors;
         Viewport viewport = device.Viewport;
         try
         {
@@ -444,6 +454,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         textures.Clear();
         recentTextures.Clear();
         cachedTextureBytes = 0;
+        captureColors = [];
         active = false;
     }
 

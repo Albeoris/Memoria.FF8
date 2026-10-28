@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Text.Json;
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
@@ -84,6 +85,48 @@ public sealed class GpuTriangleRendererTests
         renderer.Begin(8, 8, Vector4.One);
         renderer.End();
         Assert.Equal(8, renderer.Target.Width);
+    }
+
+    [Fact]
+    public void FramebufferReadbackReusesOnlyPrivateScratchAndReturnsIndependentCurrentPixelsAcrossResize()
+    {
+        using GpuTestDevice device = new();
+        using RenderTarget2D outer = device.CreateTarget(12, 10);
+        device.Device.SetRenderTarget(outer);
+        GpuTriangleRenderer renderer = new(device.Device);
+        FieldInfo scratch = typeof(GpuTriangleRenderer).GetField("captureColors", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        try
+        {
+            renderer.Begin(16, 8, new Vector4(0, 0, 0, 1));
+            Quad(renderer, new(null), new Vector4(1, 0, 0, 1));
+            Assert.True(renderer.TryCaptureArgb(out uint[] first));
+            Color[] firstScratch = Assert.IsType<Color[]>(scratch.GetValue(renderer));
+            Assert.All(first, pixel => Assert.Equal(0xFFFF0000u, pixel));
+
+            Quad(renderer, new(null), new Vector4(0, 1, 0, 1));
+            Assert.True(renderer.TryCaptureArgb(out uint[] second));
+            Assert.Same(firstScratch, scratch.GetValue(renderer));
+            Assert.NotSame(first, second);
+            Assert.All(first, pixel => Assert.Equal(0xFFFF0000u, pixel));
+            Assert.All(second, pixel => Assert.Equal(0xFF00FF00u, pixel));
+            renderer.End();
+            Assert.Same(outer, device.Device.GetRenderTargets()[0].RenderTarget);
+
+            renderer.Begin(8, 16, new Vector4(0, 0, 1, 1));
+            Assert.Empty(Assert.IsType<Color[]>(scratch.GetValue(renderer)));
+            Assert.True(renderer.TryCaptureArgb(out uint[] resized));
+            Assert.Equal(128, resized.Length);
+            Assert.NotSame(firstScratch, scratch.GetValue(renderer));
+            Assert.All(resized, pixel => Assert.Equal(0xFF0000FFu, pixel));
+            Assert.All(second, pixel => Assert.Equal(0xFF00FF00u, pixel));
+            renderer.End();
+            Assert.Same(outer, device.Device.GetRenderTargets()[0].RenderTarget);
+        }
+        finally
+        {
+            renderer.Dispose();
+        }
+        Assert.Empty(Assert.IsType<Color[]>(scratch.GetValue(renderer)));
     }
 
     [Fact]
