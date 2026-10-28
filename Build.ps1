@@ -16,6 +16,14 @@ if (!$RuntimeIdentifier) {
     $RuntimeIdentifier = if ([OperatingSystem]::IsWindows()) { 'win-x64' } elseif ([OperatingSystem]::IsLinux()) { 'linux-x64' } elseif ([OperatingSystem]::IsMacOS()) { if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'osx-arm64' } else { 'osx-x64' } } else { throw 'Unsupported desktop host.' }
 }
 
+if ($RuntimeIdentifier -like 'osx-*' -and $Scope -ne 'Portable') {
+    # Homebrew's source-built SDK publishes its own runtime, which links Homebrew libraries and cannot ship in the bundle.
+    $basePath = @(& dotnet --info | Select-String -Pattern '^\s*Base Path:\s*(.+)$' -List)
+    if ($basePath.Count -eq 1 -and $basePath[0].Matches[0].Groups[1].Value -match '/(Cellar|opt)/dotnet/') {
+        throw "The active .NET SDK is Homebrew's source-built 'dotnet' formula ($($basePath[0].Matches[0].Groups[1].Value.Trim())). Self-contained macOS publishes would link /opt/homebrew libraries. Install Microsoft's SDK instead (brew uninstall dotnet; brew install --cask dotnet-sdk, or https://dotnet.microsoft.com/download) and make it the first dotnet on PATH."
+    }
+}
+
 function Invoke-DotNet {
     param([string[]]$Arguments)
 

@@ -39,6 +39,13 @@ if [ -z "$RUNTIME_IDENTIFIER" ]; then
     fi
 fi
 
+if [[ "$RUNTIME_IDENTIFIER" == osx-* ]] && [ "$SCOPE" != "Portable" ] && dotnet --info | grep -Eq 'Base Path:.*/(Cellar|opt)/dotnet/'; then
+    # Homebrew's source-built SDK publishes its own runtime, which links Homebrew libraries and cannot ship in the bundle.
+    echo "The active .NET SDK is Homebrew's source-built 'dotnet' formula. Self-contained macOS publishes would link /opt/homebrew libraries."
+    echo "Install Microsoft's SDK instead (brew uninstall dotnet; brew install --cask dotnet-sdk, or https://dotnet.microsoft.com/download) and make it the first dotnet on PATH."
+    exit 1
+fi
+
 invoke_dotnet() {
     dotnet "$@"
     local status=$?

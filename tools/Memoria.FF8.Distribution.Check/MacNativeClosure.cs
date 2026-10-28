@@ -119,7 +119,7 @@ static class MacNativeClosure
             {
                 if (!search.StartsWith("@loader_path", StringComparison.Ordinal) && !search.StartsWith("@executable_path", StringComparison.Ordinal))
                 {
-                    throw new InvalidDataException("Non-relocatable Mach-O search path: " + search);
+                    throw new InvalidDataException("Non-relocatable Mach-O search path: " + search + " in " + path);
                 }
             }
             foreach (string import in image.Imports)
@@ -147,7 +147,7 @@ static class MacNativeClosure
                 }
                 else
                 {
-                    throw new InvalidDataException("Non-relocatable Mach-O import: " + import);
+                    throw new InvalidDataException("Non-relocatable Mach-O import: " + import + " required by " + path);
                 }
                 if (!candidates.Any(candidate => Path.GetFullPath(candidate).StartsWith(Path.GetFullPath(bundle) + Path.DirectorySeparatorChar, StringComparison.Ordinal) && File.Exists(candidate)))
                 {
