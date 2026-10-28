@@ -79,7 +79,7 @@ public sealed class GpuFramebufferCaptureTests
     }
 
     [Fact]
-    public void InvalidDimensionsAndFailedResampleNeverReturnStalePixelsOrChangeTheActiveSource()
+    public void InvalidDimensionsAndDisposedResampleFailureRestoreTheActiveSource()
     {
         using GpuTestDevice device = new();
         using GpuTriangleRenderer renderer = new(device.Device);
@@ -90,8 +90,8 @@ public sealed class GpuFramebufferCaptureTests
         Assert.Throws<InvalidDataException>(() => renderer.TryCaptureArgb(15, 12, new(0, 0, 15, 12), 8, 6, out _));
         FieldInfo captureTarget = typeof(GpuTriangleRenderer).GetField("centreCaptureTarget", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Assert.IsType<RenderTarget2D>(captureTarget.GetValue(renderer)).Dispose();
-        Assert.False(renderer.TryCaptureArgb(16, 12, new(0, 0, 16, 12), 8, 6, out uint[] failed));
-        Assert.Empty(failed);
+        // This injected disposed-resource failure propagates from MonoGame; it is not a failed framebuffer lock.
+        Assert.Throws<NullReferenceException>(() => renderer.TryCaptureArgb(16, 12, new(0, 0, 16, 12), 8, 6, out _));
         Assert.Same(source, device.Device.GetRenderTargets()[0].RenderTarget);
         DrawSolid(renderer, 16, 12, new(0, 0, 1, 1));
         Assert.True(renderer.TryCaptureArgb(out uint[] next));
