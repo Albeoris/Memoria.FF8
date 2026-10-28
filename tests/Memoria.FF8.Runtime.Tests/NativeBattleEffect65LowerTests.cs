@@ -42,6 +42,136 @@ internal static class NativeBattleEffect65LowerFixture
 public sealed class NativeBattleEffect65LowerTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void Byte_only_reads_match_detached_reads_for_each_physical_owner(int route)
+    {
+        NativeBattleEffect65Frame frame = NativeBattleEffect65LowerFixture.Frame();
+        uint address = route switch
+        {
+            0 => ArenaAddress + 64,
+            1 => RootBank + 12,
+            2 => BaseAddress,
+            3 => LiteralBase,
+            4 => NativeBattleTemporaryMemory.Address + 64,
+            5 or 7 => ChildDescriptor,
+            _ => RootBank + 12
+        };
+        if (route == 6)
+        {
+            NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootBankLength, 1);
+            frame = frame with { Effect = frame.Effect with { Pools = [pool] }, State = frame.State with { RootBankStorage = null } };
+        }
+        if (route == 7)
+        {
+            NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ArenaAddress + ChildOffset, ChildStride, ChildCount);
+            (pool, _) = pool.Append(ChildCallback);
+            frame = frame with { Effect = frame.Effect with { Pools = [pool] }, State = frame.State with { ChildQueueStorage = null } };
+        }
+        else
+        {
+            frame = NativeBattleEffect65Controller.WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, [1, 2, 3, 4, 5, 6, 7, 8]).MarkUnknown(2, 1), 8);
+        }
+        var expected = NativeBattleEffect65Controller.ReadBytes(frame, address, 8).ReadSnapshot(0, 8);
+        byte[] bytes = new byte[8];
+        bool[] known = new bool[8];
+
+        NativeBattleEffect65Controller.ReadWithKnownness(frame, address, bytes, known);
+
+        Assert.Equal(expected.Data, bytes);
+        Assert.Equal(expected.Known, known);
+        if (route != 7)
+        {
+            frame = NativeBattleEffect65Controller.WriteBytes(frame, address, NativeBattleEffectArena.Clear(), 8);
+            Assert.Equal(expected.Data, bytes);
+            Assert.Equal(expected.Known, known);
+        }
+    }
+
+    [Fact]
+    public void Byte_only_split_read_keeps_unknown_bytes_and_validates_later_routes_before_consumption()
+    {
+        NativeBattleEffect65Frame frame = NativeBattleEffect65LowerFixture.Frame();
+        uint address = ArenaAddress + NativeBattleEffectArena.Length - 4u;
+        frame.Memory.Arena!.Write(NativeBattleEffectArena.Length - 4, [1, 2, 3, 4]).MarkUnknown(NativeBattleEffectArena.Length - 3, 1);
+        frame.Staging!.Write(address + 4, [5, 6, 7, 8]).MarkUnknown(address + 6, 1);
+        byte[] bytes = new byte[8];
+        bool[] known = new bool[8];
+        NativeBattleEffect65Controller.ReadWithKnownness(frame, address, bytes, known);
+        Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, bytes);
+        Assert.Equal(new[] { true, false, true, true, true, true, false, true }, known);
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect65Controller.ReadWithKnownness(frame with { Staging = null }, address, bytes, known));
+        Assert.Throws<ArgumentException>(() => NativeBattleEffect65Controller.ReadWithKnownness(frame, address, bytes, new bool[7]));
+        Assert.Equal("length", Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleEffect65Controller.ReadWithKnownness(frame, uint.MaxValue, new byte[2], new bool[2])).ParamName);
+    }
+
+    [Fact]
+    public void Byte_only_reads_observe_live_common_and_staging_transactions_without_retaining_them()
+    {
+        NativeBattleEffect65Frame frame = NativeBattleEffect65LowerFixture.Frame();
+        NativeBattleEffectArena arena = frame.Memory.Arena!;
+        arena.AdmitRetained(new());
+        byte[] bytes = new byte[8];
+        bool[] known = new bool[8];
+        using (NativeBattleTaskOperation operation = new([]))
+        {
+            arena.Write(64, [1, 2, 3, 4, 5, 6, 7, 8]).MarkUnknown(66, 1).WriteResourcePointer(68, null);
+            var expected = NativeBattleEffect65Controller.ReadBytes(frame, ArenaAddress + 64, 8).ReadSnapshot(0, 8);
+            NativeBattleEffect65Controller.ReadWithKnownness(frame, ArenaAddress + 64, bytes, known);
+            Assert.Equal(expected.Data, bytes);
+            Assert.Equal(expected.Known, known);
+        }
+        Assert.Equal(new byte[8], arena.Read(64, 8));
+        Assert.Equal((byte)1, bytes[0]);
+        using NativeBattleFileStagingTransaction staging = new(frame.Staging!);
+        uint address = NativeBattleTemporaryMemory.Address + 64;
+        staging.View.Write(address, [9, 8, 7, 6, 5, 4, 3, 2]).MarkUnknown(address + 1, 1);
+        NativeBattleEffect65Controller.ReadWithKnownness(frame with { Staging = staging.View }, address, bytes, known);
+        Assert.Equal((byte)9, bytes[0]);
+        Assert.False(known[1]);
+        NativeBattleFileStaging disposed = staging.View;
+        staging.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => NativeBattleEffect65Controller.ReadWithKnownness(frame with { Staging = disposed }, address, bytes, known));
+        Assert.Equal(new byte[8], frame.Staging!.Read(address, 8));
+    }
+
+    [Fact]
+    public void Byte_only_common_reads_avoid_detached_working_graph_allocations()
+    {
+        NativeBattleEffect65Frame frame = NativeBattleEffect65LowerFixture.Frame();
+        uint address = ArenaAddress + 64;
+        frame.Memory.Arena!.Write(64, [1, 2, 3, 4, 5, 6, 7, 8]);
+        byte[] bytes = new byte[8];
+        bool[] known = new bool[8];
+        for (int index = 0; index < 64; index++)
+        {
+            NativeBattleEffect65Controller.ReadWithKnownness(frame, address, bytes, known);
+            NativeBattleEffect65Controller.ReadBytes(frame, address, 8).ReadSnapshot(0, 8);
+        }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 128; index++)
+        {
+            NativeBattleEffect65Controller.ReadWithKnownness(frame, address, bytes, known);
+        }
+        long spanAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 128; index++)
+        {
+            NativeBattleEffect65Controller.ReadBytes(frame, address, 8).ReadSnapshot(0, 8);
+        }
+        long detachedAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(spanAllocated < detachedAllocated / 4, $"Span reads allocated {spanAllocated} bytes; detached reads allocated {detachedAllocated} bytes.");
+        Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, bytes);
+        Assert.All(known, value => Assert.True(value));
+    }
+
+    [Theory]
     [InlineData(8)]
     [InlineData(513)]
     public void Staged_reads_keep_live_transaction_payload_unknownness_and_detachment_without_pointer_metadata(int length)

@@ -65,6 +65,28 @@ public sealed record NativeBattleEffect65State([property: JsonRequired] NativeBa
         return Copy(literal ? LiteralStorage : Storage, offset, length);
     }
 
+    internal void ReadWithKnownness(uint address, Span<byte> bytes, Span<bool> known)
+    {
+        NativeBattleEffectArena source;
+        int offset;
+        if (Within(address, bytes.Length, ChildDescriptor, ChildQueueLength))
+        {
+            source = ReadChildQueue();
+            offset = checked((int)(address - ChildDescriptor));
+        }
+        else
+        {
+            bool literal = address < BaseAddress;
+            offset = Require(address, bytes.Length, literal ? LiteralBase : BaseAddress, literal ? LiteralRanges : OwnedRanges);
+            source = literal ? LiteralStorage : Storage;
+        }
+        source.ReadWithKnownness(offset, bytes, known);
+        if (source.MayHaveResourcePointers())
+        {
+            ReadView(address, bytes.Length).ReadWithKnownness(0, bytes, known);
+        }
+    }
+
     public NativeBattleEffect65State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
         if (Within(address, length, ChildDescriptor, ChildQueueLength))

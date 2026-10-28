@@ -121,6 +121,45 @@ public sealed class NativeBattleEffect65ParticleTests
         Assert.Equal(new[] { 0, 40 }, operations.Cast<NativeBattleEffect65DeliverBatch>().Select(delivery => delivery.Batch.AllocationBytes));
     }
 
+    [Fact]
+    public void Face_vertices_accept_unknown_W_but_reject_reached_unknown_XYZ()
+    {
+        (NativeBattleEffect65Frame frame, uint temporary, _, uint vertices) = FaceFrame(false, 2000);
+        for (int index = 0; index < 3; index++)
+        {
+            frame.Memory.Arena!.MarkUnknown(checked((int)(vertices - ArenaAddress)) + index * 8 + 6, 2);
+        }
+        List<NativeBattleEffect65Operation> operations = [];
+        NativeBattleEffect65Particles.DrawFaces(frame, temporary, 120, 0, 4, false, CursorGlobal, 2, Inputs(operations));
+        Assert.Single(operations);
+        (frame, temporary, _, vertices) = FaceFrame(false, 2000);
+        frame.Memory.Arena!.MarkUnknown(checked((int)(vertices - ArenaAddress)) + 2, 1);
+        operations.Clear();
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => NativeBattleEffect65Particles.DrawFaces(frame, temporary, 120, 0, 4, false, CursorGlobal, 2, Inputs(operations)));
+        Assert.Contains("reached current XYZ", error.Message);
+        Assert.Empty(operations);
+    }
+
+    [Theory]
+    [InlineData(-1, false)]
+    [InlineData(2000, true)]
+    public void Fourth_quad_vertex_is_read_only_after_the_original_projection_guard(int z, bool reached)
+    {
+        (NativeBattleEffect65Frame frame, uint temporary, _, uint vertices) = FaceFrame(true, z);
+        frame.Memory.Arena!.MarkUnknown(checked((int)(vertices - ArenaAddress)) + 24, 6);
+        List<NativeBattleEffect65Operation> operations = [];
+        if (reached)
+        {
+            Assert.Throws<NotSupportedException>(() => NativeBattleEffect65Particles.DrawFaces(frame, temporary, 120, 0, 4, true, CursorGlobal, 2, Inputs(operations)));
+            Assert.Empty(operations);
+        }
+        else
+        {
+            NativeBattleEffect65Particles.DrawFaces(frame, temporary, 120, 0, 4, true, CursorGlobal, 2, Inputs(operations));
+            Assert.Equal(0, Assert.IsType<NativeBattleEffect65DeliverBatch>(Assert.Single(operations)).Batch.AllocationBytes);
+        }
+    }
+
     private static (NativeBattleEffect65Frame Frame, uint Temporary, uint Source, uint Vertices) FaceFrame(bool quad, int z)
     {
         NativeBattleEffect65Frame frame = Frame(z);

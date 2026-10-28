@@ -104,6 +104,64 @@ public static partial class NativeBattleEffect65Controller
         return result;
     }
 
+    internal static void ReadWithKnownness(NativeBattleEffect65Frame frame, uint address, Span<byte> bytes, Span<bool> known)
+    {
+        if (bytes.Length != known.Length)
+        {
+            throw new ArgumentException("Effect65 data and knownness destinations must have equal lengths.", nameof(known));
+        }
+        if (address >= ChildDescriptor && (ulong)address + (uint)bytes.Length <= (ulong)ChildDescriptor + ChildQueueLength && frame.State.ChildQueueStorage is null)
+        {
+            ReadBytes(frame, address, bytes.Length).ReadWithKnownness(0, bytes, known);
+            return;
+        }
+        int copied = 0;
+        while (copied < bytes.Length)
+        {
+            uint current = checked(address + (uint)copied);
+            int count = RegionLength(frame, current, bytes.Length - copied, out int poolIndex, out int stateKind);
+            Span<byte> part = bytes.Slice(copied, count);
+            Span<bool> flags = known.Slice(copied, count);
+            if (poolIndex >= 0)
+            {
+                NativeBattleEffectTaskPool pool = frame.Effect.Pools[poolIndex];
+                ReadSourceBytes(NativeBattleEffectTaskMemory.CaptureBank(pool), checked((int)(current - pool.BankAddress)), part, flags);
+            }
+            else if (stateKind == 1)
+            {
+                ReadSourceBytes(frame.Memory.Arena ?? throw new NotSupportedException("Effect65 requires its current COMMON owner."), checked((int)(current - CommonAddress)), part, flags);
+            }
+            else if (stateKind == 2)
+            {
+                ReadSourceBytes(frame.State.RootBankStorage ?? throw new NotSupportedException("Effect65 requires its inactive root bank."), checked((int)(current - RootBank)), part, flags);
+            }
+            else if (stateKind == 3)
+            {
+                frame.State.ReadWithKnownness(current, part, flags);
+            }
+            else
+            {
+                NativeBattleFileStaging staging = RequireStaging(frame);
+                if (count > NativeBattleEffectArena.Length || (ulong)current + (uint)count > (ulong)uint.MaxValue + 1)
+                {
+                    throw new ArgumentOutOfRangeException("length");
+                }
+                staging.Validate();
+                staging.ReadWithKnownness(current, part, flags);
+            }
+            copied += count;
+        }
+    }
+
+    private static void ReadSourceBytes(NativeBattleEffectArena source, int offset, Span<byte> bytes, Span<bool> known)
+    {
+        source.ReadWithKnownness(offset, bytes, known);
+        if (source.MayHaveResourcePointers())
+        {
+            CopyBytes(source, offset, NativeBattleEffectArena.Clear(), 0, bytes.Length).ReadWithKnownness(0, bytes, known);
+        }
+    }
+
     public static NativeBattleEffect65Frame WriteBytes(NativeBattleEffect65Frame frame, uint address, NativeBattleEffectArena source, int length)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(length);
