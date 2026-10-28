@@ -30,6 +30,7 @@ public sealed partial class DemasterTextureResolver
             {
                 continue;
             }
+            ValidateExplicitTextureLayout(file);
             lock (contentUploadHashes)
             {
                 if (contentUploadHashes.TryGetValue(fingerprint.High64, out ulong low64) && low64 != fingerprint.Low64)

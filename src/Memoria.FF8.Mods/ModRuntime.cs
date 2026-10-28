@@ -369,8 +369,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     changedPackageIds.Clear();
                     foreach (string id in candidate.Packages.Select(package => package.Id).Concat(catalog.Packages.Select(package => package.Id)).Distinct(StringComparer.OrdinalIgnoreCase))
                     {
-                        var before = committedFileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp, entry.Value.LocalizationEpoch));
-                        var after = fileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp, entry.Value.LocalizationEpoch));
+                        var before = committedFileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp, entry.Value.LocalizationEpoch, entry.Value.TextureLayoutIdentity));
+                        var after = fileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp, entry.Value.LocalizationEpoch, entry.Value.TextureLayoutIdentity));
                         if (!before.SequenceEqual(after) || candidate.Packages.SingleOrDefault(package => package.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Priority != catalog.Packages.SingleOrDefault(package => package.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Priority)
                         {
                             changedPackageIds.Add(id);
@@ -427,10 +427,15 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 ModTextureLoadException? textureFailure = exception as ModTextureLoadException;
                 PackagePriorityException? priorityFailure = exception as PackagePriorityException;
-                List<ModDiagnostic> errors = [new("reload-failed", $"{exception.Message} The last committed generation remains active.", textureFailure?.PackageId ?? priorityFailure?.PackageId, textureFailure?.RelativePath ?? priorityFailure?.RelativePath)];
+                PackageTextureLayoutException? layoutFailure = exception as PackageTextureLayoutException;
+                List<ModDiagnostic> errors = [new("reload-failed", $"{exception.Message} The last committed generation remains active.", textureFailure?.PackageId ?? priorityFailure?.PackageId ?? layoutFailure?.PackageId, textureFailure?.RelativePath ?? priorityFailure?.RelativePath ?? layoutFailure?.RelativePath)];
                 if (priorityFailure is not null)
                 {
                     errors.Add(new("invalid-package-priority", priorityFailure.Message, priorityFailure.PackageId, priorityFailure.RelativePath));
+                }
+                if (layoutFailure is not null)
+                {
+                    errors.Add(new("invalid-texture-layouts", layoutFailure.Message, layoutFailure.PackageId, layoutFailure.RelativePath));
                 }
                 diagnostics = Array.AsReadOnly(errors.ToArray());
                 updateOutcome = ModUpdateOutcome.Failed;
@@ -628,18 +633,28 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     }
                     selectedFiles.Add((packageRoot, physical, relative));
                 }
+                PackageTextureLayouts textureLayouts = ReadTextureLayouts(id, format, selectedFiles);
+                if (textureLayouts.Identity is not null)
+                {
+                    identities.Add($"texture-layouts\0{id}\0{textureLayouts.Identity}");
+                }
                 foreach ((string packageRoot, string physical, string relative) in selectedFiles.OrderBy(item => item.Relative, PathOrder))
                 {
+                    if (format == ModFormat.Demaster && relative.Equals(TextureLayoutManifest.FileName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
                     FileInfo info = new(physical);
                     string key = id + "/" + relative + "\0" + physical;
                     visitedFiles.Add(key);
                     FileStamp stamp = new(info.Length, info.LastWriteTimeUtc.Ticks);
                     bool localizationManifest = hasLocalization && relative.Equals("Localization/localization.manifest.json", StringComparison.OrdinalIgnoreCase);
                     long localizationEpoch = localizationManifest ? localizationChangeEpoch : 0;
-                    if (!fileEntries.TryGetValue(key, out FileEntry? previous) || previous.Stamp != stamp || previous.LocalizationEpoch != localizationEpoch || forceRevalidate)
+                    textureLayouts.Entries.TryGetValue(relative, out TextureLayoutMetadata? textureLayout);
+                    if (!fileEntries.TryGetValue(key, out FileEntry? previous) || previous.Stamp != stamp || previous.LocalizationEpoch != localizationEpoch || previous.TextureLayoutIdentity != textureLayouts.Identity || forceRevalidate)
                     {
                         long revision = ++fileRevision;
-                        previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(packageRoot, physical, stamp)) { ContentStamp = localizationManifest ? (localizationEpoch, 0) : (stamp.Length, stamp.LastWriteTicks) }, localizationEpoch);
+                        previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(packageRoot, physical, stamp)) { ContentStamp = localizationManifest ? (localizationEpoch, 0) : (stamp.Length, stamp.LastWriteTicks), TextureLayout = textureLayout }, localizationEpoch, textureLayouts.Identity);
                         fileEntries[key] = previous;
                     }
                     identities.Add($"{key}\0{previous.File.Revision}");
@@ -912,7 +927,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         return exception is not OutOfMemoryException and not StackOverflowException and not AccessViolationException;
     }
 
-    private sealed record FileEntry(FileStamp Stamp, ModFile File, long LocalizationEpoch = 0);
+    private sealed record FileEntry(FileStamp Stamp, ModFile File, long LocalizationEpoch = 0, string? TextureLayoutIdentity = null);
     private readonly record struct FileStamp(long Length, long LastWriteTicks);
 
     private sealed class Subscription(ModRuntime owner, Action<ModCatalogSnapshot> callback) : IDisposable

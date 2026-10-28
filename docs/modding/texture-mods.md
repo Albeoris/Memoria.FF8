@@ -25,6 +25,31 @@ Tonberry and Demaster packages may set `priority` to a signed 32-bit integer (`-
 
 Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate IDs, the game-directory copy owns the entire package. Within Tonberry or Demaster, descending priority precedes ordinal case-insensitive alphabetical package order, with ordinal spelling as tie-breaker. Files retain their alphabetical ordering. The first contribution to a virtual filename wins. Removing or disabling it exposes the next contribution. Priority applies to contributions to the same virtual filename; the adapter's candidate-path preference is evaluated first. For example, an exact-palette DDS in a lower-priority package precedes a plain-page PNG in a higher-priority package. Junction retains its manifest dependency/order relationships and does not use this texture-package priority. Across texture formats, resolution tries Demaster, Junction FFNx textures, Tonberry, then the source's own replacement/original content.
 
+### Explicit texture layouts
+
+A Demaster package can include `texture-layouts.json` beside its `mod.ini`. This versioned settings file describes how individual images cover a native canvas; the selected resource source supplies the component positions and UVs.
+
+```json
+{
+  "version": 1,
+  "textures": {
+    "textures/battle.fs/hd_new/c0m000_0.dds": {
+      "layout": "whole-native-atlas",
+      "canvasWidth": 256,
+      "canvasHeight": 256
+    }
+  }
+}
+```
+
+Dimensions are logical source units, not the image's physical pixel dimensions. The current adapter accepts a complete 256 × 256 native monster atlas at an even image ordinal. Its two 128 × 128 materials sample the corresponding halves of the declared image. For example, a 1536 × 1536 whole-atlas image supplies 768 × 768 material crops. Replacements must preserve equal positive integral scale and exact crop boundaries at each usable mip.
+
+The winning even filename selects the complete bank using the usual extension and package precedence. Its whole-atlas declaration owns both materials; individual component files are not mixed into that bank. If a different component file wins the even filename, it does not inherit the losing package's declaration.
+
+Paths must identify existing images in that package. The parser rejects unknown fields, duplicate declarations, unsupported versions and unsafe paths. Invalid settings retain the last committed generation and report their package and manifest. Valid metadata for an unsupported native layout rejects that resource instead of silently treating it as a component. Changes and removal of metadata reprepare textures even when image files remain unchanged.
+
+When settings are supplied as an archive sidecar, copy the JSON file to the extracted package root. Keep it with the mod when moving or reinstalling the package.
+
 ## Supported layouts
 
 | Format | Selection contract | Limits |

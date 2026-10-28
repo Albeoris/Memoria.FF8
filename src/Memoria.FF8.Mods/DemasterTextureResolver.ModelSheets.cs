@@ -18,12 +18,23 @@ public sealed partial class DemasterTextureResolver
         {
             return null;
         }
+        if (address.Owner.Path.StartsWith("battle/c0m", StringComparison.Ordinal))
+        {
+            int row = int.Parse(address.Subresource.AsSpan(4), System.Globalization.CultureInfo.InvariantCulture);
+            string prefix = stem[..stem.LastIndexOf('_')];
+            ModFile? bank = WithExtensions($"{prefix}_{row & ~1}").SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
+            if (bank?.TextureLayout is { } layout)
+            {
+                return ResolveDeclaredMonsterAtlas(context, bank, address, row, layout);
+            }
+        }
         ModFile? file = WithExtensions(stem).SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
         if (file is null)
         {
             RejectUnresolvedMonsterOverlap(stem, address);
             return null;
         }
+        ValidateExplicitTextureLayout(file);
         DecodedModImage decoded = ModImageDecoder.Decode(file);
         if (address.Owner.Path[9] == 'c')
         {
@@ -35,6 +46,7 @@ public sealed partial class DemasterTextureResolver
             ModFile? anchor = WithExtensions($"{prefix}_0").SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
             if (anchor is not null)
             {
+                ValidateExplicitTextureLayout(anchor);
                 int planeWidth = ModImageDecoder.Decode(anchor).Image.Width;
                 if (planeWidth <= 0 || planeWidth % 128 != 0)
                 {
@@ -80,6 +92,44 @@ public sealed partial class DemasterTextureResolver
         return new(levels[0], $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, levels.AsReadOnly());
     }
 
+    private static TextureReplacement ResolveDeclaredMonsterAtlas(TextureBuildContext context, ModFile file, TextureSourceAddress address, int row, TextureLayoutMetadata layout)
+    {
+        ValidateExplicitTextureLayout(file);
+        if (layout.Mode != TextureLayoutMode.WholeNativeAtlas || layout.CanvasWidth != 256 || layout.CanvasHeight != 256)
+        {
+            throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("The declared monster atlas layout must match its native 256x256 paired canvas."));
+        }
+        DecodedModImage decoded = ModImageDecoder.Decode(file);
+        if (decoded.Image.Width <= 0 || decoded.Image.Height <= 0 || decoded.Image.Width % layout.CanvasWidth != 0 || decoded.Image.Height % layout.CanvasHeight != 0 || decoded.Image.Width / layout.CanvasWidth != decoded.Image.Height / layout.CanvasHeight)
+        {
+            throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Declared monster atlases require equal positive integral scale over their complete native canvas."));
+        }
+        int queryY = (row & 1) * 128 + address.Y;
+        List<PixelImage> levels = [];
+        foreach (PixelImage image in decoded.MipLevels)
+        {
+            if ((long)address.X * image.Width % layout.CanvasWidth != 0 || (long)queryY * image.Height % layout.CanvasHeight != 0 || (long)address.Width * image.Width % layout.CanvasWidth != 0 || (long)address.Height * image.Height % layout.CanvasHeight != 0)
+            {
+                break;
+            }
+            int x = (int)((long)address.X * image.Width / layout.CanvasWidth);
+            int y = (int)((long)queryY * image.Height / layout.CanvasHeight);
+            int width = (int)((long)address.Width * image.Width / layout.CanvasWidth);
+            int height = (int)((long)address.Height * image.Height / layout.CanvasHeight);
+            if (width <= 0 || height <= 0)
+            {
+                break;
+            }
+            PixelImage crop = new(width, height);
+            for (int line = 0; line < height; line++)
+            {
+                image.Pixels.AsSpan((y + line) * image.Width + x, width).CopyTo(crop.Pixels.AsSpan(line * width, width));
+            }
+            levels.Add(crop);
+        }
+        return new(levels[0], $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, levels.AsReadOnly());
+    }
+
     private void RejectUnresolvedMonsterOverlap(string stem, TextureSourceAddress address)
     {
         if (!address.Owner.Path.StartsWith("battle/c0m", StringComparison.Ordinal))
@@ -98,6 +148,8 @@ public sealed partial class DemasterTextureResolver
         {
             return;
         }
+        ValidateExplicitTextureLayout(previous);
+        ValidateExplicitTextureLayout(anchor);
         int pitch = ModImageDecoder.Decode(anchor).Image.Width;
         if (pitch <= 0 || pitch % 128 != 0)
         {
@@ -123,6 +175,10 @@ public sealed partial class DemasterTextureResolver
     private static TextureReplacement ResolveMonsterAtlas(TextureBuildContext context, ModFile file, TextureSourceAddress address, int row, ModFile first, ModFile second, int planeWidth)
     {
         ModFile[] files = [first, second];
+        foreach (ModFile layer in files)
+        {
+            ValidateExplicitTextureLayout(layer);
+        }
         DecodedModImage[] images = files.Select(ModImageDecoder.Decode).ToArray();
         for (int layer = 0; layer < images.Length; layer++)
         {
@@ -236,6 +292,7 @@ public sealed partial class DemasterTextureResolver
             {
                 continue;
             }
+            ValidateExplicitTextureLayout(companion);
             PixelImage image = ModImageDecoder.Decode(companion).Image;
             if (image.Width <= 0 || image.Width != image.Height || image.Width % 128 != 0)
             {

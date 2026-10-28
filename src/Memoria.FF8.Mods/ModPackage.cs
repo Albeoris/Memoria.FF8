@@ -51,6 +51,7 @@ public sealed class ModFile
     public ModFormat Format { get; }
     public string RelativePath { get; }
     public long Revision { get; }
+    public TextureLayoutMetadata? TextureLayout { get; init; }
     /// <summary>Physical metadata version, retained when an explicit retry changes the read revision.</summary>
     public (long Length, long Modified)? ContentStamp { get; init; }
 

@@ -11,10 +11,12 @@ public sealed record DemasterInspection(IReadOnlySet<string> UsablePackageIds, I
 public sealed partial class DemasterTextureResolver : ITextureReplacementResolver
 {
     private readonly ModCatalogSnapshot catalog;
+    private readonly bool hasExplicitTextureLayouts;
 
     public DemasterTextureResolver(ModCatalogSnapshot catalog)
     {
         this.catalog = catalog;
+        hasExplicitTextureLayouts = catalog.Files.Any(file => file.Format == ModFormat.Demaster && file.TextureLayout is not null);
     }
 
     /// <summary>Inspects target names against source-published layouts without opening image content.</summary>
@@ -27,6 +29,11 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
         {
             string path = file.RelativePath;
             string extension = Path.GetExtension(path);
+            if (file.TextureLayout is not null && !SupportsExplicitTextureLayout(file))
+            {
+                diagnostics.Add(new ModDiagnostic("demaster-unsupported-texture-layout", $"Texture '{path}' declares a layout that has no compatible native atlas adapter or canvas.", file.PackageId, path));
+                continue;
+            }
             if (IsContentUploadFamily(path))
             {
                 bool image = extension.Equals(".png", StringComparison.OrdinalIgnoreCase) || extension.Equals(".dds", StringComparison.OrdinalIgnoreCase);
@@ -86,6 +93,7 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public TextureReplacement? Resolve(TextureBuildContext context)
     {
+        ValidateSelectedTextureLayout(context);
         if (context.Layout == GfAtlasLayout)
         {
             return ResolveGfAtlas(context);

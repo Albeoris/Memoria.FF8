@@ -58,6 +58,7 @@ Tests that need installed resources or external fixtures require explicit config
 | `MEMORIA_FF8_CONTENT_TEXTURE_ASSET_FIXTURES` | Optional external JSON image catalog for supplied texture dimensions, mip decoding and inactive content filename diagnostics. |
 | `MEMORIA_FF8_GF_ATLAS_FIXTURES` | Optional external JSON catalog of original RAW GF producer resources and complete atlas artwork for isolated primary-source acceptance. |
 | `MEMORIA_FF8_MODEL_GROUP_FIXTURES` | Optional external JSON catalog of complete model image groups for active candidate precedence and native paired/partial upload acceptance. |
+| `MEMORIA_FF8_WHOLE_ATLAS_FIXTURES` | Optional external JSON catalog of original model resources and declared whole-atlas packages for native UV, CPU/GPU, toggle and metadata refresh acceptance. |
 | `MEMORIA_FF8_CARD_MOD_DIR` | Optional unpacked card texture package with the complete 31-file menu/mini-game layout for Demaster card routing tests. App integration checks also require `MEMORIA_FF8_GAME_DIR`. |
 | `MEMORIA_FF8_FIELD_MODEL_TEXTURE_PACKAGES` | External JSON array of unpacked model texture package directories, in ascending priority, for installed source coverage and CPU/GPU checks. |
 | `MEMORIA_FF8_REMASTERED_GAME_DIR` | Corresponding Remastered resources for model-profile and native field texture-plane tests. |
