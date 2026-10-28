@@ -7,6 +7,26 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleLogicalOrderingWorkingStorageTests
 {
     [Fact]
+    public void Retained_proxy_metadata_reads_do_not_open_a_producer_scope_or_advance_the_allocation_cursor()
+    {
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        ordering.Prepend(5, Reference(0), Words, 0, [11, 22, 33, 44]);
+        ordering.ResetAfterDraw45D080();
+        string original = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering));
+        using (NativeBattleTaskOperation operation = new([]))
+        {
+            operation.AdmitOrdering(ordering);
+            Assert.Equal(new[] { 11, 22, 33, 44 }, ordering.ReadRetainedProxyDepth(0));
+            Assert.Empty(ordering.ReadRetainedProxyDepth(1));
+            Assert.Empty(ordering.ReadRetainedProxyDepth(int.MaxValue));
+            Assert.Throws<ArgumentOutOfRangeException>(() => ordering.ReadRetainedProxyDepth(-1));
+            Assert.Equal(0, ordering.ProxyCursor);
+            operation.Commit();
+        }
+        Assert.Equal(original, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering)));
+    }
+
+    [Fact]
     public void Suspending_latest_primary_callback_keeps_published_prefix_when_secondary_fails_before_publication()
     {
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();

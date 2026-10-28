@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Collections.Immutable;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -95,7 +96,18 @@ internal sealed partial class GameWorld
             }
             if (!Ready())
             {
-                throw new NotSupportedException("Diagnostic entry did not initialize its original owners within the declared callback budget.");
+                object facts = new
+                {
+                    Callbacks = callbacks,
+                    active.NativeEntryReady,
+                    active.Outcome,
+                    DrainBlockers = active.ObserveDiagnosticDrainBlockers(),
+                    Target = request.Target is { } target ? active.ObserveDiagnosticTarget(target.ActorId) : null,
+                    CommandReady = request.Driver is null || RecreateGame.DiagnosticCommandReady(active, request.Driver),
+                    Actors = active.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, actor.IsReady, actor.IsBusy, actor.NativeCombatantFlags, actor.NativeAtb }).ToArray(),
+                    Owners = active.ObserveDiagnosticInvocationOwners()
+                };
+                throw new NotSupportedException("Diagnostic entry did not initialize its original owners within the declared callback budget. " + JsonSerializer.Serialize(facts));
             }
             SynchronizeNativeBattleHostCallbacks(active);
             DiagnosticReceipt = DiagnosticReceipt! with { EntryPreparation = new(active.NativeHostCallbacks ?? throw new NotSupportedException("Entry preparation lost its native callback ledger."), Stopwatch.GetElapsedTime(started).TotalMilliseconds, "Original entry/declared target/command readiness callbacks before presentation; measured focal executions retain normal real-time pacing.") };
@@ -172,6 +184,16 @@ internal sealed partial class GameWorld
         return advanced;
     }
 
+    internal void AbandonFaultedDiagnosticBattle()
+    {
+        if (diagnosticBattle is null)
+        {
+            throw new InvalidOperationException("Fault abandonment requires an active diagnostic battle owner.");
+        }
+        diagnosticAllocationFaulted = true;
+        session.AbandonSnapshotPreparation(snapshotPreparation);
+    }
+
     internal void EndDiagnosticBattle()
     {
         if (diagnosticBattle is null)
@@ -186,6 +208,10 @@ internal sealed partial class GameWorld
         }
         battle = null;
         diagnosticBattle = null;
+        if (diagnosticAllocationFaulted)
+        {
+            return;
+        }
         session.SetLiveBattle(null);
         session.Restore(session.State with { Scene = SceneKind.Title });
     }

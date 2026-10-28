@@ -75,12 +75,6 @@ public static partial class NativeBattleEffect173Controller
         {
             return frame;
         }
-        if (frame.Effect.Pools.Length == 3)
-        {
-            frame = frame with { State = frame.State.AttachCommonQueue(ReadBytes(frame, CommonDescriptor, 8)) };
-            NativeBattleEffectTaskTransfer transfer = NativeBattleEffectTaskMemory.DetachArenaBank(frame.Memory, frame.Effect, CommonDescriptor);
-            frame = frame with { Memory = transfer.Memory, Effect = transfer.Effect };
-        }
         for (int index = 0; index < 2; index++)
         {
             frame = frame with { State = frame.State.AttachBank(index, NativeBattleEffectTaskMemory.CaptureBank(frame.Effect.Pools[index])) };
@@ -170,6 +164,13 @@ public static partial class NativeBattleEffect173Controller
         }
         if (survivors == 0)
         {
+            if (frame.Effect.Pools.Length == 3)
+            {
+                //9BF0 is the last COMMON consumer;9C70 subsequently restores the texture file over this bank.
+                frame = frame with { State = frame.State.AttachCommonQueue(ReadBytes(frame, CommonDescriptor, 8)) };
+                NativeBattleEffectTaskTransfer transfer = NativeBattleEffectTaskMemory.DetachArenaBank(frame.Memory, frame.Effect, CommonDescriptor);
+                frame = frame with { Memory = transfer.Memory, Effect = transfer.Effect };
+            }
             (frame, uint cleanup) = Append(frame, RootDescriptor, CleanupCallback);
             frame = Write(frame, cleanup, Read(frame, cleanup).WriteWord(12, 0).WriteWord(14, 0));
         }

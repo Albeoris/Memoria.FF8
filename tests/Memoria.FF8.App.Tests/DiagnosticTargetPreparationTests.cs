@@ -5,6 +5,49 @@ namespace Memoria.FF8.Tests;
 
 public sealed class DiagnosticTargetPreparationTests
 {
+    [Fact]
+    public void OriginalEncounter509InitializesTheDeclaredM122CommandWithinItsEntryBudget()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed resources for original final-encounter initialization.");
+        GameSession session = GameWorld.CreateColdProcess(directory!);
+        session.StartNewGame();
+        using GameWorld world = new(session, directory!);
+        DiagnosticBattleDriverRecipe driver = new(new(BattleInputKind.Action, ActorId: "enemy-1", TargetId: "enemy-1", Ability: BattleAbility.EnemyAbility, ActionId: 31), 106)
+        {
+            EnemyAbility = new(122, 1, 0, 10, 2, 31, 11, 200),
+            ExpectedNativeAction = 31,
+            ExpectedNativeCommand = 2
+        };
+        DiagnosticBattleRequest request = new(509, 0, 0x80, 0, 0)
+        {
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            Fixture = new([new(0, true)], [new(0, 0, [], [0]) { MagicCommand = new(0, 20), HitPoints = 486, Level = 7 }], true),
+            Target = new("enemy-1", 142, 122, 1, 4, 0xC3, 1, null, null),
+            Driver = driver,
+            PrepareEntryBeforePresentation = true
+        };
+        BattleSession active = world.StartDiagnosticBattle(request);
+        try
+        {
+            world.PrepareDiagnosticEntryBeforePresentation(request);
+            Assert.True(active.NativeEntryReady);
+            Assert.Empty(active.ObserveDiagnosticDrainBlockers());
+            Assert.NotNull(world.VerifyDiagnosticTarget());
+            Assert.True(RecreateGame.DiagnosticCommandReady(active, driver));
+        }
+        catch
+        {
+            world.AbandonFaultedDiagnosticBattle();
+            throw;
+        }
+        finally
+        {
+            world.EndDiagnosticBattle();
+        }
+    }
+
     [Theory]
     [InlineData(508)]
     [InlineData(509)]

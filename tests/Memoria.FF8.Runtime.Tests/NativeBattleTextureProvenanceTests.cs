@@ -190,7 +190,7 @@ public sealed class NativeBattleTextureProvenanceTests
     }
 
     [Fact]
-    public void Self_copy_still_executes_the_native_transfer_and_records_its_observed_frame()
+    public void Self_copy_preserves_physical_publication_and_still_records_its_observed_frame()
     {
         NativeBattleTextureOrigin origin = new("effect.tim", 0, NativeBattleTextureRole.Pixels, 8, 2, 1);
         NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(64, 32, 2, 1, [1, 2, 3, 4]) with
@@ -199,6 +199,8 @@ public sealed class NativeBattleTextureProvenanceTests
             TextureRegistrations = [new(origin, 64, 32, 2, 1, []) { PaletteOwnedSpans = [], CopyHistoryKnown = true }]
         };
         NativeBattleEffectTextureDrain copied = state.EnqueueCopy505EB0(64, 32, 2, 1, 64, 32).Drain505D20();
+        Assert.Same(state.VramPublicationIdentity, copied.State.VramPublicationIdentity);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, Assert.Single(copied.Uploads).Bytes);
         Assert.Equal((ushort)0x0201, copied.State.ReadVramWord(64, 32));
         Assert.Equal((ushort)0x0403, copied.State.ReadVramWord(65, 32));
         Assert.Equal(state.LiveTextureSources, copied.State.LiveTextureSources);

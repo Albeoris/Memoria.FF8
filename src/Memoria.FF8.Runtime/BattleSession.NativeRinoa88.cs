@@ -239,8 +239,7 @@ public sealed partial class BattleSession
         ImmutableArray<int> ReadProxyDepth(int ordinal)
         {
             NativeBattleLogicalOrdering ordering = Ordering();
-            int index = Math.Min(new NativeBattleLogicalOrdering.Builder(ordering).ProxyCount + ordinal, NativeBattlePrimitiveOrdering.ProxyCapacity);
-            return index < ordering.Proxies.Length ? ordering.Proxies[index].VertexPayload4 : [];
+            return ordering.ReadRetainedProxyDepth(ordinal);
         }
         NativeBattleRinoa88LeafStep Finish(NativeBattleRinoa88Frame current, uint address, bool complete)
         {

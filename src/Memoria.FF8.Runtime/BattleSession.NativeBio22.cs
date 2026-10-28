@@ -34,8 +34,7 @@ public sealed partial class BattleSession
         ImmutableArray<int> ReadProxyDepth(NativeBattleBio22Frame current, int ordinal)
         {
             NativeBattleLogicalOrdering ordering = (graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Bio requires its current ordering table.")).Pending;
-            int index = Math.Min(new NativeBattleLogicalOrdering.Builder(ordering).ProxyCount + ordinal, NativeBattlePrimitiveOrdering.ProxyCapacity);
-            return index < ordering.Proxies.Length ? ordering.Proxies[index].VertexPayload4 : [];
+            return ordering.ReadRetainedProxyDepth(ordinal);
         }
 
         NativeBattleBio22Frame Execute(NativeBattleBio22Frame current, NativeBattleBio22Operation operation)

@@ -7,6 +7,43 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleBio22OverlayTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Overlay_retained_proxy_reads_leave_nested_task_ordering_and_staging_journals_balanced(bool publish)
+    {
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        ordering.Prepend(5, new("retained", 0, 0), [0x01000000, 0xE1000000], 0, [11, 22, 33, 44]);
+        ordering.Prepend(5, new("retained", 0, 8), [0x01000000, 0xE1000000], 0, []);
+        ordering.ResetAfterDraw45D080();
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().WriteByte(0x1000, 7);
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
+        using (NativeBattleTaskOperation outer = new(memory, []))
+        {
+            outer.AdmitOrdering(ordering);
+            outer.AdmitStaging(staging);
+            using (NativeBattleTaskOperation inner = new([]))
+            {
+                inner.AdmitOrdering(ordering);
+                NativeBattleBio22OverlayStep step = NativeBattleBio22Overlay.Advance89C650(Task(), Program(0x00123456, 0xFF000000), ordering.ReadRetainedProxyDepth);
+                Assert.Equal(new[] { 11, 22, 33, 44 }, step.Packets.Attempts[0].Primitive!.VertexPayload4);
+                Assert.Empty(step.Packets.Attempts[1].Primitive!.VertexPayload4);
+                NativeBattleEffectPacketArena.Append(memory, 0x100, ordering, step.Packets);
+                staging.WriteByte(0x1000, 9);
+                inner.Commit();
+            }
+            if (publish)
+            {
+                outer.Commit();
+            }
+        }
+        Assert.Equal(publish ? 2 : 0, ordering.ProxyCursor);
+        Assert.Equal(publish ? (byte)9 : (byte)7, staging.Read(0x1000, 1)[0]);
+        Assert.NotEmpty(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(staging)));
+        Assert.NotEmpty(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering)));
+        Assert.NotEmpty(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory)));
+    }
+
     [Fact]
     public void PrivatePacketsUseActualRectangleOrderAndRetainedProxyMetadata()
     {

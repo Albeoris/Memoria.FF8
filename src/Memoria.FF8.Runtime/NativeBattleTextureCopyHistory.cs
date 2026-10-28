@@ -117,9 +117,28 @@ public static class NativeBattleTextureCopyHistory
         {
             return registrations;
         }
-        if (registrations.Value.Any(owner => owner.PaletteOwnedSpans is null))
+        ImmutableArray<NativeBattleTextureRegistration> owners = registrations.Value;
+        bool unknownPaletteOwnership = false;
+        foreach (NativeBattleTextureRegistration owner in owners)
         {
-            return registrations.Value.Select(owner => owner with { CopyHistoryKnown = false, CopyOrder = null }).ToImmutableArray();
+            if (owner.PaletteOwnedSpans is null)
+            {
+                unknownPaletteOwnership = true;
+                break;
+            }
+        }
+        if (unknownPaletteOwnership)
+        {
+            ImmutableArray<NativeBattleTextureRegistration>.Builder? changed = null;
+            for (int index = 0; index < owners.Length; index++)
+            {
+                if (owners[index].CopyHistoryKnown || owners[index].CopyOrder is not null)
+                {
+                    changed ??= owners.ToBuilder();
+                    changed[index] = owners[index] with { CopyHistoryKnown = false, CopyOrder = null };
+                }
+            }
+            return changed?.ToImmutable() ?? registrations;
         }
         (int source, bool sourcePalette) = FindRole(registrations.Value, copy.SourceX, copy.SourceY);
         (int target, bool targetPalette) = FindRole(registrations.Value, copy.DestinationX, copy.DestinationY);
@@ -128,12 +147,18 @@ public static class NativeBattleTextureCopyHistory
         {
             return registrations;
         }
-        NativeBattleEffectTextureRectangle frame = new(copy.SourceX, copy.SourceY, copy.Width, copy.Height);
-        var result = registrations.Value.ToBuilder();
-        result[source] = Observe(result[source], frame);
-        if (target >= 0 && target != source && result[target].Active && (!targetPalette || paletteCopy))
+        NativeBattleTextureRegistration observedSource = Observe(owners[source], copy);
+        bool observeTarget = target >= 0 && target != source && owners[target].Active && (!targetPalette || paletteCopy);
+        NativeBattleTextureRegistration? observedTarget = observeTarget ? Observe(owners[target], copy) : null;
+        if (ReferenceEquals(observedSource, owners[source]) && (!observeTarget || ReferenceEquals(observedTarget, owners[target])))
         {
-            result[target] = Observe(result[target], frame);
+            return registrations;
+        }
+        var result = owners.ToBuilder();
+        result[source] = observedSource;
+        if (observeTarget)
+        {
+            result[target] = observedTarget!;
         }
         return result.ToImmutable();
     }
@@ -211,13 +236,21 @@ public static class NativeBattleTextureCopyHistory
         return -1;
     }
 
-    private static NativeBattleTextureRegistration Observe(NativeBattleTextureRegistration registration, NativeBattleEffectTextureRectangle frame)
+    private static NativeBattleTextureRegistration Observe(NativeBattleTextureRegistration registration, NativeBattleEffectVramCopy copy)
     {
-        int index = registration.CopyFrames.IndexOf(frame);
-        if (index >= 0)
+        for (int index = 0; index < registration.CopyFrames.Length; index++)
         {
-            return registration with { CurrentFrame = index, CopyOrder = registration.CopyOrder is { } order ? order.Remove(index).Add(index) : null };
+            NativeBattleEffectTextureRectangle known = registration.CopyFrames[index];
+            if (known.X == copy.SourceX && known.Y == copy.SourceY && known.Width == copy.Width && known.Height == copy.Height)
+            {
+                if (registration.CurrentFrame == index && (registration.CopyOrder is not { } currentOrder || currentOrder[^1] == index))
+                {
+                    return registration;
+                }
+                return registration with { CurrentFrame = index, CopyOrder = registration.CopyOrder is { } order ? order.Remove(index).Add(index) : null };
+            }
         }
+        NativeBattleEffectTextureRectangle frame = new(copy.SourceX, copy.SourceY, copy.Width, copy.Height);
         return registration with { CopyFrames = registration.CopyFrames.Add(frame), CurrentFrame = registration.CopyFrames.Length, CopyOrder = registration.CopyOrder is { } previous ? previous.Add(registration.CopyFrames.Length) : null };
     }
 
@@ -231,16 +264,28 @@ public static class NativeBattleTextureCopyHistory
         for (int index = registrations.Length - 1; index >= 0; index--)
         {
             NativeBattleTextureRegistration registration = registrations[index];
-            if (registration.Active && registration.OwnedSpans.Any(span => Contains(span, x, y)))
+            if (registration.Active && ContainsAny(registration.OwnedSpans, x, y))
             {
                 return (index, false);
             }
-            if (registration.PaletteOwnedSpans is { } palette && palette.Any(span => Contains(span, x, y)))
+            if (registration.PaletteOwnedSpans is { } palette && ContainsAny(palette, x, y))
             {
                 return (index, true);
             }
         }
         return (-1, false);
+    }
+
+    private static bool ContainsAny(ImmutableArray<NativeBattleTextureOwnedSpan> spans, int x, int y)
+    {
+        foreach (NativeBattleTextureOwnedSpan span in spans)
+        {
+            if (Contains(span, x, y))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ImmutableArray<NativeBattleTextureRegistration> UploadSingle(ImmutableArray<NativeBattleTextureRegistration>? registrations, int x, int y, int width, int height, NativeBattleTextureOrigin? origin)

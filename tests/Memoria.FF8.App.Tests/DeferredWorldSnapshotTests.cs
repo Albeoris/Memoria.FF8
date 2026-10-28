@@ -69,6 +69,30 @@ public sealed class DeferredWorldSnapshotTests
     }
 
     [Fact]
+    public void AbandoningAFaultedAllocationPreservesPublishedStateWithoutPreparingIt()
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        GameState published = session.State;
+        using IDisposable binding = session.BindSnapshotPreparation(_ => throw new InvalidOperationException("The faulted allocation cannot be captured."));
+        session.AbandonSnapshotPreparation(binding);
+        session.CompleteSnapshotPreparation(binding);
+        Assert.Same(published, session.State);
+        Assert.Same(published, session.PrepareSnapshot());
+    }
+
+    [Fact]
+    public void AbandoningAReplacedAllocationPreservesItsReplacement()
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        using IDisposable original = session.BindSnapshotPreparation(_ => throw new InvalidOperationException("Replaced allocation."));
+        using IDisposable replacement = session.BindSnapshotPreparation(state => state with { FieldName = "Replacement" });
+        session.AbandonSnapshotPreparation(original);
+        Assert.Equal("Replacement", session.PrepareSnapshot().FieldName);
+        session.CompleteSnapshotPreparation(replacement);
+        Assert.Equal("Replacement", session.State.FieldName);
+    }
+
+    [Fact]
     public void SnapshotPreparationCannotReenterItselfAndRecoversAfterFailure()
     {
         GameSession session = GameSession.CreateColdProcess();

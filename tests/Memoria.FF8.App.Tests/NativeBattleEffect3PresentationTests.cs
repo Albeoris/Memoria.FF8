@@ -75,7 +75,7 @@ public sealed class NativeBattleEffect3PresentationTests
         //494410 calls47E2D0 before publishing this contact: party B90/B18 copy directly to B92/B1C.
         //This explicitly supplies the formula producer replaced by the controlled packet below; enemy DAT247 masks do not apply to actor0.
         BattleCombatantSnapshot preparedParty = party with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
-        before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray() };
+        before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray(), NativePresentationStatusMemory = (before.NativePresentationStatusMemory ?? throw new InvalidDataException("The controlled formula producer requires its current physical presentation-status bank.")).Observe(party.NativeParticipant!.ActorIndex, preparedParty.NativeStatus!.Presentation!) };
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
         (packets, int header) = packets.Prepare(new(0, nativeEffect3.Command, 11, -1, nativeEffect3.ActionId, nativeEffect3.MagicId, null));
         //This controlled presentation component substitutes an already-computed7HP damage contact.

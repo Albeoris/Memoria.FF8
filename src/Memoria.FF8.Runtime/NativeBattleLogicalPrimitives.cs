@@ -145,6 +145,15 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
     private static ImmutableArray<NativeBattlePrimitiveLink> EmptyRoots() => Enumerable.Range(0, NativeBattlePrimitiveOrdering.BattleTableLength).Select(index => new NativeBattlePrimitiveLink(false, index - 1)).ToImmutableArray();
     public static NativeBattleLogicalOrdering Clear(byte buffer = 0) => new(EmptyRoots(), [], [], 0, buffer, EmptyRoots());
 
+    internal ImmutableArray<int> ReadRetainedProxyDepth(int ordinal)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
+        Owner storage = RequireOwner();
+        storage.RequireOperational();
+        int index = (int)Math.Min((long)storage.proxyCursor!.Value + ordinal, NativeBattlePrimitiveOrdering.ProxyCapacity);
+        return index < Proxies.Length ? Proxies[index].VertexPayload4 : [];
+    }
+
     public NativeBattleLogicalOrdering ResetAfterDraw45D080()
     {
         RequireOwner().ResetAfterDraw();

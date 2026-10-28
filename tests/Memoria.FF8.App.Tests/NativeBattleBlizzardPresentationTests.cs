@@ -75,7 +75,9 @@ public sealed class NativeBattleBlizzardPresentationTests
         BattleSnapshot before = battle.Capture();
         BattleCombatantSnapshot party = before.Combatants.Single(actor => actor.Id == "party");
         NativeBattleStatusSnapshot status = party.NativeStatus!;
-        before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? actor with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } } : actor).ToArray() };
+        NativeBattleStatusMirror presentation = new(status.Saved, status.Battle);
+        // The controlled494410/47E2D0 producer updates both the physical bank and its actor projection.
+        before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? actor with { NativeStatus = status with { Presentation = presentation } } : actor).ToArray(), NativePresentationStatusMemory = (before.NativePresentationStatusMemory ?? throw new InvalidDataException("The controlled formula producer requires its current physical presentation-status bank.")).Observe(party.NativeParticipant!.ActorIndex, presentation) };
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
         (packets, int header) = packets.Prepare(new(0, native.Command, 11, -1, native.ActionId, native.MagicId, null));
         // An explicit post-formula7HP presentation contact; no formula or previous gameplay is replayed.

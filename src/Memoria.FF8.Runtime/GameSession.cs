@@ -117,8 +117,22 @@ public sealed partial class GameSession : IEventServices
         }
         finally
         {
-            binding.Dispose();
+            AbandonSnapshotPreparation(binding);
         }
+    }
+
+    /// <summary>Releases a faulted allocation without capturing its invalid working state or changing the last published state.</summary>
+    public void AbandonSnapshotPreparation(IDisposable binding)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+        if (!ReferenceEquals(snapshotPreparation, binding))
+        {
+            return;
+        }
+        liveBattle = null;
+        acceptedBattleObservation = null;
+        liveFieldMemory = null;
+        binding.Dispose();
     }
 
     /// <summary>Materializes live allocation state for persistence without publishing a gameplay change.</summary>

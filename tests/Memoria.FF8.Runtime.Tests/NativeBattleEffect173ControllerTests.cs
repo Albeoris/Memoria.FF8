@@ -172,6 +172,8 @@ public sealed class NativeBattleEffect173ControllerTests
         frame = NativeBattleEffect173Programme.Initialize8FB0(frame, task + 28, ProgrammeAddress, 64, Resources());
         Harness harness = new() { Flags = 1, CompleteTexture = true };
         frame = Advance(frame, Resources(), harness.Inputs());
+        Assert.Equal(2, frame.Effect.Pools.Length);
+        Assert.Equal(task, BinaryPrimitives.ReadUInt32LittleEndian(frame.State.ReadCommonQueue().Read(0, 4)));
         Assert.Contains(frame.Effect.Pools[0].Slots, value => value.Callback == CleanupCallback && (value.Flags & 1) != 0);
         frame = Advance(frame, Resources(), harness.Inputs());
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
@@ -181,6 +183,46 @@ public sealed class NativeBattleEffect173ControllerTests
         Assert.Equal(0x5D90B0u, BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena!.Read(offset + 8, 4)));
         Assert.Equal(0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(frame.Memory.Arena.Read(offset + 100, 2)));
         Assert.Equal(1, BinaryPrimitives.ReadUInt16LittleEndian(frame.Memory.Arena.Read(offset, 2)) & 1);
+    }
+
+    [Fact]
+    public void Root_hands_off_COMMON_before_async_texture_restore_overwrites_orphan_headers()
+    {
+        NativeBattleEffect173Frame frame = InitializeCommonBank(Frame(0));
+        NativeBattleEffectTaskPool child = frame.Effect.Pools[1];
+        child.Slots[0].UpdateHeader(0, child.Slots[0].State, child.Slots[0].Next, child.Slots[0].Callback);
+        child.UpdateLinks(null, null);
+        (frame, uint task) = Append(frame, CommonDescriptor, 0x5D90B0);
+        frame = Write(frame, task, Read(frame, task).WriteBytes(16, new byte[8]).WriteWord(24, 4096).WriteWord(26, 0).WriteWord(100, 0xBEEF));
+        frame = NativeBattleEffect173Programme.Initialize8FB0(frame, task + 28, ProgrammeAddress, 64, Resources());
+        NativeBattleEffectTaskPool formerCommonOwner = frame.Effect.Pools[2];
+        Harness harness = new() { Flags = 1 };
+        frame = Advance(frame, Resources(), harness.Inputs());
+        Assert.Equal(2, frame.Effect.Pools.Length);
+        Assert.Throws<ObjectDisposedException>(() => formerCommonOwner.Validate());
+        Assert.Equal(task, BinaryPrimitives.ReadUInt32LittleEndian(frame.State.ReadCommonQueue().Read(0, 4)));
+        Assert.Equal(0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(frame.Memory.Arena!.Read(CommonBankOffset + 100, 2)));
+        NativeBattleEffect173Frame beforeRestore = NativeBattleStorageSnapshots.Capture(frame);
+        frame = NativeBattleStorageSnapshots.Restore(beforeRestore);
+        frame = Advance(frame, Resources(), harness.Inputs());
+        NativeBattleEffect173AppendCommonTextureLoad508630 restore = Assert.IsType<NativeBattleEffect173AppendCommonTextureLoad508630>(Assert.Single(harness.Operations));
+        Assert.Equal(0x20DFAB8u, restore.SourceAddress);
+        Assert.Equal(0u, Read(frame, restore.CompletionAddress - 14).ReadWord(14));
+        //508660 phase0 writes the A3 file to P before its completion callback; these are the first overlapping bank bytes.
+        byte[] overwrittenHeader = Enumerable.Repeat((byte)0xA5, 16).ToArray();
+        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(CommonBankOffset, overwrittenHeader) } };
+        frame.Effect.Validate();
+        NativeBattleEffect173Frame afterRestore = NativeBattleStorageSnapshots.Capture(frame);
+        frame = NativeBattleStorageSnapshots.Restore(afterRestore);
+        frame = Advance(frame, Resources(), harness.Inputs());
+        Assert.NotEqual(0u, frame.Effect.ReturnedDescriptor);
+        Assert.Equal(overwrittenHeader, frame.Memory.Arena!.Read(CommonBankOffset, overwrittenHeader.Length));
+        Assert.Equal(task, BinaryPrimitives.ReadUInt32LittleEndian(frame.State.ReadCommonQueue().Read(0, 4)));
+        frame = WriteCompletionByte(frame, restore.CompletionAddress, 255);
+        frame = Advance(frame, Resources(), harness.Inputs());
+        Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
+        Assert.Empty(frame.Effect.Pools);
+        Assert.Equal(overwrittenHeader, frame.Memory.Arena!.Read(CommonBankOffset, overwrittenHeader.Length));
     }
 
     [Theory]

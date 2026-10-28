@@ -38,7 +38,7 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal((short?)0, actual.EffectMemory.CuraContextF4);
         Assert.Equal((int?)0, actual.EffectMemory.CuraSceneFade);
         Assert.Equal(NativeBattleCuragaExecutableState.FromColdProcess(), actual.EffectMemory.CuragaExecutable);
-        var oldEffect = JsonSerializer.SerializeToNode(actual.EffectMemory)!.AsObject();
+        var oldEffect = JsonSerializer.SerializeToNode(NativeBattleStorageSnapshots.Capture(actual.EffectMemory))!.AsObject();
         Assert.True(oldEffect.Remove(nameof(NativeBattleEffectMemory.CuraContextF4)));
         Assert.True(oldEffect.Remove(nameof(NativeBattleEffectMemory.CuraSceneFade)));
         Assert.True(oldEffect.Remove(nameof(NativeBattleEffectMemory.CuragaExecutable)));
@@ -148,8 +148,8 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal(cursor, actual.FileStaging.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
         Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(NativeBattleTemporaryMemory.Address, temporary.Length));
         Assert.Throws<NotSupportedException>(() => generic.FileStaging!.Read(NativeBattleTemporaryMemory.Cursor, cursor.Length));
-        NativeBattleRetainedMemory authenticated = generic with { EffectMemory = authenticatedEffect, FileStaging = generic.FileStaging!.Write(NativeBattleTemporaryMemory.Address, temporary).Write(NativeBattleTemporaryMemory.Cursor, cursor).Write(0x1D999D0, shadow) };
-        Assert.Equal(JsonSerializer.Serialize(authenticated), JsonSerializer.Serialize(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null, RecoveryExecutables = null } }));
+        NativeBattleRetainedMemory authenticated = generic with { EffectMemory = authenticatedEffect, FileStaging = NativeBattleStorageSnapshots.Restore(generic.FileStaging!).Write(NativeBattleTemporaryMemory.Address, temporary).Write(NativeBattleTemporaryMemory.Cursor, cursor).Write(0x1D999D0, shadow) };
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(authenticated)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null, RecoveryExecutables = null } })));
         Assert.Same(actual, assets.ReadColdProcessNativeBattleMemory());
         Assert.Equal(0, actual.ActionPackets.Headers[31].ReadByte(19));
         Assert.Equal(0, actual.ActionPackets.ReadContact(48).Secondary.Amount6);

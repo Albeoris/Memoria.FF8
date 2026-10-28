@@ -6,6 +6,50 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleGuardianWorkPacketArenaTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Work_packet_publication_closes_its_producer_and_obeys_the_outer_task_journal(bool publish)
+    {
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
+        memory.GuardianWorkBuffer!.Write(0, Enumerable.Repeat((byte)0xA5, 32).ToArray());
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        using (NativeBattleTaskOperation operation = new(memory, []))
+        {
+            operation.AdmitOrdering(ordering);
+            NativeBattleGuardianWorkPacketArena.Append(memory, 0, ordering, Batch());
+            if (publish)
+            {
+                operation.Commit();
+            }
+        }
+        Assert.Equal(publish ? 1 : 0, ordering.ProxyCursor);
+        Assert.Equal(publish ? (byte)1 : (byte)0xA5, memory.GuardianWorkBuffer.Read(3, 1)[0]);
+        Assert.NotNull(NativeBattleStorageSnapshots.Capture(ordering));
+        Assert.NotNull(NativeBattleStorageSnapshots.Capture(memory.GuardianWorkBuffer));
+    }
+
+    [Fact]
+    public void A_later_invalid_work_attempt_rolls_back_the_partial_producer_and_allows_the_task_to_complete()
+    {
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
+        memory.GuardianWorkBuffer!.Write(0, Enumerable.Repeat((byte)0xA5, 32).ToArray());
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        NativeBattleGfGeometryBatch first = Batch();
+        NativeBattleGfGeometryBatch invalid = new([first.Attempts[0], new(12, [], [], null)], 24);
+        using (NativeBattleTaskOperation operation = new(memory, []))
+        {
+            operation.AdmitOrdering(ordering);
+            Assert.Throws<InvalidDataException>(() => NativeBattleGuardianWorkPacketArena.Append(memory, 0, ordering, invalid));
+            Assert.Empty(ordering.Packets);
+            ordering.Prepend(17, new("later", 0, 0), [0x01000000, 0xE1000000], 0, []);
+            operation.Commit();
+        }
+        Assert.Equal(1, ordering.ProxyCursor);
+        Assert.Equal(Enumerable.Repeat((byte)0xA5, 32), memory.GuardianWorkBuffer.Read(0, 32));
+        Assert.NotNull(NativeBattleStorageSnapshots.Capture(ordering));
+    }
+
     [Fact]
     public void WorkPacketsUseTheExistingOwnerAndRetainUnwrittenExtendedPadding()
     {

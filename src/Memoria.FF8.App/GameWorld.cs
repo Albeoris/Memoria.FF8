@@ -21,6 +21,7 @@ internal sealed partial class GameWorld : IDisposable
     private readonly IModelOverrideSource? modelOverrides;
     private readonly bool validateWorldPresentation;
     private readonly IDisposable snapshotPreparation;
+    private bool diagnosticAllocationFaulted;
     private FieldRenderer? renderer;
     private WorldMapScene? worldScene;
     private SpuWaveAudioOutput? spuAudio;
@@ -520,6 +521,10 @@ internal sealed partial class GameWorld : IDisposable
             {
                 EndDiagnosticBattle();
                 snapshotPreparation.Dispose();
+            }
+            else if (diagnosticAllocationFaulted)
+            {
+                session.AbandonSnapshotPreparation(snapshotPreparation);
             }
             else
             {

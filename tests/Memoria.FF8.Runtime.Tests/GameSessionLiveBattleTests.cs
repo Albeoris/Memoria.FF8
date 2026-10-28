@@ -80,6 +80,27 @@ public sealed class GameSessionLiveBattleTests
     }
 
     [Fact]
+    public void FaultAbandonmentDetachesAnUncapturableLiveBattleWithoutChangingPublishedState()
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        BattleSession battle = CreateBattle();
+        session.SetLiveBattle(battle);
+        GameState published = session.State;
+        using IDisposable binding = session.BindSnapshotPreparation(state => state);
+        using NativeBattleFileStagingTransaction transaction = new(NativeBattleFileStaging.Unknown());
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeFileStaging))!.SetValue(battle, transaction.View);
+        Assert.Throws<InvalidOperationException>(() => session.PrepareSnapshot());
+
+        session.AbandonSnapshotPreparation(binding);
+        session.CompleteSnapshotPreparation(binding);
+
+        Assert.Null(session.LiveBattle);
+        Assert.False(session.HasActiveBattle);
+        Assert.Same(published, session.State);
+        Assert.Same(published, session.PrepareSnapshot());
+    }
+
+    [Fact]
     public void Reading_definition_copies_catalog_metadata_without_capturing_live_effect_storage()
     {
         BattleSession battle = CreateBattle();

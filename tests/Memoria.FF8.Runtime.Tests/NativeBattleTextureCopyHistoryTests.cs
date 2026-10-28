@@ -7,6 +7,53 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleTextureCopyHistoryTests
 {
     [Fact]
+    public void Reobserving_current_frame_reuses_both_owners_and_collection_without_allocating()
+    {
+        var owners = Upload(null, "source.tim", 64, 256, 32, 16);
+        owners = Upload(owners, "target.tim", 128, 256, 32, 16);
+        NativeBattleEffectVramCopy copy = new(72, 256, 8, 4, 128, 256);
+        owners = NativeBattleTextureCopyHistory.Copy(owners, copy);
+        ImmutableArray<NativeBattleTextureRegistration> retained = owners!.Value;
+        for (int index = 0; index < 1000; index++)
+        {
+            owners = NativeBattleTextureCopyHistory.Copy(owners, copy);
+        }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1000; index++)
+        {
+            owners = NativeBattleTextureCopyHistory.Copy(owners, copy);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(0, allocated);
+        Assert.True(retained.Equals(owners!.Value));
+        Assert.Same(retained[0], owners.Value[0]);
+        Assert.Same(retained[1], owners.Value[1]);
+        var changed = NativeBattleTextureCopyHistory.Copy(owners, new(80, 256, 8, 4, 128, 256));
+        Assert.False(retained.Equals(changed!.Value));
+        Assert.All(changed.Value, owner => Assert.Equal(1, owner.CurrentFrame));
+        Assert.All(changed.Value, owner => Assert.Equal(2, owner.CopyFrames.Length));
+        Assert.All(retained, owner => Assert.Equal(0, owner.CurrentFrame));
+    }
+
+    [Fact]
+    public void Repeated_palette_frame_keeps_identity_but_a_distinct_palette_frame_updates_both_owners()
+    {
+        NativeBattleTextureOrigin source = new("mag012.tim", 0, NativeBattleTextureRole.Pixels, 4, 2, 1) { Kind = NativeBattleTextureSourceKind.Tim, PaletteRectangle = new(0, 32, 16, 2) };
+        NativeBattleTextureOrigin target = new("mag013.tim", 0, NativeBattleTextureRole.Pixels, 4, 2, 1) { Kind = NativeBattleTextureSourceKind.Tim, PaletteRectangle = new(16, 32, 16, 2) };
+        var owners = NativeBattleTextureCopyHistory.Upload(null, 64, 256, 2, 1, source);
+        owners = NativeBattleTextureCopyHistory.Upload(owners, 128, 256, 2, 1, target);
+        NativeBattleEffectVramCopy copy = new(0, 32, 16, 1, 16, 32);
+        owners = NativeBattleTextureCopyHistory.Copy(owners, copy);
+        ImmutableArray<NativeBattleTextureRegistration> retained = owners!.Value;
+        owners = NativeBattleTextureCopyHistory.Copy(owners, copy);
+        Assert.True(retained.Equals(owners!.Value));
+        var changed = NativeBattleTextureCopyHistory.Copy(owners, new(0, 33, 16, 1, 16, 32));
+        Assert.False(retained.Equals(changed!.Value));
+        Assert.All(changed.Value, owner => Assert.Equal(1, owner.CurrentFrame));
+        Assert.All(changed.Value, owner => Assert.Equal(2, owner.CopyFrames.Length));
+    }
+
+    [Fact]
     public void Same_owner_observes_distinct_source_rectangles_in_execution_order_and_reuses_indices()
     {
         var owners = Upload(null, "first.tim", 64, 256, 32, 16);

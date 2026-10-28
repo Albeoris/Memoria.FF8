@@ -76,6 +76,7 @@ internal sealed partial class RecreateGame
             }
             else if (fieldFaulted || fieldRenderFaulted)
             {
+                world!.AbandonFaultedDiagnosticBattle();
                 driver.Fail($"GRAPHICAL_HOST_FAULTED: {diagnosticBattleFault?.ToString() ?? error ?? "No host error detail was retained."}");
             }
             else

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 
@@ -548,22 +549,26 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
                 throw new InvalidDataException("Native45BDD0 copy leaves its1024x512 word VRAM.");
             }
             int bytesPerRow = 2 * copy.Width;
-            Span<byte> valueBytes = stackalloc byte[4];
-            for (int row = 0; row < copy.Height; row++)
+            // Exact self-transfers preserve every word; keep their source reads, upload and frame observation below.
+            if (copy.SourceX != copy.DestinationX || copy.SourceY != copy.DestinationY)
             {
-                int read = 2 * ((copy.SourceY + row) * 1024 + copy.SourceX);
-                int write = 2 * ((copy.DestinationY + row) * 1024 + copy.DestinationX);
-                int offset = 0;
-                //45BDD0 uses forward REP MOVSD followed by REP MOVSB, including overlapping rectangles.
-                for (; offset + 4 <= bytesPerRow; offset += 4)
+                Span<byte> valueBytes = stackalloc byte[4];
+                for (int row = 0; row < copy.Height; row++)
                 {
-                    bank.ReadInto(read + offset, valueBytes);
-                    mutation.Write(write + offset, valueBytes);
-                }
-                for (; offset < bytesPerRow; offset++)
-                {
-                    valueBytes[0] = bank.ReadByte(read + offset);
-                    mutation.Write(write + offset, valueBytes[..1]);
+                    int read = 2 * ((copy.SourceY + row) * 1024 + copy.SourceX);
+                    int write = 2 * ((copy.DestinationY + row) * 1024 + copy.DestinationX);
+                    int offset = 0;
+                    //45BDD0 uses forward REP MOVSD followed by REP MOVSB, including overlapping rectangles.
+                    for (; offset + 4 <= bytesPerRow; offset += 4)
+                    {
+                        bank.ReadInto(read + offset, valueBytes);
+                        mutation.Write(write + offset, valueBytes);
+                    }
+                    for (; offset < bytesPerRow; offset++)
+                    {
+                        valueBytes[0] = bank.ReadByte(read + offset);
+                        mutation.Write(write + offset, valueBytes[..1]);
+                    }
                 }
             }
             byte[] changed = new byte[bytesPerRow * copy.Height];
@@ -574,7 +579,8 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
             }
             liveSources = NativeBattleTextureProvenance.Copy(liveSources, copy);
             registrations = NativeBattleTextureCopyHistory.Copy(registrations, copy);
-            uploads.Add(new(copy.DestinationX, copy.DestinationY, copy.Width, copy.Height, changed.ToImmutableArray()) { Copied = true });
+            // This private array is published once and is never mutated after the ownership transfer.
+            uploads.Add(new(copy.DestinationX, copy.DestinationY, copy.Width, copy.Height, ImmutableCollectionsMarshal.AsImmutableArray(changed)) { Copied = true });
         }
     }
 

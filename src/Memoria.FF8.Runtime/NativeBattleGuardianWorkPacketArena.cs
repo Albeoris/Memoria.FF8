@@ -10,7 +10,7 @@ public static class NativeBattleGuardianWorkPacketArena
         NativeBattleGuardianWorkBuffer source = memory.GuardianWorkBuffer ?? throw new NotSupportedException("Native work packets require their retained571B70 memory.");
         source.Validate();
         using NativeBattleEffectArenaWriter writer = new(source.Arena);
-        NativeBattleLogicalOrdering.Builder links = new(ordering);
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         NativeBattleEffectPacketArena.AppendAttempts(writer, links, cursor, batch, flags20, bank: PacketBank, capacity: NativeBattleGuardianWorkBuffer.Length);
         return new(memory with { GuardianWorkBuffer = new(writer.Freeze()) }, checked(cursor + batch.AllocationBytes), links.ToImmutable());
     }
