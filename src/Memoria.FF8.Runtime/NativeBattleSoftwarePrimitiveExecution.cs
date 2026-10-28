@@ -302,9 +302,57 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         imageChanged = true;
         NativeSoftwareImageTransfer.Transfer45BB00(image, packet, (left, top, right, bottom) =>
         {
-            PublishImage();
+            PublishTransferredImage(left, top, right, bottom);
             Cache = (Cache ?? throw new NotSupportedException("Native image transfer requires its retained texture cache.")).Invalidate464850(left, top, right, bottom, priorTextures);
         });
+    }
+
+    private void PublishTransferredImage(int left, int top, int right, int bottom)
+    {
+        if (!imageChanged || image is null)
+        {
+            return;
+        }
+        Textures.Validate();
+        int first = image.Length;
+        int end = 0;
+        Span<byte> previous = stackalloc byte[1024 * 2];
+        // The preceding full flush makes the transfer's clamped destination its only possible changed region.
+        if (right >= left && bottom >= top)
+        {
+            int rowBytes = (right - left + 1) * 2;
+            for (int row = top; row <= bottom; row++)
+            {
+                int offset = 2 * (row * 1024 + left);
+                Span<byte> before = previous[..rowBytes];
+                Textures.ReadVramInto(offset, before);
+                ReadOnlySpan<byte> after = image.AsSpan(offset, rowBytes);
+                if (after.SequenceEqual(before))
+                {
+                    continue;
+                }
+                int rowFirst = 0;
+                while (after[rowFirst] == before[rowFirst])
+                {
+                    rowFirst++;
+                }
+                if (first == image.Length)
+                {
+                    first = offset + rowFirst;
+                }
+                int rowEnd = rowBytes;
+                while (after[rowEnd - 1] == before[rowEnd - 1])
+                {
+                    rowEnd--;
+                }
+                end = offset + rowEnd;
+            }
+        }
+        if (end > first)
+        {
+            Textures = Textures.PublishVramSpan(first, image.AsSpan(first, end - first));
+        }
+        imageChanged = false;
     }
 
     private void PublishImage()
