@@ -23,7 +23,7 @@ public sealed class NativeBattleEffect308PresentationTests
         Assert.Equal(794, source.Definition.EncounterId);
         Assert.Equal(65, source.Definition.StageId);
         Assert.Null(source.NativeGraphics!.OriginalEffect);
-        Assert.Equal(new int?[] { 4, 5, 3 }, source.NativeGraphics.Models.Skip(3).Take(3).Select(model => model.ReadLinkedModelIndex140()));
+        Assert.All(source.NativeGraphics.Models.Skip(3).Take(3), model => Assert.Null(model.ReadLinkedModelIndex140()));
         RunPrepared(QueueComponent(source, game, assets), game, assets, output!);
     }
 

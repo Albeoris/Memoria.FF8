@@ -190,4 +190,3 @@ public sealed class SnapshotRetainedEffectResourceMigrationTests
         return new GameAssets(directory!);
     }
 }
-

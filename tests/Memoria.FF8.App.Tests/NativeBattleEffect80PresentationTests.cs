@@ -131,7 +131,7 @@ public sealed class NativeBattleEffect80PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect80State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect80));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect80State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(sourceSession.NativeEffectMemory!.Effect80)));
         Assert.Equal((ushort)1448, original.NativeModelCpuResources!.ScratchMaximum);
         Assert.Equal(new NativeBattleClockState(1, 0, 0), original.NativeClock);
         BattleCombatantDefinition caster = sourceSession.GetCombatantDefinition(graphics.ActorIds[4] ?? throw new InvalidDataException("Effect80 requires its actual caster allocation."));

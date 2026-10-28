@@ -171,7 +171,7 @@ public sealed class NativeBattleEffect301PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect301State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect301));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect301State.FromColdProcess())), JsonSerializer.Serialize(original.NativeEffectMemory.Effect301));
         string casterId = graphics.ActorIds[casterIndex] ?? throw new InvalidDataException("Effect301 requires its current caster.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);
         Assert.Equal(94, caster.ModelId);

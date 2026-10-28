@@ -715,7 +715,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal(new NativeBattleEffectInitializerResource("mag078.tim", NativeBattleEffect79Profile.InitializerGlobal), original.InitializerResource);
                 Assert.Equal(NativeBattleEffect79Profile.TextureLength, original.InitializerAsset!.Data.Length);
                 Assert.Same(game.ReadNativeEffect79Resources(), original.Effect79Resources);
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect79State.FromColdProcess()), JsonSerializer.Serialize(source.NativeEffectMemory!.Effect79));
+                Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect79State.FromColdProcess())), JsonSerializer.Serialize(source.NativeEffectMemory!.Effect79));
             }
             if (effectId == 83)
             {
@@ -725,7 +725,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal(new NativeBattleEffectInitializerResource("mag082.tim", NativeBattleEffect83Profile.InitializerGlobal), original.InitializerResource);
                 Assert.Equal(NativeBattleEffect83Profile.TextureLength, original.InitializerAsset!.Data.Length);
                 Assert.Same(game.ReadNativeEffect83Resources(), original.Effect83Resources);
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect83State.FromColdProcess()), JsonSerializer.Serialize(source.NativeEffectMemory!.Effect83));
+                Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect83State.FromColdProcess())), JsonSerializer.Serialize(source.NativeEffectMemory!.Effect83));
             }
             if (effectId == 289)
             {
@@ -1595,6 +1595,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             Assert.NotNull(source.NativeModelCpuResources);
             File.WriteAllText(Path.Combine(output!, "original-binding.json"), JsonSerializer.Serialize(new { action.Command, action.ActionId, action.MagicId, action.CrisisLevel, action.KernelSection, action.KernelIndex, action.SupplementalKernelIndex, Formation = formation.Id, formation.StageId, Enemy = enemy.ModelId, enemy.Slot, enemy.Level, Caster = caster, Target = contactActor, OriginalKernelReference = originalAction is not null, RequestedEffect = effectId }));
             source = NativeBattleRetainedEffectMigrationAcceptance.Prepare(source, effectId, output!);
+            Assert.NotNull(source.NativeGraphics);
             battle = BattleSession.Restore(source);
             battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
@@ -3677,7 +3678,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         int factor = NativeBattleCameraMath.Sine(((oldAge - 32) << 12) / 20 >> 2);
                         NativeBattleBladeShot12Resources resources = original.BladeShot12Resources!;
                         AssertBladeShot12Morph(current, resources, factor);
-                        blade12Observations.Add(new { Boundary = "two49-morph-fronts-XYZ6-W", OldAge = oldAge, Factor = factor, First = state.ReadView(NativeBattleBladeShot12Profile.MutableVerticesA, NativeBattleBladeShot12Profile.MutableVerticesLength), Second = state.ReadView(NativeBattleBladeShot12Profile.MutableVerticesB, NativeBattleBladeShot12Profile.MutableVerticesLength) });
+                        blade12Observations.Add(new { Boundary = "two49-morph-fronts-XYZ6-W", OldAge = oldAge, Factor = factor, First = NativeBattleStorageSnapshots.Capture(state.ReadView(NativeBattleBladeShot12Profile.MutableVerticesA, NativeBattleBladeShot12Profile.MutableVerticesLength)), Second = NativeBattleStorageSnapshots.Capture(state.ReadView(NativeBattleBladeShot12Profile.MutableVerticesB, NativeBattleBladeShot12Profile.MutableVerticesLength)) });
                         ColdNext("two49-morph-fronts-old" + oldAge, current);
                     }
                     foreach (NativeBattleEffectTaskPool pool in after.Pools.Skip(1))
