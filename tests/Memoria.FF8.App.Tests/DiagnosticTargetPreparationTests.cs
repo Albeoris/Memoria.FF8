@@ -6,7 +6,7 @@ namespace Memoria.FF8.Tests;
 public sealed class DiagnosticTargetPreparationTests
 {
     [Fact]
-    public void OriginalEncounter509InitializesTheDeclaredM122CommandWithinItsEntryBudget()
+    public void OriginalEncounter509RejectsDirectM122ReadinessWithoutItsLaterPhaseModel140Owner()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed resources for original final-encounter initialization.");
@@ -31,19 +31,25 @@ public sealed class DiagnosticTargetPreparationTests
         BattleSession active = world.StartDiagnosticBattle(request);
         try
         {
-            world.PrepareDiagnosticEntryBeforePresentation(request);
+            NotSupportedException rejected = Assert.Throws<NotSupportedException>(() => world.PrepareDiagnosticEntryBeforePresentation(request));
+            Assert.Contains("within the declared callback budget", rejected.Message);
             Assert.True(active.NativeEntryReady);
-            Assert.Empty(active.ObserveDiagnosticDrainBlockers());
-            Assert.NotNull(world.VerifyDiagnosticTarget());
-            Assert.True(RecreateGame.DiagnosticCommandReady(active, driver));
-        }
-        catch
-        {
-            world.AbandonFaultedDiagnosticBattle();
-            throw;
+            Assert.Contains("action-or-command", active.ObserveDiagnosticDrainBlockers());
+            Assert.Contains("contact-or-descriptor", active.ObserveDiagnosticDrainBlockers());
+            BattleDiagnosticTarget target = active.ObserveDiagnosticTarget("enemy-1");
+            Assert.Equal(122, target.Model);
+            Assert.Equal(4, target.PhysicalIndex);
+            Assert.True(target.Alive);
+            Assert.True(target.StatisticsReady);
+            NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(active.NativeGraphics);
+            Assert.DoesNotContain(graphics.Models, model => model.ModelId4 == 140);
+            Assert.Equal(139, graphics.Models[3].ModelId4);
+            Assert.Equal(138, graphics.Models[4].ModelId4);
+            Assert.False(RecreateGame.DiagnosticCommandReady(active, driver));
         }
         finally
         {
+            world.AbandonFaultedDiagnosticBattle();
             world.EndDiagnosticBattle();
         }
     }

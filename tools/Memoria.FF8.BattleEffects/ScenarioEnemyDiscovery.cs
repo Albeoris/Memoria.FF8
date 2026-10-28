@@ -11,10 +11,13 @@ public sealed record EnemyScenarioActionOwner(int ModelId, string Name, int Leve
 public sealed record EnemyScenarioScriptedAction(int ModelId, string Name, int Callback, int Offset, int LevelBand, byte? Command, ushort? ActionId, int? NativeEffectId, byte? Sequence, BattleNativeAction? NativeAction, EnemyScenarioFormation[] Formations, string[] MappingEvidence, string[] Blockers)
 {
     public byte? TargetSelector { get; init; }
+    public bool UnconditionalStartupPrefix { get; init; }
 }
+public sealed record EnemyScenarioStartup(int ModelId, bool AllocationAbsenceProved);
 public sealed record EnemyScenarioDiscoveryResult(EnemyScenarioActionOwner[] Owners, PlanIssue[] Issues)
 {
     public EnemyScenarioScriptedAction[] ScriptedActions { get; init; } = [];
+    public EnemyScenarioStartup[] Startups { get; init; } = [];
 }
 
 /// <summary>Joins installed monster ability banks to their exact kernel rows and all scene slots. Table membership does not prove an AI path is reachable.</summary>
@@ -66,6 +69,7 @@ public static class ScenarioEnemyDiscovery
         Dictionary<(byte Command, ushort ActionId), BattleNativeAction[]> kernel = actions.GroupBy(action => (action.Command, action.ActionId)).ToDictionary(group => group.Key, group => group.ToArray());
         List<EnemyScenarioActionOwner> owners = [];
         List<EnemyScenarioScriptedAction> scriptedActions = [];
+        List<EnemyScenarioStartup> startups = [];
         List<PlanIssue> issues = [];
         HashSet<int> scanned = [];
         foreach (EnemyScenarioModel model in models.OrderBy(model => model.ModelId))
@@ -81,7 +85,7 @@ public static class ScenarioEnemyDiscovery
             }
             EnemyScenarioFormation[] contexts = ownersByModel.GetValueOrDefault(model.ModelId, []);
             string[] scriptEvidence = model.Ai.Scripts.Select((script, callback) => $"battle/c0m{model.ModelId:000}.dat:ai-callback:{callback}:sha256:{Convert.ToHexString(SHA256.HashData(script))}").ToArray();
-            DiscoverScripts(model, contexts, kernel, scriptedActions, issues);
+            startups.Add(new(model.ModelId, DiscoverScripts(model, contexts, kernel, scriptedActions, issues)));
             for (int index = 0; index < model.Ai.Abilities.Length; index++)
             {
                 NativeBattleAiAbility ability = model.Ai.Abilities[index];
@@ -116,13 +120,14 @@ public static class ScenarioEnemyDiscovery
         {
             issues.Add(new($"enemy-model:{modelId}", "A scene.out slot references an enemy model whose installed ability bank was not discovered."));
         }
-        return new(owners.ToArray(), issues.ToArray()) { ScriptedActions = scriptedActions.ToArray() };
+        return new(owners.ToArray(), issues.ToArray()) { ScriptedActions = scriptedActions.ToArray(), Startups = startups.ToArray() };
     }
 
-    private readonly record struct ScriptState(int Offset, int LevelBand, byte Command, ushort ActionId, byte Sequence, byte? TargetSelector = null);
+    private readonly record struct ScriptState(int Offset, int LevelBand, byte Command, ushort ActionId, byte Sequence, byte? TargetSelector = null, bool UnconditionalStartupPrefix = true);
 
-    private static void DiscoverScripts(EnemyScenarioModel model, EnemyScenarioFormation[] contexts, Dictionary<(byte Command, ushort ActionId), BattleNativeAction[]> kernel, List<EnemyScenarioScriptedAction> output, List<PlanIssue> issues)
+    private static bool DiscoverScripts(EnemyScenarioModel model, EnemyScenarioFormation[] contexts, Dictionary<(byte Command, ushort ActionId), BattleNativeAction[]> kernel, List<EnemyScenarioScriptedAction> output, List<PlanIssue> issues)
     {
+        bool startupAllocationAbsenceProved = true;
         for (int callback = 0; callback < model.Ai.Scripts.Length; callback++)
         {
             byte[] code = model.Ai.Scripts[callback];
@@ -148,6 +153,10 @@ public static class ScenarioEnemyDiscovery
                     continue;
                 }
                 byte opcode = code[state.Offset];
+                if (callback == 0 && (opcode is 27 or 31 or 52 or 53 or 59 || opcode > 61 || opcode is 10 or 16 or 20 or 33))
+                {
+                    startupAllocationAbsenceProved = false;
+                }
                 int width = InstructionWidth(opcode);
                 if (state.Offset > code.Length - width)
                 {
@@ -155,7 +164,10 @@ public static class ScenarioEnemyDiscovery
                     continue;
                 }
                 int next = state.Offset + width;
-                ScriptState continuation = state with { Offset = next };
+                // Only the straight-line preparation prefix proves an immediate fresh-entry dependency.
+                // Branches, allocation, activation, removal and every other stateful opcode end that proof.
+                bool preservesStartupPrefix = opcode is 0 or 3 or 4 or 5 or 6 or 7 or 12 or 48;
+                ScriptState continuation = state with { Offset = next, UnconditionalStartupPrefix = state.UnconditionalStartupPrefix && preservesStartupPrefix };
                 switch (opcode)
                 {
                     case 0:
@@ -237,6 +249,10 @@ public static class ScenarioEnemyDiscovery
 
             void Unresolved(ScriptState state, string reason)
             {
+                if (callback == 0)
+                {
+                    startupAllocationAbsenceProved = false;
+                }
                 string boundary = (uint)state.Offset < code.Length ? $"opcode:{code[state.Offset]}" : "opcode:outside-callback";
                 string message = $"{boundary}: {reason}";
                 if (emitted.Add((state.Offset, state.LevelBand, null, null, null, null, state.TargetSelector, message)))
@@ -283,9 +299,10 @@ public static class ScenarioEnemyDiscovery
                 {
                     evidence.Add($"direct-graphics:effect-byte:{effect}");
                 }
-                output.Add(new(model.ModelId, model.Name, callback, state.Offset, state.LevelBand, command, id, effect, sequence, native, contexts, evidence.ToArray(), blockers.ToArray()) { TargetSelector = state.TargetSelector });
+                output.Add(new(model.ModelId, model.Name, callback, state.Offset, state.LevelBand, command, id, effect, sequence, native, contexts, evidence.ToArray(), blockers.ToArray()) { TargetSelector = state.TargetSelector, UnconditionalStartupPrefix = callback == 0 && state.UnconditionalStartupPrefix });
             }
         }
+        return startupAllocationAbsenceProved;
     }
 
     public static bool InitializationUnconditionallyDisablesTargeting(ReadOnlySpan<byte> code)

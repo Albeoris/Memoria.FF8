@@ -32,13 +32,14 @@ public sealed class NativeBattleRetainedMemoryTests
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeBattleRetainedMemory actual = assets.ReadColdProcessNativeBattleMemory();
         NativeBattleRetainedMemory generic = NativeBattleRetainedMemory.FromColdProcess();
+        NativeBattleEffectMemory detachedEffect = NativeBattleStorageSnapshots.Capture(actual.EffectMemory!);
         Assert.Equal((byte?)0, actual.EffectMemory!.Parameter80);
         Assert.Equal((byte?)0, actual.EffectMemory.Parameter82);
         Assert.Equal((byte?)0, generic.EffectMemory!.Parameter82);
         Assert.Equal((short?)0, actual.EffectMemory.CuraContextF4);
         Assert.Equal((int?)0, actual.EffectMemory.CuraSceneFade);
         Assert.Equal(NativeBattleCuragaExecutableState.FromColdProcess(), actual.EffectMemory.CuragaExecutable);
-        var oldEffect = JsonSerializer.SerializeToNode(NativeBattleStorageSnapshots.Capture(actual.EffectMemory))!.AsObject();
+        var oldEffect = JsonSerializer.SerializeToNode(detachedEffect)!.AsObject();
         Assert.True(oldEffect.Remove(nameof(NativeBattleEffectMemory.CuraContextF4)));
         Assert.True(oldEffect.Remove(nameof(NativeBattleEffectMemory.CuraSceneFade)));
         Assert.True(oldEffect.Remove(nameof(NativeBattleEffectMemory.CuragaExecutable)));
@@ -54,7 +55,7 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal(new ushort[] { 7, 53, 58, 59 }, actual.EffectMemory.RecoveryExecutables!.Value.Select(bank => bank.Effect));
         Assert.Equal(NativeBattleRestorationExecutableState.FromColdProcess(57), actual.EffectMemory.Effect57Executable);
         Assert.Equal(NativeBattleRestorationExecutableState.FromColdProcess(67), actual.EffectMemory.RemedyExecutable);
-        NativeBattleQuezacotlExecutableMemory executableMemory = Assert.IsType<NativeBattleQuezacotlExecutableMemory>(actual.EffectMemory!.QuezacotlExecutableMemory);
+        NativeBattleQuezacotlExecutableMemory executableMemory = Assert.IsType<NativeBattleQuezacotlExecutableMemory>(detachedEffect.QuezacotlExecutableMemory);
         byte[] executable = File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"));
         Assert.Null(generic.EffectMemory.DrinkMagic37);
         Assert.Null(generic.EffectMemory.MeltingBubble43);
@@ -90,11 +91,11 @@ public sealed class NativeBattleRetainedMemoryTests
         }
         Assert.Equal(NativeBattleEffectStaticResourcesReader.Read(executable, 0x1298C68, 0x109FC).ToArray(), executableMemory.Data.AsSpan().Slice(0, 0x109FC).ToArray());
         Assert.Equal(NativeBattleEffectStaticResourcesReader.Read(executable, 0x12A9664, 0x4D9C).ToArray(), executableMemory.Data.AsSpan().Slice(0x109FC, 0x4D9C).ToArray());
-        Assert.Equal(0x1298C68u, NativeBattleQuezacotlWorkspace.Source(actual.EffectMemory).Address);
-        Assert.Equal(executableMemory.Data.ToArray(), NativeBattleQuezacotlWorkspace.Source(actual.EffectMemory).Data.ToArray());
-        NativeBattleDoubleMorph doubleMorph = Assert.IsType<NativeBattleDoubleMorph>(actual.EffectMemory.DoubleMorph);
+        Assert.Equal(0x1298C68u, NativeBattleQuezacotlWorkspace.Source(detachedEffect).Address);
+        Assert.Equal(executableMemory.Data.ToArray(), NativeBattleQuezacotlWorkspace.Source(detachedEffect).Data.ToArray());
+        NativeBattleDoubleMorph doubleMorph = Assert.IsType<NativeBattleDoubleMorph>(detachedEffect.DoubleMorph);
         Assert.Equal(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x163FFD0u).Bytes.ToArray(), doubleMorph.Bytes.ToArray());
-        NativeBattleTripleMorph tripleMorph = Assert.IsType<NativeBattleTripleMorph>(actual.EffectMemory.TripleMorph);
+        NativeBattleTripleMorph tripleMorph = Assert.IsType<NativeBattleTripleMorph>(detachedEffect.TripleMorph);
         Assert.Equal(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x1627970u).Bytes.ToArray(), tripleMorph.Bytes.ToArray());
         Assert.Null(generic.EffectMemory.Bio22Geometry);
         Assert.Null(generic.EffectMemory.Bio22SecondaryGeometry);

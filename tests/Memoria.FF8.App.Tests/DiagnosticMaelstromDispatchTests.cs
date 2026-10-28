@@ -18,12 +18,12 @@ public sealed class DiagnosticMaelstromDispatchTests
             ExpectedNativeAction = 365,
             ExpectedNativeCommand = 8
         };
-        DiagnosticBattleRequest request = new(508, 0, 128, 0, 0)
+        DiagnosticBattleRequest request = new(511, 0, 128, 0, 0)
         {
             BattleMusic = 5,
             PrimaryMusicChannel = -1,
             Fixture = new([new(0, true)], [new(0, 0, [], [0]) { MagicCommand = new(0, 20), HitPoints = 486, Level = 7 }], true),
-            Target = new("enemy-0", 142, 121, 0, 3, 195, 1),
+            Target = new("enemy-0", 142, 121, 0, 3, 195, 1, null, null),
             Driver = driver,
             PrepareEntryBeforePresentation = true
         };
@@ -55,7 +55,7 @@ public sealed class DiagnosticMaelstromDispatchTests
             NativeBattleGraphicsModel party = graphics.Models[0];
             byte sequence = party.Sequence!.Value;
             string bytes = Convert.ToHexString(resource.SequenceSection.AsSpan(resource.SequenceStart(sequence), resource.SequenceEnd(sequence) - resource.SequenceStart(sequence)));
-            Console.WriteLine(JsonSerializer.Serialize(new { battle.Frame, battle.NativeHostCallbacks, party.Sequence, party.ResourceFlags44, party.SequenceState, bytes, owners = battle.ObserveDiagnosticInvocationOwners() }));
+            Console.WriteLine(JsonSerializer.Serialize(new { battle.Frame, battle.NativeHostCallbacks, party.Sequence, party.ResourceFlags44, State = party.SequenceState is { } state ? new { state.Offset46, state.Wait1, state.Pending3, state.Callback42, state.Pose, state.PoseFrame114 } : null, bytes, owners = battle.ObserveDiagnosticInvocationOwners() }));
         }
         Assert.True(dispatched, "Original command8/action365/sequence11 must dispatch207 after readiness without a synthetic sequence/status repair.");
         world.EndDiagnosticBattle();

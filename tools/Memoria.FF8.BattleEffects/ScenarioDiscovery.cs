@@ -179,7 +179,7 @@ public static partial class ScenarioDiscovery
             if (templatePath is not null)
             {
                 DiscoveredScenario candidate = scenarios[^1];
-                if (TryPrepareEnemyRecipe(assets, initialVitals, experienceDefinition, owner, enemies.ScriptedActions, possibleEnemyBands, preparedLevels, templatePath, out JsonObject? enemyRecipe, out EnemyScenarioFormation? context, out EnemyScenarioScriptedAction? selectorProof, out string? enemyBlocker))
+                if (TryPrepareEnemyRecipe(assets, initialVitals, experienceDefinition, owner, enemies.ScriptedActions, possibleEnemyBands, preparedLevels, templatePath, out JsonObject? enemyRecipe, out EnemyScenarioFormation? context, out EnemyScenarioScriptedAction? selectorProof, out string? enemyBlocker, startups: enemies.Startups))
                 {
                     string path = Path.Combine(output, "recipes", caseId + ".json");
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -225,7 +225,7 @@ public static partial class ScenarioDiscovery
             if (templatePath is not null && scripted.Callback == 1 && scripted.NativeAction is { MagicId: >= 1 and <= 400 } scriptedNative && scripted.Command is byte scriptedCommand && scripted.ActionId is ushort scriptedAction && scripted.Sequence is byte scriptedSequence)
             {
                 EnemyScenarioActionOwner scriptedOwner = new(scripted.ModelId, scripted.Name, scripted.LevelBand, -1, scriptedCommand, scriptedAction, scriptedSequence, scriptedNative, scripted.Formations, scripted.MappingEvidence, scripted.Blockers);
-                if (TryPrepareEnemyRecipe(assets, initialVitals, experienceDefinition, scriptedOwner, enemies.ScriptedActions, possibleEnemyBands, preparedLevels, templatePath, out JsonObject? turnRecipe, out EnemyScenarioFormation? turnContext, out EnemyScenarioScriptedAction? turnProof, out string? turnBlocker, useTurnScript: true))
+                if (TryPrepareEnemyRecipe(assets, initialVitals, experienceDefinition, scriptedOwner, enemies.ScriptedActions, possibleEnemyBands, preparedLevels, templatePath, out JsonObject? turnRecipe, out EnemyScenarioFormation? turnContext, out EnemyScenarioScriptedAction? turnProof, out string? turnBlocker, useTurnScript: true, startups: enemies.Startups))
                 {
                     string path = Path.Combine(output, "recipes", caseId + ".json");
                     File.WriteAllText(path, turnRecipe!.ToJsonString(RecordJson.Options));

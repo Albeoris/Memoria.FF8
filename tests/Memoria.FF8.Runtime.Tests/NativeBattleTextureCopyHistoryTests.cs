@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -14,16 +16,27 @@ public sealed class NativeBattleTextureCopyHistoryTests
         NativeBattleEffectVramCopy copy = new(72, 256, 8, 4, 128, 256);
         owners = NativeBattleTextureCopyHistory.Copy(owners, copy);
         ImmutableArray<NativeBattleTextureRegistration> retained = owners!.Value;
-        for (int index = 0; index < 1000; index++)
+        long allocated = 0;
+        ImmutableArray<NativeBattleTextureRegistration>? measuredOwners = null;
+        ExceptionDispatchInfo? failure = null;
+        Thread measurement = new(() =>
         {
-            owners = NativeBattleTextureCopyHistory.Copy(owners, copy);
-        }
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int index = 0; index < 1000; index++)
+            try
+            {
+                (allocated, measuredOwners) = MeasureRepeatedCopies(owners, copy);
+            }
+            catch (Exception exception)
+            {
+                failure = ExceptionDispatchInfo.Capture(exception);
+            }
+        });
+        using (ExecutionContext.SuppressFlow())
         {
-            owners = NativeBattleTextureCopyHistory.Copy(owners, copy);
+            measurement.Start();
         }
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        measurement.Join();
+        failure?.Throw();
+        owners = measuredOwners;
         Assert.Equal(0, allocated);
         Assert.True(retained.Equals(owners!.Value));
         Assert.Same(retained[0], owners.Value[0]);
@@ -295,6 +308,22 @@ public sealed class NativeBattleTextureCopyHistoryTests
         Assert.NotNull(Assert.Single(reloaded!.Value).PaletteOwnedSpans);
         reloaded = NativeBattleTextureCopyHistory.Copy(reloaded, new(65, 256, 1, 1, 64, 256));
         Assert.Equal(0, Assert.Single(reloaded!.Value).ExactFrame);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (long Allocated, ImmutableArray<NativeBattleTextureRegistration>? Owners) MeasureRepeatedCopies(ImmutableArray<NativeBattleTextureRegistration>? owners, NativeBattleEffectVramCopy copy)
+    {
+        _ = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1000; index++)
+        {
+            owners = NativeBattleTextureCopyHistory.Copy(owners, copy);
+        }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1000; index++)
+        {
+            owners = NativeBattleTextureCopyHistory.Copy(owners, copy);
+        }
+        return (GC.GetAllocatedBytesForCurrentThread() - before, owners);
     }
 
     private static ImmutableArray<NativeBattleTextureRegistration>? Upload(ImmutableArray<NativeBattleTextureRegistration>? owners, string name, int x, int y, int width, int height)

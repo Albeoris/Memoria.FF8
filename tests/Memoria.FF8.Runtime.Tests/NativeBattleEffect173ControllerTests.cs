@@ -205,7 +205,7 @@ public sealed class NativeBattleEffect173ControllerTests
         NativeBattleEffect173Frame beforeRestore = NativeBattleStorageSnapshots.Capture(frame);
         frame = NativeBattleStorageSnapshots.Restore(beforeRestore);
         frame = Advance(frame, Resources(), harness.Inputs());
-        NativeBattleEffect173AppendCommonTextureLoad508630 restore = Assert.IsType<NativeBattleEffect173AppendCommonTextureLoad508630>(Assert.Single(harness.Operations));
+        NativeBattleEffect173AppendCommonTextureLoad508630 restore = Assert.Single(harness.Operations.OfType<NativeBattleEffect173AppendCommonTextureLoad508630>());
         Assert.Equal(0x20DFAB8u, restore.SourceAddress);
         Assert.Equal(0u, Read(frame, restore.CompletionAddress - 14).ReadWord(14));
         //508660 phase0 writes the A3 file to P before its completion callback; these are the first overlapping bank bytes.

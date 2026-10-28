@@ -116,12 +116,12 @@ public static partial class ScenarioDiscovery
         return chosen;
     }
 
-    public static bool TryPrepareEnemyRecipe(BattleAssets assets, NativeCharacterVitals initial, NativeBattleExperienceDefinition experienceDefinition, EnemyScenarioActionOwner owner, EnemyScenarioScriptedAction[] scripted, string templatePath, out JsonObject? recipe, out EnemyScenarioFormation? chosen, out EnemyScenarioScriptedAction? selectorProof, out string? blocker)
+    public static bool TryPrepareEnemyRecipe(BattleAssets assets, NativeCharacterVitals initial, NativeBattleExperienceDefinition experienceDefinition, EnemyScenarioActionOwner owner, EnemyScenarioScriptedAction[] scripted, string templatePath, out JsonObject? recipe, out EnemyScenarioFormation? chosen, out EnemyScenarioScriptedAction? selectorProof, out string? blocker, EnemyScenarioStartup[]? startups = null)
     {
-        return TryPrepareEnemyRecipe(assets, initial, experienceDefinition, owner, scripted, [], [], templatePath, out recipe, out chosen, out selectorProof, out blocker);
+        return TryPrepareEnemyRecipe(assets, initial, experienceDefinition, owner, scripted, [], [], templatePath, out recipe, out chosen, out selectorProof, out blocker, startups: startups);
     }
 
-    private static bool TryPrepareEnemyRecipe(BattleAssets assets, NativeCharacterVitals initial, NativeBattleExperienceDefinition experienceDefinition, EnemyScenarioActionOwner owner, EnemyScenarioScriptedAction[] scripted, Dictionary<(int ModelId, int SceneLevel, int PartyLevel), int[]> possibleBands, Dictionary<int, NativeCharacterVitals> preparedLevels, string templatePath, out JsonObject? recipe, out EnemyScenarioFormation? chosen, out EnemyScenarioScriptedAction? selectorProof, out string? blocker, bool useTurnScript = false)
+    private static bool TryPrepareEnemyRecipe(BattleAssets assets, NativeCharacterVitals initial, NativeBattleExperienceDefinition experienceDefinition, EnemyScenarioActionOwner owner, EnemyScenarioScriptedAction[] scripted, Dictionary<(int ModelId, int SceneLevel, int PartyLevel), int[]> possibleBands, Dictionary<int, NativeCharacterVitals> preparedLevels, string templatePath, out JsonObject? recipe, out EnemyScenarioFormation? chosen, out EnemyScenarioScriptedAction? selectorProof, out string? blocker, bool useTurnScript = false, EnemyScenarioStartup[]? startups = null)
     {
         recipe = null;
         chosen = null;
@@ -155,6 +155,11 @@ public static partial class ScenarioDiscovery
         foreach (EnemyScenarioFormation context in owner.Formations.Where(context => context.Enabled && !context.Hidden && !context.Suspended && !context.Untargetable).OrderBy(context => context.FormationId).ThenBy(context => context.SceneSlot))
         {
             BattleEncounter formation = assets.LoadEncounter(context.FormationId);
+            if (!TryValidateFreshEnemyEntry(formation, scripted, out string? entryBlocker, startups))
+            {
+                blocker = entryBlocker;
+                continue;
+            }
             BattleEnemyPlacement[] active = formation.Slots.Where(slot => slot.Enabled).ToArray();
             if (active.Length is < 1 or > 4 || active.Any(slot => !slot.IsEnemyModel))
             {
