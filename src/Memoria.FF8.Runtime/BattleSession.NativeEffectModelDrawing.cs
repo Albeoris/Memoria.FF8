@@ -34,7 +34,7 @@ public sealed partial class BattleSession
         return graphics;
     }
 
-    private NativeBattleGraphicsState DrawNativeEffectModel5099D0(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4, uint? privateOrderingAddress = null, short? depthCue = null, uint? contextMaskAddress = null)
+    private NativeBattleGraphicsState DrawNativeEffectModel5099D0(NativeBattleGraphicsState graphics, int index, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int shadowTableBase, byte shadowDepthShift, byte bodyDepthShift = 4, uint? privateOrderingAddress = null, short? depthCue = null, uint? contextMaskAddress = null, bool prepareModel = true, bool drawShadow = true, bool drawLinked = true, uint? maskOverride = null)
     {
         NativeBattleGraphicsModel model = graphics.Models[index];
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
@@ -42,13 +42,19 @@ public sealed partial class BattleSession
         NativeBattleGraphicsDefinition rules = definition.NativeGraphics ?? throw new NotSupportedException("Native effect body drawing requires its current graphics definition.");
         NativeBattlePrimitiveCapabilities capabilities = rules.PrimitiveCapabilities ?? throw new NotSupportedException("Native effect body drawing requires its actual renderer capabilities.");
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native effect body drawing requires its authenticated color arithmetic.");
-        graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, shadowTableBase, false, shadowDepthShift, privateOrderingAddress);
-        model = NativeBattleBodyBoneMatrices.Compose5095B0(model, matrix);
+        if (drawShadow)
+        {
+            graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, shadowTableBase, false, shadowDepthShift, privateOrderingAddress);
+        }
+        if (prepareModel)
+        {
+            model = NativeBattleBodyBoneMatrices.Compose5095B0(model, matrix);
+        }
         graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
-        DrawSource(GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native effect body drawing requires its current object mask."));
-        model = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source);
+        DrawSource(GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, maskOverride ?? model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native effect body drawing requires its current object mask."));
+        model = prepareModel ? NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source) : graphics.Models[index];
         graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
-        if (model.LinkedStagedResourceRow is not null || model.LinkedTextureResourceIndex is not null)
+        if (drawLinked && (model.LinkedStagedResourceRow is not null || model.LinkedTextureResourceIndex is not null))
         {
             if (contextMaskAddress is uint maskAddress)
             {

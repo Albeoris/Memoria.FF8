@@ -66,11 +66,11 @@ public sealed partial record NativeBattleModuleState
             throw new InvalidDataException("Native module model or packed resource index differs from its original producer.");
         }
         resource.Validate();
-        if (resource.WrapperCallback != 0x570CC0)
+        if (resource.WrapperCallback is not (0x570CC0 or 0x56F9C0))
         {
             throw new NotSupportedException($"Native module wrapper{resource.WrapperCallback:X} requires its own original callback.");
         }
-        (NativeBattleModuleState state, int slot) = Append(NativeBattleModuleKind.Placement570CC0);
+        (NativeBattleModuleState state, int slot) = resource.WrapperCallback == 0x56F9C0 ? AppendCallback(0x56F9C0) : Append(NativeBattleModuleKind.Placement570CC0);
         byte[] payload = NativeBattleTelemetry.Materialize(1091, state.Slots[slot].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2), 1);

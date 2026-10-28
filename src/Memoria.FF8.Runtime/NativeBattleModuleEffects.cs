@@ -70,14 +70,14 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
 
     public void Validate()
     {
-        if (Slots.IsDefault || Slots.Length != 300 || Head is < 0 or >= 300 || Tail is < 0 or >= 300 || Slots.Any(task => task is null || task.Next is < 0 or >= 300 || !Enum.IsDefined(task.Kind) || task.Payload.IsDefault || task.Payload.Length != 24 || task.Callback == 0 || task.Callback is not null && task.Kind != NativeBattleModuleKind.None || (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.None && task.Callback is null))
+        if (Slots.IsDefault || Slots.Length != 300 || Head is < 0 or >= 300 || Tail is < 0 or >= 300 || Slots.Any(task => task is null || !Enum.IsDefined(task.Kind) || task.Payload.IsDefault || task.Payload.Length != 24))
         {
             throw new InvalidDataException("Native effect module requires300 physical36-byte task slots and retained payloads.");
         }
         HashSet<int> visited = [];
         for (int? next = Head; next is int index; next = Slots[index].Next)
         {
-            if (!visited.Add(index) || (Slots[index].Flags & 1) == 0)
+            if (index is < 0 or >= 300 || !visited.Add(index) || (Slots[index].Flags & 1) == 0 || Slots[index].Next is < 0 or >= 300 || Slots[index].UnlinkedNextPointer is not null || Slots[index].Callback == 0 || Slots[index].Callback is not null && Slots[index].Kind != NativeBattleModuleKind.None || Slots[index].Kind == NativeBattleModuleKind.None && Slots[index].Callback is null)
             {
                 throw new InvalidDataException("Native effect-module task links contain a cycle or a free physical slot.");
             }
@@ -119,11 +119,11 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         {
             throw new InvalidOperationException("Native effect module exhausted its300 physical task slots.");
         }
-        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, Kind = kind, Callback = callback };
+        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, UnlinkedNextPointer = null, Kind = kind, Callback = callback };
         ImmutableArray<NativeBattleModuleTask> slots = Slots.SetItem(slot, task);
         if (Tail is int tail)
         {
-            slots = slots.SetItem(tail, slots[tail] with { Next = slot });
+            slots = slots.SetItem(tail, slots[tail] with { Next = slot, UnlinkedNextPointer = null });
         }
         return (this with { Slots = slots, Head = Tail is null ? slot : Head, Tail = slot }, slot);
     }
@@ -201,7 +201,7 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
                 state = state with { Slots = state.Slots.SetItem(index, task with { Flags = 0 }) };
                 if (previous is int retained)
                 {
-                    state = state with { Slots = state.Slots.SetItem(retained, state.Slots[retained] with { Next = next }) };
+                    state = state with { Slots = state.Slots.SetItem(retained, state.Slots[retained] with { Next = next, UnlinkedNextPointer = null }) };
                 }
                 else
                 {

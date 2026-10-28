@@ -21,6 +21,7 @@ public sealed partial class BattleSession
             uint callback = modules.Slots[slot].Callback ?? throw new InvalidDataException("Native shared callback lost its physical address.");
             (NativeBattleGraphicsState advanced, NativeBattleModuleCallback result) = callback switch
             {
+                0x56F9C0 or 0x56FCD0 or 0x56FE10 => AdvanceNativeRinoaPhysicalHit(graphics, modules, slot, inputs),
                 0x587CA0 or 0x587F30 or 0x585C70 or 0x585F00 or 0x5835D0 or 0x583860 or 0x580F50 or 0x5811E0 or 0x57EC70 or 0x57EF00 or 0x57C390 or 0x57C620 or 0x57A010 or 0x57A2A0 or 0x577D90 or 0x578020 or 0x575BA0 or 0x575E30 => AdvanceNativeRenzokukenSpecialShared(graphics, modules, slot, inputs),
                 0x5FD810 or 0x5FDAA0 => AdvanceNativeRenzokukenSpecial161Shared(graphics, modules, slot, inputs),
                 0x6013C0 or 0x601650 => AdvanceNativeRenzokuken159Shared(graphics, modules, slot, inputs),
