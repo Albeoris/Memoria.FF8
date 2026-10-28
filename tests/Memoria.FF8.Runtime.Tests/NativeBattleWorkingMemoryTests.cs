@@ -1,9 +1,113 @@
 using System.Collections.Immutable;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleWorkingMemoryTests
 {
+    [Fact]
+    public void Private_mixed_stores_do_not_preallocate_unused_publication_journal_buffers()
+    {
+        byte[] data = [1, 2, 3, 4];
+        bool[] known = [true, false, true, true];
+        Measure(false);
+        Measure(true);
+        long privateBytes = Measure(false);
+        long publicationBytes = Measure(true);
+        Assert.True(publicationBytes - privateBytes >= 32 * 64, $"Private stores saved only {publicationBytes - privateBytes} bytes across 32 fresh owners.");
+
+        long Measure(bool preparePublication)
+        {
+            int sum = 0;
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int index = 0; index < 32; index++)
+            {
+                using NativeBattleWorkingMemory memory = new(16);
+                if (preparePublication)
+                {
+                    memory.ReserveStorageReceipts(1);
+                }
+                memory.WriteWithKnownness(0, data, known);
+                sum += memory.ReadByte(0);
+            }
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(32, sum);
+            return allocated;
+        }
+    }
+
+    [Fact]
+    public void First_checkpoint_after_private_stores_preallocates_coverage_before_nested_changes()
+    {
+        using NativeBattleWorkingMemory memory = new(128);
+        memory.Write(4, [1, 2, 3, 4]);
+        memory.Write(16, [5, 6, 7, 8]);
+        memory.MarkUnknown(5, 1);
+        string original = JsonSerializer.Serialize(memory.Capture());
+        memory.BeginCheckpoint();
+        memory.WriteWithKnownness(6, new byte[] { 9, 8, 7, 6, 5, 4 }, new[] { true, false, true, false, true, true });
+        memory.BeginNestedCheckpoint();
+        memory.MarkUnknown(0, 32);
+        memory.Write(12, [10, 11, 12, 13]);
+        memory.CommitNestedCheckpoint();
+        memory.RollbackCheckpoint();
+        Assert.Equal(original, JsonSerializer.Serialize(memory.Capture()));
+    }
+
+    [Fact]
+    public void Admission_after_private_stores_keeps_published_prefix_and_rolls_back_nested_suffix()
+    {
+        using NativeBattleWorkingMemory memory = new(128);
+        using NativeBattleWorkingMemory expected = new(128);
+        memory.Write(4, [1, 2, 3, 4]);
+        expected.Write(4, [1, 2, 3, 4]);
+        memory.AdmitRetained(new());
+        using (NativeBattleTaskOperation operation = new([]))
+        {
+            memory.WriteWithKnownness(8, new byte[] { 5, 6, 7, 8 }, new[] { true, false, true, true });
+            expected.WriteWithKnownness(8, new byte[] { 5, 6, 7, 8 }, new[] { true, false, true, true });
+            NativeBattleTaskOperation.AcceptPublishedArena(memory);
+            using NativeBattleTaskOperation nested = new([]);
+            memory.MarkUnknown(0, 20);
+            memory.Write(2, [9, 8, 7, 6]);
+            nested.Commit();
+        }
+        Assert.Equal(JsonSerializer.Serialize(expected.Capture()), JsonSerializer.Serialize(memory.Capture()));
+        Assert.False(memory.HasCheckpoint);
+    }
+
+    [Fact]
+    public void First_journal_capacity_rejection_after_private_stores_keeps_bytes_and_coverage()
+    {
+        using NativeBattleWorkingMemory memory = new(128, maxJournalEntries: 2);
+        memory.Write(4, [1, 2, 3, 4]);
+        memory.MarkUnknown(5, 1);
+        string original = JsonSerializer.Serialize(memory.Capture());
+        object backing = memory.BackingIdentity;
+        memory.BeginCheckpoint();
+        Assert.Throws<InvalidOperationException>(() => memory.WriteWithKnownness(3, new byte[] { 9, 8, 7, 6 }, new[] { false, true, false, true }));
+        Assert.Same(backing, memory.BackingIdentity);
+        Assert.Equal(0, memory.JournalEntryCount);
+        memory.RollbackCheckpoint();
+        Assert.Equal(original, JsonSerializer.Serialize(memory.Capture()));
+    }
+
+    [Fact]
+    public void Injected_allocation_exception_during_first_journaled_store_leaves_rollback_complete()
+    {
+        using NativeBattleWorkingMemory memory = new(128);
+        memory.Write(4, [1, 2, 3, 4]);
+        memory.MarkUnknown(5, 1);
+        string original = JsonSerializer.Serialize(memory.Capture());
+        memory.BeginCheckpoint();
+        using (NativeBattleTelemetry.BeginScope(new ThrowingTrafficSink(NativeBattleTrafficKind.CpuCopyPayload, new OutOfMemoryException("Injected telemetry allocation failure."))))
+        {
+            Assert.Throws<OutOfMemoryException>(() => memory.WriteWithKnownness(3, new byte[] { 9, 8, 7, 6 }, new[] { false, true, false, true }));
+        }
+        memory.RollbackCheckpoint();
+        Assert.Equal(original, JsonSerializer.Serialize(memory.Capture()));
+    }
+
     [Fact]
     public void Ownership_suspension_retains_storage_for_rollback_without_reactivating_old_read_windows()
     {
@@ -585,13 +689,13 @@ public sealed class NativeBattleWorkingMemoryTests
         }
     }
 
-    private sealed class ThrowingTrafficSink(NativeBattleTrafficKind failureKind) : INativeBattleTelemetrySink
+    private sealed class ThrowingTrafficSink(NativeBattleTrafficKind failureKind, Exception? failure = null) : INativeBattleTelemetrySink
     {
         public void Record(int siteId, NativeBattleTrafficKind kind, long payloadBytes)
         {
             if (siteId == 1005 && kind == failureKind)
             {
-                throw new InvalidOperationException("Injected diagnostic sink failure.");
+                throw failure ?? new InvalidOperationException("Injected diagnostic sink failure.");
             }
         }
     }

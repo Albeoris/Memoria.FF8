@@ -9,11 +9,14 @@ internal sealed class NativeBattleArenaCoverage : INativeBattleCheckpointPartici
     private readonly List<int> marks = [];
     internal int Extent => Ranges.Count == 0 ? 0 : Ranges[^1].End;
     internal int Prefix => Ranges.Count != 0 && Ranges[0].Offset == 0 ? Ranges[0].End : 0;
-    internal void Reserve(int additional)
+    internal void Reserve(int additional, bool reserveJournal = true)
     {
         Ranges.EnsureCapacity(checked(Ranges.Count + additional));
-        undo.EnsureCapacity(checked(undo.Count + Ranges.Count + additional * 4));
-        marks.EnsureCapacity(8);
+        if (reserveJournal || marks.Count != 0)
+        {
+            undo.EnsureCapacity(checked(undo.Count + Ranges.Count + additional * 4));
+            marks.EnsureCapacity(8);
+        }
     }
 
     internal void ReserveCheckpointDepth(int depth) => marks.EnsureCapacity(checked(marks.Count + depth));

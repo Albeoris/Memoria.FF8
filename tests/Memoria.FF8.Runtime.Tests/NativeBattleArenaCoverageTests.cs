@@ -5,6 +5,66 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleArenaCoverageTests
 {
     [Fact]
+    public void Nonjournal_reservation_keeps_ranges_and_active_checkpoint_rollback()
+    {
+        NativeBattleArenaCoverage coverage = new();
+        coverage.Reserve(3, reserveJournal: false);
+        coverage.Add(4, 4);
+        coverage.Add(16, 4);
+        var original = coverage.Ranges.ToArray();
+        coverage.BeginCheckpoint();
+        coverage.Reserve(3, reserveJournal: false);
+        coverage.Add(8, 12);
+        coverage.Remove(6, 2);
+        coverage.BeginCheckpoint();
+        coverage.Reserve(3, reserveJournal: false);
+        coverage.Add(0, 32);
+        coverage.CommitCheckpoint();
+        coverage.RollbackCheckpoint();
+        Assert.Equal(original, coverage.Ranges);
+    }
+
+    [Fact]
+    public void Reservation_capacity_failure_precedes_range_mutation_and_checkpoint_can_continue()
+    {
+        NativeBattleArenaCoverage coverage = new();
+        coverage.Add(4, 4);
+        coverage.BeginCheckpoint();
+        Assert.Throws<OverflowException>(() => coverage.Reserve(int.MaxValue, reserveJournal: false));
+        Assert.Equal(new[] { (4, 8) }, coverage.Ranges);
+        coverage.Reserve(2, reserveJournal: false);
+        coverage.Add(8, 4);
+        coverage.RollbackCheckpoint();
+        Assert.Equal(new[] { (4, 8) }, coverage.Ranges);
+    }
+
+    [Fact]
+    public void Uncheckpointed_reservation_avoids_undo_buffers_but_keeps_real_range_storage()
+    {
+        Measure(false);
+        Measure(true);
+        long withoutJournal = Measure(false);
+        long withJournal = Measure(true);
+        Assert.True(withJournal - withoutJournal >= 64 * 64, $"Optional journal buffers saved only {withJournal - withoutJournal} bytes across 64 fresh range owners.");
+
+        static long Measure(bool reserveJournal)
+        {
+            int extent = 0;
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int index = 0; index < 64; index++)
+            {
+                NativeBattleArenaCoverage coverage = new();
+                coverage.Reserve(1, reserveJournal);
+                coverage.Add(4, 4);
+                extent += coverage.Extent;
+            }
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(64 * 8, extent);
+            return allocated;
+        }
+    }
+
+    [Fact]
     public void Disjoint_physical_stores_can_insert_before_between_and_after_retained_ranges()
     {
         NativeBattleEffectArena arena = NativeBattleEffectArena.CreateUnknown(8192);

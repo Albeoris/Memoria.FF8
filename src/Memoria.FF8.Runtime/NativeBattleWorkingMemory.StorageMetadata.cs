@@ -18,9 +18,9 @@ internal sealed partial class NativeBattleWorkingMemory
     private void PrepareStorageReceipts(int unknownRanges = 1)
     {
         NativeBattleTaskOperation.EnlistRetained(this);
-        DataFootprint.Reserve(1);
-        ExplicitCoverage.Reserve(1);
-        UnknownCoverage.Reserve(Math.Max(1, unknownRanges));
+        DataFootprint.Reserve(1, checkpoint);
+        ExplicitCoverage.Reserve(1, checkpoint);
+        UnknownCoverage.Reserve(Math.Max(1, unknownRanges), checkpoint);
         if (checkpoint)
         {
             DataFootprint.ReserveCheckpointDepth(CheckpointDepth);
