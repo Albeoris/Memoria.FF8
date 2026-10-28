@@ -18,6 +18,7 @@ public sealed class MacFfmpegSourceBuildTests : IDisposable
         string[] arguments = MacFfmpegSourceBuild.ConfigureArguments("/prefix", architecture);
         Assert.Equal("--prefix=/prefix", arguments[0]);
         Assert.Contains("--disable-autodetect", arguments);
+        Assert.DoesNotContain("--enable-iconv", arguments);
         Assert.DoesNotContain(arguments, argument => argument.StartsWith("--enable-gpl", StringComparison.Ordinal) || argument.StartsWith("--enable-nonfree", StringComparison.Ordinal) || argument.StartsWith("--enable-version3", StringComparison.Ordinal));
         Assert.Equal(architecture == Architecture.X64, arguments.Contains("--disable-x86asm"));
     }

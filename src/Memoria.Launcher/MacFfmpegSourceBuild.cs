@@ -30,9 +30,10 @@ internal static class MacFfmpegSourceBuild
     internal static string Prompt(string directory) => $"No prebuilt LGPL FFmpeg is published for macOS. Build FFmpeg {Version} from the official source release now?\n\nSource: {new Uri(ReleaseUrl, ArchiveName)} (SHA-256 verified)\nInstall to: {directory}\n\nThe build needs the Xcode Command Line Tools (macOS offers to install them when missing) and takes several minutes. It enables only LGPL components, without --enable-gpl or --enable-nonfree. License notices are kept with the tools. Cancel to stay in the launcher.";
 
     /// <summary>Configuration uses only system libraries; FFmpeg's default license is LGPL, and GPL/nonfree parts are never enabled.</summary>
+    /// <remarks>iconv stays disabled: macOS ships it in a separate libiconv that FFmpeg's program link omits, and playback needs no subtitle charset conversion.</remarks>
     internal static string[] ConfigureArguments(string prefix, Architecture architecture)
     {
-        List<string> arguments = ["--prefix=" + prefix, "--disable-autodetect", "--enable-videotoolbox", "--enable-audiotoolbox", "--enable-zlib", "--enable-bzlib", "--enable-iconv", "--disable-doc", "--disable-debug", "--disable-ffplay"];
+        List<string> arguments = ["--prefix=" + prefix, "--disable-autodetect", "--enable-videotoolbox", "--enable-audiotoolbox", "--enable-zlib", "--enable-bzlib", "--disable-doc", "--disable-debug", "--disable-ffplay"];
         if (architecture == Architecture.X64)
         {
             // Apple's toolchain has no NASM; the x64 build stays usable through the C implementations.
