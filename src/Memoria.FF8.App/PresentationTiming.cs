@@ -65,7 +65,7 @@ internal sealed class PresentationTiming
             {
                 TimeSpan elapsed = clock.GetElapsedTime(started);
                 TimeSpan reserve = RecentUpdateReserve(clock);
-                // Leave room for a recent expensive callback before admitting more catch-up work.
+                // Reserve the amortized recent cost so an expensive callback does not block cheap catch-up steps for the whole window.
                 // The first update always runs; deferred steps remain available after Draw and fresh input.
                 if (elapsed >= workBudget || reserve > workBudget - elapsed)
                 {
@@ -99,15 +99,12 @@ internal sealed class PresentationTiming
     {
         long now = clock.GetTimestamp();
         ExpireUpdateCosts(clock, now);
-        TimeSpan reserve = TimeSpan.Zero;
+        long totalTicks = 0;
         foreach (var sample in recentUpdateCosts)
         {
-            if (sample.Duration > reserve)
-            {
-                reserve = sample.Duration;
-            }
+            totalTicks += sample.Duration.Ticks;
         }
-        return reserve;
+        return recentUpdateCosts.Count == 0 ? TimeSpan.Zero : TimeSpan.FromTicks(totalTicks / recentUpdateCosts.Count);
     }
 
     private void ExpireUpdateCosts(TimeProvider clock, long now)

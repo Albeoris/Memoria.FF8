@@ -1,4 +1,5 @@
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -93,25 +94,112 @@ public sealed class PresentationTimingTests
     }
 
     [Fact]
-    public void Two_light_callbacks_do_not_forget_the_preceding_expensive_callback()
+    public void Recent_expensive_work_is_amortized_while_fixed_steps_and_draw_yields_remain_bounded()
     {
         PresentationTiming timing = new();
         ManualTimeProvider clock = new();
         timing.Accumulate(PresentationTiming.SimulationStep * 9);
         int updates = 0;
-        for (int display = 1; display <= 9; display++)
+        List<int> updatesPerDisplay = [];
+        for (int display = 1; display <= 9 && updates < 9; display++)
         {
+            int before = updates;
+            long started = clock.GetTimestamp();
             timing.RunUpdates(PresentationTiming.SimulationStep, () => PresentationTiming.SimulationStep, step =>
             {
+                Assert.True(clock.GetElapsedTime(started) < PresentationTiming.SimulationStep);
                 updates++;
+                Assert.Equal(PresentationTiming.SimulationStep * updates, timing.SimulationTotal);
                 clock.Advance(TimeSpan.FromMilliseconds(updates % 3 == 1 ? 25 : 3));
                 return true;
             }, clock);
-            Assert.Equal(display, updates);
+            updatesPerDisplay.Add(updates - before);
+            Assert.True(clock.GetElapsedTime(started) <= PresentationTiming.SimulationStep + TimeSpan.FromMilliseconds(25));
             clock.Advance(TimeSpan.FromMilliseconds(1));
         }
+        // The first cheap step still reserves (25+3)/2=14ms. After the next cheap step,
+        // (25+3+3)/3 fits the remaining budget, admitting one final expensive step.
+        Assert.Equal(new[] { 1, 1, 2, 3, 2 }, updatesPerDisplay);
         Assert.Equal(PresentationTiming.SimulationStep * 9, timing.SimulationTotal);
         Assert.False(timing.TryStep());
+    }
+
+    [Fact]
+    public void Sustained_affordable_native_work_catches_up_wall_time_between_draws()
+    {
+        PresentationTiming timing = new();
+        ManualTimeProvider clock = new();
+        TimeSpan step = PresentationTiming.SimulationStep;
+        TimeSpan outlierCost = TimeSpan.FromMilliseconds(50);
+        TimeSpan lightCost = TimeSpan.FromMilliseconds(0.5);
+        TimeSpan drawCost = TimeSpan.FromMilliseconds(2.653);
+        NativeBattleGraphicsPresentationStep native = new(0, 0, false);
+        List<long> nativeCallbackTimes = [];
+        long nativeCallbacks = 0;
+        int updates = 0;
+        int draws = 0;
+        long previousSample = 0;
+        double deadline = 0;
+        double period = TimeSpan.TicksPerSecond / 60d;
+        TimeSpan maximumDebt = TimeSpan.Zero;
+        clock.Advance(step);
+        while (clock.GetElapsedTime(0) < TimeSpan.FromSeconds(12))
+        {
+            long sampled = clock.GetTimestamp();
+            TimeSpan elapsed = clock.GetElapsedTime(previousSample, sampled);
+            previousSample = sampled;
+            // GameTime is sampled before the App's presentation wait. Charge that wait
+            // to the following display, using the existing deadline calculation.
+            if (deadline == 0)
+            {
+                deadline = sampled + period;
+            }
+            if (sampled < deadline)
+            {
+                clock.Advance(TimeSpan.FromTicks((long)Math.Ceiling(deadline - sampled)));
+            }
+            deadline = PresentationPacer.AdvanceDeadline(deadline, clock.GetTimestamp(), period);
+            timing.Accumulate(elapsed);
+            long started = clock.GetTimestamp();
+            timing.RunUpdates(step, () => step, elapsedStep =>
+            {
+                Assert.Equal(step, elapsedStep);
+                Assert.True(clock.GetElapsedTime(started) < step);
+                updates++;
+                Assert.Equal(step * updates, timing.SimulationTotal);
+                native = NativeBattleGraphicsPresentationClock.Advance(native.Subticks, native.HalfSubtick, elapsedStep);
+                Assert.InRange(native.Callbacks, 0, 1);
+                // One occasional expensive update and seven cheap updates average
+                // 6.6875ms. With this draw cost, sixty updates/second are affordable.
+                clock.Advance(updates % 8 == 0 ? outlierCost : lightCost);
+                nativeCallbacks += native.Callbacks;
+                if (native.Callbacks != 0)
+                {
+                    nativeCallbackTimes.Add(clock.GetTimestamp());
+                }
+                return true;
+            }, clock);
+            Assert.True(clock.GetElapsedTime(started) <= step + outlierCost);
+            TimeSpan debt = TimeSpan.FromTicks(sampled) - timing.SimulationTotal;
+            maximumDebt = debt > maximumDebt ? debt : maximumDebt;
+            Assert.InRange(debt, TimeSpan.Zero, PresentationTiming.MaximumElapsed);
+            clock.Advance(drawCost);
+            draws++;
+        }
+        Assert.True(draws > 0);
+        Assert.True(maximumDebt < PresentationTiming.MaximumElapsed);
+        Assert.InRange(TimeSpan.FromTicks(previousSample) - timing.SimulationTotal, TimeSpan.Zero, step * 2);
+        NativeBattleGraphicsPresentationStep expected = NativeBattleGraphicsPresentationClock.Advance(0, false, timing.SimulationTotal);
+        Assert.Equal(expected.Callbacks, nativeCallbacks);
+        Assert.Equal(expected.Subticks, native.Subticks);
+        Assert.Equal(expected.HalfSubtick, native.HalfSubtick);
+        // This is a stipulated affordable workload, not a claim about an installed effect.
+        // Check sustained callback progress after startup, rather than one worst interval.
+        for (long end = TimeSpan.FromSeconds(4).Ticks; end <= previousSample; end += TimeSpan.FromMilliseconds(250).Ticks)
+        {
+            long begin = end - TimeSpan.FromSeconds(2).Ticks;
+            Assert.True(nativeCallbackTimes.Count(timestamp => timestamp > begin && timestamp <= end) >= 30);
+        }
     }
 
     [Fact]

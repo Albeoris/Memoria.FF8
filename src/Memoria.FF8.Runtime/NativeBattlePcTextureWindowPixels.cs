@@ -20,7 +20,10 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
         private const int MaximumCaptures = 128;
         private const int MaximumBytes = 16 * 1024 * 1024;
         private readonly object gate = new();
-        private readonly Dictionary<(int Row, NativeBattlePrimitiveTextureWindow Rectangle), NativeBattlePcTextureWindowPixels> captures = [];
+        private readonly Dictionary<(int Row, NativeBattlePrimitiveTextureWindow Rectangle), CaptureEntry> captures = [];
+        private readonly record struct CaptureEntry(NativeBattlePcTextureWindowPixels Pixels, long Generation);
+        private object? publication;
+        private long generation;
         private ImmutableArray<NativeBattleTextureSourceRegion>? sources;
         private ImmutableArray<NativeBattleTextureRegistration>? registrations;
         private ImmutableArray<byte>? tail;
@@ -40,25 +43,49 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
                     tail = textures.VramReadTail;
                     initialized = true;
                 }
-                (int Row, NativeBattlePrimitiveTextureWindow Rectangle) key = (row, rectangle);
-                if (captures.TryGetValue(key, out NativeBattlePcTextureWindowPixels? cached))
+                object currentPublication = textures.VramPublicationIdentity;
+                if (!ReferenceEquals(publication, currentPublication))
                 {
-                    return cached;
+                    publication = currentPublication;
+                    if (generation == long.MaxValue)
+                    {
+                        captures.Clear();
+                        bytes = 0;
+                        generation = 0;
+                    }
+                    generation++;
+                }
+                (int Row, NativeBattlePrimitiveTextureWindow Rectangle) key = (row, rectangle);
+                bool found = captures.TryGetValue(key, out CaptureEntry cached);
+                if (found && (cached.Generation == generation || HasSameWords(cached.Pixels, textures)))
+                {
+                    if (cached.Generation != generation)
+                    {
+                        captures[key] = new(cached.Pixels, generation);
+                    }
+                    return cached.Pixels;
                 }
                 NativeBattlePcTextureWindowPixels result = CaptureUncached(row, rectangle, textures);
+                int replacedBytes = found ? cached.Pixels.Data.Length : 0;
                 if (result.Data.Length > MaximumBytes)
                 {
+                    if (found)
+                    {
+                        captures.Remove(key);
+                        bytes -= replacedBytes;
+                    }
                     return result;
                 }
                 // One bucket covers all96 full-page rows and a bounded set of additional windows.
                 // Eviction drops only cache references; published pixel owners remain immutable.
-                if (captures.Count >= MaximumCaptures || bytes > MaximumBytes - result.Data.Length)
+                if ((!found && captures.Count >= MaximumCaptures) || bytes - replacedBytes > MaximumBytes - result.Data.Length)
                 {
                     captures.Clear();
                     bytes = 0;
+                    replacedBytes = 0;
                 }
-                captures.Add(key, result);
-                bytes += result.Data.Length;
+                captures[key] = new(result, generation);
+                bytes += result.Data.Length - replacedBytes;
                 return result;
             }
         }
@@ -121,8 +148,38 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
     {
         ArgumentNullException.ThrowIfNull(rectangle);
         ArgumentNullException.ThrowIfNull(textures);
-        CaptureBucket captures = Captures.GetValue(textures.VramPublicationIdentity, static _ => new());
+        CaptureBucket captures = Captures.GetValue(textures.VramCaptureIdentity, static _ => new());
         return captures.Capture(row, rectangle, textures);
+    }
+
+    private static bool HasSameWords(NativeBattlePcTextureWindowPixels captured, NativeBattleEffectTextureState textures)
+    {
+        Span<byte> row = stackalloc byte[512];
+        int count = 2 * captured.Width;
+        for (int line = 0; line < captured.Height; line++)
+        {
+            int address = 2 * ((captured.Y + line) * 1024 + captured.X);
+            ReadRow(textures, address, row[..count]);
+            if (!row[..count].SequenceEqual(captured.Data.AsSpan(line * count, count)))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void ReadRow(NativeBattleEffectTextureState textures, int address, Span<byte> destination)
+    {
+        int known = Math.Min(destination.Length, NativeBattleEffectArena.Length - address);
+        if (known > 0)
+        {
+            textures.ReadVramInto(address, destination[..known]);
+        }
+        if (known < destination.Length)
+        {
+            ImmutableArray<byte> tail = textures.VramReadTail ?? throw new NotSupportedException("Native full-page capture reaches its unobserved trailing read window; explicitly migrate the standalone state.");
+            tail.AsSpan().Slice(address + known - NativeBattleEffectArena.Length, destination.Length - known).CopyTo(destination[known..]);
+        }
     }
 
     private static NativeBattlePcTextureWindowPixels CaptureUncached(int row, NativeBattlePrimitiveTextureWindow rectangle, NativeBattleEffectTextureState textures)
@@ -140,16 +197,7 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
         {
             int address = 2 * ((y + line) * 1024 + x);
             int count = 2 * width;
-            int known = Math.Min(count, NativeBattleEffectArena.Length - address);
-            if (known > 0)
-            {
-                textures.ReadVramInto(address, data.AsSpan(2 * line * width, known));
-            }
-            if (known < count)
-            {
-                ImmutableArray<byte> tail = textures.VramReadTail ?? throw new NotSupportedException("Native full-page capture reaches its unobserved trailing read window; explicitly migrate the standalone state.");
-                tail.AsSpan().Slice(address + known - NativeBattleEffectArena.Length, count - known).CopyTo(data.AsSpan(2 * line * width + known));
-            }
+            ReadRow(textures, address, data.AsSpan(2 * line * width, count));
         }
         NativeBattlePcTextureWindowPixels result = new(x, y, width, rectangle.Height, ImmutableCollectionsMarshal.AsImmutableArray(data)) { LiveTextureSources = textures.LiveTextureSources, TextureRegistrations = textures.TextureRegistrations };
         result.Validate();

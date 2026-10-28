@@ -71,7 +71,7 @@ public sealed class ScenarioEnemyPetrifyRepeatTests
             Assert.Equal(new byte[] { 0, 1, 3 }, declared["fixture"]!["combat_party"]!.AsArray().Select(node => node!.GetValue<byte>()));
             Assert.Equal("party-0", declared["driver"]!["input"]!["target_id"]!.GetValue<string>());
             int level = declared["fixture"]!["characters"]![0]!["level"]!.GetValue<int>();
-            NativeCharacterVitals prepared = initial;
+            NativeCharacterVitals prepared = initial with { CombatParty = [0, 1, 3] };
             foreach (byte row in new byte[] { 0, 1, 3 })
             {
                 prepared = prepared.WithDiagnosticBattleLevel(row, level, experience);

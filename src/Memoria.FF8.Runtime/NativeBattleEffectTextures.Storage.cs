@@ -46,6 +46,9 @@ public sealed partial record NativeBattleEffectTextureState
     [JsonIgnore]
     public object VramPublicationIdentity => VramVersion;
 
+    [JsonIgnore]
+    internal object VramCaptureIdentity => textureSnapshot ? VramVersion : vramOwner;
+
     public void ReadVramInto(int offset, Span<byte> destination) => VramVersion.ReadInto(offset, destination);
 
     public ushort ReadVramWord(int x, int y)

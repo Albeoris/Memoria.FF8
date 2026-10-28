@@ -70,6 +70,112 @@ public sealed class NativeBattlePcTextureWindowPixelsTests
     }
 
     [Fact]
+    public void UnrelatedPublicationsReuseTheSameRegionAcrossHistoricalBranchesWithoutAllocating()
+    {
+        NativeBattleEffectTextureState[] versions = new NativeBattleEffectTextureState[16];
+        versions[0] = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [0x34, 0x12]);
+        for (int index = 1; index < versions.Length; index++)
+        {
+            versions[index] = versions[index - 1].Upload45BD30(512, 128, 1, 1, [checked((byte)index), 0]);
+        }
+        NativeBattlePrimitiveTextureWindow rectangle = new(0, 0, 8, 8);
+        NativeBattlePcTextureWindowPixels first = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, versions[0]);
+        foreach (NativeBattleEffectTextureState version in versions.Skip(1))
+        {
+            Assert.NotSame(versions[0].VramPublicationIdentity, version.VramPublicationIdentity);
+            Assert.Equal(versions[0].LiveTextureSources, version.LiveTextureSources);
+            Assert.Equal(versions[0].TextureRegistrations, version.TextureRegistrations);
+            Assert.Same(first, NativeBattlePcTextureWindowPixels.Capture(64, rectangle, version));
+        }
+        for (int index = 0; index < 32; index++)
+        {
+            _ = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, versions[index % versions.Length]);
+        }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1000; index++)
+        {
+            _ = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, versions[index % versions.Length]);
+        }
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Same(first, NativeBattlePcTextureWindowPixels.Capture(64, rectangle, versions[0]));
+        Assert.Equal((ushort)0x1234, first.ReadWord(0, 0));
+    }
+
+    [Fact]
+    public void ConcurrentHistoricalRequestsReadTheirOwnImmutablePublication()
+    {
+        NativeBattleEffectTextureState before = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [0x34, 0x12]);
+        NativeBattleEffectTextureState after = before.Upload45BD30(0, 0, 1, 1, [0xCD, 0xAB]);
+        NativeBattlePrimitiveTextureWindow rectangle = new(0, 0, 8, 8);
+        NativeBattlePcTextureWindowPixels[] captures = new NativeBattlePcTextureWindowPixels[32];
+        Parallel.For(0, captures.Length, index => captures[index] = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, index % 2 == 0 ? before : after));
+        for (int index = 0; index < captures.Length; index++)
+        {
+            Assert.Equal(index % 2 == 0 ? (ushort)0x1234 : (ushort)0xABCD, captures[index].ReadWord(0, 0));
+        }
+    }
+
+    [Fact]
+    public void SeparatePhysicalOwnersAndDetachedSnapshotsRemainIsolated()
+    {
+        NativeBattleEffectTextureState first = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [0x34, 0x12]);
+        NativeBattleEffectTextureState second = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [0x34, 0x12]);
+        NativeBattlePrimitiveTextureWindow rectangle = new(0, 0, 8, 8);
+        NativeBattlePcTextureWindowPixels original = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, first);
+        NativeBattlePcTextureWindowPixels isolated = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, second);
+        Assert.NotSame(original, isolated);
+        Assert.Equal(original.Data.ToArray(), isolated.Data.ToArray());
+        NativeBattleEffectTextureState snapshot = NativeBattleStorageSnapshots.Capture(first);
+        NativeBattlePcTextureWindowPixels detached = NativeBattlePcTextureWindowPixels.Capture(64, rectangle, snapshot);
+        Assert.NotSame(original, detached);
+        Assert.Equal(original.Data.ToArray(), detached.Data.ToArray());
+        Assert.Same(detached, NativeBattlePcTextureWindowPixels.Capture(64, rectangle, snapshot with { }));
+    }
+
+    [Fact]
+    public void ReplacingOneChangedRegionAtCapacityKeepsUnchangedSiblingCaptures()
+    {
+        NativeBattleEffectTextureState owner = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [0x34, 0x12]);
+        NativeBattlePcTextureWindowPixels original = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), owner);
+        NativeBattlePcTextureWindowPixels sibling = NativeBattlePcTextureWindowPixels.Capture(64, new(8, 0, 8, 8), owner);
+        for (int index = 2; index < 128; index++)
+        {
+            _ = NativeBattlePcTextureWindowPixels.Capture(64, new(index % 16 * 8, index / 16 * 8, 8, 8), owner);
+        }
+        NativeBattleEffectTextureState changed = owner.Upload45BD30(0, 0, 1, 1, [0xCD, 0xAB]);
+        NativeBattlePcTextureWindowPixels replacement = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), changed);
+        Assert.NotSame(original, replacement);
+        Assert.Equal((ushort)0xABCD, replacement.ReadWord(0, 0));
+        Assert.Same(sibling, NativeBattlePcTextureWindowPixels.Capture(64, new(8, 0, 8, 8), changed));
+        Assert.Equal((ushort)0x1234, original.ReadWord(0, 0));
+    }
+
+    [Fact]
+    public void UpdatedEntriesDoNotPinEarlierPublicationVersions()
+    {
+        (NativeBattleEffectTextureState current, NativeBattlePcTextureWindowPixels captured, WeakReference<object> previous) = CaptureUnrelatedPublication();
+        for (int index = 0; index < 3; index++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        Assert.False(previous.TryGetTarget(out _));
+        Assert.Same(captured, NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), current));
+        GC.KeepAlive(current);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (NativeBattleEffectTextureState Current, NativeBattlePcTextureWindowPixels Captured, WeakReference<object> Previous) CaptureUnrelatedPublication()
+    {
+        NativeBattleEffectTextureState previous = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [0x34, 0x12]);
+        NativeBattlePcTextureWindowPixels captured = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), previous);
+        WeakReference<object> publication = new(previous.VramPublicationIdentity);
+        NativeBattleEffectTextureState current = previous.Upload45BD30(512, 128, 1, 1, [0xCD, 0xAB]);
+        _ = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 8), current);
+        return (current, captured, publication);
+    }
+
+    [Fact]
     public void SamePublicationDoesNotAliasChangedSourceRegistrationOrNullableProvenance()
     {
         NativeBattleTextureOrigin origin = new("sample.tex", 1, NativeBattleTextureRole.Pixels, 16, 8, 8);
@@ -176,8 +282,10 @@ public sealed class NativeBattlePcTextureWindowPixelsTests
         Assert.NotSame(original, changed);
         Assert.Equal((ushort)0x1234, original.ReadWord(0, 0));
         Assert.Equal((ushort)0xABCD, changed.ReadWord(0, 0));
-        Assert.Same(original, NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 2), before));
-        Assert.Same(changed, NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 2), after));
+        NativeBattlePcTextureWindowPixels historical = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 2), before);
+        Assert.Equal(original.Data.ToArray(), historical.Data.ToArray());
+        Assert.Same(historical, NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 2), before));
+        Assert.Equal(changed.Data.ToArray(), NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 2), after).Data.ToArray());
         string json = JsonSerializer.Serialize(original);
         Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattlePcTextureWindowPixels>(json)));
         NativeBattleEffectTextureState restoredOwner = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(after)))!);
