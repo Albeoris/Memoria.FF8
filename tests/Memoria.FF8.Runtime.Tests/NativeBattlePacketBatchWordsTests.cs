@@ -6,6 +6,95 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattlePacketBatchWordsTests
 {
     [Fact]
+    public void Unchanged_logical_words_reuse_the_original_batch_attempt_and_primitive_after_retained_reads()
+    {
+        NativeBattleGfGeometryAttempt quad = Quad();
+        quad = quad with { WriteMask = quad.WriteMask.SetItem(4, NativeBattleGfPacketByteState.Untouched) };
+        NativeBattleGfGeometryBatch batch = new([quad], 52) { NativeUnlinkedAllocation = true };
+        List<int> reads = [];
+        NativeBattleGfGeometryBatch result = NativeBattlePacketBatchWords.ResolveWithKnownness(batch, 16, 128, address =>
+        {
+            reads.Add(address);
+            return (quad.Data[address - 16], true);
+        });
+        Assert.Equal(new[] { 20 }, reads);
+        Assert.Same(batch, result);
+        Assert.Same(quad, result.Attempts[0]);
+        Assert.Same(quad.Primitive, result.Attempts[0].Primitive);
+    }
+
+    [Fact]
+    public void Unchanged_projection_does_not_bypass_allocation_store_mask_or_consumed_knownness_validation()
+    {
+        NativeBattleGfGeometryAttempt quad = Quad();
+        NativeBattleGfGeometryBatch batch = new([quad], 52);
+        Assert.Throws<InvalidDataException>(() => NativeBattlePacketBatchWords.ResolveWithKnownness(batch with { AllocationBytes = 53 }, 16, 128, _ => throw new InvalidOperationException()));
+        NativeBattleGfGeometryAttempt invalid = quad with { WriteMask = quad.WriteMask.SetItem(0, (NativeBattleGfPacketByteState)255) };
+        Assert.Throws<InvalidDataException>(() => NativeBattlePacketBatchWords.ResolveWithKnownness(batch with { Attempts = [invalid] }, 16, 128, _ => throw new InvalidOperationException()));
+        NativeBattleGfGeometryAttempt unknown = quad with { WriteMask = quad.WriteMask.SetItem(4, NativeBattleGfPacketByteState.Unknown) };
+        Assert.Throws<NotSupportedException>(() => NativeBattlePacketBatchWords.ResolveWithKnownness(batch with { Attempts = [unknown] }, 16, 128, _ => throw new InvalidOperationException()));
+        NativeBattleGfGeometryAttempt first = quad with { WriteMask = quad.WriteMask.SetItem(4, NativeBattleGfPacketByteState.Untouched) };
+        List<int> reads = [];
+        Assert.Throws<InvalidDataException>(() => NativeBattlePacketBatchWords.ResolveWithKnownness(batch with { Attempts = [first, invalid] }, 16, 128, address =>
+        {
+            reads.Add(address);
+            return (quad.Data[address - 16], true);
+        }));
+        Assert.Equal(new[] { 20 }, reads);
+    }
+
+    [Fact]
+    public void Changed_retained_bytes_only_replace_the_affected_logical_attempt()
+    {
+        NativeBattleGfGeometryAttempt unchanged = Quad();
+        NativeBattleGfGeometryAttempt changed = unchanged with { ByteOffsetRelative = 52, WriteMask = unchanged.WriteMask.SetItem(4, NativeBattleGfPacketByteState.Untouched) };
+        NativeBattleGfGeometryBatch batch = new([unchanged, changed], 104);
+        NativeBattleGfGeometryBatch result = NativeBattlePacketBatchWords.ResolveWithKnownness(batch, 16, 128, address =>
+        {
+            Assert.Equal(72, address);
+            return ((byte)0x5A, true);
+        });
+        Assert.NotSame(batch, result);
+        Assert.Same(unchanged, result.Attempts[0]);
+        Assert.NotSame(changed, result.Attempts[1]);
+        Assert.Equal(0x5Au, result.Attempts[1].Primitive!.Words[1] & 255);
+        Assert.Equal(changed.Data, result.Attempts[1].Data);
+        Assert.Equal(changed.WriteMask, result.Attempts[1].WriteMask);
+        Assert.Equal(changed.Primitive!.Words[1] & 255, changed.Data[4]);
+    }
+
+    [Fact]
+    public void An_earlier_logical_padding_rewrite_does_not_replace_its_ordered_physical_store()
+    {
+        NativeBattleGfGeometryAttempt first = Quad();
+        byte[] bytes = first.Data.ToArray();
+        bytes[39] = 0x3E;
+        first = first with { Data = bytes.ToImmutableArray(), Primitive = first.Primitive! with { Words = first.Primitive.Words.SetItem(9, 0x3E000000) } };
+        NativeBattleGfGeometryAttempt second = Quad();
+        second = second with { ByteOffsetRelative = 32, WriteMask = second.WriteMask.SetItem(7, NativeBattleGfPacketByteState.Untouched) };
+        NativeBattleGfGeometryBatch batch = new([first, second], 84);
+        NativeBattleGfGeometryBatch result = NativeBattlePacketBatchWords.ResolveWithKnownness(batch, 16, 128, _ => throw new InvalidOperationException("The earlier physical padding byte owns this opcode."));
+        Assert.NotSame(first, result.Attempts[0]);
+        Assert.Equal(0u, result.Attempts[0].Primitive!.Words[9] >> 24);
+        Assert.Equal((byte)0x3E, result.Attempts[0].Data[39]);
+        Assert.Same(second, result.Attempts[1]);
+        Assert.Equal(0x3Eu, result.Attempts[1].Primitive!.Words[1] >> 24);
+    }
+
+    [Theory]
+    [InlineData(512)]
+    [InlineData(516)]
+    public void Stack_and_fresh_array_projection_boundaries_preserve_all_authored_commands(int length)
+    {
+        byte[] bytes = new byte[length];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, (uint)(length / 4 - 1) << 24);
+        ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
+        NativeBattleGfGeometryAttempt attempt = new(0, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, length).ToImmutableArray(), new(17, words, [0, 0, 0, 0]));
+        NativeBattleGfGeometryBatch batch = new([attempt], length);
+        Assert.Same(batch, NativeBattlePacketBatchWords.ResolveWithKnownness(batch, 0, 1024, _ => throw new InvalidOperationException()));
+    }
+
+    [Fact]
     public void Effect_packet_preserves_physical_UV_padding_without_consuming_it_in_logical_words()
     {
         const int cursor = 16;

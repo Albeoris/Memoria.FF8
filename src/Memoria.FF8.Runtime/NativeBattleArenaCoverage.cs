@@ -5,39 +5,72 @@ internal sealed class NativeBattleArenaCoverage : INativeBattleCheckpointPartici
 {
     internal readonly List<(int Offset, int End)> Ranges = [];
     private readonly record struct Undo(int Index, int Kind, (int Offset, int End) Value);
-    private readonly List<Undo> undo = [];
-    private readonly List<int> marks = [];
+    private List<Undo>? undo;
+    private List<int>? marks;
+    private int MarkCount => marks?.Count ?? 0;
     internal int Extent => Ranges.Count == 0 ? 0 : Ranges[^1].End;
     internal int Prefix => Ranges.Count != 0 && Ranges[0].Offset == 0 ? Ranges[0].End : 0;
     internal void Reserve(int additional, bool reserveJournal = true)
     {
         Ranges.EnsureCapacity(checked(Ranges.Count + additional));
-        if (reserveJournal || marks.Count != 0)
+        if (reserveJournal || MarkCount != 0)
         {
-            undo.EnsureCapacity(checked(undo.Count + Ranges.Count + additional * 4));
-            marks.EnsureCapacity(8);
+            EnsureJournal();
+            List<Undo> entries = undo!;
+            entries.EnsureCapacity(checked(entries.Count + Ranges.Count + additional * 4));
+            marks!.EnsureCapacity(8);
         }
     }
 
-    internal void ReserveCheckpointDepth(int depth) => marks.EnsureCapacity(checked(marks.Count + depth));
+    private void EnsureJournal()
+    {
+        if (undo is not null)
+        {
+            return;
+        }
+        List<Undo> newUndo = [];
+        List<int> newMarks = [];
+        undo = newUndo;
+        marks = newMarks;
+    }
 
-    public void BeginCheckpoint() => marks.Add(undo.Count);
+    internal void ReserveCheckpointDepth(int depth)
+    {
+        EnsureJournal();
+        List<int> checkpoints = marks!;
+        checkpoints.EnsureCapacity(checked(checkpoints.Count + depth));
+    }
+
+    public void BeginCheckpoint()
+    {
+        EnsureJournal();
+        marks!.Add(undo!.Count);
+    }
 
     public void CommitCheckpoint()
     {
+        if (marks is null)
+        {
+            throw new ArgumentOutOfRangeException("index");
+        }
         marks.RemoveAt(marks.Count - 1);
         if (marks.Count == 0)
         {
-            undo.Clear();
+            undo!.Clear();
         }
     }
 
     public void RollbackCheckpoint()
     {
-        int first = marks[^1];
-        for (int index = undo.Count - 1; index >= first; index--)
+        if (marks is null)
         {
-            Undo entry = undo[index];
+            throw new ArgumentOutOfRangeException("index");
+        }
+        int first = marks[^1];
+        List<Undo> entries = undo!;
+        for (int index = entries.Count - 1; index >= first; index--)
+        {
+            Undo entry = entries[index];
             if (entry.Kind == 0)
             {
                 Ranges[entry.Index] = entry.Value;
@@ -51,7 +84,7 @@ internal sealed class NativeBattleArenaCoverage : INativeBattleCheckpointPartici
                 Ranges.Insert(entry.Index, entry.Value);
             }
         }
-        undo.RemoveRange(first, undo.Count - first);
+        entries.RemoveRange(first, entries.Count - first);
         marks.RemoveAt(marks.Count - 1);
     }
 
@@ -69,27 +102,27 @@ internal sealed class NativeBattleArenaCoverage : INativeBattleCheckpointPartici
         {
             return;
         }
-        if (marks.Count != 0)
+        if (MarkCount != 0)
         {
-            undo.Add(new(index, 0, Ranges[index]));
+            undo!.Add(new(index, 0, Ranges[index]));
         }
         Ranges[index] = value;
     }
 
     private void Insert(int index, (int Offset, int End) value)
     {
-        if (marks.Count != 0)
+        if (MarkCount != 0)
         {
-            undo.Add(new(index, 1, default));
+            undo!.Add(new(index, 1, default));
         }
         Ranges.Insert(index, value);
     }
 
     private void Delete(int index)
     {
-        if (marks.Count != 0)
+        if (MarkCount != 0)
         {
-            undo.Add(new(index, 2, Ranges[index]));
+            undo!.Add(new(index, 2, Ranges[index]));
         }
         Ranges.RemoveAt(index);
     }

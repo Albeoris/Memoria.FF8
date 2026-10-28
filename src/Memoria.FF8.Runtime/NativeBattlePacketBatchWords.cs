@@ -16,12 +16,13 @@ public static class NativeBattlePacketBatchWords
         {
             throw new InvalidDataException("Native packet allocation leaves its current physical owner.");
         }
-        ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = batch.Attempts.ToBuilder();
+        ImmutableArray<NativeBattleGfGeometryAttempt>.Builder? attempts = null;
         Dictionary<int, (byte Value, bool Known)>? observed = null;
         int observedPrefixLength = 0;
-        for (int index = 0; index < attempts.Count; index++)
+        Span<byte> scratch = stackalloc byte[512];
+        for (int index = 0; index < batch.Attempts.Length; index++)
         {
-            NativeBattleGfGeometryAttempt attempt = attempts[index];
+            NativeBattleGfGeometryAttempt attempt = batch.Attempts[index];
             if (attempt.Data.IsDefaultOrEmpty || attempt.WriteMask.IsDefault || attempt.WriteMask.Length != attempt.Data.Length || attempt.ByteOffsetRelative < 0 || (attempt.ByteOffsetRelative & 3) != 0 || (attempt.PacketLength & 3) != 0 || attempt.ByteOffsetRelative > capacity - cursor - attempt.PacketLength)
             {
                 throw new InvalidDataException("Native packet delivery requires bounded ordered stores.");
@@ -58,10 +59,11 @@ public static class NativeBattlePacketBatchWords
             {
                 throw new InvalidDataException("Native logical packet leaves its physical stores.");
             }
-            byte[] bytes = new byte[primitive.Words.Length * 4];
+            int byteCount = primitive.Words.Length * 4;
+            Span<byte> bytes = byteCount <= scratch.Length ? scratch[..byteCount] : new byte[byteCount];
             for (int word = 0; word < primitive.Words.Length; word++)
             {
-                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(word * 4), primitive.Words[word]);
+                BinaryPrimitives.WriteUInt32LittleEndian(bytes[(word * 4)..], primitive.Words[word]);
             }
             for (int command = 4; command < bytes.Length;)
             {
@@ -89,8 +91,25 @@ public static class NativeBattlePacketBatchWords
                 }
                 command += length;
             }
-            ImmutableArray<uint> words = Enumerable.Range(0, primitive.Words.Length).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(word * 4))).ToImmutableArray();
-            attempts[index] = attempt with { Primitive = primitive with { Words = words } };
+            bool changed = false;
+            for (int word = 0; word < primitive.Words.Length; word++)
+            {
+                if (BinaryPrimitives.ReadUInt32LittleEndian(bytes[(word * 4)..]) != primitive.Words[word])
+                {
+                    changed = true;
+                    break;
+                }
+            }
+            if (changed)
+            {
+                ImmutableArray<uint>.Builder words = ImmutableArray.CreateBuilder<uint>(primitive.Words.Length);
+                for (int word = 0; word < primitive.Words.Length; word++)
+                {
+                    words.Add(BinaryPrimitives.ReadUInt32LittleEndian(bytes[(word * 4)..]));
+                }
+                attempts ??= batch.Attempts.ToBuilder();
+                attempts[index] = attempt with { Primitive = primitive with { Words = words.MoveToImmutable() } };
+            }
 
             byte ReadByte(int offset)
             {
@@ -104,7 +123,7 @@ public static class NativeBattlePacketBatchWords
                 return value.Known ? value.Value : throw new NotSupportedException("Native command consumes an unobserved packet byte.");
             }
         }
-        return batch with { Attempts = attempts.ToImmutable() };
+        return attempts is null ? batch : batch with { Attempts = attempts.ToImmutable() };
 
         (byte Value, bool Known) ReadObserved(int address)
         {
@@ -115,7 +134,7 @@ public static class NativeBattlePacketBatchWords
                 observed = [];
                 for (int index = 0; index < observedPrefixLength; index++)
                 {
-                    NativeBattleGfGeometryAttempt prefix = attempts[index];
+                    NativeBattleGfGeometryAttempt prefix = batch.Attempts[index];
                     int first = checked(cursor + prefix.ByteOffsetRelative);
                     for (int offset = 0; offset < prefix.PacketLength; offset++)
                     {

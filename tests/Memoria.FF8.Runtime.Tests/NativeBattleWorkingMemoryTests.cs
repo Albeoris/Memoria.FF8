@@ -6,6 +6,32 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleWorkingMemoryTests
 {
     [Fact]
+    public void First_lazy_journal_allocation_failure_does_not_prevent_a_later_checkpoint_retry()
+    {
+        using NativeBattleWorkingMemory memory = new(128);
+        memory.Write(4, [1, 2, 3, 4]);
+        memory.MarkUnknown(5, 1);
+        string original = JsonSerializer.Serialize(memory.Capture());
+        memory.BeginCheckpoint();
+        using (NativeBattleTelemetry.BeginScope(new ThrowingTrafficSink(NativeBattleTrafficKind.CpuCopyPayload, new OutOfMemoryException("Injected first-journal telemetry allocation failure."))))
+        {
+            Assert.Throws<OutOfMemoryException>(() => memory.WriteWithKnownness(3, new byte[] { 9, 8, 7, 6 }, new[] { false, true, false, true }));
+        }
+        memory.RollbackCheckpoint();
+        Assert.Equal(original, JsonSerializer.Serialize(memory.Capture()));
+        memory.BeginCheckpoint();
+        memory.Write(4, [9, 8, 7, 6]);
+        memory.BeginNestedCheckpoint();
+        memory.MarkUnknown(0, 16);
+        memory.RollbackNestedCheckpoint();
+        memory.CommitCheckpoint();
+        byte[] actual = new byte[4];
+        memory.ReadInto(4, actual);
+        Assert.Equal(new byte[] { 9, 8, 7, 6 }, actual);
+        Assert.False(memory.HasCheckpoint);
+    }
+
+    [Fact]
     public void Private_mixed_stores_do_not_preallocate_unused_publication_journal_buffers()
     {
         byte[] data = [1, 2, 3, 4];

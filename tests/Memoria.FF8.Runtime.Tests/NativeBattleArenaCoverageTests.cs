@@ -5,6 +5,71 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleArenaCoverageTests
 {
     [Fact]
+    public void Fresh_noncheckpointed_coverage_stays_close_to_real_range_storage_allocation()
+    {
+        MeasureCoverage();
+        MeasureRanges();
+        long coverageBytes = MeasureCoverage();
+        long rangeBytes = MeasureRanges();
+        Assert.True(coverageBytes - rangeBytes < 64 * 80, $"Fresh private coverage added {coverageBytes - rangeBytes} bytes above range storage across 64 owners.");
+
+        static long MeasureCoverage()
+        {
+            int extent = 0;
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int index = 0; index < 64; index++)
+            {
+                NativeBattleArenaCoverage coverage = new();
+                coverage.Reserve(1, reserveJournal: false);
+                coverage.Add(4, 4);
+                extent += coverage.Extent;
+            }
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(64 * 8, extent);
+            return allocated;
+        }
+
+        static long MeasureRanges()
+        {
+            int extent = 0;
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int index = 0; index < 64; index++)
+            {
+                List<(int Offset, int End)> ranges = new();
+                ranges.EnsureCapacity(1);
+                ranges.Add((4, 8));
+                extent += ranges[^1].End;
+            }
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(64 * 8, extent);
+            return allocated;
+        }
+    }
+
+    [Fact]
+    public void First_explicit_checkpoint_initializes_journals_without_requiring_prior_reservation()
+    {
+        NativeBattleArenaCoverage coverage = new();
+        coverage.Add(4, 4);
+        Assert.Equal("index", Assert.Throws<ArgumentOutOfRangeException>(coverage.CommitCheckpoint).ParamName);
+        Assert.Equal("index", Assert.Throws<ArgumentOutOfRangeException>(coverage.RollbackCheckpoint).ParamName);
+        coverage.BeginCheckpoint();
+        coverage.Reserve(2, reserveJournal: false);
+        coverage.Add(8, 4);
+        coverage.BeginCheckpoint();
+        coverage.Reserve(2, reserveJournal: false);
+        coverage.Remove(6, 4);
+        coverage.CommitCheckpoint();
+        coverage.RollbackCheckpoint();
+        Assert.Equal(new[] { (4, 8) }, coverage.Ranges);
+        coverage.BeginCheckpoint();
+        coverage.Reserve(1);
+        coverage.Add(16, 4);
+        coverage.CommitCheckpoint();
+        Assert.Equal(new[] { (4, 8), (16, 20) }, coverage.Ranges);
+    }
+
+    [Fact]
     public void Nonjournal_reservation_keeps_ranges_and_active_checkpoint_rollback()
     {
         NativeBattleArenaCoverage coverage = new();
