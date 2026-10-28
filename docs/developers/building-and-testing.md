@@ -4,7 +4,7 @@
 
 ## A clean checkout
 
-Use PowerShell 7 and the .NET 10 SDK pinned by `global.json`. Complete self-contained distributions target Windows x64, Linux x64 and Intel macOS; see [Cross-platform desktop migration](cross-platform.md) and [Linux testing from Windows](linux-testing.md). Run commands from the directory containing `Build.ps1` and `Memoria.FF8.slnx`. Package restore needs access to the configured public NuGet feeds.
+Use PowerShell 7 and the .NET 10 SDK pinned by `global.json`. Complete self-contained distributions target Windows x64, Linux x64 and Intel macOS, and Apple Silicon Macs can build a local `osx-arm64` distribution; see [Cross-platform desktop migration](cross-platform.md) and [Linux testing from Windows](linux-testing.md). Run commands from the directory containing `Build.ps1` and `Memoria.FF8.slnx`. Package restore needs access to the configured public NuGet feeds.
 
 Game hosts also build the standalone PSF codec with CMake 3.20+ and a native C compiler (Visual Studio C++ tools on Windows). Its GPL source, build recipe and notices ship beside every host in `licenses/psf-decoder-source/`; no BIOS is bundled. For a cross-publish, supply a target-native codec directory through `MEMORIA_FF8_PSF_DECODER_DIRECTORY`; the publisher validates its target ABI. Otherwise build on the target OS. Ordinary C# audio-library and launcher-only builds do not require this codec build.
 
@@ -17,7 +17,7 @@ Game hosts also build the standalone PSF codec with CMake 3.20+ and a native C c
 
 The script publishes a self-contained x64 launcher, dispatcher and isolated Windows DX11/Vulkan/DX12 engines built from the same source, plus the common x64 music worker. Linux and macOS offer Vulkan. It checks the actual published dependency assemblies, native ABI and backend-specific embedded shaders before packaging, including embedded codepage and menu resources. Original game data, media tool binaries, saves and fixture inputs are not bundled. See [graphics host selection](graphics-backends.md) and [shader generation](shaders.md).
 
-Generated directories live under `artifacts/package/<RID>`. Linux produces `Memoria-FF8-linux-x64.tar.gz`; Intel macOS produces `Memoria-FF8-osx-x64.tar.gz` containing `Memoria.FF8.app`. The pinned MonoGame Mac runtime requires **macOS 26.0 on Intel**. An older Intel CI runner can build and statically inspect this payload; that does not establish a runtime pass. Unix archives preserve executable modes even when cross-published from Windows.
+Generated directories live under `artifacts/package/<RID>`. Linux produces `Memoria-FF8-linux-x64.tar.gz`; Intel macOS produces `Memoria-FF8-osx-x64.tar.gz` containing `Memoria.FF8.app`. The pinned MonoGame Mac runtime requires **macOS 26.0**. An older Intel CI runner can build and statically inspect this payload; that does not establish a runtime pass. Unix archives preserve executable modes even when cross-published from Windows.
 
 ### macOS toolchain
 

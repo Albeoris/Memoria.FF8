@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) / [Build and test](building-and-testing.md)
 
-Windows DX11, Vulkan and DX12 share portable services, presentation, launcher and audio. Linux and Intel macOS package the same Native game host with Vulkan. See [graphics hosts](graphics-backends.md) for selection and isolated payloads. A successful cross-publish is not evidence of desktop, audio-device or gameplay acceptance on that OS.
+Windows DX11, Vulkan and DX12 share portable services, presentation, launcher and audio. Linux and macOS (released Intel packages and local Apple Silicon builds) package the same Native game host with Vulkan. See [graphics hosts](graphics-backends.md) for selection and isolated payloads. A successful cross-publish is not evidence of desktop, audio-device or gameplay acceptance on that OS.
 
 ## Build surfaces
 
@@ -54,7 +54,7 @@ Text run ordering uses the retained RichTextKit UAX #9 resolver; HarfBuzz shapes
 
 ## M0 and M5 feasibility findings
 
-MonoGame's [3.8.5 native backend announcement](https://monogame.net/blog/2026-07-15-3.8.5-release-2026/) identifies separate Native framework and Vulkan/DX12 runtime families. Version 3.8.5.1 NuGet payloads contain Windows and Linux x64 runtimes and an Intel slice in the macOS universal runtime. A bounded Windows Vulkan probe created and presented five clear frames successfully. This establishes device/window initialization only; it does not establish game rendering.
+MonoGame's [3.8.5 native backend announcement](https://monogame.net/blog/2026-07-15-3.8.5-release-2026/) identifies separate Native framework and Vulkan/DX12 runtime families. Version 3.8.5.1 NuGet payloads contain Windows and Linux x64 runtimes and Intel and arm64 slices in the macOS universal runtime. A bounded Windows Vulkan probe created and presented five clear frames successfully. This establishes device/window initialization only; it does not establish game rendering.
 
 The inspected `MonoGame.Runtime.Mac.Vulkan` 3.8.5.1 Intel slice declares macOS 26.0 in `LC_BUILD_VERSION`. An older baseline requires a separately verified runtime build or compatible upstream package. The Intel CI runner builds and statically validates the complete bundle, including executable modes, native imports and deployment versions. An older runner OS cannot establish macOS 26 runtime acceptance. Cocoa lifecycle, GPU/audio behavior and Metal portability require target acceptance.
 
@@ -64,11 +64,11 @@ Windows graphics hosts live in separate backend directories and select their fra
 
 ## Media tools and external acceptance
 
-FFmpeg and FFprobe are optional separately installed tools. Windows uses the existing checksummed BtbN LGPL ZIP setup. Linux setup selects the checksummed BtbN linux64 LGPL archive and preserves executable modes; that distribution requires glibc 2.28 and kernel 4.18 or newer. macOS currently provides an actionable manual installation route for matching Intel x64 FFmpeg/FFprobe, with the selected distribution's license and corresponding-source notices. Unix executables have no `.exe` suffix. No installation executes a Windows game or requires Wine.
+FFmpeg and FFprobe are optional separately installed tools. Windows uses the existing checksummed BtbN LGPL ZIP setup. Linux setup selects the checksummed BtbN linux64 LGPL archive and preserves executable modes; that distribution requires glibc 2.28 and kernel 4.18 or newer. No LGPL macOS binaries are published upstream, so the macOS launcher offers to build FFmpeg 9.0.2 from the official source release: it verifies the pinned SHA-256, builds natively for the launcher's architecture with LGPL-only, system-library configuration (Xcode Command Line Tools required), and keeps the license notices and build log beside the tools. A matching native LGPL pair can also be installed manually. Unix executables have no `.exe` suffix. No installation executes a Windows game or requires Wine.
 
 Selection validates an explicitly configured directory first, then a valid managed installation, then a paired installation in a local absolute PATH directory. Discovery and executable validation run asynchronously; no PATH or system installation is modified. Both tools must have the current native x64 ABI and report their build configuration. GPL and nonfree configurations are rejected. An invalid managed pair does not hide a valid PATH pair; automatic repair writes only to the managed destination.
 
-Portable CI, package ABI checks and software-rendered output are separate from real-target acceptance. Linux GPU/window/fullscreen, controllers, audio synchronization and gameplay stability require native Linux hardware. Intel macOS startup, audio and graphics require an Intel Mac. WSL2 testing is a development convenience and cannot close those gates.
+Portable CI, package ABI checks and software-rendered output are separate from real-target acceptance. Linux GPU/window/fullscreen, controllers, audio synchronization and gameplay stability require native Linux hardware. Intel macOS startup, audio and graphics require an Intel Mac; the local Apple Silicon build requires an Apple Silicon Mac. WSL2 testing is a development convenience and cannot close those gates.
 
 ## Distribution layouts and prerequisites
 

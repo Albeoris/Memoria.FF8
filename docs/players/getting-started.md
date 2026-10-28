@@ -38,6 +38,8 @@ Response headers and each stalled network read have a 15-second timeout. The com
 
 For manual setup, obtain the Windows x64 LGPL static archive from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases/latest). Put `ffmpeg.exe` and `ffprobe.exe` from its `bin` directory in `%LOCALAPPDATA%/Memoria.FF8/media-tools/`, and retain the archive's license, copyright and documentation files there. No `ffplay.exe` or FFmpeg DLLs are required. Restart the launcher to validate the tools.
 
+On macOS, no prebuilt LGPL download exists, so FFmpeg setup asks before building FFmpeg from its official source release. Install the Xcode Command Line Tools when macOS offers them, then start setup again; the build takes several minutes and writes `ffmpeg-build.log` beside the tools if it fails. Homebrew's `ffmpeg` is rejected because it enables GPL components.
+
 Set `MEMORIA_FF8_MEDIA_TOOLS` to select another media directory for both the launcher and engine. Direct engine launches can override it with `--media-tools`; see the [command line](../reference/command-line.md) and [environment reference](../reference/environment-variables.md). The launcher requires ready media tools before starting a game. A direct engine launch may continue without them, but movie-dependent scenes can then fail to continue.
 
 ## New Game battle options
@@ -88,4 +90,4 @@ Memoria is still in development. Current rendering, battle and event support has
 
 Every launch from the launcher displays console output and complete exception stacks in a separate console window and saves them as they arrive in a separate UTF-8 log under `%LOCALAPPDATA%/Memoria/FF8/logs/`. The console remains available after the game exits while the launcher is open, so error details can be copied. Logs survive game crashes and release updates. If that location cannot be written, the launcher tries `%TEMP%/Memoria.FF8/logs/`; if neither works, the error remains visible in the launcher with a warning that it could not be saved. A process terminated without reporting an error may leave only its last console output and exit code. Direct engine launches use their own console and are not captured by the launcher.
 
-On Intel macOS, install user mods in `~/Library/Application Support/Memoria/FF8/Mods`. Keep them outside `Memoria.FF8.app`; automatic updates replace the complete application bundle. The launcher and direct game starts use this writable mod directory by default. An explicit `--mods-dir` can select a different directory. Windows and Linux keep user mods in the package’s adjacent `Mods` folder.
+On macOS, install user mods in `~/Library/Application Support/Memoria/FF8/Mods`. Keep them outside `Memoria.FF8.app`; automatic updates replace the complete application bundle. The launcher and direct game starts use this writable mod directory by default. An explicit `--mods-dir` can select a different directory. Windows and Linux keep user mods in the package’s adjacent `Mods` folder.
