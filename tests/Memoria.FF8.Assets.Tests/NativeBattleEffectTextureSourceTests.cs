@@ -7,6 +7,66 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleEffectTextureSourceTests
 {
+    [Fact]
+    public void Native_only_proof_uses_the_full_query_and_rechecks_catalog_replacements()
+    {
+        NativeBattleEffectTextureState state = PixelState(new("mag012_b.00", 2, NativeBattleTextureRole.Pixels, 4, 1, 1));
+        using InMemoryResourceSource source = Source();
+        ResourceService resources = new(source);
+        RecordingResolver missing = new(_ => null);
+        resources.Prepare(missing).Commit();
+        using NativeBattleEffectTextureSource textures = new(resources);
+        Assert.True(textures.TryProveNoReplacement(state, 0, 0, 0, 0, 256, 256));
+        TextureBuildContext full = Assert.Single(missing.Contexts);
+        Assert.Contains("/window/0/0/256/256/", full.Key.ToString());
+        Assert.Equal(0, resources.ResidentTextureCount);
+        resources.Prepare(new RecordingResolver(context => Solid(context, new(90, 0, 0, 127)))).Commit();
+        Assert.False(textures.TryProveNoReplacement(state, 0, 0, 0, 0, 256, 256));
+        PixelImage original = new(256, 256);
+        Assert.Equal((byte)90, textures.Apply(original, state, 0, 0, 0, 0, 256, 256)[0, 0].R);
+        resources.Prepare(null).Commit();
+        Assert.True(textures.TryProveNoReplacement(state, 0, 0, 0, 0, 256, 256));
+        Assert.Equal(0, resources.ResidentTextureCount);
+    }
+
+    [Fact]
+    public void A_resolver_reading_original_pixels_cannot_prove_the_prefix_path_even_when_it_returns_no_replacement()
+    {
+        NativeBattleEffectTextureState state = PixelState(new("mag012_b.00", 2, NativeBattleTextureRole.Pixels, 4, 1, 1));
+        using InMemoryResourceSource source = Source();
+        ResourceService resources = new(source);
+        RecordingResolver resolver = new(context =>
+        {
+            Assert.Equal(4, context.Original.Width);
+            Assert.Equal(1, context.Original.Height);
+            return null;
+        });
+        resources.Prepare(resolver).Commit();
+        using NativeBattleEffectTextureSource textures = new(resources);
+        Assert.False(textures.TryProveNoReplacement(state, 0, 0, 0, 0, 256, 256));
+        Assert.Single(resolver.Contexts);
+        Assert.Equal(0, resources.ResidentTextureCount);
+    }
+
+    [Fact]
+    public void Native_only_probe_keeps_the_existing_replacement_failure_reporting()
+    {
+        NativeBattleEffectTextureState state = PixelState(new("mag012_b.00", 2, NativeBattleTextureRole.Pixels, 4, 1, 1));
+        using InMemoryResourceSource source = Source();
+        ResourceService resources = new(source);
+        int failures = 0;
+        resources.ReplacementFailed += (_, error) =>
+        {
+            Assert.Equal("fixture replacement failure", error.Message);
+            failures++;
+        };
+        resources.Prepare(new RecordingResolver(_ => throw new InvalidDataException("fixture replacement failure"))).Commit();
+        using NativeBattleEffectTextureSource textures = new(resources);
+        Assert.True(textures.TryProveNoReplacement(state, 0, 0, 0, 0, 256, 256));
+        Assert.Equal(1, failures);
+        Assert.Equal(0, resources.ResidentTextureCount);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

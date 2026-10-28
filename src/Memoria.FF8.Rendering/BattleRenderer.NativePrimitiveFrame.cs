@@ -8,16 +8,35 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
 
+[Flags]
+public enum NativeBattleTexturePrefixBlockers
+{
+    None = 0,
+    Window = 1,
+    Affine = 2,
+    ModelReplacement = 4,
+    EffectReplacement = 8,
+    Format = 16,
+    NoReduction = 32,
+    RetainedPixels = 64
+}
+
 /// <summary>Last-render counters; previous hits include older resident assets. Promotions do not require a new final material.</summary>
 public readonly record struct NativeBattleTextureDecodingObservation(long RenderOrdinal, long FullFinalCurrentHits, long FullFinalPreviousHits, long RawCurrentHits, long RawPreviousHits, long RawPromotions, long DecodeCount, long DecodedPixels, long RawNoCandidate, long RawWordMismatches, long RawPaletteMismatches, long RawBudgetSkips, int CurrentCandidates, int CurrentBytes)
 {
     public long RawEvictions { get; init; }
+    public long PrefixEligibleCommands { get; init; }
+    public long PrefixDecodedImages { get; init; }
+    public long PrefixFullPixels { get; init; }
+    public long PrefixCroppedPixels { get; init; }
+    public long PrefixBlockedCommands { get; init; }
+    public NativeBattleTexturePrefixBlockers PrefixBlockers { get; init; }
 }
 
 public sealed partial class BattleRenderer
 {
     private readonly record struct PrimitiveVertex(float X, float Y, float Z, float ReciprocalW, Vector2 Uv, Vector3 Color, float Alpha);
-    private readonly record struct NativeTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels, string? TextureSourceOwner, int SampleKey);
+    private readonly record struct NativeTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels, string? TextureSourceOwner, int SampleKey, int PrefixWidth = 0, int PrefixHeight = 0);
     private Dictionary<NativeTextureKey, PixelImage> nativeTexturePages = [];
     private Dictionary<NativeTextureKey, PixelImage> previousNativeTexturePages = [];
     private const int MaximumRawTextureCandidates = 256;
@@ -67,7 +86,13 @@ public sealed partial class BattleRenderer
     private long textureDiagnosticPaletteMismatch;
     private long textureDiagnosticBudgetSkip;
     private long textureDiagnosticEvictions;
-    public NativeBattleTextureDecodingObservation? TextureDecoding => PilotDiagnosticsEnabled ? new NativeBattleTextureDecodingObservation(textureDiagnosticRender, textureDiagnosticFinalCurrent, textureDiagnosticFinalPrevious, textureDiagnosticRawCurrent, textureDiagnosticRawPrevious, textureDiagnosticPromotions, textureDiagnosticDecodes, textureDiagnosticPixels, textureDiagnosticNoCandidate, textureDiagnosticWordMismatch, textureDiagnosticPaletteMismatch, textureDiagnosticBudgetSkip, nativeRawTexturePages.Count, nativeRawTextureBytes) { RawEvictions = textureDiagnosticEvictions } : null;
+    private long textureDiagnosticPrefixEligible;
+    private long textureDiagnosticPrefixImages;
+    private long textureDiagnosticPrefixFullPixels;
+    private long textureDiagnosticPrefixCroppedPixels;
+    private long textureDiagnosticPrefixBlocked;
+    private NativeBattleTexturePrefixBlockers textureDiagnosticPrefixBlockers;
+    public NativeBattleTextureDecodingObservation? TextureDecoding => PilotDiagnosticsEnabled ? new NativeBattleTextureDecodingObservation(textureDiagnosticRender, textureDiagnosticFinalCurrent, textureDiagnosticFinalPrevious, textureDiagnosticRawCurrent, textureDiagnosticRawPrevious, textureDiagnosticPromotions, textureDiagnosticDecodes, textureDiagnosticPixels, textureDiagnosticNoCandidate, textureDiagnosticWordMismatch, textureDiagnosticPaletteMismatch, textureDiagnosticBudgetSkip, nativeRawTexturePages.Count, nativeRawTextureBytes) { RawEvictions = textureDiagnosticEvictions, PrefixEligibleCommands = textureDiagnosticPrefixEligible, PrefixDecodedImages = textureDiagnosticPrefixImages, PrefixFullPixels = textureDiagnosticPrefixFullPixels, PrefixCroppedPixels = textureDiagnosticPrefixCroppedPixels, PrefixBlockedCommands = textureDiagnosticPrefixBlocked, PrefixBlockers = textureDiagnosticPrefixBlockers } : null;
     private NativeBattleEffectTextureState? nativeTextureOwner;
     private NativeBattlePcDirectTextureFormat? nativeDirectTextureFormat;
     private IReadOnlyList<NativeBattleTextureReplacement>? nativeModelReplacements;
@@ -100,6 +125,12 @@ public sealed partial class BattleRenderer
             textureDiagnosticPaletteMismatch = 0;
             textureDiagnosticBudgetSkip = 0;
             textureDiagnosticEvictions = 0;
+            textureDiagnosticPrefixEligible = 0;
+            textureDiagnosticPrefixImages = 0;
+            textureDiagnosticPrefixFullPixels = 0;
+            textureDiagnosticPrefixCroppedPixels = 0;
+            textureDiagnosticPrefixBlocked = 0;
+            textureDiagnosticPrefixBlockers = NativeBattleTexturePrefixBlockers.None;
         }
         BeginPilotSubmission();
         TriangleRenderer?.Begin(Width, Height, new Vector4(0, 0, 0, 1));
@@ -199,9 +230,15 @@ public sealed partial class BattleRenderer
             NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native polygon rendering requires its retained PC diffuse-color dispatch owner.");
             ImmutableArray<NativeBattlePrimitiveDepthVertex> projected = state.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native polygon lacks its original OT bucket."), perspective, command.Flags20, command.VertexPayload4);
             PixelImage? texture = null;
+            Vector2 prefixUvScale = Vector2.One;
             if (textured)
             {
-                texture = ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements);
+                bool affine = pilotProjection is null || !perspective;
+                for (int corner = 0; corner < (quad ? 4 : 3); corner++)
+                {
+                    affine &= projected[corner].ReciprocalW == 1;
+                }
+                texture = ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, quad ? 4 : 3, affine, out prefixUvScale);
             }
             PrimitiveVertex At(int corner)
             {
@@ -216,6 +253,7 @@ public sealed partial class BattleRenderer
                 {
                     NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection!;
                     coordinates *= new Vector2(window.ScaleU, window.ScaleV);
+                    coordinates *= prefixUvScale;
                 }
                 Vector2 position = command.ProjectedCoordinates is { } points
                     ? NativePrimitivePosition(points[corner].X, points[corner].Y, command.Flags20, resolved.DrawMode)
@@ -293,7 +331,11 @@ public sealed partial class BattleRenderer
     }
 
     private PixelImage ResolveNativePrimitiveTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, TexturePrimitiveSample? firstSample = null)
+        => ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, 0, false, out _, firstSample);
+
+    private PixelImage ResolveNativePrimitiveTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, int prefixCorners, bool affine, out Vector2 prefixUvScale, TexturePrimitiveSample? firstSample = null)
     {
+        prefixUvScale = Vector2.One;
         NativeBattleLogicalCommand command = resolved.Command;
         PixelImage? texture;
         ushort page = resolved.DrawMode.TexturePage ?? throw new NotSupportedException("Native textured polygon requires its executed texture page.");
@@ -327,12 +369,55 @@ public sealed partial class BattleRenderer
         }
         TexturePrimitiveSample primitiveSample = firstSample ?? new((byte)command.Words[2] * window.ScaleU, (byte)(command.Words[2] >> 8) * window.ScaleV);
         int sampleKey = nativeEffectTextureSource?.GetPrimitiveSampleKey(primitiveSample) ?? 0;
-        NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey);
+        NativeTextureKey fullKey = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey);
+        if (nativeTexturePages.TryGetValue(fullKey, out texture))
+        {
+            if (PilotDiagnosticsEnabled)
+            {
+                textureDiagnosticFinalCurrent++;
+            }
+            return texture;
+        }
+        int decodeWidth = window.Width;
+        int decodeHeight = window.Height;
+        long prefixSourceGeneration = nativeEffectTextureSource?.Generation ?? 0;
+        bool prefix = prefixCorners > 0 && TryPlanNativePrefix(command, prefixCorners, affine, page, clut, alternateShift, window, retainedPixels, textures, capabilities, replacements, out decodeWidth, out decodeHeight);
+        if (prefix)
+        {
+            NativeTextureKey candidate = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey, decodeWidth, decodeHeight);
+            if (nativeTexturePages.TryGetValue(candidate, out texture))
+            {
+                prefixUvScale = new(256f / decodeWidth, 256f / decodeHeight);
+                if (PilotDiagnosticsEnabled)
+                {
+                    textureDiagnosticPrefixEligible++;
+                    textureDiagnosticFinalCurrent++;
+                }
+                return texture;
+            }
+            if (nativeEffectTextureSource is not null && (nativeEffectTextureSource is not NativeBattleEffectTextureSource source || !source.TryProveNoReplacement(textures!, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels, alternateShift, capabilities?.DirectTextureFormat, primitiveSample)))
+            {
+                BlockNativePrefix(NativeBattleTexturePrefixBlockers.EffectReplacement);
+                prefix = false;
+                decodeWidth = window.Width;
+                decodeHeight = window.Height;
+            }
+        }
+        if (prefix)
+        {
+            prefixUvScale = new(256f / decodeWidth, 256f / decodeHeight);
+            effectTextureGeneration = prefixSourceGeneration;
+            if (PilotDiagnosticsEnabled)
+            {
+                textureDiagnosticPrefixEligible++;
+            }
+        }
+        NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels, command.TextureSourceOwner, sampleKey, prefix ? decodeWidth : 0, prefix ? decodeHeight : 0);
         if (!nativeTexturePages.TryGetValue(key, out texture))
         {
             int depth = (page >> 7) & 3;
             // Raw sampling excludes blend bits; replacement selection still uses the complete key above.
-            NativeRawTextureKey rawKey = new((ushort)(page & 0x19F), depth == 2 ? (ushort)0 : (ushort)(clut & 0x7FFF), depth == 2 ? null : alternateShift, window.X, window.Y, window.Width, window.Height, depth == 2 ? capabilities?.DirectTextureFormat : null);
+            NativeRawTextureKey rawKey = new((ushort)(page & 0x19F), depth == 2 ? (ushort)0 : (ushort)(clut & 0x7FFF), depth == 2 ? null : alternateShift, window.X, window.Y, decodeWidth, decodeHeight, depth == 2 ? capabilities?.DirectTextureFormat : null);
             bool reusable = sameReplacements && (retainedPixels is not null || sameNativeTextureOrigins) && previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
             if (!reusable)
             {
@@ -341,12 +426,18 @@ public sealed partial class BattleRenderer
                 {
                     NativeBattlePcPaletteReceipt? palette = null;
                     texture = retainedPixels is null
-                        ? NativeBattleEffectTextureReader.DecodePcRegion(textureState, page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat)
-                        : NativeBattleEffectTextureReader.DecodePcRegion(textureState, page, clut, window.X, window.Y, window.Width, window.Height, out palette, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
+                        ? NativeBattleEffectTextureReader.DecodePcRegion(textureState, page, clut, window.X, window.Y, decodeWidth, decodeHeight, alternateShift, capabilities?.DirectTextureFormat)
+                        : NativeBattleEffectTextureReader.DecodePcRegion(textureState, page, clut, window.X, window.Y, decodeWidth, decodeHeight, out palette, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
                     if (PilotDiagnosticsEnabled)
                     {
                         textureDiagnosticDecodes++;
                         textureDiagnosticPixels += texture.Pixels.Length;
+                        if (prefix)
+                        {
+                            textureDiagnosticPrefixImages++;
+                            textureDiagnosticPrefixFullPixels += window.Width * window.Height;
+                            textureDiagnosticPrefixCroppedPixels += decodeWidth * decodeHeight;
+                        }
                     }
                     RetainNativeRawTexture(rawKey, texture, retainedPixels, palette);
                 }
@@ -355,7 +446,7 @@ public sealed partial class BattleRenderer
                 {
                     texture = NativeBattleEffectTextureReader.ApplyModelReplacements(texture, textures!, page, clut, window.X, window.Y, retainedPixels, replacements, command.TextureSourceOwner);
                 }
-                if (nativeEffectTextureSource is not null)
+                if (nativeEffectTextureSource is not null && !prefix)
                 {
                     texture = nativeEffectTextureSource.ApplyDecoded(texture, decodedNative, textures!, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels, alternateShift, capabilities?.DirectTextureFormat, primitiveSample);
                     effectTextureGeneration = nativeEffectTextureSource.Generation;
@@ -379,6 +470,76 @@ public sealed partial class BattleRenderer
             textureDiagnosticFinalCurrent++;
         }
         return texture!;
+    }
+
+    private bool TryPlanNativePrefix(NativeBattleLogicalCommand command, int corners, bool affine, ushort page, ushort clut, byte? alternateShift, NativeBattlePcTextureWindowSelection window, NativeBattlePcTextureWindowPixels? retainedPixels, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, IReadOnlyList<NativeBattleTextureReplacement>? replacements, out int width, out int height)
+    {
+        width = window.Width;
+        height = window.Height;
+        if (!affine)
+        {
+            return BlockNativePrefix(NativeBattleTexturePrefixBlockers.Affine);
+        }
+        if (window.X != 0 || window.Y != 0 || window.Width != 256 || window.Height != 256 || window.ScaleU != 1f / 256 || window.ScaleV != 1f / 256)
+        {
+            return BlockNativePrefix(NativeBattleTexturePrefixBlockers.Window);
+        }
+        if (retainedPixels is null || textures is null)
+        {
+            return BlockNativePrefix(NativeBattleTexturePrefixBlockers.RetainedPixels);
+        }
+        int depth = (page >> 7) & 3;
+        if (depth == 3 || alternateShift > 1 || depth == 1 && (clut & 63) * 16 + 256 > 1024 || depth == 2 && capabilities?.DirectTextureFormat is not (NativeBattlePcDirectTextureFormat.Rgb555 or NativeBattlePcDirectTextureFormat.Rgb565))
+        {
+            return BlockNativePrefix(NativeBattleTexturePrefixBlockers.Format);
+        }
+        retainedPixels.ValidateMapping(window.Row, new(0, 0, 256, 256));
+        int pixelsPerWord = 4 >> depth;
+        if (retainedPixels.X != (page & 15) * 64 || retainedPixels.Y != (page & 16) * 16 || retainedPixels.Width != 256 / pixelsPerWord || retainedPixels.Height != 256)
+        {
+            return BlockNativePrefix(NativeBattleTexturePrefixBlockers.RetainedPixels);
+        }
+        int maximumU = 0;
+        int maximumV = 0;
+        int stride = (command.Opcode & 16) != 0 ? 3 : 2;
+        for (int corner = 0; corner < corners; corner++)
+        {
+            uint uv = command.Words[2 + corner * stride];
+            maximumU = Math.Max(maximumU, (byte)uv);
+            maximumV = Math.Max(maximumV, (byte)(uv >> 8));
+        }
+        int prefixWidth = 1;
+        int prefixHeight = 1;
+        while (prefixWidth <= maximumU)
+        {
+            prefixWidth *= 2;
+        }
+        while (prefixHeight <= maximumV)
+        {
+            prefixHeight *= 2;
+        }
+        if (prefixWidth == 256 && prefixHeight == 256)
+        {
+            return BlockNativePrefix(NativeBattleTexturePrefixBlockers.NoReduction);
+        }
+        textures.Validate();
+        if (alternateShift is null && replacements is not null && NativeBattleEffectTextureReader.HasModelReplacementCandidate(page, clut, window.X, window.Y, window.Width, window.Height, replacements, command.TextureSourceOwner))
+        {
+            return BlockNativePrefix(NativeBattleTexturePrefixBlockers.ModelReplacement);
+        }
+        width = prefixWidth;
+        height = prefixHeight;
+        return true;
+    }
+
+    private bool BlockNativePrefix(NativeBattleTexturePrefixBlockers reason)
+    {
+        if (PilotDiagnosticsEnabled)
+        {
+            textureDiagnosticPrefixBlocked++;
+            textureDiagnosticPrefixBlockers |= reason;
+        }
+        return false;
     }
 
     private bool TryReuseNativeRawTexture(NativeRawTextureKey key, NativeBattlePcTextureWindowPixels? pixels, NativeBattleEffectTextureState textures, [NotNullWhen(true)] out PixelImage? image, bool promotion = false)

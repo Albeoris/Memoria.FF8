@@ -12,6 +12,7 @@ public interface INativeBattleEffectTextureSource
     long Generation { get; }
     PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null);
 
+    /// <summary>Zero declares sample-neutral output; equal nonzero keys identify equivalent primitive variants.</summary>
     int GetPrimitiveSampleKey(TexturePrimitiveSample sample)
     {
         return 0;
@@ -69,59 +70,98 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
     }
 
     public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
-        => ApplyCore(original, null, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat, null);
+        => ApplyCore(original, null, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat, null, out _)!;
 
     public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, TexturePrimitiveSample sample)
-        => ApplyCore(original, null, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat, sample);
+        => ApplyCore(original, null, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat, sample, out _)!;
 
     public PixelImage ApplyDecoded(PixelImage original, PixelImage? decodedNative, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
-        => ApplyCore(original, decodedNative, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat, null);
+        => ApplyCore(original, decodedNative, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat, null, out _)!;
 
     public PixelImage ApplyDecoded(PixelImage original, PixelImage? decodedNative, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, TexturePrimitiveSample sample)
-        => ApplyCore(original, decodedNative, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat, sample);
+        => ApplyCore(original, decodedNative, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat, sample, out _)!;
 
-    private PixelImage ApplyCore(PixelImage original, PixelImage? decodedNative, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, TexturePrimitiveSample? sample)
+    public bool TryProveNoReplacement(NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null, TexturePrimitiveSample? sample = null)
     {
+        long generation = Generation;
+        _ = ApplyCore(null, null, state, page, clut, u, v, width, height, retainedPixels, alternatePaletteShift, directTextureFormat, sample, out bool noReplacement);
+        return noReplacement && Generation == generation;
+    }
+
+    private PixelImage? ApplyCore(PixelImage? original, PixelImage? decodedNative, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, TexturePrimitiveSample? sample, out bool noReplacement)
+    {
+        noReplacement = false;
+        bool originalRequested = false;
         int depth = (page >> 7) & 3;
         if (depth == 3 || width <= 0 || height <= 0)
         {
             throw new InvalidDataException("Native effect texture queries require a supported depth and positive logical crop.");
         }
+        // Primitive-dependent atlas absence cannot be inferred without the actual sample selector.
+        if (original is null && sample is null && resources.Source.Layouts.Contains("native-battle-gf-atlas"))
+        {
+            return null;
+        }
         long retainedRevision = retainedPixels is null ? 0 : retainedRevisions.GetValue(retainedPixels, _ => new()).Value;
         ImmutableArray<NativeBattleTextureRegistration>? registrations = retainedPixels is null ? state.TextureRegistrations : retainedPixels.TextureRegistrations;
         if (resources.Source.Layouts.Contains("native-battle-gf-atlas") && registrations is { } atlasRegistrations && resources.GetSource<INativeBattleGfAtlasSource>()?.TryGetGfAtlasAddress(atlasRegistrations, page, clut, u, v, width, height, sample) is { } atlas)
         {
+            if (original is null && atlas.UnsupportedReason is not null)
+            {
+                return null;
+            }
             int sampleKey = sample is { } primitiveSample ? GetPrimitiveSampleKey(primitiveSample) : 0;
             TextureKey atlasKey = new(new("battle/native-gf-atlas"), $"atlas/{scope}/{page}/{clut}/{u}/{v}/{width}/{height}/retained/{retainedRevision}/sample/{sampleKey}");
-            TextureBuildContext atlasContext = new(atlasKey, resources.Source, revisions.GetValue(state, _ => new()).Value, "native-battle-gf-atlas", width, height, () => original)
+            TextureBuildContext atlasContext = new(atlasKey, resources.Source, revisions.GetValue(state, _ => new()).Value, "native-battle-gf-atlas", width, height, () =>
+            {
+                originalRequested = true;
+                return original ?? NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, u, v, width, height, alternatePaletteShift, directTextureFormat, retainedPixels);
+            })
             {
                 NativeAtlas = atlas
             };
-            TextureValue atlasValue = resources.GetTexture(atlasContext, !retained.ContainsKey(atlasKey)).Value;
-            Retain(atlasKey);
-            if (atlasValue.IsReplacement)
+            AssetHandle<TextureValue>? atlasHandle = original is null
+                ? resources.GetTextureReplacement(atlasContext, !retained.ContainsKey(atlasKey))
+                : resources.GetTexture(atlasContext, !retained.ContainsKey(atlasKey));
+            if (atlasHandle is not null)
             {
-                return alternatePaletteShift is byte atlasShift ? Alternate(atlasValue.Image, atlasShift) : atlasValue.Image;
+                Retain(atlasKey);
+                TextureValue atlasValue = atlasHandle.Value;
+                if (atlasValue.IsReplacement)
+                {
+                    return alternatePaletteShift is byte atlasShift ? Alternate(atlasValue.Image, atlasShift) : atlasValue.Image;
+                }
             }
         }
         TextureSourceUpload? upload = resources.Source.Layouts.Contains("demaster-content-upload") ? NativeBattlePcTextureUploadSource.Create(state, page, clut, u, v, width, height, retainedPixels) : null;
         if (upload is not null)
         {
             TextureKey uploadKey = new(new("battle/native-pc-texture"), $"upload/{scope}/{page}/{clut}/{u}/{v}/{width}/{height}/retained/{retainedRevision}");
-            TextureBuildContext uploadContext = new(uploadKey, resources.Source, revisions.GetValue(state, _ => new()).Value, "native-pc-texture-upload", width, height, () => original)
+            TextureBuildContext uploadContext = new(uploadKey, resources.Source, revisions.GetValue(state, _ => new()).Value, "native-pc-texture-upload", width, height, () =>
+            {
+                originalRequested = true;
+                return original ?? NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, u, v, width, height, alternatePaletteShift, directTextureFormat, retainedPixels);
+            })
             {
                 NativeUpload = upload
             };
-            TextureValue uploadValue = resources.GetTexture(uploadContext, !retained.ContainsKey(uploadKey)).Value;
-            Retain(uploadKey);
-            if (uploadValue.IsReplacement)
+            AssetHandle<TextureValue>? uploadHandle = original is null
+                ? resources.GetTextureReplacement(uploadContext, !retained.ContainsKey(uploadKey))
+                : resources.GetTexture(uploadContext, !retained.ContainsKey(uploadKey));
+            if (uploadHandle is not null)
             {
-                return alternatePaletteShift is byte uploadShift ? Alternate(uploadValue.Image, uploadShift) : uploadValue.Image;
+                Retain(uploadKey);
+                TextureValue uploadValue = uploadHandle.Value;
+                if (uploadValue.IsReplacement)
+                {
+                    return alternatePaletteShift is byte uploadShift ? Alternate(uploadValue.Image, uploadShift) : uploadValue.Image;
+                }
             }
         }
         ImmutableArray<NativeBattleTextureSourceRegion>? sources = retainedPixels is null ? state.LiveTextureSources : retainedPixels.LiveTextureSources;
         if (sources is null)
         {
+            noReplacement = !originalRequested;
             return original;
         }
         int pixelsPerWord = 4 >> depth;
@@ -159,7 +199,11 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
             int localY = top - queryY;
             TextureSourcePageAddress nativePage = Page(retainedPixels is null ? state.TextureRegistrations : retainedPixels.TextureRegistrations, source, page, paletteX, paletteY, u, v, width, height, left - pageX * pixelsPerWord, top - pageY, cropWidth, cropHeight);
             PixelImage? contextOriginal = alternatePaletteShift is null && localX == 0 && localY == 0 && cropWidth == width && cropHeight == height && decodedNative is { } native && native.Width == width && native.Height == height ? native : null;
-            TextureBuildContext context = new(key, resources.Source, Revision(state).Value, "native-effect-texture", cropWidth, cropHeight, () => contextOriginal ?? NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, u + localX, v + localY, cropWidth, cropHeight, directTextureFormat: directTextureFormat, pixelWords: retainedPixels), new(source.X, source.Y, source.Origin.BitsPerPixel, source.Origin.WidthWords * pixelsPerWord, source.Origin.Height, paletteX, paletteY), paletteCount: source.Origin.PaletteRectangle?.Height ?? 1)
+            TextureBuildContext context = new(key, resources.Source, Revision(state).Value, "native-effect-texture", cropWidth, cropHeight, () =>
+            {
+                originalRequested = true;
+                return contextOriginal ?? NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, u + localX, v + localY, cropWidth, cropHeight, directTextureFormat: directTextureFormat, pixelWords: retainedPixels);
+            }, new(source.X, source.Y, source.Origin.BitsPerPixel, source.Origin.WidthWords * pixelsPerWord, source.Origin.Height, paletteX, paletteY), paletteCount: source.Origin.PaletteRectangle?.Height ?? 1)
             {
                 NativeAlias = alias,
                 NativePage = nativePage
@@ -181,7 +225,8 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
                 replacements.Add((alternatePaletteShift is byte shift ? Alternate(value.Image, shift) : value.Image, localX, localY, cropWidth, cropHeight));
             }
         }
-        return Compose(original, width, height, replacements);
+        noReplacement = replacements.Count == 0 && !originalRequested;
+        return original is null ? null : Compose(original, width, height, replacements);
     }
 
     private SourceRevision Revision(NativeBattleEffectTextureState state)

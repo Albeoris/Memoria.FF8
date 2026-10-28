@@ -12,6 +12,114 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattlePrimitiveFrameRenderingTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_cached_full_window_prevents_repeated_prefix_probes_or_original_reads(bool readOriginal)
+    {
+        (NativeBattlePreparedPrimitiveFrame frame, NativeBattleEffectTextureState textures) = NativeBattlePrefixFixture.Create(63, 63);
+        frame = NativeBattlePrefixFixture.WithProvenance(frame);
+        NativeBattleLogicalResolvedCommand command = frame.LastCommands[0];
+        frame = frame with { LastCommands = [command, command, command] };
+        using InMemoryResourceSource resources = new(new("fixture", GameDataEdition.Classic, ["classic-ffnx"]));
+        ResourceService service = new(resources);
+        PrefixOriginalResolver resolver = new();
+        service.Prepare(resolver).Commit();
+        using NativeBattleEffectTextureSource effects = new(service);
+        NativeBattlePrefixFixture.FullPathSource custom = new();
+        BattleRenderer renderer = new(64, 64) { PilotDiagnosticsEnabled = true };
+        renderer.RenderNativePrimitiveFrame(frame, textures, effectTextureSource: readOriginal ? effects : custom);
+        Assert.Equal(readOriginal ? 2 : 0, resolver.Calls);
+        Assert.Equal(readOriginal ? 0 : 1, custom.Calls);
+        Assert.Equal(1, renderer.TextureDecoding!.Value.PrefixBlockedCommands);
+        Assert.Equal(2, renderer.TextureDecoding!.Value.FullFinalCurrentHits);
+        Assert.Equal(65536, renderer.TextureDecoding!.Value.DecodedPixels);
+    }
+
+    private sealed class PrefixOriginalResolver : ITextureReplacementResolver
+    {
+        internal int Calls { get; private set; }
+
+        public TextureReplacement? Resolve(TextureBuildContext context)
+        {
+            Calls++;
+            Assert.Equal(256, context.Original.Width);
+            return null;
+        }
+    }
+
+    [Theory]
+    [InlineData(0, 0, 1)]
+    [InlineData(63, 31, 2048)]
+    [InlineData(64, 64, 16384)]
+    [InlineData(127, 128, 32768)]
+    [InlineData(255, 63, 16384)]
+    [InlineData(255, 255, 65536)]
+    public void Affine_prefix_is_CPU_pixel_exact_and_reports_only_actual_decoded_pixels(int maximumU, int maximumV, int expectedPixels)
+    {
+        (NativeBattlePreparedPrimitiveFrame frame, NativeBattleEffectTextureState textures) = NativeBattlePrefixFixture.Create(maximumU, maximumV);
+        BattleRenderer full = new(64, 64);
+        BattleRenderer prefix = new(64, 64) { PilotDiagnosticsEnabled = true };
+        byte[] expected = full.RenderNativePrimitiveFrame(frame, textures, effectTextureSource: new NativeBattlePrefixFixture.FullPathSource()).ToArray();
+        Assert.Equal(expected, prefix.RenderNativePrimitiveFrame(frame, textures));
+        Assert.Equal(expectedPixels, prefix.TextureDecoding!.Value.DecodedPixels);
+        Assert.Equal(expectedPixels == 65536 ? 0 : 65536, prefix.TextureDecoding!.Value.PrefixFullPixels);
+        Assert.Equal(expectedPixels == 65536 ? 0 : expectedPixels, prefix.TextureDecoding!.Value.PrefixCroppedPixels);
+        prefix.RenderNativePrimitiveFrame(frame, textures);
+        Assert.Equal(0, prefix.TextureDecoding!.Value.DecodeCount);
+        Assert.Equal(0, prefix.TextureDecoding!.Value.PrefixFullPixels);
+    }
+
+    [Fact]
+    public void Prefix_requires_affine_native_window_and_no_full_query_model_or_custom_effect_candidate()
+    {
+        (NativeBattlePreparedPrimitiveFrame frame, NativeBattleEffectTextureState textures) = NativeBattlePrefixFixture.Create(63, 63, true);
+        BattleRenderer renderer = new(64, 64) { PilotDiagnosticsEnabled = true };
+        renderer.RenderNativePrimitiveFrame(frame, textures);
+        Assert.Equal(65536, renderer.TextureDecoding!.Value.DecodedPixels);
+        Assert.Equal(NativeBattleTexturePrefixBlockers.Affine, renderer.TextureDecoding!.Value.PrefixBlockers);
+        frame = frame with { LastDescriptorPerspective = false };
+        renderer.RenderNativePrimitiveFrame(frame, textures, effectTextureSource: new NativeBattlePrefixFixture.FullPathSource());
+        Assert.Equal(0, renderer.TextureDecoding!.Value.PrefixEligibleCommands);
+        Assert.Equal(NativeBattleTexturePrefixBlockers.EffectReplacement, renderer.TextureDecoding!.Value.PrefixBlockers);
+        NativeBattlePcTextureWindowPixels pixels = frame.LastTextureSnapshots!.Value[0];
+        byte[] palette = new byte[32];
+        textures.ReadVramInto(2 * 256 * 1024, palette);
+        PixelImage overrideImage = new(256, 256, Enumerable.Repeat(new Rgba32(255, 255, 255, 127), 65536).ToArray());
+        NativeBattleTextureReplacement replacement = new(0, 0x4000, 0, 0, 256, 256, overrideImage, 64, pixels.Data, palette.ToImmutableArray());
+        renderer.RenderNativePrimitiveFrame(frame, textures, replacements: [replacement]);
+        Assert.Equal(0, renderer.TextureDecoding!.Value.PrefixEligibleCommands);
+        Assert.Equal(NativeBattleTexturePrefixBlockers.ModelReplacement, renderer.TextureDecoding!.Value.PrefixBlockers);
+        NativeBattleLogicalResolvedCommand resolved = frame.LastCommands[0];
+        frame = frame with { LastCommands = [resolved with { DrawMode = resolved.DrawMode with { TextureSelection = resolved.DrawMode.TextureSelection! with { ScaleU = 1f / 128 } } }] };
+        renderer.RenderNativePrimitiveFrame(frame, textures);
+        Assert.Equal(NativeBattleTexturePrefixBlockers.Window, renderer.TextureDecoding!.Value.PrefixBlockers);
+    }
+
+    [Fact]
+    public void Native_prefix_proof_reloads_effect_replacements_using_the_full_original_query()
+    {
+        (NativeBattlePreparedPrimitiveFrame frame, NativeBattleEffectTextureState textures) = NativeBattlePrefixFixture.Create(63, 63);
+        frame = NativeBattlePrefixFixture.WithProvenance(frame);
+        using InMemoryResourceSource resources = new(new("fixture", GameDataEdition.Classic, ["classic-ffnx"]));
+        ResourceService service = new(resources);
+        using NativeBattleEffectTextureSource effects = new(service);
+        BattleRenderer renderer = new(64, 64) { PilotDiagnosticsEnabled = true };
+        byte[] native = renderer.RenderNativePrimitiveFrame(frame, textures, effectTextureSource: effects).ToArray();
+        Assert.Equal(4096, renderer.TextureDecoding!.Value.DecodedPixels);
+        Assert.Equal(1, renderer.TextureDecoding!.Value.PrefixEligibleCommands);
+        service.Prepare(new NativeBattlePrefixFixture.RedResolver()).Commit();
+        byte[] changed = renderer.RenderNativePrimitiveFrame(frame, textures, effectTextureSource: effects).ToArray();
+        Assert.NotEqual(native, changed);
+        Assert.Equal(0, renderer.TextureDecoding!.Value.PrefixEligibleCommands);
+        Assert.Equal(NativeBattleTexturePrefixBlockers.EffectReplacement, renderer.TextureDecoding!.Value.PrefixBlockers);
+        byte[] modelThenEffect = renderer.RenderNativePrimitiveFrame(frame, textures, replacements: [NativeBattlePrefixFixture.WhiteReplacement(frame, textures)], effectTextureSource: effects).ToArray();
+        Assert.Equal(changed, modelThenEffect);
+        service.Prepare(null).Commit();
+        Assert.Equal(native, renderer.RenderNativePrimitiveFrame(frame, textures, effectTextureSource: effects));
+        Assert.Equal(1, renderer.TextureDecoding!.Value.PrefixEligibleCommands);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
@@ -332,7 +440,8 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     private static NativeBattleLogicalResolvedCommand RawCacheQuad(ushort page = 0, ushort clut = 0x4000, int size = 8, int? snapshot = 0, string? owner = null)
     {
         uint window = size == 256 ? 0 : NativeBattleQuezacotlGeometryPackets.TextureWindowCommand(new(0, 0, checked((short)size), checked((short)size))) & 0xFFFFFF;
-        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), (uint)clut << 16, Point(30, 10), (uint)page << 16 | 7, Point(10, 30), 7u << 8, Point(30, 30), 7u << 8 | 7], 1, [], null) { OrderingBucket = 50, TextureSourceOwner = owner };
+        uint extent = size == 256 ? 255u : 7u;
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), (uint)clut << 16, Point(30, 10), (uint)page << 16 | extent, Point(10, 30), extent << 8, Point(30, 30), extent << 8 | extent], 1, [], null) { OrderingBucket = 50, TextureSourceOwner = owner };
         return new(command, TexturedMode(page, window, clut) with { TexturePixelSnapshot = snapshot }, 1);
     }
 

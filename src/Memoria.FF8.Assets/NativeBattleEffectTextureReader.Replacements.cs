@@ -6,6 +6,19 @@ namespace Memoria.FF8.Assets;
 
 public static partial class NativeBattleEffectTextureReader
 {
+    public static bool HasModelReplacementCandidate(ushort page, ushort clut, int u, int v, int width, int height, IReadOnlyList<NativeBattleTextureReplacement> replacements, string? textureSourceOwner = null)
+    {
+        return replacements.Any(replacement => IsModelReplacementCandidate(replacement, page, clut, u, v, width, height, textureSourceOwner));
+    }
+
+    private static bool IsModelReplacementCandidate(NativeBattleTextureReplacement replacement, ushort page, ushort clut, int u, int v, int width, int height, string? textureSourceOwner)
+    {
+        return (page & 0x19F) == (replacement.Page & 0x19F)
+            && (replacement.SourceOwner is not null ? string.Equals(textureSourceOwner, replacement.SourceOwner, StringComparison.Ordinal) : (clut & 0x7FFF) == (replacement.Clut & 0x7FFF))
+            && Math.Max(u, replacement.U) < Math.Min(u + width, replacement.U + replacement.Width)
+            && Math.Max(v, replacement.V) < Math.Min(v + height, replacement.V + replacement.Height);
+    }
+
     public static PixelImage ApplyModelReplacements(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, NativeBattlePcTextureWindowPixels? retainedPixels, IReadOnlyList<NativeBattleTextureReplacement> replacements, string? textureSourceOwner = null)
     {
         List<(NativeBattleTextureReplacement Replacement, int Left, int Top, int Right, int Bottom)> selected = [];
@@ -16,7 +29,7 @@ public static partial class NativeBattleEffectTextureReader
         foreach (NativeBattleTextureReplacement replacement in replacements)
         {
             bool sourcePage = replacement.SourceOwner is not null;
-            if ((page & 0x19F) != (replacement.Page & 0x19F) || (sourcePage ? !string.Equals(textureSourceOwner, replacement.SourceOwner, StringComparison.Ordinal) : (clut & 0x7FFF) != (replacement.Clut & 0x7FFF)))
+            if (!IsModelReplacementCandidate(replacement, page, clut, u, v, original.Width, original.Height, textureSourceOwner))
             {
                 continue;
             }
