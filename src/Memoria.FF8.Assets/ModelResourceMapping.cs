@@ -87,8 +87,6 @@ public static class ModelResourceMapping
         SameBytes(primary.Sequences?.NativeResource.SequenceSection, donor.Sequences?.NativeResource.SequenceSection);
         SameBytes(primary.NativeActionCameraBank?.Data, donor.NativeActionCameraBank?.Data);
         SameBytes(primary.NativeTextureAnimations, donor.NativeTextureAnimations);
-        SameBytes(primary.NativeBodyTexturePack?.Data, donor.NativeBodyTexturePack?.Data);
-        SameBytes(primary.NativeWeaponTexturePack?.Data, donor.NativeWeaponTexturePack?.Data);
         Require(primary.NativeWeaponUsesBodySkeleton == donor.NativeWeaponUsesBodySkeleton, "Battle weapon skeleton ownership differs.");
         Require(primary.Meshes.Count == donor.Meshes.Count, "Battle mesh control ordinals differ.");
         foreach (BattleMesh mesh in donor.Meshes)
@@ -96,7 +94,7 @@ public static class ModelResourceMapping
             Require(mesh.Vertices.All(vertex => (uint)vertex.Bone < primary.Bones.Count), "Donor battle vertex references an absent bone.");
             Require(mesh.Faces.All(face => (uint)face.Texture < donor.Textures.Count && face.Vertices.All(index => (uint)index < mesh.Vertices.Count)), "Donor battle face references an absent material or vertex.");
         }
-        return primary with { Meshes = donor.Meshes, NativeControlMeshes = primary.NativeControlMeshes ?? primary.Meshes, NativeGeometryBytes = donor.NativeGeometryBytes, NativeRenderGeometry = donor.NativeRenderGeometry, Textures = donor.Textures, TextureRegions = donor.TextureRegions, TextureSourceAddresses = donor.TextureSourceAddresses, TextureSourceDescriptor = descriptor };
+        return primary with { Meshes = donor.Meshes, NativeControlMeshes = donor.NativeControlMeshes ?? donor.Meshes, NativeGeometryBytes = donor.NativeGeometryBytes, NativeRenderGeometry = donor.NativeRenderGeometry, NativeBodyTexturePack = donor.NativeBodyTexturePack, NativeWeaponTexturePack = donor.NativeWeaponTexturePack, Textures = donor.Textures, TextureRegions = donor.TextureRegions, TextureSourceAddresses = donor.TextureSourceAddresses, TextureSourceDescriptor = descriptor };
     }
 
     private static void FieldParts(FieldModel primary, FieldModel donor)
@@ -113,7 +111,7 @@ public static class ModelResourceMapping
         Require(left.Parts.Count == right.Parts.Count, $"Field script part ordinals differ (primary {left.Parts.Count}, selected {right.Parts.Count}).");
         for (int part = 0; part < left.Parts.Count; part++)
         {
-            Require(Enumerable.Range(2, 14).Where(word => word is not (9 or 11)).All(word => left.Parts[part].Words[word] == right.Parts[part].Words[word]), "Field part controls differ.");
+            Require(Enumerable.Range(2, 14).Where(word => word is < 8 or > 11).All(word => left.Parts[part].Words[word] == right.Parts[part].Words[word]), "Field part controls differ.");
         }
     }
 

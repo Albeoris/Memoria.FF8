@@ -1,5 +1,7 @@
 # Command-line reference
 
+Model resources may be selected independently of the game: add `--model-source-dir <installed-game-folder>` to a normal launch. The primary `--game-dir` still owns scripts, gameplay data, native registration and runtime profile. Matching visual models use their selected source's geometry, UVs, materials and model-part definitions after compatibility validation. This does not make a texture package compatible with arbitrary models. Omit the option and the `MEMORIA_FF8_MODEL_SOURCE_DIR` variable to use the game's own models. Original-save import also accepts `--model-source-dir`.
+
 Run the engine executable, `Data/Memoria.FF8.exe`, from an extracted distribution. The launcher executable opens its own settings window and does not forward command-line arguments. From a source checkout, use `dotnet run --project src/Memoria.FF8.App -c Release --` followed by the same arguments.
 
 Examples below run from the distribution root. Set `MEMORIA_FF8_GAME_DIR` to your installed original game directory first; see [environment variables](environment-variables.md). Snapshots are engine saves, with automatic detection of compact compressed and older plain JSON formats. Support depends on the saved state and the engine contracts reached during continuation.

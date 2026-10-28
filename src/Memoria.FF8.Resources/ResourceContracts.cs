@@ -47,7 +47,7 @@ public interface IResourceSource : IDisposable
 /// <summary>Exposes capabilities of composed sources without changing the primary resource identity.</summary>
 public interface IResourceSourceProvider
 {
-    object? GetSource(Type capability);
+    object? GetSource(Type capability, ResourceService? resources = null);
 }
 
 public sealed class InMemoryResourceSource : IResourceSource

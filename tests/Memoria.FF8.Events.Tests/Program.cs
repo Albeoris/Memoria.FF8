@@ -18,6 +18,7 @@ internal static partial class Program
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
                     ["jsm-resource-validation"] = JsmResourceValidationContract,
+                    ["selected-model-native-registration"] = () => NativeBattleFieldRegistrationContract(selectedGameDirectory, true),
                     ["native-refinement-input"] = NativeRefinementInputContract,
                     ["wait-corrupt-input"] = WaitAndCorruptInput,
                     ["omega-tutorial-save"] = OmegaTutorialSaveContract,

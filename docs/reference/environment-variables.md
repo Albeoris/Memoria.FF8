@@ -9,6 +9,7 @@ Set these in the shell before starting the launcher, engine or test process. An 
 | Variable | Purpose and precedence |
 | --- | --- |
 | `MEMORIA_FF8_GAME_DIR` | Installed game directory. Used when `--game-dir` is absent. |
+| `MEMORIA_FF8_MODEL_SOURCE_DIR` | Optional installed source for visual models in direct engine launches. `--model-source-dir` overrides it. The launcher uses its explicit Model resources setting instead of inheriting this variable. |
 | `FF8_GAME_DIRECTORY` | Fallback game directory when `MEMORIA_FF8_GAME_DIR` is unset. |
 | `MEMORIA_FF8_SETTINGS_DIRECTORY` | Optional engine settings-directory override; `--settings-dir` takes precedence. Redirects UI settings, controls, Triple Triad deck history and save-bank configuration. Skips legacy preference import from the save directory. Does not relocate installed resources, media tools or player saves. |
 | `MEMORIA_FF8_MEDIA_TOOLS` | Directory containing `ffmpeg.exe` and `ffprobe.exe`, used by both the launcher and engine. Direct engine startup can override it with `--media-tools`. Default `%LOCALAPPDATA%/Memoria.FF8/media-tools/`, beside `player-saves/`. |

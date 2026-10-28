@@ -16,6 +16,39 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class CrossEditionModelResourceAcceptanceTests
 {
+    [Fact]
+    public void NativeBattleAdaptersUseSelectedGeometryForEveryConfiguredBattlePackage()
+    {
+        string? catalog = Environment.GetEnvironmentVariable("MEMORIA_FF8_MODEL_RESOURCE_ACCEPTANCE");
+        Assert.SkipUnless(File.Exists(catalog), "Select an optional external model-resource acceptance catalog.");
+        Fixture[] fixtures = JsonSerializer.Deserialize<Fixture[]>(File.ReadAllText(catalog!), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        Assert.Contains(fixtures, fixture => fixture.Battle);
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        foreach (Fixture fixture in fixtures.Where(fixture => fixture.Battle))
+        {
+            using GameResourceHost host = new(fixture.PrimaryDirectory, watch: false, modsDirectory: fixture.ModsDirectory, modelSourceDirectory: fixture.ModelDirectory);
+            using GameResourceHost primaryHost = new(fixture.PrimaryDirectory, watch: false, modsDirectory: fixture.EmptyModsDirectory);
+            using GameResourceHost donorHost = new(fixture.ModelDirectory, watch: false, modsDirectory: fixture.EmptyModsDirectory);
+            using BattleAssets selected = new(fixture.PrimaryDirectory, host.Resources);
+            using BattleAssets primary = new(fixture.PrimaryDirectory, primaryHost.Resources);
+            using BattleAssets donor = new(fixture.ModelDirectory, donorHost.Resources);
+            List<object> reports = [VerifyNativeGraphics(selected, primary, donor, new() { IsPlayer = true, ModelId = 0, WeaponId = 0 })];
+            string package = Assert.Single(host.Mods.Catalog.Packages, value => value.RootDirectory.Equals(fixture.PackageDirectory, StringComparison.OrdinalIgnoreCase)).Id;
+            VerifyBattleEyes(host, selected.LoadPlayer(0), package, (model, phase) => CaptureBattleNativePreview(fixture, gpu, model, phase));
+            if (fixture.AdditionalBattleModel is { } additional)
+            {
+                int character = int.Parse(additional.AsSpan(1, 1), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                BattleWeaponDefinition definition = Assert.Single(selected.WeaponDefinitions, weapon => weapon.CharacterId == character && Path.GetFileName(ModelAssetDiscoveryBindings.ResolvePartyFile(GameDataResources.ReadNativeMemory(host.Resources), character, true, weapon.Tier)).Equals(additional + ".dat", StringComparison.OrdinalIgnoreCase));
+                reports.Add(VerifyNativeGraphics(selected, primary, donor, new() { IsPlayer = true, ModelId = character, WeaponId = definition.Id }));
+            }
+            if (Evidence(fixture.Id) is { } evidence)
+            {
+                File.WriteAllText(Path.Combine(evidence, "native-graphics.json"), JsonSerializer.Serialize(new { models = reports }, new JsonSerializerOptions { WriteIndented = true }));
+            }
+        }
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -38,7 +71,8 @@ public sealed class CrossEditionModelResourceAcceptanceTests
             Assert.Equal(primary.Resources.Source.Id, host.Resources.Source.Id);
             Assert.Equal(primary.Resources.Source.Layouts.ToArray(), host.Resources.Source.Layouts.ToArray());
             Assert.DoesNotContain("native-field-model-sheet", host.Resources.Source.Layouts);
-            SelectedModelResourceSource selected = Assert.IsType<SelectedModelResourceSource>(host.Resources.GetSource<IFieldModelSource>());
+            Assert.NotNull(host.Resources.GetSource<IFieldModelSource>());
+            SelectedModelResourceSource selected = Assert.IsType<SelectedModelResourceSource>(host.Resources.GetSource<SelectedModelResourceSource>());
             Assert.Equal(GameDataEdition.Remastered, selected.ModelSourceDescriptor.Edition);
             Assert.True(host.Mods.Catalog.Packages.Count > 0, string.Join(Environment.NewLine, host.Mods.Diagnostics.Select(value => value.Code + ": " + value.Message)));
             string package = Assert.Single(host.Mods.Catalog.Packages, value => value.RootDirectory.Equals(fixture.PackageDirectory, StringComparison.OrdinalIgnoreCase)).Id;
@@ -78,9 +112,31 @@ public sealed class CrossEditionModelResourceAcceptanceTests
                 BattleModel selectedBody = selectedAssets.LoadPlayer(0);
                 BattleModel nativeBody = primaryAssets.LoadPlayer(0);
                 BattleModel donorBody = donorAssets.LoadPlayer(0);
+                reports.Add(VerifyNativeGraphics(selectedAssets, primaryAssets, donorAssets, new() { IsPlayer = true, ModelId = 0, WeaponId = 0 }));
                 VerifyBattle("body", selectedBody, nativeBody, donorBody, requireDifference: true);
                 VerifyBattle("weapon", selectedAssets.LoadWeapon(0, 0, selectedBody), primaryAssets.LoadWeapon(0, 0, nativeBody), donorAssets.LoadWeapon(0, 0, donorBody), requireDifference: false);
                 VerifyBattleEyes(host, selectedBody, package, (bound, phase) => CaptureBattle("body", bound, phase));
+                if (fixture.AdditionalBattleModel is { } additional)
+                {
+                    BattleModel model = LoadBattle(selectedAssets, additional);
+                    BattleModel original = LoadBattle(primaryAssets, additional);
+                    BattleModel corresponding = LoadBattle(donorAssets, additional);
+                    int character = int.Parse(additional.AsSpan(1, 1), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                    BattleWeaponDefinition definition = Assert.Single(selectedAssets.WeaponDefinitions, weapon => weapon.CharacterId == character && Path.GetFileName(ModelAssetDiscoveryBindings.ResolvePartyFile(GameDataResources.ReadNativeMemory(host.Resources), character, true, weapon.Tier)).Equals(additional + ".dat", StringComparison.OrdinalIgnoreCase));
+                    reports.Add(VerifyNativeGraphics(selectedAssets, primaryAssets, donorAssets, new() { IsPlayer = true, ModelId = character, WeaponId = definition.Id }));
+                    Assert.True(host.Mods.SetEnabled(package, false).Success);
+                    Assert.True(host.Pump(force: true));
+                    Assert.Equal(CaptureBattle(additional, corresponding, "direct-donor-original"), CaptureBattle(additional, model, "selected-original"));
+                    Assert.True(host.Mods.SetEnabled(package, true).Success);
+                    Assert.True(host.Pump(force: true));
+                    VerifyBattle(additional, model, original, corresponding, requireDifference: true);
+                    Assert.Equal(corresponding.NativeWeaponTexturePack!.Data.ToArray(), model.NativeWeaponTexturePack!.Data.ToArray());
+                    Assert.NotEqual(original.NativeWeaponTexturePack!.Data.ToArray(), model.NativeWeaponTexturePack.Data.ToArray());
+                    NativeBattleModelTextureLoad selectedLoad = NativeBattleModelTextures.Prepare507400(model.NativeWeaponTexturePack!, 0);
+                    NativeBattleModelTextureLoad donorLoad = NativeBattleModelTextures.Prepare507400(corresponding.NativeWeaponTexturePack!, 0);
+                    Assert.Equal(donorLoad.Source.Data.ToArray(), selectedLoad.Source.Data.ToArray());
+                    Assert.Equal(DetachedJson(NativeBattleModelTextures.Enqueue507400(NativeBattleEffectTextureState.FromColdProcess(), donorLoad).Drain505D20().State), DetachedJson(NativeBattleModelTextures.Enqueue507400(NativeBattleEffectTextureState.FromColdProcess(), selectedLoad).Drain505D20().State));
+                }
             }
             Assert.DoesNotContain(host.Mods.Diagnostics, value => value.Code is "replacement-failed" or "demaster-import-failed");
             if (Evidence(fixture.Id) is { } evidence)
@@ -176,7 +232,11 @@ public sealed class CrossEditionModelResourceAcceptanceTests
         HashSet<string> fieldOwners = files.Select(file => fieldTarget.Match(file)).Where(match => match.Success).Select(match => match.Groups["owner"].Value.ToLowerInvariant()).ToHashSet();
         string[] battleOwners = files.Select(file => battleTarget.Match(file)).Where(match => match.Success).Select(match => match.Groups["owner"].Value.ToLowerInvariant()).Distinct().Order().ToArray();
         HashSet<string> consumed = [];
+        List<(string Owner, int Index, string Error)> failures = [];
         int fieldPlacements = 0;
+        IFieldModelSource fieldSource = host.Resources.GetSource<IFieldModelSource>()!;
+        IBattleModelSource battleSource = host.Resources.GetSource<IBattleModelSource>()!;
+        Dictionary<string, byte[]> mainCharacters = [];
         if (fieldOwners.Count > 0)
         {
             ModelCatalogEntry[] entries;
@@ -187,39 +247,120 @@ public sealed class CrossEditionModelResourceAcceptanceTests
             Assert.NotEmpty(entries);
             foreach (string owner in fieldOwners.Where(owner => owner[0] == 'd').Order())
             {
-                using GameAssets library = new(fixture.PrimaryDirectory, resources: host.Resources);
-                ResourceTextureList textures = Assert.IsType<ResourceTextureList>(library.LoadFieldMainCharacterTextures(owner));
-                Assert.Contains(Enumerable.Range(0, textures.Count), index => textures.GetTexture(index).Provenance.StartsWith(package + "/", StringComparison.Ordinal));
+                ResourceKey key = new($"field/main_chr/{owner}.mch");
+                FieldModel model = fieldSource.ReadMainCharacterMaterials(key, host.Resources.Read(key));
+                Assert.Equal(GameDataEdition.Remastered, model.TextureSourceDescriptor!.Edition);
+                Assert.Equal(model.Textures.Count, model.TextureRegions.Count);
                 consumed.Add(owner);
             }
             foreach (IGrouping<int?, ModelCatalogEntry> field in entries.GroupBy(entry => entry.FieldId))
             {
-                using GameAssets assets = new(fixture.PrimaryDirectory, resources: host.Resources);
+                ResourceKey owner = new(field.First().ResourcePath);
+                byte[] one = host.Resources.Read(owner);
                 foreach (ModelCatalogEntry entry in field)
                 {
-                    FieldModel model = assets.LoadFieldModelSource(entry);
+                    FieldModel model;
+                    try
+                    {
+                        model = fieldSource.ReadModel(owner, one, ReadMainCharacter, entry.ModelIndex);
+                    }
+                    catch (NotSupportedException exception)
+                    {
+                        failures.Add((entry.ResourcePath, entry.ModelIndex, exception.Message));
+                        continue;
+                    }
                     Assert.Equal(GameDataEdition.Remastered, model.TextureSourceDescriptor!.Edition);
-                    ResourceTextureList textures = Assert.IsType<ResourceTextureList>(model.Textures);
-                    Assert.Contains(Enumerable.Range(0, textures.Count), index => textures.GetTexture(index).Provenance.StartsWith(package + "/", StringComparison.Ordinal));
+                    Assert.Equal(model.Textures.Count, model.TextureRegions.Count);
                     consumed.Add(ExternalOwner(entry.Name[..4]));
                     fieldPlacements++;
                 }
             }
-            Assert.Equal(fieldOwners.Order(), consumed.Order());
         }
         foreach (string owner in battleOwners)
         {
-            using BattleAssets battle = new(fixture.PrimaryDirectory, host.Resources);
-            BattleModel model = owner[0] == 'd' && owner[2] == 'w' ? battle.LoadWeapon(int.Parse(owner.AsSpan(1, 1), NumberStyles.HexNumber, CultureInfo.InvariantCulture), int.Parse(owner.AsSpan(3, 3), CultureInfo.InvariantCulture), battle.LoadPlayer(int.Parse(owner.AsSpan(1, 1), NumberStyles.HexNumber, CultureInfo.InvariantCulture))) : battle.LoadModel(owner + ".dat");
+            BattleModel model;
+            try
+            {
+                ResourceKey key = new("battle/" + owner + ".dat");
+                if (owner[0] == 'd' && owner[2] == 'w')
+                {
+                    int character = int.Parse(owner.AsSpan(1, 1), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                    ResourceKey bodyKey = new(ModelAssetDiscoveryBindings.ResolvePartyFile(GameDataResources.ReadNativeMemory(host.Resources), character, false, 0));
+                    BattleModel body = battleSource.ReadModel(bodyKey, host.Resources.Read(bodyKey));
+                    model = battleSource.ReadWeapon(key, host.Resources.Read(key), body);
+                }
+                else
+                {
+                    model = battleSource.ReadModel(key, host.Resources.Read(key));
+                }
+            }
+            catch (NotSupportedException exception)
+            {
+                failures.Add(("battle/" + owner + ".dat", -1, exception.Message));
+                continue;
+            }
             Assert.Equal(GameDataEdition.Remastered, model.TextureSourceDescriptor!.Edition);
-            ResourceTextureList textures = Assert.IsType<ResourceTextureList>(model.Textures);
-            Assert.Contains(Enumerable.Range(0, textures.Count), index => textures.GetTexture(index).Provenance.StartsWith(package + "/", StringComparison.Ordinal));
+            Assert.Equal(model.Textures.Count, model.TextureRegions.Count);
+            Assert.Equal(model.Textures.Count, model.TextureSourceAddresses.Count);
         }
         Console.WriteLine($"Selected bundle catalog {fixture.Id}: {fieldPlacements} field placements / {fieldOwners.Count} field owners; {battleOwners.Length} battle owners.");
-        return new { fieldPlacements, fieldOwners = consumed.Order().ToArray(), battleOwners };
+        var report = new { scope = "Complete selected native model mapping and material ordinal metadata for every relevant placement/owner; HD decoding is covered separately through representative consumers.", fieldPlacements, fieldOwners = consumed.Order().ToArray(), battleOwners, failures = failures.Select(failure => new { failure.Owner, failure.Index, failure.Error }).ToArray() };
+        if (Evidence(fixture.Id) is { } evidence)
+        {
+            File.WriteAllText(Path.Combine(evidence, "coverage.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        Assert.True(failures.Count == 0, $"{failures.Count} selected model placements were refused:" + Environment.NewLine + string.Join(Environment.NewLine, failures.Select(failure => failure.Error).Distinct()));
+        Assert.Equal(fieldOwners.Order(), consumed.Order());
+        return report;
+
+        byte[] ReadMainCharacter(string name)
+        {
+            if (!mainCharacters.TryGetValue(name, out byte[]? content))
+            {
+                content = host.Resources.Read(new ResourceKey($"field/main_chr/{name}.mch"));
+                mainCharacters.Add(name, content);
+            }
+            return content;
+        }
     }
 
     private static string ExternalOwner(string name) => (char.ToLowerInvariant(name[0]) == 'c' ? "n" : name[..1].ToLowerInvariant()) + name[1..].ToLowerInvariant();
+
+    private static (string Cpu, string Gpu) CaptureBattleNativePreview(Fixture fixture, GpuTriangleRenderer gpu, BattleModel model, string phase)
+    {
+        (Vector3 center, float radius) = Bounds(model.Pose(0, 0).SelectMany(mesh => mesh).ToArray());
+        BattleCamera camera = new(center + new Vector3(radius * 0.5f, radius * 0.15f, -radius * 3.4f), center, 0.8f);
+        BattleRenderer renderer = new(640, 640);
+        byte[] pixels = renderer.Render(new BattleStage(0, [], []), [new(model, Vector3.Zero)], camera).ToArray();
+        Assert.True(renderer.DrawnTriangles > 0);
+        renderer.TriangleRenderer = gpu;
+        renderer.Render(new BattleStage(0, [], []), [new(model, Vector3.Zero)], camera);
+        byte[] hardware = GpuTestDevice.Read(gpu.Target).SelectMany(pixel => new[] { pixel.R, pixel.G, pixel.B, pixel.A }).ToArray();
+        if (Evidence(fixture.Id) is { } evidence)
+        {
+            using var bitmap = GameUi.BattlePreviewCanvas.BitmapFromRgba(pixels, 640, 640);
+            bitmap.Save(Path.Combine(evidence, $"final-body-{phase}-cpu.png"));
+            using FileStream output = File.Create(Path.Combine(evidence, $"final-body-{phase}-gpu.png"));
+            gpu.Target.SaveAsPng(output, 640, 640);
+        }
+        return (Hash(pixels), Hash(hardware));
+    }
+
+    private static object VerifyNativeGraphics(BattleAssets selected, BattleAssets primary, BattleAssets donor, BattleCombatantDefinition actor)
+    {
+        NativeBattleGraphicsResource actual = selected.ReadNativeGraphicsResource(actor);
+        NativeBattleGraphicsResource expected = donor.ReadNativeGraphicsResource(actor);
+        NativeBattleGraphicsResource original = primary.ReadNativeGraphicsResource(actor);
+        JsonSerializerOptions options = new() { IncludeFields = true };
+        string geometry = Hash(JsonSerializer.SerializeToUtf8Bytes(actual.Geometry, options));
+        Assert.Equal(Hash(JsonSerializer.SerializeToUtf8Bytes(expected.Geometry, options)), geometry);
+        Assert.NotEqual(Hash(JsonSerializer.SerializeToUtf8Bytes(original.Geometry, options)), geometry);
+        string linkedGeometry = Hash(JsonSerializer.SerializeToUtf8Bytes(actual.LinkedGeometry, options));
+        Assert.Equal(Hash(JsonSerializer.SerializeToUtf8Bytes(expected.LinkedGeometry, options)), linkedGeometry);
+        return new { consumer = "BattleAssets.ReadNativeGraphicsResource", actor.ModelId, actor.WeaponId, geometryAndUv = geometry, linkedGeometryAndUv = linkedGeometry };
+    }
+
+    private static BattleModel LoadBattle(BattleAssets assets, string owner) => owner[0] == 'd' && owner[2] == 'w' ? assets.LoadWeapon(int.Parse(owner.AsSpan(1, 1), NumberStyles.HexNumber, CultureInfo.InvariantCulture), int.Parse(owner.AsSpan(3, 3), CultureInfo.InvariantCulture), assets.LoadPlayer(int.Parse(owner.AsSpan(1, 1), NumberStyles.HexNumber, CultureInfo.InvariantCulture))) : assets.LoadModel(owner + ".dat");
 
     private static void VerifyBattleEyes(GameResourceHost host, BattleModel model, string package, Func<BattleModel, string, (string Cpu, string Gpu)> capture)
     {
@@ -300,7 +441,7 @@ public sealed class CrossEditionModelResourceAcceptanceTests
         Assert.Equal(closedCapture, capture(Bind(closedRestored).Field.Models[3], "native-closed-packages-restored"));
         NativeBattleRetainedMemory opened = NativeFieldRegistrationMachine.SetEyes532340(selected.State, closedRestored, 3, 0x100000, null, null).Memory;
         Assert.Equal(openCapture, capture(Bind(opened).Field.Models[3], "native-reopened"));
-        NativeBattleFieldResourceReloadResult started = NativeFieldRegistrationMachine.SetEyes532340(selected.State, selected.Memory, 3, 0x80000, 4, NativeCrtRandomState.FromColdProcess());
+        NativeBattleFieldResourceReloadResult started = NativeFieldRegistrationMachine.SetEyes532340(selected.State, opened, 3, 0x80000, 4, NativeCrtRandomState.FromColdProcess());
         NativeBattleRetainedMemory memory = started.Memory;
         NativeCrtRandomState? random = started.CrtRandomAfter;
         for (int callback = 0; callback < 8; callback++)
@@ -351,5 +492,5 @@ public sealed class CrossEditionModelResourceAcceptanceTests
         return directory;
     }
 
-    private sealed record Fixture(string Id, string PrimaryDirectory, string ModelDirectory, string ModsDirectory, string EmptyModsDirectory, string PackageDirectory, bool Field, bool Battle);
+    private sealed record Fixture(string Id, string PrimaryDirectory, string ModelDirectory, string ModsDirectory, string EmptyModsDirectory, string PackageDirectory, bool Field, bool Battle, string? AdditionalBattleModel = null);
 }

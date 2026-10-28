@@ -12,7 +12,7 @@ public sealed partial class EventEngine
             return false;
         }
         NativeFieldRegistrationResources source = ReadNativeFieldRegistrationResources?.Invoke() ?? throw new NotSupportedException("Model restoration requires the selected field registration resources.");
-        bool changed = registration.OneHash != source.One.Sha256 || registration.Resources.Any(resource => ReadNativeModelParts?.Invoke(resource.ModelId) is not { } definition || definition.SourceHash != resource.SourceHash || definition.SourceOffset != resource.SourceOffset);
+        bool changed = registration.OneHash != source.One.Sha256 || registration.Resources.Any(resource => (ReadNativeModelRegistrationParts ?? ReadNativeModelParts)?.Invoke(resource.ModelId) is not { } definition || definition.SourceHash != resource.SourceHash || definition.SourceOffset != resource.SourceOffset);
         if (!changed)
         {
             return false;

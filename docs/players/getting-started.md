@@ -26,6 +26,14 @@ The release includes the .NET runtimes it needs. Players do not need to install 
 
 The launcher remembers the selected folder after a successful start and offers it as the last-used installation on later launches. Its selection is stored in `%LOCALAPPDATA%/Memoria/FF8/launcher.json`. Choosing a game directory does not copy its assets into the Memoria distribution.
 
+## Model resources from another installation
+
+The launcher's **Model resources** selector is independent of the game installation. **Same as game** keeps the default. Use its **Browse** button to select another complete installed edition when a texture pack requires that edition's models and UV layout. The choice is remembered and takes effect on the next start.
+
+This selects matching visual model resources, including geometry, materials and model-part definitions. Scripts, text language, battle rules and native registration remain with the game installation. Models are matched by their logical resource identities and validated skeleton, animation and script-control contracts. Missing counterparts and incompatible contracts produce resource diagnostics rather than a guessed conversion. A PNG's name or dimensions alone cannot identify its intended geometry.
+
+Direct engine launches can use `--model-source-dir <installed-game-folder>`; see [command line](../reference/command-line.md).
+
 ## FFmpeg setup
 
 FFmpeg and FFprobe provide movie playback and replacement audio decoding. They are external tools with their own licenses. The launcher checks whether both tools run, asks before downloading, verifies the archive against the release SHA-256 manifest, and keeps its license notices alongside the extracted executables.

@@ -167,7 +167,7 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(live.Capture(), clone.Capture()) && JsonSerializer.Serialize(session.State.NativeBattleMemory) == JsonSerializer.Serialize(independent.State.NativeBattleMemory), "Random field atomic return diverged across independent roots.");
     }
 
-    private static void NativeBattleFieldRegistrationContract(string directory)
+    private static void NativeBattleFieldRegistrationContract(string directory, bool separateModelParts = false)
     {
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(74);
@@ -179,6 +179,7 @@ internal static partial class Program
             ProgramHash = hash,
             Loader = field.NativeRegistration!.Loader! with { Program = new("controlled/retained.jsm", hash, content.ToImmutableArray()) }
         };
+        NativeFieldEyeProcess coldMemory = new NativeFieldEyeProcess(1, assets.ReadColdProcessNativeBattleMemory(), null).CaptureSnapshot();
         foreach (byte result in new byte[] { 2, 4 })
         {
             GameSession session = CreateNativeMusicSession();
@@ -189,7 +190,9 @@ internal static partial class Program
                     UseInteractiveBattle = (_, _) => true,
                     ValidateInteractiveBattle = (_, _) => null,
                     AnimationFrameCount = field.GetAnimationFrameCount,
-                    ReadNativeModelParts = model => field.Models[model].NativeParts,
+                    ReadNativeModelParts = model => separateModelParts ? field.Models[model].NativeParts! with { SourceHash = new string('B', 64), SourceOffset = field.Models[model].NativeParts!.SourceOffset + 4 } : field.Models[model].NativeParts,
+                    ReadNativeModelRegistrationParts = separateModelParts ? model => field.Models[model].NativeParts : null,
+                    ReadNativeFieldRegistrationResources = () => source,
                     ReadNativeEyes = model => field.Models[model].NativeEyes
                 };
                 engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -204,11 +207,26 @@ internal static partial class Program
             JsonElement suspended = live.Capture();
             EventEngine restored = Create(CloneMusicSession(session.State));
             restored.Restore(suspended);
-            NativeBattleRetainedMemory memory = assets.ReadColdProcessNativeBattleMemory();
+            EventEngine rejected = Create(CloneMusicSession(session.State));
+            rejected.Restore(suspended);
+            NativeBattleRetainedMemory memory = coldMemory.RestoreOwned().Memory;
+            if (separateModelParts)
+            {
+                rejected.ReadNativeModelRegistrationParts = model => field.Models[model].NativeParts! with { SourceHash = new string('C', 64) };
+                try
+                {
+                    rejected.ExecuteNativeBattleFieldResourceReload(source, result, coldMemory.RestoreOwned().Memory);
+                    throw new InvalidOperationException("Kind3 accepted a foreign physical registration source.");
+                }
+                catch (InvalidDataException error) when (error.Message == "Native kind3 part projection differs from its actually registered geometry source.")
+                {
+                }
+            }
             NativeBattleFieldResourceReloadResult first = live.ExecuteNativeBattleFieldResourceReload(source, result, memory);
-            NativeBattleFieldResourceReloadResult second = restored.ExecuteNativeBattleFieldResourceReload(source, result, JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(memory))!);
-            Require(JsonSerializer.Serialize(first) == JsonSerializer.Serialize(second) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Actual kind3 registration diverged across independent suspended roots.");
+            NativeBattleFieldResourceReloadResult second = restored.ExecuteNativeBattleFieldResourceReload(source, result, JsonSerializer.Deserialize<NativeFieldEyeProcess>(JsonSerializer.Serialize(coldMemory))!.RestoreOwned().Memory);
+            Require(JsonSerializer.Serialize(new NativeFieldEyeProcess(1, first.Memory, first.CrtRandomAfter).CaptureSnapshot()) == JsonSerializer.Serialize(new NativeFieldEyeProcess(1, second.Memory, second.CrtRandomAfter).CaptureSnapshot()) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Actual kind3 registration diverged across independent suspended roots.");
             live.ValidateNativeBattleFieldRegistrationMemory(first.Memory);
+            Require(!live.RehydrateNativeModelResources(), "Visual model ownership incorrectly invalidated the unchanged physical registration cache.");
             Require(live.RequireNativeBattleFieldReload(result) == live.Scene.NativeBattleFieldReload && live.Scene.NativeFieldRegistration is not null && live.Scene.NativeBattleFieldReloadState is null, "Executed registration did not own its physical completion.");
             Require(JsonElement.DeepEquals(suspended.GetProperty("Fibers"), live.Capture().GetProperty("Fibers")) && live.Frame == suspended.GetProperty("Frame").GetInt64() && !session.State.Variables.ContainsKey(800), "Kind3 reset retained PCs, stacks, waits or advanced the suspended script.");
             string completed = live.Capture().GetRawText();

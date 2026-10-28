@@ -28,7 +28,8 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
 
     public string ResourceLanguage { get; }
     public ResourceSourceDescriptor Source => source.Descriptor;
-    public T? GetSource<T>() where T : class => (source as IResourceSourceProvider)?.GetSource(typeof(T)) as T ?? source as T;
+    public T? GetSource<T>() where T : class => (source as IResourceSourceProvider)?.GetSource(typeof(T), this) as T ?? source as T;
+    public bool HasEncodedReplacement(ResourceKey key) => Volatile.Read(ref published).Encoded.ContainsKey(key);
     public LocalizationCatalog Localization => Volatile.Read(ref published).Localization;
     public string Localize(string key, string original) => SystemTextCatalog.KeysForCatalogKey(key) is { } aliases ? Localization.ResolveAliases(aliases, original) : Localization.Resolve(key, original);
     public PreparedResources PrepareLocalization(LocalizationCatalog localization)

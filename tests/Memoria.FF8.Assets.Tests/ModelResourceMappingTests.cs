@@ -90,16 +90,18 @@ public sealed class ModelResourceMappingTests
     }
 
     [Fact]
-    public void BattleMappingPreservesNativeControlGeometryAndAnimation()
+    public void BattleMappingSelectsNativeVisualGeometryAndPreservesAnimation()
     {
-        BattleModel primary = Battle();
-        BattleModel donor = Battle() with { Meshes = [new([new(new(20, 0, 0), 0)], [new([0, 0, 0], [Vector2.One, Vector2.One, Vector2.One], 0, default)])] };
+        BattleModel primary = Battle() with { NativeBodyTexturePack = new("body", [1]), NativeWeaponTexturePack = new("weapon", [2]) };
+        BattleModel donor = Battle() with { NativeBodyTexturePack = new("body", [3]), NativeWeaponTexturePack = new("weapon", [4]), Meshes = [new([new(new(20, 0, 0), 0)], [new([0, 0, 0], [Vector2.One, Vector2.One, Vector2.One], 0, default)])] };
         BattleModel selected = ModelResourceMapping.Select(primary, donor, Donor);
         Assert.Same(donor.Meshes, selected.Meshes);
-        Assert.Same(primary.Meshes, selected.NativeControlMeshes);
+        Assert.Same(donor.Meshes, selected.NativeControlMeshes);
         Assert.Same(primary.Animations, selected.Animations);
         Assert.Same(primary.Sequences, selected.Sequences);
         Assert.Same(primary.NativePoseSource, selected.NativePoseSource);
+        Assert.Same(donor.NativeBodyTexturePack, selected.NativeBodyTexturePack);
+        Assert.Same(donor.NativeWeaponTexturePack, selected.NativeWeaponTexturePack);
         Assert.Same(Donor, selected.TextureSourceDescriptor);
     }
 
