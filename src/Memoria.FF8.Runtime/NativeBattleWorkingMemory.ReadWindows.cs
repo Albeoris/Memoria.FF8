@@ -452,6 +452,10 @@ internal sealed partial class NativeBattleWorkingMemory : INativeBattleReadWindo
     internal void InvalidateReadWindows(INativeBattleReadWindowSource source) => readWindows?.CloseSource(source);
     internal void SeedReadWindowUndo(NativeBattleReadWindowLease lease)
     {
+        if (byteUndo is null)
+        {
+            return;
+        }
         foreach (ByteUndo undo in byteUndo)
         {
             lease.Seed(undo.Offset);

@@ -6,6 +6,43 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleWorkingMemoryTests
 {
     [Fact]
+    public void Escaped_fresh_owners_do_not_allocate_unused_checkpoint_bookkeeping()
+    {
+        Assert.SkipUnless(Environment.Is64BitProcess, "The allocation bound covers the supported 64-bit hosts.");
+        for (int index = 0; index < 32; index++)
+        {
+            using NativeBattleWorkingMemory warmup = new(16);
+            Assert.Equal(0, warmup.JournalEntryCount);
+            Assert.Equal(0, warmup.CheckpointDepth);
+        }
+        NativeBattleWorkingMemory[] owners = new NativeBattleWorkingMemory[1024];
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < owners.Length; index++)
+        {
+            owners[index] = new(16);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        try
+        {
+            Assert.InRange(allocated, 1, owners.Length * 640L - 1);
+            Assert.All(owners, owner =>
+            {
+                Assert.Equal(0, owner.JournalEntryCount);
+                Assert.Equal(0, owner.CheckpointDepth);
+                Assert.False(owner.HasCheckpoint);
+            });
+            GC.KeepAlive(owners);
+        }
+        finally
+        {
+            foreach (NativeBattleWorkingMemory owner in owners)
+            {
+                owner.Dispose();
+            }
+        }
+    }
+
+    [Fact]
     public void First_lazy_journal_allocation_failure_does_not_prevent_a_later_checkpoint_retry()
     {
         using NativeBattleWorkingMemory memory = new(128);

@@ -28,10 +28,10 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     private object backingIdentity = new();
     private readonly Dictionary<int, NativeBattleResourcePointer?> pointers = [];
     private readonly List<int> removedPointers = [];
-    private readonly List<ByteUndo> byteUndo = [];
-    private readonly List<PointerUndo> pointerUndo = [];
-    private readonly List<CheckpointMark> nestedCheckpoints = [];
-    private readonly List<List<INativeBattleCheckpointParticipant>> checkpointParticipants = [];
+    private List<ByteUndo>? byteUndo;
+    private List<PointerUndo>? pointerUndo;
+    private List<CheckpointMark>? nestedCheckpoints;
+    private List<List<INativeBattleCheckpointParticipant>>? checkpointParticipants;
     private bool checkpoint;
     private bool revoked;
     private bool ownershipSuspended;
@@ -68,10 +68,10 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     public long BytesWritten => Observe(bytesWritten);
     public long GrowthCopyBytes => Observe(growthCopyBytes);
     public long CaptureBytes => Observe(captureBytes);
-    public int JournalEntryCount => Observe(byteUndo.Count + pointerUndo.Count);
+    public int JournalEntryCount => Observe((byteUndo?.Count ?? 0) + (pointerUndo?.Count ?? 0));
     public int ResourcePointerCount => Observe(pointers.Count);
     public bool HasCheckpoint => Observe(checkpoint);
-    public int CheckpointDepth => Observe(checkpoint ? nestedCheckpoints.Count + 1 : 0);
+    public int CheckpointDepth => Observe(checkpoint ? nestedCheckpoints!.Count + 1 : 0);
 
     public byte ReadByte(int offset)
     {
@@ -242,7 +242,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 int target = offset + index;
                 if (data[target] != source[index] || known[target] != sourceKnown[index])
                 {
-                    byteUndo.Add(new(target, data[target], known[target]));
+                    byteUndo!.Add(new(target, data[target], known[target]));
                 }
             }
             NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, changes * 2L);
@@ -289,7 +289,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 int target = offset + index;
                 if (data[target] != source[index])
                 {
-                    byteUndo.Add(new(target, data[target], known[target]));
+                    byteUndo!.Add(new(target, data[target], known[target]));
                 }
             }
             NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, changes * 2L);
@@ -335,7 +335,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 int target = destination + index;
                 if (data[target] != ByteAt(source + index) || known[target] != IsKnown(source + index))
                 {
-                    byteUndo.Add(new(target, data[target], known[target]));
+                    byteUndo!.Add(new(target, data[target], known[target]));
                 }
             }
             NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, changes * 2L);
@@ -382,7 +382,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         Array.Fill(known, numeric is not null, offset, 4);
         if (checkpoint)
         {
-            pointerUndo.Add(new(offset, false, null));
+            pointerUndo!.Add(new(offset, false, null));
         }
         pointers[offset] = pointer;
         storedLength = Math.Max(storedLength, offset + 4);
@@ -428,8 +428,19 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         {
             throw new InvalidOperationException("Native working memory checkpoints cannot be nested.");
         }
+        if (byteUndo is null)
+        {
+            List<ByteUndo> newByteUndo = [];
+            List<PointerUndo> newPointerUndo = [];
+            List<CheckpointMark> newNestedCheckpoints = [];
+            List<List<INativeBattleCheckpointParticipant>> newCheckpointParticipants = [];
+            byteUndo = newByteUndo;
+            pointerUndo = newPointerUndo;
+            nestedCheckpoints = newNestedCheckpoints;
+            checkpointParticipants = newCheckpointParticipants;
+        }
         byteUndo.Clear();
-        pointerUndo.Clear();
+        pointerUndo!.Clear();
         ParticipantFrame(0).Clear();
         checkpointStoredLength = storedLength;
         checkpoint = true;
@@ -438,14 +449,14 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     public void CommitCheckpoint()
     {
         RequireCheckpoint();
-        if (nestedCheckpoints.Count != 0)
+        if (nestedCheckpoints!.Count != 0)
         {
             throw new InvalidOperationException("Native working memory cannot publish an unfinished nested change.");
         }
         ExceptionDispatchInfo? failure = CompleteParticipantFrame(0, rollback: false);
         checkpoint = false;
-        byteUndo.Clear();
-        pointerUndo.Clear();
+        byteUndo!.Clear();
+        pointerUndo!.Clear();
         failure?.Throw();
     }
 
@@ -454,16 +465,16 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         RequireCheckpoint();
         long restoredBytes = RestoreUndo(0, 0, checkpointStoredLength);
         ExceptionDispatchInfo? failure = null;
-        for (int depth = nestedCheckpoints.Count; depth >= 0; depth--)
+        for (int depth = nestedCheckpoints!.Count; depth >= 0; depth--)
         {
             ExceptionDispatchInfo? participantFailure = CompleteParticipantFrame(depth, rollback: true);
             failure ??= participantFailure;
         }
-        nestedCheckpoints.Clear();
+        nestedCheckpoints!.Clear();
         version++;
         checkpoint = false;
-        byteUndo.Clear();
-        pointerUndo.Clear();
+        byteUndo!.Clear();
+        pointerUndo!.Clear();
         RecordRollbackTraffic(restoredBytes, ref failure);
         failure?.Throw();
     }
@@ -471,29 +482,29 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     public void BeginNestedCheckpoint()
     {
         RequireCheckpoint();
-        if (nestedCheckpoints.Count >= maxJournalEntries)
+        if (nestedCheckpoints!.Count >= maxJournalEntries)
         {
             throw new InvalidOperationException("Native working memory nested changes exceed the bounded journal capacity.");
         }
-        ParticipantFrame(nestedCheckpoints.Count + 1).Clear();
-        nestedCheckpoints.Add(new(byteUndo.Count, pointerUndo.Count, storedLength));
+        ParticipantFrame(nestedCheckpoints!.Count + 1).Clear();
+        nestedCheckpoints!.Add(new(byteUndo!.Count, pointerUndo!.Count, storedLength));
     }
 
     public void CommitNestedCheckpoint()
     {
         RequireNestedCheckpoint();
-        ExceptionDispatchInfo? failure = CompleteParticipantFrame(nestedCheckpoints.Count, rollback: false);
-        nestedCheckpoints.RemoveAt(nestedCheckpoints.Count - 1);
+        ExceptionDispatchInfo? failure = CompleteParticipantFrame(nestedCheckpoints!.Count, rollback: false);
+        nestedCheckpoints!.RemoveAt(nestedCheckpoints!.Count - 1);
         failure?.Throw();
     }
 
     public void RollbackNestedCheckpoint()
     {
         RequireNestedCheckpoint();
-        CheckpointMark mark = nestedCheckpoints[^1];
+        CheckpointMark mark = nestedCheckpoints![^1];
         long restoredBytes = RestoreUndo(mark.Bytes, mark.Pointers, mark.StoredLength);
-        ExceptionDispatchInfo? failure = CompleteParticipantFrame(nestedCheckpoints.Count, rollback: true);
-        nestedCheckpoints.RemoveAt(nestedCheckpoints.Count - 1);
+        ExceptionDispatchInfo? failure = CompleteParticipantFrame(nestedCheckpoints!.Count, rollback: true);
+        nestedCheckpoints!.RemoveAt(nestedCheckpoints!.Count - 1);
         version++;
         RecordRollbackTraffic(restoredBytes, ref failure);
         failure?.Throw();
@@ -515,7 +526,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     {
         RequireCheckpoint();
         ArgumentNullException.ThrowIfNull(participant);
-        for (int depth = 0; depth <= nestedCheckpoints.Count; depth++)
+        for (int depth = 0; depth <= nestedCheckpoints!.Count; depth++)
         {
             List<INativeBattleCheckpointParticipant> frame = ParticipantFrame(depth);
             bool registered = false;
@@ -538,11 +549,11 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
 
     private List<INativeBattleCheckpointParticipant> ParticipantFrame(int depth)
     {
-        while (checkpointParticipants.Count <= depth)
+        while (checkpointParticipants!.Count <= depth)
         {
-            checkpointParticipants.Add([]);
+            checkpointParticipants!.Add([]);
         }
-        return checkpointParticipants[depth];
+        return checkpointParticipants![depth];
     }
 
     private ExceptionDispatchInfo? CompleteParticipantFrame(int depth, bool rollback)
@@ -573,16 +584,16 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
 
     private long RestoreUndo(int firstByte, int firstPointer, int previousStoredLength)
     {
-        long restoredBytes = (byteUndo.Count - firstByte) * 2L;
-        for (int index = byteUndo.Count - 1; index >= firstByte; index--)
+        long restoredBytes = (byteUndo!.Count - firstByte) * 2L;
+        for (int index = byteUndo!.Count - 1; index >= firstByte; index--)
         {
-            ByteUndo entry = byteUndo[index];
+            ByteUndo entry = byteUndo![index];
             data[entry.Offset] = entry.Data;
             known[entry.Offset] = entry.Known;
         }
-        for (int index = pointerUndo.Count - 1; index >= firstPointer; index--)
+        for (int index = pointerUndo!.Count - 1; index >= firstPointer; index--)
         {
-            PointerUndo entry = pointerUndo[index];
+            PointerUndo entry = pointerUndo![index];
             if (entry.Present)
             {
                 pointers[entry.Offset] = entry.Value;
@@ -593,8 +604,8 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             }
         }
         storedLength = previousStoredLength;
-        byteUndo.RemoveRange(firstByte, byteUndo.Count - firstByte);
-        pointerUndo.RemoveRange(firstPointer, pointerUndo.Count - firstPointer);
+        byteUndo!.RemoveRange(firstByte, byteUndo!.Count - firstByte);
+        pointerUndo!.RemoveRange(firstPointer, pointerUndo!.Count - firstPointer);
         return restoredBytes;
     }
 
@@ -742,10 +753,10 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         pointers.Clear();
         textureFiles = null;
         textureFileCheckpoint = null;
-        byteUndo.Clear();
-        pointerUndo.Clear();
-        nestedCheckpoints.Clear();
-        checkpointParticipants.Clear();
+        byteUndo?.Clear();
+        pointerUndo?.Clear();
+        nestedCheckpoints?.Clear();
+        checkpointParticipants?.Clear();
         removedPointers.Clear();
     }
 
@@ -802,16 +813,16 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         {
             return;
         }
-        int previousCount = byteUndo.Count;
+        int previousCount = byteUndo!.Count;
         for (int index = 0; index < length; index++)
         {
             int target = offset + index;
             if (unknownOnly ? known[target] : !known[target] || data[target] != source[index])
             {
-                byteUndo.Add(new(target, data[target], known[target]));
+                byteUndo!.Add(new(target, data[target], known[target]));
             }
         }
-        NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, (byteUndo.Count - previousCount) * 2L);
+        NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, (byteUndo!.Count - previousCount) * 2L);
     }
 
     private void CollectPointers(int offset, int length)
@@ -832,7 +843,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         {
             if (checkpoint)
             {
-                pointerUndo.Add(new(offset, true, pointers[offset]));
+                pointerUndo!.Add(new(offset, true, pointers[offset]));
             }
             pointers.Remove(offset);
         }
@@ -844,12 +855,12 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         {
             return;
         }
-        if ((long)byteUndo.Count + pointerUndo.Count + bytes + metadata > maxJournalEntries)
+        if ((long)byteUndo!.Count + pointerUndo!.Count + bytes + metadata > maxJournalEntries)
         {
             throw new InvalidOperationException("Native working memory operation exceeds its bounded checkpoint journal.");
         }
-        byteUndo.EnsureCapacity(checked(byteUndo.Count + bytes));
-        pointerUndo.EnsureCapacity(checked(pointerUndo.Count + metadata));
+        byteUndo!.EnsureCapacity(checked(byteUndo!.Count + bytes));
+        pointerUndo!.EnsureCapacity(checked(pointerUndo!.Count + metadata));
     }
 
     private void EnsureCapacity(int required)
@@ -896,7 +907,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     private void RequireNestedCheckpoint()
     {
         RequireCheckpoint();
-        if (nestedCheckpoints.Count == 0)
+        if (nestedCheckpoints!.Count == 0)
         {
             throw new InvalidOperationException("Native working memory requires its active nested change.");
         }

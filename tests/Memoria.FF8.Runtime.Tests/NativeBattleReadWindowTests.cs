@@ -3,6 +3,40 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleReadWindowTests
 {
     [Fact]
+    public void First_checkpoint_and_reused_journals_preserve_windows_and_accepted_prefix()
+    {
+        using NativeBattleWorkingMemory memory = new(16);
+        memory.Write(0, [1, 2, 3, 4]);
+        using NativeBattleReadWindow original = memory.OpenReadWindow(0, 4);
+        Assert.Equal(0, memory.JournalEntryCount);
+        Assert.Equal(0, memory.CheckpointDepth);
+
+        memory.BeginCheckpoint();
+        Assert.Throws<InvalidOperationException>(memory.BeginCheckpoint);
+        memory.WriteByte(0, 9);
+        using NativeBattleReadWindow accepted = memory.OpenReadWindow(0, 4);
+        memory.BeginNestedCheckpoint();
+        memory.WriteByte(0, 7);
+        memory.WriteByte(1, 8);
+        memory.RollbackNestedCheckpoint();
+        Assert.Equal(0x04030209u, memory.ReadUInt32(0));
+        Assert.Equal(0x04030201u, original.ReadUInt32(0));
+        Assert.Equal(0x04030209u, accepted.ReadUInt32(0));
+        memory.CommitCheckpoint();
+        Assert.Equal(0, memory.CheckpointDepth);
+        Assert.Equal(0, memory.JournalEntryCount);
+
+        memory.BeginCheckpoint();
+        memory.WriteByte(0, 6);
+        memory.RollbackCheckpoint();
+        Assert.Equal(0x04030209u, memory.ReadUInt32(0));
+        Assert.Equal(0x04030201u, original.ReadUInt32(0));
+        Assert.Equal(0x04030209u, accepted.ReadUInt32(0));
+        Assert.Equal(0, memory.CheckpointDepth);
+        Assert.Equal(0, memory.JournalEntryCount);
+    }
+
+    [Fact]
     public void UncapturedKnownnessReadUsesOneBulkSourceCallAndEmptyReadsDoNotTouchTheSource()
     {
         using NativeBattleWorkingMemory memory = new(32, initialKnownZero: false);
