@@ -35,6 +35,7 @@ public sealed partial class BattleSession
         //47CCB0 initial entry calls48D1F0; the physical arenas, pointer and independent gates survive it.
         nativeActionPackets = memory.ActionPackets.ResetCounts();
         nativePartyStatusMirrors = memory.PartyStatusMirrors;
+        RestoreNativePresentationStatusMemory(memory.PresentationStatusMemory);
         nativeActionScratch = memory.ActionScratch;
         RestoreNativeElementAttack(memory.ElementAttack);
         NativeEffectIoResult = memory.EffectIoResult;

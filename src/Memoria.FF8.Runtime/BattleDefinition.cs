@@ -364,6 +364,8 @@ public sealed record BattleSnapshot
     public NativeBattleStageState? NativeStage { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeBattleActionMemory? NativeActionMemory { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattlePresentationStatusMemory? NativePresentationStatusMemory { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeBattlePartyPresentation? NativePartyPresentation { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
@@ -540,7 +542,16 @@ public sealed partial class BattleCombatant
     internal byte? NativeDrawnSpell { get; set; }
     internal BattleAbility? LastAttackerAbility { get; set; }
     internal bool AiDeathHandled { get; set; }
-    internal int NativeIndex { get; set; } = -1;
+    private int nativeIndex = -1;
+    internal int NativeIndex
+    {
+        get => nativeIndex;
+        set
+        {
+            nativePresentationStatus = NativePresentationStatus;
+            nativeIndex = value;
+        }
+    }
     internal int? ResolvedNativeLevel { get; set; }
     internal byte[] NativeStatMultipliers { get; } = [10, 10, 10, 10, 10, 10];
 

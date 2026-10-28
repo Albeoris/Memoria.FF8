@@ -5,6 +5,45 @@ namespace Memoria.FF8.Tests;
 
 public sealed class DiagnosticTargetPreparationTests
 {
+    [Theory]
+    [InlineData(508)]
+    [InlineData(509)]
+    public void OriginalFinalEncounterEarlyEffect80ContactRetainsTheColdPresentationMirror(int encounter)
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed resources for original final-encounter initialization.");
+        GameSession session = GameWorld.CreateColdProcess(directory!);
+        session.StartNewGame();
+        using GameWorld world = new(session, directory!);
+        BattleSession active = world.StartDiagnosticBattle(new(encounter, 0, 0x80, 0, 0) { BattleMusic = 5, PrimaryMusicChannel = -1, Fixture = new([], [], true) });
+        NativeBattlePartyStatusMirrors initial = active.NativePartyStatusMirrors;
+        bool observedEffect80 = false;
+        bool publishedContact = false;
+        try
+        {
+            for (int callback = 0; callback < 3000; callback++)
+            {
+                observedEffect80 |= active.NativeGraphics?.OriginalEffect?.Binding.Effect == 80;
+                active.Tick();
+                if (!ReferenceEquals(initial, active.NativePartyStatusMirrors))
+                {
+                    publishedContact = true;
+                    break;
+                }
+            }
+            Assert.True(observedEffect80, "The original initialization must reach its existing effect80 presentation.");
+            Assert.True(publishedContact, "The actual early contact must publish493840 before accepting this regression boundary.");
+            Assert.NotNull(active.NativePresentationStatusMemory.Rows[0].Saved);
+            Assert.NotNull(active.NativePresentationStatusMemory.Rows[0].Battle);
+            Assert.Equal((ushort)0, active.NativePartyStatusMirrors.Saved[0]);
+            Assert.Equal(0u, active.NativePartyStatusMirrors.Battle[0]);
+        }
+        finally
+        {
+            world.EndDiagnosticBattle();
+        }
+    }
+
     [Fact]
     public void Target_prerequisite_cannot_omit_native_identity_or_targetability()
     {

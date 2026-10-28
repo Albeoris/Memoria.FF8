@@ -135,6 +135,11 @@ internal static class NativeBattleTextureProvenance
         {
             return sources;
         }
+        if (copy.SourceX == copy.DestinationX && copy.SourceY == copy.DestinationY)
+        {
+            // The transfer and frame observation still execute; source coordinates do not change.
+            return sources;
+        }
         if (copy.SourceX + copy.Width <= copy.DestinationX || copy.DestinationX + copy.Width <= copy.SourceX || copy.SourceY + copy.Height <= copy.DestinationY || copy.DestinationY + copy.Height <= copy.SourceY)
         {
             var copied = (Overwrite(sources, copy.DestinationX, copy.DestinationY, copy.Width, copy.Height) ?? []).ToBuilder();

@@ -187,20 +187,24 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         return null;
     }
 
-    private TextureReplacement? ReadRegion(TextureBuildContext context, string name, int palette, int x, int y, int width, int height, int canvasWidth, int canvasHeight, int horizontalPageWidth = 0, int verticalPageHeight = 0, bool normalizedMaterial = false, bool paletteFallback = true)
+    private TextureReplacement? ReadRegion(TextureBuildContext context, string name, int palette, int x, int y, int width, int height, int canvasWidth, int canvasHeight, int horizontalPageWidth = 0, int verticalPageHeight = 0, bool normalizedMaterial = false, bool paletteFallback = true, bool normalizeEffectAlpha = false)
     {
-        string[] languageRoots = context.Source.Language is null or "en" ? ["mods/textures/eng/", "mods/textures/"] : ["mods/textures/"];
-        ModFile? file = new[] { ".dds", ".png" }.SelectMany(extension => languageRoots.SelectMany(root => catalog.FindAll(ModFormat.Junction, $"{root}{name}_{palette:00}{extension}"))).FirstOrDefault();
-        if (file is null && paletteFallback)
-        {
-            file = catalog.Files.Where(candidate => candidate.Format == ModFormat.Junction).Select(candidate => (File: candidate, Palette: ExternalPalette(candidate.RelativePath, languageRoots, name))).Where(candidate => candidate.Palette >= 0).OrderBy(candidate => candidate.Palette).ThenBy(candidate => Path.GetExtension(candidate.File.RelativePath).Equals(".dds", StringComparison.OrdinalIgnoreCase) ? 0 : 1).Select(candidate => candidate.File).FirstOrDefault();
-        }
+        ModFile? file = FindRegionFile(LanguageRoots(context.Source.Language), name, palette, paletteFallback);
         if (file is null)
         {
             return null;
         }
+        return ReadSelectedRegion(context, file, x, y, width, height, canvasWidth, canvasHeight, horizontalPageWidth, verticalPageHeight, normalizedMaterial, normalizeEffectAlpha);
+    }
+
+    private static TextureReplacement BuildSelectedRegion(TextureBuildContext context, ModFile file, int x, int y, int width, int height, int canvasWidth, int canvasHeight, int horizontalPageWidth, int verticalPageHeight, bool normalizedMaterial, bool effectPage)
+    {
         DecodedModImage decoded = ModImageDecoder.Decode(file);
         PixelImage sheet = decoded.Image;
+        if (effectPage && (x < 0 || y < 0 || width <= 0 || height <= 0 || (long)x + width > 256 || (long)y + height > 256 || sheet.Width != sheet.Height || sheet.Width < 256 || sheet.Width % 256 != 0))
+        {
+            throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Effect VRAM pages must preserve the 256 by 256 native canvas and registered crop."));
+        }
         if ((horizontalPageWidth > 0 || verticalPageHeight > 0) && canvasWidth > 0 && canvasHeight > 0 && (long)sheet.Width * canvasHeight != (long)sheet.Height * canvasWidth)
         {
             int paddedWidth = horizontalPageWidth > 0 ? checked((canvasWidth + horizontalPageWidth - 1) / horizontalPageWidth * horizontalPageWidth) : canvasWidth;
@@ -243,15 +247,21 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
 
     private static int ExternalPalette(string path, string[] roots, string name)
     {
-        string extension = Path.GetExtension(path);
+        ReadOnlySpan<char> value = path;
+        ReadOnlySpan<char> extension = Path.GetExtension(value);
         if (!extension.Equals(".dds", StringComparison.OrdinalIgnoreCase) && !extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
         {
             return -1;
         }
         foreach (string root in roots)
         {
-            string prefix = root + name + "_";
-            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && PaletteNumber(path[prefix.Length..^extension.Length], out int palette))
+            int prefixLength = root.Length + name.Length + 1;
+            if (value.Length <= prefixLength + extension.Length || !value.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !value.Slice(root.Length, name.Length).Equals(name, StringComparison.OrdinalIgnoreCase) || value[prefixLength - 1] != '_')
+            {
+                continue;
+            }
+            ReadOnlySpan<char> number = value.Slice(prefixLength, value.Length - extension.Length - prefixLength);
+            if (int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out int palette) && palette <= byte.MaxValue && number.Length == (palette < 100 ? 2 : 3))
             {
                 return palette;
             }

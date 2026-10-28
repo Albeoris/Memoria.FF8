@@ -220,13 +220,20 @@ public sealed class NativeBattleBlizzardPresentationTests
         BattleSession first = BattleSession.Restore(snapshot);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(first.Capture()));
-        first.AdvanceNativeGraphicsPresentation(Callback);
-        second.AdvanceNativeGraphicsPresentation(Callback);
+        first.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(first));
+        second.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(second));
         Assert.Equal(snapshot.NativeGraphics.Callback + 1, first.NativeGraphics!.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(second, 320, 224).ToArray());
         Console.WriteLine($"Blizzard checkpoint saved{snapshot.Frame}/{snapshot.NativeGraphics.Callback}; actual nextcallback{first.NativeGraphics.Callback}, independentwholeJSON/copiedpixels agree.");
+    }
+
+    private static TimeSpan NextGraphicsCallback(BattleSession battle)
+    {
+        NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+        long remainingUnits = 2 * (TimeSpan.TicksPerSecond - graphics.PresentationSubticks) - (graphics.PresentationHalfSubtick ? 1 : 0);
+        return TimeSpan.FromTicks((remainingUnits + 30) / 31);
     }
 
     private static bool HasDescriptor(BattleSession battle) => battle.NativeGraphics!.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);

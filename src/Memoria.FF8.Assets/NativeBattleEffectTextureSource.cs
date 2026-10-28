@@ -230,9 +230,11 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
 
     private void Retain(TextureKey key)
     {
-        if (retained.Remove(key, out LinkedListNode<TextureKey>? node))
+        if (retained.TryGetValue(key, out LinkedListNode<TextureKey>? node))
         {
             recent.Remove(node);
+            recent.AddLast(node);
+            return;
         }
         retained.Add(key, recent.AddLast(key));
         while (retained.Count > MaximumResidentContexts)

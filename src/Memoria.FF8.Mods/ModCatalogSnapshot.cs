@@ -41,6 +41,27 @@ public sealed class ModCatalogSnapshot
         {
             throw new ArgumentException("A mod address must be relative to its package.", nameof(path));
         }
+        bool canonical = true;
+        ReadOnlySpan<char> remaining = normalized;
+        while (true)
+        {
+            int slash = remaining.IndexOf('/');
+            ReadOnlySpan<char> part = slash < 0 ? remaining : remaining[..slash];
+            if (part.IsEmpty || part.SequenceEqual(".") || part.SequenceEqual(".."))
+            {
+                canonical = false;
+                break;
+            }
+            if (slash < 0)
+            {
+                break;
+            }
+            remaining = remaining[(slash + 1)..];
+        }
+        if (canonical)
+        {
+            return normalized;
+        }
         List<string> parts = [];
         foreach (string part in normalized.Split('/', StringSplitOptions.RemoveEmptyEntries))
         {

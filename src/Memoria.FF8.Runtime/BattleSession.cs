@@ -58,6 +58,7 @@ public sealed partial class BattleSession
         foreach (BattleCombatant actor in combatants)
         {
             actor.NativeActionMemoryOwner = nativeActionMemory;
+            actor.NativePresentationStatusOwner = nativePresentationStatusMemory;
             InitializeNativeAtb(actor);
         }
         Combatants = combatants.AsReadOnly();
@@ -364,6 +365,7 @@ public sealed partial class BattleSession
             NativeFileStaging = NativeFileStaging,
             NativeModelCpuResources = NativeModelCpuResources,
             NativeActionMemory = nativeActionMemory.State,
+            NativePresentationStatusMemory = nativePresentationStatusMemory.State,
             NativeActionScratch = nativeActionScratch,
             NativeElementAttack = nativeElementAttack,
             ChocoboRewards = chocoboRewards,
@@ -1195,6 +1197,7 @@ public sealed partial class BattleSession
         NativeFileStaging = snapshot.NativeFileStaging;
         NativeModelCpuResources = snapshot.NativeModelCpuResources;
         RestoreNativeActionMemory(snapshot.NativeActionMemory);
+        RestoreNativePresentationStatusMemory(snapshot.NativePresentationStatusMemory);
         nativeActionScratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native action scratch owner is missing; explicitly migrate the standalone snapshot.");
         nativeActionScratch.Validate();
         HashSet<string> restored = new(StringComparer.Ordinal);
@@ -1237,6 +1240,10 @@ public sealed partial class BattleSession
             }
             actor.MutableGuardianForceCompatibility = saved.GuardianForceCompatibility?.ToArray() ?? actor.MutableGuardianForceCompatibility;
             actor.CurrentHp = saved.CurrentHp;
+            if (snapshot.NativePresentationStatusMemory is not null && actor.NativeIndex is >= 0 and < NativeBattlePresentationStatusMemory.PhysicalCount && saved.NativeStatus?.Presentation != actor.NativePresentationStatus)
+            {
+                throw new InvalidDataException("Native actor B92/B1C projection contradicts its physical presentation-status bank.");
+            }
             RestoreNativeStatus(actor, saved.NativeStatus);
             RestoreNativeAtb(actor, saved.NativeAtb, saved.Atb);
             if (saved.LimitTurnCrisis is > 4 || saved.LimitTurnCrisis is not null && (!definition.LimitOncePerTurn || !actor.IsPlayer || actor.NativeLimit is null))
@@ -1467,6 +1474,7 @@ public sealed partial class BattleSession
         candidate = Restore(candidateSnapshot);
         DiagnosticResetCount++;
         nativeActionMemory.State = candidate.nativeActionMemory.State;
+        nativePresentationStatusMemory.State = candidate.nativePresentationStatusMemory.State;
         foreach (NativeBattleEnemyAllocation allocation in candidate.nativeAllocations.Skip(nativeAllocations.Count))
         {
             CreateNativeAllocation(allocation);

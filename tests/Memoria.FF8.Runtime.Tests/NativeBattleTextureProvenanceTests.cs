@@ -173,6 +173,41 @@ public sealed class NativeBattleTextureProvenanceTests
         Assert.Equal(NativeBattleTestSnapshots.Json(retained.TextureRegistrations.Value), NativeBattleTestSnapshots.Json(restored.TextureRegistrations!.Value));
     }
 
+    [Fact]
+    public void Self_copy_preserves_source_coordinates_without_per_word_metadata_allocation()
+    {
+        NativeBattleTextureOrigin origin = new("effect.tim", 0, NativeBattleTextureRole.Pixels, 8, 256, 128);
+        ImmutableArray<NativeBattleTextureSourceRegion> regions = [new(origin, 64, 32, 256, 128)];
+        NativeBattleEffectVramCopy copy = new(64, 32, 256, 128, 64, 32);
+        NativeBattleTextureProvenance.Copy(regions, copy);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 100; index++)
+        {
+            NativeBattleTextureProvenance.Copy(regions, copy);
+        }
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(regions, NativeBattleTextureProvenance.Copy(regions, copy));
+    }
+
+    [Fact]
+    public void Self_copy_still_executes_the_native_transfer_and_records_its_observed_frame()
+    {
+        NativeBattleTextureOrigin origin = new("effect.tim", 0, NativeBattleTextureRole.Pixels, 8, 2, 1);
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(64, 32, 2, 1, [1, 2, 3, 4]) with
+        {
+            LiveTextureSources = [new(origin, 64, 32, 2, 1)],
+            TextureRegistrations = [new(origin, 64, 32, 2, 1, []) { PaletteOwnedSpans = [], CopyHistoryKnown = true }]
+        };
+        NativeBattleEffectTextureDrain copied = state.EnqueueCopy505EB0(64, 32, 2, 1, 64, 32).Drain505D20();
+        Assert.Equal((ushort)0x0201, copied.State.ReadVramWord(64, 32));
+        Assert.Equal((ushort)0x0403, copied.State.ReadVramWord(65, 32));
+        Assert.Equal(state.LiveTextureSources, copied.State.LiveTextureSources);
+        Assert.True(Assert.Single(copied.Uploads).Copied);
+        NativeBattleTextureRegistration frame = Assert.Single(copied.State.TextureRegistrations!.Value);
+        Assert.Equal(0, frame.CurrentFrame);
+        Assert.Equal(new(64, 32, 2, 1), Assert.Single(frame.CopyFrames));
+    }
+
     private static bool Contains(NativeBattleTextureSourceRegion region, int x, int y) => x >= region.X && y >= region.Y && x < region.X + region.WidthWords && y < region.Y + region.Height;
 
     private static NativeBattleEffectHeapAllocation Tim(string name)

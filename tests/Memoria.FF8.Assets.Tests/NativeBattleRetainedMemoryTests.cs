@@ -7,6 +7,26 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeBattleRetainedMemoryTests
 {
     [Fact]
+    public void AuthenticatedColdImageSuppliesExactlySevenPhysicalPresentationMirrorPairs()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed resources for the authenticated native presentation mirror bank.");
+        byte[] executable = File.ReadAllBytes(Path.Combine(directory!, "FF8_EN.exe"));
+        NativeExecutableMemory image = new(executable);
+        NativeBattlePresentationStatusMemory mirrors = NativeBattleRetainedMemoryReader.ReadColdProcess(image).PresentationStatusMemory!;
+
+        Assert.Equal(7, mirrors.Rows.Length);
+        for (int index = 0; index < mirrors.Rows.Length; index++)
+        {
+            ushort saved = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(image.ReadLoader(checked(0x1D27B92u + 208u * (uint)index), 2));
+            uint battle = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(image.ReadLoader(checked(0x1D27B1Cu + 208u * (uint)index), 4));
+            Assert.Equal(new NativeBattleStatusMirror(saved, battle), mirrors.Rows[index]);
+            Assert.Equal(NativeBattlePresentationStatusMemory.FromColdProcess().Rows[index], mirrors.Rows[index]);
+        }
+        Assert.Equal(0x1D280C0u, 0x1D27B10u + 7u * 208u);
+    }
+
+    [Fact]
     public void AuthenticatedLoaderImageProvesTheRuntimeColdProcessContract()
     {
         using GameAssets assets = new(TestResources.GameDirectory);

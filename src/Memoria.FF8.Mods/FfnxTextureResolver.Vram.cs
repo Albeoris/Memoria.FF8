@@ -32,7 +32,7 @@ public sealed partial class FfnxTextureResolver
         int left = (region.X - startWord) * pixelsPerWord + cropLeft;
         int top = region.Y - startY + cropTop;
         List<(ModFile File, int X, int Y)> pages = [];
-        string[] roots = context.Source.Language is null or "en" ? ["mods/textures/eng/", "mods/textures/"] : ["mods/textures/"];
+        string[] roots = LanguageRoots(context.Source.Language);
         for (int y = top / 256 * 256; y < top + height; y += 256)
         {
             for (int x = left / 256 * 256; x < left + width; x += 256)
@@ -73,6 +73,23 @@ public sealed partial class FfnxTextureResolver
 
     private ModFile? FindVramPage(string[] roots, string name, int page, int paletteX, int paletteY)
     {
-        return new[] { ".dds", ".png" }.SelectMany(extension => roots.SelectMany(root => catalog.FindAll(ModFormat.Junction, $"{root}{name}_{page}_{paletteX}_{paletteY}{extension}"))).FirstOrDefault();
+        VramFileQuery key = new(name, page, paletteX, paletteY, roots.Length == 2);
+        lock (textureCacheSync)
+        {
+            if (vramFiles.TryGetValue(key, out ModFile? cached))
+            {
+                return cached;
+            }
+        }
+        ModFile? file = FindExternalFile(roots, $"{name}_{page}_{paletteX}_{paletteY}");
+        lock (textureCacheSync)
+        {
+            if (vramFiles.Count >= FileQueryCapacity)
+            {
+                vramFiles.Clear();
+            }
+            vramFiles[key] = file;
+        }
+        return file;
     }
 }

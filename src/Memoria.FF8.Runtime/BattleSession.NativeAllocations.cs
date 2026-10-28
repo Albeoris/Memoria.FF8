@@ -37,7 +37,6 @@ public sealed partial class BattleSession
         nativeAllocations.Add(allocation);
         spawned.NativeIndex = physicalIndex;
         spawned.NativeReturnDamage = 0;
-        spawned.NativePresentationStatus = previous?.NativePresentationStatus ?? new(null, null);
         spawned.NativePendingReaction = previous?.NativePendingReaction ?? new(null, null);
         nativeLastAllocatedIndex = physicalIndex;
         Log("NativeSpawn", caller.Id, spawned.Id, sceneSlot, $"{spawned.Name} allocated from formation slot {sceneSlot} into physical slot {physicalIndex}.");
@@ -104,6 +103,7 @@ public sealed partial class BattleSession
         }
         BattleCombatant actor = new(prototype with { Id = allocation.Id, InitialActive = false, InitialAtb = 0 });
         actor.NativeActionMemoryOwner = nativeActionMemory;
+        actor.NativePresentationStatusOwner = nativePresentationStatusMemory;
         InitializeNativeAtb(actor);
         combatants.Add(actor);
         byId.Add(actor.Id, actor);

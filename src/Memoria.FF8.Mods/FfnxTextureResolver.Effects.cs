@@ -18,8 +18,8 @@ public sealed partial class FfnxTextureResolver
             return null;
         }
         TextureReplacement? replacement = ReadEffectPage(context, address.Owner.Path[..address.Owner.Path.IndexOf('/')]);
-        replacement ??= ReadRegion(context, name, address.Palette, address.X, address.Y, address.Width, address.Height, address.CanvasWidth, address.CanvasHeight);
-        return replacement is null ? null : NormalizeEffectAlpha(replacement);
+        replacement ??= ReadRegion(context, name, address.Palette, address.X, address.Y, address.Width, address.Height, address.CanvasWidth, address.CanvasHeight, normalizeEffectAlpha: true);
+        return replacement;
     }
 
     private static bool TryEffectStem(TextureSourceAddress address, out string name)
@@ -87,30 +87,14 @@ public sealed partial class FfnxTextureResolver
         {
             return null;
         }
-        string[] roots = context.Source.Language is null or "en" ? ["mods/textures/eng/", "mods/textures/"] : ["mods/textures/"];
+        string[] roots = LanguageRoots(context.Source.Language);
         string pageStem = joined[..^1];
         ModFile? file = FindVramPage(roots, pageStem, pageId, page.PaletteX, page.PaletteY) ?? FindVramPage(roots, pageStem, pageId, 0, 0);
         if (file is null)
         {
             return null;
         }
-        DecodedModImage decoded = ModImageDecoder.Decode(file);
-        PixelImage sheet = decoded.Image;
-        if (page.X < 0 || page.Y < 0 || page.Width <= 0 || page.Height <= 0 || (long)page.X + page.Width > 256 || (long)page.Y + page.Height > 256 || sheet.Width != sheet.Height || sheet.Width < 256 || sheet.Width % 256 != 0)
-        {
-            throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Effect VRAM pages must preserve the 256 by 256 native canvas and registered crop."));
-        }
-        if (page.X == 0 && page.Y == 0 && page.Width == 256 && page.Height == 256)
-        {
-            return new(sheet, $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, decoded.MipLevels);
-        }
-        int scale = sheet.Width / 256;
-        PixelImage image = new(page.Width * scale, page.Height * scale);
-        for (int row = 0; row < image.Height; row++)
-        {
-            sheet.Pixels.AsSpan((page.Y * scale + row) * sheet.Width + page.X * scale, image.Width).CopyTo(image.Pixels.AsSpan(row * image.Width));
-        }
-        return new(image, $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight);
+        return ReadSelectedRegion(context, file, page.X, page.Y, page.Width, page.Height, 256, 256, 0, 0, false, true, effectPage: true);
     }
 
     private static TextureReplacement NormalizeEffectAlpha(TextureReplacement replacement)
