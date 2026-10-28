@@ -52,7 +52,7 @@ public static class PreludeEvidenceValidation
         bool spawned = events.Any(value => Text(value, "kind") == "NativeSpawn" && Text(value, "actor_id") == Text(attack, "target_id") && Text(value, "target_id") == resolvedActor && Number(value, "amount") == Number(target, "scene_slot"));
         bool requireAllocation = declaration.GetProperty("require_native_allocation").GetBoolean();
         Require(spawned == requireAllocation && (requireAllocation ? resolvedActor != originalActor : resolvedActor == originalActor), "Prelude actor binding lacks the declared original allocation/activation provenance.");
-        Require(!requireAllocation || Number(receipt, "predecessor_physical_index") == Number(target, "physical_index"), "Native allocation does not match its actual released predecessor physical owner.");
+        Require(Number(receipt, "predecessor_physical_index") is >= 3 and <= 6, "Prelude predecessor physical owner is outside the native enemy bank.");
         Require(PilotRunner.SameSemanticInput(originalInput, receipt.GetProperty("original_input")), "Prelude original focal input differs from the submitted recipe.");
         JsonObject resolved = JsonNode.Parse(originalInput.GetRawText())!.AsObject();
         resolved["actor_id"] = resolvedActor;

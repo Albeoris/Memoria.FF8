@@ -9,6 +9,59 @@ namespace Memoria.FF8.Tests;
 
 public sealed class DiagnosticOrdinaryAttackPreludeTests
 {
+    [Theory]
+    [InlineData("valid", false)]
+    [InlineData("pending", false)]
+    [InlineData("flags", false)]
+    [InlineData("physical", true)]
+    [InlineData("model", true)]
+    [InlineData("scene", true)]
+    [InlineData("stage", true)]
+    [InlineData("level-band", true)]
+    [InlineData("initialization", true)]
+    public void Completed_native_allocation_refuses_immutable_identity_mismatch_without_using_flags_as_a_completion_shortcut(string change, bool rejected)
+    {
+        string hash = new('a', 64);
+        DiagnosticTargetExpectation expected = Request().Target! with { Stage = 142, Model = 122, PhysicalIndex = 5 };
+        BattleDiagnosticTarget observed = new("native-allocation-1", 142, 122, 2, 5, 1, 27760, true, true, hash, 600);
+        int band = 0;
+        switch (change)
+        {
+            case "pending":
+                observed = observed with { StatisticsReady = false, PhysicalIndex = 3 };
+                break;
+            case "flags":
+                observed = observed with { Flags = 0xC1, Alive = false };
+                break;
+            case "physical":
+                observed = observed with { PhysicalIndex = 3 };
+                break;
+            case "model":
+                observed = observed with { Model = 123 };
+                break;
+            case "scene":
+                observed = observed with { SceneSlot = 3 };
+                break;
+            case "stage":
+                observed = observed with { Stage = 143 };
+                break;
+            case "level-band":
+                band = 1;
+                break;
+            case "initialization":
+                observed = observed with { InitializationScriptSha256 = new string('b', 64) };
+                break;
+        }
+        if (rejected)
+        {
+            Assert.Throws<InvalidDataException>(() => GameWorld.VerifyInitializedPreludeAllocationIdentity(expected, observed, 0, band, hash));
+        }
+        else
+        {
+            GameWorld.VerifyInitializedPreludeAllocationIdentity(expected, observed, 0, band, hash);
+        }
+    }
+
     [Fact]
     public void Declared_ordinary_prelude_enum_strings_roundtrip_and_nonordinary_commands_are_refused()
     {
@@ -37,7 +90,7 @@ public sealed class DiagnosticOrdinaryAttackPreludeTests
 
     [Theory]
     [InlineData(120, 100, 87, false, 5)]
-    [InlineData(511, 122, 121, true, 3)]
+    [InlineData(511, 122, 121, true, 5)]
     public void Installed_original_phase_entry_serializes_and_continues_its_first_native_callback_without_owner_fabrication(int encounter, int model, int predecessor, bool allocation, int physical)
     {
         string directory = InstalledGame();

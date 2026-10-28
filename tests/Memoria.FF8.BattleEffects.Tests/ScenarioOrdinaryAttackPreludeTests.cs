@@ -21,7 +21,7 @@ public sealed class ScenarioOrdinaryAttackPreludeTests
 
     [Theory]
     [InlineData(100, 6, 120, 87, false, 5, 104)]
-    [InlineData(122, 9, 511, 121, true, 3, 21)]
+    [InlineData(122, 9, 511, 121, true, 5, 21)]
     public void Installed_original_carriers_generate_one_declared_ordinary_attack_prelude(int model, int slot, int carrier, int predecessor, bool allocation, int physical, int effect)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
@@ -46,6 +46,10 @@ public sealed class ScenarioOrdinaryAttackPreludeTests
             Assert.Equal(new[] { 0, 255, 255 }, recipe["fixture"]!["combat_party"]!.AsArray().Select(value => value!.GetValue<int>()).ToArray());
             Assert.Equal("Normal", recipe["atb_mode"]!.GetValue<string>());
             Assert.Equal(physical, recipe["target"]!["physical_index"]!.GetValue<int>());
+            if (allocation)
+            {
+                Assert.Equal(3 + assets.LoadEncounter(carrier).Slots.Count(placement => placement.Enabled), physical);
+            }
             Assert.Equal("enemy-2", recipe["driver"]!["input"]!["actor_id"]!.GetValue<string>());
             JsonNode prelude = recipe["prelude"]!;
             Assert.Equal(predecessor, prelude["defeated_model"]!.GetValue<int>());

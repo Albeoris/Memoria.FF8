@@ -225,8 +225,10 @@ public static partial class ScenarioDiscovery
             {
                 continue;
             }
-            int index = prelude?["require_native_allocation"]?.GetValue<bool>() == true ? Array.FindIndex(active, slot => slot.Slot == prelude!["defeated_scene_slot"]!.GetValue<int>()) : Array.FindIndex(active, slot => slot.Slot == context.SceneSlot && slot.ModelId == owner.ModelId);
-            if (index < 0)
+            // Native31 allocates synchronously while29's graphical removal is still queued.
+            // Original enabled participants therefore retain their sequential physical slots.
+            int index = prelude?["require_native_allocation"]?.GetValue<bool>() == true ? active.Length : Array.FindIndex(active, slot => slot.Slot == context.SceneSlot && slot.ModelId == owner.ModelId);
+            if (index is < 0 or > 3)
             {
                 continue;
             }

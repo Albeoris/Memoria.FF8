@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memoria.FF8.Runtime;
@@ -18,7 +19,10 @@ public sealed class DiagnosticPreparationProgressTests(ITestOutputHelper output)
         Assert.Equal(511, original.Encounter);
         Assert.Equal(122, original.Target!.Model);
         Assert.Equal(121, original.Prelude!.DefeatedModel);
-        DiagnosticBattleRequest request = original with { Prelude = original.Prelude with { MaximumCallbacks = 5000 } };
+        string? callbackSetting = Environment.GetEnvironmentVariable("MEMORIA_FF8_PRELUDE_PROBE_CALLBACKS");
+        int callbackBudget = callbackSetting is null ? 5000 : int.Parse(callbackSetting, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(callbackBudget, 1, 5000);
+        DiagnosticBattleRequest request = original with { Prelude = original.Prelude with { MaximumCallbacks = callbackBudget } };
         request.Validate();
         GameSession session = GameWorld.CreateColdProcess(directory!);
         session.StartNewGame();
@@ -35,7 +39,14 @@ public sealed class DiagnosticPreparationProgressTests(ITestOutputHelper output)
         Assert.Single(unchangedCallbacks);
         Assert.Equal(0, unchangedCallbacks[0].Callback);
         List<BattleDiagnosticEffectDispatch> dispatches = [];
+        List<BattleEvent> events = [];
+        void ObserveEvent(BattleEvent value)
+        {
+            Assert.True(events.Count < 16384, "Bounded preparation probe event capacity exceeded.");
+            events.Add(value);
+        }
         active.DiagnosticEffectDispatched += dispatches.Add;
+        active.DiagnosticEventPublished += ObserveEvent;
         long started = Stopwatch.GetTimestamp();
         string? boundedFailure = null;
         try
@@ -58,15 +69,33 @@ public sealed class DiagnosticPreparationProgressTests(ITestOutputHelper output)
             Assert.Equal(0, observations[0].Callback);
             Assert.True(observations.Zip(observations.Skip(1)).All(pair => pair.Second.Callback > pair.First.Callback));
             DiagnosticPreparationProgress last = observations.Last(value => value.Phase == "ordinary_attack_prelude");
-            Assert.InRange(last.Callback, 1, 5000);
+            Assert.InRange(last.Callback, 1, callbackBudget);
             Assert.InRange(last.Attacks, 0, request.Prelude.MaximumAttacks);
             Assert.Equal(predecessor.CurrentHp, last.PredecessorHitPoints);
             Assert.Equal(predecessor.NativeCombatantFlags, last.PredecessorFlags);
             if (boundedFailure is not null)
             {
-                Assert.Equal(5000, active.NativeHostCallbacks);
+                Assert.Equal(callbackBudget, active.NativeHostCallbacks);
             }
-            object result = new { scope = "BOUNDED_PREPARATION_PROBE_ONLY", original_request = original, probe_request = request, lifecycle, initial_hp = initialHp, current_hp = predecessor.CurrentHp, milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds, bounded_failure = boundedFailure, observations, dispatches };
+            object[] actors = active.Combatants.Select(actor =>
+            {
+                BattleCombatantDefinition definition = active.GetCombatantDefinition(actor.Id);
+                BattleDiagnosticTarget? target = definition.NativeAi is null ? null : active.ObserveDiagnosticTarget(actor.Id);
+                return (object)new
+                {
+                    actor.Id, actor.ModelId, actor.SceneSlot, actor.IsPlayer, actor.IsActive, actor.IsAlive, actor.CurrentHp, actor.MaximumHp, actor.NativeCombatantFlags, actor.IsReady, actor.IsBusy,
+                    native_target = target,
+                    original_ai = definition.NativeAi is { } ai ? new { ai.LevelBand, script_sha256 = ai.Scripts.Select(script => Convert.ToHexStringLower(SHA256.HashData(script))).ToArray() } : null
+                };
+            }).ToArray();
+            object result = new
+            {
+                scope = "BOUNDED_PREPARATION_PROBE_ONLY", original_request = original, probe_request = request, lifecycle, initial_hp = initialHp, current_hp = predecessor.CurrentHp,
+                milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds, bounded_failure = boundedFailure, observations, dispatches, events,
+                last_native_spawn = events.LastOrDefault(value => value.Kind == "NativeSpawn"),
+                last_native_transition = events.LastOrDefault(value => value.Kind is "NativeSpawn" or "Activated" or "NativeSequence"),
+                actors, expected_target = request.Target, drain_blockers = active.ObserveDiagnosticDrainBlockers(), invocation_owners = active.ObserveDiagnosticInvocationOwners()
+            };
             string serialized = JsonSerializer.Serialize(result, json);
             output.WriteLine(serialized);
             if (Environment.GetEnvironmentVariable("MEMORIA_FF8_PRELUDE_PROBE_OUTPUT") is { Length: > 0 } destination)
@@ -78,6 +107,7 @@ public sealed class DiagnosticPreparationProgressTests(ITestOutputHelper output)
         finally
         {
             active.DiagnosticEffectDispatched -= dispatches.Add;
+            active.DiagnosticEventPublished -= ObserveEvent;
             world.AbandonFaultedDiagnosticBattle();
             world.EndDiagnosticBattle();
         }

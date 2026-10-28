@@ -21,10 +21,7 @@ internal sealed partial class GameWorld
         }
         int initialHp = predecessor.CurrentHp;
         int predecessorIndex = active.ObserveDiagnosticTarget(predecessor.Id).PhysicalIndex;
-        if (declaration.RequireNativeAllocation && request.Target.PhysicalIndex != predecessorIndex)
-        {
-            throw new InvalidDataException("The declared native allocation must reuse the original predecessor's actual physical slot; its observed allocation must verify that choice.");
-        }
+        string targetInitializationHash = Convert.ToHexStringLower(SHA256.HashData(targetSource.NativeAi?.Scripts[0] ?? throw new NotSupportedException("Prelude target requires its original initialization script.")));
         long started = Stopwatch.GetTimestamp();
         long startCallback = active.NativeHostCallbacks ?? throw new NotSupportedException("Prelude requires its existing native callback ledger.");
         long restores = active.DiagnosticRestoreCount;
@@ -66,6 +63,19 @@ internal sealed partial class GameWorld
                 bool drained = active.NativeEntryReady && active.ObserveDiagnosticDrainBlockers().Count == 0;
                 if (drained && predecessor.CurrentHp == 0 && !predecessor.IsAlive)
                 {
+                    if (declaration.RequireNativeAllocation)
+                    {
+                        foreach (BattleEvent allocation in events.Where(value => value.Kind == "NativeSpawn" && value.ActorId == predecessor.Id && value.Amount == request.Target.SceneSlot))
+                        {
+                            BattleCombatant allocated = active.Combatants.Single(actor => actor.Id == allocation.TargetId);
+                            BattleDiagnosticTarget initialized = active.ObserveDiagnosticTarget(allocated.Id);
+                            if (initialized.StatisticsReady)
+                            {
+                                int levelBand = active.GetCombatantDefinition(allocated.Id).NativeAi?.LevelBand ?? throw new NotSupportedException("The observed allocation lacks its original AI bank.");
+                                VerifyInitializedPreludeAllocationIdentity(request.Target, initialized, request.Driver!.EnemyAbility!.LevelBand, levelBand, targetInitializationHash);
+                            }
+                        }
+                    }
                     BattleCombatant[] candidates = active.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive && actor.ModelId == request.Target.Model && actor.SceneSlot == request.Target.SceneSlot).ToArray();
                     if (candidates.Length == 1)
                     {
@@ -112,6 +122,18 @@ internal sealed partial class GameWorld
         {
             active.DiagnosticEventPublished -= ObserveEvent;
             active.DiagnosticEffectDispatched -= ObserveDispatch;
+        }
+    }
+
+    internal static void VerifyInitializedPreludeAllocationIdentity(DiagnosticTargetExpectation expected, BattleDiagnosticTarget observed, int expectedLevelBand, int actualLevelBand, string expectedInitializationHash)
+    {
+        if (!observed.StatisticsReady)
+        {
+            return;
+        }
+        if (observed.PhysicalIndex != expected.PhysicalIndex || observed.Model != expected.Model || observed.SceneSlot != expected.SceneSlot || observed.Stage != expected.Stage || actualLevelBand != expectedLevelBand || !string.Equals(observed.InitializationScriptSha256, expectedInitializationHash, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("The completed original native allocation contradicts the declared physical owner, model, scene, level band or initialization script.");
         }
     }
 }

@@ -17,6 +17,8 @@ public sealed class PreludeEvidenceValidationTests
         Assert.Equal(allocation ? "native-allocation-1" : "enemy-2", resolved.GetProperty("actor_id").GetString());
         Assert.Equal("party-0", resolved.GetProperty("target_id").GetString());
         Assert.Equal("EnemyAbility", resolved.GetProperty("ability").GetString());
+        Assert.Equal(3, report["initialization"]!["prelude"]!["predecessor_physical_index"]!.GetValue<int>());
+        Assert.Equal(5, report["initialization"]!["prelude"]!["target"]!["physical_index"]!.GetValue<int>());
         using JsonDocument document = JsonDocument.Parse(report.ToJsonString());
         PreludeEvidenceValidation.ValidateReport(document.RootElement);
         Assert.Equal("ERROR", LiveEvidenceValidation.Validate(document.RootElement).Verdict);
@@ -109,7 +111,7 @@ public sealed class PreludeEvidenceValidationTests
                 receipt["events"]![1]!["amount"] = 3;
                 break;
             case "source-physical":
-                receipt["predecessor_physical_index"] = 4;
+                receipt["predecessor_physical_index"] = 2;
                 break;
             case "level-band":
                 report["enemy_submissions"]![0]!["selection"]!["level_band"] = 1;
@@ -139,7 +141,7 @@ public sealed class PreludeEvidenceValidationTests
         const string lifecycle = "611e959f-481e-4ea6-82ae-4e963032490b";
         string resolvedActor = allocation ? "native-allocation-1" : "enemy-2";
         int model = allocation ? 122 : 100;
-        int physical = allocation ? 3 : 5;
+        int physical = 5;
         JsonObject Input(string actor) => new() { ["kind"] = "Action", ["actor_id"] = actor, ["target_id"] = "party-0", ["ability"] = "EnemyAbility", ["action_id"] = 21 };
         JsonObject Selection() => new() { ["model"] = model, ["scene_slot"] = 2, ["level_band"] = 0 };
         JsonObject declaration = new()
