@@ -11,6 +11,54 @@ public sealed class PilotRunnerTests : IDisposable
     private readonly string directory = Path.Combine(Path.GetTempPath(), "memoria-pilot-tests-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void Muted_output_is_optional_and_roundtrips_without_changing_the_existing_manifest_constructor()
+    {
+        PilotManifest original = Manifest();
+        Assert.False(original.MuteOutput);
+        PilotManifest muted = original with { MuteOutput = true };
+        string json = JsonSerializer.Serialize(muted, RecordJson.Options);
+        PilotManifest restored = JsonSerializer.Deserialize<PilotManifest>(json, RecordJson.Options)!;
+        Assert.True(restored.MuteOutput);
+        Assert.Equal(original.Executable, restored.Executable);
+        Assert.Equal(original.Budgets, restored.Budgets);
+        SchemaValidation.ValidateRecord(restored, "pilot");
+        JsonObject withoutOption = JsonNode.Parse(json)!.AsObject();
+        withoutOption.Remove("mute_output");
+        Assert.False(JsonSerializer.Deserialize<PilotManifest>(withoutOption.ToJsonString(), RecordJson.Options)!.MuteOutput);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Muted_output_seeds_only_isolated_volume_preferences_before_an_invalid_host_can_start(bool muteOutput)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Windows owned-process launch validation is required.");
+        }
+        PilotManifest manifest = Manifest() with { MuteOutput = muteOutput };
+        PilotBatchSummary summary = await PilotRunner.RunAsync(manifest, TestContext.Current.CancellationToken, measurementPath: Path.Combine(directory, "measurement.lock"));
+        PilotCaseSummary result = Assert.Single(summary.Cases);
+        Assert.Equal("ERROR", result.Verdict);
+        Assert.Contains("SUPERVISION", result.Errors);
+        Assert.True(result.ProcessExited);
+        string settings = Path.Combine(result.Directory, "settings", "ui-settings.json");
+        Assert.Equal(muteOutput, File.Exists(settings));
+        if (muteOutput)
+        {
+            using JsonDocument preferences = JsonDocument.Parse(File.ReadAllBytes(settings));
+            Assert.Equal(3, preferences.RootElement.EnumerateObject().Count());
+            Assert.Equal(0, preferences.RootElement.GetProperty("MusicVolume").GetInt32());
+            Assert.Equal(0, preferences.RootElement.GetProperty("SoundVolume").GetInt32());
+            Assert.Equal(0, preferences.RootElement.GetProperty("VoiceVolume").GetInt32());
+        }
+        using JsonDocument started = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(result.Directory, "output", "started.json")));
+        Assert.DoesNotContain(started.RootElement.GetProperty("arguments").EnumerateArray(), argument => argument.GetString() == "--mute-audio");
+        using JsonDocument retained = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(manifest.OutputRoot, "manifest.json")));
+        Assert.Equal(muteOutput, retained.RootElement.GetProperty("mute_output").GetBoolean());
+    }
+
+    [Fact]
     public void Candidate_binding_preserves_declared_native_identity_supporting_effects_and_normalized_repairs()
     {
         (JsonObject bootstrap, JsonObject report) = CandidateBinding();

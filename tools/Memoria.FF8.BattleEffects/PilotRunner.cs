@@ -23,7 +23,10 @@ public sealed record PilotBudgets(double InitializationMs, double ActionOneMs, d
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record PilotManifest(int SchemaVersion, string Executable, string WorkingDirectory, string GameDir, string OutputRoot, PilotBudgets Budgets, PilotCase[] Cases, string? BuildFingerprint = null);
+public sealed record PilotManifest(int SchemaVersion, string Executable, string WorkingDirectory, string GameDir, string OutputRoot, PilotBudgets Budgets, PilotCase[] Cases, string? BuildFingerprint = null)
+{
+    public bool MuteOutput { get; init; }
+}
 public sealed record PilotStageDurations(double StagingMs, double SupervisionMs, double ValidationMs, double ResultFinalizationMs);
 public sealed record PilotCaseSummary(string Id, string Verdict, string[] Errors, int Executions, double TotalMs, double EffectDurationMs, double ExecutionWindowMs, double OverheadMs, bool OverheadWithinBudget, string Directory, bool ProcessExited, PilotStageDurations? Stages = null, int? EffectId = null, string ScenarioStatus = "RUNNABLE", string[]? DiagnosticIssues = null, string? CopyTrafficScope = null);
 public sealed record PilotBatchSummary(int SchemaVersion, string Verdict, string BuildFingerprint, int Requested, int Passed, int Failed, int Errors, double TotalMs, PilotCaseSummary[] Cases);
@@ -116,6 +119,11 @@ public static class PilotRunner
             }
             string bootstrap = Path.Combine(directory, "bootstrap.json");
             OwnedChildSupervisor.PublishTransientImmutable(bootstrap, recipe);
+            if (manifest.MuteOutput)
+            {
+                Directory.CreateDirectory(settings);
+                OwnedChildSupervisor.PublishTransientImmutable(Path.Combine(settings, "ui-settings.json"), JsonSerializer.SerializeToUtf8Bytes(new { MusicVolume = 0, SoundVolume = 0, VoiceVolume = 0 }));
+            }
             SupervisionRequest request = new($"pilot-{index:D2}-{item.Id}", manifest.Executable, ["--game-dir", manifest.GameDir, "--battle-test", bootstrap, "--resolution", "1920x1080", "--settings-dir", settings, "--control-dir", control, "--save-state", save], manifest.WorkingDirectory, settings, output, control, manifest.Budgets.ToSupervision(), new Dictionary<string, string> { ["MEMORIA_FF8_GAME_DIR"] = manifest.GameDir });
             stagingEnded = total.ElapsedTicks;
             SupervisionOutcome outcome = await OwnedChildSupervisor.RunAsync(request, cancellationToken).ConfigureAwait(false);

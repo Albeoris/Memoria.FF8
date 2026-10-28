@@ -9,6 +9,7 @@
     "working_directory": { "$ref": "#/$defs/path" },
     "game_dir": { "$ref": "#/$defs/path" },
     "output_root": { "$ref": "#/$defs/path" },
+    "mute_output": { "type": "boolean" },
     "build_fingerprint": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
     "budgets": {
       "type": "object",
