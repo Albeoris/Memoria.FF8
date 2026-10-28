@@ -44,7 +44,7 @@ public sealed class ScenarioOrdinaryAttackPreludeTests
             Assert.Equal(carrier, chosen!.FormationId);
             Assert.Equal(carrier, recipe!["encounter"]!.GetValue<int>());
             Assert.Equal(new[] { 0, 255, 255 }, recipe["fixture"]!["combat_party"]!.AsArray().Select(value => value!.GetValue<int>()).ToArray());
-            Assert.Equal("Normal", recipe["atb_mode"]!.GetValue<string>());
+            Assert.Equal("TurnBased", recipe["atb_mode"]!.GetValue<string>());
             Assert.Equal(physical, recipe["target"]!["physical_index"]!.GetValue<int>());
             if (allocation)
             {

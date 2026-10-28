@@ -76,11 +76,12 @@ public sealed class DiagnosticOrdinaryAttackPreludeTests
     }
 
     [Fact]
-    public void Prelude_requires_declared_normal_mode_ordinary_attack_and_original_enemy_identity()
+    public void Prelude_requires_declared_ordinary_attack_and_original_enemy_identity_in_both_supported_modes()
     {
         DiagnosticBattleRequest request = Request();
         request.Validate();
-        Assert.Throws<InvalidDataException>(() => (request with { AtbMode = BattleAtbMode.TurnBased }).Validate());
+        (request with { AtbMode = BattleAtbMode.TurnBased }).Validate();
+        Assert.Throws<InvalidDataException>(() => (request with { AtbMode = (BattleAtbMode)999 }).Validate());
         Assert.Throws<InvalidDataException>(() => (request with { PrepareEntryBeforePresentation = false }).Validate());
         Assert.Throws<InvalidDataException>(() => (request with { Prelude = request.Prelude! with { Input = request.Prelude.Input with { Ability = BattleAbility.Magic } } }).Validate());
         Assert.Throws<InvalidDataException>(() => (request with { Prelude = request.Prelude! with { MaximumCallbacks = 18001 } }).Validate());
@@ -101,6 +102,7 @@ public sealed class DiagnosticOrdinaryAttackPreludeTests
         DiagnosticBattleRequest request = Request() with
         {
             Encounter = encounter,
+            AtbMode = BattleAtbMode.TurnBased,
             Target = Request().Target! with { Stage = world.BattleResources.LoadEncounter(encounter).StageId, Model = model, PhysicalIndex = physical },
             Driver = Request().Driver! with { EnemyAbility = Request().Driver!.EnemyAbility! with { Model = model } },
             Prelude = Request().Prelude! with { DefeatedModel = predecessor, RequireNativeAllocation = allocation, DeathScriptSha256 = Convert.ToHexStringLower(SHA256.HashData(world.BattleResources.ReadEnemyAi(predecessor, 0).Scripts[3])) }
@@ -111,8 +113,8 @@ public sealed class DiagnosticOrdinaryAttackPreludeTests
             BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(original.Capture()))!;
             BattleSession clone = BattleSession.Restore(snapshot);
             clone.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-            clone.ConfigureDiagnosticScheduling(true, request.InstantGuardianForceCharge, request.Driver!.Input.ActorId);
-            Assert.Equal(BattleAtbMode.Normal, original.Mode);
+            clone.ConfigureDiagnosticScheduling(true, request.InstantGuardianForceCharge, request.Prelude!.Input.ActorId);
+            Assert.Equal(BattleAtbMode.TurnBased, original.Mode);
             original.Tick();
             clone.Tick();
             Assert.Equal(JsonSerializer.Serialize(original.Capture()), JsonSerializer.Serialize(clone.Capture()));

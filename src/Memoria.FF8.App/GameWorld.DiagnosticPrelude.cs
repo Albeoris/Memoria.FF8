@@ -85,18 +85,22 @@ internal sealed partial class GameWorld
                         bool damaged = events.Any(value => value.Kind == "Damage" && value.ActorId == attacker.Id && value.TargetId == predecessor.Id && value.Amount > 0);
                         if (attacks > 0 && damaged && spawned == declaration.RequireNativeAllocation && (declaration.RequireNativeAllocation || target.Id == request.Target.ActorId) && observed.Alive && observed.StatisticsReady && observed.PhysicalIndex == request.Target.PhysicalIndex && (observed.Flags & request.Target.FlagsMask) == request.Target.FlagsValue)
                         {
-                            observer.Report("ordinary_attack_prelude", attacks, ordinaryDamage, predecessor, attacker, boundary: true);
                             NativeBattleAiDefinition ai = active.GetCombatantDefinition(target.Id).NativeAi ?? throw new NotSupportedException("Prelude target lacks its original initialized AI bank.");
                             if (ai.LevelBand != request.Driver!.EnemyAbility!.LevelBand)
                             {
                                 throw new InvalidDataException("Native phase allocation did not preserve the declared original ability level band.");
                             }
-                            BattleInput resolvedInput = request.Driver.Input with { ActorId = target.Id, TargetId = request.Driver.Input.TargetId == request.Target.ActorId ? target.Id : request.Driver.Input.TargetId };
-                            DiagnosticTargetExpectation resolvedTarget = request.Target with { ActorId = target.Id };
-                            DiagnosticBattleRequest resolved = request with { Target = resolvedTarget, Driver = request.Driver with { Input = resolvedInput } };
-                            diagnosticBattle = diagnosticBattle! with { Request = resolved };
-                            DiagnosticReceipt = DiagnosticReceipt! with { Prelude = new(declaration, DiagnosticReceipt.BattleInstanceId, active.DiagnosticLifecycleId, startCallback, active.NativeHostCallbacks!.Value, restores, resets, attacks, Stopwatch.GetElapsedTime(started).TotalMilliseconds, predecessorIndex, initialHp, predecessor.CurrentHp, request.Driver.Input, resolvedInput, request.Target, resolvedTarget, observed, events.ToArray(), dispatches.ToArray(), "Bounded declared ordinary Attack preparation through original death AI and activation/allocation. Native callbacks and ATB advance normally; no HP, participant flags, RNG, snapshot or scheduler owner is restored. Full preparation wall time remains overhead.") };
-                            return resolved;
+                            if (request.AtbMode != BattleAtbMode.TurnBased || active.TryHandoffDiagnosticReadinessActor(declaration.Input.ActorId!, target.Id))
+                            {
+                                observer.Report("ordinary_attack_prelude", attacks, ordinaryDamage, predecessor, attacker, boundary: true);
+                                BattleInput resolvedInput = request.Driver.Input with { ActorId = target.Id, TargetId = request.Driver.Input.TargetId == request.Target.ActorId ? target.Id : request.Driver.Input.TargetId };
+                                DiagnosticTargetExpectation resolvedTarget = request.Target with { ActorId = target.Id };
+                                DiagnosticBattleRequest resolved = request with { Target = resolvedTarget, Driver = request.Driver with { Input = resolvedInput } };
+                                string readinessScope = request.AtbMode == BattleAtbMode.TurnBased ? "Only the diagnostic readiness reference is handed from the declared player to the proved initialized focal owner at the existing idle TurnBased boundary." : "Declared Normal scheduling is retained.";
+                                diagnosticBattle = diagnosticBattle! with { Request = resolved };
+                                DiagnosticReceipt = DiagnosticReceipt! with { Prelude = new(declaration, DiagnosticReceipt.BattleInstanceId, active.DiagnosticLifecycleId, startCallback, active.NativeHostCallbacks!.Value, restores, resets, attacks, Stopwatch.GetElapsedTime(started).TotalMilliseconds, predecessorIndex, initialHp, predecessor.CurrentHp, request.Driver.Input, resolvedInput, request.Target, resolvedTarget, observed, events.ToArray(), dispatches.ToArray(), $"Bounded declared ordinary Attack preparation through original death AI and activation/allocation. {readinessScope} Native callbacks and ATB use their existing admission rules; no HP, participant flags, RNG, clock or snapshot is restored. Full preparation wall time remains overhead.") };
+                                return resolved;
+                            }
                         }
                     }
                 }

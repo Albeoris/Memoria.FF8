@@ -165,7 +165,7 @@ internal sealed partial class GameWorld
                 session.SetLimitProgress(limits.Progress);
             }
             PreparedBattleEntry prepared = PrepareBattleEntry(request.Encounter, request.Flags, request.Seed, request.AtbMode, preparedMusic);
-            prepared.Battle.ConfigureDiagnosticScheduling(request.Fixture?.HoldEnemyCommands ?? false, request.InstantGuardianForceCharge, request.Driver?.Input.ActorId);
+            prepared.Battle.ConfigureDiagnosticScheduling(request.Fixture?.HoldEnemyCommands ?? false, request.InstantGuardianForceCharge, request.Prelude?.Input.ActorId ?? request.Driver?.Input.ActorId);
             if (request.Driver?.TerminalHold is { } terminalHold)
             {
                 prepared.Battle.ConfigureDiagnosticTerminalHold(terminalHold);

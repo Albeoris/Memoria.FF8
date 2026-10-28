@@ -12,9 +12,9 @@ internal sealed record DiagnosticBattlePrelude([property: JsonRequired] BattleIn
     internal void Validate(DiagnosticBattleRequest request)
     {
         Input.Validate();
-        if (!request.PrepareEntryBeforePresentation || request.AtbMode != BattleAtbMode.Normal || request.Target is null || request.Driver?.EnemyAbility is null || request.Fixture?.HoldEnemyCommands != true || Input.Kind != BattleInputKind.Action || Input.Ability != BattleAbility.Attack || Input.ActionId != 0 || Input.DrawCast || !Input.MagicTargets.IsEmpty || Input.SmartAttackPreview is not null || Input.ActorId == Input.TargetId || Input.ActorId == request.Driver.Input.ActorId || DefeatedModel is < 0 or > 238 || DefeatedSceneSlot is < 0 or > 7 || MaximumAttacks is < 1 or > 1024 || MaximumCallbacks is < 1 or > 18000 || DeathScriptSha256 is null || DeathScriptSha256.Length != 64 || DeathScriptSha256.Any(character => !Uri.IsHexDigit(character)))
+        if (!request.PrepareEntryBeforePresentation || request.AtbMode is not (BattleAtbMode.Normal or BattleAtbMode.TurnBased) || request.Target is null || request.Driver?.EnemyAbility is null || request.Fixture?.HoldEnemyCommands != true || Input.Kind != BattleInputKind.Action || Input.Ability != BattleAbility.Attack || Input.ActionId != 0 || Input.DrawCast || !Input.MagicTargets.IsEmpty || Input.SmartAttackPreview is not null || Input.ActorId == Input.TargetId || Input.ActorId == request.Driver.Input.ActorId || DefeatedModel is < 0 or > 238 || DefeatedSceneSlot is < 0 or > 7 || MaximumAttacks is < 1 or > 1024 || MaximumCallbacks is < 1 or > 18000 || DeathScriptSha256 is null || DeathScriptSha256.Length != 64 || DeathScriptSha256.Any(character => !Uri.IsHexDigit(character)))
         {
-            throw new InvalidDataException("An ordinary attack prelude requires explicit held-enemy Normal-mode setup, a distinct original opponent, a declared enemy invocation and finite attack/callback bounds.");
+            throw new InvalidDataException("An ordinary attack prelude requires explicit held-enemy setup, a distinct original opponent, a declared enemy invocation and finite attack/callback bounds.");
         }
         if (request.Target.Model != request.Driver.EnemyAbility.Model || request.Target.SceneSlot != request.Driver.EnemyAbility.SceneSlot || request.Target.ActorId != request.Driver.Input.ActorId)
         {

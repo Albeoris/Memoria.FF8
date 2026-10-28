@@ -61,7 +61,7 @@ public sealed class DiagnosticPreparationProgressTests(ITestOutputHelper output)
             }
             Assert.Same(active, world.Battle);
             Assert.Equal(lifecycle, active.DiagnosticLifecycleId);
-            Assert.Equal(BattleAtbMode.Normal, active.Mode);
+            Assert.Equal(request.AtbMode, active.Mode);
             Assert.Equal(0, active.DiagnosticRestoreCount);
             Assert.Equal(0, active.DiagnosticResetCount);
             Assert.DoesNotContain(dispatches, value => value.RequestedEffect == request.Driver!.ExpectedEffect || value.ExecutedEffect == request.Driver!.ExpectedEffect);

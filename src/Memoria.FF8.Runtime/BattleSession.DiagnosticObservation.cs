@@ -83,6 +83,25 @@ public sealed partial class BattleSession
         diagnosticInstantGuardianForceCharge = instantGuardianForceCharge;
     }
 
+    /// <summary>Hands a declared player's diagnostic readiness wait to an initialized enemy at the existing idle TurnBased boundary.</summary>
+    public bool TryHandoffDiagnosticReadinessActor(string expectedPreviousId, string nextId)
+    {
+        if (Mode != BattleAtbMode.TurnBased || !diagnosticHoldEnemyCommands || string.IsNullOrWhiteSpace(expectedPreviousId) || string.IsNullOrWhiteSpace(nextId) || !byId.TryGetValue(expectedPreviousId, out BattleCombatant? previous) || !ReferenceEquals(previous, diagnosticReadinessActor) || !previous.IsPlayer || !byId.TryGetValue(nextId, out BattleCombatant? next))
+        {
+            return false;
+        }
+        if (!CanAdvanceTurnBasedTime || turnAdvance is not null || nativeCallbackTail is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions || pendingSlotsDeal is not null || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0)
+        {
+            return false;
+        }
+        if (next.IsPlayer || next.NativeIndex is not (>= 3 and <= 6) || next.NativeAi is null || next.ResolvedNativeLevel is null || next.NativeAllocationPendingStatistics || (next.NativeCombatantFlags & 0xC3) != 1 || next.IsBusy || !CanNativeBattleActorAct(next))
+        {
+            return false;
+        }
+        diagnosticReadinessActor = next;
+        return true;
+    }
+
     public BattleDiagnosticCombatant[] ObserveDiagnosticCombatants()
     {
         return combatants.Select(ObserveDiagnosticCombatant).ToArray();

@@ -255,7 +255,7 @@ public static partial class ScenarioDiscovery
         if (selectedPrelude is not null)
         {
             result["prelude"] = selectedPrelude;
-            result["atb_mode"] = "Normal";
+            result["atb_mode"] = "TurnBased";
             result["prepare_entry_before_presentation"] = true;
         }
         result["target"] = new JsonObject { ["actor_id"] = actor, ["stage"] = chosen.StageId, ["model"] = owner.ModelId, ["scene_slot"] = chosen.SceneSlot, ["physical_index"] = physical, ["flags_mask"] = 195, ["flags_value"] = 1, ["opening_action"] = null, ["opening_effect"] = null };
