@@ -20,6 +20,7 @@ The Linux Vulkan native runtime includes a narrow swapchain readback synchroniza
 | HarfBuzzSharp / HarfBuzzSharp.NativeAssets.Linux | 8.3.1.5 | [MIT and retained HarfBuzz notices](https://github.com/mono/SkiaSharp) |
 | BCnEncoder.NET | 2.3.0 | [MIT or Unlicense](https://github.com/Nominom/BCnEncoder.NET) |
 | SharpCompress | 0.48.1 | [MIT](https://github.com/adamhathcock/sharpcompress) |
+| System.IO.Hashing | 10.0.12 | [MIT](https://github.com/dotnet/runtime) |
 | MonoGame.Framework.WindowsDX | 3.8.5.1 | [Microsoft Public License](https://github.com/MonoGame/MonoGame) |
 | MonoGame.Framework.Native / MonoGame.Runtime.Windows.Vulkan / MonoGame.Runtime.Windows.DX12 / MonoGame.Runtime.Linux.Vulkan / MonoGame.Runtime.Mac.Vulkan | 3.8.5.1 | [Microsoft Public License and included runtime notices](https://github.com/MonoGame/MonoGame) |
 | SDL3-CS / SDL3-CS.Windows / SDL3-CS.Linux / SDL3-CS.macOS | 3.4.18 | [Package license](https://github.com/edwardgushchin/SDL3-CS/blob/main/LICENSE); native SDL uses the [zlib license](https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt) |

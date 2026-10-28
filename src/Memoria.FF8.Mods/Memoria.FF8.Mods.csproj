@@ -6,6 +6,7 @@
     <ProjectReference Include="../Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
     <PackageReference Include="BCnEncoder.Net" />
     <PackageReference Include="SharpCompress" />
+    <PackageReference Include="System.IO.Hashing" />
     <PackageReference Include="DocumentFormat.OpenXml" />
     <ProjectReference Include="../Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
     <ProjectReference Include="../Memoria.FF8.Resources/Memoria.FF8.Resources.csproj" />

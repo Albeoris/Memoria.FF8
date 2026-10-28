@@ -17,6 +17,35 @@ public sealed record TextureSourcePageAddress(int Page, int X, int Y, int Width,
     public string? Namespace { get; init; }
 }
 
+/// <summary>Source-proved native upload bytes and the region consumed by a logical texture. The byte order is preserved verbatim.</summary>
+public sealed class TextureSourceUpload
+{
+    private readonly Lazy<ReadOnlyMemory<byte>> pixels;
+
+    public TextureSourceUpload(int width, int height, int bytesPerPixel, int nativeMode, Func<ReadOnlyMemory<byte>> pixels, int x = 0, int y = 0, int? regionWidth = null, int? regionHeight = null)
+    {
+        Width = width;
+        Height = height;
+        BytesPerPixel = bytesPerPixel;
+        NativeMode = nativeMode;
+        this.pixels = new Lazy<ReadOnlyMemory<byte>>(pixels);
+        X = x;
+        Y = y;
+        RegionWidth = regionWidth ?? width;
+        RegionHeight = regionHeight ?? height;
+    }
+
+    public int Width { get; }
+    public int Height { get; }
+    public int BytesPerPixel { get; }
+    public int NativeMode { get; }
+    public ReadOnlyMemory<byte> Pixels => pixels.Value;
+    public int X { get; }
+    public int Y { get; }
+    public int RegionWidth { get; }
+    public int RegionHeight { get; }
+}
+
 public sealed class TextureBuildContext
 {
     private readonly Lazy<PixelImage> original;
@@ -50,6 +79,7 @@ public sealed class TextureBuildContext
     public TextureSourceAddress? NativeAlias { get; init; }
     public TextureSourceAddress? NativeSheet { get; init; }
     public TextureSourcePageAddress? NativePage { get; init; }
+    public TextureSourceUpload? NativeUpload { get; init; }
     public string? RequestedVariant { get; init; }
 }
 

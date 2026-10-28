@@ -150,7 +150,7 @@ public sealed class SelectedModelResourceSource : IResourceSource, IResourceSour
         {
             return (Capability(primary, typeof(ITextureReplacementResolver)) as ITextureReplacementResolver)?.Resolve(context);
         }
-        TextureBuildContext donorContext = new(context.Key, models.Descriptor, context.Revision, context.Layout, context.LogicalWidth, context.LogicalHeight, () => context.Original, context.Region, context.PaletteImage, context.PaletteCount, context.EncodedSource) { NativeAlias = context.NativeAlias, NativePage = context.NativePage, NativeSheet = context.NativeSheet, RequestedVariant = context.RequestedVariant };
+        TextureBuildContext donorContext = new(context.Key, models.Descriptor, context.Revision, context.Layout, context.LogicalWidth, context.LogicalHeight, () => context.Original, context.Region, context.PaletteImage, context.PaletteCount, context.EncodedSource) { NativeAlias = context.NativeAlias, NativePage = context.NativePage, NativeSheet = context.NativeSheet, NativeUpload = context.NativeUpload, RequestedVariant = context.RequestedVariant };
         return (Capability(models, typeof(ITextureReplacementResolver)) as ITextureReplacementResolver)?.Resolve(donorContext);
     }
 

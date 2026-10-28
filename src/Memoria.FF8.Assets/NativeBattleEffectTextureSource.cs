@@ -38,6 +38,22 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
         {
             throw new InvalidDataException("Native effect texture queries require a supported depth and positive logical crop.");
         }
+        long retainedRevision = retainedPixels is null ? 0 : retainedRevisions.GetValue(retainedPixels, _ => new()).Value;
+        TextureSourceUpload? upload = resources.Source.Layouts.Contains("demaster-content-upload") ? NativeBattlePcTextureUploadSource.Create(state, page, clut, u, v, width, height, retainedPixels) : null;
+        if (upload is not null)
+        {
+            TextureKey uploadKey = new(new("battle/native-pc-texture"), $"upload/{scope}/{page}/{clut}/{u}/{v}/{width}/{height}/retained/{retainedRevision}");
+            TextureBuildContext uploadContext = new(uploadKey, resources.Source, revisions.GetValue(state, _ => new()).Value, "native-pc-texture-upload", width, height, () => original)
+            {
+                NativeUpload = upload
+            };
+            TextureValue uploadValue = resources.GetTexture(uploadContext, !retained.ContainsKey(uploadKey)).Value;
+            Retain(uploadKey);
+            if (uploadValue.IsReplacement)
+            {
+                return alternatePaletteShift is byte uploadShift ? Alternate(uploadValue.Image, uploadShift) : uploadValue.Image;
+            }
+        }
         ImmutableArray<NativeBattleTextureSourceRegion>? sources = retainedPixels is null ? state.LiveTextureSources : retainedPixels.LiveTextureSources;
         if (sources is null)
         {
@@ -50,7 +66,6 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
         int queryY = pageY + v;
         int paletteX = (clut & 63) * 16;
         int paletteY = (clut & 0x7FFF) >> 6;
-        long retainedRevision = retainedPixels is null ? 0 : retainedRevisions.GetValue(retainedPixels, _ => new()).Value;
         List<(PixelImage Image, int X, int Y, int Width, int Height)> replacements = [];
         foreach (NativeBattleTextureSourceRegion source in sources.Value)
         {

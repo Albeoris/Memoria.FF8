@@ -7,7 +7,7 @@ namespace Memoria.FF8.Mods;
 
 public sealed record DemasterInspection(IReadOnlySet<string> UsablePackageIds, IReadOnlyList<ModDiagnostic> Diagnostics);
 
-/// <summary>Semantic addressing only; the selected source must explicitly publish a compatible layout.</summary>
+/// <summary>Resolves source-published semantic addresses and native upload identities.</summary>
 public sealed partial class DemasterTextureResolver : ITextureReplacementResolver
 {
     private readonly ModCatalogSnapshot catalog;
@@ -27,6 +27,19 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
         {
             string path = file.RelativePath;
             string extension = Path.GetExtension(path);
+            if (IsContentUploadFamily(path))
+            {
+                bool image = extension.Equals(".png", StringComparison.OrdinalIgnoreCase) || extension.Equals(".dds", StringComparison.OrdinalIgnoreCase);
+                if (image && IsContentUploadTarget(path[..^extension.Length]) && (HasLayout(source, ContentUploadLayout) || HasLayout(models, ContentUploadLayout)))
+                {
+                    usable.Add(file.PackageId);
+                }
+                else
+                {
+                    diagnostics.Add(new ModDiagnostic("demaster-unused-content-target", $"Content texture '{path}' has no active native upload target for the selected sources. Native content lookup requires a 16-digit hexadecimal fingerprint followed by '_HD' and a compatible upload layout.", file.PackageId, path));
+                }
+                continue;
+            }
             if (!path.StartsWith("textures/", StringComparison.OrdinalIgnoreCase) || !extension.Equals(".png", StringComparison.OrdinalIgnoreCase) && !extension.Equals(".dds", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
@@ -67,6 +80,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public TextureReplacement? Resolve(TextureBuildContext context)
     {
+        if (ResolveContentUpload(context) is { } content)
+        {
+            return content;
+        }
         if (context.Layout == "classic-field-model")
         {
             return ResolveFieldModelSheet(context);
