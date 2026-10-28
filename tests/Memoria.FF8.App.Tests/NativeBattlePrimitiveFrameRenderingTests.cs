@@ -141,8 +141,8 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     }
 
     [Theory]
-    [InlineData(8, 129, 128)]
-    [InlineData(256, 64, 56)]
+    [InlineData(8, 257, 256)]
+    [InlineData(256, 256, 227)]
     public void Raw_candidates_have_entry_and_byte_bounds_and_clear_after_two_empty_frames(int size, int materials, int expectedCandidates)
     {
         NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
@@ -155,7 +155,8 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         Assert.Equal(materials, renderer.TextureDecoding!.Value.DecodeCount);
         Assert.Equal((long)materials * size * size, renderer.TextureDecoding!.Value.DecodedPixels);
         int bytes = (int)typeof(BattleRenderer).GetField("nativeRawTextureBytes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(renderer)!;
-        Assert.InRange(bytes, 1, 16 * 1024 * 1024);
+        Assert.Equal(expectedCandidates * (size * size * 4 + held.Data.Length), bytes);
+        Assert.InRange(bytes, 1, 64 * 1024 * 1024);
         renderer.RenderNativePrimitiveFrame(Frame([]), state);
         Assert.Equal(0, RawCacheCount(renderer, "nativeRawTexturePages"));
         Assert.Equal(expectedCandidates, RawCacheCount(renderer, "previousNativeRawTexturePages"));

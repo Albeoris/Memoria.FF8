@@ -17,8 +17,8 @@ public sealed partial class BattleRenderer
     private readonly record struct NativeTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels, string? TextureSourceOwner, int SampleKey);
     private Dictionary<NativeTextureKey, PixelImage> nativeTexturePages = [];
     private Dictionary<NativeTextureKey, PixelImage> previousNativeTexturePages = [];
-    private const int MaximumRawTextureCandidates = 128;
-    private const int MaximumRawTextureBytes = 16 * 1024 * 1024;
+    private const int MaximumRawTextureCandidates = 256;
+    private const int MaximumRawTextureBytes = 64 * 1024 * 1024;
     // Raw pixels can stay identical while provenance changes the replacement. Keep only two bounded render endpoints.
     private readonly record struct NativeRawTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcDirectTextureFormat? DirectFormat);
     private readonly record struct NativeRawTextureCandidate(PixelImage Image, NativeBattlePcTextureWindowPixels? Pixels, int Bytes);
