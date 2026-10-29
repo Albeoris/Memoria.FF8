@@ -251,10 +251,11 @@ public static class NativeBattleShellController
                         NativeBattleActionMatrix placement = NativeBattleGfMatrices.Compose56C2F0(inputs.Camera, world);
                         NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), 0x258);
                         NativeBattleEffectHierarchy local = state;
+                        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(33, task);
                         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Shield, 0, (owner, node) =>
                         {
                             NativeBattleShellState retained = current.Memory.Shell33!;
-                            NativeBattleShieldPartDraw drawn = NativeBattleShieldPart.Draw(resources.Shield, node, placement, retained.Blend, inputs.Projection, inputs.Colors, false);
+                            NativeBattleShieldPartDraw drawn = NativeBattleShieldPart.Draw(resources.Shield, node, placement, retained.Blend, inputs.Projection, inputs.Colors, false, identity);
                             current = current with { Memory = current.Memory with { Shell33 = retained with { Blend = drawn.Blend } } };
                             if (drawn.FarColor is uint color)
                             {

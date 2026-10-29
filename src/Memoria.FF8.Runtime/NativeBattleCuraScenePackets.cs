@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>88AF90's scene-node matrix, explicit +12 vertex pointer and immediate572200 submission.</summary>
 public static class NativeBattleCuraScenePackets
 {
-    public static NativeBattleModulePacketBatch Emit88AF90(NativeBattleCuraSceneResource scene, NativeBattleGfAnimationNode node, NativeBattleActionMatrix parentCamera, NativeBattleCameraProjection projection, uint contextFlags, int? sceneFade)
+    public static NativeBattleModulePacketBatch Emit88AF90(NativeBattleCuraSceneResource scene, NativeBattleGfAnimationNode node, NativeBattleActionMatrix parentCamera, NativeBattleCameraProjection projection, uint contextFlags, int? sceneFade, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale.X == 0 && scale.Y == 0 && scale.Z == 0 || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -38,7 +38,7 @@ public static class NativeBattleCuraScenePackets
         {
             flags |= 0xC0;
         }
-        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Mesh, 0) { MeshFlags = flags, MeshFade = fade };
+        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Mesh, 0) { MeshFlags = flags, MeshFade = fade, PilotIdentity = pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + node.NodeIndex) } : null };
         return NativeBattleModulePackets.EmitMesh572200WithVertices(draw, selected.Resource, projection, matrix, selected.Vertices, 17, 2, node.Color32);
     }
 }

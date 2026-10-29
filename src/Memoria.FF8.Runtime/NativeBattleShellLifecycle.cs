@@ -43,7 +43,7 @@ public static class NativeBattleShellLifecycle
             };
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, nodeInputs);
             NativeCrtRandomState random = current.Random;
-            NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, (_, _) => throw new NotSupportedException("Native Shell's authenticated actor descriptors are sprite-only."));
+            NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, (_, _) => throw new NotSupportedException("Native Shell's authenticated actor descriptors are sprite-only."), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(33, context));
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
             bank.Publish();
             owner = owner with { ActorBank = bank.Source };

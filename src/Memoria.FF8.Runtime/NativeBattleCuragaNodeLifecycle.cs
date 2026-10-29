@@ -94,16 +94,23 @@ public static partial class NativeBattleCuragaNodeKinematics
                     return emitted.Batch;
                 };
             }
-            uint flags = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(0x3A)) == 0 ? 0x30u : 0;
-            short fade = unchecked((short)memory.Word(node + 0x1CE));
-            uint? farColor = null;
-            if (fade != 0)
-            {
-                flags |= 0xC0;
-                farColor = memory.Dword(node + 0x16C);
-            }
-            NativeBattleCuragaMeshContext context = new(flags, farColor, fade == 0 ? null : fade, null, null, null, 17, 2);
-            return (NativeBattleGfSourceReader bytes, NativeBattleActionMatrix matrix) => NativeBattleCuragaMeshPackets.EmitBatch87EEB0(bytes, matrix, projection, context, colors: colors, observeFirstThreeFlags: memory.WriteProjectionFlags);
+            NativeBattleEffectNodePilotMeshInstance curagaMesh = PrepareCuragaMesh(memory, node, source, projection, colors, false);
+            return (bytes, matrix) => curagaMesh(bytes, matrix, default);
         };
     }
+
+    private static NativeBattleEffectNodePilotMeshInstance PrepareCuragaMesh(NativeBattleCuragaNodeMemory memory, int node, byte[] source, NativeBattleCameraProjection projection, NativeBattleSummonColors? colors, bool captureVisual = true)
+    {
+        uint flags = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(0x3A)) == 0 ? 0x30u : 0;
+        short fade = unchecked((short)memory.Word(node + 0x1CE));
+        uint? farColor = null;
+        if (fade != 0)
+        {
+            flags |= 0xC0;
+            farColor = memory.Dword(node + 0x16C);
+        }
+        NativeBattleCuragaMeshContext context = new(flags, farColor, fade == 0 ? null : fade, null, null, null, 17, 2);
+        return (NativeBattleGfSourceReader bytes, NativeBattleActionMatrix matrix, NativeBattlePilotVisualIdentity identity) => NativeBattleCuragaMeshPackets.EmitBatch87EEB0(bytes, matrix, projection, context, colors: colors, observeFirstThreeFlags: memory.WriteProjectionFlags, pilotIdentity: captureVisual ? identity : null);
+    }
+
 }

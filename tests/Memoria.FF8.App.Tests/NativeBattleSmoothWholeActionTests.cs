@@ -33,6 +33,22 @@ public sealed class NativeBattleSmoothWholeActionTests
     }
 
     [Theory]
+    [InlineData((ushort)1, 21)]
+    [InlineData((ushort)25, 22)]
+    [InlineData((ushort)28, 23)]
+    [InlineData((ushort)147, 26)]
+    [InlineData((ushort)24, 27)]
+    [InlineData((ushort)32, 29)]
+    [InlineData((ushort)33, 30)]
+    [InlineData((ushort)106, 31)]
+    [InlineData((ushort)125, 35)]
+    [InlineData((ushort)123, 36)]
+    public void Original_status_action_preserves_native_duration_events_and_whole_action_contracts(ushort effect, int action)
+    {
+        AssertWholeAction(effect, action, false, partyTarget: effect != 123);
+    }
+
+    [Theory]
     [InlineData((ushort)116, 0)]
     [InlineData((ushort)185, 1)]
     [InlineData((ushort)201, 2)]
@@ -54,7 +70,7 @@ public sealed class NativeBattleSmoothWholeActionTests
         AssertWholeAction(effect, guardian, true);
     }
 
-    private static void AssertWholeAction(ushort effect, int action, bool guardian)
+    private static void AssertWholeAction(ushort effect, int action, bool guardian, bool partyTarget = false)
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original battle resources are required.");
@@ -64,7 +80,7 @@ public sealed class NativeBattleSmoothWholeActionTests
         session.StartNewGame();
         using GameWorld world = new(session, directory);
         bool quakeGround = effect == 38;
-        string target = guardian && action is 6 or 9 ? "party-0" : quakeGround ? "enemy-0" : "enemy-6";
+        string target = partyTarget || guardian && action is 6 or 9 ? "party-0" : quakeGround ? "enemy-0" : "enemy-6";
         BattleAbility ability = guardian ? BattleAbility.GuardianForce : BattleAbility.Magic;
         DiagnosticBattleDriverRecipe driver = new(new(BattleInputKind.Action, ActorId: "party-0", TargetId: target, Ability: ability, ActionId: action), effect)
         {
@@ -73,7 +89,7 @@ public sealed class NativeBattleSmoothWholeActionTests
         };
         DiagnosticCharacterPreparation character = guardian
             ? new(0, 0, [], [action]) { Commands = [new(0, 21)], HitPoints = 486 }
-            : new(0, 0, [new(action, 2)], [0]) { MagicCommand = new(0, 20), HitPoints = 486 };
+            : new(0, 0, [new(action, 2)], [0]) { MagicCommand = new(0, 20), HitPoints = partyTarget && effect is 1 or 25 or 28 ? (ushort)1 : (ushort)486 };
         DiagnosticBattleRequest request = new(quakeGround ? 94 : 982, 0, 128, 0, 0)
         {
             BattleMusic = 5,

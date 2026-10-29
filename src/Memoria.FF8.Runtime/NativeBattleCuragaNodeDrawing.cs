@@ -12,13 +12,15 @@ public static partial class NativeBattleCuragaNodeKinematics
         ordering = orderingOperation?.View ?? ordering;
         using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         using NativeBattleEffectNodeBank bank = CurrentBank(memory);
+        NativeBattlePilotVisualIdentity? identity = memory.Profile.Effect == 28 ? NativeBattlePilotVisualLifetimes.Identity(28, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)) : null;
+        NativeBattleEffectNodePreparePilotMesh? preparePilot = identity.HasValue ? (node, source) => PrepareCuragaMesh(memory, node, source, projection, colors) : null;
         NativeBattleEffectNodeLifecycle core = CreateLifecycle(memory, bank, readModel);
         if (memory.Profile.StreamsPacketProducers)
         {
-            NativeBattleGfGeometryBatch streamed = core.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMeshes(memory, projection, colors), (meshes, packetBatch) => ordering = StreamBatch(memory, frame, ordering, packetBatch, meshes));
+            NativeBattleGfGeometryBatch streamed = core.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMeshes(memory, projection, colors), (meshes, packetBatch) => ordering = StreamBatch(memory, frame, ordering, packetBatch, meshes), identity, preparePilot);
             return NativeBattleTaskOperation.CompleteStandalone<NativeBattleCuragaNodePresentationStep>(operation, new(FlushCurrent(memory, bank), random, NativeBattleTaskOperation.CompleteOrdering(orderingOperation, ordering), streamed));
         }
-        NativeBattleGfGeometryBatch batch = core.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMeshes(memory, projection, colors));
+        NativeBattleGfGeometryBatch batch = core.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMeshes(memory, projection, colors), pilotIdentity: identity, preparePilotMesh: preparePilot);
         NativeBattleCuragaNodeDrawStep drawn = CommitDraws(memory, bank, ordering, batch);
         return NativeBattleTaskOperation.CompleteStandalone<NativeBattleCuragaNodePresentationStep>(operation, new(drawn.Frame, random, NativeBattleTaskOperation.CompleteOrdering(orderingOperation, drawn.Ordering), batch));
     }
@@ -30,12 +32,14 @@ public static partial class NativeBattleCuragaNodeKinematics
         ordering = orderingOperation?.View ?? ordering;
         using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         using NativeBattleEffectNodeBank bank = CurrentBank(memory);
+        NativeBattlePilotVisualIdentity? identity = memory.Profile.Effect == 28 ? NativeBattlePilotVisualLifetimes.Identity(28, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)) : null;
+        NativeBattleEffectNodePreparePilotMesh? preparePilot = identity.HasValue ? (node, source) => PrepareCuragaMesh(memory, node, source, projection, colors) : null;
         if (memory.Profile.StreamsPacketProducers)
         {
-            NativeBattleGfGeometryBatch streamed = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors), (meshes, packetBatch) => ordering = StreamBatch(memory, frame, ordering, packetBatch, meshes));
+            NativeBattleGfGeometryBatch streamed = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors), (meshes, packetBatch) => ordering = StreamBatch(memory, frame, ordering, packetBatch, meshes), identity, preparePilot);
             return NativeBattleTaskOperation.CompleteStandalone<NativeBattleCuragaNodeDrawStep>(operation, new(FlushCurrent(memory, bank), NativeBattleTaskOperation.CompleteOrdering(orderingOperation, ordering), streamed));
         }
-        NativeBattleGfGeometryBatch batch = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors));
+        NativeBattleGfGeometryBatch batch = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors), pilotIdentity: identity, preparePilotMesh: preparePilot);
         NativeBattleCuragaNodeDrawStep drawn = CommitDraws(memory, bank, ordering, batch);
         return NativeBattleTaskOperation.CompleteStandalone(operation, drawn with { Ordering = NativeBattleTaskOperation.CompleteOrdering(orderingOperation, drawn.Ordering) });
     }

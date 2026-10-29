@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleReflectDrawing
 {
-    public static NativeBattleGfGeometryBatch Hexagon(NativeBattleModulePoolTask task, NativeBattleModulePoolTask parent, NativeBattleReflectResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Hexagon(NativeBattleModulePoolTask task, NativeBattleModulePoolTask parent, NativeBattleReflectResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int age = NativeBattleReflectController.Word(task, 12);
         short angle = NativeBattleReflectController.Word(task, 16);
@@ -23,10 +23,10 @@ public static class NativeBattleReflectDrawing
         short tiltCosine = unchecked((short)NativeBattleCameraMath.Cosine(tilt));
         NativeBattleActionMatrix x = new([4096, 0, 0, 0, tiltCosine, unchecked((short)-tiltSine), 0, tiltSine, tiltCosine], 0, 0, 0, 4096);
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Multiply56C090(turned, x) with { X = point.X, Y = point.Y, Z = point.Z };
-        return NativeBattleModulePackets.EmitBatch572200(resources.Hexagon.Bytes, 0, default, matrix, projection, new(0xF3, 0, 2048 + (progress >> 1), null, null, null, 17, 2), colors);
+        return NativeBattleModulePackets.EmitBatch572200(resources.Hexagon.Bytes, 0, default, matrix, projection, new(0xF3, 0, 2048 + (progress >> 1), null, null, null, 17, 2), colors, pilotIdentity: pilotIdentity);
     }
 
-    public static NativeBattleGfGeometryBatch Ring(NativeBattleModulePoolTask task, NativeBattleReflectResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Ring(NativeBattleModulePoolTask task, NativeBattleReflectResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         short height = NativeBattleReflectController.Word(task, 14);
         short scale = NativeBattleReflectController.Word(task, 16);
@@ -34,6 +34,6 @@ public static class NativeBattleReflectDrawing
         NativeBattleActionMatrix diagonal = new([scale, 0, 0, 0, scale, 0, 0, 0, scale], 0, 0, 0, 4096);
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Multiply56C090(diagonal, view) with { X = point.X, Y = point.Y, Z = point.Z };
         int fade = NativeBattleCameraMath.Sine((NativeBattleReflectController.Word(task, 12) << 10) / 20);
-        return NativeBattleModulePackets.EmitBatch572200(resources.Ring.Bytes, 0, default, matrix, projection, new(0xF3, 0, fade, null, null, null, 17, 2), colors);
+        return NativeBattleModulePackets.EmitBatch572200(resources.Ring.Bytes, 0, default, matrix, projection, new(0xF3, 0, fade, null, null, null, 17, 2), colors, pilotIdentity: pilotIdentity);
     }
 }

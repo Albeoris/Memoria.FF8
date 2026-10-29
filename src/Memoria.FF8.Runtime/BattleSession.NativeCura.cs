@@ -79,7 +79,7 @@ public sealed partial class BattleSession
                     NativeBattleCureActorContext context = current.State.ActorContext ?? throw new NotSupportedException("Native88BDA0 requires its executed88CA90 shared actor context.");
                     NativeBattleGraphicsModel target = graphics.Models[context.Target];
                     graphics = SubmitNativeShadowPackets5088A0(graphics, target, projection, 4112, false);
-                    NativeBattleCureActorPacketBatch batch = NativeBattleCureActorAssembly.Emit88BDA0(target, NativeGraphicsPoseResource(graphics, context.Target), view, projection, actor.Center, actor.VerticalOffset, NativeBattleCuraFamilyProfile.ForEffect(effect.Binding.Effect).ReadContextF4(NativeEffectMemory!));
+                    NativeBattleCureActorPacketBatch batch = NativeBattleCureActorAssembly.Emit88BDA0(target, NativeGraphicsPoseResource(graphics, context.Target), view, projection, actor.Center, actor.VerticalOffset, NativeBattleCuraFamilyProfile.ForEffect(effect.Binding.Effect).ReadContextF4(NativeEffectMemory!), actor.PilotIdentity);
                     foreach (NativeBattleCureAllocatedPrimitive allocation in batch.Primitives)
                     {
                         if (allocation.Bank == NativeBattleCurePacketBank.Process)

@@ -4,7 +4,10 @@ public abstract record NativeBattleCureOperation;
 public sealed record NativeBattleCureSpriteOperation(NativeBattleModuleDraw Draw) : NativeBattleCureOperation;
 public sealed record NativeBattleCureActorInitializeOperation(byte Target) : NativeBattleCureOperation;
 public sealed record NativeBattleCureActorVisibilityOperation(byte Target, bool Hidden) : NativeBattleCureOperation;
-public sealed record NativeBattleCureActorDrawOperation(byte Target, NativeBattleVector Center, short VerticalOffset) : NativeBattleCureOperation;
+public sealed record NativeBattleCureActorDrawOperation(byte Target, NativeBattleVector Center, short VerticalOffset) : NativeBattleCureOperation
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleCureParticleInputs(NativeBattleCureControllerInputs Controller, NativeCrtRandomState CrtRandom, Func<NativeBattleCureFrame, NativeBattleCureOperation, NativeBattleCureFrame> Execute)
 {
     public NativeBattleCameraProjection? Projection { get; init; }
@@ -162,7 +165,7 @@ public static partial class NativeBattleCureParticles
             }
             if ((task.ReadByte(0x26) & 8) != 0)
             {
-                Execute(new NativeBattleCureActorDrawOperation(task.ReadByte(0x2D), new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20)), Word(task, 0x1E)));
+                Execute(new NativeBattleCureActorDrawOperation(task.ReadByte(0x2D), new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20)), Word(task, 0x1E)) { PilotIdentity = frame.Effect.Binding.Effect == 1 ? NativeBattlePilotVisualLifetimes.Identity(1, task, 10) : null });
             }
             DrawSprite();
             if (Word(task, 0x24) < 20 && (task.ReadByte(0x26) & 4) == 0)
@@ -275,7 +278,7 @@ public static partial class NativeBattleCureParticles
         void Draw(uint resourceAddress, int phase, NativeBattleModuleAnchor anchor, int depthOffset, ushort flags, uint color, System.Collections.Immutable.ImmutableArray<short> rotation)
         {
             NativeBattleModuleResource resource = resources.Sprites.Single(resource => resource.Address == resourceAddress);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Anchor = anchor, Phase = unchecked((ushort)phase), Scale = 4096, DepthOffset = depthOffset, Direction = 4096, SpriteFlags = flags, SpriteColor = color, SpriteWorldRotation = rotation };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Anchor = anchor, Phase = unchecked((ushort)phase), Scale = 4096, DepthOffset = depthOffset, Direction = 4096, SpriteFlags = flags, SpriteColor = color, SpriteWorldRotation = rotation, PilotIdentity = frame.Effect.Binding.Effect == 1 ? NativeBattlePilotVisualLifetimes.Identity(1, task, flags == 0 ? 0 : 1) : null };
             Execute(new NativeBattleCureSpriteOperation(draw));
         }
     }

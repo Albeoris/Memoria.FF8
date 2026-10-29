@@ -6,7 +6,10 @@ public sealed record NativeBattleCuraMeshOperation(NativeBattleModulePacketBatch
 public sealed record NativeBattleCuraStageFadeOperation(short Fade, bool ClearRgb) : NativeBattleCuraOperation;
 public sealed record NativeBattleCuraActorInitializeOperation(byte Target) : NativeBattleCuraOperation;
 public sealed record NativeBattleCuraActorVisibilityOperation(byte Target, bool Hidden) : NativeBattleCuraOperation;
-public sealed record NativeBattleCuraActorDrawOperation(byte Target, NativeBattleVector Center, short VerticalOffset) : NativeBattleCuraOperation;
+public sealed record NativeBattleCuraActorDrawOperation(byte Target, NativeBattleVector Center, short VerticalOffset) : NativeBattleCuraOperation
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 
 /// <summary>Cura's original200-byte scene, emitter, stage-fade and copied-actor callbacks.</summary>
 public static partial class NativeBattleCuraParticles
@@ -261,7 +264,7 @@ public static partial class NativeBattleCuraParticles
                     NativeBattleGfAnimationAdvance step = workspace.Advance88A980(source, (current, node) =>
                     {
                         WriteWorkspace(current);
-                        NativeBattleModulePacketBatch batch = NativeBattleCuraScenePackets.Emit88AF90(scene, node, parent, projection, wide ? 0x40000030u : 0x30u, profile.ReadSceneFade(frame.Memory));
+                        NativeBattleModulePacketBatch batch = NativeBattleCuraScenePackets.Emit88AF90(scene, node, parent, projection, wide ? 0x40000030u : 0x30u, profile.ReadSceneFade(frame.Memory), frame.Effect.Binding.Effect == 25 ? NativeBattlePilotVisualLifetimes.Identity(25, task, wide ? 1 : 0) : null);
                         Execute(new NativeBattleCuraMeshOperation(batch));
                         return NativeBattleGfAnimationWorkspace.Borrow(task, 0x60, task.PayloadLength - (0x60 - 12));
                     });
@@ -317,7 +320,7 @@ public static partial class NativeBattleCuraParticles
                 short yaw = unchecked((short)((NativeWorldScriptedPathMath.NativeAngle(camera.Rotation[8], camera.Rotation[2]) + 1024) & 0xFFF));
                 NativeBattleModulePoolTask first = First();
                 task = task.WriteWord(0x52, unchecked((ushort)yaw)).WriteWord(0x1C, unchecked((ushort)(first.ReadWord(0x30) + NativeBattleCameraMath.Sine(yaw) * 1024 / 4096))).WriteWord(0x20, unchecked((ushort)(first.ReadWord(0x34) + NativeBattleCameraMath.Cosine(yaw) * 1024 / 4096)));
-                Execute(new NativeBattleCuraActorDrawOperation(task.ReadByte(0x2D), new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20)), Word(task, 0x1E)));
+                Execute(new NativeBattleCuraActorDrawOperation(task.ReadByte(0x2D), new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20)), Word(task, 0x1E)) { PilotIdentity = frame.Effect.Binding.Effect == 25 ? NativeBattlePilotVisualLifetimes.Identity(25, task, 10) : null });
             }
         }
         void InvalidPhase() => throw new InvalidDataException("Native Cura signed large-particle phase exceeds its original callback table.");

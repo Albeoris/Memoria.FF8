@@ -8,7 +8,7 @@ public sealed record NativeBattleEffectWedgeStep(NativeBattleEffectWedgeFrame Fr
 public static class NativeBattleEffectWedge
 {
     /// <summary>8DCC20's original task, immediate packet and post-draw completion contract, independent of its spell frame.</summary>
-    public static NativeBattleEffectWedgeStep Advance8DCC20(NativeBattleEffectWedgeFrame frame, uint address, NativeCrtRandomState random, Func<byte, NativeBattleModelTransform> readModel, NativeBattleCameraProjection? projection, Func<NativeBattleEffectWedgeFrame, NativeBattleModulePacketBatch, NativeBattleEffectWedgeFrame> execute)
+    public static NativeBattleEffectWedgeStep Advance8DCC20(NativeBattleEffectWedgeFrame frame, uint address, NativeCrtRandomState random, Func<byte, NativeBattleModelTransform> readModel, NativeBattleCameraProjection? projection, Func<NativeBattleEffectWedgeFrame, NativeBattleModulePacketBatch, NativeBattleEffectWedgeFrame> execute, ushort? pilotEffect = null)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
@@ -51,7 +51,7 @@ public static class NativeBattleEffectWedge
         task = task.WriteWord(0x32, unchecked((ushort)((task.ReadWord(0x32) + task.ReadWord(0x58)) & 0xFFF)));
         if ((task.ReadByte(0x26) & 4) == 0)
         {
-            NativeBattleModulePacketBatch batch = Emit8DCC20(task, projection ?? throw new NotSupportedException("Native8DCC20 requires its prior GTE projection registers."));
+            NativeBattleModulePacketBatch batch = Emit8DCC20(task, projection ?? throw new NotSupportedException("Native8DCC20 requires its prior GTE projection registers."), pilotEffect is ushort effect ? NativeBattlePilotVisualLifetimes.Identity(effect, task) : null);
             hierarchy = hierarchy.Write(address, task);
             frame = execute(frame with { Pools = hierarchy.Pools }, batch);
             hierarchy = new(frame.Pools);
@@ -92,17 +92,22 @@ public static class NativeBattleEffectWedge
         }
     }
 
-    public static NativeBattleModulePacketBatch Emit8DCC20(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection)
+    public static NativeBattleModulePacketBatch Emit8DCC20(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleActionMatrix camera = projection.View ?? throw new NotSupportedException("Native8DCC20 requires its prior published camera matrix.");
         short width = Word(task, 0x38);
         short height = Word(task, 0x3A);
         NativeBattleVector[] local = [new(0, 0, 0), new(unchecked((short)(width / 2)), unchecked((short)(height / 2)), 0), new(unchecked((short)(width / 2)), unchecked((short)(-height / 2)), 0), new(width, height, 0), new(width, unchecked((short)-height), 0)];
         NativeBattleVector rotation = new(Word(task, 0x30), Word(task, 0x32), Word(task, 0x34));
-        NativeBattleModuleProjectedVertex[] points = local.Select(point =>
+        System.Numerics.Vector3[]? worldVertices = pilotIdentity.HasValue ? new System.Numerics.Vector3[local.Length] : null;
+        NativeBattleModuleProjectedVertex[] points = local.Select((point, index) =>
         {
             NativeBattleVector rotated = NativeBattlePoseMatrices.RotateVector(rotation, point);
             NativeBattleVector world = new(unchecked((short)(rotated.X + Word(task, 0x1C))), unchecked((short)(rotated.Y + Word(task, 0x1E))), unchecked((short)(rotated.Z + Word(task, 0x20))));
+            if (worldVertices is not null)
+            {
+                worldVertices[index] = new(world.X, world.Y, world.Z);
+            }
             return NativeBattleModuleProjection.Project45FE10(camera, world, projection);
         }).ToArray();
         int otz = Math.Clamp(unchecked((points[0].Depth + points[1].Depth + points[2].Depth) * 0x155) >> 12, 0, 65535);
@@ -111,6 +116,11 @@ public static class NativeBattleEffectWedge
         uint dim = Color(0x48);
         NativeBattleGeometryPrimitive triangle = new(bucket, [0x06000000, 0x32000000 | bright, points[0].Screen, dim, points[1].Screen, dim, points[2].Screen], [points[0].Depth, points[1].Depth, points[2].Depth, 0]);
         NativeBattleGeometryPrimitive quad = new(bucket, [0x08000000, 0x3A000000 | dim, points[1].Screen, dim, points[2].Screen, 0, points[3].Screen, 0, points[4].Screen], [points[1].Depth, points[2].Depth, points[3].Depth, points[4].Depth]);
+        if (pilotIdentity is { } identity && worldVertices is not null)
+        {
+            triangle = triangle with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397) }, worldVertices[0], worldVertices[1], worldVertices[2], default, 3) };
+            quad = quad with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + 1) }, worldVertices[1], worldVertices[2], worldVertices[3], worldVertices[4], 4) };
+        }
         //45BFC0 writes two body words: E1 plus its zero NOP. Its insertion is last, so it traverses before both polygons.
         NativeBattleGeometryPrimitive mode = new(bucket, [0x02000000, 0xE100002A, 0], [0, 0, 0, 0]);
         return new([new(triangle, 0, 0), new(quad, 28, 0), new(mode, 64, 0)], 76);

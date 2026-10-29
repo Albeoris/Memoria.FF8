@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The shared prim-model shield contract; Protect alone reaches offset800 and rotation8000 flags.</summary>
 public static class NativeBattleShieldPart
 {
-    public static NativeBattleShieldPartDraw Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix placement, ImmutableArray<byte> blend, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool protect)
+    public static NativeBattleShieldPartDraw Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix placement, ImmutableArray<byte> blend, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool protect, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -41,7 +41,7 @@ public static class NativeBattleShieldPart
             matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, scale.X, scale.Y, scale.Z);
         }
         uint flags = node.Scalar36 == 0 ? 0x2030u : 0x20F0u;
-        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(data, geometry, selected, matrix, projection, new(flags, node.Scalar36 == 0 ? null : node.Color32, node.Scalar36, null, null, null, 17, 2), colors);
+        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(data, geometry, selected, matrix, projection, new(flags, node.Scalar36 == 0 ? null : node.Color32, node.Scalar36, null, null, null, 17, 2), colors, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + node.NodeIndex) } : null);
         return new(blend, batch, node.Scalar36 == 0 ? null : node.Color32);
     }
 }

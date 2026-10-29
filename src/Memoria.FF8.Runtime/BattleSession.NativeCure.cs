@@ -69,7 +69,7 @@ public sealed partial class BattleSession
                     NativeBattleCureActorContext context = current.State.ActorContext ?? throw new NotSupportedException("Native8D7110 requires its executed8D8280 shared actor context.");
                     NativeBattleGraphicsModel target = graphics.Models[context.Target];
                     graphics = SubmitNativeShadowPackets5088A0(graphics, target, projection, 4112, false);
-                    NativeBattleCureActorPacketBatch batch = NativeBattleCureActorAssembly.Emit8D7110(target, NativeGraphicsPoseResource(graphics, context.Target), current.State.CopiedCamera ?? throw new NotSupportedException("Native8D7110 requires8D6B30's copied camera."), projection, actor.Center, actor.VerticalOffset, effect.Binding.Effect == 50 ? NativeEffectMemory!.Potion50ContextF4 : NativeEffectMemory!.CureContextF4);
+                    NativeBattleCureActorPacketBatch batch = NativeBattleCureActorAssembly.Emit8D7110(target, NativeGraphicsPoseResource(graphics, context.Target), current.State.CopiedCamera ?? throw new NotSupportedException("Native8D7110 requires8D6B30's copied camera."), projection, actor.Center, actor.VerticalOffset, effect.Binding.Effect == 50 ? NativeEffectMemory!.Potion50ContextF4 : NativeEffectMemory!.CureContextF4, actor.PilotIdentity);
                     foreach (NativeBattleCureAllocatedPrimitive allocation in batch.Primitives)
                     {
                         if (allocation.Bank == NativeBattleCurePacketBank.Process)

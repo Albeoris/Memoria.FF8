@@ -204,10 +204,11 @@ public static class NativeBattleProtectController
                         NativeBattleActionMatrix placement = NativeBattleGfMatrices.Compose56C2F0(inputs.Camera, world);
                         NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), 0x470);
                         NativeBattleEffectHierarchy local = state;
+                        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(32, task);
                         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Shield, 0, (owner, node) =>
                         {
                             NativeBattleProtectState retained = current.Memory.Protect32!;
-                            NativeBattleShieldPartDraw drawn = NativeBattleShieldPart.Draw(resources.Shield, node, placement, retained.Blend, inputs.Projection, inputs.Colors, true);
+                            NativeBattleShieldPartDraw drawn = NativeBattleShieldPart.Draw(resources.Shield, node, placement, retained.Blend, inputs.Projection, inputs.Colors, true, identity);
                             current = current with { Memory = current.Memory with { Protect32 = retained with { Blend = drawn.Blend } } };
                             PublishFar(drawn.FarColor);
                             Emit(ref local, new NativeBattleProtectPackets(drawn.Batch));
@@ -291,7 +292,7 @@ public static class NativeBattleProtectController
                     if ((task.ReadByte(0x26) & 4) == 0)
                     {
                         int phaseIndex = Word(task, 0x50);
-                        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Particle, SpriteFrame = resources.Particle.SpriteFrame(phaseIndex), Phase = checked((ushort)phaseIndex), Anchor = new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20), 0), Scale = 4096, Direction = 4096, DepthOffset = Word(task, 0x54), SpriteFlags = 0, SpriteColor = 0x808080 };
+                        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Particle, SpriteFrame = resources.Particle.SpriteFrame(phaseIndex), Phase = checked((ushort)phaseIndex), Anchor = new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20), 0), Scale = 4096, Direction = 4096, DepthOffset = Word(task, 0x54), SpriteFlags = 0, SpriteColor = 0x808080, PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(32, task) };
                         Emit(ref state, new NativeBattleProtectSprite(draw));
                     }
                     break;
@@ -311,7 +312,7 @@ public static class NativeBattleProtectController
                             task = task.WriteWord(0x38, checked((ushort)next)).WriteDword(0x34, command == 254 ? resources.FlashScript[next] : color);
                         }
                         state = state.Write(address, task);
-                        NativeBattleProtectFlash.Emit(task.ReadDword(0x34), batch => Emit(ref state, batch));
+                        NativeBattleProtectFlash.Emit(task.ReadDword(0x34), batch => Emit(ref state, batch), NativeBattlePilotVisualLifetimes.Identity(32, task));
                     }
                     break;
                 default:

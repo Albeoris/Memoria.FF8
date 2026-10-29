@@ -110,9 +110,9 @@ public sealed partial class BattleSession
             cursor = result.Cursor;
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = result.Ordering } };
         }
-        void Sprite(NativeBattleVector position, short size, int frame, NativeBattleActionMatrix? matrix = null, ushort flags = 0, uint color = 0x808080)
+        void Sprite(NativeBattleVector position, short size, int frame, NativeBattleActionMatrix? matrix = null, ushort flags = 0, uint color = 0x808080, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Leaf, SpriteFrame = resources.Leaf.ProjectedFrame571C80(unchecked((ushort)frame)), Anchor = new(position.X, position.Y, position.Z, 0), Scale = size, DepthOffset = -(size >> 3), SpriteFlags = flags, SpriteColor = color };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Leaf, SpriteFrame = resources.Leaf.ProjectedFrame571C80(unchecked((ushort)frame)), Anchor = new(position.X, position.Y, position.Z, 0), Scale = size, DepthOffset = -(size >> 3), SpriteFlags = flags, SpriteColor = color, PilotIdentity = pilotIdentity };
             Emit(NativeBattleMeltdownPacketConversion.FromSprite(NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera!.Roll, 17, 2, matrix)));
         }
         bool Director(ref NativeBattleModulePoolTask node)
@@ -202,7 +202,7 @@ public sealed partial class BattleSession
             NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CE30(new(0, S(node, 24), 0)) with { X = S(node, 16), Y = S(node, 18), Z = S(node, 20) };
             local = NativeBattlePoseMatrices.Scale56BEF0(local, S(node, 28), S(node, 32), S(node, 28));
             NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(view, local);
-            Emit(NativeBattleModulePackets.EmitBatch572200(resources.Envelope.Bytes, 0, resources.Envelope.Bytes.Slice(8, resources.Envelope.Bytes.Length - 8), matrix, projection, new(0xF0, 0, fade, null, null, null, 17, 2), colors));
+            Emit(NativeBattleModulePackets.EmitBatch572200(resources.Envelope.Bytes, 0, resources.Envelope.Bytes.Slice(8, resources.Envelope.Bytes.Length - 8), matrix, projection, new(0xF0, 0, fade, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(147, node)));
             if (paused)
             {
                 return false;
@@ -238,11 +238,11 @@ public sealed partial class BattleSession
             short size = S(node, 32);
             if (age < 14)
             {
-                Sprite(position, size, age >= 8 ? age - 8 : 0);
+                Sprite(position, size, age >= 8 ? age - 8 : 0, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(147, node, 1));
                 NativeBattleActionMatrix shadow = NativeBattleGfMatrices.Euler56CE30(new(1024, 0, 0)) with { X = position.X, Y = 0, Z = position.Z };
                 shadow = NativeBattlePoseMatrices.Scale56BEF0(shadow, size * 2, size * 2, size * 2);
                 byte grey = unchecked((byte)(0x70 - 6 * age));
-                Sprite(position, size, 1, NativeBattleGfMatrices.Compose56C2F0(view, shadow), 4, (uint)(grey * 0x10101));
+                Sprite(position, size, 1, NativeBattleGfMatrices.Compose56C2F0(view, shadow), 4, (uint)(grey * 0x10101), NativeBattlePilotVisualLifetimes.Identity(147, node, 2));
             }
             int trail = TrailOffset(S(node, 22), S(node, 30));
             int frame = 8;
@@ -258,7 +258,8 @@ public sealed partial class BattleSession
                 {
                     frame = counter;
                 }
-                Sprite(new(Read(offset + 4), Read(offset + 6), Read(offset + 8)), Read(offset + 2), frame);
+                NativeBattlePilotVisualIdentity trailIdentity = NativeBattlePilotVisualLifetimes.Identity(147, node, 0x100 + index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(147, state.Storage, checked(0x2476660u + (uint)offset), 0).Generation };
+                Sprite(new(Read(offset + 4), Read(offset + 6), Read(offset + 8)), Read(offset + 2), frame, pilotIdentity: trailIdentity);
                 if (paused)
                 {
                     continue;
@@ -297,6 +298,7 @@ public sealed partial class BattleSession
                 if (index < 16)
                 {
                     int offset = trail + index * 20;
+                    NativeBattlePilotVisualLifetimes.Allocated(state.Storage, checked(0x2476660u + (uint)offset), 0);
                     Write(offset, 1);
                     Write(offset + 2, Rand() % 1536 + 3328);
                     Write(offset + 4, position.X + Rand() % 200 - 100);

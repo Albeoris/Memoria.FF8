@@ -2,16 +2,19 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
+internal delegate NativeBattleGfGeometryBatch NativeBattleEffectNodePilotMeshInstance(NativeBattleGfSourceReader resource, NativeBattleActionMatrix matrix, NativeBattlePilotVisualIdentity identity);
+internal delegate NativeBattleEffectNodePilotMeshInstance NativeBattleEffectNodePreparePilotMesh(int node, byte[] source);
+
 internal sealed partial class NativeBattleEffectNodeLifecycle
 {
-    internal NativeBattleGfGeometryBatch AdvanceAndDraw(ref NativeCrtRandomState random, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleEffectNodePrepareMesh prepareMesh, Action<bool, NativeBattleGfGeometryBatch>? deliver = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    internal NativeBattleGfGeometryBatch AdvanceAndDraw(ref NativeCrtRandomState random, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleEffectNodePrepareMesh prepareMesh, Action<bool, NativeBattleGfGeometryBatch>? deliver = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleEffectNodePreparePilotMesh? preparePilotMesh = null)
     {
         Birth();
         AdvanceList(ref random);
-        return DrawNodes(projection, cameraRoll, prepareMesh, deliver, pilotIdentity);
+        return DrawNodes(projection, cameraRoll, prepareMesh, deliver, pilotIdentity, preparePilotMesh);
     }
 
-    internal NativeBattleGfGeometryBatch DrawNodes(NativeBattleCameraProjection projection, short cameraRoll, NativeBattleEffectNodePrepareMesh prepareMesh, Action<bool, NativeBattleGfGeometryBatch>? deliver = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    internal NativeBattleGfGeometryBatch DrawNodes(NativeBattleCameraProjection projection, short cameraRoll, NativeBattleEffectNodePrepareMesh prepareMesh, Action<bool, NativeBattleGfGeometryBatch>? deliver = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleEffectNodePreparePilotMesh? preparePilotMesh = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         Dictionary<uint, NativeBattleGfSourceReader> resources = [];
@@ -49,7 +52,8 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                 {
                     return;
                 }
-                NativeBattleEffectNodeMeshInstance? emitMesh = meshes ? prepareMesh(node, source) : null;
+                NativeBattleEffectNodePilotMeshInstance? emitPilotMesh = meshes && pilotIdentity.HasValue && preparePilotMesh is not null ? preparePilotMesh(node, source) : null;
+                NativeBattleEffectNodeMeshInstance? emitMesh = meshes && emitPilotMesh is null ? prepareMesh(node, source) : null;
                 int count = unchecked((sbyte)memory.Byte(node + 0x1D8));
                 if (!meshes)
                 {
@@ -73,7 +77,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                     NativeBattleGfGeometryBatch batch;
                     if (meshes)
                     {
-                        batch = emitMesh!(bytes, matrix);
+                        batch = emitPilotMesh is not null ? emitPilotMesh(bytes, matrix, memory.PilotGeometryIdentity(pilotIdentity!.Value, node, instance)) : emitMesh!(bytes, matrix);
                     }
                     else
                     {

@@ -86,6 +86,10 @@ public static partial class NativeBattleCuragaParticles
             }
             uint color = (task.ReadDword(0x34) & 0xFFFFFF) | 0x2A000000;
             NativeBattleGeometryPrimitive quad = new(7, [0x05000000, color, 0, 320, 216u << 16, (216u << 16) | 320], [0, 0, 0, 0]);
+            if (profile.Effect == 28)
+            {
+                quad = quad with { PilotGeometry = new(NativeBattlePilotVisualLifetimes.Identity(28, task), new(0, 0, 0), new(320, 0, 0), new(0, 216, 0), new(320, 216, 0), 4, false) { ScreenSpace = true, ScreenScale = 8 } };
+            }
             //45BFC0(packet,0,0,45C690(0,1,640,0),NULL) emits E1 and an explicit trailing zero DWORD.
             NativeBattleGeometryPrimitive mode = new(7, [0x02000000, 0xE100002A, 0], [0, 0, 0, 0]);
             Execute(new NativeBattleCuragaPacketOperation(new([new(quad, 0, 1), new(mode, 24, 0)], 36)));

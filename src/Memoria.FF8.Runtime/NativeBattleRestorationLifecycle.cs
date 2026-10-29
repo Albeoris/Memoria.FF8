@@ -20,7 +20,8 @@ public static class NativeBattleRestorationLifecycle
         using NativeBattleEffectNodeBank bank = new(memory.Profile.ExecutableAddress, nodeSource);
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, readModel, AllocateEmitter, AllocateGeometry);
         NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
-        NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh);
+        NativeBattlePilotVisualIdentity? identity = memory.Profile.Effect == 24 ? NativeBattlePilotVisualLifetimes.Identity(24, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)) : null;
+        NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh, pilotIdentity: identity, preparePilotMesh: identity.HasValue ? PreparePilotMesh : null);
         NativeBattleRestorationFrame result = memory.Flush();
         bank.Publish();
         NativeBattleRestorationExecutableState written = retained with { Data = bank.Source };
@@ -52,6 +53,12 @@ public static class NativeBattleRestorationLifecycle
 
         NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] source)
         {
+            NativeBattleEffectNodePilotMeshInstance prepared = PreparePilotMesh(node, source);
+            return (bytes, matrix) => prepared(bytes, matrix, default);
+        }
+
+        NativeBattleEffectNodePilotMeshInstance PreparePilotMesh(int node, byte[] source)
+        {
             short sourceFlags = BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A));
             short fade = unchecked((short)memory.Word(node + 0x1CE));
             uint? farColor = fade == 0 ? null : memory.Dword(node + 0x16C);
@@ -63,7 +70,7 @@ public static class NativeBattleRestorationLifecycle
                 {
                     memory.ContextWord(0x2A, prepared.NextUvCounter);
                 }
-                return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch88E240(bytes, matrix, projection, prepared.Context, colors);
+                return (bytes, matrix, owner) => NativeBattleRestorationMeshPackets.EmitBatch88E240(bytes, matrix, projection, prepared.Context, colors, pilotIdentity: identity.HasValue ? owner : null);
             }
             uint flags = sourceFlags == 0 ? 0x30u : 0;
             if (fade != 0)
@@ -71,7 +78,7 @@ public static class NativeBattleRestorationLifecycle
                 flags |= 0xC0;
             }
             NativeBattleFullLifeMeshContext context = new(flags, farColor, fade == 0 ? null : fade, null, null, null, 17, 2);
-            return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch884370(bytes, matrix, projection, context, colors);
+            return (bytes, matrix, _) => NativeBattleRestorationMeshPackets.EmitBatch884370(bytes, matrix, projection, context, colors);
         }
     }
 }

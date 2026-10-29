@@ -5,21 +5,25 @@ namespace Memoria.FF8.Runtime;
 /// <summary>8D8280 replaces the shared actor context's model pointer and target selector.</summary>
 public sealed record NativeBattleCureActorContext(byte Target);
 
-public sealed record NativeBattleCureActorGeometry(NativeBattleRawMesh Mesh, NativeBattleModelTextureBinding Binding, bool AlreadyRelocated = false);
+public sealed record NativeBattleCureActorGeometry(NativeBattleRawMesh Mesh, NativeBattleModelTextureBinding Binding, bool AlreadyRelocated = false)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int AuthoredMesh { get; init; }
+}
 
 public static class NativeBattleCureActorAssembly
 {
-    public static NativeBattleCureActorPacketBatch Emit8D7110(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, NativeBattleActionMatrix copiedCamera, NativeBattleCameraProjection projection, NativeBattleVector center, short verticalOffset, short? contextF4)
+    public static NativeBattleCureActorPacketBatch Emit8D7110(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, NativeBattleActionMatrix copiedCamera, NativeBattleCameraProjection projection, NativeBattleVector center, short verticalOffset, short? contextF4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return Emit(model, resource, copiedCamera, projection, center, verticalOffset, contextF4, NativeBattleCureActorPackets.TextureProjection8D7050(512, 384, 320, 241, 128, 128), 0x808080);
+        return Emit(model, resource, copiedCamera, projection, center, verticalOffset, contextF4, NativeBattleCureActorPackets.TextureProjection8D7050(512, 384, 320, 241, 128, 128), 0x808080, pilotIdentity);
     }
 
-    public static NativeBattleCureActorPacketBatch Emit88BDA0(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, NativeBattleActionMatrix copiedCamera, NativeBattleCameraProjection projection, NativeBattleVector center, short verticalOffset, short? contextF4)
+    public static NativeBattleCureActorPacketBatch Emit88BDA0(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, NativeBattleActionMatrix copiedCamera, NativeBattleCameraProjection projection, NativeBattleVector center, short verticalOffset, short? contextF4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return Emit(model, resource, copiedCamera, projection, center, verticalOffset, contextF4, NativeBattleCureActorPackets.TextureProjection8D7050(640, 448, 320, 244, 128, 64), 0x404040);
+        return Emit(model, resource, copiedCamera, projection, center, verticalOffset, contextF4, NativeBattleCureActorPackets.TextureProjection8D7050(640, 448, 320, 244, 128, 64), 0x404040, pilotIdentity);
     }
 
-    private static NativeBattleCureActorPacketBatch Emit(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, NativeBattleActionMatrix copiedCamera, NativeBattleCameraProjection projection, NativeBattleVector center, short verticalOffset, short? contextF4, NativeBattleCureTextureProjection texture, uint overlayColor)
+    private static NativeBattleCureActorPacketBatch Emit(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource, NativeBattleActionMatrix copiedCamera, NativeBattleCameraProjection projection, NativeBattleVector center, short verticalOffset, short? contextF4, NativeBattleCureTextureProjection texture, uint overlayColor, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native8D7110 requires the actual body skeleton and animation.");
         NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native8D7110 requires the current decoded body pose.");
@@ -32,13 +36,13 @@ public static class NativeBattleCureActorAssembly
         ImmutableArray<NativeBattleCureAllocatedPrimitive>.Builder result = ImmutableArray.CreateBuilder<NativeBattleCureAllocatedPrimitive>();
         foreach (NativeBattleCureActorGeometry geometry in SelectGeometry8D7110(model, resource, sequence.MeshMask124))
         {
-            Emit(geometry.Mesh, geometry.AlreadyRelocated ? null : geometry.Binding);
+            Emit(geometry.Mesh, geometry.AlreadyRelocated ? null : geometry.Binding, geometry.AuthoredMesh);
         }
         return new(result.ToImmutable(), processBytes, effectBytes);
 
-        void Emit(NativeBattleRawMesh mesh, NativeBattleModelTextureBinding? binding)
+        void Emit(NativeBattleRawMesh mesh, NativeBattleModelTextureBinding? binding, int authoredMesh)
         {
-            NativeBattleCureActorPacketBatch batch = NativeBattleCureActorPackets.Emit8D7430([mesh], bones, matrices.MainCamera, matrices.OverlayCamera, projection, 1, color, overlayColor, texture, contextF4 is short known ? unchecked((ushort)known) : null, binding, 17);
+            NativeBattleCureActorPacketBatch batch = NativeBattleCureActorPackets.Emit8D7430([mesh], bones, matrices.MainCamera, matrices.OverlayCamera, projection, 1, color, overlayColor, texture, contextF4 is short known ? unchecked((ushort)known) : null, binding, 17, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + authoredMesh) } : null);
             foreach (NativeBattleCureAllocatedPrimitive allocation in batch.Primitives)
             {
                 int offset = allocation.Bank == NativeBattleCurePacketBank.Process ? processBytes : effectBytes;
@@ -64,7 +68,7 @@ public static class NativeBattleCureActorAssembly
             if ((mask & (1u << (index & 31))) != 0)
             {
                 bool weapon = shared && index == 1;
-                Add(weapon ? linked[0] : body[index], weapon ? model.LinkedTextureSlots : model.BodyTextureSlots, !weapon && resource.GeometryRelocated507550);
+                Add(weapon ? linked[0] : body[index], weapon ? model.LinkedTextureSlots : model.BodyTextureSlots, !weapon && resource.GeometryRelocated507550, index);
             }
         }
         if (!shared)
@@ -73,15 +77,15 @@ public static class NativeBattleCureActorAssembly
             {
                 if ((mask & (1u << (index & 31))) != 0)
                 {
-                    Add(linked[index], model.LinkedTextureSlots);
+                    Add(linked[index], model.LinkedTextureSlots, authoredMesh: 0x10000 + index);
                 }
             }
         }
         return selected.ToImmutable();
 
-        void Add(NativeBattleRawMesh mesh, NativeBattleModelTextureBinding? binding, bool alreadyRelocated = false)
+        void Add(NativeBattleRawMesh mesh, NativeBattleModelTextureBinding? binding, bool alreadyRelocated = false, int authoredMesh = 0)
         {
-            selected.Add(new(mesh, binding ?? throw new NotSupportedException("Native actor drawing requires its executed material relocation."), alreadyRelocated));
+            selected.Add(new(mesh, binding ?? throw new NotSupportedException("Native actor drawing requires its executed material relocation."), alreadyRelocated) { AuthoredMesh = authoredMesh });
         }
     }
 

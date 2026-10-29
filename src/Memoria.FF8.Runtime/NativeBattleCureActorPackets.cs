@@ -27,7 +27,7 @@ public static class NativeBattleCureActorPackets
         return new(unchecked((ushort)page), clut, unchecked((short)(160 - halfWidth)), unchecked((short)(159 + halfWidth)), unchecked((short)(120 - halfHeight)), unchecked((short)(119 + halfHeight)), unchecked((short)(2 * (textureX & 63) + halfWidth - 160)), unchecked((short)((textureY & 255) + halfHeight - 120)));
     }
 
-    public static NativeBattleCureActorPacketBatch Emit8D7430(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> bodyBones, NativeBattleActionMatrix mainCamera, NativeBattleActionMatrix overlayCamera, NativeBattleCameraProjection projection, uint objectMask, uint baseRgb, uint overlayRgb, NativeBattleCureTextureProjection texture, ushort? rejectOverlayBackfaces, NativeBattleModelTextureBinding? textureBinding, int tableBaseBucket)
+    public static NativeBattleCureActorPacketBatch Emit8D7430(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> bodyBones, NativeBattleActionMatrix mainCamera, NativeBattleActionMatrix overlayCamera, NativeBattleCameraProjection projection, uint objectMask, uint baseRgb, uint overlayRgb, NativeBattleCureTextureProjection texture, ushort? rejectOverlayBackfaces, NativeBattleModelTextureBinding? textureBinding, int tableBaseBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (meshes.IsDefault || bodyBones.Count == 0)
         {
@@ -48,7 +48,7 @@ public static class NativeBattleCureActorPackets
             mesh.Validate();
             NativeBattleVector[] vertices = mesh.Vertices.Select(vertex => TransformBone4607E0(vertex, bodyBones)).ToArray();
             //The native function visits only plain FT3/FT4 groups, in that order; colored groups are not submitted.
-            foreach (NativeBattleRawPolygon original in mesh.Polygons.Where(polygon => !polygon.Quad).Concat(mesh.Polygons.Where(polygon => polygon.Quad)))
+            foreach ((NativeBattleRawPolygon original, int polygonIndex) in mesh.Polygons.Select((polygon, index) => (polygon, index)).Where(item => !item.polygon.Quad).Concat(mesh.Polygons.Select((polygon, index) => (polygon, index)).Where(item => item.polygon.Quad)))
             {
                 int count = original.Quad ? 4 : 3;
                 int sourceLength = original.Quad ? 20 : 16;
@@ -81,14 +81,25 @@ public static class NativeBattleCureActorPackets
                     }
                     if (facing > 0 || rejectOverlayBackfaces != 1)
                     {
-                        NativeBattleGeometryPrimitive overlay = Overlay(original.Quad, actual, projected, bucket, overlayRgb, texture);
+                        NativeBattleGeometryPrimitive overlay = Capture(Overlay(original.Quad, actual, projected, bucket, overlayRgb, texture), 1);
                         result.Add(new(overlay, NativeBattleCurePacketBank.EffectPrimary, effectBytes));
                         effectBytes = checked(effectBytes + overlay.Words.Length * 4);
                     }
                 }
-                NativeBattleGeometryPrimitive body = Body(original.Quad, source.AsSpan(), actual, bucket, baseRgb);
+                NativeBattleGeometryPrimitive body = Capture(Body(original.Quad, source.AsSpan(), actual, bucket, baseRgb), 0);
                 result.Add(new(body, NativeBattleCurePacketBank.Process, processBytes));
                 processBytes = checked(processBytes + body.Words.Length * 4);
+
+                NativeBattleGeometryPrimitive Capture(NativeBattleGeometryPrimitive primitive, int layer)
+                {
+                    if (pilotIdentity is not { } identity)
+                    {
+                        return primitive;
+                    }
+                    System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(mainCamera, corners[corner]), projection);
+                    ImmutableArray<int> depths = primitive.VertexPayload4;
+                    return primitive with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 397 + meshIndex) * 397 + polygonIndex * 2 + layer) }, World(0), World(1), World(2), original.Quad ? World(3) : default, checked((byte)count)) { SourceDepths = new(depths[0], depths[1], depths[2], depths[3]), UseSourceDepths = true } };
+                }
             }
         }
         return new(result.ToImmutable(), processBytes, effectBytes);

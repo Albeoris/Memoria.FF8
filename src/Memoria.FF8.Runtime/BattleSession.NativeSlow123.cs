@@ -137,6 +137,7 @@ public sealed partial class BattleSession
         int Play(ref NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleActionMatrix context, int scale)
         {
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size);
+            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(123, task, offset);
             NativeBattleGfAnimationAdvance advance = workspace.Advance701970(source, 0, (current, node) =>
             {
                 if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -166,7 +167,7 @@ public sealed partial class BattleSession
                 uint flags = (node.Header & 0x4000) != 0 ? 0x2000u : 0x2030u;
                 flags |= (node.Header & 0x2000) != 0 ? 12u : 0;
                 flags |= node.Scalar36 != 0 ? 0xC0u : 0;
-                NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, vertices, matrix, projection, new(flags, node.Scalar36 != 0 ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2), colors);
+                NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, vertices, matrix, projection, new(flags, node.Scalar36 != 0 ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2), colors, pilotIdentity: identity with { Primitive = unchecked(identity.Primitive * 397 + node.NodeIndex) });
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch);
                 NativeEffectMemory = written.Memory;
                 effect = effect with { DrawArenaOffset = written.Cursor };

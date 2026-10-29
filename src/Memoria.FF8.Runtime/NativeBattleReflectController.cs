@@ -126,7 +126,7 @@ public static class NativeBattleReflectController
                     {
                         short maximum = phase <= 20 ? unchecked((short)(state.WallMinimum + unchecked((uint)(state.WallSpan * (phase + 1))) / 20u)) : unchecked((short)(state.WallMinimum + state.WallSpan));
                         int fade = phase <= 20 ? 0 : (phase - 20) * 4096 / 15;
-                        NativeBattleCarbuncle278RangeDraw drawn = NativeBattleCarbuncle278RangeMesh.Emit682760(resources.Wall, view, inputs.Projection, state.WallMinimum, maximum, fade, unchecked((ushort)(-(age << 3) & 127)), inputs.Colors);
+                        NativeBattleCarbuncle278RangeDraw drawn = NativeBattleCarbuncle278RangeMesh.Emit682760(resources.Wall, view, inputs.Projection, state.WallMinimum, maximum, fade, unchecked((ushort)(-(age << 3) & 127)), inputs.Colors, NativeBattlePilotVisualLifetimes.Identity(106, task));
                         Emit(drawn.Packets, drawn.FarColorWritten);
                         if (phase < 18 && phase % 6 == 0 && Available(4))
                         {
@@ -163,7 +163,7 @@ public static class NativeBattleReflectController
                     NativeBattleActionMatrix view = ReadMatrix(parent, 52);
                     if (poolIndex == 3)
                     {
-                        NativeBattleGfGeometryBatch batch = NativeBattleReflectDrawing.Hexagon(task, parent, resources, view, inputs.Projection, inputs.Colors);
+                        NativeBattleGfGeometryBatch batch = NativeBattleReflectDrawing.Hexagon(task, parent, resources, view, inputs.Projection, inputs.Colors, NativeBattlePilotVisualLifetimes.Identity(106, task));
                         Emit(batch, true);
                         if (age >= 16)
                         {
@@ -176,7 +176,7 @@ public static class NativeBattleReflectController
                     }
                     else
                     {
-                        Emit(NativeBattleReflectDrawing.Ring(task, resources, view, inputs.Projection, inputs.Colors), true);
+                        Emit(NativeBattleReflectDrawing.Ring(task, resources, view, inputs.Projection, inputs.Colors, NativeBattlePilotVisualLifetimes.Identity(106, task)), true);
                         if (age >= 20)
                         {
                             result = 2;
