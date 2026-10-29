@@ -36,7 +36,7 @@ public static class NativeBattleHoly175CaptureGeometry
             }
             NativeBattleHoly175CaptureDirectoryEntry draw = directory[index];
             ImmutableArray<NativeBattleRawMesh> selected = geometry.Where(mesh => mesh.StageGroup == index).ToImmutableArray();
-            packets.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(selected, group.Matrices, capture, group.ColorFlags, uint.MaxValue, group.ColorDepth, draw.TableBaseBucket, draw.DepthShift, null, colors, publishProjectedScratch));
+            packets.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(selected, group.Matrices, capture, group.ColorFlags, uint.MaxValue, group.ColorDepth, draw.TableBaseBucket, draw.DepthShift, null, colors, publishProjectedScratch, pilotIdentity: new(0, 0, 0, index, 0), pilotScreenSpace: true, pilotContinuous: false));
         }
         return new(stage with { Groups = groups.ToImmutable() }, packets.ToImmutable());
     }

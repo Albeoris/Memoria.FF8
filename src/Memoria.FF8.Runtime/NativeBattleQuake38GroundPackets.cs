@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleQuake38GroundPackets
 {
-    public static NativeBattleGfGeometryBatch Face8D9BE0(ImmutableArray<byte> entry, int first, int second, int centroid, short height, NativeBattleCameraProjection projection, short zsf3)
+    public static NativeBattleGfGeometryBatch Face8D9BE0(ImmutableArray<byte> entry, int first, int second, int centroid, short height, NativeBattleCameraProjection projection, short zsf3, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (entry.IsDefault || entry.Length != 112 || (uint)first >= 5 || (uint)second >= 5 || (uint)centroid >= 5)
         {
@@ -24,7 +24,7 @@ public static class NativeBattleQuake38GroundPackets
         }
         Word(14, BinaryPrimitives.ReadUInt16LittleEndian(entry.AsSpan().Slice(50)));
         Word(22, BinaryPrimitives.ReadUInt16LittleEndian(entry.AsSpan().Slice(48)));
-        return NativeBattleQuake38TrianglePackets.Emit(selectors.Select(Position).ToImmutableArray(), bytes.ToImmutableArray(), mask.ToImmutableArray(), projection, zsf3);
+        return NativeBattleQuake38TrianglePackets.Emit(selectors.Select(Position).ToImmutableArray(), bytes.ToImmutableArray(), mask.ToImmutableArray(), projection, zsf3, pilotIdentity: pilotIdentity);
 
         NativeBattleVector Position(int selector)
         {

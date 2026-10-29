@@ -6,12 +6,13 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The ground's flat and crater-weighted textured triangle/quad stores.</summary>
 public static class NativeBattleTornado146GroundPackets
 {
-    public static NativeBattleGfGeometryBatch Emit616AC0(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<NativeBattleTornado146GroundVertex> vertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short zsf3, short zsf4, short dqa, int dqb, NativeBattleSummonColors colors, Action<int, uint>? storeContext = null)
+    public static NativeBattleGfGeometryBatch Emit616AC0(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<NativeBattleTornado146GroundVertex> vertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short zsf3, short zsf4, short dqa, int dqb, NativeBattleSummonColors colors, Action<int, uint>? storeContext = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
-        foreach (NativeBattleRawPolygon polygon in polygons)
+        for (int polygonIndex = 0; polygonIndex < polygons.Length; polygonIndex++)
         {
+            NativeBattleRawPolygon polygon = polygons[polygonIndex];
             int count = polygon.Quad ? 4 : 3;
             ReadOnlySpan<byte> face = polygon.Bytes.AsSpan();
             if (face.Length != (polygon.Quad ? 24 : 20))
@@ -102,7 +103,17 @@ public static class NativeBattleTornado146GroundPackets
             {
                 depths = depths.Add(0);
             }
-            attempts.Add(packet.Attempt(new(checked(4122 + (int)(average >> (deformed ? 6 : 12))), packet.Words(), depths)));
+            NativeBattleGeometryPrimitive primitive = new(checked(4122 + (int)(average >> (deformed ? 6 : 12))), packet.Words(), depths);
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 World(int corner)
+                {
+                    NativeBattleVector point = corners[corner].Position;
+                    return new(point.X, point.Y, point.Z);
+                }
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + polygonIndex) }, World(0), World(1), World(2), polygon.Quad ? World(3) : default, (byte)count) };
+            }
+            attempts.Add(packet.Attempt(primitive));
             allocated = checked(allocated + length);
         }
         return new(attempts.ToImmutable(), allocated);

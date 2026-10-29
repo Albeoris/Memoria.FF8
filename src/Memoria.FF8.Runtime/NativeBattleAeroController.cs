@@ -6,7 +6,10 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleAeroFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleAeroOperation;
 public sealed record NativeBattleAeroNodeConfig(NativeBattleModuleAnchor Anchor, int ScaleX, int ScaleY, int ScaleZ, bool GlobalScale, int DepthBias, int MorphArenaOffset);
-public sealed record NativeBattleAeroNode(NativeBattleGfAnimationSource Source, NativeBattleGfAnimationNode Node, NativeBattleAeroNodeConfig Config) : NativeBattleAeroOperation;
+public sealed record NativeBattleAeroNode(NativeBattleGfAnimationSource Source, NativeBattleGfAnimationNode Node, NativeBattleAeroNodeConfig Config) : NativeBattleAeroOperation
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleAeroParticle(NativeBattleModulePoolTask Task) : NativeBattleAeroOperation;
 public sealed record NativeBattleAeroSound(NativeBattleModuleAnchor Position) : NativeBattleAeroOperation;
 public sealed record NativeBattleAeroContact(int Contact) : NativeBattleAeroOperation;
@@ -127,14 +130,14 @@ public static class NativeBattleAeroController
                 NativeBattleAeroNodeConfig config = new(firstAnchor, scale, scale, scale, true, (-2048 - transform.Scale38) >> 5, MorphArenaOffset);
                 NativeBattleGfAnimationAdvance first = ReadWorkspace(task, true).Advance701970(resources.SourceA, 0, (current, node) =>
                 {
-                    Emit(new NativeBattleAeroNode(resources.SourceA, node, config));
+                    Emit(new NativeBattleAeroNode(resources.SourceA, node, config) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(118, task, node.NodeIndex * 2) });
                     return current;
                 });
                 task = StoreWorkspace(task, true, first.Workspace);
                 config = config with { Anchor = inputs.ReadPosition(actor) };
                 NativeBattleGfAnimationAdvance second = ReadWorkspace(task, false).Advance701970(resources.SourceB, 0, (current, node) =>
                 {
-                    Emit(new NativeBattleAeroNode(resources.SourceB, node, config));
+                    Emit(new NativeBattleAeroNode(resources.SourceB, node, config) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(118, task, node.NodeIndex * 2 + 1) });
                     return current;
                 });
                 task = StoreWorkspace(task, false, second.Workspace);

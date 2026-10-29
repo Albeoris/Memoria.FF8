@@ -115,6 +115,7 @@ public sealed partial class BattleSession
             int counter = unchecked((short)task.ReadWord(0xC));
             NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
             {
+                PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(105, task),
                 Resource = resource,
                 SpriteFrame = resource.SpriteFrame(counter),
                 Phase = unchecked((ushort)counter),

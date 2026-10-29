@@ -20,7 +20,7 @@ public static partial class NativeBattleHoly175Drawing
             NativeBattleVector point = new(unchecked((short)(rotated.X + driver.X)), unchecked((short)(rotated.Y + driver.Y)), unchecked((short)(rotated.Z + driver.Z)));
             short scale = S(task, 0x1C);
             NativeBattleHoly175SpriteResource resource = resources.Sprite(0xD523E8);
-            NativeBattleModuleDraw draw = Sprite(resource, task.ReadByte(0xC) & 7, point, scale, -(scale >> 4), 0, 0x808080);
+            NativeBattleModuleDraw draw = Sprite(resource, task.ReadByte(0xC) & 7, point, scale, -(scale >> 4), 0, 0x808080) with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(175, task) };
             return new(state, null, NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = view }, cameraRoll, 17, 2), false, draw.SpriteFrame!.NextOffset);
         }
         if (task.Callback == 0x5D3FB0)
@@ -42,7 +42,29 @@ public static partial class NativeBattleHoly175Drawing
             return new(state, new([], 0), null, false, null);
         }
         NativeBattleHoly175MeshDraw mesh = DescribeStandardMesh(task, state, resources, view, projection);
-        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(mesh.Resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors);
+        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(mesh.Resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(175, task));
+        if (task.Callback == 0x5D43B0)
+        {
+            packets = packets with
+            {
+                Attempts = packets.Attempts.Select(attempt =>
+                {
+                    if (attempt.Primitive is not { PilotGeometry: { } geometry } primitive)
+                    {
+                        return attempt;
+                    }
+                    uint command = primitive.Words[1] >> 24;
+                    int stride = 1 + ((command & 4) != 0 ? 1 : 0) + ((command & 0x10) != 0 ? 1 : 0);
+                    System.Numerics.Vector3 Screen(int corner)
+                    {
+                        uint value = primitive.Words[2 + corner * stride];
+                        return new(unchecked((short)value), unchecked((short)(value >> 16)), primitive.VertexPayload4[corner]);
+                    }
+                    NativeBattlePilotVisualGeometry screen = new(geometry.Identity, Screen(0), Screen(1), Screen(2), geometry.CornerCount == 4 ? Screen(3) : default, geometry.CornerCount) { ScreenSpace = true, SourceDepths = new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), UseSourceDepths = true };
+                    return attempt with { Primitive = primitive with { PilotGeometry = screen } };
+                }).ToImmutableArray()
+            };
+        }
         return new(mesh.State, packets, null, false, null);
     }
 
@@ -110,11 +132,28 @@ public static partial class NativeBattleHoly175Drawing
         return (state, NativeBattleHoly175State.LoadMatrix(retained, 0));
     }
 
-    internal static NativeBattleModulePacketBatch EmitLoadedSprite(NativeBattleHoly175SpriteResource resource, int frame, NativeBattleActionMatrix loadedMatrix, NativeBattleCameraProjection projection, short cameraRoll, ushort flags, uint color, int bucket = 17, byte shift = 2)
+    internal static NativeBattleModulePacketBatch EmitLoadedSprite(NativeBattleHoly175SpriteResource resource, int frame, NativeBattleActionMatrix loadedMatrix, NativeBattleCameraProjection projection, short cameraRoll, ushort flags, uint color, int bucket = 17, byte shift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleModuleDraw draw = Sprite(resource, frame, default, 4096, 0, flags, color) with { SpriteWorldRotation = loadedMatrix.Rotation };
+        NativeBattleModuleDraw draw = Sprite(resource, frame, default, 4096, 0, flags, color) with { SpriteWorldRotation = loadedMatrix.Rotation, PilotIdentity = pilotIdentity };
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], loadedMatrix.X, loadedMatrix.Y, loadedMatrix.Z, 4096);
-        return NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = camera }, cameraRoll, bucket, shift);
+        NativeBattleModulePacketBatch packets = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, cameraRoll, bucket, shift, NativeBattlePoseMatrices.ModuleSpriteCamera(draw, camera, cameraRoll));
+        return packets with
+        {
+            Primitives = packets.Primitives.Select(item =>
+            {
+                if (item.Primitive.PilotGeometry is not { } geometry)
+                {
+                    return item;
+                }
+                System.Numerics.Vector3 Screen(int corner)
+                {
+                    uint value = item.Primitive.Words[2 + corner * 2];
+                    return new(unchecked((short)value), unchecked((short)(value >> 16)), item.Primitive.VertexPayload4[corner]);
+                }
+                NativeBattlePilotVisualGeometry screen = new(geometry.Identity, Screen(0), Screen(1), Screen(2), Screen(3), 4) { ScreenSpace = true };
+                return item with { Primitive = item.Primitive with { PilotGeometry = screen } };
+            }).ToImmutableArray()
+        };
     }
 
     private static NativeBattleHoly175DrawingResult DrawRays(NativeBattleModulePoolTask task, NativeBattleHoly175State state, NativeBattleHoly175Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short roll, NativeBattleVector cameraEye)
@@ -152,7 +191,7 @@ public static partial class NativeBattleHoly175Drawing
             NativeBattleVector point = new(unchecked((short)(anchor.X + rotated.X)), unchecked((short)(anchor.Y + rotated.Y)), unchecked((short)(anchor.Z + rotated.Z)));
             (NativeBattleHoly175State nextState, NativeBattleActionMatrix matrix) = ScreenAnchor5D41F0(state, point, scale, view, projection);
             state = nextState;
-            NativeBattleModulePacketBatch batch = EmitLoadedSprite(resources.Sprite(0xD522CC), frame, matrix, projection, roll, flags, color);
+            NativeBattleModulePacketBatch batch = EmitLoadedSprite(resources.Sprite(0xD522CC), frame, matrix, projection, roll, flags, color, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(175, task, index));
             primitives.AddRange(batch.Primitives.Select(primitive => primitive with { ByteOffset = checked(primitive.ByteOffset + allocated) }));
             allocated = checked(allocated + batch.AllocationBytes);
         }

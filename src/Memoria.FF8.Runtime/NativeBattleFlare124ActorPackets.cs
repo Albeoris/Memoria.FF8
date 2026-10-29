@@ -40,7 +40,7 @@ public static class NativeBattleFlare124ActorPackets
         return new(unchecked((ushort)(x << 3)) | unchecked((uint)(y << 3) << 16), vertex.Depth, flags);
     }
 
-    public static NativeBattleFlare124ActorDraw Emit(NativeBattleRawMesh mesh, IReadOnlyList<NativeBattleActionMatrix> cameraBones, NativeBattleCameraProjection projection, uint color, short centerX, short centerY, short radius, int step, int amplitude, int phase, NativeBattleFlare124Resources resources, short zsf3, short zsf4)
+    public static NativeBattleFlare124ActorDraw Emit(NativeBattleRawMesh mesh, IReadOnlyList<NativeBattleActionMatrix> cameraBones, NativeBattleCameraProjection projection, uint color, short centerX, short centerY, short radius, int step, int amplitude, int phase, NativeBattleFlare124Resources resources, short zsf3, short zsf4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         mesh.Validate();
         NativeBattleModuleProjectedVertex[] vertices = new NativeBattleModuleProjectedVertex[mesh.Vertices.Length];
@@ -58,8 +58,10 @@ public static class NativeBattleFlare124ActorPackets
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
-        foreach (NativeBattleRawPolygon face in mesh.Polygons.Where(face => !face.Quad && face.Bytes.Length == 16).Concat(mesh.Polygons.Where(face => face.Quad && face.Bytes.Length == 20)))
+        IEnumerable<int> faceIndices = Enumerable.Range(0, mesh.Polygons.Length).Where(index => !mesh.Polygons[index].Quad && mesh.Polygons[index].Bytes.Length == 16).Concat(Enumerable.Range(0, mesh.Polygons.Length).Where(index => mesh.Polygons[index].Quad && mesh.Polygons[index].Bytes.Length == 20));
+        foreach (int faceIndex in faceIndices)
         {
+            NativeBattleRawPolygon face = mesh.Polygons[faceIndex];
             int count = face.Quad ? 4 : 3;
             NativeBattleModuleProjectedVertex[] corners = new NativeBattleModuleProjectedVertex[count];
             uint union = 0;
@@ -92,7 +94,13 @@ public static class NativeBattleFlare124ActorPackets
             }
             uint depth = unchecked((uint)(corners.Sum(vertex => (int)vertex.Depth) * (face.Quad ? zsf4 : zsf3))) >> 12;
             ImmutableArray<int> depths = corners.Select(vertex => (int)vertex.Depth).ToImmutableArray();
-            attempts.Add(packet.Attempt(new(checked(17 + (int)depth), packet.Words(), face.Quad ? depths : depths.Add(0))));
+            NativeBattleGeometryPrimitive primitive = new(checked(17 + (int)depth), packet.Words(), face.Quad ? depths : depths.Add(0));
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 Screen(int corner) => new(unchecked((short)corners[corner].Screen), unchecked((short)(corners[corner].Screen >> 16)), corners[corner].Depth);
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + faceIndex) }, Screen(0), Screen(1), Screen(2), face.Quad ? Screen(3) : default, (byte)count) { ScreenSpace = true } };
+            }
+            attempts.Add(packet.Attempt(primitive));
             allocation = checked(allocation + length);
         }
         return new(new(attempts.ToImmutable(), allocation), maximum, work.ToImmutableArray());

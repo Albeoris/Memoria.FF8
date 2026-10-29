@@ -69,6 +69,7 @@ public static class NativeBattleThundaga105Debris
         W(bank, offset + 6, 4096);
         random = random.Draw(out ushort decay);
         W(bank, offset + 0x4E, -100 - (decay & 127));
+        NativeBattlePilotVisualLifetimes.Allocated(arena, NativeBattleThundaga105Controller.ArenaAddress + ArenaOffset, free);
         return new(memory with { Arena = arena.Write(ArenaOffset + free * Stride, bank) }, random, free);
     }
 
@@ -165,6 +166,8 @@ public static class NativeBattleThundaga105Debris
             }
             //The fourth payload component is unconsumed canonical padding for this triangle caller.
             NativeBattleGeometryPrimitive primitive = new(17 + (depth >> 2), packet.Words(), [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, 0]);
+            System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, V(bank, offset + 0x18 + corner * 8)), projection);
+            primitive = primitive with { PilotGeometry = new(NativeBattlePilotVisualLifetimes.Identity(105, arena, NativeBattleThundaga105Controller.ArenaAddress + ArenaOffset, row), World(0), World(1), World(2), default, 3) };
             attempts.Add(packet.Attempt(primitive));
             allocated = checked(allocated + 40);
         }

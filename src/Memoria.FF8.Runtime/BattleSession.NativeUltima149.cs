@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -17,6 +18,9 @@ public sealed partial class BattleSession
         private NativeBattleUltima149State state;
         private NativeBattleEffectTaskPool[] pools;
         private NativeCrtRandomState random;
+        private static readonly ConditionalWeakTable<BattleSession, NativeBattleUltima149ParticleVisualLifetimes> particleVisualOwners = new();
+        private readonly NativeBattleUltima149ParticleVisualLifetimes particleVisuals;
+        private NativeBattlePilotVisualIdentity drawingIdentity;
         private NativeBattleEffectMemory Memory
         {
             get => owner.NativeEffectMemory ?? throw new NotSupportedException("Native Ultima requires its retained effect memory.");
@@ -30,6 +34,7 @@ public sealed partial class BattleSession
         public NativeUltima149Runner(BattleSession owner, NativeBattleGraphicsState graphics)
         {
             this.owner = owner;
+            particleVisuals = particleVisualOwners.GetValue(owner, _ => new());
             this.graphics = graphics;
             effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native Ultima requires its original action owner.");
             resources = effect.Binding.Ultima149Resources ?? throw new NotSupportedException("Native Ultima requires its complete original resources.");
@@ -76,6 +81,7 @@ public sealed partial class BattleSession
                     {
                         pools[1] = current;
                         NativeBattleModulePoolTask child = current.Slots[childSlot];
+                        drawingIdentity = NativeBattlePilotVisualLifetimes.Identity(149, child);
                         int code = Step(ref child);
                         child = child.UpdateHeader(child.Flags, child.State, pools[1].Slots[childSlot].Next, child.Callback);
                         Put(1, childSlot, child);
@@ -164,9 +170,9 @@ public sealed partial class BattleSession
             effect = effect with { DrawArenaOffset = written.Cursor };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
         }
-        private void Mesh(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, uint flags, uint? far = null, int? fade = null, byte depthShift = 2, ImmutableArray<byte> vertices = default)
+        private void Mesh(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, uint flags, uint? far = null, int? fade = null, byte depthShift = 2, ImmutableArray<byte> vertices = default, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
-            Append(NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, vertices, matrix, Projection, new(flags, far, fade, null, null, null, 17, depthShift), Colors));
+            Append(NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, vertices, matrix, Projection, new(flags, far, fade, null, null, null, 17, depthShift), Colors, pilotIdentity: pilotIdentity ?? drawingIdentity));
         }
     }
 

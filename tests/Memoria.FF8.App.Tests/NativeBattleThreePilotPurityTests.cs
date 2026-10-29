@@ -16,6 +16,16 @@ public sealed class NativeBattleThreePilotPurityTests
     [InlineData((ushort)143, 3)]
     [InlineData((ushort)103, 5)]
     [InlineData((ushort)104, 6)]
+    [InlineData((ushort)102, 8)]
+    [InlineData((ushort)105, 9)]
+    [InlineData((ushort)222, 10)]
+    [InlineData((ushort)118, 11)]
+    [InlineData((ushort)22, 12)]
+    [InlineData((ushort)175, 14)]
+    [InlineData((ushort)124, 15)]
+    [InlineData((ushort)38, 17)]
+    [InlineData((ushort)146, 18)]
+    [InlineData((ushort)149, 19)]
     public void Original_spell_fractional_draws_preserve_full_native_state_and_the_next_callback(ushort effect, int action)
     {
         AssertPurePresentation(effect, action, false);
@@ -52,7 +62,8 @@ public sealed class NativeBattleThreePilotPurityTests
         GameSession session = GameWorld.CreateColdProcess(directory);
         session.StartNewGame();
         using GameWorld world = new(session, directory);
-        DiagnosticBattleDriverRecipe driver = new(new(BattleInputKind.Action, ActorId: "party-0", TargetId: guardian && action is 6 or 9 ? "party-0" : "enemy-6", Ability: guardian ? BattleAbility.GuardianForce : BattleAbility.Magic, ActionId: action), effect)
+        bool quakeGround = effect == 38;
+        DiagnosticBattleDriverRecipe driver = new(new(BattleInputKind.Action, ActorId: "party-0", TargetId: guardian && action is 6 or 9 ? "party-0" : quakeGround ? "enemy-0" : "enemy-6", Ability: guardian ? BattleAbility.GuardianForce : BattleAbility.Magic, ActionId: action), effect)
         {
             ExpectedNativeAction = guardian ? 64 + action : action,
             ExpectedNativeCommand = guardian ? (byte)254 : (byte)2
@@ -60,12 +71,12 @@ public sealed class NativeBattleThreePilotPurityTests
         DiagnosticCharacterPreparation character = guardian
             ? new(0, 0, [], [action]) { Commands = [new(0, 21)], HitPoints = 486 }
             : new(0, 0, [new(action, 2)], [0]) { MagicCommand = new(0, 20), HitPoints = 486 };
-        DiagnosticBattleRequest request = new(982, 0, 128, 0, 0)
+        DiagnosticBattleRequest request = new(quakeGround ? 94 : 982, 0, 128, 0, 0)
         {
             BattleMusic = 5,
             PrimaryMusicChannel = -1,
             Fixture = new([new(guardian ? action : 0, true)], [character], true),
-            Target = new("enemy-6", 142, 126, 6, 3, 195, 1, 355, 76),
+            Target = quakeGround ? new("enemy-0", 31, 61, 0, 3, 0xC3, 1, null, null) : new("enemy-6", 142, 126, 6, 3, 195, 1, 355, 76),
             Driver = driver,
             PrepareEntryBeforePresentation = true
         };

@@ -71,7 +71,7 @@ public static class NativeBattleTornado146Funnel
         state = state with { FunnelTranslation = translation };
         NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)) with { X = translation.X, Y = translation.Y, Z = translation.Z };
         NativeBattleCameraProjection current = projection with { View = NativeBattleGfMatrices.Compose56C2F0(projection.View ?? throw new NotSupportedException("Native Tornado funnel requires its current camera matrix."), local) };
-        (state, ordering, staging) = Draw(state, ordering, staging, current, age);
+        (state, ordering, staging) = Draw(state, ordering, staging, current, age, NativeBattlePilotVisualLifetimes.Identity(146, task));
         if ((updateFlags & 0x201) != 0)
         {
             return new(state, task, random, ordering, staging, 0);
@@ -163,7 +163,7 @@ public static class NativeBattleTornado146Funnel
         }
     }
 
-    private static (NativeBattleTornado146State State, NativeBattleLogicalOrdering Ordering, NativeBattleFileStaging Staging) Draw(NativeBattleTornado146State state, NativeBattleLogicalOrdering ordering, NativeBattleFileStaging staging, NativeBattleCameraProjection projection, int age)
+    private static (NativeBattleTornado146State State, NativeBattleLogicalOrdering Ordering, NativeBattleFileStaging Staging) Draw(NativeBattleTornado146State state, NativeBattleLogicalOrdering ordering, NativeBattleFileStaging staging, NativeBattleCameraProjection projection, int age, NativeBattlePilotVisualIdentity pilotIdentity)
     {
         using NativeBattleTornado146Work work = new(state);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 288);
@@ -209,6 +209,12 @@ public static class NativeBattleTornado146Funnel
                     }
                     SkinWrites stores = Stores();
                     NativeBattleGeometryPrimitive primitive = new(17 + (average >> 2), words.ToImmutableArray(), vertices.Select(vertex => (int)vertex.Depth).ToImmutableArray());
+                    System.Numerics.Vector3 World(int buffer, int vertex)
+                    {
+                        NativeBattleVector point = scratch.Vector(buffer * 136 + 8 + vertex * 8);
+                        return new(point.X + state.FunnelTranslation.X, point.Y + state.FunnelTranslation.Y, point.Z + state.FunnelTranslation.Z);
+                    }
+                    primitive = primitive with { PilotGeometry = new(pilotIdentity with { Primitive = band * 16 + segment }, World(next, segment), World(next, segment + 1), World(previous, segment), World(previous, segment + 1), 4) };
                     attempts.Add(stores.Attempt(primitive));
                     accepted = Math.Max(accepted, offset + 40);
                 }

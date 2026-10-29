@@ -10,20 +10,21 @@ public static class NativeBattleQuake38DebrisPackets
         NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.Identity8DD770() with { X = Read(28), Y = Read(30), Z = Read(32) };
         matrix = NativeBattleCuragaMatrices.RotateY8DD8A0(matrix, Read(70));
         matrix = NativeBattleCuragaMatrices.RotateX8DD7E0(matrix, Read(68));
+        NativeBattleActionMatrix world = matrix;
         matrix = NativeBattleGfMatrices.Compose56C2F0(projection.View ?? throw new NotSupportedException("Native Quake debris requires its current camera matrix."), matrix);
         NativeBattleCameraProjection local = projection with { View = matrix };
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
-        Face([0, 1, 2], 164);
-        Face([5, 4, 3], 168);
-        Side([1, 0, 4, 3]);
-        Side([2, 1, 5, 4]);
-        Side([0, 2, 3, 5]);
+        Face([0, 1, 2], 164, 0);
+        Face([5, 4, 3], 168, 1);
+        Side([1, 0, 4, 3], 2);
+        Side([2, 1, 5, 4], 3);
+        Side([0, 2, 3, 5], 4);
         return new(attempts.ToImmutable(), allocated);
 
         short Read(int offset) => unchecked((short)task.ReadWord(offset));
         NativeBattleVector Position(int selector) => new(Read(92 + selector * 8), Read(94 + selector * 8), Read(96 + selector * 8));
-        void Face(int[] selectors, int color)
+        void Face(int[] selectors, int color, int primitive)
         {
             Fields fields = new(32);
             fields.Dword(0, 0x07000000);
@@ -35,9 +36,9 @@ public static class NativeBattleQuake38DebrisPackets
             }
             fields.Word(14, task.ReadWord(162));
             fields.Word(22, task.ReadWord(160));
-            Append(NativeBattleQuake38TrianglePackets.Emit(selectors.Select(Position).ToImmutableArray(), fields.Data.ToImmutableArray(), fields.Mask.ToImmutableArray(), local, zsf3, false));
+            Append(NativeBattleQuake38TrianglePackets.Emit(selectors.Select(Position).ToImmutableArray(), fields.Data.ToImmutableArray(), fields.Mask.ToImmutableArray(), local, zsf3, false, NativeBattlePilotVisualLifetimes.Identity(38, task, primitive), world));
         }
-        void Side(int[] selectors)
+        void Side(int[] selectors, int primitive)
         {
             Fields fields = new(40);
             fields.Dword(0, 0x09000000);
@@ -50,7 +51,7 @@ public static class NativeBattleQuake38DebrisPackets
             }
             fields.Word(14, task.ReadWord(162));
             fields.Word(22, task.ReadWord(160));
-            Append(NativeBattleQuake38QuadPackets.Emit(selectors.Select(Position).ToImmutableArray(), fields.Data.ToImmutableArray(), fields.Mask.ToImmutableArray(), local, zsf4, false));
+            Append(NativeBattleQuake38QuadPackets.Emit(selectors.Select(Position).ToImmutableArray(), fields.Data.ToImmutableArray(), fields.Mask.ToImmutableArray(), local, zsf4, false, NativeBattlePilotVisualLifetimes.Identity(38, task, primitive), world));
         }
         void Append(NativeBattleGfGeometryBatch batch)
         {

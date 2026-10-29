@@ -40,7 +40,7 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(resources.Sound, 1, sound.Position);
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleAeroNode node:
-                    NativeBattleAeroNodeDraw draw = NativeBattleAeroDrawing.Node(current.Memory, node.Source, node.Node, node.Config, view, billboard, projection, colors);
+                    NativeBattleAeroNodeDraw draw = NativeBattleAeroDrawing.Node(current.Memory, node.Source, node.Node, node.Config, view, billboard, projection, colors, node.PilotIdentity);
                     return Append(current with { Memory = draw.Memory }, draw.Packets);
                 case NativeBattleAeroParticle particle:
                     return Append(current, NativeBattleAeroDrawing.Particle(particle.Task, resources, projection, view, colors));

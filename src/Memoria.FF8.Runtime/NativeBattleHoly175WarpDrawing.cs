@@ -39,8 +39,10 @@ public static class NativeBattleHoly175WarpDrawing
         int privateCursor = frame.PrivateCursor;
         using NativeBattleLogicalOrdering.Builder ordering = new(frame.Ordering);
         int alive = 0;
+        int authoredFace = 0;
         for (int faceIndex = 0; faceIndex < 1120; faceIndex++)
         {
+            authoredFace = faceIndex;
             int faceOffset = faceIndex * 36;
             short delay = S(state.Faces.Read(faceOffset + 0x12, 2), 0);
             if (delay < 0)
@@ -139,6 +141,18 @@ public static class NativeBattleHoly175WarpDrawing
             return result;
         }
         uint PointAddress(int faceOffset, int corner) => BinaryPrimitives.ReadUInt32LittleEndian(state.Faces.Read(faceOffset + corner * 4, 4));
+        NativeBattlePilotVisualGeometry Capture(ImmutableArray<uint> words)
+        {
+            bool textured = (words[1] >> 24 & 4) != 0;
+            System.Numerics.Vector3 Screen(int corner)
+            {
+                uint value = words[2 + corner * (textured ? 2 : 1)];
+                return new(unchecked((short)value), unchecked((short)(value >> 16)), depths[corner]);
+            }
+            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(175, frame.State.Faces, 0x5D2BC0, authoredFace);
+            return new(identity, Screen(0), Screen(1), Screen(2), default, 3) { ScreenSpace = true, SourceDepths = new(depths[0], depths[1], depths[2], depths[3]), UseSourceDepths = true };
+        }
+
         void InsertStatic(int offset, int bucket)
         {
             if (ordering.ProxyCount >= NativeBattlePrimitiveOrdering.ProxyCapacity)
@@ -146,7 +160,7 @@ public static class NativeBattleHoly175WarpDrawing
                 return;
             }
             ImmutableArray<uint> words = ReadPacket(packets, offset);
-            ordering.Prepend(bucket, new(PacketBank, 0, offset), words, 0, depths.ToImmutableArray());
+            ordering.Prepend(bucket, new(PacketBank, 0, offset), words, 0, depths.ToImmutableArray(), pilotGeometry: Capture(words));
             packets = packets.Write(offset, NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink));
         }
         void InsertPrivate(int offset)
@@ -155,7 +169,7 @@ public static class NativeBattleHoly175WarpDrawing
             {
                 return;
             }
-            ordering.Prepend(4121, new("20DFAB8", 0, offset), ReadPacket(privateArena, offset), 0, depths.ToImmutableArray());
+            ordering.Prepend(4121, new("20DFAB8", 0, offset), ReadPacket(privateArena, offset), 0, depths.ToImmutableArray(), pilotGeometry: Capture(ReadPacket(privateArena, offset)));
             privateArena = privateArena.Write(offset, NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink));
         }
     }

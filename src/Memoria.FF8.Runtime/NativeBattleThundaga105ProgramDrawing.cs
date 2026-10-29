@@ -27,7 +27,7 @@ public static class NativeBattleThundaga105ProgramDrawing
         int allocated = 0;
         NativeBattleGfAnimationAdvance advance = Workspace(task).Advance701970(source, 0, (current, node) =>
         {
-            NativeBattleThundaga105NodeDraw draw = Node6D4910(memory, source, node, selector, unchecked((ushort)current.Frame), ownerScale, anchor, view, normalizedBillboard, projection, colors);
+            NativeBattleThundaga105NodeDraw draw = Node6D4910(memory, source, node, selector, unchecked((ushort)current.Frame), ownerScale, anchor, view, normalizedBillboard, projection, colors, NativeBattlePilotVisualLifetimes.Identity(105, task, node.NodeIndex));
             memory = draw.Memory;
             attempts.AddRange(draw.Packets.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) }));
             allocated = checked(allocated + draw.Packets.AllocationBytes);
@@ -36,7 +36,7 @@ public static class NativeBattleThundaga105ProgramDrawing
         return new(memory, Store(task, advance.Workspace), advance.Remaining, new(attempts.ToImmutable(), allocated));
     }
 
-    public static NativeBattleThundaga105NodeDraw Node6D4910(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, ImmutableArray<byte> selector, ushort frame, int ownerScale, ImmutableArray<byte> anchor, NativeBattleActionMatrix view, NativeBattleActionMatrix normalizedBillboard, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleThundaga105NodeDraw Node6D4910(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, ImmutableArray<byte> selector, ushort frame, int ownerScale, ImmutableArray<byte> anchor, NativeBattleActionMatrix view, NativeBattleActionMatrix normalizedBillboard, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ValidateContext(selector, anchor);
         if (node.Data.IsDefault || node.Data.Length != 44)
@@ -85,7 +85,7 @@ public static class NativeBattleThundaga105ProgramDrawing
         uint flags = node.Scalar36 != 0 ? 0x20F0u : 0x2030u;
         if (selector[node.NodeIndex] == 0)
         {
-            return new(memory, NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, selected, matrix, projection, new(flags, node.Color32, node.Scalar36, null, null, null, 17, 2), colors));
+            return new(memory, NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, selected, matrix, projection, new(flags, node.Color32, node.Scalar36, null, null, null, 17, 2), colors, pilotIdentity: pilotIdentity));
         }
         matrix = matrix with { Z = unchecked(matrix.Z - 256) };
         int cursor = checked(geometry + I32(geometry));
@@ -114,6 +114,24 @@ public static class NativeBattleThundaga105ProgramDrawing
                 NativeBattleEffectMeshWindow window = new(0, v, new(0, 0, 256, 256), new(0, 128, 0, 128), true, gouraud ? (byte)0 : (byte)128);
                 uint cueFlag = node.Scalar36 == 0 ? 0u : gouraud ? 0x80u : 0x40u;
                 NativeBattleGfGeometryBatch batch = NativeBattleEffectMeshPackets.EmitTextured(face, corner => Project(BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2))), true, gouraud, new(cueFlag, node.Color32, node.Scalar36, null, null, 0, false, null, 17, 2, window), colors, allocated, NativeBattleEffectMeshClip.OutsideScreen);
+                if (pilotIdentity is { } identity)
+                {
+                    System.Numerics.Vector3[] world = new System.Numerics.Vector3[4];
+                    for (int corner = 0; corner < 4; corner++)
+                    {
+                        int offset = BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)) * 4;
+                        ReadOnlySpan<byte> point = selected.AsSpan(offset, 6);
+                        NativeBattleVector local = new(BinaryPrimitives.ReadInt16LittleEndian(point), BinaryPrimitives.ReadInt16LittleEndian(point[2..]), BinaryPrimitives.ReadInt16LittleEndian(point[4..]));
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, local), projection);
+                    }
+                    NativeBattlePilotVisualIdentity current = identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) };
+                    batch = batch with
+                    {
+                        Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive && (primitive.Words[primitive.Words[1] >> 24 == 0xE2 ? 2 : 1] >> 24 & 0xFC) is >= 0x20 and <= 0x3C
+                            ? attempt with { Primitive = primitive with { PilotGeometry = new(current, world[0], world[1], world[2], world[3], 4) } }
+                            : attempt).ToImmutableArray()
+                    };
+                }
                 attempts.AddRange(batch.Attempts);
                 allocated = checked(allocated + batch.AllocationBytes);
                 cursor = checked(cursor + length);

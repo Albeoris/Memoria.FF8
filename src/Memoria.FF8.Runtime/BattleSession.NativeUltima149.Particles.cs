@@ -10,6 +10,10 @@ public sealed partial class BattleSession
         private NativeBattleUltima149Particle Particle(bool a, int index) => new((a ? state.ParticlesA : state.ParticlesB).Slice(index * 24, 24));
         private void Particle(bool a, int index, NativeBattleUltima149Particle particle)
         {
+            if (Particle(a, index).Type == 0 && particle.Type != 0)
+            {
+                particleVisuals.Allocated(a, index);
+            }
             byte[] bytes = (a ? state.ParticlesA : state.ParticlesB).ToArray();
             particle.Bytes.AsSpan().CopyTo(bytes.AsSpan(index * 24, 24));
             state = a ? state with { ParticlesA = bytes.ToImmutableArray() } : state with { ParticlesB = bytes.ToImmutableArray() };
@@ -46,11 +50,11 @@ public sealed partial class BattleSession
             }
             return allocation.Address;
         }
-        private NativeBattleModuleSpriteFrame Sprite(uint address, NativeBattleModuleResource resource, int frame, NativeBattleVector position, int scale, ushort flags)
+        private NativeBattleModuleSpriteFrame Sprite(uint address, NativeBattleModuleResource resource, int frame, NativeBattleVector position, int scale, ushort flags, NativeBattlePilotVisualIdentity pilotIdentity)
         {
             NativeBattleModuleSpriteFrame selected = resource.ProjectedFrame571C80(frame);
             ImmutableArray<byte> palettes = flags == 32 ? resource.Bytes.Slice(4, 4).SetItem(1, 0) : [];
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = selected, Phase = unchecked((ushort)frame), Anchor = new(position.X, position.Y, position.Z, 0), Scale = scale, DepthOffset = -(scale >> 4), SpriteFlags = flags, SpritePaletteOffsets = palettes };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = selected, Phase = unchecked((ushort)frame), Anchor = new(position.X, position.Y, position.Z, 0), Scale = scale, DepthOffset = -(scale >> 4), SpriteFlags = flags, SpritePaletteOffsets = palettes, PilotIdentity = pilotIdentity };
             NativeBattleModuleSpriteTemporaryResult rendered = NativeBattleModuleSpriteTemporary.Emit571C80(owner.NativeFileStaging!, address, draw, Projection, owner.NativeCamera!.Roll, 17, 2);
             owner.NativeFileStaging = rendered.Staging;
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(Memory, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, rendered.Batch, NativeBattleEffectGouraudWrites.FullDword);
@@ -76,7 +80,7 @@ public sealed partial class BattleSession
                 int angle = particle.Velocity.X;
                 NativeBattleVector point = particle.Position;
                 NativeBattleVector position = new(unchecked((short)((unchecked(NativeBattleCameraMath.Cosine(angle) * point.X) >> 12) + center.X)), unchecked((short)((unchecked(NativeBattleCameraMath.Sine(2 * angle) * point.Z) >> 12) + point.Y)), unchecked((short)((unchecked(NativeBattleCameraMath.Sine(angle) * point.X) >> 12) + center.Z)));
-                NativeBattleModuleSpriteFrame selected = Sprite(context, resources.Orbit, particle.Frame / 3, position, particle.Scale, 0);
+                NativeBattleModuleSpriteFrame selected = Sprite(context, resources.Orbit, particle.Frame / 3, position, particle.Scale, 0, particleVisuals.Identity(drawingIdentity, false, index));
                 if (!DrawOnly)
                 {
                     particle = particle.Word(4, particle.Frame + 1);
@@ -134,7 +138,7 @@ public sealed partial class BattleSession
                     flags |= 0xC0;
                     fade = (particle.Frame - 4) << 10;
                 }
-                Mesh(resources.Streak, NativeBattleGfMatrices.Compose56C2F0(View, matrix), flags, 0, fade);
+                Mesh(resources.Streak, NativeBattleGfMatrices.Compose56C2F0(View, matrix), flags, 0, fade, pilotIdentity: particleVisuals.Identity(drawingIdentity, false, index));
                 if (!DrawOnly)
                 {
                     particle = particle.Word(4, particle.Frame + 1);
@@ -195,7 +199,7 @@ public sealed partial class BattleSession
                 NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Scale56BEF0(Place(rotation, center), particle.Scale, particle.Scale, particle.Scale);
                 int frame = particle.Frame;
                 int? fade = frame < 6 ? 4096 - frame * 682 : frame >= 10 ? (frame - 10) * 682 : null;
-                Mesh(resources.Shard, NativeBattleGfMatrices.Compose56C2F0(View, matrix), fade is null ? 0x33u : 0xF3u, 0, fade);
+                Mesh(resources.Shard, NativeBattleGfMatrices.Compose56C2F0(View, matrix), fade is null ? 0x33u : 0xF3u, 0, fade, pilotIdentity: particleVisuals.Identity(drawingIdentity, false, index));
                 if (!DrawOnly)
                 {
                     particle = particle.Word(4, frame + 1);
@@ -249,7 +253,7 @@ public sealed partial class BattleSession
                 {
                     continue;
                 }
-                NativeBattleModuleSpriteFrame selected = Sprite(context, resource, sparks ? particle.Frame << 1 : particle.Frame, particle.Position, particle.Scale, flags);
+                NativeBattleModuleSpriteFrame selected = Sprite(context, resource, sparks ? particle.Frame << 1 : particle.Frame, particle.Position, particle.Scale, flags, particleVisuals.Identity(drawingIdentity, sparks, index));
                 if (!DrawOnly)
                 {
                     particle = particle.Word(4, particle.Frame + 1);

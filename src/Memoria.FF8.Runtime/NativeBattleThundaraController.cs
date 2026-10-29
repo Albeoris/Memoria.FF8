@@ -5,8 +5,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleThundaraFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
 public abstract record NativeBattleThundaraOperation;
-public sealed record NativeBattleThundaraSprite(uint ResourceAddress, int Frame, NativeBattleModuleAnchor Position, int Scale, int DepthOffset, ushort Flags, uint Color) : NativeBattleThundaraOperation;
-public sealed record NativeBattleThundaraGeometry(uint Helper, NativeBattleModuleAnchor Position, short AngleOrBaseY, int Phase, int Duration) : NativeBattleThundaraOperation;
+public sealed record NativeBattleThundaraSprite(uint ResourceAddress, int Frame, NativeBattleModuleAnchor Position, int Scale, int DepthOffset, ushort Flags, uint Color) : NativeBattleThundaraOperation
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
+public sealed record NativeBattleThundaraGeometry(uint Helper, NativeBattleModuleAnchor Position, short AngleOrBaseY, int Phase, int Duration) : NativeBattleThundaraOperation
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleThundaraFlash : NativeBattleThundaraOperation;
 public sealed record NativeBattleThundaraContact(int Contact) : NativeBattleThundaraOperation;
 public sealed record NativeBattleThundaraSound(NativeBattleModuleAnchor Position) : NativeBattleThundaraOperation;
@@ -159,53 +165,53 @@ public static class NativeBattleThundaraController
                 short ground = inputs.ReadTransform(actor).Angle36;
                 if (t is >= 0 and <= 7)
                 {
-                    Sprite(0x131E878, t, position);
+                    Sprite(task, 0x131E878, t, position);
                 }
                 if (t is >= 2 and <= 9)
                 {
-                    Sprite(0x131EABC, t - 2, raised);
-                    Sprite(0x131ECB0, t - 2, position);
+                    Sprite(task, 0x131EABC, t - 2, raised);
+                    Sprite(task, 0x131ECB0, t - 2, position);
                 }
                 if (t is >= 2 and <= 10)
                 {
-                    Sprite(0x131F0E8, t - 2, position);
+                    Sprite(task, 0x131F0E8, t - 2, position);
                 }
                 if (t is >= 1 and <= 12)
                 {
-                    Emit(new NativeBattleThundaraGeometry(0x6DCD90, position, 512, t - 1, 12));
+                    Emit(new NativeBattleThundaraGeometry(0x6DCD90, position, 512, t - 1, 12) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(102, task, 16) });
                 }
                 if (t is >= 0 and <= 11)
                 {
-                    Emit(new NativeBattleThundaraGeometry(0x6DCEE0, position, ground, t, 12));
+                    Emit(new NativeBattleThundaraGeometry(0x6DCEE0, position, ground, t, 12) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(102, task, 17) });
                 }
                 if (t is >= 5 and <= 13)
                 {
-                    Sprite(0x131FF74, t - 5, position);
+                    Sprite(task, 0x131FF74, t - 5, position);
                 }
                 if (t is >= 5 and <= 12)
                 {
-                    Sprite(0x131EECC, t - 5, raised);
+                    Sprite(task, 0x131EECC, t - 5, raised);
                 }
                 if (t is >= 3 and <= 14)
                 {
-                    Emit(new NativeBattleThundaraGeometry(0x6DCD90, position, -512, t - 3, 12));
+                    Emit(new NativeBattleThundaraGeometry(0x6DCD90, position, -512, t - 3, 12) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(102, task, 18) });
                 }
                 if (t is >= 4 and <= 19)
                 {
-                    Emit(new NativeBattleThundaraGeometry(0x6DCFE0, position, ground, t - 4, 16));
+                    Emit(new NativeBattleThundaraGeometry(0x6DCFE0, position, ground, t - 4, 16) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(102, task, 19) });
                 }
                 if (t is >= 8 and <= 16)
                 {
-                    Sprite(0x131F458, t - 8, position);
+                    Sprite(task, 0x131F458, t - 8, position);
                 }
                 if (t is >= 11 and <= 19)
                 {
-                    Sprite(0x131F5B4, t - 11, position);
+                    Sprite(task, 0x131F5B4, t - 11, position);
                 }
                 if (t is >= 9 and <= 18)
                 {
                     byte gray = unchecked((byte)(128 - (NativeBattleCameraMath.Sine(((t - 9) << 10) / 10) >> 7)));
-                    Sprite(0x131FA68, t - 9, position, 4, Rgb(gray));
+                    Sprite(task, 0x131FA68, t - 9, position, 4, Rgb(gray));
                 }
                 if (t == 12)
                 {
@@ -246,7 +252,7 @@ public static class NativeBattleThundaraController
             }
             if (Word(task, 12) >= ReadByte(task, 14))
             {
-                Sprite(0x131F244, ReadByte(task, 15) % 20, Anchor(task, 16), 4, Rgb(unchecked((byte)task.ReadWord(40))));
+                Sprite(task, 0x131F244, ReadByte(task, 15) % 20, Anchor(task, 16), 4, Rgb(unchecked((byte)task.ReadWord(40))));
                 task = Add(task, 24, Word(task, 32));
                 task = Add(task, 26, Word(task, 34));
                 task = Add(task, 28, Word(task, 36));
@@ -268,7 +274,7 @@ public static class NativeBattleThundaraController
             {
                 throw new NotSupportedException($"Native Thundara tertiary callback{task.Callback:X8} is unsupported.");
             }
-            Emit(new NativeBattleThundaraSprite(0x131E760, ReadByte(task, 12) & 7, Anchor(task, 16), 3072, -768, 0, 0));
+            Emit(new NativeBattleThundaraSprite(0x131E760, ReadByte(task, 12) & 7, Anchor(task, 16), 3072, -768, 0, 0) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(102, task) });
             task = Add(task, 12, 1);
             return new(Put(pool, slot, task), Word(task, 12) >= 8 ? 2 : 0);
         }
@@ -281,10 +287,25 @@ public static class NativeBattleThundaraController
         }
 
         void Emit(NativeBattleThundaraOperation operation) => frame = inputs.Execute(frame, operation);
-        void Sprite(uint resource, int phase, NativeBattleModuleAnchor position, ushort flags = 0, uint color = 0) => Emit(new NativeBattleThundaraSprite(resource, phase, position, 4096, -1024, flags, color));
+        void Sprite(NativeBattleModulePoolTask task, uint resource, int phase, NativeBattleModuleAnchor position, ushort flags = 0, uint color = 0) => Emit(new NativeBattleThundaraSprite(resource, phase, position, 4096, -1024, flags, color) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(102, task, SpritePrimitive(resource)) });
         NativeBattleEffectTaskPool Pool(uint descriptor) => frame.Effect.Pools.Single(pool => pool.DescriptorAddress == descriptor);
         NativeBattleActionHeaderSlot Header(int sequence) => inputs.Packets.Headers[checked(parameters.HeaderIndex7C + sequence)];
     }
+
+    private static int SpritePrimitive(uint resource) => resource switch
+    {
+        0x131E878 => 0,
+        0x131EABC => 1,
+        0x131ECB0 => 2,
+        0x131F0E8 => 3,
+        0x131FF74 => 4,
+        0x131EECC => 5,
+        0x131F458 => 6,
+        0x131F5B4 => 7,
+        0x131FA68 => 8,
+        0x131F244 => 9,
+        _ => throw new NotSupportedException("Native Thundara sprite requires an authored resource selector.")
+    };
 
     public static int ActorIndex(uint address)
     {

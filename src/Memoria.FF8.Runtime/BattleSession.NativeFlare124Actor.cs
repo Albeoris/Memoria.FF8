@@ -27,7 +27,7 @@ public sealed partial class BattleSession
             if ((mask & (1u << (mesh & 31))) != 0)
             {
                 NativeBattleModelTextureBinding texture = resource.LinkedGeometryUsesBodySkeleton == true && mesh == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!;
-                Draw(geometry[mesh], bones, texture);
+                Draw(geometry[mesh], bones, texture, mesh);
             }
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
@@ -38,15 +38,15 @@ public sealed partial class BattleSession
             NativeBattlePoseSource linkedSource = resource.LinkedPoseSource ?? throw new NotSupportedException("Native Flare requires its linked skeleton.");
             NativeBattleDecodedPose pose = NativeBattlePoseMatrices.ReadLinkedDecodedPose(actor.SequenceState!, linkedSource);
             ImmutableArray<NativeBattleActionMatrix> linkedBones = NativeBattlePoseMatrices.ComposeStageCamera(NativeBattlePoseMatrices.StageBoneMatrices(linkedSource, pose), world, 0).Select(matrix => NativeBattleGfMatrices.Compose56C2F0(view, matrix)).ToImmutableArray();
-            foreach (NativeBattleRawMesh mesh in linked)
+            for (int linkedIndex = 0; linkedIndex < linked.Length; linkedIndex++)
             {
-                Draw(mesh, linkedBones, actor.LinkedTextureSlots!);
+                Draw(linked[linkedIndex], linkedBones, actor.LinkedTextureSlots!, geometry.Length + linkedIndex);
             }
         }
         maximum = extent;
         return graphics;
 
-        void Draw(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding texture)
+        void Draw(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding texture, int meshIdentity)
         {
             if (mesh.Vertices.Length > capacity)
             {
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
             {
                 mesh = mesh with { Polygons = mesh.Polygons.Select(face => face with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(face, texture) }).ToImmutableArray() };
             }
-            NativeBattleFlare124ActorDraw drawn = NativeBattleFlare124ActorPackets.Emit(mesh, matrices, projection, actor.Color40!.Value, centerX, centerY, radius, step, amplitude, phase, resources, zsf3, zsf4);
+            NativeBattleFlare124ActorDraw drawn = NativeBattleFlare124ActorPackets.Emit(mesh, matrices, projection, actor.Color40!.Value, centerX, centerY, radius, step, amplitude, phase, resources, zsf3, zsf4, NativePilotSceneIdentity(0x6BCAD0, actor.Index, meshIdentity));
             extent = Math.Max(extent, drawn.Radius);
             for (int vertex = 0; vertex < mesh.Vertices.Length; vertex++)
             {

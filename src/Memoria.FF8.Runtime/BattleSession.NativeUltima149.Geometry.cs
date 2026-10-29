@@ -33,7 +33,7 @@ public sealed partial class BattleSession
             NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(View, world);
             state = state with { RingScale = scale };
             Mesh(resources.Ring, matrix, 0xC0, 0xCEE8CE, resources.RingFades[age & 15]);
-            Append(NativeBattleUltima149Dome.Draw(resources.Dome, matrix, Projection, Colors, age));
+            Append(NativeBattleUltima149Dome.Draw(resources.Dome, matrix, Projection, Colors, age, drawingIdentity with { Primitive = 1 }));
             if (DrawOnly)
             {
                 return 0;

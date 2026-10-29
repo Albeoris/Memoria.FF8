@@ -18,10 +18,11 @@ public static partial class NativeBattleHoly175WindowedMeshPackets
         NativeBattleActionMatrix local = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)), scale, scale, scale) with { X = unchecked((short)task.ReadWord(0x10)), Y = unchecked((short)task.ReadWord(0x12)), Z = unchecked((short)task.ReadWord(0x14)) };
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(view, local);
         NativeBattleHoly175WindowedMeshContext context = new(phase < 56 ? 0xF3u : 0x33u, 0, phase < 56 ? unchecked(4096 - 73 * phase) : null, constantColor, 0, unchecked((short)task.ReadWord(0x20) * phase), new(0, 128, 64, 128), 17, 2);
-        return EmitBatch650720(mesh.Bytes, matrix, projection, context, colors);
+        NativeBattleGfGeometryBatch batch = EmitBatch650720(mesh.Bytes, matrix, projection, context, colors, NativeBattlePilotVisualLifetimes.Identity(175, task));
+        return batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { PilotGeometry: { } geometry } primitive ? attempt with { Primitive = primitive with { PilotGeometry = geometry with { SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } } } : attempt).ToImmutableArray() };
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch650720(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleHoly175WindowedMeshContext context, NativeBattleSummonColors? colors = null)
+    public static NativeBattleGfGeometryBatch EmitBatch650720(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleHoly175WindowedMeshContext context, NativeBattleSummonColors? colors = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ValidateContext(context);
         return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, 0, null, (group, face, project, offset) => group switch
@@ -31,7 +32,7 @@ public static partial class NativeBattleHoly175WindowedMeshPackets
             3 => EmitQuad(face, project, false, context, colors, offset),
             7 => EmitQuad(face, project, true, context, colors, offset),
             _ => throw new NotSupportedException("Native Holy650720 requires its reached textured triangle/quad groups and empty other groups.")
-        });
+        }, pilotIdentity: pilotIdentity);
     }
 
     public static NativeBattleGfGeometryBatch EmitQuad(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool gouraud, NativeBattleHoly175WindowedMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)

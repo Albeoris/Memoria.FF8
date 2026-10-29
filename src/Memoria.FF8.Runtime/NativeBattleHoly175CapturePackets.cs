@@ -71,7 +71,10 @@ public static class NativeBattleHoly175CapturePackets
         NativeBattlePrimitiveReference blackReference = new(NativeBattleHoly175CaptureMemory.PacketBank, buffer, blackOffset);
         blackLinks.InvalidatePacketRange(blackReference, 24);
         bool blackLinked = blackLinks.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-        blackLinks.Prepend(4385, blackReference, Words(black), 1, [0, 0, 0, 0]);
+        ImmutableArray<uint> blackWords = Words(black);
+        System.Numerics.Vector3 Point(uint xy) => new(unchecked((short)xy), unchecked((short)(xy >> 16)), 0);
+        NativeBattlePilotVisualGeometry blackGeometry = new(new(0, 0, 0, buffer, 0x28), Point(blackWords[2]), Point(blackWords[3]), Point(blackWords[4]), Point(blackWords[5]), 4, false) { ScreenSpace = true, ScreenScale = 8 };
+        blackLinks.Prepend(4385, blackReference, blackWords, 1, [0, 0, 0, 0], pilotGeometry: blackGeometry);
         if (blackLinked)
         {
             byte[] updated = retained.BlackPackets.ToArray();

@@ -8,7 +8,7 @@ public sealed record NativeBattleAeroNodeDraw(NativeBattleEffectMemory Memory, N
 /// <summary>6C10A0's source shape selection, two-stage scaling and7043B0 submission.</summary>
 public static class NativeBattleAeroDrawing
 {
-    public static NativeBattleAeroNodeDraw Node(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleAeroNodeConfig config, NativeBattleActionMatrix view, NativeBattleActionMatrix billboard, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleAeroNodeDraw Node(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleAeroNodeConfig config, NativeBattleActionMatrix view, NativeBattleActionMatrix billboard, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ValidateNode(node);
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -51,7 +51,7 @@ public static class NativeBattleAeroDrawing
         }
         NativeBattleActionMatrix matrix = ComposeNodeMatrix(node, config, view, billboard);
         bool cue = node.Scalar36 != 0;
-        NativeBattleGfGeometryBatch packets = NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, selected, matrix, projection, new(cue ? 0x20F0u : 0x2030u, cue ? node.Color32 : 0, node.Scalar36, null, null, config.DepthBias, 17, 2), colors);
+        NativeBattleGfGeometryBatch packets = NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, selected, matrix, projection, new(cue ? 0x20F0u : 0x2030u, cue ? node.Color32 : 0, node.Scalar36, null, null, config.DepthBias, 17, 2), colors, pilotIdentity: pilotIdentity);
         return new(memory, packets);
 
         ReadOnlySpan<byte> Read(int offset, int length)
@@ -115,7 +115,7 @@ public static class NativeBattleAeroDrawing
         short scale = Word(0x10);
         NativeBattleActionMatrix local = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CD50(new(Word(0x2A), Word(0x2C), Word(0x2E))), scale, scale, scale) with { X = Word(0x1A), Y = Word(0x1C), Z = Word(0x1E) };
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(view, local);
-        return NativeBattleModulePackets.EmitBatch572200(resources.ParticleMesh.Bytes, 0, default, matrix, projection, new(0, null, null, null, null, null, 17, 2), colors);
+        return NativeBattleModulePackets.EmitBatch572200(resources.ParticleMesh.Bytes, 0, default, matrix, projection, new(0, null, null, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(118, task));
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));
     }

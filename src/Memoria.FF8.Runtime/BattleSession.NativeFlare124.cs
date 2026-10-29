@@ -215,7 +215,7 @@ public sealed partial class BattleSession
                 NativeBattleVector anchor = WindVector(task, 18);
                 anchor = new(unchecked((short)(anchor.X + direction.X)), unchecked((short)(anchor.Y + direction.Y)), unchecked((short)(anchor.Z + direction.Z)));
                 uint alpha = task.ReadByte(32);
-                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Particle, SpriteFrame = resources.Particle.ProjectedFrame571C80(0), Phase = 0, Anchor = new(anchor.X, anchor.Y, anchor.Z, 0), Scale = WindWord(task, 24), DepthOffset = -(WindWord(task, 24) >> 2), SpriteFlags = (ushort)mode, SpriteColor = mode == 4 ? alpha * 0x10101u : 0x808080u };
+                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(124, task), Resource = resources.Particle, SpriteFrame = resources.Particle.ProjectedFrame571C80(0), Phase = 0, Anchor = new(anchor.X, anchor.Y, anchor.Z, 0), Scale = WindWord(task, 24), DepthOffset = -(WindWord(task, 24) >> 2), SpriteFlags = (ushort)mode, SpriteColor = mode == 4 ? alpha * 0x10101u : 0x808080u };
                 NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging!, 180);
                 NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(temporary.Staging, temporary.Address, resources.Particle.Address, (ushort)mode).Write(temporary.Address + 4, BitConverter.GetBytes((ushort)0));
                 if (mode == 4)
@@ -261,7 +261,7 @@ public sealed partial class BattleSession
                 }
                 NativeBattleActionMatrix matrix = NativeBattleFlare124Geometry.Compose(node, view, billboard, anchor, scale);
                 int offsetDepth = depth != 0 && node.GeometryIndex is 2 or 3 ? depth >> 2 : depth;
-                NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, vertices, matrix, projection, new(node.Scalar36 == 0 ? 0x2030u : 0x20F0u, node.Color32, node.Scalar36, null, null, offsetDepth, 17, 2), definition.NativeGraphics!.Rules.SummonColors);
+                NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, vertices, matrix, projection, new(node.Scalar36 == 0 ? 0x2030u : 0x20F0u, node.Color32, node.Scalar36, null, null, offsetDepth, 17, 2), definition.NativeGraphics!.Rules.SummonColors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(124, task, unchecked(offset * 397 + node.NodeIndex)));
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch);
                 NativeEffectMemory = written.Memory;
                 effect = effect with { DrawArenaOffset = written.Cursor };

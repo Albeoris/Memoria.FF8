@@ -58,7 +58,7 @@ public sealed partial class BattleSession
                 ObserveArea = area => owner.NativeFileStaging = owner.NativeFileStaging!.Write(temporary.Address + 36, BitConverter.GetBytes(area)),
                 ObserveAverageDepth = depth => owner.NativeFileStaging = owner.NativeFileStaging!.Write(temporary.Address + 44, BitConverter.GetBytes(depth))
             };
-            Append(NativeBattleGfGeometryPackets.EmitBatch(resources.Cloud.Bytes, 0, vertices, NativeBattleGfMatrices.Compose56C2F0(View, world), Projection, new(0x20C0, 0, 341 * age, null, null, 0, 0, 17, 2), Colors, observeSourceCursor: cursor => owner.NativeFileStaging = owner.NativeFileStaging!.Write(temporary.Address + 32, BitConverter.GetBytes(resources.Cloud.Address + (uint)cursor)), variant: observations));
+            Append(NativeBattleGfGeometryPackets.EmitBatch(resources.Cloud.Bytes, 0, vertices, NativeBattleGfMatrices.Compose56C2F0(View, world), Projection, new(0x20C0, 0, 341 * age, null, null, 0, 0, 17, 2), Colors, observeSourceCursor: cursor => owner.NativeFileStaging = owner.NativeFileStaging!.Write(temporary.Address + 32, BitConverter.GetBytes(resources.Cloud.Address + (uint)cursor)), variant: observations, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(146, task)));
             owner.NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(owner.NativeFileStaging!, 88);
             if (DrawOnly)
             {
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
         private int Sparks(ref NativeBattleModulePoolTask task)
         {
             using NativeBattleTornado146Work work = new(state);
-            List<(NativeBattleVector Point, int Size, int Frame)> draws = [];
+            List<(NativeBattleVector Point, int Size, int Frame, NativeBattlePilotVisualIdentity Identity)> draws = [];
             for (int index = 0; index < 60; index++)
             {
                 uint row = 0x249A230u + (uint)index * 16;
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
                 {
                     continue;
                 }
-                draws.Add((WorkVector(work, row + 8), work.SignedDword(row + 4), frame));
+                draws.Add((WorkVector(work, row + 8), work.SignedDword(row + 4), frame, NativeBattlePilotVisualLifetimes.Identity(146, state.Storage, 0x249A230, index)));
                 if (!DrawOnly)
                 {
                     work.WriteDword(row, unchecked((uint)(frame + 1)));
@@ -109,6 +109,7 @@ public sealed partial class BattleSession
                         break;
                     }
                     uint row = 0x249A230u + (uint)free * 16;
+                    NativeBattlePilotVisualLifetimes.Allocated(state.Storage, 0x249A230, free);
                     work.WriteDword(row, 0);
                     work.WriteDword(row + 4, (uint)(Random() % 6144 + 2304));
                     int angle = Random() % 4096;
@@ -132,7 +133,7 @@ public sealed partial class BattleSession
         private int Debris(ref NativeBattleModulePoolTask task)
         {
             using NativeBattleTornado146Work work = new(state);
-            List<(NativeBattleVector Point, int Size, int Frame)> draws = [];
+            List<(NativeBattleVector Point, int Size, int Frame, NativeBattlePilotVisualIdentity Identity)> draws = [];
             int start = Word(task, 14);
             for (int index = start; index < start + 20; index++)
             {
@@ -143,7 +144,7 @@ public sealed partial class BattleSession
                 {
                     continue;
                 }
-                draws.Add((WorkVector(work, row), work.SignedWord(life), frame));
+                draws.Add((WorkVector(work, row), work.SignedWord(life), frame, NativeBattlePilotVisualLifetimes.Identity(146, state.Storage, 0x24946E0, index)));
                 if (!DrawOnly)
                 {
                     work.WriteWord(life + 6, unchecked((ushort)(frame + 1)));
@@ -168,6 +169,7 @@ public sealed partial class BattleSession
                 {
                     uint life = 0x24946E0u + (uint)index * 8;
                     uint row = 0x2494AA8u + (uint)index * 16;
+                    NativeBattlePilotVisualLifetimes.Allocated(state.Storage, 0x24946E0, index);
                     work.WriteWord(life + 6, 0);
                     work.WriteWord(life, (ushort)(Random() % 6144 + 2304));
                     work.WriteWord(row, task.ReadWord(16));
@@ -189,13 +191,13 @@ public sealed partial class BattleSession
             return Word(task, 12) >= 17 ? 2 : 0;
         }
 
-        private void DrawSprites(List<(NativeBattleVector Point, int Size, int Frame)> draws)
+        private void DrawSprites(List<(NativeBattleVector Point, int Size, int Frame, NativeBattlePilotVisualIdentity Identity)> draws)
         {
             NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(owner.NativeFileStaging!, 180);
             owner.NativeFileStaging = NativeBattleModuleSpriteTemporary.Begin571C80(temporary.Staging, temporary.Address, resources.Spark.Address, 0);
             foreach (var draw in draws)
             {
-                NativeBattleModuleDraw sprite = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Spark, SpriteFrame = resources.Spark.ProjectedFrame571C80(draw.Frame), Phase = unchecked((ushort)draw.Frame), Anchor = new(draw.Point.X, draw.Point.Y, draw.Point.Z, 0), Scale = draw.Size, DepthOffset = -(draw.Size >> 3), SpriteFlags = 0 };
+                NativeBattleModuleDraw sprite = new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = draw.Identity, Resource = resources.Spark, SpriteFrame = resources.Spark.ProjectedFrame571C80(draw.Frame), Phase = unchecked((ushort)draw.Frame), Anchor = new(draw.Point.X, draw.Point.Y, draw.Point.Z, 0), Scale = draw.Size, DepthOffset = -(draw.Size >> 3), SpriteFlags = 0 };
                 NativeBattleModuleSpriteTemporaryResult rendered = NativeBattleModuleSpriteTemporary.Emit571C80(owner.NativeFileStaging!, temporary.Address, sprite, Projection, owner.NativeCamera!.Roll, 17, 2);
                 owner.NativeFileStaging = rendered.Staging;
                 Append(rendered.Batch.CapturedWrites ?? throw new InvalidDataException("Native Tornado requires its captured sprite stores."));

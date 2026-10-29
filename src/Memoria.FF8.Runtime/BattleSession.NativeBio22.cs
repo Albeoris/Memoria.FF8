@@ -111,7 +111,14 @@ public sealed partial class BattleSession
                 foreach (NativeBattleCureActorGeometry geometry in NativeBattleCureActorAssembly.SelectGeometry8D7110(model, resource, sequence.MeshMask124))
                 {
                     NativeBattleBio22ActorMemory owner = actual.Memory.Bio22ActorMemory ?? throw new NotSupportedException("Native Bio body requires its current physical projected work.");
-                    NativeBattleBio22ActorDraw drawn = NativeBattleBio22ActorPackets.Emit89D780(geometry.Mesh, bones, main, projection, model.Color40 ?? throw new NotSupportedException("Native Bio body requires its actual color."), phase, amplitude, zsf3, zsf4, owner.Projected, 0, resource.GeometryRelocated507550 ? null : geometry.Binding);
+                    ImmutableArray<NativeBattleRawMesh> bodyGeometry = resource.Geometry ?? throw new NotSupportedException("Native Bio body requires its authored geometry directory.");
+                    int meshIdentity = bodyGeometry.IndexOf(geometry.Mesh);
+                    if (meshIdentity < 0)
+                    {
+                        ImmutableArray<NativeBattleRawMesh> linkedGeometry = resource.LinkedGeometry ?? throw new NotSupportedException("Native Bio body requires its authored linked geometry directory.");
+                        meshIdentity = bodyGeometry.Length + linkedGeometry.IndexOf(geometry.Mesh);
+                    }
+                    NativeBattleBio22ActorDraw drawn = NativeBattleBio22ActorPackets.Emit89D780(geometry.Mesh, bones, main, projection, model.Color40 ?? throw new NotSupportedException("Native Bio body requires its actual color."), phase, amplitude, zsf3, zsf4, owner.Projected, 0, resource.GeometryRelocated507550 ? null : geometry.Binding, NativeBattlePilotVisualLifetimes.Identity(22, actual.Task, meshIdentity));
                     owner = owner with { Projected = drawn.Work };
                     owner.Validate();
                     actual = actual with { Memory = actual.Memory with { Bio22ActorMemory = owner } };

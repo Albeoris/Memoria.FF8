@@ -14,7 +14,7 @@ public static class NativeBattleBio22GeometryPackets
         }
         NativeBattleActionMatrix world = World(task);
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(projection.View ?? throw new NotSupportedException("Native Bio geometry requires its actual current camera view."), world);
-        return Emit(currentMesh, point => NativeBattleModuleProjection.Project45FE10(matrix, point, projection), zsf3);
+        return Emit(currentMesh, point => NativeBattleModuleProjection.Project45FE10(matrix, point, projection), zsf3, point => NativeBattlePilotVisualGeometry.Transform(world, point), NativeBattlePilotVisualLifetimes.Identity(22, task));
     }
 
     public static NativeBattleGfGeometryBatch Emit89AD30(NativeBattleModulePoolTask task, ImmutableArray<byte> currentMesh, NativeBattleCameraProjection projection, short zsf3)
@@ -25,7 +25,11 @@ public static class NativeBattleBio22GeometryPackets
         }
         NativeBattleActionMatrix world = World(task);
         NativeBattleActionMatrix camera = projection.View ?? throw new NotSupportedException("Native Bio deformation requires its actual current camera view.");
-        return Emit(currentMesh, point => NativeBattleModuleProjection.Project45FE10(camera, DeformedWorld(task, world, point), projection), zsf3);
+        return Emit(currentMesh, point => NativeBattleModuleProjection.Project45FE10(camera, DeformedWorld(task, world, point), projection), zsf3, point =>
+        {
+            NativeBattleVector deformed = DeformedWorld(task, world, point);
+            return new(deformed.X, deformed.Y, deformed.Z);
+        }, NativeBattlePilotVisualLifetimes.Identity(22, task));
     }
 
     public static NativeBattleVector Transform89AD30(NativeBattleModulePoolTask task, NativeBattleVector local) => DeformedWorld(task, World(task), local);
@@ -51,7 +55,7 @@ public static class NativeBattleBio22GeometryPackets
         return new(unchecked((short)x), (short)Math.Min(y, 0), unchecked((short)z));
     }
 
-    private static NativeBattleGfGeometryBatch Emit(ImmutableArray<byte> currentMesh, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, short zsf3)
+    private static NativeBattleGfGeometryBatch Emit(ImmutableArray<byte> currentMesh, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, short zsf3, Func<NativeBattleVector, System.Numerics.Vector3> world, NativeBattlePilotVisualIdentity identity)
     {
         int countOffset = checked(0x18 + 4 * (Dword(0) / 4));
         int count = Dword(countOffset);
@@ -68,6 +72,7 @@ public static class NativeBattleBio22GeometryPackets
             int faceOffset = checked(first + faceIndex * 28);
             ReadOnlySpan<byte> face = currentMesh.AsSpan().Slice(faceOffset, 28);
             NativeBattleModuleProjectedVertex[] projected = new NativeBattleModuleProjectedVertex[3];
+            System.Numerics.Vector3[] corners = new System.Numerics.Vector3[3];
             for (int corner = 0; corner < 3; corner++)
             {
                 int index = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(4 + corner * 2)) >> 1;
@@ -75,6 +80,7 @@ public static class NativeBattleBio22GeometryPackets
                 Require(vertex, 8);
                 NativeBattleVector point = new(Word(vertex), Word(vertex + 2), Word(vertex + 4));
                 projected[corner] = project(point);
+                corners[corner] = world(point);
             }
             if (NativeBattleModulePackets.Nclip(projected[0].Screen, projected[1].Screen, projected[2].Screen) <= 0)
             {
@@ -97,6 +103,7 @@ public static class NativeBattleBio22GeometryPackets
             ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, 40).Select(offset => offset < 38 ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
             ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(index * 4))).ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(bucket, words, [projected[0].Depth, projected[1].Depth, projected[2].Depth, 0]);
+            primitive = primitive with { PilotGeometry = new(identity with { Primitive = faceOffset }, corners[0], corners[1], corners[2], default, 3) };
             attempts.Add(new(allocation, packet.ToImmutableArray(), mask, primitive));
             allocation = checked(allocation + 40);
 

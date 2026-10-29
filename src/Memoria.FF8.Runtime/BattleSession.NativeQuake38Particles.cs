@@ -96,11 +96,11 @@ public sealed partial class BattleSession
                 }
                 task = SetWord(task, row + 2, Word(task, row + 2) + Word(task, 162));
                 task = Vector(task, 28, new(Word(task, row), Word(task, row + 2), Word(task, row + 4))).MarkPayloadUnknown(34, 2);
-                DrawSprite(task);
+                DrawSprite(task, index);
             }
         }
 
-        private void DrawSprite(NativeBattleModulePoolTask task)
+        private void DrawSprite(NativeBattleModulePoolTask task, int primitive = 0)
         {
             if ((task.ReadByte(38) & 4) != 0)
             {
@@ -114,7 +114,7 @@ public sealed partial class BattleSession
                 _ => throw new NotSupportedException("Native Quake sprite requires its actual selected original resource.")
             };
             short frame = Word(task, 80);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(Word(task, 28), Word(task, 30), Word(task, 32), 0), Scale = 4096, DepthOffset = Word(task, 84), SpriteFlags = 0 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(38, task, primitive), Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(Word(task, 28), Word(task, 30), Word(task, 32), 0), Scale = 4096, DepthOffset = Word(task, 84), SpriteFlags = 0 };
             NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(session.NativeFileStaging!, 180);
             NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(temporary.Staging, temporary.Address, resource.Address, 0).Write(temporary.Address + 4, BitConverter.GetBytes(unchecked((ushort)frame)));
             NativeBattleModuleSpriteTemporaryResult drawn = NativeBattleModuleSpriteTemporary.Emit571C80(staging, temporary.Address, draw, Projection, session.NativeCamera!.Roll, 17, 2);

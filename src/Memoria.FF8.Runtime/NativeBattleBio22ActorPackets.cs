@@ -16,7 +16,7 @@ public static class NativeBattleBio22ActorPackets
         return new(unchecked((short)(vertex.X + dx)), vertex.Y, unchecked((short)(vertex.Z + dz)));
     }
 
-    public static NativeBattleBio22ActorDraw Emit89D780(NativeBattleRawMesh mesh, IReadOnlyList<NativeBattleActionMatrix> bodyBones, NativeBattleActionMatrix mainCamera, NativeBattleCameraProjection projection, uint color40, short phase, short amplitude, short zsf3, short zsf4, NativeBattleEffectArena currentWork, int workOffset, NativeBattleModelTextureBinding? textureBinding = null)
+    public static NativeBattleBio22ActorDraw Emit89D780(NativeBattleRawMesh mesh, IReadOnlyList<NativeBattleActionMatrix> bodyBones, NativeBattleActionMatrix mainCamera, NativeBattleCameraProjection projection, uint color40, short phase, short amplitude, short zsf3, short zsf4, NativeBattleEffectArena currentWork, int workOffset, NativeBattleModelTextureBinding? textureBinding = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         mesh.Validate();
         mainCamera.Validate();
@@ -37,8 +37,10 @@ public static class NativeBattleBio22ActorPackets
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
-        foreach (NativeBattleRawPolygon polygon in mesh.Polygons.Where(face => !face.Quad && face.Bytes.Length == 16).Concat(mesh.Polygons.Where(face => face.Quad && face.Bytes.Length == 20)))
+        IEnumerable<int> faceIndices = Enumerable.Range(0, mesh.Polygons.Length).Where(index => !mesh.Polygons[index].Quad && mesh.Polygons[index].Bytes.Length == 16).Concat(Enumerable.Range(0, mesh.Polygons.Length).Where(index => mesh.Polygons[index].Quad && mesh.Polygons[index].Bytes.Length == 20));
+        foreach (int polygonIndex in faceIndices)
         {
+            NativeBattleRawPolygon polygon = mesh.Polygons[polygonIndex];
             int count = polygon.Quad ? 4 : 3;
             NativeBattleModuleProjectedVertex[] corners = new NativeBattleModuleProjectedVertex[count];
             for (int corner = 0; corner < 3; corner++)
@@ -80,7 +82,13 @@ public static class NativeBattleBio22ActorPackets
             int bucket = checked(17 + (int)(depth >> 4));
             ImmutableArray<int> payload = corners.Select(vertex => (int)vertex.Depth).ToImmutableArray();
             // The fourth triangle payload is unconsumed canonical padding.
-            attempts.Add(packet.Attempt(new(bucket, packet.Words(), polygon.Quad ? payload : payload.Add(0))));
+            NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), polygon.Quad ? payload : payload.Add(0));
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(mainCamera, ReadVertex(corner)), projection);
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + polygonIndex) }, World(0), World(1), World(2), polygon.Quad ? World(3) : default, (byte)count) };
+            }
+            attempts.Add(packet.Attempt(primitive));
             allocation = checked(allocation + length);
 
             NativeBattleVector ReadVertex(int corner)

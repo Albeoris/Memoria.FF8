@@ -135,6 +135,11 @@ public static class NativeBattleTornado146Pieces
                 bool stage = !airborne && (points.Any(point => point.Y > 150) || points.All(point => point.Y == 150));
                 int bucket = checked((stage ? 4122 : 17) + (int)(average >> (stage ? 6 : 2)));
                 NativeBattleGeometryPrimitive? primitive = accepted ? new(bucket, words.ToImmutableArray(), [projected[0].Depth, projected[1].Depth, projected[2].Depth, 0]) : null;
+                if (primitive is not null)
+                {
+                    System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, points[corner]), projection);
+                    primitive = primitive with { PilotGeometry = new(NativeBattlePilotVisualLifetimes.Identity(146, task, cursor), World(0), World(1), World(2), default, 3) };
+                }
                 byte[] bytes = new byte[length];
                 for (int index = 0; index < words.Length; index++)
                 {

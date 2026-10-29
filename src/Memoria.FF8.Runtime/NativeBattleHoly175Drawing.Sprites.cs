@@ -11,6 +11,7 @@ public static partial class NativeBattleHoly175Drawing
         short z = unchecked((short)(unchecked((short)task.ReadWord(0x14)) + (unchecked(NativeBattleCameraMath.Sine(row.Angle) * row.Radius) >> 12)));
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
+            PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(175, state.Sprite31Rows, 0x5D34D0, row.Index),
             Resource = resource,
             SpriteFrame = frame,
             Phase = row.Frame,
@@ -31,7 +32,7 @@ public static partial class NativeBattleHoly175Drawing
         NativeBattleActionMatrix loaded = NativeBattlePoseMatrices.Compose56C2F0(screen, local);
         uint brightness = unchecked((uint)Math.Min(128, 21 * row.Age));
         uint color = unchecked(brightness * 0x10101u);
-        NativeBattleModulePacketBatch packets = EmitLoadedSprite(resources.Sprite(0xD52374), row.Frame, loaded, projection, cameraRoll, 0xC, color, 4121, 14);
+        NativeBattleModulePacketBatch packets = EmitLoadedSprite(resources.Sprite(0xD52374), row.Frame, loaded, projection, cameraRoll, 0xC, color, 4121, 14, NativeBattlePilotVisualLifetimes.Identity(175, state.Sprite4Rows, 0x5D44D0, row.Index));
         return new(state, null, packets, true, null);
     }
 }

@@ -17,6 +17,16 @@ public sealed class NativeBattleSmoothWholeActionTests
     [InlineData((ushort)143, 3)]
     [InlineData((ushort)103, 5)]
     [InlineData((ushort)104, 6)]
+    [InlineData((ushort)102, 8)]
+    [InlineData((ushort)105, 9)]
+    [InlineData((ushort)222, 10)]
+    [InlineData((ushort)118, 11)]
+    [InlineData((ushort)22, 12)]
+    [InlineData((ushort)175, 14)]
+    [InlineData((ushort)124, 15)]
+    [InlineData((ushort)38, 17)]
+    [InlineData((ushort)146, 18)]
+    [InlineData((ushort)149, 19)]
     public void Original_elemental_action_preserves_native_duration_events_and_whole_action_contracts(ushort effect, int action)
     {
         AssertWholeAction(effect, action, false);
@@ -53,7 +63,8 @@ public sealed class NativeBattleSmoothWholeActionTests
         GameSession session = GameWorld.CreateColdProcess(directory);
         session.StartNewGame();
         using GameWorld world = new(session, directory);
-        string target = guardian && action is 6 or 9 ? "party-0" : "enemy-6";
+        bool quakeGround = effect == 38;
+        string target = guardian && action is 6 or 9 ? "party-0" : quakeGround ? "enemy-0" : "enemy-6";
         BattleAbility ability = guardian ? BattleAbility.GuardianForce : BattleAbility.Magic;
         DiagnosticBattleDriverRecipe driver = new(new(BattleInputKind.Action, ActorId: "party-0", TargetId: target, Ability: ability, ActionId: action), effect)
         {
@@ -63,12 +74,12 @@ public sealed class NativeBattleSmoothWholeActionTests
         DiagnosticCharacterPreparation character = guardian
             ? new(0, 0, [], [action]) { Commands = [new(0, 21)], HitPoints = 486 }
             : new(0, 0, [new(action, 2)], [0]) { MagicCommand = new(0, 20), HitPoints = 486 };
-        DiagnosticBattleRequest request = new(982, 0, 128, 0, 0)
+        DiagnosticBattleRequest request = new(quakeGround ? 94 : 982, 0, 128, 0, 0)
         {
             BattleMusic = 5,
             PrimaryMusicChannel = -1,
             Fixture = new([new(guardian ? action : 0, true)], [character], true),
-            Target = new("enemy-6", 142, 126, 6, 3, 195, 1, 355, 76),
+            Target = quakeGround ? new("enemy-0", 31, 61, 0, 3, 0xC3, 1, null, null) : new("enemy-6", 142, 126, 6, 3, 195, 1, 355, 76),
             Driver = driver,
             PrepareEntryBeforePresentation = true
         };

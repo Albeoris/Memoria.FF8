@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleUltima149Dome
 {
-    public static NativeBattleGfGeometryBatch Draw(NativeBattleStaticMeshResource dome, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, int frame)
+    public static NativeBattleGfGeometryBatch Draw(NativeBattleStaticMeshResource dome, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, int frame, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         return NativeBattleEffectMeshPackets.EmitBatch(dome.Bytes, matrix, projection, 0, null, (group, face, project, offset) => group switch
         {
@@ -13,7 +13,7 @@ public static class NativeBattleUltima149Dome
             3 => EmitQuad(face, project, false, colors, frame, offset),
             7 => EmitQuad(face, project, true, colors, frame, offset),
             _ => throw new NotSupportedException("Native Ultima dome requires its original skipped groups and textured quads.")
-        }, projectFourth: vertex => NativeBattleModuleProjection.Project45FAA0(matrix, vertex, projection, 0, 0));
+        }, projectFourth: vertex => NativeBattleModuleProjection.Project45FAA0(matrix, vertex, projection, 0, 0), pilotIdentity: pilotIdentity);
     }
 
     public static NativeBattleGfGeometryBatch EmitQuad(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> project, bool gouraud, NativeBattleSummonColors colors, int frame, int byteOffset = 0)

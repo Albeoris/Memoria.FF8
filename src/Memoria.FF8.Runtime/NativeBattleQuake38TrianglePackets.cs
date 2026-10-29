@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleQuake38TrianglePackets
 {
-    public static NativeBattleGfGeometryBatch Emit(ImmutableArray<NativeBattleVector> positions, ImmutableArray<byte> fields, ImmutableArray<NativeBattleGfPacketByteState> fieldMask, NativeBattleCameraProjection projection, short zsf3, bool rejectOutside = true)
+    public static NativeBattleGfGeometryBatch Emit(ImmutableArray<NativeBattleVector> positions, ImmutableArray<byte> fields, ImmutableArray<NativeBattleGfPacketByteState> fieldMask, NativeBattleCameraProjection projection, short zsf3, bool rejectOutside = true, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleActionMatrix? pilotWorldMatrix = null)
     {
         if (positions.IsDefault || positions.Length != 3 || fields.IsDefault || fields.Length != 32 || fieldMask.IsDefault || fieldMask.Length != 32)
         {
@@ -41,6 +41,15 @@ public static class NativeBattleQuake38TrianglePackets
             int bucket = unchecked(17 + (int)(depth >> 2));
             ImmutableArray<uint> words = Enumerable.Range(0, 8).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
             primitive = new(bucket, words, [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, 0]);
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 World(int corner)
+                {
+                    NativeBattleVector point = positions[corner];
+                    return pilotWorldMatrix is { } world ? NativeBattlePilotVisualGeometry.Transform(world, point) : new(point.X, point.Y, point.Z);
+                }
+                primitive = primitive with { PilotGeometry = new(identity, World(0), World(1), World(2), default, 3) };
+            }
         }
         return new([new(0, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive)], rejected ? 0 : 32);
     }

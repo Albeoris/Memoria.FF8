@@ -36,7 +36,7 @@ public sealed partial class BattleSession
             }
             if (phase > 4)
             {
-                Emit(NativeBattleQuake38GroundPackets.Face8D9BE0(entry, first, second, centroid, height, Projection, Zsf3));
+                Emit(NativeBattleQuake38GroundPackets.Face8D9BE0(entry, first, second, centroid, height, Projection, Zsf3, Identity(0)));
                 foreach ((int a, int b, int bit) in new[] { (second, first, 1), (centroid, second, 2), (first, centroid, 4) })
                 {
                     if ((entry[96 + edge] & bit) == 0)
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
                         BinaryPrimitives.WriteInt16LittleEndian(vectors.AsSpan(index * 8 + 2), y);
                     }
                     session.NativeFileStaging = side.Staging.Write(side.Address, vectors);
-                    Emit(NativeBattleQuake38GroundBorders.Side8DA3E0(entry, left, right, a, b, height, Projection, Zsf4));
+                    Emit(NativeBattleQuake38GroundBorders.Side8DA3E0(entry, left, right, a, b, height, Projection, Zsf4, Identity(bit)));
                     session.NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(session.NativeFileStaging!, 32);
                 }
             }
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
                     var border = borders[index];
                     if ((entry[96 + edge] & border.Bit) != 0)
                     {
-                        Emit(NativeBattleQuake38GroundBorders.Crack8D9F70(entry, Position(border.First), Position(border.Second), edge, index, state.Word(0x278C8EA), state.Read(0x27929A0, 40), resources, Projection, Zsf4));
+                        Emit(NativeBattleQuake38GroundBorders.Crack8D9F70(entry, Position(border.First), Position(border.Second), edge, index, state.Word(0x278C8EA), state.Read(0x27929A0, 40), resources, Projection, Zsf4, Identity(8 + index)));
                     }
                 }
                 if (phase == 4)
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
                         {
                             continue;
                         }
-                        NativeBattleQuake38WallDraw wall = NativeBattleQuake38GroundBorders.Wall8DA200(entry, Position(border.First), Position(border.Second), edge, index, state.Word(0x2792D70), state.Word(0x2792D6A), state.Read(0x2792E38, 40), resources, Projection, Zsf4);
+                        NativeBattleQuake38WallDraw wall = NativeBattleQuake38GroundBorders.Wall8DA200(entry, Position(border.First), Position(border.Second), edge, index, state.Word(0x2792D70), state.Word(0x2792D6A), state.Read(0x2792E38, 40), resources, Projection, Zsf4, Identity(12 + index));
                         entry = wall.Entry;
                         Memory.Arena!.Write(offset, entry.AsSpan());
                         Emit(wall.Batch);
@@ -92,6 +92,8 @@ public sealed partial class BattleSession
                 }
             }
             session.NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(session.NativeFileStaging!, 24);
+
+            NativeBattlePilotVisualIdentity Identity(int primitive) => NativeBattlePilotVisualLifetimes.Identity(38, Memory.Arena!, 0x8D9BE0, offset, edge * 16 + primitive);
 
             NativeBattleVector Position(int selector)
             {

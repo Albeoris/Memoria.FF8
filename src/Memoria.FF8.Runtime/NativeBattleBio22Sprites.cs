@@ -11,6 +11,7 @@ public static class NativeBattleBio22Sprites
         }
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
+            PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(22, task),
             Resource = resource,
             SpriteFrame = resource.SpriteFrame(task.ReadWord(0x50)),
             Phase = task.ReadWord(0x50),
@@ -34,7 +35,7 @@ public static class NativeBattleBio22Sprites
         world = NativeBattleCuragaMatrices.RotateX8DD7E0(world, Word(task, 0x40));
         world = NativeBattlePoseMatrices.Scale56BEF0(world, unchecked((int)task.ReadDword(0x30)), unchecked((int)task.ReadDword(0x34)), unchecked((int)task.ReadDword(0x38))) with { X = Word(task, 0x1C), Y = Word(task, 0x1E), Z = Word(task, 0x20) };
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(projection.View ?? throw new NotSupportedException("Native Bio planar sprites require the current camera matrix."), world);
-        return NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource.Bytes, task.ReadWord(0x50), matrix, projection, cameraRoll, 17, 2);
+        return NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource.Bytes, task.ReadWord(0x50), matrix, projection, cameraRoll, 17, 2, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(22, task));
     }
 
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

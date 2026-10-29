@@ -12,6 +12,7 @@ public static class NativeBattleThundaraDrawing
         NativeBattleModuleResource resource = resources.Sprite(operation.ResourceAddress);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
+            PilotIdentity = operation.PilotIdentity,
             Resource = resource,
             SpriteFrame = resource.SpriteFrame(operation.Frame),
             Phase = unchecked((ushort)operation.Frame),
@@ -28,7 +29,7 @@ public static class NativeBattleThundaraDrawing
     public static NativeBattleGfGeometryBatch Geometry(NativeBattleThundaraGeometry operation, NativeBattleThundaraResources resources, NativeBattleCameraProjection projection, NativeBattleActionMatrix view, NativeBattleSummonColors colors)
     {
         NativeBattleThundaraMeshDraw mesh = DescribeGeometry(operation, resources, view);
-        return NativeBattleModulePackets.EmitBatch572200(mesh.Resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors);
+        return NativeBattleModulePackets.EmitBatch572200(mesh.Resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors, pilotIdentity: operation.PilotIdentity);
     }
 
     public static NativeBattleModulePacketBatch Flash(NativeBattleThundaraResources resources, int arenaOffset)

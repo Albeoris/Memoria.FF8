@@ -7,7 +7,7 @@ public sealed record NativeBattleQuake38WallDraw(ImmutableArray<byte> Entry, Nat
 
 public static class NativeBattleQuake38GroundBorders
 {
-    public static NativeBattleGfGeometryBatch Crack8D9F70(ImmutableArray<byte> entry, NativeBattleVector first, NativeBattleVector second, int edge, int border, short crackTick, ImmutableArray<byte> template, NativeBattleQuake38Resources resources, NativeBattleCameraProjection projection, short zsf4)
+    public static NativeBattleGfGeometryBatch Crack8D9F70(ImmutableArray<byte> entry, NativeBattleVector first, NativeBattleVector second, int edge, int border, short crackTick, ImmutableArray<byte> template, NativeBattleQuake38Resources resources, NativeBattleCameraProjection projection, short zsf4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         Require(entry, edge, border);
         if (crackTick <= entry[92 + edge])
@@ -24,10 +24,10 @@ public static class NativeBattleQuake38GroundBorders
             throw new InvalidDataException("Native Quake crack shade leaves its original table.");
         }
         (ImmutableArray<byte> bytes, ImmutableArray<NativeBattleGfPacketByteState> mask) = Template(template, resources.StepShade[shade], 0x3C54);
-        return NativeBattleQuake38QuadPackets.Emit(vertices, bytes, mask, projection, zsf4);
+        return NativeBattleQuake38QuadPackets.Emit(vertices, bytes, mask, projection, zsf4, pilotIdentity: pilotIdentity);
     }
 
-    public static NativeBattleQuake38WallDraw Wall8DA200(ImmutableArray<byte> entry, NativeBattleVector first, NativeBattleVector second, int edge, int border, short rippleTick, short chipCount, ImmutableArray<byte> template, NativeBattleQuake38Resources resources, NativeBattleCameraProjection projection, short zsf4)
+    public static NativeBattleQuake38WallDraw Wall8DA200(ImmutableArray<byte> entry, NativeBattleVector first, NativeBattleVector second, int edge, int border, short rippleTick, short chipCount, ImmutableArray<byte> template, NativeBattleQuake38Resources resources, NativeBattleCameraProjection projection, short zsf4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         Require(entry, edge, border);
         int slot = 64 + edge * 3 + border;
@@ -45,11 +45,11 @@ public static class NativeBattleQuake38GroundBorders
         byte[] updated = entry.ToArray();
         updated[slot] = (byte)(step + 1);
         (ImmutableArray<byte> bytes, ImmutableArray<NativeBattleGfPacketByteState> mask) = Template(template, resources.StepShade[step + 1], null);
-        NativeBattleGfGeometryBatch batch = NativeBattleQuake38QuadPackets.Emit([upperFirst, upperSecond, first, second], bytes, mask, projection, zsf4);
+        NativeBattleGfGeometryBatch batch = NativeBattleQuake38QuadPackets.Emit([upperFirst, upperSecond, first, second], bytes, mask, projection, zsf4, pilotIdentity: pilotIdentity);
         return new(updated.ToImmutableArray(), batch, batch.AllocationBytes != 0 && chipCount < 90, upperFirst, first);
     }
 
-    public static NativeBattleGfGeometryBatch Side8DA3E0(ImmutableArray<byte> entry, NativeBattleVector first, NativeBattleVector second, int firstSelector, int secondSelector, short height, NativeBattleCameraProjection projection, short zsf4)
+    public static NativeBattleGfGeometryBatch Side8DA3E0(ImmutableArray<byte> entry, NativeBattleVector first, NativeBattleVector second, int firstSelector, int secondSelector, short height, NativeBattleCameraProjection projection, short zsf4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (entry.IsDefault || entry.Length != 112 || (uint)firstSelector >= 5 || (uint)secondSelector >= 5)
         {
@@ -71,7 +71,7 @@ public static class NativeBattleQuake38GroundBorders
         {
             Write(offset, [entry[100 + secondSelector], entry[105 + secondSelector]]);
         }
-        return NativeBattleQuake38QuadPackets.Emit([first, second, lowerFirst, lowerSecond], bytes.ToImmutableArray(), mask.ToImmutableArray(), projection, zsf4);
+        return NativeBattleQuake38QuadPackets.Emit([first, second, lowerFirst, lowerSecond], bytes.ToImmutableArray(), mask.ToImmutableArray(), projection, zsf4, pilotIdentity: pilotIdentity);
 
         void Write(int offset, byte[] value)
         {

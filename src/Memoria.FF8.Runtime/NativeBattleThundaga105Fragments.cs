@@ -84,7 +84,7 @@ public static class NativeBattleThundaga105Fragments
         RequireMesh(task, mesh);
         NativeBattleActionMatrix local = Rotation(task) with { X = S(task, 0x10), Y = S(task, 0x12), Z = S(task, 0x14) };
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(view, local);
-        return NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, matrix, projection, new(0, 0, 0, null, null, null, 17, 2), colors);
+        return NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, matrix, projection, new(0, 0, 0, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(105, task));
     }
 
     //Caller emits Draw6D5AD0 first, then this step; completion emits debris without integrating the fragment.

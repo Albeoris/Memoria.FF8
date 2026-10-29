@@ -507,6 +507,7 @@ public static class NativeBattleHoly175Controller
                     Write(motion, 0, radius / duration);
                     Write(motion, 2, (S(task, 0x12) - height) / duration);
                     Write(motion, 4, angularVelocity);
+                    NativeBattlePilotVisualLifetimes.Allocated(State().Sprite31Rows, 0x5D34D0, row);
                     SetState(State() with { Sprite31Rows = State().Sprite31Rows.Write(row * 24, prefix).Write(row * 24 + 0x10, motion) });
                 }
             }
@@ -573,6 +574,7 @@ public static class NativeBattleHoly175Controller
                     Write(prefix, 6, scale);
                     Write(prefix, 8, x);
                     Write(prefix, 10, y);
+                    NativeBattlePilotVisualLifetimes.Allocated(State().Sprite4Rows, 0x5D44D0, row);
                     SetState(State() with { Sprite4Rows = State().Sprite4Rows.Write(row * 24, prefix).Write(row * 24 + 0x12, Word(velocity)).Write(row * 24 + 0x16, Word(duration)) });
                 }
             }

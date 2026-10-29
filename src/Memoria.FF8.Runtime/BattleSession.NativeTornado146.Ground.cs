@@ -48,7 +48,7 @@ public sealed partial class BattleSession
                 {
                     ImmutableArray<NativeBattleRawMesh> meshes = GroundMeshes();
                     (byte[] retained, _) = staging.ReadSnapshot(workspace, capacity);
-                    NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), Colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth);
+                    NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), Colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth, NativeBattlePilotVisualLifetimes.Identity(146, pools[0].Slots[0], -1), pilotScreenSpace: true, pilotContinuous: false);
                     Append(drawn.Packets);
                     staging = staging.Write(workspace, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));
                     process = process.PublishModelColor(group.ColorFlags).Publish50FDF0(state.Storage.ReadUInt32(checked((int)(0x24AA628 - NativeBattleTornado146State.WorkAddress))), null);
@@ -155,8 +155,10 @@ public sealed partial class BattleSession
             Memory = Memory with { PrimitiveProcess = (Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tornado ground requires its current far-color owner.")).PublishFarColor45DDA0(0, 0, 0) };
             NativeBattleScriptedGraphicsMemory controls = Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Tornado ground requires its retained GTE controls.");
             using NativeBattleTornado146Work work = new(state);
-            foreach (NativeBattleRawMesh mesh in GroundMeshes())
+            ImmutableArray<NativeBattleRawMesh> groundMeshes = GroundMeshes();
+            for (int meshIndex = 0; meshIndex < groundMeshes.Length; meshIndex++)
             {
+                NativeBattleRawMesh mesh = groundMeshes[meshIndex];
                 if (mesh.Vertices.Length * 8 > capacity)
                 {
                     throw new InvalidDataException("Native Tornado ground leaves its installed CPU vertex capacity.");
@@ -175,7 +177,7 @@ public sealed partial class BattleSession
                 WordStore(10, 0);
                 WordStore(12, checked((ushort)mesh.Polygons.Count(polygon => !polygon.Quad)));
                 WordStore(14, checked((ushort)mesh.Polygons.Count(polygon => polygon.Quad)));
-                NativeBattleGfGeometryBatch batch = NativeBattleTornado146GroundPackets.Emit616AC0(mesh.Polygons, transformed.ToImmutable(), View, Projection, controls.Zsf3 ?? throw new NotSupportedException("Native Tornado ground requires its current ZSF3."), controls.Zsf4 ?? throw new NotSupportedException("Native Tornado ground requires its current ZSF4."), controls.Dqa, controls.Dqb, Colors, Store);
+                NativeBattleGfGeometryBatch batch = NativeBattleTornado146GroundPackets.Emit616AC0(mesh.Polygons, transformed.ToImmutable(), View, Projection, controls.Zsf3 ?? throw new NotSupportedException("Native Tornado ground requires its current ZSF3."), controls.Zsf4 ?? throw new NotSupportedException("Native Tornado ground requires its current ZSF4."), controls.Dqa, controls.Dqb, Colors, Store, NativeBattlePilotVisualLifetimes.Identity(146, task, meshIndex));
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tornado ground requires its actual COMMON packet cursor."), graphics.PrimitiveFrame!.Pending, batch);
                 Memory = Memory with { PrimitiveProcess = written.Process };
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
