@@ -100,5 +100,3 @@ public sealed class NativeBattleRinoa87NodeOwnershipTests
         return (new(memory, effect, state), child.Address, resources, packets);
     }
 }
-
-
