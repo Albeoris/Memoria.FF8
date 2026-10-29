@@ -2,6 +2,7 @@ using System.Formats.Tar;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Memoria.FF8.Platform;
 
 static class PackagedDistribution
 {
@@ -111,8 +112,8 @@ static class PackagedDistribution
                 Extract(entry.Name, entry.DataStream, entry.Length, directory, (int)entry.Mode);
             }
         }
-        string root = rid == "osx-x64" ? Path.Combine(destination, "Memoria.FF8.app") : destination;
-        if (rid == "osx-x64")
+        string root = HostPlatforms.IsMacRuntime(rid) ? Path.Combine(destination, "Memoria.FF8.app") : destination;
+        if (HostPlatforms.IsMacRuntime(rid))
         {
             string plist = File.ReadAllText(Path.Combine(destination, "Memoria.FF8.app", "Contents", "Info.plist"));
             if (!plist.Contains("<string>26.0</string>", StringComparison.Ordinal) || !plist.Contains("<string>Memoria.Launcher</string>", StringComparison.Ordinal))
@@ -121,9 +122,9 @@ static class PackagedDistribution
             }
         }
         Validate(root, rid);
-        if (rid == "osx-x64")
+        if (HostPlatforms.IsMacRuntime(rid))
         {
-            MacNativeClosure.Validate(root);
+            MacNativeClosure.Validate(root, rid);
             string molten = Path.Combine(root, "Contents", "MacOS", "Data", "Game", "vulkan", "libMoltenVK.dylib");
             if (!File.Exists(molten) || !File.Exists(Path.Combine(Path.GetDirectoryName(molten)!, "MoltenVK.LICENSE")))
             {
@@ -135,14 +136,14 @@ static class PackagedDistribution
 
     private static void Validate(string root, string rid)
     {
-        string prefix = rid == "osx-x64" ? "Contents/MacOS/" : "";
+        string prefix = HostPlatforms.IsMacRuntime(rid) ? "Contents/MacOS/" : "";
         using JsonDocument json = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, prefix + "Data/distribution.json")));
         JsonElement manifest = json.RootElement;
         if (manifest.GetProperty("RuntimeIdentifier").GetString() != rid || manifest.GetProperty("SchemaVersion").GetInt32() != (rid == "win-x64" ? 1 : 2))
         {
             throw new InvalidDataException("Package descriptor RID/schema mismatch.");
         }
-        if (rid == "osx-x64")
+        if (HostPlatforms.IsMacRuntime(rid))
         {
             MacBundleVersion.Validate(File.ReadAllBytes(Path.Combine(root, "Contents", "Info.plist")), manifest.GetProperty("Version").GetString()!);
         }

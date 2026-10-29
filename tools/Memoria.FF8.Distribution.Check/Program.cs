@@ -72,8 +72,8 @@ if (args.Length >= 3 && args[0] == "--native-image")
     foreach (string path in args.Skip(2))
     {
         using FileStream stream = File.OpenRead(path);
-        NativeImage.RequireX64(stream, args[1]);
-        Console.WriteLine($"Native x64 ABI verified: {Path.GetFileName(path)} ({args[1]}).");
+        NativeImage.RequireAbi(stream, args[1]);
+        Console.WriteLine($"Native ABI verified: {Path.GetFileName(path)} ({args[1]}).");
     }
     return;
 }
@@ -256,7 +256,7 @@ static class GraphicsPayload
                 }
             }
         }
-        Console.WriteLine($"Graphics payload verified: {backend}, isolated MonoGame family, x64 native ABI, three embedded shader profiles and manifest hashes.");
+        Console.WriteLine($"Graphics payload verified: {backend}, isolated MonoGame family, {rid} native ABI, three embedded shader profiles and manifest hashes.");
     }
 
     private static bool IsHash(string value)
@@ -320,7 +320,7 @@ static class PayloadImages
                 }
                 stream.Position = 0;
             }
-            NativeImage.RequireX64(stream, rid);
+            NativeImage.RequireAbi(stream, rid);
         }
     }
 }

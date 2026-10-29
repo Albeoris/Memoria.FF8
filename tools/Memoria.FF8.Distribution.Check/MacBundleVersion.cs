@@ -20,6 +20,11 @@ static class MacBundleVersion
         using MemoryStream source = new(content);
         using XmlReader reader = XmlReader.Create(source, new XmlReaderSettings { DtdProcessing = DtdProcessing.Parse, XmlResolver = null, MaxCharactersInDocument = 1024 * 1024 });
         XDocument document = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
+        if (document.DocumentType is { InternalSubset: "" } type)
+        {
+            // XDocument would write an empty "[]" subset, which plutil and LaunchServices reject.
+            type.InternalSubset = null;
+        }
         XElement dictionary = document.Root?.Element("dict") ?? throw new InvalidDataException("The macOS bundle has no property dictionary.");
         Set(dictionary, "CFBundleShortVersionString", numeric);
         Set(dictionary, "CFBundleVersion", numeric);

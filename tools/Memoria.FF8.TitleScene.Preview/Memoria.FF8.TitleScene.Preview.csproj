@@ -8,7 +8,7 @@
     <PackageReference Include="MonoGame.Runtime.Windows.Vulkan" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' And '$(MemoriaTargetRuntime)' == 'win-x64'" />
     <PackageReference Include="MonoGame.Runtime.Windows.DX12" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'" />
     <PackageReference Include="MonoGame.Runtime.Linux.Vulkan" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' And '$(MemoriaTargetRuntime)' == 'linux-x64'" />
-    <PackageReference Include="MonoGame.Runtime.Mac.Vulkan" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' And '$(MemoriaTargetRuntime)' == 'osx-x64'" />
+    <PackageReference Include="MonoGame.Runtime.Mac.Vulkan" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' And '$(MemoriaTargetMac)' == 'true'" />
   </ItemGroup>
   <Import Project="../../vendor/MonoGame.Native.DX12/NativeDirect3D12.targets" />
   <Import Project="../../vendor/MonoGame.Native.Vulkan/NativeVulkan.targets" />

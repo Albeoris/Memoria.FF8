@@ -67,11 +67,13 @@ public sealed class PortableMediaSetupTests : IDisposable
         Assert.Throws<InvalidDataException>(() => MediaToolsInstallation.ExtractLinuxTar(archive, directory));
     }
 
-    [Fact]
-    public async Task MacSetupReportsManualInstructionsWithoutConsentOrNetwork()
+    [Theory]
+    [InlineData("osx-x64")]
+    [InlineData("osx-arm64")]
+    public async Task MacSetupReportsManualInstructionsWithoutConsentOrNetwork(string rid)
     {
         using HttpClient client = new(new RejectNetwork());
-        MediaToolsInstallation installation = new(client, new FfmpegDownloadOptions(new Uri("https://example.invalid/"), "", "osx-x64"), validate: _ => Task.FromResult(false));
+        MediaToolsInstallation installation = new(client, new FfmpegDownloadOptions(new Uri("https://example.invalid/"), "", rid), validate: _ => Task.FromResult(false));
         List<string> reports = [];
         Assert.False(await installation.EnsureAsync(directory, _ => throw new InvalidOperationException("No unreviewed download should request consent."), reports.Add));
         Assert.Contains("Manual installation", Assert.Single(reports));

@@ -17,7 +17,7 @@ internal sealed partial record PackageManifest
         Dictionary<string, (long Length, int Mode)> entries = new(StringComparer.Ordinal);
         PackageManifest? manifest = null;
         long total = 0;
-        bool macArchive = expectedRuntimeIdentifier == "osx-x64";
+        bool macArchive = expectedRuntimeIdentifier is not null && Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(expectedRuntimeIdentifier);
         string inventoryPath = macArchive ? MacManifestPath : ManifestPath;
         string EntryPath(string name)
         {

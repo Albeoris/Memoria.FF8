@@ -14,6 +14,8 @@ Set these in the shell before starting the launcher, engine or test process. An 
 | `MEMORIA_FF8_SETTINGS_DIRECTORY` | Optional engine settings-directory override; `--settings-dir` takes precedence. Redirects UI settings, controls, Triple Triad deck history and save-bank configuration. Skips legacy preference import from the save directory. Does not relocate installed resources, media tools or player saves. |
 | `MEMORIA_FF8_MEDIA_TOOLS` | Directory containing `ffmpeg.exe` and `ffprobe.exe`, used by both the launcher and engine. Direct engine startup can override it with `--media-tools`. Default `%LOCALAPPDATA%/Memoria.FF8/media-tools/`, beside `player-saves/`. |
 | `MEMORIA_FF8_FFMPEG_RELEASE_URL` | Override the HTTPS release-download directory used by optional FFmpeg installation. Default `https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/`. |
+| `MEMORIA_FF8_FFMPEG_PREBUILT_URL` | macOS only: override the HTTPS directory containing the prebuilt FFmpeg package offered by launcher setup. Default `https://github.com/dfloresc/ffmpeg-macos-builds/releases/download/v9.0.1-1/`. The archive must still match the pinned SHA-256. |
+| `MEMORIA_FF8_FFMPEG_SOURCE_URL` | macOS only: override the HTTPS directory containing the FFmpeg source release built by launcher setup. Default `https://ffmpeg.org/releases/`. The archive must still match the pinned SHA-256. |
 | `MEMORIA_FF8_FFMPEG_ARCHIVE` | Override the optional FFmpeg ZIP filename. Default `ffmpeg-master-latest-win64-lgpl.zip`. Must be a filename ending in `-win64-lgpl.zip`. |
 
 For example, from an extracted release directory, with an existing PowerShell variable holding your selected installation:
