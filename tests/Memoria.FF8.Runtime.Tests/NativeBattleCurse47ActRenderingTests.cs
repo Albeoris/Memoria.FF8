@@ -9,6 +9,21 @@ public sealed class NativeBattleCurse47ActRenderingTests
     private static NativeBattleSummonColors Constants => new(0, 0, 1f / 4096f, BitConverter.Int64BitsToDouble(0x4330000080000000L));
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);
 
+    [Fact]
+    public void Presentation_capture_preserves_actual_ACT_native_ledger_and_selected_corners()
+    {
+        NativeBattlePilotVisualIdentity identity = new(47, 1, 2, 3, 4) { ResourceGeneration = 5 };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 100, 160, 108);
+        NativeBattleActMeshDraw native = Draw(Source(3), ModifiedNode(0x200), NativeBattleEffectArena.Clear().MarkUnknown(0, 840), projection: projection);
+        NativeBattleActMeshDraw captured = Draw(Source(3), ModifiedNode(0x200), NativeBattleEffectArena.Clear().MarkUnknown(0, 840), pilotIdentity: identity, projection: projection);
+        Assert.Equal(SnapshotJson(native), SnapshotJson(captured));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(3, geometry.CornerCount);
+        Assert.NotEqual(geometry.A, geometry.B);
+    }
+
     [Theory]
     [InlineData(0x300u)]
     [InlineData(0x600u)]
@@ -82,9 +97,9 @@ public sealed class NativeBattleCurse47ActRenderingTests
         return new(0, 0, bytes.ToImmutableArray());
     }
 
-    private static NativeBattleActMeshDraw Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena scratch, NativeBattleEffectArena? temporary = null)
+    private static NativeBattleActMeshDraw Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena scratch, NativeBattleEffectArena? temporary = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null)
     {
-        return NativeBattleCurse47ActRendering.DrawNode(source, node, new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, -3), temporary ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 104), scratch, Registers(), new(1, 2, 3, 4, 5), Projection, 0, 0, 0x155, 0x100, Constants);
+        return NativeBattleCurse47ActRendering.DrawNode(source, node, new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, -3), temporary ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 104), scratch, Registers(), new(1, 2, 3, 4, 5), projection ?? Projection, 0, 0, 0x155, 0x100, Constants, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleGeometryRegisterStep Registers() => new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown() with { Material = 0xAA123456, Rgb = [0x11, 0x22, 0x33] });

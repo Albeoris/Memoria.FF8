@@ -164,7 +164,7 @@ public sealed partial class BattleSession
             int frame = SonicWord(task, 12);
             int level = (12 - frame) << 5;
             uint color = unchecked((uint)level * 0x10101u);
-            NativeBattleModuleSpriteFrame selected = Sprite(resources.Sprites[0], frame, SonicVector(task, 16), SonicWord(task, 28), -(SonicWord(task, 28) >> 3), frame >= 8 ? (ushort)13 : (ushort)9, SonicWord(task, 24), color);
+            NativeBattleModuleSpriteFrame selected = Sprite(resources.Sprites[0], frame, SonicVector(task, 16), SonicWord(task, 28), -(SonicWord(task, 28) >> 3), frame >= 8 ? (ushort)13 : (ushort)9, SonicWord(task, 24), color, NativeBattlePilotVisualLifetimes.Identity(152, task) with { ResourceGeneration = resources.Sprites[0].Address });
             if (paused)
             {
                 return 0;
@@ -187,7 +187,7 @@ public sealed partial class BattleSession
             var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(x, y, z);
             int depth = -(scale >> 4);
             matrix = matrix with { X = unchecked(x + (depth * direction.X >> 12)), Y = unchecked(y + (depth * direction.Y >> 12)), Z = unchecked(z + (depth * direction.Z >> 12)) };
-            NativeBattleGfGeometryBatch batch = NativeBattleUltrasonic152.Ring60BA00(resources.Ring, matrix, projection, resources.Colors[frame % 10], frame, colors);
+            NativeBattleGfGeometryBatch batch = NativeBattleUltrasonic152.Ring60BA00(resources.Ring, matrix, projection, resources.Colors[frame % 10], frame, colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(152, task) with { ResourceGeneration = 0x60BA00 });
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch);
             NativeEffectMemory = written.Memory;
             effect = effect with { DrawArenaOffset = written.Cursor };
@@ -212,7 +212,7 @@ public sealed partial class BattleSession
                 }
                 int frame = SleepRawWord(particles, offset + 4);
                 int scale = SleepRawWord(particles, offset + 6);
-                NativeBattleModuleSpriteFrame selected = Sprite(sprite, frame, SleepRawVector(particles, offset + 8), scale, -(scale >> 4), mode, 0, 0);
+                NativeBattleModuleSpriteFrame selected = Sprite(sprite, frame, SleepRawVector(particles, offset + 8), scale, -(scale >> 4), mode, 0, 0, NativeBattleUltrasonic152VisualLifetimes.Identity(task, index, type));
                 if (paused)
                 {
                     continue;
@@ -248,16 +248,17 @@ public sealed partial class BattleSession
                     NativeBattleVector point = SonicVector(task, 16);
                     int span = type == 1 ? 800 : 900;
                     SleepPutVector(particles, offset + 8, new(unchecked((short)(point.X + Roll() % span - span / 2)), unchecked((short)(point.Y + Roll() % span - span / 2)), unchecked((short)(point.Z + Roll() % span - span / 2))));
+                    NativeBattleUltrasonic152VisualLifetimes.Allocated(task, free);
                 }
             }
             task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
             return counter + 1 >= 4 && alive == 0 ? 2 : 0;
         }
 
-        NativeBattleModuleSpriteFrame Sprite(NativeBattleModuleResource sprite, int frame, NativeBattleVector point, int scale, int depth, ushort flags, short rotation, uint color)
+        NativeBattleModuleSpriteFrame Sprite(NativeBattleModuleResource sprite, int frame, NativeBattleVector point, int scale, int depth, ushort flags, short rotation, uint color, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleModuleSpriteFrame selected = sprite.SpriteFrame(frame);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = sprite, SpriteFrame = selected, Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = depth, SpriteFlags = flags, Rotation = rotation, SpriteColor = color };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = sprite, SpriteFrame = selected, Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = depth, SpriteFlags = flags, Rotation = rotation, SpriteColor = color, PilotIdentity = pilotIdentity };
             NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch, NativeBattleEffectGouraudWrites.RgbBytes);
             NativeEffectMemory = written.Memory;

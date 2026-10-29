@@ -105,6 +105,25 @@ public sealed class NativeBattleDisolvingAcid132ActContext12Tests
         Assert.True(result.Memory.ScriptedColorRegisters.NormalInputKnown.Value[7]);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ACT_capture_forwards_native_selected_or_morph_geometry_without_state_writes(bool interpolate)
+    {
+        NativeBattleGfAnimationSource source = Source();
+        NativeBattleGfAnimationNode node = Node(rotation: new(0, 0, 0), interpolate: interpolate);
+        NativeBattleCameraProjection projection = new(Camera().ReadMatrix(), 100, 160, 108);
+        NativeBattleDisolvingAcid132ActContextStep Run(NativeBattlePilotVisualIdentity? identity) => NativeBattleDisolvingAcid132ActContext12.Draw(Memory(), source, node, Context(new(0, 0, 0)), Camera(), Temporary(), projection, Colors, MorphAddress, 544, pilotIdentity: identity);
+        string native = NativeBattleTestSnapshots.Json(Run(null));
+        NativeBattlePilotVisualIdentity identity = new(132, 1, 2, 3, node.ResourceOffset) { ResourceGeneration = source.Address };
+        NativeBattleDisolvingAcid132ActContextStep captured = Run(identity);
+        Assert.Equal(native, NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry geometry = Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry!;
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(source.Address, geometry.Identity.ResourceGeneration);
+        Assert.Equal(4, geometry.CornerCount);
+    }
+
     private static NativeBattleDisolvingAcid132ActPreparation Prepare(NativeBattleGfAnimationNode node, NativeBattleEffectArena context, NativeBattleEffectMemory? memory = null, NativeBattleActionMatrix? camera = null) => NativeBattleDisolvingAcid132ActContext12.Prepare(memory ?? Memory(), Source(), node, context, Camera(camera), Temporary(), Colors, MorphAddress, 544);
     private static NativeBattleEffectMemory Memory()
     {

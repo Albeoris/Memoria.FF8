@@ -5,9 +5,9 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleOilShot136Mesh
 {
-    public static NativeBattleWindowedMeshStep Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource source, NativeBattleEffectArena context92, NativeBattleCameraProjection projection, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleWindowedMeshStep Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource source, NativeBattleEffectArena context92, NativeBattleCameraProjection projection, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return NativeBattleWindowedMesh.Draw(memory, source, context92, projection, NativeBattleWindowedMeshLayout.OilShot136, ReadVertex, tableBaseBucket, depthShift);
+        return NativeBattleWindowedMesh.Draw(memory, source, context92, projection, NativeBattleWindowedMeshLayout.OilShot136, ReadVertex, tableBaseBucket, depthShift, pilotIdentity: pilotIdentity);
 
         (NativeBattleVector Vertex, short? W) ReadVertex(uint address)
         {

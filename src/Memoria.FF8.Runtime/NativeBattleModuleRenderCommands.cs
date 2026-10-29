@@ -22,8 +22,8 @@ public static class NativeBattleModuleRenderCommands
         return unchecked(unchecked(((rise + hold - age) << 12) - 4096) / fall + 4096);
     }
 
-    public static NativeBattleGfGeometryBatch Emit700150(int age, int red, int green, int blue, int rise, int hold, int fall)
+    public static NativeBattleGfGeometryBatch Emit700150(int age, int red, int green, int blue, int rise, int hold, int fall, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return NativeBattleRinoa89FadeDrawing.Draw7040B0(red, green, blue, Factor700150(age, rise, hold, fall));
+        return NativeBattleRinoa89FadeDrawing.Draw7040B0(red, green, blue, Factor700150(age, rise, hold, fall), pilotIdentity);
     }
 }

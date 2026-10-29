@@ -40,7 +40,7 @@ public static partial class NativeBattleDisolvingAcid132Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadCamera(frame), Vector(task, 16), Signed(task, 22), scale, depth) };
         NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(RequireStaging(frame), temporary, source, 0).Write(temporary + 4, BitConverter.GetBytes(unchecked((ushort)phase)));
-        return inputs.Execute(frame with { Staging = staging }, new NativeBattleDisolvingAcid132DrawSprite180(temporary, source));
+        return inputs.Execute(frame with { Staging = staging }, new NativeBattleDisolvingAcid132DrawSprite180(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(132, Read(frame, address)) with { ResourceGeneration = source } });
     }
 
     private static NativeBattleEffectArena ActContext(NativeBattleDisolvingAcid132Frame frame, NativeBattleModulePoolTask task)
@@ -97,7 +97,7 @@ public static partial class NativeBattleDisolvingAcid132Controller
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0x98, BitConverter.GetBytes(unchecked(matrix.X + registers.Colors.Mac[0]!.Value))).Write(0x9C, BitConverter.GetBytes(unchecked(matrix.Y + registers.Colors.Mac[1]!.Value))).Write(0xA0, BitConverter.GetBytes(unchecked(matrix.Z + registers.Colors.Mac[2]!.Value)));
         context = context.Write(0x2C, BitConverter.GetBytes(checked(TemplateSpriteAddress + (uint)offset + 4))).Write(0x30, BitConverter.GetBytes(flags));
         frame = PublishContext(frame, temporary, context, 180);
-        frame = inputs.Execute(frame, new NativeBattleDisolvingAcid132DrawTemplate180(temporary, TemplateSpriteAddress));
+        frame = inputs.Execute(frame, new NativeBattleDisolvingAcid132DrawTemplate180(temporary, TemplateSpriteAddress) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(132, Read(frame, address)) with { ResourceGeneration = TemplateSpriteAddress } });
         task = Read(frame, address).WriteWord(18, unchecked((ushort)(Read(frame, address).ReadWord(18) + 1)));
         if (Signed(task, 18) >= 8)
         {

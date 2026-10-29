@@ -71,7 +71,7 @@ public sealed partial class BattleSession
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("OilShot136 drawing requires its addressed temporary memory."), 88);
                 NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
                 uint morph = checked(current.State.ReadDword(NativeBattleOilShot136Profile.WorkingGlobal) + NativeBattleOilShot136Profile.MorphOffset);
-                NativeBattleDefaultActContext40Step drawn = NativeBattleOilShot136Act.Draw(current.Memory, source, node, context, temporary, Projection(), colors, morph, current.State.ReadCurrentMatrix());
+                NativeBattleDefaultActContext40Step drawn = NativeBattleOilShot136Act.Draw(current.Memory, source, node, context, temporary, Projection(), colors, morph, current.State.ReadCurrentMatrix(), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(136, NativeBattleOilShot136Controller.Read(current, address), node.ResourceOffset) with { ResourceGeneration = ((long)source.Address << 32) | (uint)offset });
                 NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.Temporary88, 88);
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("OilShot136 requires its current ordering table.");
                 uint cursor = current.State.ReadDword(NativeBattleOilShot136Profile.CursorGlobal);
@@ -102,7 +102,7 @@ public sealed partial class BattleSession
                 case NativeBattleOilShot136DrawCustom92 mesh:
                     NativeBattleEffectArena context = ReadTemporary(current, mesh.TemporaryAddress, 92);
                     NativeBattleStaticMeshResource source = resources.InitialMesh with { Bytes = current.State.ReadMesh() };
-                    NativeBattleWindowedMeshStep drawn = NativeBattleOilShot136Mesh.Draw(current.Memory, source, context, Projection());
+                    NativeBattleWindowedMeshStep drawn = NativeBattleOilShot136Mesh.Draw(current.Memory, source, context, Projection(), pilotIdentity: mesh.PilotIdentity);
                     return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, mesh.TemporaryAddress, drawn.Context, 92) }, drawn.Batch);
                 case NativeBattleOilShot136Stage stage:
                     NativeBattleStageState stageState = NativeStage ?? throw new NotSupportedException("Oil Shot requires its current stage colors.");
@@ -120,7 +120,7 @@ public sealed partial class BattleSession
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Oil Shot contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleOilShot136DrawSprite180 sprite:
                     NativeBattleModuleResource spriteSource = resources.Sprite(sprite.SourceAddress);
-                    NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, ReadTemporary(current, sprite.TemporaryAddress, 180), address => address == spriteSource.Address ? spriteSource : throw new NotSupportedException("Oil Shot selected an unsupported sprite source."), Projection(), Camera().Roll, 17);
+                    NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, ReadTemporary(current, sprite.TemporaryAddress, 180), address => address == spriteSource.Address ? spriteSource : throw new NotSupportedException("Oil Shot selected an unsupported sprite source."), Projection(), Camera().Roll, 17, pilotIdentity: sprite.PilotIdentity);
                     return Deliver(current with { Memory = spriteDraw.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, sprite.TemporaryAddress, spriteDraw.Temporary180, 180) }, spriteDraw.Batch);
                 default:
                     throw new NotSupportedException("Oil Shot operation has no proved implementation.");

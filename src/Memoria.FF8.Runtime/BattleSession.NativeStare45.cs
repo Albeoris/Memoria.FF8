@@ -127,7 +127,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Stare45 vertex source is not an actual selected geometry shape or its mutable scratch.");
             }
-            NativeBattleStare45MeshContext104Step drawn = NativeBattleStare45MeshContext104.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), operation.VertexAddress, ReadVertex);
+            NativeBattleStare45MeshContext104Step drawn = NativeBattleStare45MeshContext104.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), operation.VertexAddress, ReadVertex, operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context104, 104) };
             return Delivered(current, NativeBattleStare45PacketDelivery.Deliver(current.Memory, current.State, Ordering(), drawn.Batch, 0x1D8E054, 0));
 

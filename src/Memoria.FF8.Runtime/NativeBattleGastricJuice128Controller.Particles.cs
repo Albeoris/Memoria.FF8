@@ -18,7 +18,7 @@ public static partial class NativeBattleGastricJuice128Controller
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Gastric Juice particles require their physical temporary memory."), 180);
         ushort phase = task.ReadWord(12);
         NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(allocation.Staging, allocation.Address, source, 0).Write(allocation.Address + 4, BitConverter.GetBytes(phase));
-        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleGastricJuice128DrawSprite180(allocation.Address, source, phase));
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleGastricJuice128DrawSprite180(allocation.Address, source, phase) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(128, Read(frame, address)) with { ResourceGeneration = source } });
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging ?? throw new NotSupportedException("Gastric Juice lost its physical particle temporary."), 180) };
         task = Read(frame, address);
         if (callback != 0x6B9030)

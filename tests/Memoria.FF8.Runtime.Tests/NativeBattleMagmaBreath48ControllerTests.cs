@@ -180,6 +180,17 @@ public sealed class NativeBattleMagmaBreath48ControllerTests
         Assert.Equal((ushort)index, Read(actual.Frame, address).ReadWord(0x38));
         var batch = Assert.IsType<NativeBattleMagmaBreath48SubmitPackets>(Assert.Single(operations)).Batch;
         Assert.Equal(36, batch.AllocationBytes);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(batch.Primitives[0].Primitive.PilotGeometry);
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(48, Read(frame, address)) with { ResourceGeneration = 0x15ADC28 }, geometry.Identity);
+        Assert.True(geometry.ScreenSpace);
+        Assert.Equal(8, geometry.ScreenScale);
+        for (int corner = 0; corner < 4; corner++)
+        {
+            uint xy = batch.Primitives[0].Primitive.Words[2 + corner];
+            Assert.Equal(unchecked((short)xy), geometry.Corner(corner).X * geometry.ScreenScale * 0.125f);
+            Assert.Equal(unchecked((short)(xy >> 16)), geometry.Corner(corner).Y * geometry.ScreenScale * 0.125f);
+        }
+        Assert.Null(batch.Primitives[1].Primitive.PilotGeometry);
         Assert.Equal(new ushort[] { 1, 0 }, batch.Primitives.Select(item => item.Flags20));
         Assert.Equal(new uint[] { 0x05000000, 0x2A000032, 0, 320, 0xD80000, 0xD80140 }, batch.Primitives[0].Primitive.Words);
         Assert.Equal(new uint[] { 0x02000000, 0xE100002A, 0 }, batch.Primitives[1].Primitive.Words);

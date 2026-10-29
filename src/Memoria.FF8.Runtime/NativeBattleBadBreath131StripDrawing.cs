@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleBadBreath131StripDrawing
 {
-    public static (NativeBattleBadBreath131Frame Frame, NativeBattleGfGeometryBatch Batch) Draw(NativeBattleBadBreath131Frame frame, uint temporaryAddress, uint sourceAddress, uint selectedVerticesAddress, NativeBattleCameraProjection projection, NativeBattleSummonColors constants)
+    public static (NativeBattleBadBreath131Frame Frame, NativeBattleGfGeometryBatch Batch) Draw(NativeBattleBadBreath131Frame frame, uint temporaryAddress, uint sourceAddress, uint selectedVerticesAddress, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint working = frame.State.ReadDword(WorkingGlobal);
         if (selectedVerticesAddress != checked(working + ScratchOffset))
@@ -22,7 +22,7 @@ public static class NativeBattleBadBreath131StripDrawing
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Bad Breath strip drawing requires its current working arena.");
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Bad Breath strip drawing requires its retained projection controls.");
         NativeBattleGeometryRegisterStep registers = new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Bad Breath strip drawing requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Bad Breath strip drawing requires its current arithmetic registers."));
-        NativeBattleBadBreath300StripMeshStep drawn = NativeBattleBadBreath300StripMesh.Draw66F710(frame.State.ReadMesh(sourceAddress), sourceAddress, temporary, selectedVerticesAddress, ReadVertex, registers, projection, controls.Dqa, controls.Dqb, controls.Zsf4, constants);
+        NativeBattleBadBreath300StripMeshStep drawn = NativeBattleBadBreath300StripMesh.Draw66F710(frame.State.ReadMesh(sourceAddress), sourceAddress, temporary, selectedVerticesAddress, ReadVertex, registers, projection, controls.Dqa, controls.Dqb, controls.Zsf4, constants, pilotIdentity: pilotIdentity);
         return (frame with
         {
             Memory = frame.Memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors },

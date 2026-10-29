@@ -56,7 +56,11 @@ public static partial class NativeBattleMagmaBreath48Controller
             frame = frame with { Memory = spawned.Memory, Effect = spawned.Effect };
             NativeBattleEffectArena currentScratch = NativeBattleEffectNodeContextMemory.Copy(spawnScratch.View, 100, NativeBattleEffectNodeContextMemory.Capture(spawned.Memory), 100, 80);
             memory.PublishProcessMemory(NativeBattleEffectNodeContextMemory.Publish(spawned.Memory, currentScratch));
-            _ = lifecycle.DrawNodes(inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), (node, source) => PrepareMesh48(memory, node, source, () => frame, value => frame = value, inputs), (meshes, batch) =>
+            _ = lifecycle.DrawNodes(inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), (node, source) =>
+            {
+                Mesh48Instance emit = PrepareMesh48(memory, node, source, () => frame, value => frame = value, inputs);
+                return (resource, matrix) => emit(resource, matrix, null);
+            }, (meshes, batch) =>
             {
                 if (!meshes)
                 {
@@ -67,6 +71,10 @@ public static partial class NativeBattleMagmaBreath48Controller
                     frame = Release(frame, 180);
                     memory.PublishProcessMemory(frame.Memory);
                 }
+            }, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(48, Read(frame, address)), preparePilotMesh: (node, source) =>
+            {
+                Mesh48Instance emit = PrepareMesh48(memory, node, source, () => frame, value => frame = value, inputs);
+                return (resource, matrix, identity) => emit(resource, matrix, identity);
             });
             NativeBattleEffectNodeMemoryWrite final = memory.FlushStorage();
             bank.Publish();

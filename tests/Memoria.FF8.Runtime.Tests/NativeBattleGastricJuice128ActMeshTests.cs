@@ -75,9 +75,28 @@ public sealed class NativeBattleGastricJuice128ActMeshTests
         Assert.Throws<InvalidDataException>(() => Draw(node, Context(0), count: 65));
     }
 
-    private static NativeBattleBillboardActContext12Step Draw(NativeBattleGfAnimationNode node, NativeBattleEffectArena context, NativeBattleActionMatrix? camera = null, NativeBattleEffectArena? arena = null, int count = 4)
+    [Theory]
+    [InlineData((short)0)]
+    [InlineData((short)2048)]
+    public void Billboard_capture_forwards_exact_selected_or_morph_corners_without_native_state_change(short ratio)
     {
-        return NativeBattleBillboardActContext12.Draw(Source(count), node, context, NativeBattlePackedMatrix32.FromMatrix(camera ?? NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), arena ?? NativeBattleEffectArena.Clear(), new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), new(1, 2, 3, 4, 5), new(null, 100, 160, 108), 0, 0, 0x155, 0x100, Constants, NativeBattleGastricJuice128Profile.ArenaAddress + NativeBattleGastricJuice128Profile.MorphOffset, NativeBattleGastricJuice128Profile.MorphBytes);
+        byte[] bytes = Node(0).Data.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(38), ratio);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(42), 1);
+        NativeBattleGfAnimationNode node = new(0, 0, bytes.ToImmutableArray());
+        string native = NativeBattleTestSnapshots.Json(Draw(node, Context(0)));
+        NativeBattlePilotVisualIdentity identity = new(128, 0x2521250, 0, 12, 0) { ResourceGeneration = 0x12320B4 };
+        NativeBattleBillboardActContext12Step captured = Draw(node, Context(0), pilotIdentity: identity);
+        Assert.Equal(native, NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry geometry = Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry!;
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(4, geometry.CornerCount);
+    }
+
+    private static NativeBattleBillboardActContext12Step Draw(NativeBattleGfAnimationNode node, NativeBattleEffectArena context, NativeBattleActionMatrix? camera = null, NativeBattleEffectArena? arena = null, int count = 4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        return NativeBattleBillboardActContext12.Draw(Source(count), node, context, NativeBattlePackedMatrix32.FromMatrix(camera ?? NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), arena ?? NativeBattleEffectArena.Clear(), new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), new(1, 2, 3, 4, 5), new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 100, 160, 108), 0, 0, 0x155, 0x100, Constants, NativeBattleGastricJuice128Profile.ArenaAddress + NativeBattleGastricJuice128Profile.MorphOffset, NativeBattleGastricJuice128Profile.MorphBytes, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleEffectArena Context(int unused)

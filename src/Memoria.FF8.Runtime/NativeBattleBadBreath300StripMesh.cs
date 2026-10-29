@@ -9,7 +9,7 @@ public static partial class NativeBattleBadBreath300StripMesh
 {
     public const int ContextLength = 92;
 
-    public static NativeBattleBadBreath300StripMeshStep Draw66F710(ImmutableArray<byte> source, uint sourceAddress, NativeBattleEffectArena context92, uint selectedVerticesAddress, Func<int, (NativeBattleVector Vertex, short? W)> readVertex, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleBadBreath300StripMeshStep Draw66F710(ImmutableArray<byte> source, uint sourceAddress, NativeBattleEffectArena context92, uint selectedVerticesAddress, Func<int, (NativeBattleVector Vertex, short? W)> readVertex, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         context92.Validate();
         if (context92.ExceedsExtent(ContextLength) || source.IsDefault || source.Length < 8 || U32(context92, 0) != sourceAddress || U32(context92, 0x20) != selectedVerticesAddress || depthShift > 31)
@@ -39,10 +39,16 @@ public static partial class NativeBattleBadBreath300StripMesh
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = Read(cursor, sourceStride).ToArray();
+                NativeBattleActionMatrix? pilotMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     var vertex = Vertex(face, corner);
                     registers = NativeBattleGeometry.LoadVector(registers, corner, vertex.Vertex, vertex.W);
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix!, vertex.Vertex), projection);
+                    }
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, dqa, dqb);
                 SkinWrites packet = new(packetLength, allocated);
@@ -73,6 +79,10 @@ public static partial class NativeBattleBadBreath300StripMesh
                 }
                 var fourth = Vertex(face, 3);
                 registers = NativeBattleGeometry.LoadVector(registers, 0, fourth.Vertex, fourth.W);
+                if (world is not null)
+                {
+                    world[3] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix!, fourth.Vertex), projection);
+                }
                 registers = NativeBattleGeometry.ProjectSingle(registers, projection, dqa, dqb);
                 screen[3] = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Bad Breath strip drawing requires its actual fourth projected screen point.");
                 packet.Word(8 + 3 * screenStride, screen[3]);
@@ -108,6 +118,10 @@ public static partial class NativeBattleBadBreath300StripMesh
                 ImmutableArray<int> payload = registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Bad Breath strip drawing requires its actual depth FIFO.")))).ToImmutableArray();
                 NativeBattleGfGeometryAttempt stores = packet.Attempt(null);
                 NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), payload) { PhysicalWriteMask = stores.WriteMask };
+                if (pilotIdentity is { } identity && world is not null)
+                {
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], world[3], 4) };
+                }
                 AddBracket(stores, primitive, Window(context92, 0x10), Window(context92, 0x18), attempts);
                 allocated = checked(allocated + packetLength + 32);
                 cursor = checked(cursor + sourceStride);

@@ -42,7 +42,7 @@ public static partial class NativeBattleCannonBlow151Controller
         }
         context = context.Write(0x1C, BitConverter.GetBytes(flags));
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleCannonBlow151DrawStatic88(temporary, source));
+        frame = inputs.Execute(frame, new NativeBattleCannonBlow151DrawStatic88(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(151, task, 0) with { ResourceGeneration = source } });
         frame = Release(frame, 88);
         if (kind == 2)
         {
@@ -56,7 +56,7 @@ public static partial class NativeBattleCannonBlow151Controller
                 scrollingContext = scrollingContext.Write(12, BitConverter.GetBytes((age - 8) << 9));
             }
             frame = PublishContext(frame, scrollingTemporary, scrollingContext, 124);
-            frame = inputs.Execute(frame, new NativeBattleCannonBlow151DrawScrolling124(scrollingTemporary, 0xDC00F0));
+            frame = inputs.Execute(frame, new NativeBattleCannonBlow151DrawScrolling124(scrollingTemporary, 0xDC00F0) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(151, task, 1) with { ResourceGeneration = 0xDC00F0 } });
             frame = Release(frame, 124);
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)

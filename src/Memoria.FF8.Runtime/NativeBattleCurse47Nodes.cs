@@ -97,7 +97,7 @@ public static class NativeBattleCurse47Nodes
             NativeBattleEffectNodeInputs operands = new(camera, inputs.ReadModel, (parent, actor, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, emitters, 10, ref emitterScan, parent, actor, target), (emitter, actor) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, geometry, 70, ref geometryScan, emitter, actor));
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, operands);
             NativeCrtRandomState random = frame.Random;
-            _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver);
+            _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(47, NativeBattleCurse47Controller.Read(frame, address)));
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
             bank.Publish();
             frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random };

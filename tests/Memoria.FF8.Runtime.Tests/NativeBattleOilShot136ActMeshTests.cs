@@ -7,6 +7,31 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleOilShot136ActMeshTests
 {
     [Theory]
+    [InlineData(3)]
+    [InlineData(5)]
+    public void Custom_capture_preserves_partial_write_environment_ledger_and_deferred_fourth(int group)
+    {
+        NativeBattlePilotVisualIdentity identity = new(136, 1, 2, 3, 4);
+        List<int> reads = [];
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 100, 160, 108);
+        NativeBattleDefaultActMeshStep native = Draw(group, Memory(), Context(), projection: projection);
+        NativeBattleDefaultActMeshStep captured = Draw(group, Memory(), Context(), reads, identity, projection);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(new int[] { 0, 8, 16, 24 }, reads);
+        NativeBattleGeometryPrimitive polygon = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(polygon.PilotGeometry);
+        Assert.Equal(4, geometry.CornerCount);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        Assert.Empty(polygon.VertexPayload4);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        List<int> rejectedReads = [];
+        NativeBattleDefaultActMeshStep rejected = Draw(group, Memory(0), Context().MarkUnknown(8, 8), rejectedReads, identity, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108));
+        Assert.Equal(new int[] { 0, 8, 16 }, rejectedReads);
+        Assert.Null(Assert.Single(rejected.Batch.Attempts).Primitive);
+    }
+
+    [Theory]
     [InlineData(3, 48, 3)]
     [InlineData(5, 52, 4)]
     public void Native_custom_packets_keep_physical_and_logical_environment_order_after_restore(int group, int length, int attempts)
@@ -71,10 +96,10 @@ public sealed class NativeBattleOilShot136ActMeshTests
     private const uint Address = 0x1234000;
     private static NativeBattleEffectMemory Memory(int z = 2000) => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = z }, true, true, null), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
     private static NativeBattleEffectArena Context(int factor = 0) => NativeBattleEffectArena.Clear().MarkUnknown(0, 88).Write(0, BitConverter.GetBytes(Address + 16)).Write(4, BitConverter.GetBytes(0x12345678u)).Write(12, BitConverter.GetBytes(factor));
-    private static NativeBattleDefaultActMeshStep Draw(int group, NativeBattleEffectMemory memory, NativeBattleEffectArena context, List<int>? reads = null)
+    private static NativeBattleDefaultActMeshStep Draw(int group, NativeBattleEffectMemory memory, NativeBattleEffectArena context, List<int>? reads = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null)
     {
         NativeBattleVector[] vertices = [new(-400, -400, 0), new(400, -400, 0), new(-400, 400, 0), new(400, 400, 0)];
-        return NativeBattleOilShot136ActMesh.Draw(memory, Source(group), 16, context, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, Read, _ => null);
+        return NativeBattleOilShot136ActMesh.Draw(memory, Source(group), 16, context, projection ?? new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, Read, _ => null, pilotIdentity: pilotIdentity);
         NativeBattleVector Read(int offset)
         {
             reads?.Add(offset);

@@ -37,7 +37,9 @@ public static partial class NativeBattleGastricJuice128Controller
                 frame = WriteArena(frame, address + 6, BitConverter.GetBytes(tag));
                 frame = WriteArena(frame, address + 14, BitConverter.GetBytes((ushort)10));
                 frame = WriteArena(frame, address + 32, BitConverter.GetBytes((ushort)2048));
-                return (WriteArena(frame, address + 36, BitConverter.GetBytes(0u)), address);
+                frame = WriteArena(frame, address + 36, BitConverter.GetBytes(0u));
+                NativeBattlePilotVisualLifetimes.Allocated(Arena(frame), Working(frame) + PointsOffset, index);
+                return (frame, address);
             }
         }
         return (frame, 0);

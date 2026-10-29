@@ -82,7 +82,7 @@ public static partial class NativeBattleBadBreath131Controller
         short scale = Signed(task, 0x16);
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadCamera(frame), Vector(task, 0x10), scale, scale, unchecked((short)-(scale >> 2))) };
         NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(frame.Staging ?? throw new NotSupportedException("Bad Breath lost its physical sprite temporary."), allocation.Address, resources.ParticleSprite.Address, 0).Write(allocation.Address + 4, BitConverter.GetBytes(task.ReadWord(12)));
-        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleBadBreath131DrawSprite180(allocation.Address, resources.ParticleSprite.Address));
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleBadBreath131DrawSprite180(allocation.Address, resources.ParticleSprite.Address) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(131, Read(frame, address)) with { ResourceGeneration = resources.ParticleSprite.Address } });
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging ?? throw new NotSupportedException("Bad Breath lost its physical sprite temporary."), 180) };
         task = Read(frame, address);
         ushort next = unchecked((ushort)(task.ReadWord(12) + 1));

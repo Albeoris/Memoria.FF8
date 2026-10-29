@@ -76,12 +76,15 @@ public sealed class NativeBattleCannonBlow151ChildrenTests
         NativeBattleEffectArena? submitted = null;
         NativeBattleCannonBlow151Inputs inputs = Inputs(0x200, (current, operation) =>
         {
-            if (operation is NativeBattleCannonBlow151DrawScrolling124)
+            if (operation is NativeBattleCannonBlow151DrawScrolling124 scrolling)
             {
+                Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(151, Read(frame, TaskAddress), 1) with { ResourceGeneration = 0xDC00F0 }, Assert.IsType<NativeBattlePilotVisualIdentity>(scrolling.PilotIdentity));
                 return current;
             }
             NativeBattleCannonBlow151DrawStatic88 draw = Assert.IsType<NativeBattleCannonBlow151DrawStatic88>(operation);
             Assert.Equal(source, draw.SourceAddress);
+            Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(151, Read(frame, TaskAddress), 0) with { ResourceGeneration = source }, Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity));
+            Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(draw));
             submitted = Context(current, draw.TemporaryAddress, 88);
             Assert.Equal(new int?[] { 110, 20, 2300 }, current.Memory.GeometryRegisters!.Translation.ToArray());
             return current;
@@ -137,7 +140,23 @@ public sealed class NativeBattleCannonBlow151ChildrenTests
         {
             frame = frame with { State = frame.State.WriteView(bank + 14, NativeBattleEffectArena.Clear().MarkUnknown(0, 2), 2) };
         }
+        long beforeBirth = NativeBattlePilotVisualLifetimes.Identity(151, frame.State.Globals, bank, 0).Generation;
         var actual = Advance(frame, callback, Inputs());
+        long afterBirth = NativeBattlePilotVisualLifetimes.Identity(151, actual.Frame.State.Globals, bank, 0).Generation;
+        Assert.NotEqual(beforeBirth, afterBirth);
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        NativeBattleCannonBlow151Inputs nativeDraw = Inputs(0x201);
+        _ = Advance(actual.Frame, callback, nativeDraw with { Execute = (current, operation) =>
+        {
+            NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(operation.PilotIdentity);
+            identities.Add(identity);
+            Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(operation));
+            return nativeDraw.Execute(current, operation);
+        } });
+        Assert.Equal(births, identities.Count);
+        Assert.Equal(births, identities.Distinct().Count());
+        Assert.Equal(afterBirth, identities[0].ResourceGeneration);
+        Assert.Equal(afterBirth, NativeBattlePilotVisualLifetimes.Identity(151, actual.Frame.State.Globals, bank, 0).Generation);
         NativeCrtRandomState random = frame.Random;
         for (int index = 0; index < draws; index++)
         {

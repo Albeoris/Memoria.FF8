@@ -122,6 +122,41 @@ public sealed class NativeBattleDisolvingAcid132TrailTests
         Assert.Empty(batch.Attempts);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Both_native_curve_endpoint_births_participate_in_capture_identity(int reborn)
+    {
+        NativeBattleDisolvingAcid132Frame frame = Frame();
+        uint Create()
+        {
+            (frame, uint point) = NativeBattleDisolvingAcid132Trail.Create6B1EC0(frame, PointView(new(0, 0, 2048)), PointView(new(32, 0, 2048)), -1, 32, PointView(new(0, 0, 0)), PointView(new(0, 0, 0), 0), NativeBattleCuragaMatrices.Identity8DD770());
+            return point;
+        }
+        uint first = Create();
+        uint second = Create();
+        frame = Point(frame, first, 100, 200, 512, 32, 0, second);
+        frame = Point(frame, second, 116, 200, 512, 32, 1, 0);
+        var native = NativeBattleDisolvingAcid132Trail.DrawRibbon6B2870(frame, first, 2, Resources());
+        string baseline = NativeBattleTestSnapshots.Json(native.Batch);
+        frame = Point(frame, first, 100, 200, 512, 32, 0, second);
+        frame = Point(frame, second, 116, 200, 512, 32, 1, 0);
+        Dictionary<uint, System.Numerics.Vector3> world = new() { [first] = new(0, 0, 2048), [second] = new(32, 0, 2048) };
+        NativeBattlePilotVisualIdentity identity = new(132, 1, 0, 1, 0);
+        var captured = NativeBattleDisolvingAcid132Trail.DrawRibbon6B2870(frame, first, 2, Resources(), identity, world);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured.Batch));
+        NativeBattlePilotVisualGeometry before = Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry!;
+        frame = WriteArena(frame, (reborn == 0 ? first : second) + 6, BitConverter.GetBytes((short)-1));
+        Assert.Equal(reborn == 0 ? first : second, Create());
+        frame = Point(frame, first, 100, 200, 512, 32, 0, second);
+        frame = Point(frame, second, 116, 200, 512, 32, 1, 0);
+        NativeBattlePilotVisualGeometry after = Assert.Single(NativeBattleDisolvingAcid132Trail.DrawRibbon6B2870(frame, first, 2, Resources(), identity, world).Batch.Attempts).Primitive!.PilotGeometry!;
+        Assert.NotEqual(before.Identity, after.Identity);
+        Assert.Equal(before.A, NativeBattlePilotVisualGeometry.SampleCorner(before, after, 0, 0.5f));
+        Assert.True(after.UseSourceDepths);
+        Assert.Equal(System.Numerics.Vector4.Zero, after.SourceDepths);
+    }
+
     private static NativeBattleDisolvingAcid132Frame Frame()
     {
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().MarkUnknown(0, FirstPacketOffset);

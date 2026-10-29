@@ -130,10 +130,15 @@ public static partial class NativeBattleDisolvingAcid132Trail
             }
         }
         frame = LoadMatrix(frame, inputs.ReadCamera(frame));
+        Dictionary<uint, System.Numerics.Vector3>? world = inputs.CapturePresentation ? [] : null;
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Disolving Acid requires its actual projection controls.");
         foreach (uint point in Chain(frame, Read(frame, address).ReadDword(16)))
         {
             NativeBattleGeometryRegisterStep registers = NativeBattleGeometry.LoadVector(Registers(frame), 0, PointVector(frame, point), PointSigned(frame, point + 6));
+            if (world is not null)
+            {
+                world[point] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(NativeBattleGeometry.CaptureMatrix(registers.Geometry), PointVector(frame, point)), inputs.ReadProjection(frame));
+            }
             registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
             frame = Publish(frame, registers);
             frame = Dword(frame, point + 8, registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Disolving Acid requires its projected point."));
@@ -142,26 +147,26 @@ public static partial class NativeBattleDisolvingAcid132Trail
         task = Read(frame, address);
         if (Signed(task, 14) >= 2)
         {
-            (frame, NativeBattleGfGeometryBatch batch) = DrawRibbon6B2870(frame, task.ReadDword(16), Signed(task, 14), resources);
+            (frame, NativeBattleGfGeometryBatch batch) = DrawRibbon6B2870(frame, task.ReadDword(16), Signed(task, 14), resources, world is null ? null : NativeBattlePilotVisualLifetimes.Identity(132, Read(frame, address)), world);
             frame = inputs.Execute(frame, new NativeBattleDisolvingAcid132DeliverRibbonBatch(batch));
         }
         task = Read(frame, address);
         if (Signed(task, 12) < 8)
         {
-            frame = DrawHead(frame, TaskView(task, 24, 8), task.ReadWord(12), inputs);
+            frame = DrawHead(frame, TaskView(task, 24, 8), task.ReadWord(12), inputs, NativeBattlePilotVisualLifetimes.Identity(132, Read(frame, address)) with { ResourceGeneration = 0x1212D90 });
         }
         task = Read(frame, address);
         return (Write(frame, address, task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)))), 0);
     }
 
-    private static NativeBattleDisolvingAcid132Frame DrawHead(NativeBattleDisolvingAcid132Frame frame, NativeBattleEffectArena point, ushort age, NativeBattleDisolvingAcid132Inputs inputs)
+    private static NativeBattleDisolvingAcid132Frame DrawHead(NativeBattleDisolvingAcid132Frame frame, NativeBattleEffectArena point, ushort age, NativeBattleDisolvingAcid132Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector xyz = new(Signed(point, 0), Signed(point, 2), Signed(point, 4));
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadCamera(frame), xyz, Signed(point, 6), 4096, -1024) };
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Disolving Acid requires its addressed temporary memory."), 180);
         uint temporary = allocation.Address;
         frame = frame with { Staging = NativeBattleModuleSpriteTemporary.Begin571C80(allocation.Staging, temporary, 0x1212D90, 0).Write(temporary + 4, BitConverter.GetBytes(age)) };
-        frame = inputs.Execute(frame, new NativeBattleDisolvingAcid132DrawSprite180(temporary, 0x1212D90));
+        frame = inputs.Execute(frame, new NativeBattleDisolvingAcid132DrawSprite180(temporary, 0x1212D90) { PilotIdentity = pilotIdentity });
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging!, 180) };
     }
 
@@ -231,7 +236,9 @@ public static partial class NativeBattleDisolvingAcid132Trail
             if (PointSigned(frame, point + 6) == -1)
             {
                 frame = Dword(frame, point + 24, 0);
-                return (Word(frame, point + 6, unchecked((ushort)width)), point);
+                frame = Word(frame, point + 6, unchecked((ushort)width));
+                NativeBattlePilotVisualLifetimes.Allocated(Arena(frame), bank, index);
+                return (frame, point);
             }
         }
         return (frame, 0);

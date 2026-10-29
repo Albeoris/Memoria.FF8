@@ -7,7 +7,9 @@ public sealed record NativeBattleMagmaBreath48DeliverBatch(NativeBattleGfGeometr
 
 public static partial class NativeBattleMagmaBreath48Controller
 {
-    private static NativeBattleEffectNodeMeshInstance PrepareMesh48(NativeBattleEffectNodeMemory memory, int node, byte[] source, Func<NativeBattleMagmaBreath48Frame> readFrame, Action<NativeBattleMagmaBreath48Frame> writeFrame, NativeBattleMagmaBreath48Inputs inputs)
+    private delegate NativeBattleGfGeometryBatch Mesh48Instance(NativeBattleGfSourceReader resource, NativeBattleActionMatrix matrix, NativeBattlePilotVisualIdentity? identity);
+
+    private static Mesh48Instance PrepareMesh48(NativeBattleEffectNodeMemory memory, int node, byte[] source, Func<NativeBattleMagmaBreath48Frame> readFrame, Action<NativeBattleMagmaBreath48Frame> writeFrame, NativeBattleMagmaBreath48Inputs inputs)
     {
         NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
         NativeBattleMagmaBreath48Frame frame = readFrame() with { Memory = written.Memory, Effect = written.Effect };
@@ -36,14 +38,14 @@ public static partial class NativeBattleMagmaBreath48Controller
         }
         memory.PublishProcessMemory(frame.Memory);
         writeFrame(frame);
-        return (_, _) =>
+        return (_, _, identity) =>
         {
             NativeBattleEffectNodeMemoryWrite current = memory.FlushStorage();
             frame = readFrame() with { Memory = current.Memory, Effect = current.Effect };
             NativeBattleEffectArena packedView = ReadBytes(frame, checked(memory.Pointer(node) + 0xAC), 32);
             (byte[] bytes, bool[] known) = packedView.ReadSnapshot(0, 32);
             frame = LoadMatrix(frame, new(bytes.ToImmutableArray(), known.ToImmutableArray()));
-            frame = inputs.Execute(frame, new NativeBattleMagmaBreath48DrawMesh88(temporary, resource));
+            frame = inputs.Execute(frame, new NativeBattleMagmaBreath48DrawMesh88(temporary, resource) { PilotIdentity = identity });
             instance++;
             if (instance == count)
             {

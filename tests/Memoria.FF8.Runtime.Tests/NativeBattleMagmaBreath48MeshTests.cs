@@ -9,6 +9,23 @@ public sealed class NativeBattleMagmaBreath48MeshTests
 
     [Theory]
     [InlineData(6, 0x34u)]
+    [InlineData(7, 0x3Cu)]
+    public void Captured_mutable_source_corners_preserve_full_native_state_and_packet_ledger(int group, uint opcode)
+    {
+        NativeBattlePilotVisualIdentity identity = new(48, 1, 2, 3, 4) { ResourceGeneration = Address };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 100, 160, 108);
+        NativeBattleStaticMeshContext88Step native = Draw(group, opcode, projection: projection);
+        NativeBattleStaticMeshContext88Step captured = Draw(group, opcode, pilotIdentity: identity, projection: projection);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(group == 6 ? 3 : 4, geometry.CornerCount);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.NotEqual(geometry.A, geometry.B);
+    }
+
+    [Theory]
+    [InlineData(6, 0x34u)]
     [InlineData(6, 0x36u)]
     [InlineData(7, 0x3Cu)]
     [InlineData(7, 0x3Eu)]
@@ -62,7 +79,7 @@ public sealed class NativeBattleMagmaBreath48MeshTests
         Assert.Throws<NotSupportedException>(() => Draw(6, 0x34, context: Context().MarkUnknown(8, 3)));
     }
 
-    private static NativeBattleStaticMeshContext88Step Draw(int group, uint opcode, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? context = null, bool reversed = false) => NativeBattleStaticMeshContext88.DrawLoaded(memory ?? Memory(), Mesh(group, opcode, reversed), new(null, 100, 160, 108), context ?? Context(), NativeBattleGteColorInterpolation.CodeConstants45F270);
+    private static NativeBattleStaticMeshContext88Step Draw(int group, uint opcode, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? context = null, bool reversed = false, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null) => NativeBattleStaticMeshContext88.DrawLoaded(memory ?? Memory(), Mesh(group, opcode, reversed), projection ?? new(null, 100, 160, 108), context ?? Context(), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
 
     private static NativeBattleEffectMemory Memory(int z = 2000, int x = 0) => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { X = x, Z = z }, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
     private static NativeBattleEffectArena Context() => NativeBattleEffectArena.Clear().MarkUnknown(0, 88).Write(0, BitConverter.GetBytes(Address)).Write(8, new byte[4]).Write(12, BitConverter.GetBytes(2048)).Write(0x1C, BitConverter.GetBytes(0xF0u)).Write(0x2C, BitConverter.GetBytes(0xDEADBEEFu));

@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleOilShot136ActMesh
 {
-    public static NativeBattleDefaultActMeshStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, int geometryOffset, NativeBattleEffectArena context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<int, NativeBattleVector> readVertex, Func<int, short?> readW, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleDefaultActMeshStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, int geometryOffset, NativeBattleEffectArena context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<int, NativeBattleVector> readVertex, Func<int, short?> readW, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         context.Validate();
         if (depthShift > 31 || Dword(context, 0) != checked(source.Address + (uint)geometryOffset))
@@ -30,6 +30,8 @@ public static class NativeBattleOilShot136ActMesh
             {
                 NativeBattleGeometryRegisterStep registers = latest ?? new(memory.GeometryRegisters ?? throw new NotSupportedException("Oil Shot requires its current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Oil Shot requires its current color registers."));
                 NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Oil Shot requires its current projection controls.");
+                NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
                 byte[] face = Read(cursor, 24).ToArray();
                 bool textured = group == 3;
                 int length = textured ? 40 : 36;
@@ -106,7 +108,7 @@ public static class NativeBattleOilShot136ActMesh
                     {
                         words.Add(BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(offset)));
                     }
-                    attempts.Add(attempt with { WriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, length).ToImmutableArray(), Primitive = new(bucket, words.ToImmutable(), []) });
+                    attempts.Add(attempt with { WriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, length).ToImmutableArray(), Primitive = new(bucket, words.ToImmutable(), []) { PilotGeometry = pilotIdentity is { } identity && world is not null ? new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], world[3], 4) { UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero } : null } });
                     if (!textured)
                     {
                         attempts.Add(Environment(allocated + length + 8, 0xE1000240, bucket));
@@ -124,7 +126,12 @@ public static class NativeBattleOilShot136ActMesh
                         throw new InvalidDataException("Oil Shot ACT requires packed even vertex indices.");
                     }
                     _ = Dword(context, 4);
-                    registers = NativeBattleGeometry.LoadVector(registers, register, readVertex(index * 4), readW(index * 4));
+                    NativeBattleVector vertex = readVertex(index * 4);
+                    registers = NativeBattleGeometry.LoadVector(registers, register, vertex, readW(index * 4));
+                    if (world is not null && sourceMatrix is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix, vertex), projection);
+                    }
                 }
 
                 void Store(int offset, uint value)

@@ -23,7 +23,7 @@ public static partial class NativeBattleCannonBlow151Controller
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(0xDBF2A0u)).Write(4, BitConverter.GetBytes((ushort)(task.ReadWord(12) & 3))).Write(0x24, new byte[2]);
         frame = PublishContext(frame, temporary, context, 180);
-        frame = inputs.Execute(frame, new NativeBattleCannonBlow151DrawSprite180(temporary, 0xDBF2A0));
+        frame = inputs.Execute(frame, new NativeBattleCannonBlow151DrawSprite180(temporary, 0xDBF2A0) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(151, task) with { ResourceGeneration = 0xDBF2A0 } });
         frame = Release(frame, 180);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -72,7 +72,7 @@ public static partial class NativeBattleCannonBlow151Controller
             {
                 frame = SetupSprite151(frame, inputs, record + 8, size, unchecked((short)-(size >> (kind == 3 ? 3 : 4))));
             }
-            frame = inputs.Execute(frame, new NativeBattleCannonBlow151DrawSprite180(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleCannonBlow151DrawSprite180(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(151, task, kind * 100 + index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(151, frame.State.Globals, record, 0).Generation } });
             if (paused)
             {
                 continue;
@@ -201,7 +201,7 @@ public static partial class NativeBattleCannonBlow151Controller
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), new(BinaryPrimitives.ReadInt16LittleEndian(point.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(point.Read(4, 2))), wKnown.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(wBytes) : null, size, unchecked((short)-(size >> 4))) };
         (frame, uint temporary) = Allocate(frame, 180);
         frame = PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(0xDBED9Cu)).Write(4, BitConverter.GetBytes(task.ReadWord(12))).Write(0x24, new byte[2]), 180);
-        frame = inputs.Execute(frame, new NativeBattleCannonBlow151DrawSprite180(temporary, 0xDBED9C));
+        frame = inputs.Execute(frame, new NativeBattleCannonBlow151DrawSprite180(temporary, 0xDBED9C) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(151, task) with { ResourceGeneration = 0xDBED9C } });
         frame = Release(frame, 180);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -224,7 +224,12 @@ public static partial class NativeBattleCannonBlow151Controller
     private static NativeBattleVector ParticlePoint151(NativeBattleCannonBlow151Frame frame, uint address) => new(ParticleWord151(frame, address), ParticleWord151(frame, address + 2), ParticleWord151(frame, address + 4));
     private static NativeBattleCannonBlow151Frame PutWord151(NativeBattleCannonBlow151Frame frame, uint address, int value) => frame with { State = frame.State.WriteWord(address, unchecked((ushort)value)) };
     private static NativeBattleCannonBlow151Frame PutDword151(NativeBattleCannonBlow151Frame frame, uint address, uint value) => frame with { State = frame.State.WriteDword(address, value) };
-    private static NativeBattleCannonBlow151Frame BirthHeader151(NativeBattleCannonBlow151Frame frame, uint record, NativeBattleModulePoolTask task) => PutWord151(PutDword151(frame, record, unchecked((uint)(int)Signed(task, 0x18))), record + 4, 0);
+    private static NativeBattleCannonBlow151Frame BirthHeader151(NativeBattleCannonBlow151Frame frame, uint record, NativeBattleModulePoolTask task)
+    {
+        frame = PutWord151(PutDword151(frame, record, unchecked((uint)(int)Signed(task, 0x18))), record + 4, 0);
+        NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, record, 0);
+        return frame;
+    }
     private static uint FindFree151(NativeBattleCannonBlow151Frame frame, uint bank, int count)
     {
         for (int index = 0; index < count; index++)

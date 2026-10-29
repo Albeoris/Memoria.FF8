@@ -22,7 +22,7 @@ public static partial class NativeBattleGastricJuice128Controller
         {
             frame = inputs.Execute(frame, new NativeBattleGastricJuice128ActorFlags(actor, 0, 4));
             short fraction = unchecked((short)NativeBattleCameraMath.Sine((bodyAge << 11) / 40));
-            frame = inputs.Execute(frame, new NativeBattleGastricJuice128DrawBody132(actor, fraction));
+            frame = inputs.Execute(frame, new NativeBattleGastricJuice128DrawBody132(actor, fraction) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(128, Read(frame, address)) with { ResourceGeneration = 0 } });
         }
         else
         {

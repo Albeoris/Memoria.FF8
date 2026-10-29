@@ -17,7 +17,7 @@ public static partial class NativeBattleBadBreath131Controller
         if ((uint)phase < 50)
         {
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(RequireStaging(frame), 92);
-            frame = inputs.Execute(frame with { Staging = allocation.Staging }, new NativeBattleBadBreath131FlashEnvelope(phase));
+            frame = inputs.Execute(frame with { Staging = allocation.Staging }, new NativeBattleBadBreath131FlashEnvelope(phase) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(131, Read(frame, address)) with { ResourceGeneration = 0x700150 } });
             frame = LoadRotationZeroTranslation(frame, RotationZ7012C0(Signed(task, 0x22)));
             frame = Deform6B4140(frame, MeshAAddress, Signed(task, 0x24), resources);
             short sweep = unchecked((short)(NativeBattleCameraMath.Cosine(phase * 4096 / 50) >> 1));
@@ -88,13 +88,13 @@ public static partial class NativeBattleBadBreath131Controller
             uint selectedVertices = checked(Working(frame) + ScratchOffset);
             temporary = temporary.Write(0x20, BitConverter.GetBytes(selectedVertices));
             frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), allocation.Address, temporary, 92) };
-            frame = inputs.Execute(frame, new NativeBattleBadBreath131DrawStrip92(allocation.Address, MeshAAddress, selectedVertices));
+            frame = inputs.Execute(frame, new NativeBattleBadBreath131DrawStrip92(allocation.Address, MeshAAddress, selectedVertices) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(131, Read(frame, address)) with { ResourceGeneration = MeshAAddress } });
             task = Read(frame, address);
             frame = LoadRotationZeroTranslation(frame, RotationZ7012C0(unchecked((short)-Signed(task, 0x22))));
             frame = Deform6B4140(frame, MeshBAddress, Signed(task, 0x24) + 1024, resources);
             frame = LoadView(frame, combined);
             frame = frame with { Staging = RequireStaging(frame).Write(allocation.Address, BitConverter.GetBytes(MeshBAddress)) };
-            frame = inputs.Execute(frame, new NativeBattleBadBreath131DrawStrip92(allocation.Address, MeshBAddress, selectedVertices));
+            frame = inputs.Execute(frame, new NativeBattleBadBreath131DrawStrip92(allocation.Address, MeshBAddress, selectedVertices) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(131, Read(frame, address)) with { ResourceGeneration = MeshBAddress } });
             frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 92) };
         }
         if (age == 20)

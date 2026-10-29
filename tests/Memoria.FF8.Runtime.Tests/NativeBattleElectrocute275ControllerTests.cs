@@ -88,6 +88,18 @@ public sealed class NativeBattleElectrocute275ControllerTests
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected.Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual.Frame)));
     }
 
+    [Fact]
+    public void Group13_world_operation_retains_actual_chain_task_birth_and_excludes_metadata_from_native_snapshot()
+    {
+        Fixture fixture = new(2);
+        NativeBattlePilotVisualIdentity owner = NativeBattlePilotVisualLifetimes.Identity(275, NativeBattleElectrocute275Controller.Read(fixture.Frame, fixture.TaskAddress));
+        var actual = NativeBattleElectrocute275Controller.AdvanceWorldTrail(fixture.Frame, fixture.TaskAddress, fixture.Resources, fixture.Inputs());
+        NativeBattleElectrocute275DrawWorld draw = Assert.IsType<NativeBattleElectrocute275DrawWorld>(fixture.Operations[1]);
+        Assert.Equal(owner, draw.PilotIdentity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(draw with { PilotIdentity = null }), NativeBattleTestSnapshots.Json(draw));
+        Assert.Equal(fixture.Frame.Random, actual.Frame.Random);
+    }
+
     private sealed class Fixture
     {
         public NativeBattleElectrocute275Frame Frame { get; }

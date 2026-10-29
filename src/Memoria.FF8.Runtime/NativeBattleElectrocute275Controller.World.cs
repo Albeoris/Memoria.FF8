@@ -112,7 +112,7 @@ public static partial class NativeBattleElectrocute275Controller
         current = Read(frame, address);
         if (Signed(current, 14) >= 2)
         {
-            frame = inputs.Execute(frame, new NativeBattleElectrocute275DrawWorld(head, Signed(current, 14), Signed(current, 0x3A)));
+            frame = inputs.Execute(frame, new NativeBattleElectrocute275DrawWorld(head, Signed(current, 14), Signed(current, 0x3A)) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(275, Read(frame, address)) });
         }
         for (uint point = head, visited = 0; point != 0; point = PointDword(frame, point + 0x24), visited++)
         {

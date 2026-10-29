@@ -153,6 +153,49 @@ public sealed class NativeBattleStare45ProgrammeTests
         }
     }
 
+    [Theory]
+    [InlineData(0u, 0)]
+    [InlineData(0x200u, 4096)]
+    [InlineData(0x1000u, 1024)]
+    public void Group13_programme_capture_retains_direct_morph_billboard_state_and_actual_three_task_owners(uint header, int ratio)
+    {
+        NativeBattleStare45Frame frame = Frame(3, 20);
+        NativeBattleStare45Resources resources = Resources();
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools[3];
+        (pool, _) = pool.Append(0x836D60);
+        (pool, _) = pool.Append(0x839590);
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(3, pool) } };
+        NativeBattlePilotVisualIdentity[] owners = Enumerable.Range(0, 3).Select(slot => NativeBattlePilotVisualLifetimes.Identity(45, pool.Slots[slot], 17) with { ResourceGeneration = slot == 2 ? resources.ProgrammeB.Address : resources.ProgrammeA.Address }).ToArray();
+        Assert.Equal(3, owners.Distinct().Count());
+        frame = frame with { State = frame.State.WriteView(0x2655758, PackedArena(NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), 1024), null)), 32) };
+        NativeBattlePackedMatrix32 caller = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 100, Y = 200, Z = 300 }, null);
+        foreach (NativeBattlePilotVisualIdentity owner in owners)
+        {
+            NativeBattleGfAnimationSource selectedSource = owner.ResourceGeneration == resources.ProgrammeB.Address ? resources.ProgrammeB : resources.ProgrammeA;
+            NativeBattleStare45DrawMesh104? plainOperation = null;
+            NativeBattleStare45DrawMesh104? capturedOperation = null;
+            NativeBattleStare45Frame Draw(NativeBattlePilotVisualIdentity? identity, bool captured) => DrawProgrammeNode45(NativeBattleTestSnapshots.RestoreJson<NativeBattleStare45Frame>(NativeBattleTestSnapshots.Json(frame))!, selectedSource, Node(ratio, header, new(20, 30, 40)), caller, -128, resources, Inputs((current, operation) =>
+            {
+                if (captured)
+                {
+                    capturedOperation = Assert.IsType<NativeBattleStare45DrawMesh104>(operation);
+                }
+                else
+                {
+                    plainOperation = Assert.IsType<NativeBattleStare45DrawMesh104>(operation);
+                }
+                return current;
+            }), identity);
+            NativeBattleStare45Frame plain = Draw(null, false);
+            NativeBattleStare45Frame captured = Draw(owner, true);
+            Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+            Assert.Equal(owner, capturedOperation!.PilotIdentity);
+            Assert.Null(plainOperation!.PilotIdentity);
+            Assert.Equal(NativeBattleTestSnapshots.Json(plainOperation), NativeBattleTestSnapshots.Json(capturedOperation));
+            Assert.Equal(ratio == 1024 ? 0x2655428u : selectedSource.Address + 44u + (ratio == 4096 ? 32u : 0u), capturedOperation.VertexAddress);
+        }
+    }
+
     internal static NativeBattleStare45Frame Frame(int poolIndex, ushort age = 0)
     {
         var pools = NativeBattleStare45Profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray();

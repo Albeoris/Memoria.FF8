@@ -155,7 +155,7 @@ public static partial class NativeBattleOilShot136Controller
         NativeBattleEffectArena context = Context(frame, temporary, 92).Write(0, BitConverter.GetBytes(0x11F2684u)).Write(4, BitConverter.GetBytes(checked(Working(frame) + MorphOffset)));
         context = context.Write(0x10, BitConverter.GetBytes(unchecked((ushort)((phase & 7) << 4)))).Write(0x14, new byte[4]).Write(0x18, BitConverter.GetBytes(0x01000100u)).Write(0x1C, new byte[4]).Write(0x20, BitConverter.GetBytes(0x01000080u));
         frame = PublishContext(frame, temporary, context, 92);
-        frame = inputs.Execute(frame, new NativeBattleOilShot136DrawCustom92(temporary));
+        frame = inputs.Execute(frame, new NativeBattleOilShot136DrawCustom92(temporary) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(136, Read(frame, address)) with { ResourceGeneration = 0x11F2684 } });
         return Release(frame, 92);
     }
 

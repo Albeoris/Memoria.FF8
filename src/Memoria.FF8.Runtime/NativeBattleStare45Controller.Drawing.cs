@@ -9,7 +9,7 @@ public sealed record NativeBattleStare45MeshContext104Step(NativeBattleEffectMem
 
 public static class NativeBattleStare45MeshContext104
 {
-    public static NativeBattleStare45MeshContext104Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
+    public static NativeBattleStare45MeshContext104Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint flags = U(context, 0x14);
         if (U(context, 0) != mesh.Address || flags is not (0x2030 or 0x20F0) || depthShift > 31 || selectedVerticesAddress is null || readSelectedVertex is null || U(context, 4) != selectedVerticesAddress)
@@ -47,10 +47,20 @@ public static class NativeBattleStare45MeshContext104
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = mesh.Bytes.AsSpan().Slice(cursor, lengths[group]).ToArray();
+                NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[quad ? 4 : 3] : null;
+                void Capture(int corner, NativeBattleVector vertex)
+                {
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, vertex), projection);
+                    }
+                }
                 for (int corner = 0; corner < 3; corner++)
                 {
                     var vertex = Vertex(corner);
                     registers = NativeBattleGeometry.LoadVector(registers, corner, vertex.Vertex, vertex.W);
+                    Capture(corner, vertex.Vertex);
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
                 uint firstFlags = registers.Colors.Flags!.Value;
@@ -71,6 +81,7 @@ public static class NativeBattleStare45MeshContext104
                     if (corner == 3 && !fourthLoaded)
                     {
                         var vertex = Vertex(3);
+                        Capture(3, vertex.Vertex);
                         registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(registers, 0, vertex.Vertex, vertex.W), projection, controls.Dqa, controls.Dqb);
                         projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
                         fourthLoaded = true;
@@ -120,7 +131,12 @@ public static class NativeBattleStare45MeshContext104
                         NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[12];
                         mask.AsSpan(3).Fill(NativeBattleGfPacketByteState.Known);
                         attempts.Add(new(checked(allocated + batch.AllocationBytes), mode.ToImmutableArray(), mask.ToImmutableArray(), new(bucket, [0x02000000, 0xE1000020, 0], [0, 0, 0, 0])));
-                        attempts.Add(attempt with { Primitive = primitive with { Bucket = bucket }, WriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, attempt.Data.Length).ToImmutableArray() });
+                        NativeBattleGeometryPrimitive polygon = primitive with { Bucket = bucket };
+                        if (pilotIdentity is { } identity && world is not null && ((polygon.Words[1] >> 24) & 0xE0) == 0x20)
+                        {
+                            polygon = polygon with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)world.Length)) };
+                        }
+                        attempts.Add(attempt with { Primitive = polygon, WriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, attempt.Data.Length).ToImmutableArray() });
                     }
                     allocated = checked(allocated + batch.AllocationBytes + 12);
                 }

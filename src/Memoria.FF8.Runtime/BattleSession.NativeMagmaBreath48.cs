@@ -150,7 +150,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Magma Breath mesh temporary must alias its actual shared sprite-context tail.");
             }
             NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(NativeBattleEffectNodeContextMemory.Capture(current.Memory), 92, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), readInlineVertex: ReadVertex);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), readInlineVertex: ReadVertex, pilotIdentity: operation.PilotIdentity);
             NativeBattleEffectArena shared = NativeBattleEffectNodeContextMemory.Copy(drawn.Context, 0, NativeBattleEffectNodeContextMemory.Capture(drawn.Memory), 92, 88);
             current = current with { Memory = NativeBattleEffectNodeContextMemory.Publish(drawn.Memory, shared) };
             return Delivered(current, NativeBattleMagmaBreath48PacketDelivery.Deliver(current.Memory, current.State, Ordering(), drawn.Batch, 0x26481B8, 0));

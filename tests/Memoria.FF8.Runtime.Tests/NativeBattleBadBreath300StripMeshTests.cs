@@ -126,10 +126,31 @@ public sealed class NativeBattleBadBreath300StripMeshTests
         Assert.Equal(NativeBattleTestSnapshots.Json(Draw(Source(), first.Context92, first.Registers, unknownW: true)), NativeBattleTestSnapshots.Json(Draw(Source(), restored.Context92, restored.Registers, unknownW: true)));
     }
 
-    private static NativeBattleBadBreath300StripMeshStep Draw(ImmutableArray<byte> source, NativeBattleEffectArena context, NativeBattleGeometryRegisterStep? registers = null, NativeBattleCameraProjection? projection = null, short? zsf4 = 0x100, bool unknownW = false)
+    [Fact]
+    public void Presentation_capture_keeps_selected_strip_corners_and_window_bracket_native_state()
+    {
+        NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770();
+        NativeBattleCameraProjection projection = new(view, 100, 160, 108);
+        NativeBattleBadBreath300StripMeshStep native = Draw(Source(), Context(), projection: projection);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattlePilotVisualIdentity identity = new(131, 0x2521088, 0, 7, 1) { ResourceGeneration = SourceAddress };
+        NativeBattleBadBreath300StripMeshStep captured = Draw(Source(), Context(), projection: projection, pilotIdentity: identity);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry[] geometry = captured.Batch.Attempts.Where(a => a.Primitive?.PilotGeometry is not null).Select(a => a.Primitive!.PilotGeometry!).ToArray();
+        Assert.Equal(2, geometry.Length);
+        Assert.Equal(2, geometry.Select(g => g.Identity).Distinct().Count());
+        Assert.All(geometry, g =>
+        {
+            Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), g.A);
+            Assert.Equal(new System.Numerics.Vector3(400, 400, 2000), g.D);
+            Assert.Equal(identity.ResourceGeneration, g.Identity.ResourceGeneration);
+        });
+    }
+
+    private static NativeBattleBadBreath300StripMeshStep Draw(ImmutableArray<byte> source, NativeBattleEffectArena context, NativeBattleGeometryRegisterStep? registers = null, NativeBattleCameraProjection? projection = null, short? zsf4 = 0x100, bool unknownW = false, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector[] vertices = [new(-400, -400, 0), new(400, -400, 0), new(-400, 400, 0), new(400, 400, 0)];
-        return NativeBattleBadBreath300StripMesh.Draw66F710(source, SourceAddress, context, VertexAddress, offset => offset >= 0 && offset <= 24 && (offset & 7) == 0 ? (vertices[offset / 8], unknownW ? null : (short?)0x1234) : throw new InvalidDataException(), registers ?? Registers(), projection ?? new(null, 100, 160, 108), 0, 0, zsf4, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        return NativeBattleBadBreath300StripMesh.Draw66F710(source, SourceAddress, context, VertexAddress, offset => offset >= 0 && offset <= 24 && (offset & 7) == 0 ? (vertices[offset / 8], unknownW ? null : (short?)0x1234) : throw new InvalidDataException(), registers ?? Registers(), projection ?? new(null, 100, 160, 108), 0, 0, zsf4, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleGeometryRegisterStep Registers(int depth = 2000)

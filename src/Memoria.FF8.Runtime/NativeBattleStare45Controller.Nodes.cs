@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleStare45Controller
 {
-    public static NativeBattleStare45Frame DrawProgrammeNode45(NativeBattleStare45Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 caller, int depthBias, NativeBattleStare45Resources resources, NativeBattleStare45Inputs inputs)
+    public static NativeBattleStare45Frame DrawProgrammeNode45(NativeBattleStare45Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 caller, int depthBias, NativeBattleStare45Resources resources, NativeBattleStare45Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -71,7 +71,7 @@ public static partial class NativeBattleStare45Controller
             context = context.Write(offset, BitConverter.GetBytes((ushort)(offset is 0x20 or 0x22 or 0x28 or 0x2A ? 256 : 0)));
         }
         frame = PublishContext(frame, temporary, context, 104);
-        frame = inputs.Execute(frame, new NativeBattleStare45DrawMesh104(temporary, geometryAddress, vertices));
+        frame = inputs.Execute(frame, new NativeBattleStare45DrawMesh104(temporary, geometryAddress, vertices) { PilotIdentity = pilotIdentity });
         return Release(frame, 104);
     }
 

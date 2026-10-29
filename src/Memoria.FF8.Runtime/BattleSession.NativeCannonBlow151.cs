@@ -82,17 +82,17 @@ public sealed partial class BattleSession
                     graphics = graphics with { Auxiliary = auxiliary };
                     return current;
                 case NativeBattleCannonBlow151DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)));
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)), sprite.PilotIdentity);
                 case NativeBattleCannonBlow151DrawStatic88 mesh:
-                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)));
+                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)), mesh.PilotIdentity);
                 case NativeBattleCannonBlow151DrawScrolling124 scrolling:
-                    return DrawScrolling(current, scrolling.TemporaryAddress, scrolling.SourceAddress, scrolling.TableBaseBucket, unchecked((byte)(scrolling.DepthShift & 31)));
+                    return DrawScrolling(current, scrolling.TemporaryAddress, scrolling.SourceAddress, scrolling.TableBaseBucket, unchecked((byte)(scrolling.DepthShift & 31)), scrolling.PilotIdentity);
                 default:
                     throw new NotSupportedException("Cannon Blow emitted an unsupported native operation.");
             }
         }
 
-        NativeBattleCannonBlow151Frame DrawSprite(NativeBattleCannonBlow151Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleCannonBlow151Frame DrawSprite(NativeBattleCannonBlow151Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Cannon Blow sprite requires its actual temporary memory.");
@@ -101,11 +101,11 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Cannon Blow sprite arguments differ from its physical temporary.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Cannon Blow sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Cannon Blow sprite requires its projection."), Camera().Roll, bucket, shift);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Cannon Blow sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Cannon Blow sprite requires its projection."), Camera().Roll, bucket, shift, pilotIdentity: pilotIdentity);
             return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) }, drawn.Batch);
         }
 
-        NativeBattleCannonBlow151Frame DrawMesh(NativeBattleCannonBlow151Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleCannonBlow151Frame DrawMesh(NativeBattleCannonBlow151Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleStaticMeshResource mesh = resources.ReadMesh(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Cannon Blow mesh requires its actual temporary memory.");
@@ -113,15 +113,15 @@ public sealed partial class BattleSession
             NativeBattleGeometryRegisters geometry = current.Memory.GeometryRegisters ?? throw new NotSupportedException("Cannon Blow mesh requires its current geometry registers.");
             NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Cannon Blow mesh requires its current primitive process.");
             short? padding = geometry.Rotation20[18] is byte low && geometry.Rotation20[19] is byte high ? unchecked((short)(low | high << 8)) : null;
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(current.Memory, mesh, NativeBattleGeometry.CaptureMatrix(geometry), Camera().Projection ?? throw new NotSupportedException("Cannon Blow requires its current projection."), temporary, colors, matrixPadding18: padding, tableBaseBucket: bucket, depthShift: shift);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(current.Memory, mesh, NativeBattleGeometry.CaptureMatrix(geometry), Camera().Projection ?? throw new NotSupportedException("Cannon Blow requires its current projection."), temporary, colors, matrixPadding18: padding, tableBaseBucket: bucket, depthShift: shift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context, 88) };
             return Deliver(current, drawn.Batch);
         }
 
-        NativeBattleCannonBlow151Frame DrawScrolling(NativeBattleCannonBlow151Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleCannonBlow151Frame DrawScrolling(NativeBattleCannonBlow151Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Cannon Blow scrolling mesh requires its actual temporary memory.");
-            NativeBattleScrollingMeshContext124Step drawn = NativeBattleScrollingMeshContext124.DrawLoaded(current.Memory, resources.ReadMesh(sourceAddress), Camera().Projection ?? throw new NotSupportedException("Cannon Blow scrolling mesh requires its current projection."), Temporary(staging, address, 124), colors, bucket, shift);
+            NativeBattleScrollingMeshContext124Step drawn = NativeBattleScrollingMeshContext124.DrawLoaded(current.Memory, resources.ReadMesh(sourceAddress), Camera().Projection ?? throw new NotSupportedException("Cannon Blow scrolling mesh requires its current projection."), Temporary(staging, address, 124), colors, bucket, shift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context124, 124) };
             return Deliver(current, drawn.Batch);
         }

@@ -139,6 +139,40 @@ public sealed class NativeBattleGastricJuice128TrailTests
     }
 
     private static uint Address(int index) => ArenaAddress + (uint)(PointsOffset + index * PointStride);
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Real_point_rebirth_on_either_endpoint_breaks_segment_sampling_without_native_packet_changes(int reborn)
+    {
+        NativeBattleGastricJuice128Frame frame = Frame();
+        for (int row = 0; row < PointCount; row++)
+        {
+            frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(PointsOffset + row * PointStride + 6, BitConverter.GetBytes((short)-1)) } };
+        }
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, new byte[8]);
+        (frame, uint first) = NativeBattleGastricJuice128Controller.AllocatePoint(frame, source, 32);
+        (frame, uint second) = NativeBattleGastricJuice128Controller.AllocatePoint(frame, source, 32);
+        frame = Point(frame, 0, 100, 200, 512, 32, 2048, second);
+        frame = Point(frame, 1, 116, 200, 512, 32, 1024, 0);
+        Dictionary<uint, System.Numerics.Vector3> world = new() { [first] = new(0, 0, 2048), [second] = new(32, 0, 2048) };
+        NativeBattlePilotVisualIdentity identity = new(128, 1, 0, 1, 0);
+        var native = NativeBattleGastricJuice128Trail.DrawRibbon6B90B0(frame, first, 2, Resources());
+        string baseline = NativeBattleTestSnapshots.Json(native.Batch);
+        frame = Point(frame, 0, 100, 200, 512, 32, 2048, second);
+        frame = Point(frame, 1, 116, 200, 512, 32, 1024, 0);
+        var captured = NativeBattleGastricJuice128Trail.DrawRibbon6B90B0(frame, first, 2, Resources(), identity, world);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured.Batch));
+        NativeBattlePilotVisualGeometry before = Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry!;
+        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(PointsOffset + reborn * PointStride + 6, BitConverter.GetBytes((short)-1)) } };
+        (frame, uint replacement) = NativeBattleGastricJuice128Controller.AllocatePoint(frame, source, 32);
+        Assert.Equal(reborn == 0 ? first : second, replacement);
+        frame = Point(frame, 0, 100, 200, 512, 32, 2048, second);
+        frame = Point(frame, 1, 116, 200, 512, 32, 1024, 0);
+        NativeBattlePilotVisualGeometry after = Assert.Single(NativeBattleGastricJuice128Trail.DrawRibbon6B90B0(frame, first, 2, Resources(), identity, world).Batch.Attempts).Primitive!.PilotGeometry!;
+        Assert.NotEqual(before.Identity, after.Identity);
+        Assert.Equal(before.A, NativeBattlePilotVisualGeometry.SampleCorner(before, after, 0, 0.5f));
+    }
+
     private static uint Dword(ImmutableArray<byte> data, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan().Slice(offset));
     private static short Word(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
     private static NativeBattleGastricJuice128Resources Resources(byte[]? table = null) => new(new(MainActAddress, []), new(0, SpriteAAddress, 0, 0, []), new(0, SpriteBAddress, 0, 0, []), new(0, SpriteCAddress, 0, 0, []), new("unused", []), 0, (table ?? Enumerable.Repeat((byte)16, 128 * 128).ToArray()).ToImmutableArray());

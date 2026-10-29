@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleTemplateSprite683490
 {
-    public static NativeBattleModuleSpriteDraw Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary, NativeBattleModuleResource resource, NativeBattleCameraProjection projection, int tableBaseBucket = 17)
+    public static NativeBattleModuleSpriteDraw Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary, NativeBattleModuleResource resource, NativeBattleCameraProjection projection, int tableBaseBucket = 17, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int count = unchecked((int)Dword(temporary, 0x30));
         uint source = Dword(temporary, 0x2C);
@@ -67,8 +67,14 @@ public static class NativeBattleTemplateSprite683490
                 temporary = Put(temporary, 0x78 + axis * 4, unchecked((uint)step.Colors.Mac[axis]!.Value));
             }
             step = step with { Geometry = NativeBattleGeometry.LoadMatrix(step.Geometry, Matrix(temporary, 0x64), true, true, Padding(temporary, 0x76)) };
+            NativeBattleActionMatrix? pilotMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(step.Geometry) : null;
+            System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
             for (int corner = 0; corner < 3; corner++)
             {
+                if (world is not null)
+                {
+                    world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix!, Vector(temporary, 0x44 + corner * 8)), projection);
+                }
                 step = NativeBattleGeometry.LoadVector(step, corner, Vector(temporary, 0x44 + corner * 8), Padding(temporary, 0x4A + corner * 8));
             }
             NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Native683490 requires its projection controls.");
@@ -96,6 +102,10 @@ public static class NativeBattleTemplateSprite683490
                     depths[corner] = unchecked((ushort)step.Geometry.Sz[corner + 1]!.Value);
                     packet.Word(8 + corner * 8, screens[corner]);
                 }
+                if (world is not null)
+                {
+                    world[3] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix!, Vector(temporary, 0x5C)), projection);
+                }
                 step = NativeBattleGeometry.LoadVector(step, 0, Vector(temporary, 0x5C), Padding(temporary, 0x62));
                 step = NativeBattleGeometry.ProjectSingle(step, projection, controls.Dqa, controls.Dqb);
                 byte bottom = (byte)Math.Min(quad[5] + quad[2], 255);
@@ -106,7 +116,12 @@ public static class NativeBattleTemplateSprite683490
                 packet.Word(32, screens[3]);
                 uint opcode = quad[3] & 0xFCu;
                 ImmutableArray<int> payload = opcode is < 0x20 or > 0x3C ? [0, 0, 0, 0] : (opcode & 8) != 0 ? [depths[0], depths[1], depths[2], depths[3]] : [depths[1], depths[2], depths[3], 0];
-                attempts.Add(packet.Attempt(new(checked(tableBaseBucket + count - index), packet.Words(), payload)));
+                NativeBattleGfGeometryAttempt attempt = packet.Attempt(new(checked(tableBaseBucket + count - index), packet.Words(), payload));
+                if (pilotIdentity is { } identity && world is not null)
+                {
+                    attempt = attempt with { Primitive = attempt.Primitive! with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + (int)source + index * 20) }, world[0], world[1], world[2], world[3], 4) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } } };
+                }
+                attempts.Add(attempt);
                 allocated = checked(allocated + 40);
             }
             memory = memory with { GeometryRegisters = step.Geometry, ScriptedColorRegisters = step.Colors };

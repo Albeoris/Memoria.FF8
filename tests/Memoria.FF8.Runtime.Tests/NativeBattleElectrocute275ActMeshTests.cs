@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Numerics;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -134,6 +135,44 @@ public sealed class NativeBattleElectrocute275ActMeshTests
         Assert.False(result.Registers.Colors.NormalInputKnown.Value[7]);
         Assert.Throws<NotSupportedException>(() => result.Temporary88.Read(8, 4));
         Assert.Equal(0u, U32(result.Temporary88, 0x18));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2048)]
+    [InlineData(4096)]
+    public void Group13_capture_retains_actual_ACT_task_and_direct_or_morphed_native_source(short ratio)
+    {
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleElectrocute275Profile.ActDescriptor, NativeBattleElectrocute275Profile.ArenaAddress, 212, 8);
+        (NativeBattleEffectTaskPool allocated, int slot) = pool.Append(NativeBattleElectrocute275Profile.ActCallback);
+        pool = allocated;
+        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(275, pool.Slots[slot], 17) with { ResourceGeneration = Source(4).Address };
+        NativeBattleGfAnimationNode node = Node(0);
+        byte[] bytes = node.Data.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(38), ratio);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(42), 1);
+        node = node with { Data = bytes.ToImmutableArray() };
+        NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 };
+        NativeBattleElectrocute275ActMeshStep Draw(NativeBattlePilotVisualIdentity? capture) => NativeBattleElectrocute275ActMesh.Draw(Source(4), node, Context(0), NativeBattlePackedMatrix32.FromMatrix(view, null), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), NativeBattleEffectArena.Clear().MarkUnknown(NativeBattleElectrocute275Profile.MorphOffset, NativeBattleElectrocute275Profile.MorphBytes), NativeBattleElectrocute275Profile.ArenaAddress + NativeBattleElectrocute275Profile.MorphOffset, NativeBattleElectrocute275Profile.MorphBytes, new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), new(1, 2, 3, 4, 5), new(view, 100, 160, 108), 0, 0, 0x155, 0x100, Constants, pilotIdentity: capture);
+        NativeBattleElectrocute275ActMeshStep plain = Draw(null);
+        NativeBattleElectrocute275ActMeshStep captured = Draw(identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Registers), NativeBattleTestSnapshots.Json(captured.Registers));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Temporary88), NativeBattleTestSnapshots.Json(captured.Temporary88));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Arena), NativeBattleTestSnapshots.Json(captured.Arena));
+        Assert.Equal(plain.FarControls, captured.FarControls);
+        Assert.Equal(plain.Batch.AllocationBytes, captured.Batch.AllocationBytes);
+        NativeBattleGfGeometryAttempt expected = Assert.Single(plain.Batch.Attempts);
+        NativeBattleGfGeometryAttempt actual = Assert.Single(captured.Batch.Attempts);
+        Assert.Equal(expected.Data.ToArray(), actual.Data.ToArray());
+        Assert.Equal(expected.WriteMask.ToArray(), actual.WriteMask.ToArray());
+        Assert.Null(expected.Primitive!.PilotGeometry);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(actual.Primitive!.PilotGeometry);
+        Assert.Equal(identity.Bank, geometry.Identity.Bank);
+        Assert.Equal(identity.Slot, geometry.Identity.Slot);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(new Vector3(-400 + ratio * 100 / 4096, -400, 0), geometry.A);
+        Assert.Equal(new Vector3(400 + ratio * 100 / 4096, 400, 0), geometry.D);
     }
 
     private static NativeBattleElectrocute275ActMeshStep Draw(NativeBattleGfAnimationNode node, NativeBattleEffectArena context, NativeBattleActionMatrix? camera = null, NativeBattleEffectArena? arena = null, int count = 4)

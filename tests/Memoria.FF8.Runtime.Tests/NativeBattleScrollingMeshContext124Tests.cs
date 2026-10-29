@@ -9,6 +9,54 @@ public sealed class NativeBattleScrollingMeshContext124Tests
     private const uint Address = 0x10000000;
 
     [Theory]
+    [InlineData(2, 0x33u)]
+    [InlineData(3, 0x33u)]
+    [InlineData(7, 0x33u)]
+    [InlineData(2, 0xF3u)]
+    [InlineData(3, 0xF3u)]
+    [InlineData(7, 0xF3u)]
+    public void Group13_capture_retains_compound_packet_windows_color_registers_and_zero_depths(int group, uint flags)
+    {
+        NativeBattleStaticMeshResource mesh = Mesh(group);
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattlePilotVisualIdentity identity = new(151, 0x2000, 2, 7, 1) { ResourceGeneration = Address };
+        NativeBattleScrollingMeshContext124Step native = DrawCaptured(null, 2000);
+        NativeBattleScrollingMeshContext124Step captured = DrawCaptured(identity, 2000);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Context124), NativeBattleTestSnapshots.Json(captured.Context124));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(identity with { Primitive = unchecked(397 + Face(group)) }, geometry.Identity);
+        Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(400, -400, 2000), geometry.B);
+        Assert.Equal(new System.Numerics.Vector3(-400, 400, 2000), geometry.C);
+        if (group != 2)
+        {
+            Assert.Equal(new System.Numerics.Vector3(400, 400, 2000), geometry.D);
+        }
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        NativeBattleScrollingMeshContext124Step DrawCaptured(NativeBattlePilotVisualIdentity? capture, int depth) => NativeBattleScrollingMeshContext124.DrawLoaded(Memory(depth), mesh, projection, Context(flags, 14), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: capture);
+    }
+
+    [Fact]
+    public void Group13_capture_does_not_read_bad_fourth_after_native_near_rejection()
+    {
+        NativeBattleStaticMeshResource source = Mesh(7);
+        byte[] bytes = source.Bytes.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(Face(7) + 10), ushort.MaxValue);
+        source = source with { Bytes = bytes.ToImmutableArray() };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleScrollingMeshContext124Step native = DrawCaptured(null);
+        NativeBattleScrollingMeshContext124Step captured = DrawCaptured(new(151, 0x2000, 2, 7, 0));
+        Assert.Null(Assert.Single(captured.Batch.Attempts).Primitive);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Context124), NativeBattleTestSnapshots.Json(captured.Context124));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        NativeBattleScrollingMeshContext124Step DrawCaptured(NativeBattlePilotVisualIdentity? capture) => NativeBattleScrollingMeshContext124.DrawLoaded(Memory(0), source, projection, Context(0xF3, 14), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: capture);
+    }
+
+    [Theory]
     [InlineData(2, 40)]
     [InlineData(3, 48)]
     [InlineData(7, 60)]

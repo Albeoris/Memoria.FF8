@@ -267,6 +267,12 @@ public static partial class NativeBattleMagmaBreath48Controller
         frame = Write(frame, address, task);
         uint color = (task.ReadDword(0x34) & 0xFFFFFF) | 0x2A000000;
         NativeBattleGeometryPrimitive quad = new(7, [0x05000000, color, 0, 320, 0xD80000, 0xD80140], []);
+        System.Numerics.Vector3 ScreenCorner(int corner)
+        {
+            uint xy = quad.Words[2 + corner];
+            return new(unchecked((short)xy), unchecked((short)(xy >> 16)), 0);
+        }
+        quad = quad with { PilotGeometry = new(NativeBattlePilotVisualLifetimes.Identity(48, task) with { ResourceGeneration = task.ReadDword(0x30) }, ScreenCorner(0), ScreenCorner(1), ScreenCorner(2), ScreenCorner(3), 4) { ScreenSpace = true, ScreenScale = 8 } };
         NativeBattleGeometryPrimitive mode = new(7, [0x02000000, 0xE100002A, 0], [0, 0, 0, 0]);
         SkinWrites quadWrites = new(24, 0);
         for (int word = 0; word < quad.Words.Length; word++)

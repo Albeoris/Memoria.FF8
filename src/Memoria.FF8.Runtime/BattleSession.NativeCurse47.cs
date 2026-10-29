@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -94,7 +94,7 @@ public sealed partial class BattleSession
                 case NativeBattleCurse47Act.FirstCallback:
                 case NativeBattleCurse47Act.SecondCallback:
                 case NativeBattleCurse47Act.MidpointCallback:
-                    return NativeBattleCurse47Act.Advance(current, address, new((_, pointer) => resources.Act(pointer), (_, actor) => new(unchecked((byte)graphics.Models[actor].Flags0), graphics.Models[actor].ModelId4), Anchor, (value, task) => NativeBattleCurse47ActRendering.PrepareDraw(value, task, Camera().CapturePackedView1D97778(), NativeBattleEffectArena.Clear().MarkUnknown(0, 92), NativeBattleEffectArena.Clear().MarkUnknown(0, 32)), (value, task, context, node) => NativeBattleCurse47ActRendering.EmitNode(value, resources.Act(NativeBattleCurse47Controller.Read(value, task).ReadDword(0x94)), context, node, Projection(), Colors(), (output, batch) => Deliver(output, batch, true))));
+                    return NativeBattleCurse47Act.Advance(current, address, new((_, pointer) => resources.Act(pointer), (_, actor) => new(unchecked((byte)graphics.Models[actor].Flags0), graphics.Models[actor].ModelId4), Anchor, (value, task) => NativeBattleCurse47ActRendering.PrepareDraw(value, task, Camera().CapturePackedView1D97778(), NativeBattleEffectArena.Clear().MarkUnknown(0, 92), NativeBattleEffectArena.Clear().MarkUnknown(0, 32)), (value, task, context, node) => NativeBattleCurse47ActRendering.EmitNode(value, resources.Act(NativeBattleCurse47Controller.Read(value, task).ReadDword(0x94)), context, node, Projection(), Colors(), (output, batch) => Deliver(output, batch, true), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(47, NativeBattleCurse47Controller.Read(value, task), node.ResourceOffset) with { ResourceGeneration = NativeBattleCurse47Controller.Read(value, task).ReadDword(0x94) })));
                 case NativeBattleCurse47ParticleStage.Callback:
                     return NativeBattleCurse47ParticleStage.Advance(current, address, Execute);
                 default:

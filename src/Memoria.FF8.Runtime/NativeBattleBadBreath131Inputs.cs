@@ -15,6 +15,18 @@ public sealed record NativeBattleBadBreath131Sound(uint Value, uint Flags, byte 
 public sealed record NativeBattleBadBreath131ActorFlags(byte Actor, ushort ClearMask, ushort SetMask) : NativeBattleBadBreath131Operation;
 public sealed record NativeBattleBadBreath131ActorColor(byte Actor, uint Color) : NativeBattleBadBreath131Operation;
 public sealed record NativeBattleBadBreath131Contact(int Index) : NativeBattleBadBreath131Operation;
-public sealed record NativeBattleBadBreath131FlashEnvelope(int Age) : NativeBattleBadBreath131Operation;
-public sealed record NativeBattleBadBreath131DrawStrip92(uint TemporaryAddress, uint SourceAddress, uint SelectedVerticesAddress) : NativeBattleBadBreath131Operation;
-public sealed record NativeBattleBadBreath131DrawSprite180(uint TemporaryAddress, uint SourceAddress) : NativeBattleBadBreath131Operation;
+public sealed record NativeBattleBadBreath131FlashEnvelope(int Age) : NativeBattleBadBreath131Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
+public sealed record NativeBattleBadBreath131DrawStrip92(uint TemporaryAddress, uint SourceAddress, uint SelectedVerticesAddress) : NativeBattleBadBreath131Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
+public sealed record NativeBattleBadBreath131DrawSprite180(uint TemporaryAddress, uint SourceAddress) : NativeBattleBadBreath131Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}

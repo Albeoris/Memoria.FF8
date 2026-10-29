@@ -69,6 +69,39 @@ public sealed class NativeBattleDisolvingAcid132TemplateSpriteTests
         Assert.Equal(2u, BinaryPrimitives.ReadUInt32LittleEndian(result.Temporary180.Read(0x30, 4)));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Template_capture_preserves_final_native_matrix_corners_packet_depth_and_unknown_lanes(bool translated)
+    {
+        NativeBattleActionMatrix main = NativeBattleCuragaMatrices.Identity8DD770() with { X = translated ? 128 : 0, Y = translated ? -64 : 0, Z = 4096 };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 288, 160, 108);
+        NativeBattleModuleSpriteDraw Run(NativeBattlePilotVisualIdentity? identity)
+        {
+            NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
+            return NativeBattleTemplateSprite683490.Draw(memory, Temporary(main, Resource()), new(0, 0x1000000, 0, 0, Resource()), projection, pilotIdentity: identity);
+        }
+        string native = NativeBattleTestSnapshots.Json(Run(null));
+        NativeBattlePilotVisualIdentity identity = new(132, 0x2520FA0, 3, 6, 0) { ResourceGeneration = 0x1212B70 };
+        NativeBattleModuleSpriteDraw captured = Run(identity);
+        Assert.Equal(native, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(2, captured.Batch.Attempts.Select(a => a.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+        Assert.All(captured.Batch.Attempts, attempt =>
+        {
+            NativeBattlePilotVisualGeometry geometry = attempt.Primitive!.PilotGeometry!;
+            Assert.Equal(identity.Generation, geometry.Identity.Generation);
+            Assert.True(geometry.UseSourceDepths);
+            int[] offsets = [8, 16, 24, 32];
+            for (int corner = 0; corner < 4; corner++)
+            {
+                System.Numerics.Vector3 point = NativeBattlePilotVisualGeometry.Project(geometry.Corner(corner), projection);
+                uint screen = BinaryPrimitives.ReadUInt32LittleEndian(attempt.Data.AsSpan().Slice(offsets[corner]));
+                Assert.InRange(Math.Abs(point.X - unchecked((short)screen)), 0, 0.51f);
+                Assert.InRange(Math.Abs(point.Y - unchecked((short)(screen >> 16))), 0, 0.51f);
+            }
+        });
+    }
+
     private static NativeBattleGfGeometryBatch Draw(ImmutableArray<byte> source, ushort phase, NativeBattleActionMatrix main, NativeBattleCameraProjection projection, int tableBaseBucket)
     {
         _ = phase;

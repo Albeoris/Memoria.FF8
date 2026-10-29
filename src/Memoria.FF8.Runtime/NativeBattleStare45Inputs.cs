@@ -15,4 +15,8 @@ public sealed record NativeBattleStare45Sound501330(uint Packed, uint Flags, byt
 public sealed record NativeBattleStare45Contact506690(int ContactIndex) : NativeBattleStare45Operation;
 public sealed record NativeBattleStare45StageColorDepth(int Group, short Depth) : NativeBattleStare45Operation;
 public sealed record NativeBattleStare45StageRgb(int Group, byte R, byte G, byte B) : NativeBattleStare45Operation;
-public sealed record NativeBattleStare45DrawMesh104(uint TemporaryAddress, uint SourceAddress, uint VertexAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleStare45Operation;
+public sealed record NativeBattleStare45DrawMesh104(uint TemporaryAddress, uint SourceAddress, uint VertexAddress, int TableBaseBucket = 17, int DepthShift = 2) : NativeBattleStare45Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}

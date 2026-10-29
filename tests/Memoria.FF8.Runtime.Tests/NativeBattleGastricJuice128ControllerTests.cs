@@ -49,8 +49,11 @@ public sealed class NativeBattleGastricJuice128ControllerTests
         Fixture fixture = new();
         NativeBattleGastricJuice128Frame frame = fixture.TargetPhase(53);
         frame = fixture.Step(frame);
-        Assert.Collection(fixture.Operations, operation => Assert.IsType<NativeBattleGastricJuice128AdvanceAct>(operation), operation => Assert.Equal(new NativeBattleGastricJuice128ActorFlags(3, 0, 4), operation), operation => Assert.Equal(new NativeBattleGastricJuice128DrawBody132(3, unchecked((short)NativeBattleCameraMath.Sine(24 * 2048 / 40))), operation), operation => Assert.Equal(new NativeBattleGastricJuice128Contact(0), operation));
+        Assert.Collection(fixture.Operations, operation => Assert.IsType<NativeBattleGastricJuice128AdvanceAct>(operation), operation => Assert.Equal(new NativeBattleGastricJuice128ActorFlags(3, 0, 4), operation), operation => Assert.Equal(new NativeBattleGastricJuice128DrawBody132(3, unchecked((short)NativeBattleCameraMath.Sine(24 * 2048 / 40))), Assert.IsType<NativeBattleGastricJuice128DrawBody132>(operation) with { PilotIdentity = null }), operation => Assert.Equal(new NativeBattleGastricJuice128Contact(0), operation));
         Assert.Equal((ushort)54, frame.Effect.Pools[1].Slots[0].ReadWord(12));
+        NativeBattleGastricJuice128DrawBody132 body = Assert.Single(fixture.Operations.OfType<NativeBattleGastricJuice128DrawBody132>());
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(128, frame.Effect.Pools[1].Slots[0]), Assert.IsType<NativeBattlePilotVisualIdentity>(body.PilotIdentity));
+        Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(body));
     }
 
     [Fact]

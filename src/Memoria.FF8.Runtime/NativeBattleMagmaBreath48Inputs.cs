@@ -8,7 +8,11 @@ public sealed record NativeBattleMagmaBreath48Frame(NativeBattleEffectMemory Mem
 public sealed record NativeBattleMagmaBreath48PointStep(NativeBattleMagmaBreath48Frame Frame, NativeBattleEffectArena Point8);
 public sealed record NativeBattleMagmaBreath48Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleMagmaBreath48Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleMagmaBreath48Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleMagmaBreath48Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleMagmaBreath48Frame, int, int, int, NativeBattleMagmaBreath48PointStep> ReadBone502170, Func<NativeBattleMagmaBreath48Frame, short> ReadCameraRoll, Func<NativeBattleMagmaBreath48Frame, NativeBattleMagmaBreath48Operation, NativeBattleMagmaBreath48Frame> Execute);
 
-public abstract record NativeBattleMagmaBreath48Operation;
+public abstract record NativeBattleMagmaBreath48Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleMagmaBreath48UpdateCaster8DC740(uint TaskAddress) : NativeBattleMagmaBreath48Operation;
 public sealed record NativeBattleMagmaBreath48UpdateTargetBounds8DC610_8DC870(uint TaskAddress) : NativeBattleMagmaBreath48Operation;
 public sealed record NativeBattleMagmaBreath48Sound501330(uint Packed, uint Flags, byte Pan) : NativeBattleMagmaBreath48Operation;

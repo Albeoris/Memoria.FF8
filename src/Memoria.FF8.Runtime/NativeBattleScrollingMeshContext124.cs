@@ -7,7 +7,7 @@ public sealed record NativeBattleScrollingMeshContext124Step(NativeBattleEffectM
 
 public static class NativeBattleScrollingMeshContext124
 {
-    public static NativeBattleScrollingMeshContext124Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleScrollingMeshContext124Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         context.Validate();
         uint flags = Dword(context, 0x20);
@@ -55,6 +55,8 @@ public static class NativeBattleScrollingMeshContext124
             bool gouraud = group == 7;
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
+                NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[quad ? 4 : 3] : null;
                 byte[] face = mesh.Bytes.AsSpan().Slice(cursor, strides[group]).ToArray();
                 for (int corner = 0; corner < 3; corner++)
                 {
@@ -116,6 +118,10 @@ public static class NativeBattleScrollingMeshContext124
                         }
                     }
                     attempt = attempt with { Primitive = attempt.Primitive with { Bucket = unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift)) } };
+                    if (pilotIdentity is { } identity && world is not null)
+                    {
+                        attempt = attempt with { Primitive = attempt.Primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)world.Length)) { UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero } } };
+                    }
                     allocated = checked(allocated + emitted.AllocationBytes);
                 }
                 attempts.Add(attempt);
@@ -126,7 +132,12 @@ public static class NativeBattleScrollingMeshContext124
                 {
                     int offset = checked(8 + BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)) * 4);
                     ReadOnlySpan<byte> bytes = mesh.Bytes.AsSpan().Slice(offset, 8);
-                    return (new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..])), BinaryPrimitives.ReadInt16LittleEndian(bytes[6..]));
+                    NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..]));
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, point), projection);
+                    }
+                    return (point, BinaryPrimitives.ReadInt16LittleEndian(bytes[6..]));
                 }
             }
         }

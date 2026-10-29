@@ -23,7 +23,7 @@ public sealed partial record NativeBattleEffectMemory
 
 public static class NativeBattleUltrasonic152
 {
-    public static NativeBattleGfGeometryBatch Ring60BA00(ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint color, int frame, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Ring60BA00(ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint color, int frame, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int cursor = BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan());
         if (BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan().Slice(cursor)) != 0 || BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan().Slice(cursor + 4)) != 0 || BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan().Slice(cursor + 8)) != 0)
@@ -38,15 +38,25 @@ public static class NativeBattleUltrasonic152
         for (int index = 0; index < count; index++)
         {
             ReadOnlySpan<byte> face = source.AsSpan().Slice(cursor + index * 24, 24);
+            System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
             NativeBattleModuleProjectedVertex[] vertices = new NativeBattleModuleProjectedVertex[4];
             for (int corner = 0; corner < 4; corner++)
             {
                 int vertexOffset = 8 + BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(4 + corner * 2)) * 4;
                 ReadOnlySpan<byte> vertex = source.AsSpan().Slice(vertexOffset, 6);
-                vertices[corner] = NativeBattleModuleProjection.Project45FE10(matrix, new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(vertex.Slice(4))), projection);
+                NativeBattleVector position = new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(vertex.Slice(4)));
+                vertices[corner] = NativeBattleModuleProjection.Project45FE10(matrix, position, projection);
+                if (world is not null)
+                {
+                    world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, position), projection);
+                }
             }
             NativeBattleMeshPacketContext context = new(frame < 16 ? 0x33u : 0xF3u, 0, (frame - 16) << 10, null, null, 0, 0, 17, 2);
             NativeBattleGfGeometryAttempt attempt = NativeBattleGfGeometryPackets.EmitAttempt(face, vertices, 3, context, colors, allocated, null, new(color, null, false, true));
+            if (attempt.Primitive is not null && pilotIdentity is { } identity && world is not null)
+            {
+                attempt = attempt with { Primitive = attempt.Primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor + index * 24) }, world[0], world[1], world[2], world[3], 4) } };
+            }
             attempts.Add(attempt);
             if (attempt.Primitive is not null)
             {

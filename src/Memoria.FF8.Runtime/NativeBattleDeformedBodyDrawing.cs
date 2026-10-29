@@ -7,7 +7,7 @@ public sealed record NativeBattleDeformedBodyStep(NativeBattleEffectMemory Memor
 
 public static partial class NativeBattleDeformedBodyDrawing
 {
-    public static NativeBattleDeformedBodyStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary132, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, uint cacheAddress, int cacheLength, int tableBaseBucket = 17, byte depthShift = 0)
+    public static NativeBattleDeformedBodyStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary132, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, uint cacheAddress, int cacheLength, int tableBaseBucket = 17, byte depthShift = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (scratchLength < 0 || depthShift > 31 || U32(temporary132, 0x24) != scratchAddress)
         {
@@ -31,6 +31,7 @@ public static partial class NativeBattleDeformedBodyDrawing
             cursor = checked(cursor + 2);
             temporary132 = Dword(temporary132, 0x30, Address(cursor));
             int vertexCount = 0;
+            Dictionary<int, System.Numerics.Vector3>? world = pilotIdentity.HasValue ? [] : null;
             for (int group = 0; group < groups; group++)
             {
                 int bone = S16(cursor);
@@ -79,6 +80,10 @@ public static partial class NativeBattleDeformedBodyDrawing
                     byte[] xyz = vertexScratch.Read(output, 6);
                     (byte[] w, bool[] known) = vertexScratch.ReadSnapshot(output + 6, 2);
                     registers = NativeBattleGeometry.LoadVector(registers, 0, Vector(xyz), known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(w) : null);
+                    if (world is not null)
+                    {
+                        world[vertexCount + vertex] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(camera.ReadMatrix(), Vector(xyz)), projection);
+                    }
                     registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                     uint screen = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Acid requires its reached screen FIFO.");
                     uint depth = registers.Geometry.Sz[3] ?? throw new NotSupportedException("Acid requires its reached depth FIFO.");
@@ -137,7 +142,13 @@ public static partial class NativeBattleDeformedBodyDrawing
                     var drawn = DrawFace(source, quad, vertexScratch, vertexCount, temporary132, registers, controls, tableBaseBucket, depthShift, allocated);
                     temporary132 = drawn.Temporary;
                     registers = drawn.Registers;
-                    attempts.Add(drawn.Attempt);
+                    NativeBattleGfGeometryAttempt attempt = drawn.Attempt;
+                    if (pilotIdentity is { } identity && world is not null && attempt.Primitive is { } primitive)
+                    {
+                        System.Numerics.Vector3 Corner(int corner) => world[BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(corner * 2)) & 0xFFF];
+                        attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, Corner(0), Corner(1), Corner(2), quad ? Corner(3) : default, (byte)(quad ? 4 : 3)) { SourceDepths = new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), UseSourceDepths = true } } };
+                    }
+                    attempts.Add(attempt);
                     if (drawn.Attempt.Primitive is not null)
                     {
                         allocated = checked(allocated + drawn.Attempt.PacketLength);

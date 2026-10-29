@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Disolving Acid requires its actual process memory.");
         NativeBattleDisolvingAcid132Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Disolving Acid requires its CRT stream."), memory.DisolvingAcid132 ?? throw new NotSupportedException("Disolving Acid requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Disolving Acid requires its addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Disolving Acid requires its original interpolation constants.");
-        NativeBattleDisolvingAcid132Inputs inputs = new(nativeActionPackets, colors, Emitter, ModelMatrix, pointer => checked((byte)PoseSource(Actor(pointer)).BoneCount), Bone, _ => Camera().CapturePackedView1D97778(), _ => Projection(), AdvanceAct, Execute);
+        NativeBattleDisolvingAcid132Inputs inputs = new(nativeActionPackets, colors, Emitter, ModelMatrix, pointer => checked((byte)PoseSource(Actor(pointer)).BoneCount), Bone, _ => Camera().CapturePackedView1D97778(), _ => Projection(), AdvanceAct, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleDisolvingAcid132Controller.Initialize(frame, resources, inputs) : NativeBattleDisolvingAcid132Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("DisolvingAcid132 drawing requires its addressed temporary memory."), 88);
                 NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
                 uint morph = checked(current.State.ReadDword(NativeBattleDisolvingAcid132Profile.WorkingGlobal) + NativeBattleDisolvingAcid132Profile.MorphOffset);
-                NativeBattleDisolvingAcid132ActContextStep drawn = NativeBattleDisolvingAcid132ActContext12.Draw(current.Memory, source, node, context, Camera().CapturePackedView1D97778(), temporary, Projection(), colors, morph, NativeBattleDisolvingAcid132Profile.MorphBytes);
+                NativeBattleDisolvingAcid132ActContextStep drawn = NativeBattleDisolvingAcid132ActContext12.Draw(current.Memory, source, node, context, Camera().CapturePackedView1D97778(), temporary, Projection(), colors, morph, NativeBattleDisolvingAcid132Profile.MorphBytes, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(132, NativeBattleDisolvingAcid132Controller.Read(current, address), node.ResourceOffset) with { ResourceGeneration = ((long)source.Address << 32) | (uint)offset });
                 NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.Temporary88, 88);
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("DisolvingAcid132 requires its current ordering table.");
                 uint cursor = current.State.ReadDword(NativeBattleDisolvingAcid132Profile.CursorGlobal);
@@ -124,7 +124,7 @@ public sealed partial class BattleSession
                 case NativeBattleDisolvingAcid132DeliverRibbonBatch ribbon:
                     return Deliver(current, ribbon.Batch);
                 case NativeBattleDisolvingAcid132DrawTemplate180 template:
-                    NativeBattleModuleSpriteDraw templateDraw = NativeBattleTemplateSprite683490.Draw(current.Memory, ReadTemporary(current, template.TemporaryAddress, 180), resources.Sprite(template.SourceAddress), Projection());
+                    NativeBattleModuleSpriteDraw templateDraw = NativeBattleTemplateSprite683490.Draw(current.Memory, ReadTemporary(current, template.TemporaryAddress, 180), resources.Sprite(template.SourceAddress), Projection(), pilotIdentity: template.PilotIdentity);
                     return Deliver(current with { Memory = templateDraw.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, template.TemporaryAddress, templateDraw.Temporary180, 180) }, templateDraw.Batch);
                 case NativeBattleDisolvingAcid132Sound sound:
                     Publish(current);
@@ -138,7 +138,7 @@ public sealed partial class BattleSession
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Disolving Acid contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleDisolvingAcid132DrawSprite180 sprite:
                     NativeBattleModuleResource spriteSource = resources.Sprite(sprite.SourceAddress);
-                    NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, ReadTemporary(current, sprite.TemporaryAddress, 180), address => address == spriteSource.Address ? spriteSource : throw new NotSupportedException("Disolving Acid selected an unsupported sprite source."), Projection(), Camera().Roll, 17);
+                    NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, ReadTemporary(current, sprite.TemporaryAddress, 180), address => address == spriteSource.Address ? spriteSource : throw new NotSupportedException("Disolving Acid selected an unsupported sprite source."), Projection(), Camera().Roll, 17, pilotIdentity: sprite.PilotIdentity);
                     return Deliver(current with { Memory = spriteDraw.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, sprite.TemporaryAddress, spriteDraw.Temporary180, 180) }, spriteDraw.Batch);
                 default:
                     throw new NotSupportedException("Disolving Acid operation has no proved implementation.");

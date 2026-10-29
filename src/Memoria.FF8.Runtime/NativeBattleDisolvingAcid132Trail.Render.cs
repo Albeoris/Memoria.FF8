@@ -1,11 +1,13 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using static Memoria.FF8.Runtime.NativeBattleDisolvingAcid132Controller;
+using static Memoria.FF8.Runtime.NativeBattleDisolvingAcid132Profile;
 
 namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleDisolvingAcid132Trail
 {
-    public static (NativeBattleDisolvingAcid132Frame Frame, NativeBattleGfGeometryBatch Batch) DrawRibbon6B2870(NativeBattleDisolvingAcid132Frame frame, uint head, short count, NativeBattleDisolvingAcid132Resources resources)
+    public static (NativeBattleDisolvingAcid132Frame Frame, NativeBattleGfGeometryBatch Batch) DrawRibbon6B2870(NativeBattleDisolvingAcid132Frame frame, uint head, short count, NativeBattleDisolvingAcid132Resources resources, NativeBattlePilotVisualIdentity? pilotIdentity = null, IReadOnlyDictionary<uint, System.Numerics.Vector3>? pilotWorld = null)
     {
         if (count < 2 || count > 128)
         {
@@ -16,6 +18,7 @@ public static partial class NativeBattleDisolvingAcid132Trail
         {
             throw new InvalidDataException("Disolving Acid curve count differs from its actual chain.");
         }
+        Dictionary<uint, uint>? centers = pilotIdentity.HasValue && pilotWorld is not null ? chain.ToDictionary(point => point, point => PointDword(frame, point + 8)) : null;
         short? previousX = null;
         short? previousY = null;
         for (int index = 0; index < count; index++)
@@ -61,7 +64,17 @@ public static partial class NativeBattleDisolvingAcid132Trail
             {
                 words.Add(BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(offset)));
             }
-            attempts.Add(new(allocated, packet.ToImmutableArray(), mask.ToImmutableArray(), new(bucket, words.ToImmutable(), [])));
+            NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutable(), []);
+            if (pilotIdentity.HasValue && pilotWorld is not null && centers is not null)
+            {
+                uint bank = frame.State.ReadDword(WorkingGlobal) + PointsOffset;
+                int a = (int)((current - bank) / PointStride);
+                int b = (int)((next - bank) / PointStride);
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(132, Arena(frame), bank, a, b) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(132, Arena(frame), bank, b).Generation };
+                System.Numerics.Vector2 OffsetFrom(uint corner, uint center) => new(unchecked((short)corner) - unchecked((short)center), unchecked((short)(corner >> 16)) - unchecked((short)(center >> 16)));
+                primitive = primitive with { PilotGeometry = new(identity, pilotWorld[current], pilotWorld[current], pilotWorld[next], pilotWorld[next], 4) { ScreenOffsets = [OffsetFrom(PointDword(frame, current + 8), centers[current]), OffsetFrom(PointDword(frame, current + 16), centers[current]), OffsetFrom(PointDword(frame, next + 8), centers[next]), OffsetFrom(PointDword(frame, next + 16), centers[next])], SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };
+            }
+            attempts.Add(new(allocated, packet.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             allocated += 52;
 
             void Put32(int offset, uint value)

@@ -6,6 +6,37 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleUltrasonic152Tests
 {
     [Fact]
+    public void Particle_identity_uses_real_task_owner_and_shared_row_birth_generation()
+    {
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x244C808, 0x244C818, 36, 100);
+        (pool, int slot) = pool.Append(0x60C3C0);
+        NativeBattleModulePoolTask task = pool.Slots[slot];
+        NativeBattlePilotVisualIdentity before = NativeBattleUltrasonic152VisualLifetimes.Identity(task, 7, 1);
+        NativeBattleUltrasonic152VisualLifetimes.Allocated(task, 7);
+        NativeBattlePilotVisualIdentity first = NativeBattleUltrasonic152VisualLifetimes.Identity(task, 7, 1);
+        Assert.NotEqual(before.ResourceGeneration, first.ResourceGeneration);
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(152, task, 107) with { ResourceGeneration = first.ResourceGeneration }, first);
+        Assert.Equal(first, NativeBattleUltrasonic152VisualLifetimes.Identity(task.WriteWord(12, 1), 7, 1));
+        Assert.NotEqual(first, NativeBattleUltrasonic152VisualLifetimes.Identity(task, 8, 1));
+        NativeBattleUltrasonic152VisualLifetimes.Allocated(task, 7);
+        Assert.NotEqual(first, NativeBattleUltrasonic152VisualLifetimes.Identity(task, 7, 1));
+    }
+
+    [Fact]
+    public void Ring_capture_retains_exact_selected_world_corners_and_native_packet_ledger()
+    {
+        ImmutableArray<byte> source = Mesh(new(-100, -100, 1000), new(100, -100, 1000), new(-100, 100, 1000), new(100, 100, 1000));
+        NativeBattlePilotVisualIdentity identity = new(152, 1, 2, 3, 4);
+        NativeBattleGfGeometryBatch native = NativeBattleUltrasonic152.Ring60BA00(source, Identity, Projection, 0x904040, 18, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattleGfGeometryBatch captured = NativeBattleUltrasonic152.Ring60BA00(source, Identity, Projection, 0x904040, 18, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 1000), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(100, 100, 1000), geometry.D);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+    }
+
+    [Fact]
     public void Ring_uses_uniform_semitransparent_color_and_native_black_depth_cue()
     {
         ImmutableArray<byte> source = Mesh(new(-100, -100, 1000), new(100, -100, 1000), new(-100, 100, 1000), new(100, 100, 1000));

@@ -14,9 +14,9 @@ public sealed partial class BattleSession
         return (frame with { Staging = staging }, updated);
     }
 
-    private NativeBattleElectrocute275Frame ProjectNativeElectrocute275BoneTrail(NativeBattleElectrocute275Frame frame, NativeBattleGraphicsState graphics, byte actor, uint head, uint bankAddress, int bankLength)
+    private NativeBattleElectrocute275Frame ProjectNativeElectrocute275BoneTrail(NativeBattleElectrocute275Frame frame, NativeBattleGraphicsState graphics, byte actor, uint head, uint bankAddress, int bankLength, Action<uint, System.Numerics.Vector3>? captureWorld = null)
     {
-        NativeBattleEffectMemory memory = ProjectNativeLightningBoneTrail(frame.Memory, frame.Effect, frame.Staging ?? throw new NotSupportedException("Electrocute requires its current addressed memory."), graphics, actor, head, bankAddress, bankLength);
+        NativeBattleEffectMemory memory = ProjectNativeLightningBoneTrail(frame.Memory, frame.Effect, frame.Staging ?? throw new NotSupportedException("Electrocute requires its current addressed memory."), graphics, actor, head, bankAddress, bankLength, captureWorld);
         return frame with { Memory = memory };
     }
 }

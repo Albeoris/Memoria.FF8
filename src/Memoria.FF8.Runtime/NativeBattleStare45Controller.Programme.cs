@@ -59,7 +59,8 @@ public static partial class NativeBattleStare45Controller
         NativeBattleGfAnimationAdvance advanced = ProgrammeWorkspace(task).Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, current);
-            frame = DrawProgrammeNode45(frame, source, node, composed, Signed(Read(frame, address), 0x88), resources, inputs);
+            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(45, Read(frame, address), node.ResourceOffset) with { ResourceGeneration = source.Address };
+            frame = DrawProgrammeNode45(frame, source, node, composed, Signed(Read(frame, address), 0x88), resources, inputs, identity);
             return ProgrammeWorkspace(Read(frame, address));
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, advanced.Workspace);

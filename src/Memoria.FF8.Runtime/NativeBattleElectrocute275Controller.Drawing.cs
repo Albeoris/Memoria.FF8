@@ -40,7 +40,7 @@ public static partial class NativeBattleElectrocute275Controller
         uint source = task.ReadByte(14) == 0 ? resources.SpriteA.Address : resources.SpriteB.Address;
         ushort phase = task.ReadWord(12);
         NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(allocation.Staging, allocation.Address, source, 0).Write(allocation.Address + 4, BitConverter.GetBytes(phase));
-        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleElectrocute275DrawSprite180(allocation.Address, source, phase));
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleElectrocute275DrawSprite180(allocation.Address, source, phase) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(275, Read(frame, address)) with { ResourceGeneration = source } });
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging ?? throw new NotSupportedException("Electrocute lost its physical sprite temporary."), 180) };
         ushort next = unchecked((ushort)(Read(frame, address).ReadWord(12) + 1));
         return (Write(frame, address, Read(frame, address).WriteWord(12, next)), unchecked((short)next) < 8 ? 0 : 2);

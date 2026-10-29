@@ -7,7 +7,7 @@ public static class NativeBattleOilShot136Act
 {
     public static bool Visible(NativeBattleGfAnimationNode node) => NativeBattleActMeshRendering.Visible(node);
 
-    public static NativeBattleDefaultActContext40Step Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context44, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, NativeBattlePackedMatrix32 currentMatrix, short? localVectorW = null)
+    public static NativeBattleDefaultActContext40Step Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context44, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, NativeBattlePackedMatrix32 currentMatrix, short? localVectorW = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!Visible(node))
         {
@@ -118,7 +118,7 @@ public static class NativeBattleOilShot136Act
             temporary88 = Store(temporary88, 0x18, Dword(context44, 32));
         }
         NativeBattleEffectArena? selectedArena = arena;
-        NativeBattleDefaultActMeshStep drawn = custom ? NativeBattleOilShot136ActMesh.Draw(memory, source, geometry, temporary88, projection, colors, ReadVertex, ReadW) : NativeBattleDefaultActMesh.Draw(memory, source, geometry, temporary88, projection, colors, ReadVertex, ReadW);
+        NativeBattleDefaultActMeshStep drawn = custom ? NativeBattleOilShot136ActMesh.Draw(memory, source, geometry, temporary88, projection, colors, ReadVertex, ReadW, pilotIdentity: pilotIdentity) : NativeBattleDefaultActMesh.Draw(memory, source, geometry, temporary88, projection, colors, ReadVertex, ReadW, pilotIdentity: pilotIdentity);
         return new(drawn.Memory, drawn.Context88, drawn.Batch);
 
         void Transform(NativeBattleVector vector, short? w, NativeBattlePackedMatrix32 packed)

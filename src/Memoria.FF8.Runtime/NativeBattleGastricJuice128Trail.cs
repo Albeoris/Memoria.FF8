@@ -69,10 +69,11 @@ public static class NativeBattleGastricJuice128Trail
         NativeBattleModulePoolTask current = Read(frame, address);
         short count = Signed(current, 14);
         uint head = current.ReadDword(0x10);
-        frame = ProjectPoints(frame, head, inputs);
+        Dictionary<uint, System.Numerics.Vector3>? world = inputs.CapturePresentation ? [] : null;
+        frame = ProjectPoints(frame, head, inputs, world);
         if (count >= 2)
         {
-            (frame, NativeBattleGfGeometryBatch batch) = DrawRibbon6B90B0(frame, head, count, resources);
+            (frame, NativeBattleGfGeometryBatch batch) = DrawRibbon6B90B0(frame, head, count, resources, world is null ? null : NativeBattlePilotVisualLifetimes.Identity(128, Read(frame, address)), world);
             frame = inputs.Execute(frame, new NativeBattleGastricJuice128DeliverRibbonBatch(batch));
         }
         for (uint cursor = head, visited = 0; cursor != 0; visited++)
@@ -127,16 +128,21 @@ public static class NativeBattleGastricJuice128Trail
     private static NativeBattleGastricJuice128Frame PointWord(NativeBattleGastricJuice128Frame frame, uint address, short value) => WriteArena(frame, address, BitConverter.GetBytes(value));
     private static NativeBattleGastricJuice128Frame PointVector(NativeBattleGastricJuice128Frame frame, uint address, NativeBattleVector point) => PointWord(PointWord(PointWord(frame, address, point.X), address + 2, point.Y), address + 4, point.Z);
 
-    public static (NativeBattleGastricJuice128Frame Frame, NativeBattleGfGeometryBatch Batch) DrawRibbon6B90B0(NativeBattleGastricJuice128Frame frame, uint head, short count, NativeBattleGastricJuice128Resources resources)
+    public static (NativeBattleGastricJuice128Frame Frame, NativeBattleGfGeometryBatch Batch) DrawRibbon6B90B0(NativeBattleGastricJuice128Frame frame, uint head, short count, NativeBattleGastricJuice128Resources resources, NativeBattlePilotVisualIdentity? pilotIdentity = null, IReadOnlyDictionary<uint, System.Numerics.Vector3>? pilotWorld = null)
     {
         uint working = Working(frame);
         NativeBattleRibbonBank bank = new(checked(working + PointsOffset), Offset(checked(working + PointsOffset), checked(PointCount * PointStride)), PointCount);
         NativeBattleRibbonPacketPolicy policy = new(NativeBattleRibbonWidthPolicy.Projected, 3, 17, 0x3D14E048, 0x00BAE078, 0xE048, 0xE078);
-        var result = NativeBattleRibbonPackets.Draw(Arena(frame), head, count, bank, resources.DistanceTable, policy);
+        var result = NativeBattleRibbonPackets.Draw(Arena(frame), head, count, bank, resources.DistanceTable, policy, pilotIdentity: pilotIdentity, readWorldCenter: pilotWorld is null ? null : point => pilotWorld[point], identifySegment: pilotIdentity.HasValue ? Identify : null);
+        NativeBattlePilotVisualIdentity Identify(uint a, uint b)
+        {
+            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(128, Arena(frame), bank.Address, (int)((a - bank.Address) / PointStride), (int)((b - bank.Address) / PointStride));
+            return identity with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(128, Arena(frame), bank.Address, (int)((b - bank.Address) / PointStride)).Generation };
+        }
         return (frame with { Memory = frame.Memory with { Arena = result.Arena } }, result.Batch);
     }
 
-    private static NativeBattleGastricJuice128Frame ProjectPoints(NativeBattleGastricJuice128Frame frame, uint head, NativeBattleGastricJuice128Inputs inputs)
+    private static NativeBattleGastricJuice128Frame ProjectPoints(NativeBattleGastricJuice128Frame frame, uint head, NativeBattleGastricJuice128Inputs inputs, IDictionary<uint, System.Numerics.Vector3>? pilotWorld = null)
     {
         frame = LoadMatrix(frame, inputs.ReadView(frame));
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Gastric Juice requires its current projection controls.");
@@ -145,6 +151,11 @@ public static class NativeBattleGastricJuice128Trail
             RequirePoint(frame, point, checked((int)visited));
             NativeBattleGeometryRegisterStep registers = new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Gastric Juice requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Gastric Juice requires its current arithmetic registers."));
             registers = NativeBattleGeometry.LoadVector(registers, 0, new(PointSigned(frame, point), PointSigned(frame, point + 2), PointSigned(frame, point + 4)), PointSigned(frame, point + 6));
+            if (pilotWorld is not null)
+            {
+                NativeBattleVector vertex = new(PointSigned(frame, point), PointSigned(frame, point + 2), PointSigned(frame, point + 4));
+                pilotWorld[point] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(NativeBattleGeometry.CaptureMatrix(registers.Geometry), vertex), inputs.ReadProjection(frame));
+            }
             registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
             frame = frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
             frame = WriteArena(frame, point + 0x10, BitConverter.GetBytes(registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Gastric Juice requires its actual SXY output.")));

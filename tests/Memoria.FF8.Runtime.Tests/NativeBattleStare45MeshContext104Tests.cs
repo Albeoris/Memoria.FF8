@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Numerics;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -80,6 +81,80 @@ public sealed class NativeBattleStare45MeshContext104Tests
         Assert.Equal(0u, U(actual.Context104, 0x38));
         Assert.Throws<NotSupportedException>(() => Draw(3, context: Context(0x2030).Write(0x18, BitConverter.GetBytes((ushort)1))));
         Assert.Throws<NotSupportedException>(() => Draw(5));
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(7)]
+    public void Group13_selected_capture_preserves_native_registers_context_depths_and_mode_write_ledger(int group)
+    {
+        NativeBattleEffectMemory memory = Memory(2000);
+        NativeBattleActionMatrix matrix = new([8192, 0, 0, 0, 4096, 0, 0, 0, 4096], 70, 30, 2100, 4096);
+        memory = memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(memory.GeometryRegisters!, matrix, true, true, null) };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770() with { X = 50, Y = 10, Z = 100 }, 100, 160, 108);
+        NativeBattleVector[] points = [new(-375, -400, 0), new(425, -400, 0), new(-375, 400, 0), new(425, 400, 0)];
+        List<int> reads = [];
+        NativeBattleStare45MeshContext104Step Draw(NativeBattlePilotVisualIdentity? identity) => NativeBattleStare45MeshContext104.DrawLoaded(memory, Mesh(group), projection, Context(0x2030), NativeBattleGteColorInterpolation.CodeConstants45F270, selectedVerticesAddress: 0x2655428, readSelectedVertex: offset =>
+        {
+            reads.Add(offset);
+            return (points[offset / 8], null);
+        }, pilotIdentity: identity);
+        NativeBattleStare45MeshContext104Step plain = Draw(null);
+        int[] baselineReads = reads.ToArray();
+        reads.Clear();
+        NativeBattlePilotVisualIdentity owner = new(45, 0x2654FA0, 1, 7, 17) { ResourceGeneration = 0x17C4DA0 };
+        NativeBattleStare45MeshContext104Step captured = Draw(owner);
+        Assert.Equal(baselineReads, reads);
+        Assert.Equal(new[] { 0, 8, 16, 24 }, reads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Context104), NativeBattleTestSnapshots.Json(captured.Context104));
+        Assert.Equal(plain.Batch.AllocationBytes, captured.Batch.AllocationBytes);
+        Assert.Equal(plain.Batch.Attempts.Length, captured.Batch.Attempts.Length);
+        for (int index = 0; index < plain.Batch.Attempts.Length; index++)
+        {
+            NativeBattleGfGeometryAttempt expected = plain.Batch.Attempts[index];
+            NativeBattleGfGeometryAttempt actual = captured.Batch.Attempts[index];
+            Assert.Equal(expected.ByteOffsetRelative, actual.ByteOffsetRelative);
+            Assert.Equal(expected.Data.ToArray(), actual.Data.ToArray());
+            Assert.Equal(expected.WriteMask.ToArray(), actual.WriteMask.ToArray());
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected.Primitive), NativeBattleTestSnapshots.Json(actual.Primitive is { } stripped ? stripped with { PilotGeometry = null } : null));
+        }
+        NativeBattleGeometryPrimitive polygon = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = polygon.PilotGeometry!;
+        Assert.Equal(new Vector3(-730, -380, 2000), geometry.A);
+        Assert.Equal(new Vector3(870, 420, 2000), geometry.D);
+        Assert.Equal(owner.Generation, geometry.Identity.Generation);
+        Assert.Equal(owner.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(new[] { 2100, 2100, 2100, 2100 }, polygon.VertexPayload4);
+        Assert.Null(captured.Batch.Attempts[1].Primitive!.PilotGeometry);
+        Assert.All(captured.Batch.Attempts[2].WriteMask, state => Assert.Equal(NativeBattleGfPacketByteState.Untouched, state));
+        Assert.False(captured.Memory.ScriptedColorRegisters!.NormalInputKnown!.Value[6]);
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(7)]
+    public void Group13_capture_keeps_native_near_rejection_before_invalid_fourth(int group)
+    {
+        NativeBattleStaticMeshResource mesh = Mesh(group);
+        byte[] bytes = mesh.Bytes.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(48 + group * 4 + 10), 0xFFFE);
+        mesh = mesh with { Bytes = bytes.ToImmutableArray() };
+        List<int> reads = [];
+        NativeBattleStare45MeshContext104Step Draw(NativeBattlePilotVisualIdentity? identity) => NativeBattleStare45MeshContext104.DrawLoaded(Memory(1), mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 2, 160, 108), Context(0x20F0).MarkUnknown(8, 8), NativeBattleGteColorInterpolation.CodeConstants45F270, selectedVerticesAddress: 0x2655428, readSelectedVertex: offset =>
+        {
+            reads.Add(offset);
+            return offset switch { 0 => (new NativeBattleVector(-400, -400, 0), (short?)null), 8 => (new NativeBattleVector(400, -400, 0), (short?)null), 16 => (new NativeBattleVector(-400, 400, 0), (short?)null), _ => throw new InvalidDataException("Unreached selected fourth.") };
+        }, pilotIdentity: identity);
+        NativeBattleStare45MeshContext104Step plain = Draw(null);
+        Assert.Equal(new[] { 0, 8, 16 }, reads);
+        reads.Clear();
+        NativeBattleStare45MeshContext104Step captured = Draw(new(45, 0x2654FA0, 1, 7, 17));
+        Assert.Equal(new[] { 0, 8, 16 }, reads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Context104), NativeBattleTestSnapshots.Json(captured.Context104));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        Assert.Null(Assert.Single(captured.Batch.Attempts).Primitive);
     }
 
     private static NativeBattleStare45MeshContext104Step Draw(int group, int z = 2000, short fourthZ = 0, bool outside = false, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? context = null)

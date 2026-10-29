@@ -10,7 +10,7 @@ public static class NativeBattleBadBreath131ActContext12
 {
     public static bool Visible(NativeBattleGfAnimationNode node) => NativeBattleActMeshRendering.Visible(node);
 
-    public static NativeBattleBadBreath131ActContextStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context12, NativeBattlePackedMatrix32 camera, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, int morphLength)
+    public static NativeBattleBadBreath131ActContextStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context12, NativeBattlePackedMatrix32 camera, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, int morphLength, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleBadBreath131ActPreparation prepared = Prepare(memory, source, node, context12, camera, temporary88, colors, morphAddress, morphLength);
         NativeBattleScriptedGraphicsMemory controls = prepared.Memory.ScriptedGraphics ?? throw new NotSupportedException("Bad Breath ACT requires its current projection controls.");
@@ -29,7 +29,7 @@ public static class NativeBattleBadBreath131ActContext12
         }
         ImmutableArray<byte> shape = source.Data.AsSpan(geometry, checked(end - geometry)).ToArray().ToImmutableArray();
         NativeBattleGeometryRegisterStep registers = new(prepared.Memory.GeometryRegisters!, prepared.Memory.ScriptedColorRegisters!);
-        NativeBattleCuraga88MeshStep emitted = NativeBattleCuraga88Mesh.EmitBatch(shape, checked(source.Address + (uint)geometry), prepared.Matrix, projection, prepared.Temporary88, registers, far, controls.Dqa, controls.Dqb, controls.Zsf4, colors, zsf3: controls.Zsf3, selectedVerticesAddress: prepared.SelectedVerticesAddress, readSelectedVertex: offset => (prepared.ReadVertex(offset), prepared.ReadW(offset)));
+        NativeBattleCuraga88MeshStep emitted = NativeBattleCuraga88Mesh.EmitBatch(shape, checked(source.Address + (uint)geometry), prepared.Matrix, projection, prepared.Temporary88, registers, far, controls.Dqa, controls.Dqb, controls.Zsf4, colors, zsf3: controls.Zsf3, selectedVerticesAddress: prepared.SelectedVerticesAddress, readSelectedVertex: offset => (prepared.ReadVertex(offset), prepared.ReadW(offset)), pilotIdentity: pilotIdentity);
         memory = prepared.Memory with { GeometryRegisters = emitted.Registers.Geometry, ScriptedColorRegisters = emitted.Registers.Colors, PrimitiveProcess = primitive with { ModelRendererRegisters = emitted.FarControls } };
         return new(memory, emitted.Context88, emitted.Batch);
     }

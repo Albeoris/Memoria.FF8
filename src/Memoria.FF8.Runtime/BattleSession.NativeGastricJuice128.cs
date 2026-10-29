@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Gastric Juice requires its actual process memory.");
         NativeBattleGastricJuice128Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Gastric Juice requires its CRT stream."), memory.GastricJuice128 ?? throw new NotSupportedException("Gastric Juice requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Gastric Juice requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Gastric Juice requires its original interpolation constants.");
-        NativeBattleGastricJuice128Inputs inputs = new(nativeActionPackets, colors, actor => graphics.Models[actor], actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gastric Juice requires its current skeleton.")).BoneCount, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Gastric Juice requires its current projection."), Anchor, Bone, Execute);
+        NativeBattleGastricJuice128Inputs inputs = new(nativeActionPackets, colors, actor => graphics.Models[actor], actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Gastric Juice requires its current skeleton.")).BoneCount, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Gastric Juice requires its current projection."), Anchor, Bone, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleGastricJuice128Controller.Initialize(frame, resources, inputs) : NativeBattleGastricJuice128Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -99,7 +99,7 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleGastricJuice128DrawBody132 body:
                     uint cacheAddress = checked(current.State.ReadDword(NativeBattleGastricJuice128Profile.WorkingGlobal) + NativeBattleGastricJuice128Profile.BodyCacheOffset);
-                    NativeDeformedBodyBridge deformed = DrawNativeDeformedBody(current.Memory, current.Effect, current.Random, current.Staging!, graphics, body.Actor, body.Fraction, cacheAddress, NativeBattleGastricJuice128Profile.BodyCacheBytes);
+                    NativeDeformedBodyBridge deformed = DrawNativeDeformedBody(current.Memory, current.Effect, current.Random, current.Staging!, graphics, body.Actor, body.Fraction, cacheAddress, NativeBattleGastricJuice128Profile.BodyCacheBytes, body.PilotIdentity);
                     current = current with { Memory = deformed.Memory, Random = deformed.Random, Staging = deformed.Staging };
                     graphics = deformed.Graphics;
                     return current;
@@ -108,7 +108,7 @@ public sealed partial class BattleSession
                 case NativeBattleGastricJuice128DeliverRibbonBatch ribbon:
                     return Deliver(current, ribbon.Batch);
                 case NativeBattleGastricJuice128DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.Phase, sprite.DepthShift);
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.Phase, sprite.DepthShift, sprite.PilotIdentity);
                 case NativeBattleGastricJuice128Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
@@ -138,7 +138,7 @@ public sealed partial class BattleSession
                 NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Gastric Juice requires its current primitive process.");
                 NativeBattleScriptedGraphicsMemory controls = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Gastric Juice requires its current projection controls.");
                 uint morph = checked(current.State.ReadDword(NativeBattleGastricJuice128Profile.WorkingGlobal) + NativeBattleGastricJuice128Profile.MorphOffset);
-                NativeBattleBillboardActContext12Step drawn = NativeBattleBillboardActContext12.Draw(resources.MainAct, node, context, Camera().CapturePackedView1D97778(), new(bytes.ToImmutableArray(), known.ToImmutableArray()), temporary, current.Memory.Arena!, new(current.Memory.GeometryRegisters!, current.Memory.ScriptedColorRegisters!), process.ModelRendererRegisters!, Camera().Projection!, controls.Dqa, controls.Dqb, controls.Zsf3, controls.Zsf4, colors, morph, NativeBattleGastricJuice128Profile.MorphBytes);
+                NativeBattleBillboardActContext12Step drawn = NativeBattleBillboardActContext12.Draw(resources.MainAct, node, context, Camera().CapturePackedView1D97778(), new(bytes.ToImmutableArray(), known.ToImmutableArray()), temporary, current.Memory.Arena!, new(current.Memory.GeometryRegisters!, current.Memory.ScriptedColorRegisters!), process.ModelRendererRegisters!, Camera().Projection!, controls.Dqa, controls.Dqb, controls.Zsf3, controls.Zsf4, colors, morph, NativeBattleGastricJuice128Profile.MorphBytes, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(128, NativeBattleGastricJuice128Controller.Read(current, taskAddress), node.ResourceOffset) with { ResourceGeneration = ((long)resources.MainAct.Address << 32) | 0x20u });
                 current = current with { Memory = current.Memory with { Arena = drawn.Arena, GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors, PrimitiveProcess = process with { ModelRendererRegisters = drawn.FarControls } }, Staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.Temporary88, 88) };
                 current = Deliver(current, drawn.Batch);
                 current = current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging!, 88) };
@@ -147,7 +147,7 @@ public sealed partial class BattleSession
             return NativeBattleGastricJuice128Controller.Write(current, taskAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleGastricJuice128Controller.Read(current, taskAddress), 0x20, advanced.Workspace));
         }
 
-        NativeBattleGastricJuice128Frame DrawSprite(NativeBattleGastricJuice128Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift)
+        NativeBattleGastricJuice128Frame DrawSprite(NativeBattleGastricJuice128Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleModuleResource resource = resources.Sprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Gastric Juice sprite drawing requires its physical temporary memory.");
@@ -156,7 +156,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Gastric Juice sprite arguments differ from its current physical frame.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Gastric Juice sprite dispatcher selected a different source."), Camera().Projection ?? throw new NotSupportedException("Gastric Juice sprite drawing requires its current projection."), Camera().Roll, 17, depthShift);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Gastric Juice sprite dispatcher selected a different source."), Camera().Projection ?? throw new NotSupportedException("Gastric Juice sprite drawing requires its current projection."), Camera().Roll, 17, depthShift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

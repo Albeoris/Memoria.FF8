@@ -13,9 +13,21 @@ public sealed record NativeBattleElectrocute275SpatialSound(uint Value, int Volu
 public sealed record NativeBattleElectrocute275Flash(int Argument0, int Argument1, int Argument2, int Argument3) : NativeBattleElectrocute275Operation;
 public sealed record NativeBattleElectrocute275ContactAll : NativeBattleElectrocute275Operation;
 public sealed record NativeBattleElectrocute275ProjectWorld(uint HeadAddress, short Count) : NativeBattleElectrocute275Operation;
-public sealed record NativeBattleElectrocute275DrawWorld(uint HeadAddress, short Count, int TextureVOffset) : NativeBattleElectrocute275Operation;
-public sealed record NativeBattleElectrocute275DrawBoneTrail(uint BindingAddress, uint HeadAddress, short Count) : NativeBattleElectrocute275Operation;
-public sealed record NativeBattleElectrocute275DrawSprite180(uint TemporaryAddress, uint SourceAddress, ushort Phase, byte DepthShift = 2) : NativeBattleElectrocute275Operation;
+public sealed record NativeBattleElectrocute275DrawWorld(uint HeadAddress, short Count, int TextureVOffset) : NativeBattleElectrocute275Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
+public sealed record NativeBattleElectrocute275DrawBoneTrail(uint BindingAddress, uint HeadAddress, short Count) : NativeBattleElectrocute275Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
+public sealed record NativeBattleElectrocute275DrawSprite180(uint TemporaryAddress, uint SourceAddress, ushort Phase, byte DepthShift = 2) : NativeBattleElectrocute275Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleElectrocute275PointStep(NativeBattleElectrocute275Frame Frame, NativeBattleVector Position);
 public sealed record NativeBattleElectrocute275AnchorStep(NativeBattleElectrocute275Frame Frame, NativeBattleModuleAnchor Anchor);
 public sealed record NativeBattleElectrocute275TaskStep(NativeBattleElectrocute275Frame Frame, int Result);

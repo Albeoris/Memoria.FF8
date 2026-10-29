@@ -11,7 +11,7 @@ public static partial class NativeBattleCurse47ActRendering
         return new(frame with { Memory = prepared.Memory, Staging = prepared.Staging }, prepared.Context92);
     }
 
-    public static NativeBattleCurse47Frame EmitNode(NativeBattleCurse47Frame frame, NativeBattleGfAnimationSource source, NativeBattleEffectArena context92, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<NativeBattleCurse47Frame, NativeBattleGfGeometryBatch, NativeBattleCurse47Frame> deliverCommon)
+    public static NativeBattleCurse47Frame EmitNode(NativeBattleCurse47Frame frame, NativeBattleGfAnimationSource source, NativeBattleEffectArena context92, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<NativeBattleCurse47Frame, NativeBattleGfGeometryBatch, NativeBattleCurse47Frame> deliverCommon, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!Visible(node))
         {
@@ -25,7 +25,7 @@ public static partial class NativeBattleCurse47ActRendering
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Curse ACT drawing requires its actual COMMON packet process.");
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Curse ACT drawing requires its actual projection controls.");
         NativeBattleGeometryRegisterStep registers = new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Curse ACT drawing requires its geometry controls."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Curse ACT drawing requires its geometry data registers."));
-        NativeBattleActMeshDraw drawn = DrawNode(source, node, root, temporary, frame.State.ReadView(MorphAddress, MorphLength), registers, process.ModelRendererRegisters ?? throw new NotSupportedException("Curse ACT drawing requires its retained FAR controls."), projection, controls.Dqa, controls.Dqb, controls.Zsf3, controls.Zsf4, constants);
+        NativeBattleActMeshDraw drawn = DrawNode(source, node, root, temporary, frame.State.ReadView(MorphAddress, MorphLength), registers, process.ModelRendererRegisters ?? throw new NotSupportedException("Curse ACT drawing requires its retained FAR controls."), projection, controls.Dqa, controls.Dqb, controls.Zsf3, controls.Zsf4, constants, pilotIdentity: pilotIdentity);
         frame = frame with
         {
             Memory = frame.Memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors, PrimitiveProcess = process with { ModelRendererRegisters = drawn.FarControls } },
