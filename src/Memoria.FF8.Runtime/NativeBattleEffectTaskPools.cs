@@ -135,7 +135,7 @@ public sealed partial record NativeBattleModulePoolTask : INativeBattleStorageNo
             return new(frozen, restored, descriptor);
         }
         ImmutableArray<NativeBattleTaskSnapshotData> data = [.. frozen.Data.Select(task => task with { Pointers = context.Map(task.Pointers) })];
-        return new(frozen.Descriptor, frozen.Address, frozen.Stride, data, frozen.Head, frozen.Tail, frozen.IsPool);
+        return new(frozen.Descriptor, frozen.Address, frozen.Stride, data, frozen.Head, frozen.Tail, frozen.IsPool, frozen.ArenaBindingReceipt);
     }
 }
 
@@ -177,6 +177,8 @@ public sealed record NativeBattleEffectTaskPool : INativeBattleStorageNode
             throw new InvalidOperationException("Native task working pools require explicit capture before serialization.");
         }
     }
+    internal bool? SnapshotArenaBinding => snapshot?.ArenaBindingReceipt;
+    internal bool? RestoredArenaBinding => RequireOwner().RestoredArenaBinding;
     private static void RejectInitializer() => throw new InvalidOperationException("Native pool initializers cannot replace shared bank authority; use WriteSlot or UpdateLinks.");
 
     [JsonRequired]

@@ -55,8 +55,18 @@ public static partial class NativeBattleEffectTaskMemory
 
     public static NativeBattleEffectMemory BindArenaBankOwnership(NativeBattleEffectMemory memory, ImmutableArray<NativeBattleEffectTaskPool> pools)
     {
+        return BindArenaBankOwnership(memory, pools, restoring: false);
+    }
+
+    internal static NativeBattleEffectMemory BindArenaBankOwnership(NativeBattleEffectMemory memory, ImmutableArray<NativeBattleEffectTaskPool> pools, bool restoring)
+    {
         foreach (NativeBattleEffectTaskPool pool in pools)
         {
+            // Missing receipts retain the legacy restore publication policy. Explicit independent banks keep their owner.
+            if (restoring && pool.RestoredArenaBinding == false)
+            {
+                continue;
+            }
             if (ArenaOffset(pool) is not null)
             {
                 NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native task bank requires its retained arena owner.");

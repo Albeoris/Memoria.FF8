@@ -90,11 +90,11 @@ public sealed partial class BattleSession
             {
                 if (memory.DetachedReturnedTask is { } detached)
                 {
-                    memory = BindNativeEffectTaskStorage(memory, detached);
+                    memory = BindNativeEffectTaskStorage(memory, detached, restoring: true);
                 }
                 if (state.OriginalEffect is { } effect)
                 {
-                    memory = BindNativeEffectTaskStorage(memory, effect);
+                    memory = BindNativeEffectTaskStorage(memory, effect, restoring: true);
                 }
                 NativeEffectMemory = memory;
             }

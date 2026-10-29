@@ -9,8 +9,9 @@ internal sealed record NativeBattleTaskSnapshotData(ushort Flags, ushort State, 
 
 internal sealed class NativeBattleTaskBankSnapshot
 {
-    public NativeBattleTaskBankSnapshot(uint descriptor, uint address, ushort stride, ImmutableArray<NativeBattleTaskSnapshotData> tasks, int? head, int? tail, bool pool, NativeBattleWorkingMemorySnapshot? kernel = null, int storageOffset = 0, NativeBattleWorkingMemorySnapshot? descriptorKernel = null, bool arenaBound = false)
+    public NativeBattleTaskBankSnapshot(uint descriptor, uint address, ushort stride, ImmutableArray<NativeBattleTaskSnapshotData> tasks, int? head, int? tail, bool pool, NativeBattleWorkingMemorySnapshot? kernel = null, int storageOffset = 0, NativeBattleWorkingMemorySnapshot? descriptorKernel = null, bool arenaBound = false, bool? arenaBindingReceipt = null)
     {
+        ArenaBindingReceipt = arenaBindingReceipt;
         Kernel = kernel;
         StorageOffset = storageOffset;
         DescriptorKernel = descriptorKernel;
@@ -29,6 +30,7 @@ internal sealed class NativeBattleTaskBankSnapshot
     public int StorageOffset { get; }
     public NativeBattleWorkingMemorySnapshot? DescriptorKernel { get; }
     public bool ArenaBound { get; }
+    public bool? ArenaBindingReceipt { get; }
     public uint Descriptor { get; }
     public uint Address { get; }
     public ushort Stride { get; }
@@ -50,8 +52,9 @@ internal sealed partial class NativeBattleTaskBankOwner
     private RetirementParticipant? retirementParticipant;
     private NativeBattleTaskBody? body;
 
-    public NativeBattleTaskBankOwner(uint descriptor, uint address, ushort stride, ImmutableArray<NativeBattleTaskSnapshotData> tasks, int? head, int? tail, bool pool)
+    public NativeBattleTaskBankOwner(uint descriptor, uint address, ushort stride, ImmutableArray<NativeBattleTaskSnapshotData> tasks, int? head, int? tail, bool pool, bool? restoredArenaBinding = null)
     {
+        RestoredArenaBinding = restoredArenaBinding;
         if (stride < 12 || tasks.IsDefaultOrEmpty || tasks.Length > ushort.MaxValue)
         {
             throw new ArgumentException("Native task bank requires its bounded physical slots.");
@@ -93,6 +96,7 @@ internal sealed partial class NativeBattleTaskBankOwner
 
     public NativeBattleTaskBankOwner(NativeBattleTaskBankSnapshot frozen, NativeBattleWorkingMemory storage, NativeBattleWorkingMemory? descriptorStorage = null)
     {
+        RestoredArenaBinding = frozen.ArenaBindingReceipt;
         Descriptor = frozen.Descriptor;
         Address = frozen.Address;
         Stride = frozen.Stride;
@@ -122,6 +126,7 @@ internal sealed partial class NativeBattleTaskBankOwner
         }
     }
 
+    internal bool? RestoredArenaBinding { get; }
     public uint Descriptor { get; }
     public uint Address { get; }
     public ushort Stride { get; }
@@ -601,7 +606,7 @@ internal sealed partial class NativeBattleTaskBankOwner
         NativeBattleEffectArenaTransaction.RequireCommittedForCapture(Storage);
         NativeBattleWorkingMemorySnapshot kernel = context.GetOrAddOwner(Storage.BackingIdentity, () => Storage.Capture());
         NativeBattleWorkingMemorySnapshot descriptorKernel = context.GetOrAddOwner(DescriptorStorage.BackingIdentity, () => DescriptorStorage.Capture());
-        return new(Descriptor, Address, Stride, [.. Enumerable.Range(0, Tasks.Length).Select(slot => ReadTask(slot, context))], Head, Tail, IsPool, kernel, StorageOffset, descriptorKernel, arenaBound);
+        return new(Descriptor, Address, Stride, [.. Enumerable.Range(0, Tasks.Length).Select(slot => ReadTask(slot, context))], Head, Tail, IsPool, kernel, StorageOffset, descriptorKernel, arenaBound, arenaBound);
     }
 
     internal void ValidateRetirementBoundary()
@@ -698,7 +703,11 @@ internal sealed class NativeBattleEffectTaskPoolJsonConverter : JsonConverter<Na
     {
     }
 
-    public sealed record Data([property: JsonRequired] uint DescriptorAddress, [property: JsonRequired] uint BankAddress, [property: JsonRequired] ushort Stride, [property: JsonRequired] ImmutableArray<NativeBattleModulePoolTask> Slots, [property: JsonRequired] int? Head, [property: JsonRequired] int? Tail);
+    public sealed record Data([property: JsonRequired] uint DescriptorAddress, [property: JsonRequired] uint BankAddress, [property: JsonRequired] ushort Stride, [property: JsonRequired] ImmutableArray<NativeBattleModulePoolTask> Slots, [property: JsonRequired] int? Head, [property: JsonRequired] int? Tail)
+    {
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? ArenaBinding { get; init; }
+    }
 
     public override NativeBattleEffectTaskPool Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -707,7 +716,7 @@ internal sealed class NativeBattleEffectTaskPoolJsonConverter : JsonConverter<Na
         {
             throw new JsonException("Native pool snapshot requires its physical slots.");
         }
-        NativeBattleTaskBankSnapshot bank = new(data.DescriptorAddress, data.BankAddress, data.Stride, [.. data.Slots.Select(task => task.RequireSnapshotData())], data.Head, data.Tail, true);
+        NativeBattleTaskBankSnapshot bank = new(data.DescriptorAddress, data.BankAddress, data.Stride, [.. data.Slots.Select(task => task.RequireSnapshotData())], data.Head, data.Tail, true, arenaBindingReceipt: data.ArenaBinding);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.FromSnapshot(bank);
         pool.Validate();
         return pool;
@@ -716,6 +725,6 @@ internal sealed class NativeBattleEffectTaskPoolJsonConverter : JsonConverter<Na
     public override void Write(Utf8JsonWriter writer, NativeBattleEffectTaskPool value, JsonSerializerOptions options)
     {
         value.RequireSnapshot();
-        JsonSerializer.Serialize(writer, new Data(value.DescriptorAddress, value.BankAddress, value.Stride, value.Slots, value.Head, value.Tail), options);
+        JsonSerializer.Serialize(writer, new Data(value.DescriptorAddress, value.BankAddress, value.Stride, value.Slots, value.Head, value.Tail) { ArenaBinding = value.SnapshotArenaBinding }, options);
     }
 }

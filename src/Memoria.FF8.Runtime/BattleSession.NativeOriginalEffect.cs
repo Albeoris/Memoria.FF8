@@ -62,13 +62,17 @@ public sealed partial class BattleSession
         return entered;
     }
 
-    private static NativeBattleEffectMemory BindNativeEffectTaskStorage(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect)
+    private static NativeBattleEffectMemory BindNativeEffectTaskStorage(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, bool restoring = false)
     {
-        memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
+        memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools, restoring);
         if (memory.QuezacotlExecutableMemory is { } executable)
         {
             foreach (NativeBattleEffectTaskPool pool in effect.Pools)
             {
+                if (restoring && pool.RestoredArenaBinding == false)
+                {
+                    continue;
+                }
                 long offset = (long)pool.BankAddress - NativeBattleQuezacotlExecutableMemory.Address;
                 long length = (long)pool.Stride * pool.Slots.Length;
                 if (offset >= 0 && offset <= NativeBattleQuezacotlExecutableMemory.Length - length)
