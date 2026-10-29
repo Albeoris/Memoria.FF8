@@ -49,6 +49,7 @@ internal sealed record DiagnosticCharacterPreparation([property: JsonRequired] i
     public ImmutableArray<DiagnosticMagicJunctionPreparation> MagicJunctions { get; init; } = [];
     public ushort? HitPoints { get; init; }
     public int? Level { get; init; }
+    public byte? Weapon { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -168,7 +169,7 @@ internal sealed partial class GameWorld
 
     // Preparation precedes encounter allocation. This adapter never receives a live battle,
     // effect allocator or random owner and is never used between the two commands.
-    internal static DiagnosticPreparationResult PrepareDiagnosticCharacters(NativeCharacterVitals source, DiagnosticBattlePreparation recipe, NativeBattleExperienceDefinition? experienceDefinition = null)
+    internal static DiagnosticPreparationResult PrepareDiagnosticCharacters(NativeCharacterVitals source, DiagnosticBattlePreparation recipe, NativeBattleExperienceDefinition? experienceDefinition = null, NativeWeaponShopDefinitions? weaponDefinitions = null)
     {
         recipe.Validate();
         source.Validate();
@@ -176,6 +177,19 @@ internal sealed partial class GameWorld
         {
             throw new NotSupportedException("Diagnostic stock preparation requires ordinary personal finite magic rules.");
         }
+        if (recipe.Characters.Any(character => character.Weapon.HasValue))
+        {
+            if (weaponDefinitions is null)
+            {
+                throw new NotSupportedException("Diagnostic weapon preparation requires the installed original weapon definitions.");
+            }
+            weaponDefinitions.Validate();
+            if (!string.Equals(source.KernelSha256, weaponDefinitions.KernelHash, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("Diagnostic weapon preparation cannot mix saved-stat and weapon kernel owners.");
+            }
+        }
+        List<(int Row, byte Before, byte After, NativeWeaponRecipe Source)> preparedWeapons = [];
         NativeCharacterVitals next = source.DeepCopy();
         if (!recipe.CombatParty.IsEmpty)
         {
@@ -205,6 +219,20 @@ internal sealed partial class GameWorld
             if (!next.CombatParty.Contains((byte)character.Row) || next.Records[character.Row].CharacterId != character.CharacterId)
             {
                 throw new InvalidOperationException("Diagnostic preparation must name the actual combat-party physical row and saved identity.");
+            }
+            if (character.Weapon is byte weapon)
+            {
+                if (next.DreamEnabled && character.CharacterId >= 8)
+                {
+                    throw new NotSupportedException("The active dream weapon bank is not the saved-character Weapon owner.");
+                }
+                if (weapon >= weaponDefinitions!.Recipes.Length || weaponDefinitions.Recipes[weapon].Character != character.CharacterId)
+                {
+                    throw new InvalidDataException("Diagnostic weapon preparation requires an original kernel row owned by the saved character.");
+                }
+                NativeCharacterVital original = next.Records[character.Row];
+                next.Records[character.Row] = original with { Weapon = weapon };
+                preparedWeapons.Add((character.Row, original.Weapon, weapon, weaponDefinitions.Recipes[weapon]));
             }
             foreach (int gf in character.GuardianForces)
             {
@@ -278,6 +306,10 @@ internal sealed partial class GameWorld
         for (int id = 0; id < source.GuardianForces.Length; id++)
         {
             Record("guardian-force", id, source.GuardianForces[id], next.GuardianForces[id]);
+        }
+        foreach (var weapon in preparedWeapons)
+        {
+            changes.Add(new("weapon-resource", weapon.Row, JsonSerializer.SerializeToElement(new { Weapon = weapon.Before }), JsonSerializer.SerializeToElement(new { Weapon = weapon.After, CharacterId = next.Records[weapon.Row].CharacterId, OriginalOwner = weapon.Source.Character, KernelSection = 4, KernelRow = weapon.After, KernelByte2 = weapon.Source.KernelWords[2], KernelWords = weapon.Source.KernelWords, ExecutableHash = weaponDefinitions!.ExecutableHash, KernelHash = weaponDefinitions.KernelHash, RecipeHash = weaponDefinitions.RecipeHash })));
         }
         Record("magic-system", 0, source.MagicSystem, next.MagicSystem);
         Record("combat-party", 0, source.CombatParty, next.CombatParty);
