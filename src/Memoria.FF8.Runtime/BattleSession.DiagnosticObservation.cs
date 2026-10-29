@@ -191,7 +191,7 @@ public sealed partial class BattleSession
         byte? callbackStage = action?.NativeAiCallbackStage ?? callbackBound?.NativeAiCallbackStage;
         string? scriptSha256 = callbackStage is byte stage && actorId is not null && byId.TryGetValue(actorId, out BattleCombatant? scriptActor) && scriptActor.NativeAi is { } ai && stage < ai.Scripts.Length ? Convert.ToHexString(SHA256.HashData(ai.Scripts[stage])) : null;
         BattleDiagnosticEffectDispatch dispatch = new(diagnosticDispatchSerial, NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand) { NativeAiCallbackStage = callbackStage, NativeAiScriptSha256 = scriptSha256, NativeTargetMask = effect.Parameters?.TargetMask7A, NativeActorIndex = effect.Parameters?.Actor78, NativeHeaderIndex = effect.Parameters?.HeaderIndex7C };
-        observer(CompleteDiagnosticReflection(dispatch));
+        PublishDiagnosticEffectDispatch(observer, CompleteDiagnosticReflection(dispatch));
     }
 
     private static BattleAbility ResolveDiagnosticHeaderAbility(bool isPlayer, BattleAbility? knownAbility, byte? limitCommand, byte nativeCommand)

@@ -55,6 +55,16 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
         return new(0, 0, headerSlots.ToImmutableArray(), contactSlots.ToImmutableArray(), null);
     }
 
+    internal NativeBattleActionPacketsState DetachDiagnosticCopy()
+    {
+        Validate();
+        return this with
+        {
+            Headers = Headers.Select(header => header with { Payload = ImmutableArray.CreateRange(header.Payload.AsSpan().ToArray()), Data = header.Data is null ? null : header.Data with { } }).ToImmutableArray(),
+            Contacts = Contacts.Select(contact => contact is null ? null : contact with { Primary = contact.Primary with { }, Secondary = contact.Secondary with { } }).ToImmutableArray()
+        };
+    }
+
     public void Validate()
     {
         if (ActionCount > HeaderCapacity || ContactCount > ContactCapacity || Headers.IsDefault || Headers.Length != HeaderCapacity || Contacts.IsDefault || Contacts.Length != ContactCapacity || ActiveHeaderIndex is < 0 or >= HeaderCapacity || ActiveContactIndex is < 0 or > ContactCapacity)

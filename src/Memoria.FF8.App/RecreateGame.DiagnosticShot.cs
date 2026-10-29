@@ -25,12 +25,7 @@ internal sealed partial class RecreateGame
             {
                 throw new InvalidDataException("Shot packet observation is bounded to its three owned dispatches per execution.");
             }
-            BattleSnapshot snapshot = diagnosticDriverBattle!.Capture();
-            if (snapshot.NativeHostCallbacks != dispatch.Callback)
-            {
-                throw new InvalidDataException("Shot packet observation crossed its actual native dispatch callback.");
-            }
-            NativeBattleActionPacketsState packets = snapshot.NativeActionPackets ?? throw new NotSupportedException("Shot dispatch lost its canonical native packet owner.");
+            NativeBattleActionPacketsState packets = diagnosticDriverBattle!.ObserveDiagnosticActionPackets(dispatch);
             driver.ObserveDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, header, generation, packets));
         }
         catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or InvalidOperationException or ArgumentException)
