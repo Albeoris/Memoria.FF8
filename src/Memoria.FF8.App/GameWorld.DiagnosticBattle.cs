@@ -25,6 +25,10 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
     internal void Validate()
     {
         Driver?.Validate();
+        if (Driver?.ShotCycle is not null && Prelude is not null)
+        {
+            throw new NotSupportedException("Shot cycle diagnostics require ordinary initial admission without a preparation prelude.");
+        }
         Fixture?.Validate();
         Prelude?.Validate(this);
         if (!Enum.IsDefined(AtbMode))

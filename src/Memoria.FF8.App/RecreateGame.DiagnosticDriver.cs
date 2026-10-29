@@ -40,7 +40,7 @@ internal sealed partial class RecreateGame
         diagnosticDriverBattle = world?.Battle ?? throw new InvalidOperationException("Diagnostic driver requires its published live battle.");
         diagnosticEnemySubmissions.Clear();
         diagnosticDriver = new(recipe, Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds);
-        diagnosticTelemetry = new(diagnosticDriverBattle, world!.DiagnosticReceipt!.BattleInstanceId, recipe.ExpectedEffect);
+        diagnosticTelemetry = new(diagnosticDriverBattle, world!.DiagnosticReceipt!.BattleInstanceId, recipe.ExpectedEffect, recipe.ShotCycle is null ? null : (byte)237);
         diagnosticDriverBattle.DiagnosticEffectDispatched += diagnosticDriver.ObserveDispatch;
         PublishDiagnosticDriverProgress();
     }
@@ -91,6 +91,7 @@ internal sealed partial class RecreateGame
                 {
                     throw new InvalidOperationException("Diagnostic renderer owner was replaced during an uninterrupted battle.");
                 }
+                AdvanceDiagnosticShot(active, driver, blockers.Length == 0);
                 bool ready = active.NativeEntryReady && (world!.DiagnosticReceipt?.Preparation.Target is null || diagnosticTargetVerified) && DiagnosticCommandReady(active, diagnosticDriverRecipe!);
                 DiagnosticDriverObservation observation = new(now.TotalSeconds, active.NativeHostCallbacks ?? throw new NotSupportedException("Diagnostic driver requires the live callback ledger."), diagnosticPresentedFrames, ready, blockers.Length == 0, active.Outcome != BattleOutcome.Active, blockers);
                 DiagnosticDriverStage previousStage = driver.Stage;
@@ -110,16 +111,26 @@ internal sealed partial class RecreateGame
                     }
                     else
                     {
+                        BattleDiagnosticLimitSelectionReceipt? selectedLimit = null;
                         if (diagnosticDriverRecipe.LimitSelection is { } limitSelection)
                         {
                             BattleDiagnosticLimitSelectionReceipt selection = active.SelectDiagnosticLimit(diagnosticDriverRecipe.Input.ActorId!, limitSelection);
                             diagnosticLimitSelections.Add(selection);
+                            selectedLimit = selection;
                             if (!selection.Accepted)
                             {
                                 throw new NotSupportedException("The bounded ordinary native selections did not reach the declared Limit crisis range.");
                             }
                         }
+                        if (diagnosticDriverRecipe.ShotCycle is not null)
+                        {
+                            BeginDiagnosticShot(active, driver, selectedLimit ?? throw new InvalidDataException("Shot cycle did not select its real Limit."));
+                        }
                         ApplyBattleCommand(diagnosticDriverRecipe.Input);
+                        if (diagnosticDriverRecipe.ShotCycle is not null)
+                        {
+                            driver.ShotCycle!.Opened(ObserveDiagnosticShot(active));
+                        }
                     }
                 }
                 if (previousStage == DiagnosticDriverStage.Drain && driver.Stage == DiagnosticDriverStage.Tail)
@@ -278,6 +289,8 @@ internal sealed partial class RecreateGame
                 input = diagnosticDriverRecipe.Input,
                 expected_native_action = diagnosticDriverRecipe.ExpectedNativeAction,
                 expected_native_command = diagnosticDriverRecipe.ExpectedNativeCommand,
+                shot_cycle = diagnosticDriverRecipe.ShotCycle,
+                shot_cycles = diagnosticDriver!.ShotReceipts,
                 supporting_effects = diagnosticDriverRecipe.SupportingEffects,
                 supporting_invocations = diagnosticDriverRecipe.SupportingInvocations,
                 declared_repairs = diagnosticDriverRecipe.Repairs,

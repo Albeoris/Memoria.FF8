@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.BattleEffects;
 
 namespace Memoria.FF8;
 
@@ -16,6 +17,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public bool RequiresCombatRepairs { get; init; }
     public BattleDiagnosticEnemyAbility? EnemyAbility { get; init; }
     public BattleDiagnosticLimitSelection? LimitSelection { get; init; }
+    public DiagnosticShotCycleDeclaration? ShotCycle { get; init; }
     public int? ExpectedNativeAction { get; init; }
     public byte? ExpectedNativeCommand { get; init; }
     public ushort[] SupportingEffects { get; init; } = [];
@@ -51,6 +53,11 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             {
                 throw new InvalidDataException("Diagnostic supporting invocations must belong to another actor and preserve the focal effect identity.");
             }
+        }
+        ShotCycle?.Validate(Input, ExpectedEffect, ExpectedNativeAction, ExpectedNativeCommand);
+        if (ShotCycle is not null && (LimitSelection is null || EnemyAbility is not null || SupportingEffects.Length != 0 || SupportingInvocations.Length != 0 || Repairs.Length != 0 || TerminalHold is not null))
+        {
+            throw new InvalidDataException("Shot cycles require their real Limit selection and cannot use supporting-effect bypasses, repairs or terminal holds.");
         }
         TerminalHold?.Validate();
         if (TerminalHold is not null && (Repairs.Length == 0 || TerminalHold.PartyActorIds.Any(actorId => !Repairs.Any(repair => string.Equals(repair.ActorId, actorId, StringComparison.Ordinal)))))
@@ -100,6 +107,18 @@ internal sealed class DiagnosticBattleDriver
     private readonly List<BattleDiagnosticEffectDispatch> dispatches = [];
     private readonly List<BattleDiagnosticEffectDispatch> reflectionDispatches = [];
     private BattleDiagnosticEffectDispatch? currentFocalDispatch;
+    private readonly List<DiagnosticShotCycleDriver> shotCycles = [];
+    internal DiagnosticShotCycleDriver? ShotCycle => shotCycles.LastOrDefault();
+    internal DiagnosticShotCycleReceipt[] ShotReceipts => shotCycles.Select(cycle => cycle.Receipt).ToArray();
+
+    internal void BeginShotCycle(DiagnosticShotCycleReceipt receipt)
+    {
+        if (recipe.ShotCycle is null || Stage != DiagnosticDriverStage.AwaitDispatch || receipt.Execution != Execution || shotCycles.Count != Execution - 1 || receipt.Declaration != recipe.ShotCycle || ShotCycle is { Completed: false })
+        {
+            throw new InvalidOperationException("Shot cycle cannot start outside its independent command admission boundary.");
+        }
+        shotCycles.Add(new(receipt, recipe.Input));
+    }
 
     internal DiagnosticBattleDriver(DiagnosticBattleDriverRecipe recipe, double seconds)
     {
@@ -131,6 +150,29 @@ internal sealed class DiagnosticBattleDriver
         lastDispatchSerial = dispatch.Serial;
         if (dispatch.ActorId != recipe.Input.ActorId)
         {
+            return;
+        }
+        if (recipe.ShotCycle is not null)
+        {
+            try
+            {
+                DiagnosticShotCycleDriver cycle = ShotCycle ?? throw new InvalidDataException("Shot dispatched before its real opening admission.");
+                cycle.ObserveDispatch(dispatch);
+                if (dispatch.NativeCommand == 237)
+                {
+                    if (Stage != DiagnosticDriverStage.AwaitDispatch)
+                    {
+                        throw new InvalidDataException("Shot focal effect dispatched more than once.");
+                    }
+                    dispatches.Add(dispatch);
+                    currentFocalDispatch = dispatch;
+                    Stage = DiagnosticDriverStage.Drain;
+                }
+            }
+            catch (InvalidDataException exception)
+            {
+                Fail("SHOT_DISPATCH_INVALID: " + exception.Message);
+            }
             return;
         }
         if (dispatch.Reflection is not null)
@@ -238,6 +280,26 @@ internal sealed class DiagnosticBattleDriver
         }
         else if (Stage == DiagnosticDriverStage.Drain && observation.Drained)
         {
+            if (recipe.ShotCycle is not null)
+            {
+                if (ShotCycle is not { Completed: true })
+                {
+                    Fail("SHOT_CYCLE_INCOMPLETE");
+                    return false;
+                }
+                if (Execution == 2)
+                {
+                    try
+                    {
+                        DiagnosticShotCycleValidation.ValidateChain(shotCycles[0].Receipt, shotCycles[1].Receipt);
+                    }
+                    catch (InvalidDataException exception)
+                    {
+                        Fail("SHOT_CYCLE_CONTINUITY_INVALID: " + exception.Message);
+                        return false;
+                    }
+                }
+            }
             Stage = DiagnosticDriverStage.Tail;
             tailStarted = observation.PresentedFrame;
         }

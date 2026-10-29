@@ -1378,7 +1378,7 @@ public sealed class LiveEvidenceValidationTests
         return report;
     }
 
-    private static JsonObject Report()
+    internal static JsonObject Report()
     {
         string battle = "b8de1951-3be9-4360-85ac-9238406b20c8";
         TelemetryCoverageManifest coverage = TelemetryCoverageManifest.ManagedPayload(1);

@@ -80,6 +80,44 @@ public static class LiveEvidenceValidation
             long action = Number(input, "action_id");
             long nativeAction = OptionalNumber(report, "expected_native_action") ?? action;
             long? nativeCommand = OptionalNumber(report, "expected_native_command");
+            DiagnosticShotCycleDeclaration? shotCycle = ReadShotDeclaration(report, input, effect, nativeAction, nativeCommand);
+            DiagnosticShotCycleReceipt[] shotCycles = report.TryGetProperty("shot_cycles", out JsonElement cycles) ? cycles.Deserialize<DiagnosticShotCycleReceipt[]>(Json) ?? throw new InvalidDataException("Shot receipts require an explicit array.") : [];
+            if (shotCycle is null ? shotCycles.Length != 0 : shotCycles.Length != 2)
+            {
+                throw new InvalidDataException("Shot declaration and exactly two cycle receipts must be present together.");
+            }
+            if (shotCycle is not null)
+            {
+                DiagnosticShotCycleValidation.ValidateChain(shotCycles[0], shotCycles[1]);
+                JsonElement preparation = report.GetProperty("initialization").GetProperty("preparation");
+                JsonElement originalDriver = preparation.GetProperty("driver");
+                BattleDiagnosticLimitSelection selectionPolicy = originalDriver.GetProperty("limit_selection").Deserialize<BattleDiagnosticLimitSelection>(Json) ?? throw new InvalidDataException("Shot cycle requires its initialized ordinary Limit selection policy.");
+                selectionPolicy.Validate();
+                JsonElement[] ammunition = preparation.GetProperty("fixture").GetProperty("items").EnumerateArray().Where(item => Number(item, "id") == 101 + shotCycle.AmmoAction).ToArray();
+                if (ammunition.Length != 1 || Number(ammunition[0], "count") is < 3 or > 100 || Number(ammunition[0], "count") != shotCycles[0].BeforeOpening.Inventory)
+                {
+                    throw new InvalidDataException("Shot finite ammunition does not match the initialized item preparation.");
+                }
+                foreach (DiagnosticShotCycleReceipt cycle in shotCycles)
+                {
+                    if (cycle.Selection.CrisisSelections.Length > selectionPolicy.MaximumSelections || cycle.Selection.CrisisSelections[^1] < selectionPolicy.MinimumCrisisLevel || cycle.Selection.CrisisSelections[^1] > selectionPolicy.MaximumCrisisLevel)
+                    {
+                        throw new InvalidDataException("Shot Limit selection exceeds its declared ordinary selection bounds.");
+                    }
+                }
+                JsonElement selections = report.GetProperty("limit_selections");
+                if (selections.GetArrayLength() != 2 || report.GetProperty("supporting_effects").GetArrayLength() != 0 || report.GetProperty("supporting_invocations").GetArrayLength() != 0 || report.GetProperty("declared_repairs").GetArrayLength() != 0 || report.GetProperty("declared_terminal_hold").ValueKind != JsonValueKind.Null)
+                {
+                    throw new InvalidDataException("Shot cycles cannot use supporting dispatch bypasses, repairs or terminal holds.");
+                }
+                for (int cycle = 0; cycle < 2; cycle++)
+                {
+                    if (shotCycles[cycle].Declaration != shotCycle || !JsonElement.DeepEquals(selections[cycle], JsonSerializer.SerializeToElement(shotCycles[cycle].Selection, Json)))
+                    {
+                        throw new InvalidDataException("Shot cycle declaration or real Limit selection receipt differs from the report.");
+                    }
+                }
+            }
             HashSet<long> supportingEffects = report.TryGetProperty("supporting_effects", out JsonElement supporting) ? supporting.EnumerateArray().Select(value => value.GetInt64()).ToHashSet() : [];
             BattleDiagnosticSupportingInvocation[] supportingInvocations = ReadSupportingInvocations(report, actor, effect);
             if (nativeAction is < 0 or > ushort.MaxValue || nativeCommand is < 0 or > byte.MaxValue || OptionalNumber(report, "expected_native_action").HasValue != nativeCommand.HasValue || supportingEffects.Any(value => value is < 1 or > ushort.MaxValue || value == effect))
@@ -139,7 +177,12 @@ public static class LiveEvidenceValidation
                 }
                 JsonElement dispatches = execution.GetProperty("dispatches");
                 BattleDiagnosticEffectDispatch[] typedDispatches = dispatches.Deserialize<BattleDiagnosticEffectDispatch[]>(Json) ?? throw new InvalidDataException("Dispatch observations must be an explicit array.");
-                if (typedDispatches.Count(dispatch => dispatch.RequestedEffect == effect && dispatch.Reflection is null) != 1)
+                if (shotCycle is not null)
+                {
+                    BattleInput submitted = input.Deserialize<BattleInput>(Json) ?? throw new InvalidDataException("Shot input is absent.");
+                    DiagnosticShotCycleValidation.ValidateReceipt(shotCycles[index - 1], submitted, checked((ushort)effect), typedDispatches, startCallback, endCallback);
+                }
+                if (typedDispatches.Count(dispatch => dispatch.RequestedEffect == effect && dispatch.Reflection is null && (shotCycle is null || dispatch.NativeCommand == 237)) != 1)
                 {
                     errors.Add("DISPATCH_COUNT_INVALID");
                 }
@@ -148,10 +191,14 @@ public static class LiveEvidenceValidation
                     long serial = Number(dispatch, "serial");
                     long callback = Number(dispatch, "callback");
                     BattleDiagnosticEffectDispatch typed = dispatch.Deserialize<BattleDiagnosticEffectDispatch>(Json) ?? throw new InvalidDataException("Dispatch observation is null.");
-                    bool focal = typed.RequestedEffect == effect && typed.Reflection is null;
+                    bool focal = typed.RequestedEffect == effect && typed.Reflection is null && (shotCycle is null || typed.NativeCommand == 237);
                     bool sameActor = Text(dispatch, "actor_id") == actor;
                     bool invocationMatches;
-                    if (typed.Reflection is { } reflection)
+                    if (shotCycle is not null)
+                    {
+                        invocationMatches = shotCycles[index - 1].Dispatches.Any(observed => observed == typed);
+                    }
+                    else if (typed.Reflection is { } reflection)
                     {
                         BattleDiagnosticEffectDispatch[] parents = typedDispatches.Where(parent => parent.Reflection is null && parent.RequestedEffect == effect && parent.ExecutedEffect == effect && parent.Serial < typed.Serial && parent.Callback <= typed.Callback && parent.ActorId == actor && parent.Ability?.ToString() == ability && parent.ActionId == nativeAction && (nativeCommand is null || parent.NativeCommand == nativeCommand) && BattleDiagnosticReflectionLineage.Matches(typed, parent)).ToArray();
                         invocationMatches = parents.Length == 1 && reflectedHeaders.Add((reflection.ReflectedHeaderIndex, reflection.ReflectedHeaderGeneration));
@@ -238,6 +285,32 @@ public static class LiveEvidenceValidation
         string[] distinct = errors.Distinct(StringComparer.Ordinal).ToArray();
         string verdict = distinct.Length == 0 ? "PASS" : distinct.All(error => error == "PRESENTATION_BELOW_30_FPS") ? "FAIL" : "ERROR";
         return new(verdict, distinct, frames.ToArray(), effectDurations.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.", diagnostics.Distinct().ToArray(), "Optional shared-operation payload counters are partial lower bounds. Complete effect-local/process copy traffic is not measured; unavailable is not zero.") { EffectExecutions = effectFrames.ToArray(), ReflectedChildDispatches = reflectedChildDispatches };
+    }
+
+    private static DiagnosticShotCycleDeclaration? ReadShotDeclaration(JsonElement report, JsonElement input, long effect, long action, long? command)
+    {
+        bool declared = report.TryGetProperty("shot_cycle", out JsonElement value) && value.ValueKind != JsonValueKind.Null;
+        bool originalDeclared = false;
+        JsonElement original = default;
+        if (report.TryGetProperty("initialization", out JsonElement initialization) && initialization.ValueKind == JsonValueKind.Object && initialization.TryGetProperty("preparation", out JsonElement preparation) && preparation.TryGetProperty("driver", out JsonElement driver))
+        {
+            originalDeclared = driver.TryGetProperty("shot_cycle", out original) && original.ValueKind != JsonValueKind.Null;
+            if (originalDeclared && (!JsonElement.DeepEquals(input, driver.GetProperty("input")) || Number(driver, "expected_effect") != effect || OptionalNumber(driver, "expected_native_action") != action || OptionalNumber(driver, "expected_native_command") != command))
+            {
+                throw new InvalidDataException("Shot semantic input or native identity differs from the initialized request.");
+            }
+        }
+        if (declared != originalDeclared || declared && !JsonElement.DeepEquals(value, original))
+        {
+            throw new InvalidDataException("Shot declaration differs from the initialized request.");
+        }
+        if (!declared)
+        {
+            return null;
+        }
+        DiagnosticShotCycleDeclaration declaration = value.Deserialize<DiagnosticShotCycleDeclaration>(Json) ?? throw new InvalidDataException("Shot cycle declaration is empty.");
+        declaration.Validate(input.Deserialize<BattleInput>(Json) ?? throw new InvalidDataException("Shot semantic input is missing."), checked((ushort)effect), checked((int)action), command is null ? null : checked((byte)command));
+        return declaration;
     }
 
     private static BattleDiagnosticSupportingInvocation[] ReadSupportingInvocations(JsonElement report, string actor, long effect)
