@@ -70,25 +70,7 @@ public static partial class ScenarioDiscovery
         result["driver"]!["limit_selection"] = new JsonObject { ["minimum_crisis_level"] = crisis, ["maximum_crisis_level"] = crisis, ["maximum_selections"] = 256 };
         if (party)
         {
-            ushort saved = 0;
-            // Curse blocks Limit admission; Regen changes the declared HP while
-            // ordinary selection callbacks run between the two invocations.
-            uint battle = native.Statuses1 & 0x210;
-            for (int bit = 0; bit < 8; bit++)
-            {
-                if (limit.StatusWeights[bit] != 0)
-                {
-                    saved |= (ushort)(native.Statuses0 & (1 << bit));
-                }
-            }
-            for (int bit = 0; bit < 24; bit++)
-            {
-                if (limit.StatusWeights[bit + 8] != 0)
-                {
-                    battle |= native.Statuses1 & (1u << bit);
-                }
-            }
-            result["driver"]!["repairs"] = new JsonArray(new JsonObject { ["actor_id"] = actorId, ["hit_points"] = hp, ["revive"] = false, ["remove_statuses0"] = saved, ["remove_statuses1"] = battle });
+            result["driver"]!["repairs"] = new JsonArray(new JsonObject { ["actor_id"] = actorId, ["hit_points"] = hp, ["revive"] = false, ["remove_statuses0"] = BattleDiagnosticCombatRepair.AllSavedStatuses, ["remove_statuses1"] = BattleDiagnosticCombatRepair.AllBattleStatuses });
         }
         recipe = result;
         return true;

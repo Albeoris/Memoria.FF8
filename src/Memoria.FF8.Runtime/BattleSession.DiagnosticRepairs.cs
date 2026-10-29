@@ -5,6 +5,10 @@ namespace Memoria.FF8.Runtime;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record BattleDiagnosticCombatRepair([property: JsonRequired] string ActorId, [property: JsonRequired] int HitPoints, bool Revive = false, ushort RemoveStatuses0 = 0, uint RemoveStatuses1 = 0)
 {
+    public const ushort AllSavedStatuses = 0xFFFE;
+    public const uint AllBattleStatuses = 0x7FFEFFFF;
+    [JsonIgnore] public bool ClearsAllStatuses => (RemoveStatuses0 | 1) == ushort.MaxValue && RemoveStatuses1 == AllBattleStatuses;
+
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(ActorId) || ActorId.Length > 128 || HitPoints is < 1 or > ushort.MaxValue || !Revive && (RemoveStatuses0 & 1) != 0 || (RemoveStatuses1 & 0x80010000) != 0)
@@ -95,7 +99,7 @@ public sealed partial class BattleSession
         }
         for (int bit = 0; bit < 14; bit++)
         {
-            if ((repair.RemoveStatuses1 & actor.NativeStatus1 & (1u << bit)) != 0 && actor.NativeStatusTimers[bit] == -1111)
+            if (!repair.ClearsAllStatuses && (repair.RemoveStatuses1 & actor.NativeStatus1 & (1u << bit)) != 0 && actor.NativeStatusTimers[bit] == -1111)
             {
                 throw new NotSupportedException("Diagnostic repair cannot remove an original permanent timed status.");
             }
@@ -113,6 +117,18 @@ public sealed partial class BattleSession
     private void ApplyDiagnosticRepairActor(BattleCombatant actor, BattleDiagnosticCombatRepair repair)
     {
         ushort removeSaved = (ushort)(repair.RemoveStatuses0 | (repair.Revive ? 1 : 0));
+        if (repair.ClearsAllStatuses)
+        {
+            // A declared full fixture reset also removes permanent ordinary statuses.
+            // Native gameplay cures retain their original permanent-status sentinel rule.
+            for (int bit = 0; bit < 14; bit++)
+            {
+                if ((actor.NativeStatus1 & (1u << bit)) != 0 && actor.NativeStatusTimers[bit] == -1111)
+                {
+                    actor.NativeStatusTimers[bit] = 0;
+                }
+            }
+        }
         RemoveNativeStatuses(actor, removeSaved, repair.RemoveStatuses1);
         if (!actor.IsPlayer)
         {

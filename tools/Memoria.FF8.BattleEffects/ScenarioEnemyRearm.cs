@@ -8,18 +8,14 @@ public static partial class ScenarioDiscovery
 {
     public static void DeclareEnemyPartyStatusRearm(JsonObject recipe, BattleNativeAction action, byte selector, IReadOnlyList<byte> party, Func<int, int> maximumHitPoints)
     {
-        if (selector is not (0 or 201 or 204) || action.AttackType is 3 or 4 or 5 or 6 or 21 or 25 or 32 || (action.Statuses1 & 0x10000) != 0)
+        if (selector is not (0 or 201 or 204) || (action.Statuses1 & 0x10000) != 0)
         {
             return;
         }
-        // Periodic damage, compelled commands and timed-status expiry can change the
-        // recipient while the original caster becomes ready for the second invocation.
-        ushort saved = (ushort)(action.Statuses0 & 0x22);
-        uint battle = action.Statuses1 & 0x02007FFF;
-        if (saved == 0 && battle == 0)
-        {
-            return;
-        }
+        // Repeat preparation clears ordinary statuses explicitly, including statuses
+        // whose timers or compelled commands could run while the caster becomes ready.
+        ushort saved = BattleDiagnosticCombatRepair.AllSavedStatuses;
+        uint battle = BattleDiagnosticCombatRepair.AllBattleStatuses;
         byte[] recipients = party.Where(row => row != 255).Take(selector == 0 ? 1 : 3).ToArray();
         if (recipients.Length == 0 || recipients.Distinct().Count() != recipients.Length)
         {

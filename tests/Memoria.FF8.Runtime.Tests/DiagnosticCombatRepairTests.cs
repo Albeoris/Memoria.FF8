@@ -96,6 +96,102 @@ public sealed class DiagnosticCombatRepairTests
         Assert.Equal(400, session.Combatants[0].CurrentHp);
     }
 
+    [Fact]
+    public void Explicit_full_cleanup_clears_permanent_and_compelled_statuses_without_replacing_native_owners()
+    {
+        BattleSession session = Create(400, 0x22);
+        BattleCombatant actor = session.Combatants[0];
+        typeof(BattleCombatant).GetProperty("NativeStatus1", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(actor, 0x4002u);
+        short[] timers = (short[])typeof(BattleCombatant).GetProperty("NativeStatusTimers", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(actor)!;
+        timers[1] = -1111;
+        string randomBefore = JsonSerializer.Serialize(Method("ObserveDiagnosticRepairRandom").Invoke(session, null));
+        string itemsBefore = JsonSerializer.Serialize(Field("nativeItems").GetValue(session));
+        long? callback = session.NativeHostCallbacks;
+        long frame = session.Frame;
+        uint flags = actor.NativeCombatantFlags;
+        int? index = session.ObserveDiagnosticCombatants()[0].NativeIndex;
+        BattleDiagnosticCombatRepair repair = new("party", 400, RemoveStatuses0: BattleDiagnosticCombatRepair.AllSavedStatuses, RemoveStatuses1: BattleDiagnosticCombatRepair.AllBattleStatuses);
+        repair.Validate();
+        Assert.True(repair.ClearsAllStatuses);
+
+        ApplyOwnerStep(session, repair);
+
+        Assert.Same(actor, session.Combatants[0]);
+        Assert.Same(timers, typeof(BattleCombatant).GetProperty("NativeStatusTimers", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(actor));
+        BattleDiagnosticCombatant observed = session.ObserveDiagnosticCombatants()[0];
+        Assert.Equal((ushort)0, observed.Statuses0);
+        Assert.Equal(0u, observed.Statuses1);
+        Assert.All(timers, timer => Assert.Equal((short)-1111, timer));
+        Assert.Equal(400, actor.CurrentHp);
+        Assert.Equal(1000, actor.MaximumHp);
+        Assert.Equal(400, Presentation(session).Rows[0]!.HitPoints);
+        Assert.Equal(flags, actor.NativeCombatantFlags);
+        Assert.Equal(index, observed.NativeIndex);
+        Assert.Equal(callback, session.NativeHostCallbacks);
+        Assert.Equal(frame, session.Frame);
+        Assert.Equal(randomBefore, JsonSerializer.Serialize(Method("ObserveDiagnosticRepairRandom").Invoke(session, null)));
+        Assert.Equal(itemsBefore, JsonSerializer.Serialize(Field("nativeItems").GetValue(session)));
+        Assert.Equal(0, session.DiagnosticRestoreCount);
+        Assert.Equal(0, session.DiagnosticResetCount);
+        Assert.Equal(BattleOutcome.Active, session.Outcome);
+    }
+
+    [Fact]
+    public void Partial_cleanup_still_rejects_permanent_party_status_without_any_mutation()
+    {
+        BattleSession session = Create(400, 0x22);
+        BattleCombatant actor = session.Combatants[0];
+        typeof(BattleCombatant).GetProperty("NativeStatus1", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(actor, 0x4002u);
+        short[] timers = (short[])typeof(BattleCombatant).GetProperty("NativeStatusTimers", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(actor)!;
+        timers[1] = -1111;
+        string before = JsonSerializer.Serialize(session.ObserveDiagnosticCombatants());
+        short[] timersBefore = timers.ToArray();
+        BattleDiagnosticCombatRepair repair = new("party", 900, RemoveStatuses0: 0x22, RemoveStatuses1: 0x4002);
+        Assert.False(repair.ClearsAllStatuses);
+
+        TargetInvocationException exception = Assert.Throws<TargetInvocationException>(() => ApplyOwnerStep(session, repair));
+
+        Assert.IsType<NotSupportedException>(exception.InnerException);
+        Assert.Equal(before, JsonSerializer.Serialize(session.ObserveDiagnosticCombatants()));
+        Assert.Equal(timersBefore, timers);
+        Assert.Equal(400, Presentation(session).Rows[0]!.HitPoints);
+    }
+
+    [Fact]
+    public void Full_cleanup_serializes_only_the_declared_repair_contract_and_keeps_ko_explicit()
+    {
+        BattleDiagnosticCombatRepair repair = new("party", 400, RemoveStatuses0: BattleDiagnosticCombatRepair.AllSavedStatuses, RemoveStatuses1: BattleDiagnosticCombatRepair.AllBattleStatuses);
+        JsonSerializerOptions options = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+        string json = JsonSerializer.Serialize(repair, options);
+        using JsonDocument document = JsonDocument.Parse(json);
+
+        Assert.True(repair.ClearsAllStatuses);
+        Assert.False(repair.Revive);
+        Assert.Equal((ushort)0xFFFE, repair.RemoveStatuses0);
+        Assert.Equal(0x7FFEFFFFu, repair.RemoveStatuses1);
+        Assert.Equal(new[] { "actor_id", "hit_points", "remove_statuses0", "remove_statuses1", "revive" }, document.RootElement.EnumerateObject().Select(property => property.Name).Order().ToArray());
+        Assert.True(JsonSerializer.Deserialize<BattleDiagnosticCombatRepair>(json, options)!.ClearsAllStatuses);
+        Assert.False((repair with { RemoveStatuses0 = 0xFFFC }).ClearsAllStatuses);
+        Assert.False((repair with { RemoveStatuses1 = 0x7FFEFFFD }).ClearsAllStatuses);
+        Assert.Throws<InvalidDataException>(() => (repair with { RemoveStatuses0 = ushort.MaxValue }).Validate());
+    }
+
+    [Theory]
+    [InlineData(0x10000u)]
+    [InlineData(0x80000000u)]
+    public void Full_cleanup_still_rejects_allocation_and_guardian_status_owners(uint status)
+    {
+        BattleSession session = Create(400);
+        typeof(BattleCombatant).GetProperty("NativeStatus1", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(session.Combatants[0], status);
+        string before = JsonSerializer.Serialize(session.ObserveDiagnosticCombatants());
+        BattleDiagnosticCombatRepair repair = new("party", 400, RemoveStatuses0: BattleDiagnosticCombatRepair.AllSavedStatuses, RemoveStatuses1: BattleDiagnosticCombatRepair.AllBattleStatuses);
+
+        TargetInvocationException exception = Assert.Throws<TargetInvocationException>(() => ApplyOwnerStep(session, repair));
+
+        Assert.IsType<NotSupportedException>(exception.InnerException);
+        Assert.Equal(before, JsonSerializer.Serialize(session.ObserveDiagnosticCombatants()));
+    }
+
     private static void ApplyOwnerStep(BattleSession session, BattleDiagnosticCombatRepair repair)
     {
         // Exercise the HP/status owners independently of native drain admission.

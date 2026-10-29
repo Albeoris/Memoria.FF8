@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Resources;
@@ -87,8 +88,8 @@ public sealed class ScenarioEnemyPetrifyRepeatTests
                 Assert.Equal(prepared.GetMagicMaximumHitPoints(row), node["hit_points"]!.GetValue<ushort>());
                 Assert.Equal(level, node["level"]!.GetValue<int>());
                 JsonNode repair = repairs.Single(candidate => candidate!["actor_id"]!.GetValue<string>() == $"party-{row}")!;
-                Assert.Equal(4, repair["remove_statuses0"]!.GetValue<int>());
-                Assert.Equal(0u, repair["remove_statuses1"]!.GetValue<uint>());
+                Assert.Equal(BattleDiagnosticCombatRepair.AllSavedStatuses, repair["remove_statuses0"]!.Deserialize<ushort>());
+                Assert.Equal(BattleDiagnosticCombatRepair.AllBattleStatuses, repair["remove_statuses1"]!.Deserialize<uint>());
                 Assert.Equal(prepared.GetMagicMaximumHitPoints(row), repair["hit_points"]!.GetValue<ushort>());
             }
             Assert.Equal(new[] { 0 }, characters[0]!["guardian_forces"]!.AsArray().Select(node => node!.GetValue<int>()));

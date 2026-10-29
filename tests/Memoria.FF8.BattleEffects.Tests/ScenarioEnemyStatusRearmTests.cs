@@ -11,15 +11,18 @@ public sealed class ScenarioEnemyStatusRearmTests
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
 
     [Theory]
-    [InlineData(0, 0x4000u, 0, 0x4000u)]
-    [InlineData(0, 0x10u, 0, 0x10u)]
-    [InlineData(0, 0x20u, 0, 0x20u)]
-    [InlineData(0, 0x3FFFu, 0, 0x3FFFu)]
-    [InlineData(0, 0x02000000u, 0, 0x02000000u)]
-    [InlineData(2, 0u, 2, 0u)]
-    [InlineData(32, 0u, 32, 0u)]
-    [InlineData(0x7F, 0x7FFEFFFFu, 0x22, 0x02007FFFu)]
-    public void AppliedDynamicStatusesHaveExplicitBoundedRemovalWithoutATerminalHold(ushort saved, uint battle, ushort expectedSaved, uint expectedBattle)
+    [InlineData(0, 0u)]
+    [InlineData(0, 0x4000u)]
+    [InlineData(0, 0x10u)]
+    [InlineData(0, 0x20u)]
+    [InlineData(0, 0x3FFFu)]
+    [InlineData(0, 0x02000000u)]
+    [InlineData(2, 0u)]
+    [InlineData(32, 0u)]
+    [InlineData(0x7F, 0x7FFEFFFFu)]
+    [InlineData(0x5D, 0x80000000u)]
+    [InlineData(0, 0x04008000u)]
+    public void EveryOrdinaryPartyActionDeclaresFullStatusCleanupWithoutATerminalHold(ushort saved, uint battle)
     {
         JsonObject recipe = Recipe();
         ScenarioDiscovery.DeclareEnemyPartyStatusRearm(recipe, Action() with { Statuses0 = saved, Statuses1 = battle }, 201, new byte[] { 0, 255, 255 }, _ => 2241);
@@ -29,8 +32,8 @@ public sealed class ScenarioEnemyStatusRearmTests
         Assert.Equal("party-0", repair.ActorId);
         Assert.Equal(2241, repair.HitPoints);
         Assert.False(repair.Revive);
-        Assert.Equal(expectedSaved, repair.RemoveStatuses0);
-        Assert.Equal(expectedBattle, repair.RemoveStatuses1);
+        Assert.Equal((ushort)0xFFFE, repair.RemoveStatuses0);
+        Assert.Equal(0x7FFEFFFFu, repair.RemoveStatuses1);
         Assert.Null(recipe["driver"]!["terminal_hold"]);
     }
 
@@ -46,7 +49,11 @@ public sealed class ScenarioEnemyStatusRearmTests
         BattleDiagnosticCombatRepair[] repairs = Repairs(recipe);
         Assert.Equal(new[] { "party-4", "party-0", "party-5" }.Take(count), repairs.Select(repair => repair.ActorId));
         Assert.Equal(new[] { 1400, 1000, 1500 }.Take(count), repairs.Select(repair => repair.HitPoints));
-        Assert.All(repairs, repair => Assert.Equal(0x4000u, repair.RemoveStatuses1));
+        Assert.All(repairs, repair =>
+        {
+            Assert.Equal((ushort)0xFFFE, repair.RemoveStatuses0);
+            Assert.Equal(0x7FFEFFFFu, repair.RemoveStatuses1);
+        });
     }
 
     [Theory]
@@ -62,7 +69,7 @@ public sealed class ScenarioEnemyStatusRearmTests
     }
 
     [Fact]
-    public void ExistingRepairHpRevivalAndStatusDeclarationsArePreservedWhenAddingDynamicRemoval()
+    public void FullCleanupPreservesExistingRepairHpRevivalAndTerminalHold()
     {
         JsonObject recipe = Recipe();
         recipe["driver"]!["repairs"] = new JsonArray(new JsonObject { ["actor_id"] = "party-4", ["hit_points"] = 777, ["revive"] = true, ["remove_statuses0"] = 4, ["remove_statuses1"] = 256 });
@@ -76,8 +83,8 @@ public sealed class ScenarioEnemyStatusRearmTests
         existing.Validate();
         Assert.Equal(777, existing.HitPoints);
         Assert.True(existing.Revive);
-        Assert.Equal((ushort)0x26, existing.RemoveStatuses0);
-        Assert.Equal(0x4100u, existing.RemoveStatuses1);
+        Assert.Equal((ushort)0xFFFE, existing.RemoveStatuses0);
+        Assert.Equal(0x7FFEFFFFu, existing.RemoveStatuses1);
         Assert.Equal(1000, repairs.Single(repair => repair.ActorId == "party-0").HitPoints);
         Assert.Equal(hold, recipe["driver"]!["terminal_hold"]!.ToJsonString());
     }
@@ -90,9 +97,16 @@ public sealed class ScenarioEnemyStatusRearmTests
     [InlineData(21)]
     [InlineData(25)]
     [InlineData(32)]
-    public void CurativeStatusMasksDoNotDeclareAppliedStatusRemoval(byte type)
+    public void CurativeActionsAlsoDeclareFullStatusCleanup(byte type)
     {
-        AssertUnchanged(Action() with { AttackType = type }, 201);
+        JsonObject recipe = Recipe();
+        ScenarioDiscovery.DeclareEnemyPartyStatusRearm(recipe, Action() with { AttackType = type }, 201, new byte[] { 0, 255, 255 }, _ => 2241);
+
+        BattleDiagnosticCombatRepair repair = Assert.Single(Repairs(recipe));
+        repair.Validate();
+        Assert.Equal((ushort)0xFFFE, repair.RemoveStatuses0);
+        Assert.Equal(0x7FFEFFFFu, repair.RemoveStatuses1);
+        Assert.False(repair.Revive);
     }
 
     [Theory]
@@ -112,17 +126,8 @@ public sealed class ScenarioEnemyStatusRearmTests
         AssertUnchanged(Action() with { Statuses1 = battle }, 201);
     }
 
-    [Theory]
-    [InlineData(0, 0u)]
-    [InlineData(0x5D, 0x80000000u)]
-    [InlineData(0, 0x04008000u)]
-    public void StableAndNonStatusOwnerFlagsDoNotCreateADynamicRepair(ushort saved, uint battle)
-    {
-        AssertUnchanged(Action() with { Statuses0 = saved, Statuses1 = battle }, 201);
-    }
-
     [Fact]
-    public void InstalledImpConfuseRecipeExplicitlyRemovesItsNativeCompelledActionStatus()
+    public void InstalledImpConfuseRecipeDeclaresFullOrdinaryStatusCleanup()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources for the native Confuse recipe.");
@@ -149,8 +154,8 @@ public sealed class ScenarioEnemyStatusRearmTests
             BattleDiagnosticCombatRepair repair = Assert.Single(Repairs(recipe));
             repair.Validate();
             Assert.Equal("party-0", repair.ActorId);
-            Assert.Equal((ushort)0, repair.RemoveStatuses0);
-            Assert.Equal(0x4000u, repair.RemoveStatuses1);
+            Assert.Equal((ushort)0xFFFE, repair.RemoveStatuses0);
+            Assert.Equal(0x7FFEFFFFu, repair.RemoveStatuses1);
             Assert.False(repair.Revive);
             Assert.Null(recipe["driver"]!["terminal_hold"]);
         }
