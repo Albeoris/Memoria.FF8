@@ -7,52 +7,51 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    private NativeBattleEffectTextureState? eyeTextureState;
-    private FieldAssets? eyeTextureSource;
-    private IReadOnlyList<FieldModel>? eyeTextureModels;
-    private NativeFieldTextureAnimations? eyeTextureAnimations;
+    private NativeBattleEffectTextureState? registeredTextureState;
+    private FieldAssets? registeredTextureSource;
+    private IReadOnlyList<FieldModel>? registeredTextureModels;
+    private NativeFieldTextureAnimations? registeredTextureAnimations;
 
-    private IReadOnlyList<PixelImage>? RegisteredEyeTextures(ActorState actor, int modelId)
+    private IReadOnlyList<PixelImage>? RegisteredNativeTextures(ActorState actor, int modelId)
     {
         if (modelId < 0 || !Events.Scene.NativeActorObjectIds.Contains(actor.ObjectId))
         {
             return null;
         }
-        if (Events.Scene.NativeEyeProcess is not { } process || Events.Scene.NativeFieldRegistration is not { } registration || process.Memory.EffectMemory?.Textures is not { } textures)
+        if (Events.Scene.NativeEyeProcess is not { } process || Events.Scene.NativeFieldRegistration is not { } registration)
         {
             if (actor.NativeEyes is { Mode: not 0 })
             {
-                throw new NotSupportedException("Native eye drawing requires its actual registered CPU and VRAM owners.");
+                throw new NotSupportedException("Native model drawing requires its actual registered CPU and VRAM owners.");
             }
             return null;
         }
+        bool activeField = !session.HasActiveBattle && session.State.FieldId == Events.FieldId && session.State.Scene is SceneKind.Field or SceneKind.Movie;
+        NativeBattleRetainedMemory memory = activeField ? session.CurrentNativeBattleMemory ?? throw new InvalidDataException("Native model drawing lost its active physical memory owner.") : process.Memory;
+        NativeBattleEffectTextureState textures = memory.EffectMemory?.Textures ?? throw new InvalidDataException("Native model drawing lost its registered physical texture memory.");
         bool nativePlanes = Field?.NativeRegistration?.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash;
-        if (!nativePlanes && !Events.Actors.Any(item => item.NativeEyes is { Mode: not 0 }))
-        {
-            return null;
-        }
-        FieldAssets source = Field ?? throw new InvalidDataException("Native eye drawing lost its original field assets.");
+        FieldAssets source = Field ?? throw new InvalidDataException("Native model drawing lost its original field assets.");
         NativeFieldRegisteredInstance instance = registration.Instances.Single(item => item.ObjectId == actor.ObjectId);
         if (instance.ModelId != modelId)
         {
-            throw new NotSupportedException("Native eye drawing requires the actually registered model binding.");
+            throw new NotSupportedException("Native model drawing requires the actually registered model binding.");
         }
-        NativeFieldTextureAnimations? animations = nativePlanes ? assets.PrepareNativeFieldMaterialBinding(source, registration, process.Memory.FieldTextureAnimations, modelId) : process.Memory.FieldTextureAnimations;
-        if (!ReferenceEquals(animations, process.Memory.FieldTextureAnimations))
+        NativeFieldTextureAnimations? animations = nativePlanes ? assets.PrepareNativeFieldMaterialBinding(source, registration, memory.FieldTextureAnimations, modelId) : memory.FieldTextureAnimations;
+        if (!ReferenceEquals(animations, memory.FieldTextureAnimations))
         {
             Events.PublishNativeFieldTextureAnimations(animations!);
         }
-        if (eyeTextureState != textures || eyeTextureSource != source || nativePlanes && !ReferenceEquals(eyeTextureAnimations, animations))
+        if (registeredTextureState != textures || registeredTextureSource != source || nativePlanes && !ReferenceEquals(registeredTextureAnimations, animations))
         {
-            eyeTextureModels = assets.BindNativeRegisteredTextures(source, registration, textures, animations).Models;
-            eyeTextureState = textures;
-            eyeTextureSource = source;
-            eyeTextureAnimations = animations;
+            registeredTextureModels = assets.BindNativeRegisteredTextures(source, registration, textures, animations).Models;
+            registeredTextureState = textures;
+            registeredTextureSource = source;
+            registeredTextureAnimations = animations;
         }
-        if (nativePlanes && eyeTextureModels![modelId].Textures is ResourceTextureList selected)
+        if (nativePlanes && registeredTextureModels![modelId].Textures is ResourceTextureList selected)
         {
             return selected.Snapshot();
         }
-        return modelId >= 0 ? eyeTextureModels![modelId].Textures : null;
+        return registeredTextureModels![modelId].Textures;
     }
 }
