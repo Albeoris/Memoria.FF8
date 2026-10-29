@@ -81,6 +81,21 @@ public static class LiveEvidenceValidation
             long nativeAction = OptionalNumber(report, "expected_native_action") ?? action;
             long? nativeCommand = OptionalNumber(report, "expected_native_command");
             DiagnosticShotCycleDeclaration? shotCycle = ReadShotDeclaration(report, input, effect, nativeAction, nativeCommand);
+            DiagnosticCounterCycleDeclaration? counterCycle = ReadCounterDeclaration(report, input, effect, nativeAction, nativeCommand);
+            DiagnosticCounterCycleReceipt[] counterCycles = report.TryGetProperty("counter_cycles", out JsonElement counterReceipts) ? counterReceipts.Deserialize<DiagnosticCounterCycleReceipt[]>(Json) ?? throw new InvalidDataException("Counter receipts require an explicit array.") : [];
+            if (counterCycle is null ? counterCycles.Length != 0 : counterCycles.Length != 2)
+            {
+                throw new InvalidDataException("Counter declaration and exactly two source-proved cycles must be present together.");
+            }
+            if (counterCycle is not null)
+            {
+                BattleInput controlInput = input.Deserialize<BattleInput>(Json) ?? throw new InvalidDataException("Counter trigger input is absent.");
+                DiagnosticCounterCycleValidation.ValidateChain(counterCycles[0], counterCycles[1], controlInput);
+                if (counterCycles.Any(cycle => cycle.Declaration != counterCycle))
+                {
+                    throw new InvalidDataException("Counter cycle changed its declared focal protocol.");
+                }
+            }
             DiagnosticShotCycleReceipt[] shotCycles = report.TryGetProperty("shot_cycles", out JsonElement cycles) ? cycles.Deserialize<DiagnosticShotCycleReceipt[]>(Json) ?? throw new InvalidDataException("Shot receipts require an explicit array.") : [];
             if (shotCycle is null ? shotCycles.Length != 0 : shotCycles.Length != 2)
             {
@@ -193,6 +208,33 @@ public static class LiveEvidenceValidation
                         }
                     }
                 }
+                if (counterCycle is not null)
+                {
+                    DiagnosticCounterCycleReceipt cycle = counterCycles[index - 1];
+                    if (cycle.Execution != index || cycle.StartedCallback < startCallback || cycle.CompletedCallback > endCallback || !typedDispatches.Any(dispatch => dispatch == cycle.Attempts[^1].Dispatch))
+                    {
+                        throw new InvalidDataException("Counter cycle source receipts differ from the actual execution/dispatch boundary.");
+                    }
+                    foreach (var contact in cycle.Attempts.SelectMany(attempt => attempt.Contacts))
+                    {
+                        var primary = contact.Primary;
+                        bool resolved = execution.GetProperty("resolutions").EnumerateArray().Any(resolution => Number(resolution, "callback") == primary.Callback && Text(resolution, "actor_id") == primary.ActorId && Text(resolution, "actual_target_id") == primary.RecipientId && Number(resolution, "before_hp") == primary.BeforeHp && Number(resolution, "after_hp") == primary.AfterHp);
+                        if (!resolved)
+                        {
+                            throw new InvalidDataException("Counter committed primary HP source is absent from the actual native resolution ledger.");
+                        }
+                    }
+                    foreach (string boundary in new[] { "before", "after" })
+                    {
+                        JsonElement[] states = execution.GetProperty(boundary).EnumerateArray().ToArray();
+                        JsonElement[] controlStates = states.Where(state => Text(state, "id") == actor).ToArray();
+                        JsonElement[] focalStates = states.Where(state => Text(state, "id") == cycle.TargetId).ToArray();
+                        if (controlStates.Length != 1 || focalStates.Length != 1 || OptionalNumber(controlStates[0], "native_index") != cycle.ActorIndex || OptionalNumber(focalStates[0], "native_index") != cycle.TargetIndex || OptionalNumber(focalStates[0], "model_id") != 84)
+                        {
+                            throw new InvalidDataException("Counter physical control/focal identities differ from the actual battle execution ledger.");
+                        }
+                    }
+                }
                 if (typedDispatches.Count(dispatch => dispatch.RequestedEffect == effect && dispatch.Reflection is null && (shotCycle is null || dispatch.NativeCommand == 237)) != 1)
                 {
                     errors.Add("DISPATCH_COUNT_INVALID");
@@ -208,6 +250,10 @@ public static class LiveEvidenceValidation
                     if (shotCycle is not null)
                     {
                         invocationMatches = shotCycles[index - 1].Dispatches.Any(observed => observed == typed);
+                    }
+                    else if (counterCycle is not null)
+                    {
+                        invocationMatches = focal ? typed == counterCycles[index - 1].Attempts[^1].Dispatch : sameActor ? supportingEffects.Contains(Number(dispatch, "requested_effect")) : HasSupportingInvocation(execution, dispatch, supportingInvocations);
                     }
                     else if (typed.Reflection is { } reflection)
                     {
@@ -284,10 +330,21 @@ public static class LiveEvidenceValidation
                 {
                     errors.Add("INTEGRITY_CHECK_FAILED");
                 }
-                ValidateSemantics(execution, actor, target, ability, action, nativeAction, effect, startCallback, endCallback, errors);
+                BattleDiagnosticRepairReceipt[] attemptRepairs = counterCycle is null ? [] : counterCycles[index - 1].Attempts.Skip(1).Where(attempt => attempt.PreparationRepair is not null).Select(attempt => attempt.PreparationRepair!).ToArray();
+                ValidateSemantics(execution, actor, target, ability, action, nativeAction, effect, startCallback, endCallback, errors, attemptRepairs);
             }
-            ValidateRepairs(report, executions, errors);
-            ValidateTerminalHolds(report, executions, errors, diagnostics);
+            if (counterCycle is null)
+            {
+                ValidateRepairs(report, executions, errors);
+                ValidateTerminalHolds(report, executions, errors, diagnostics);
+            }
+            else
+            {
+                ValidateCounterRepairs(report, executions, counterCycles);
+                BattleDiagnosticRepairReceipt? intercycle = counterCycles[1].Attempts[0].PreparationRepair;
+                JsonElement holdRepairs = JsonSerializer.SerializeToElement(intercycle is null ? Array.Empty<BattleDiagnosticRepairReceipt>() : new[] { intercycle }, Json);
+                ValidateTerminalHolds(report, executions, errors, diagnostics, holdRepairs);
+            }
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException or InvalidDataException or ArgumentException or NullReferenceException or FormatException or OverflowException)
         {
@@ -321,6 +378,40 @@ public static class LiveEvidenceValidation
         }
         DiagnosticShotCycleDeclaration declaration = value.Deserialize<DiagnosticShotCycleDeclaration>(Json) ?? throw new InvalidDataException("Shot cycle declaration is empty.");
         declaration.Validate(input.Deserialize<BattleInput>(Json) ?? throw new InvalidDataException("Shot semantic input is missing."), checked((ushort)effect), checked((int)action), command is null ? null : checked((byte)command));
+        return declaration;
+    }
+
+    private static DiagnosticCounterCycleDeclaration? ReadCounterDeclaration(JsonElement report, JsonElement input, long effect, long action, long? command)
+    {
+        bool declared = report.TryGetProperty("counter_cycle", out JsonElement value) && value.ValueKind != JsonValueKind.Null;
+        bool originalDeclared = false;
+        JsonElement original = default;
+        JsonElement driver = default;
+        if (report.TryGetProperty("initialization", out JsonElement initialization) && initialization.ValueKind == JsonValueKind.Object && initialization.TryGetProperty("preparation", out JsonElement preparation) && preparation.TryGetProperty("driver", out driver))
+        {
+            originalDeclared = driver.TryGetProperty("counter_cycle", out original) && original.ValueKind != JsonValueKind.Null;
+            if (originalDeclared && preparation.TryGetProperty("prelude", out JsonElement prelude) && prelude.ValueKind != JsonValueKind.Null)
+            {
+                throw new InvalidDataException("Counter evidence cannot use a preparation prelude before its ordinary initial admission.");
+            }
+            if (originalDeclared && (!JsonElement.DeepEquals(input, driver.GetProperty("input")) || Number(driver, "expected_effect") != effect || OptionalNumber(driver, "expected_native_action") != action || OptionalNumber(driver, "expected_native_command") != command))
+            {
+                throw new InvalidDataException("Counter control input or focal identity differs from the initialized request.");
+            }
+        }
+        if (declared != originalDeclared || declared && !JsonElement.DeepEquals(value, original))
+        {
+            throw new InvalidDataException("Counter declaration differs from the initialized request.");
+        }
+        if (!declared)
+        {
+            return null;
+        }
+        DiagnosticCounterCycleDeclaration declaration = value.Deserialize<DiagnosticCounterCycleDeclaration>(Json) ?? throw new InvalidDataException("Counter declaration is empty.");
+        bool HasOwner(string name) => driver.TryGetProperty(name, out JsonElement owner) && owner.ValueKind != JsonValueKind.Null;
+        ushort[] effects = report.GetProperty("supporting_effects").Deserialize<ushort[]>(Json) ?? throw new InvalidDataException("Counter supporting effects are absent.");
+        BattleDiagnosticSupportingInvocation[] invocations = report.GetProperty("supporting_invocations").Deserialize<BattleDiagnosticSupportingInvocation[]>(Json) ?? throw new InvalidDataException("Counter supporting invocations are absent.");
+        declaration.ValidateComposition(input.Deserialize<BattleInput>(Json) ?? throw new InvalidDataException("Counter control input is absent."), checked((ushort)effect), checked((int)action), command is null ? null : checked((byte)command), HasOwner("shot_cycle"), HasOwner("enemy_ability"), HasOwner("limit_selection"), effects, invocations);
         return declaration;
     }
 
@@ -376,7 +467,7 @@ public static class LiveEvidenceValidation
         return before.Concat(after).All(state => state.TryGetProperty("native_ai_script_sha256", out JsonElement scripts) && scripts.ValueKind == JsonValueKind.Array && scripts.GetArrayLength() > matched[0].CallbackStage && scripts[matched[0].CallbackStage].ValueKind == JsonValueKind.String && string.Equals(scripts[matched[0].CallbackStage].GetString(), matched[0].ScriptSha256, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static void ValidateTerminalHolds(JsonElement report, JsonElement executions, List<string> errors, List<string> diagnostics)
+    private static void ValidateTerminalHolds(JsonElement report, JsonElement executions, List<string> errors, List<string> diagnostics, JsonElement? repairOverride = null)
     {
         bool declared = report.TryGetProperty("declared_terminal_hold", out JsonElement declaration) && declaration.ValueKind != JsonValueKind.Null;
         bool hasReceipts = report.TryGetProperty("terminal_holds", out JsonElement receipts) && receipts.ValueKind == JsonValueKind.Array && receipts.GetArrayLength() != 0;
@@ -398,7 +489,9 @@ public static class LiveEvidenceValidation
         }
         BattleDiagnosticTerminalHoldDeclaration config = declaration.Deserialize<BattleDiagnosticTerminalHoldDeclaration>(Json) ?? throw new InvalidDataException("Missing terminal hold declaration.");
         config.Validate();
-        if (!hasReceipts || receipts.GetArrayLength() is < 1 or > 4 || executions.GetArrayLength() != 2 || !report.TryGetProperty("repairs", out JsonElement repairs) || repairs.GetArrayLength() != 1 || !report.TryGetProperty("declared_repairs", out JsonElement declaredRepairs) || declaredRepairs.ValueKind != JsonValueKind.Array || declaredRepairs.GetArrayLength() != config.PartyActorIds.Length || !declaredRepairs.EnumerateArray().Select(repair => Text(repair, "actor_id")).ToHashSet(StringComparer.Ordinal).SetEquals(config.PartyActorIds))
+        bool hasRepairs = report.TryGetProperty("repairs", out JsonElement reportRepairs);
+        JsonElement repairs = repairOverride ?? reportRepairs;
+        if (!hasReceipts || receipts.GetArrayLength() is < 1 or > 4 || executions.GetArrayLength() != 2 || !hasRepairs || repairs.GetArrayLength() != 1 || !report.TryGetProperty("declared_repairs", out JsonElement declaredRepairs) || declaredRepairs.ValueKind != JsonValueKind.Array || declaredRepairs.GetArrayLength() != config.PartyActorIds.Length || !declaredRepairs.EnumerateArray().Select(repair => Text(repair, "actor_id")).ToHashSet(StringComparer.Ordinal).SetEquals(config.PartyActorIds))
         {
             errors.Add("TERMINAL_HOLD_EVIDENCE_INVALID");
             return;
@@ -492,6 +585,56 @@ public static class LiveEvidenceValidation
             diagnostics.Add("DEFEAT_HOLD_NOT_TRIGGERED");
         }
         diagnostics.Add("CONTROLLED_DEFEAT_HOLD_REQUIRES_SEPARATE_NATURAL_TERMINAL_CHECK");
+    }
+
+    private static void ValidateCounterRepairs(JsonElement report, JsonElement executions, DiagnosticCounterCycleReceipt[] cycles)
+    {
+        JsonElement[] declared = report.GetProperty("declared_repairs").EnumerateArray().ToArray();
+        JsonElement driver = report.GetProperty("initialization").GetProperty("preparation").GetProperty("driver");
+        if (!JsonElement.DeepEquals(report.GetProperty("declared_repairs"), driver.GetProperty("repairs")))
+        {
+            throw new InvalidDataException("Counter repair policy differs from the initialized request.");
+        }
+        BattleDiagnosticRepairReceipt[] typed = cycles.SelectMany(cycle => cycle.Attempts).Where(attempt => attempt.PreparationRepair is not null).Select(attempt => attempt.PreparationRepair!).ToArray();
+        if (!JsonElement.DeepEquals(report.GetProperty("repairs"), JsonSerializer.SerializeToElement(typed, Json)))
+        {
+            throw new InvalidDataException("Counter repair ledger contains an unbound or omitted attempt preparation.");
+        }
+        string lifecycle = Text(executions[0].GetProperty("start_owners"), "retained_memory_owner_id");
+        foreach (BattleDiagnosticRepairReceipt repair in typed)
+        {
+            DiagnosticCounterCycleValidation.ValidatePreparationRepair(repair);
+            if (repair.LifecycleId.ToString() != lifecycle || repair.Changes.Length != declared.Length || repair.Changes.Any(change => !declared.Any(value => JsonElement.DeepEquals(value, JsonSerializer.SerializeToElement(change.Request, Json)))))
+            {
+                throw new InvalidDataException("Counter preparation changed the declared player policy or retained battle owner.");
+            }
+            foreach (BattleDiagnosticRepairChange change in repair.Changes)
+            {
+                foreach (JsonElement execution in executions.EnumerateArray())
+                {
+                    foreach (string boundary in new[] { "before", "after" })
+                    {
+                        JsonElement[] actual = execution.GetProperty(boundary).EnumerateArray().Where(actor => Text(actor, "id") == change.Request.ActorId).ToArray();
+                        if (actual.Length != 1 || OptionalNumber(actual[0], "native_index") != change.Before.NativeIndex || OptionalNumber(actual[0], "model_id") != change.Before.ModelId)
+                        {
+                            throw new InvalidDataException("Counter preparation recipient differs from its actual physical party owner.");
+                        }
+                    }
+                }
+            }
+        }
+        if (cycles[1].Attempts[0].PreparationRepair is { } intercycle)
+        {
+            foreach (var change in intercycle.Changes)
+            {
+                JsonElement[] before = executions[0].GetProperty("after").EnumerateArray().Where(actor => Text(actor, "id") == change.Request.ActorId).ToArray();
+                JsonElement[] after = executions[1].GetProperty("before").EnumerateArray().Where(actor => Text(actor, "id") == change.Request.ActorId).ToArray();
+                if (before.Length != 1 || after.Length != 1 || !JsonElement.DeepEquals(before[0], JsonSerializer.SerializeToElement(change.Before, Json)) || !JsonElement.DeepEquals(after[0], JsonSerializer.SerializeToElement(change.After, Json)))
+                {
+                    throw new InvalidDataException("Counter intercycle preparation does not join the actual native cleanup/readiness states.");
+                }
+            }
+        }
     }
 
     private static void ValidateRepairs(JsonElement report, JsonElement executions, List<string> errors)
@@ -630,7 +773,7 @@ public static class LiveEvidenceValidation
         }
     }
 
-    private static void ValidateSemantics(JsonElement execution, string actor, string submittedTarget, string ability, long action, long nativeAction, long effect, long startCallback, long endCallback, List<string> errors)
+    private static void ValidateSemantics(JsonElement execution, string actor, string submittedTarget, string ability, long action, long nativeAction, long effect, long startCallback, long endCallback, List<string> errors, BattleDiagnosticRepairReceipt[]? counterRepairs = null)
     {
         Dictionary<string, JsonElement> beforeStates = execution.GetProperty("before").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
         Dictionary<string, JsonElement> afterStates = execution.GetProperty("after").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
@@ -642,6 +785,24 @@ public static class LiveEvidenceValidation
             errors.Add("SEMANTIC_RESOLUTION_UNVERIFIED");
         }
         Dictionary<string, long> deltas = [];
+        BattleDiagnosticRepairReceipt[] pendingRepairs = counterRepairs ?? [];
+        int repairIndex = 0;
+        void ApplyRepairsBefore(long callback, bool includeBoundary)
+        {
+            while (repairIndex < pendingRepairs.Length && (pendingRepairs[repairIndex].CallbackBefore < callback || includeBoundary && pendingRepairs[repairIndex].CallbackBefore == callback))
+            {
+                BattleDiagnosticRepairReceipt repair = pendingRepairs[repairIndex++];
+                foreach (BattleDiagnosticRepairChange change in repair.Changes)
+                {
+                    if (!observedHp.TryGetValue(change.Before.Id, out long previous) || previous != change.Before.CurrentHp)
+                    {
+                        errors.Add("COUNTER_REPAIR_HP_LINEAGE_INVALID");
+                    }
+                    observedHp[change.Before.Id] = change.After.CurrentHp;
+                    deltas[change.Before.Id] = checked(deltas.GetValueOrDefault(change.Before.Id) + change.After.CurrentHp - change.Before.CurrentHp);
+                }
+            }
+        }
         foreach (JsonElement resolution in resolutions)
         {
             long actual = Number(resolution, "actual_amount");
@@ -649,6 +810,7 @@ public static class LiveEvidenceValidation
             long before = Number(resolution, "before_hp");
             long after = Number(resolution, "after_hp");
             long callback = Number(resolution, "callback");
+            ApplyRepairsBefore(callback, false);
             string target = Text(resolution, "actual_target_id");
             string kind = Text(resolution, "kind");
             bool periodic = resolution.TryGetProperty("periodic_status", out JsonElement receipt) && receipt.ValueKind != JsonValueKind.Null;
@@ -694,6 +856,11 @@ public static class LiveEvidenceValidation
             }
             observedHp[target] = after;
             deltas[target] = checked(deltas.GetValueOrDefault(target) + delta);
+        }
+        ApplyRepairsBefore(endCallback, true);
+        if (repairIndex != pendingRepairs.Length)
+        {
+            errors.Add("COUNTER_REPAIR_EXECUTION_BOUNDARY_INVALID");
         }
         foreach ((string id, JsonElement before) in beforeStates)
         {

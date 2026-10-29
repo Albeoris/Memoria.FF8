@@ -31,7 +31,7 @@ public sealed partial class BattleSession
         return command;
     }
 
-    private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false)
+    private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false, ushort? diagnosticSelectedTargetMask = null)
     {
         command = PrepareNativeEventCommand(actor, command);
         StopTurnAdvance();
@@ -46,6 +46,7 @@ public sealed partial class BattleSession
             actions.Enqueue(command);
         }
         Log("Queued", actor.Id, command.TargetId, command.ActionId, $"{actor.Name}: {name} queued.");
+        ObserveDiagnosticCounterCommand(actor, command, diagnosticSelectedTargetMask);
         if (nativeAiDepth != 0 && !IsNativeReturnDamageAction(command.NativeAction))
         {
             CompleteNativeAiReturnDamage(actor, NativeCommandPresentation(command));

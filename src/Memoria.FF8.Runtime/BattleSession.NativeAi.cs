@@ -54,10 +54,12 @@ public sealed partial class BattleSession
         //4877F0 admits enemy stage2 using saved lowBYTE25, battle lowBYTE9 and actor flag4000.
         if (!actor.IsActive || callback == 2 && ((NativeSavedStatusBits(actor) & 0x25) != 0 || (NativeBattleStatusBits(actor) & 9) != 0 || (actor.NativeCombatantFlags & 0x4000) != 0))
         {
+            ObserveDiagnosticCounterAi(actor, callback, BattleDiagnosticCounterCallbackPhase.AiRejected);
             return;
         }
         if (TryRunNativeEnemyBerserk(actor, callback))
         {
+            ObserveDiagnosticCounterAi(actor, callback, BattleDiagnosticCounterCallbackPhase.AiRejected);
             return;
         }
         if (++nativeAiDepth > 16)
@@ -65,9 +67,18 @@ public sealed partial class BattleSession
             nativeAiDepth--;
             throw new NotSupportedException("Native battle AI activation exceeds the bounded callback stack.");
         }
+        var previousDiagnosticAiScope = diagnosticCounterAiScope;
         int operation = 0;
         try
         {
+            if (ObservingDiagnosticCounter)
+            {
+                diagnosticCounterAiScope = (++diagnosticCounterAiSerial, callback, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(program.Scripts[callback])));
+            }
+            if (diagnosticCounterAiScope is { } diagnosticScope)
+            {
+                ObserveDiagnosticCounterAi(actor, callback, BattleDiagnosticCounterCallbackPhase.AiEntered, diagnosticScope.Serial, diagnosticScope.Sha);
+            }
             byte[] code = program.Scripts[callback];
             int pc = 0;
             ushort targetMask = 0;
@@ -383,6 +394,12 @@ public sealed partial class BattleSession
         finally
         {
             nativeAiDepth--;
+            var diagnosticScope = diagnosticCounterAiScope;
+            diagnosticCounterAiScope = previousDiagnosticAiScope;
+            if (diagnosticScope is { } completedScope)
+            {
+                ObserveDiagnosticCounterAi(actor, callback, BattleDiagnosticCounterCallbackPhase.AiExited, completedScope.Serial, completedScope.Sha);
+            }
         }
     }
 

@@ -54,6 +54,7 @@ public sealed partial class BattleSession
             }
         }
         nativeDispatchCommandLocation = location;
+        ObserveDiagnosticCounterCallbackTaken(location, packet);
         //485460 clears DF8 once at the selected event, not between its two485610 subcommands.
         BeginNativeReactionBatch();
         return true;
@@ -65,6 +66,7 @@ public sealed partial class BattleSession
         {
             nativeCommandBanks = nativeCommandBanks.Release(location);
             nativeDispatchCommandLocation = null;
+            diagnosticCounterCurrentCallback = null;
         }
     }
 

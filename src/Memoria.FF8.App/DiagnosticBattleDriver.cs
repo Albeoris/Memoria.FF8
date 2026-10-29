@@ -18,6 +18,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public BattleDiagnosticEnemyAbility? EnemyAbility { get; init; }
     public BattleDiagnosticLimitSelection? LimitSelection { get; init; }
     public DiagnosticShotCycleDeclaration? ShotCycle { get; init; }
+    public DiagnosticCounterCycleDeclaration? CounterCycle { get; init; }
     public int? ExpectedNativeAction { get; init; }
     public byte? ExpectedNativeCommand { get; init; }
     public ushort[] SupportingEffects { get; init; } = [];
@@ -55,6 +56,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             }
         }
         ShotCycle?.Validate(Input, ExpectedEffect, ExpectedNativeAction, ExpectedNativeCommand);
+        CounterCycle?.ValidateComposition(Input, ExpectedEffect, ExpectedNativeAction, ExpectedNativeCommand, ShotCycle is not null, EnemyAbility is not null, LimitSelection is not null, SupportingEffects, SupportingInvocations);
         if (ShotCycle is not null && (LimitSelection is null || EnemyAbility is not null || SupportingEffects.Length != 0 || SupportingInvocations.Length != 0 || Repairs.Length != 0 || TerminalHold is not null))
         {
             throw new InvalidDataException("Shot cycles require their real Limit selection and cannot use supporting-effect bypasses, repairs or terminal holds.");
@@ -111,6 +113,19 @@ internal sealed class DiagnosticBattleDriver
     internal DiagnosticShotCycleDriver? ShotCycle => shotCycles.LastOrDefault();
     internal DiagnosticShotCycleReceipt[] ShotReceipts => shotCycles.Select(cycle => cycle.Receipt).ToArray();
 
+    private readonly List<DiagnosticCounterCycleDriver> counterCycles = [];
+    internal DiagnosticCounterCycleDriver? CounterCycle => counterCycles.LastOrDefault();
+    internal DiagnosticCounterCycleReceipt[] CounterReceipts => counterCycles.Select(cycle => cycle.Receipt).ToArray();
+
+    internal void BeginCounterCycle(DiagnosticCounterCycleReceipt receipt)
+    {
+        if (recipe.CounterCycle is null || Stage != DiagnosticDriverStage.AwaitDispatch || receipt.Execution != Execution || counterCycles.Count != Execution - 1 || receipt.Declaration != recipe.CounterCycle || CounterCycle is { Completed: false })
+        {
+            throw new InvalidOperationException("Counter cycle cannot start outside its ordinary execution admission boundary.");
+        }
+        counterCycles.Add(new(receipt, recipe.Input));
+    }
+
     internal void BeginShotCycle(DiagnosticShotCycleReceipt receipt)
     {
         if (recipe.ShotCycle is null || Stage != DiagnosticDriverStage.AwaitDispatch || receipt.Execution != Execution || shotCycles.Count != Execution - 1 || receipt.Declaration != recipe.ShotCycle || ShotCycle is { Completed: false })
@@ -138,7 +153,9 @@ internal sealed class DiagnosticBattleDriver
 
     internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch) => ObserveDispatch(dispatch, null);
 
-    internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch, DiagnosticShotDispatchPackets? packetProof)
+    internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch, DiagnosticShotDispatchPackets? packetProof) => ObserveDispatch(dispatch, packetProof, null);
+
+    internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch, DiagnosticShotDispatchPackets? packetProof, DiagnosticCounterDispatchPackets? counterPackets)
     {
         if (Finished || Stage is not (DiagnosticDriverStage.AwaitDispatch or DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail))
         {
@@ -150,6 +167,33 @@ internal sealed class DiagnosticBattleDriver
             return;
         }
         lastDispatchSerial = dispatch.Serial;
+        if (recipe.CounterCycle is { } counter)
+        {
+            if (dispatch.ActorId != counter.Focal.ActorId)
+            {
+                if (dispatch.RequestedEffect == recipe.ExpectedEffect || dispatch.ExecutedEffect == recipe.ExpectedEffect)
+                {
+                    Fail("COUNTER_FOCAL_ACTOR_MISMATCH");
+                }
+                return;
+            }
+            try
+            {
+                if (Stage != DiagnosticDriverStage.AwaitDispatch || counterPackets is null || CounterCycle is not { } cycle)
+                {
+                    throw new InvalidDataException("Counter focal dispatch requires its actual active cycle and packet observation.");
+                }
+                cycle.ObserveDispatch(dispatch, counterPackets);
+                dispatches.Add(dispatch);
+                currentFocalDispatch = dispatch;
+                Stage = DiagnosticDriverStage.Drain;
+            }
+            catch (Exception exception) when (exception is InvalidDataException or InvalidOperationException or NotSupportedException)
+            {
+                Fail("COUNTER_DISPATCH_INVALID: " + exception.Message);
+            }
+            return;
+        }
         if (dispatch.ActorId != recipe.Input.ActorId)
         {
             return;
@@ -233,19 +277,8 @@ internal sealed class DiagnosticBattleDriver
             Fail("REPEAT_PRECONDITION_UNSATISFIED");
             return false;
         }
-        if (observation.Seconds - started > recipe.OverallTimeoutSeconds)
+        if (!CheckDeadlines(observation.Seconds))
         {
-            Fail("OVERALL_TIMEOUT");
-            return false;
-        }
-        if (Stage == DiagnosticDriverStage.AwaitDispatch && observation.Seconds - executionStarted >= Math.Min(MaximumDispatchWaitSeconds, recipe.ActionTimeoutSeconds))
-        {
-            Fail("EXPECTED_EFFECT_DISPATCH_TIMEOUT");
-            return false;
-        }
-        if (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail && observation.Seconds - executionStarted > recipe.ActionTimeoutSeconds)
-        {
-            Fail("ACTION_OR_DRAIN_TIMEOUT");
             return false;
         }
         if (Stage == DiagnosticDriverStage.Readiness)
@@ -302,6 +335,25 @@ internal sealed class DiagnosticBattleDriver
                     }
                 }
             }
+            if (recipe.CounterCycle is not null)
+            {
+                try
+                {
+                    if (CounterCycle is not { Completed: true })
+                    {
+                        throw new InvalidDataException("Counter cycle has not completed its genuine focal attempt and full drain.");
+                    }
+                    if (Execution == 2)
+                    {
+                        DiagnosticCounterCycleValidation.ValidateChain(counterCycles[0].Receipt, counterCycles[1].Receipt, recipe.Input);
+                    }
+                }
+                catch (InvalidDataException exception)
+                {
+                    Fail("COUNTER_CYCLE_INCOMPLETE: " + exception.Message);
+                    return false;
+                }
+            }
             Stage = DiagnosticDriverStage.Tail;
             tailStarted = observation.PresentedFrame;
         }
@@ -319,6 +371,28 @@ internal sealed class DiagnosticBattleDriver
             }
         }
         return false;
+    }
+
+    internal bool CounterWorkWithinDeadline(double seconds) => recipe.CounterCycle is null || !Finished && CheckDeadlines(seconds);
+
+    private bool CheckDeadlines(double seconds)
+    {
+        if (seconds - started > recipe.OverallTimeoutSeconds)
+        {
+            Fail("OVERALL_TIMEOUT");
+            return false;
+        }
+        if (Stage == DiagnosticDriverStage.AwaitDispatch && seconds - executionStarted >= (recipe.CounterCycle is null ? Math.Min(MaximumDispatchWaitSeconds, recipe.ActionTimeoutSeconds) : recipe.ActionTimeoutSeconds))
+        {
+            Fail("EXPECTED_EFFECT_DISPATCH_TIMEOUT");
+            return false;
+        }
+        if (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail && seconds - executionStarted > recipe.ActionTimeoutSeconds)
+        {
+            Fail("ACTION_OR_DRAIN_TIMEOUT");
+            return false;
+        }
+        return true;
     }
 
     internal void Fail(string blocker)

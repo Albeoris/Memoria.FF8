@@ -125,6 +125,7 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticResolution(string kind, BattleCombatant? actor, BattleCombatant target, int amount, int before, int after)
     {
+        ObserveDiagnosticCounterResolution(actor, target, before, after);
         if (DiagnosticResolution is { } observer)
         {
             BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;

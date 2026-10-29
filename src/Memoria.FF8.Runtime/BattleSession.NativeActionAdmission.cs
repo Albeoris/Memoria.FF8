@@ -172,6 +172,7 @@ public sealed partial class BattleSession
             {
                 nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(firstHeader, nativeProductionContext.RepeatMode);
             }
+            ObserveDiagnosticCounterPublishedHeaders(firstHeader);
             return command with { NativeHeaderIndex = firstHeader, NativeSequence = nativeActionPackets.Headers[firstHeader].ReadByte(2) };
         }
         finally

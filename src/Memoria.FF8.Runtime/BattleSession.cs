@@ -1155,6 +1155,7 @@ public sealed partial class BattleSession
     private void RestoreValidated(BattleSnapshot snapshot)
     {
         DiagnosticRestoreCount++;
+        ResetDiagnosticCounterOwners();
         if (snapshot.Version != 1 || snapshot.Frame < 0 || !Enum.IsDefined(snapshot.Difficulty) || !Enum.IsDefined(snapshot.Outcome) || snapshot.Combatants is null || snapshot.Combatants.Length != combatants.Count || snapshot.QueuedActions is null || snapshot.Events is null)
         {
             throw new InvalidDataException("Invalid battle snapshot envelope.");
@@ -1473,6 +1474,7 @@ public sealed partial class BattleSession
         BattleSnapshot candidateSnapshot = candidate.Capture();
         candidate = Restore(candidateSnapshot);
         DiagnosticResetCount++;
+        ResetDiagnosticCounterOwners();
         nativeActionMemory.State = candidate.nativeActionMemory.State;
         nativePresentationStatusMemory.State = candidate.nativePresentationStatusMemory.State;
         foreach (NativeBattleEnemyAllocation allocation in candidate.nativeAllocations.Skip(nativeAllocations.Count))

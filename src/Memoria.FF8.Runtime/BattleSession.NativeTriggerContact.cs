@@ -45,7 +45,8 @@ public sealed partial class BattleSession
         {
             nativeActionPackets = nativeActionPackets with { ContactCount = 0 };
             NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, definition, native, 255);
-            (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
+            (nativeActionPackets, int contactIndex) = nativeActionPackets.AppendContact(packet);
+            ObserveDiagnosticCounterAppend(packet, contactIndex, triggerRecomputed: true);
         }
         finally
         {

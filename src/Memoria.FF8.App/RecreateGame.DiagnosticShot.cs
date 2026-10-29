@@ -10,6 +10,11 @@ internal sealed partial class RecreateGame
     private void ObserveDiagnosticDriverDispatch(BattleDiagnosticEffectDispatch dispatch)
     {
         DiagnosticBattleDriver driver = diagnosticDriver!;
+        if (diagnosticDriverRecipe!.CounterCycle is not null)
+        {
+            ObserveDiagnosticCounterDispatch(dispatch);
+            return;
+        }
         if (diagnosticDriverRecipe!.ShotCycle is null || dispatch.ActorId != diagnosticDriverRecipe.Input.ActorId)
         {
             driver.ObserveDispatch(dispatch);

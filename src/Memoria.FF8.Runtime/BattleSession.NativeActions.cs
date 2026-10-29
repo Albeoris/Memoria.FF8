@@ -46,6 +46,7 @@ public sealed partial class BattleSession
         BattleNativeAction native = FindNativeCommandAction(actor, command, id, crisis);
         ValidateNativeActionContract(native);
         actor.NativePreviousTargetMask = targetMask;
+        ushort diagnosticSelectedTargetMask = targetMask;
         if (command is 2 or 4)
         {
             targetMask |= (ushort)(((native.TargetFlags.GetValueOrDefault() & 1) != 0 ? 0x4000 : 0) | ((native.TargetFlags.GetValueOrDefault() & 2) != 0 ? 0x2000 : 0));
@@ -56,7 +57,7 @@ public sealed partial class BattleSession
         }
         BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 16 && (targetMask & (1 << candidate.NativeIndex)) != 0) ?? actor;
         BattleAttackCommand queued = new(actor.Id, target.Id, BattleAbility.EnemyAbility, id) { NativeAiCallbackStage = nativeAiCallbackStage, NativeLimitCallback = callback, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = targetMask };
-        EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}", playerInput);
+        EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}", playerInput, diagnosticSelectedTargetMask);
     }
 
     private static bool IsNativeRevive(BattleActionDefinition action)
@@ -120,10 +121,21 @@ public sealed partial class BattleSession
         (nativeActionPackets, int headerIndex) = nativeActionPackets.Prepare(header);
         ObserveDiagnosticPreparedHeader(headerIndex);
         nativeActionScratch = nativeActionScratch with { ActorIndex = header.Actor, Command = header.Command, Action = header.Action, DeferredEffectsE00 = header.Command == 254, GuardianFormulaE1E = header.Command == 254 ? false : nativeActionScratch.GuardianFormulaE1E, GuardianBoostPercent = header.Command == 254 ? (byte)0 : nativeActionScratch.GuardianBoostPercent };
-        NativeBattleActionProductionResult produced = ProduceNativeActionFacts(actor, target, command, action, header, context);
+        NativeBattleActionProductionResult produced;
+        int? previousDiagnosticHeader = diagnosticCounterProducingHeader;
+        diagnosticCounterProducingHeader = ObservingDiagnosticCounter ? headerIndex : null;
+        try
+        {
+            produced = ProduceNativeActionFacts(actor, target, command, action, header, context);
+        }
+        finally
+        {
+            diagnosticCounterProducingHeader = previousDiagnosticHeader;
+        }
         foreach (NativeBattleContactPacket packet in produced.Contacts)
         {
-            (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
+            (nativeActionPackets, int contactIndex) = nativeActionPackets.AppendContact(packet);
+            ObserveDiagnosticCounterAppend(packet, contactIndex);
         }
         (nativeActionPackets, _) = nativeActionPackets.Publish(produced.PublishedTargetCount);
         ObserveDiagnosticPublishedReflectionHeader(headerIndex);

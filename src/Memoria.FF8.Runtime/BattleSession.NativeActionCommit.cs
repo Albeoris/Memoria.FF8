@@ -82,6 +82,7 @@ public sealed partial class BattleSession
         byte order = nativeReactionOrder ?? throw new NotSupportedException("Native pending reaction requires its actual485460 dispatch-order BYTE.");
         actor.NativePendingReaction = new(checked((byte)stage), order);
         nativeReactionOrder = unchecked((byte)(order + 1));
+        ObserveDiagnosticCounterReaction(actor, stage);
         if (actor.IsPlayer && stage == 3)
         {
             SetNativeReactionActionGate(true);

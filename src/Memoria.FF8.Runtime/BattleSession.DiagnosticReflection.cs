@@ -99,6 +99,9 @@ public sealed partial class BattleSession
 
     private void ResetDiagnosticReflectionHeaders()
     {
+        diagnosticCounterContacts.Clear();
+        diagnosticCounterAppended.Clear();
+        diagnosticCounterProducingHeader = null;
         if (diagnosticHeaderGenerations is null)
         {
             return;
@@ -112,7 +115,7 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticPreparedHeader(int header)
     {
-        if (DiagnosticEffectDispatched is null)
+        if (DiagnosticEffectDispatched is null && !ObservingDiagnosticCounter)
         {
             if (diagnosticHeaderGenerations is not null)
             {

@@ -13,6 +13,8 @@ public sealed partial class BattleSession
         public int Magnitude { get; set; }
         public bool Finalized { get; set; }
         public bool PrimaryCommitted { get; set; }
+        public (int Before, int After)? DiagnosticHp { get; set; }
+        public BattleDiagnosticCounterPrimary? DiagnosticPrimary { get; set; }
         public (ushort Saved, uint Battle)? PrimaryStatusSnapshot { get; set; }
         public byte AttackClass { get; set; } = (byte)(action.AttackFlags & 3);
         public byte SpecialSource { get; } = specialSource;
@@ -104,7 +106,9 @@ public sealed partial class BattleSession
                 (ushort secondarySaved, uint secondaryBattle) = NativeContactStatusMirror(actor);
                 secondary = secondary with { SavedStatuses4 = secondarySaved, BattleStatuses8 = secondaryBattle };
             }
-            return new(primary, secondary);
+            NativeBattleContactPacket packet = new(primary, secondary);
+            ObserveDiagnosticCounterResolvedContact(contact, packet);
+            return packet;
         }
         finally
         {

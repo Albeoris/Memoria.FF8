@@ -40,7 +40,9 @@ internal sealed partial class RecreateGame
         diagnosticDriverBattle = world?.Battle ?? throw new InvalidOperationException("Diagnostic driver requires its published live battle.");
         diagnosticEnemySubmissions.Clear();
         diagnosticDriver = new(recipe, Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds);
-        diagnosticTelemetry = new(diagnosticDriverBattle, world!.DiagnosticReceipt!.BattleInstanceId, recipe.ExpectedEffect, recipe.ShotCycle is null ? null : (byte)237);
+        diagnosticTelemetry = new(diagnosticDriverBattle, world!.DiagnosticReceipt!.BattleInstanceId, recipe.ExpectedEffect, recipe.ShotCycle is not null ? (byte)237 : recipe.CounterCycle is not null ? (byte)8 : null);
+        diagnosticCounterPreparationRepair = null;
+        SubscribeDiagnosticCounter(diagnosticDriverBattle);
         diagnosticDriverBattle.DiagnosticEffectDispatched += ObserveDiagnosticDriverDispatch;
         PublishDiagnosticDriverProgress();
     }
@@ -61,7 +63,7 @@ internal sealed partial class RecreateGame
         long presentedTimestamp = Stopwatch.GetTimestamp();
         try
         {
-            if (diagnosticDriverRecipe!.LimitSelection is not null && diagnosticDriverBattle!.TriggerDiagnosticGunbladeWindow())
+            if ((diagnosticDriverRecipe!.LimitSelection is not null || diagnosticDriverRecipe.CounterCycle is not null) && diagnosticDriverBattle!.TriggerDiagnosticGunbladeWindow())
             {
                 if (diagnosticGunbladeTriggers.Count >= 1024)
                 {
@@ -92,6 +94,14 @@ internal sealed partial class RecreateGame
                     throw new InvalidOperationException("Diagnostic renderer owner was replaced during an uninterrupted battle.");
                 }
                 AdvanceDiagnosticShot(active, driver, blockers.Length == 0);
+                if (driver.CounterWorkWithinDeadline(now.TotalSeconds))
+                {
+                    AdvanceDiagnosticCounter(active, driver, blockers.Length == 0);
+                }
+                if (diagnosticDriverRecipe.CounterCycle is not null)
+                {
+                    blockers = active.NativeEntryReady ? active.ObserveDiagnosticDrainBlockers().ToArray() : ["native-entry"];
+                }
                 bool ready = active.NativeEntryReady && (world!.DiagnosticReceipt?.Preparation.Target is null || diagnosticTargetVerified) && DiagnosticCommandReady(active, diagnosticDriverRecipe!);
                 DiagnosticDriverObservation observation = new(now.TotalSeconds, active.NativeHostCallbacks ?? throw new NotSupportedException("Diagnostic driver requires the live callback ledger."), diagnosticPresentedFrames, ready, blockers.Length == 0, active.Outcome != BattleOutcome.Active, blockers);
                 DiagnosticDriverStage previousStage = driver.Stage;
@@ -99,7 +109,11 @@ internal sealed partial class RecreateGame
                 {
                     diagnosticRenderer ??= battleGpu ?? throw new NotSupportedException("Scored diagnostic execution requires the GPU renderer.");
                     diagnosticTelemetry.Begin(presentedTimestamp, diagnosticPresentedFrames, diagnosticRenderer.PresentationVersion, diagnosticRenderer.TelemetryOwnerId.ToString());
-                    if (diagnosticDriverRecipe!.EnemyAbility is { } enemySelection)
+                    if (diagnosticDriverRecipe!.CounterCycle is not null)
+                    {
+                        BeginDiagnosticCounter(active, driver);
+                    }
+                    else if (diagnosticDriverRecipe.EnemyAbility is { } enemySelection)
                     {
                         if (diagnosticEnemySubmissions.Count >= 2)
                         {
@@ -142,7 +156,12 @@ internal sealed partial class RecreateGame
                     diagnosticTelemetry.Complete(diagnosticPresentedFrames, true, diagnosticDriverRecipe!.TailFrames, null);
                     if (driver.Stage == DiagnosticDriverStage.Readiness && diagnosticDriverRecipe.Repairs.Length > 0)
                     {
-                        diagnosticRepairs.Add(active.ApplyDiagnosticCombatRepairs(diagnosticDriverRecipe.Repairs, active.NativeHostCallbacks ?? active.Frame));
+                        BattleDiagnosticRepairReceipt repair = active.ApplyDiagnosticCombatRepairs(diagnosticDriverRecipe.Repairs, active.NativeHostCallbacks ?? active.Frame);
+                        diagnosticRepairs.Add(repair);
+                        if (diagnosticDriverRecipe.CounterCycle is not null)
+                        {
+                            diagnosticCounterPreparationRepair = repair;
+                        }
                         if (active.DiagnosticTerminalHold?.Phase == BattleDiagnosticTerminalHoldPhase.Held)
                         {
                             active.RearmDiagnosticTerminalHold(active.NativeHostCallbacks ?? active.Frame);
@@ -194,6 +213,7 @@ internal sealed partial class RecreateGame
         WriteDiagnosticFinalizationStage("candidate-published");
         diagnosticTelemetry.Dispose();
         diagnosticDriverBattle!.DiagnosticEffectDispatched -= ObserveDiagnosticDriverDispatch;
+        UnsubscribeDiagnosticCounter(diagnosticDriverBattle);
         if (world?.IsDiagnosticBattle == true)
         {
             world.EndDiagnosticBattle();
@@ -291,6 +311,8 @@ internal sealed partial class RecreateGame
                 expected_native_command = diagnosticDriverRecipe.ExpectedNativeCommand,
                 shot_cycle = diagnosticDriverRecipe.ShotCycle,
                 shot_cycles = diagnosticDriver!.ShotReceipts,
+                counter_cycle = diagnosticDriverRecipe.CounterCycle,
+                counter_cycles = diagnosticDriver.CounterReceipts,
                 supporting_effects = diagnosticDriverRecipe.SupportingEffects,
                 supporting_invocations = diagnosticDriverRecipe.SupportingInvocations,
                 declared_repairs = diagnosticDriverRecipe.Repairs,
