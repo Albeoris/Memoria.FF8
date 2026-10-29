@@ -17,7 +17,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
 {
     private static readonly JsonSerializerOptions Json = new() { Converters = { new JsonStringEnumConverter() } };
     private const string PackageId = "Memoria/WorkbenchAcceptance";
-    private const string SystemId = "ui.buildmain.label.lv";
+    private const string SystemId = "ui.vectorpartycard.caption.lv";
 
     [Fact]
     public void CatalogControlAcceptsOnlyRegisteredCanonicalSystemIdentities()
@@ -115,7 +115,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
         File.WriteAllText(Path.Combine(package, "mod.ini"), "[Mod]\nname=Workbench acceptance\nenabled=0\n");
         string settings = Path.Combine(root, "settings");
         Directory.CreateDirectory(settings);
-        new UiPreferences { MusicVolume = 0, SoundVolume = 0, VoiceVolume = 0, TextFontMode = native ? GameTextFontMode.Native : GameTextFontMode.System, TextLayoutMode = native ? GameTextLayoutMode.OriginalCompatible : GameTextLayoutMode.Adaptive }.Save(Path.Combine(settings, "ui-settings.json"));
+        new UiPreferences { MusicVolume = 0, SoundVolume = 0, VoiceVolume = 0, MenuPresentation = MenuPresentation.Vector, TextFontMode = native ? GameTextFontMode.Native : GameTextFontMode.System, TextLayoutMode = native ? GameTextLayoutMode.OriginalCompatible : GameTextLayoutMode.Adaptive }.Save(Path.Combine(settings, "ui-settings.json"));
         string control = Path.Combine(root, "control");
         Directory.CreateDirectory(Path.Combine(control, "requests"));
         ProcessStartInfo start = new(Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "Memoria.FF8.exe" : "Memoria.FF8")) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, RedirectStandardOutput = true, RedirectStandardError = true };
