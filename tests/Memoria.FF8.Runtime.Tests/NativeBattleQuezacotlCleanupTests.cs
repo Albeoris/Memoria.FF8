@@ -48,7 +48,20 @@ public sealed class NativeBattleQuezacotlCleanupTests
         Assert.Equal(before.AsSpan(2).ToArray(), restored.Memory.Arena.Read(2, before.Length - 2));
         Assert.Equal(effect.ReturnedDescriptor, restored.Effect.ReturnedDescriptor);
         Assert.Null(restored.Memory.QuezacotlCompletion17A8);
-        Assert.Equal(SnapshotJson(restored), SnapshotJson(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlWorkspaceWrite>(SnapshotJson(restored)))));
+        string json = SnapshotJson(restored);
+        NativeBattleQuezacotlWorkspaceWrite resumed = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlWorkspaceWrite>(json)!);
+        NativeBattleQuezacotlWorkspaceWrite independent = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlWorkspaceWrite>(json)!);
+        NativeBattleEffectTaskMemory.BindArenaBankOwnership(resumed.Memory, resumed.Effect.Pools, restoring: true);
+        NativeBattleEffectTaskMemory.BindArenaBankOwnership(independent.Memory, independent.Effect.Pools, restoring: true);
+        Assert.Equal(json, SnapshotJson(resumed));
+        Assert.Equal(json, SnapshotJson(independent));
+        Assert.True(resumed.Effect.Pools[1].IsBoundToStorage(resumed.Memory.Arena!, NativeBattleEffectNodeMemory.ArenaAddress));
+        resumed.Effect.Pools[1].Slots[0].WriteWord(12, 356);
+        Assert.Equal((ushort)356, resumed.Memory.Arena!.ReadUInt16(12));
+        resumed.Memory.Arena!.WriteUInt16(14, 0x1234);
+        Assert.Equal((ushort)0x1234, resumed.Effect.Pools[1].Slots[0].ReadWord(14));
+        Assert.Equal((ushort)355, independent.Effect.Pools[1].Slots[0].ReadWord(12));
+        Assert.Equal((ushort)355, restored.Effect.Pools[1].Slots[0].ReadWord(12));
         Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlCleanup.RestoreAndUnlink355(restored.Memory, restored.Effect, current => current));
     }
 

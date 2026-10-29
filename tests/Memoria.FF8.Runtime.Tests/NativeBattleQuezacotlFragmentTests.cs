@@ -56,8 +56,25 @@ public sealed class NativeBattleQuezacotlFragmentTests
                 Assert.Equal((byte)0, task[offset]);
             }
         });
-        NativeBattleQuezacotlFragmentWrite restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlFragmentWrite>(SnapshotJson(spawned))!);
-        Assert.Equal(SnapshotJson(spawned), SnapshotJson(restored));
+        string json = SnapshotJson(spawned);
+        NativeBattleQuezacotlFragmentWrite restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlFragmentWrite>(json)!);
+        NativeBattleQuezacotlFragmentWrite independent = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlFragmentWrite>(json)!);
+        NativeBattleEffectTaskPool restoredPool = Assert.Single(restored.Effect.Pools);
+        NativeBattleEffectTaskPool independentPool = Assert.Single(independent.Effect.Pools);
+        Assert.True(restoredPool.RestoredArenaBinding);
+        Assert.True(independentPool.RestoredArenaBinding);
+        restoredPool.BindStorage(restored.Memory.QuezacotlExecutableMemory!.Arena, NativeBattleQuezacotlExecutableMemory.Address);
+        independentPool.BindStorage(independent.Memory.QuezacotlExecutableMemory!.Arena, NativeBattleQuezacotlExecutableMemory.Address);
+        Assert.Equal(json, SnapshotJson(restored));
+        Assert.Equal(json, SnapshotJson(independent));
+        int bankOffset = checked((int)(NativeBattleQuezacotlFragmentPool.Bank - NativeBattleQuezacotlExecutableMemory.Address));
+        Assert.True(restoredPool.IsBoundToStorage(restored.Memory.QuezacotlExecutableMemory!.Arena, NativeBattleQuezacotlExecutableMemory.Address));
+        restoredPool.Slots[0].WriteWord(12, 0x1357);
+        Assert.Equal((ushort)0x1357, restored.Memory.QuezacotlExecutableMemory!.Arena.ReadUInt16(bankOffset + 12));
+        restored.Memory.QuezacotlExecutableMemory!.Arena.WriteUInt16(bankOffset + 14, 0x2468);
+        Assert.Equal((ushort)0x2468, restoredPool.Slots[0].ReadWord(14));
+        Assert.Equal((ushort)0, independentPool.Slots[0].ReadWord(12));
+        Assert.Equal((ushort)0, pool.Slots[0].ReadWord(12));
     }
 
     [Fact]

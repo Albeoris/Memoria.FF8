@@ -134,8 +134,18 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
         string json = JsonSerializer.Serialize(captured);
         NativeBattleQuezacotlWorkspaceWrite first = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlWorkspaceWrite>(json)!);
         NativeBattleQuezacotlWorkspaceWrite second = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlWorkspaceWrite>(json)!);
+        NativeBattleEffectTaskMemory.BindArenaBankOwnership(first.Memory, first.Effect.Pools, restoring: true);
+        NativeBattleEffectTaskMemory.BindArenaBankOwnership(second.Memory, second.Effect.Pools, restoring: true);
         Assert.Equal(json, SnapshotJson(first));
         Assert.Equal(json, SnapshotJson(second));
+        NativeBattleEffectTaskPool restoredUnrelated = Assert.Single(first.Effect.Pools);
+        Assert.True(restoredUnrelated.IsBoundToStorage(first.Memory.Arena!, NativeBattleEffectNodeMemory.ArenaAddress));
+        restoredUnrelated.Slots[0].WriteWord(12, 0x1357);
+        Assert.Equal((ushort)0x1357, first.Memory.Arena!.ReadUInt16(0x1000 + 12));
+        first.Memory.Arena!.WriteUInt16(0x1000 + 14, 0x2468);
+        Assert.Equal((ushort)0x2468, restoredUnrelated.Slots[0].ReadWord(14));
+        Assert.Equal((ushort)0xA5A5, Assert.Single(second.Effect.Pools).Slots[0].ReadWord(12));
+        Assert.Equal((ushort)0xA5A5, unrelated.Slots[0].ReadWord(12));
         Assert.Single(first.Effect.Pools).Validate();
         int former = checked((int)(ribbon.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress));
         NativeBattleEffectArena firstArena = first.Memory.Arena!;
