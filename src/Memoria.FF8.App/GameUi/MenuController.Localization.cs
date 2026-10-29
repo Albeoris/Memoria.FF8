@@ -142,20 +142,20 @@ public sealed partial class MenuController
         }
         try
         {
-            HandleLocalizationAction(action);
+            return HandleLocalizationAction(action);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or ArgumentException or InvalidOperationException or UnauthorizedAccessException)
         {
             Message = error.Message;
+            return true;
         }
-        return true;
     }
 
-    private void HandleLocalizationAction(MenuAction action)
+    private bool HandleLocalizationAction(MenuAction action)
     {
         if (HandleLocalizationStackAction(action))
         {
-            return;
+            return true;
         }
         switch (action.Kind)
         {
@@ -269,7 +269,10 @@ public sealed partial class MenuController
                 localizationCancellation?.Cancel();
                 localizationProgress = "Cancelling…";
                 break;
+            default:
+                return false;
         }
+        return true;
     }
 
     private async void BrowseLocalizationFolderAsync(string kind)

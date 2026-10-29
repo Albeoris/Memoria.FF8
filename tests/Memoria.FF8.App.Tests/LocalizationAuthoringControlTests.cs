@@ -9,6 +9,7 @@ using Memoria.FF8.Localization.Authoring;
 using Memoria.FF8.Mods.Localization;
 using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Ui;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -29,6 +30,17 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
         Assert.False(RecreateGame.TryResolveAuthoringCatalogKey("Lv 12", out _));
         Assert.False(RecreateGame.TryResolveAuthoringCatalogKey("$en_interface_system_unknown", out _));
         Assert.False(RecreateGame.TryResolveAuthoringCatalogKey("$en_field_0000", out _));
+    }
+
+    [Fact]
+    public void ActualWorkbenchMenuConfirmationReachesItsDedicatedActionHandler()
+    {
+        string? received = null;
+        MenuController menus = new();
+        menus.ConnectLocalizationWorkbench(() => [new("project", "Project", "", Action: new("localization-workbench", "select:fixture"))], action => received = action);
+        menus.Open("localization-workbench", demo: true);
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal("select:fixture", received);
     }
 
     [Fact]
