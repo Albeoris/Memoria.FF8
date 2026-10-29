@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -37,6 +38,9 @@ internal sealed partial class LauncherWindow : Window
     private readonly ProgressBar mediaProgress = new() { Height = 8, Minimum = 0, Maximum = 100 };
     private readonly TextBlock mediaProgressText = new() { Margin = new Thickness(0, 6, 0, 0), Foreground = Brushes.DimGray };
     private readonly StackPanel mediaProgressPanel = new() { IsVisible = false, Margin = new Thickness(0, 10, 0, 0) };
+    private readonly Button cancelMediaSetup = new() { Content = "Cancel setup", IsVisible = false, Margin = new Thickness(0, 8, 0, 0) };
+    private CancellationTokenSource? mediaSetupLifetime;
+    private bool closeAfterMediaSetup;
     private readonly TextBox status = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, BorderThickness = new Thickness(0), Background = Brushes.Transparent };
     private string mediaDirectory = MediaToolsInstallation.ResolveDirectory();
     private readonly Button cancel = new() { Content = "Cancel scan", IsVisible = false };
@@ -83,6 +87,7 @@ internal sealed partial class LauncherWindow : Window
         mediaSection.Children.Add(media);
         mediaProgressPanel.Children.Add(mediaProgress);
         mediaProgressPanel.Children.Add(mediaProgressText);
+        mediaProgressPanel.Children.Add(cancelMediaSetup);
         mediaSection.Children.Add(mediaProgressPanel);
         mediaSection.Children.Add(achievementsLocalOnly);
         StackPanel graphicsSelection = new() { Orientation = Orientation.Horizontal, Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
@@ -127,6 +132,7 @@ internal sealed partial class LauncherWindow : Window
         graphicsBackend.SelectionChanged += async (_, _) => await SaveGraphicsBackendAsync();
         tryAuto.Click += async (_, _) => await TryAutoAsync();
         mediaSetup.Click += async (_, _) => await RunSetupAsync();
+        cancelMediaSetup.Click += (_, _) => mediaSetupLifetime?.Cancel();
         play.Click += async (_, _) => await PlayAsync();
         Opened += async (_, _) => await InitializeAsync();
         Closing += OnClosing;
@@ -351,7 +357,11 @@ internal sealed partial class LauncherWindow : Window
         MediaToolsInstallation installation = new(client, options);
         try
         {
-            if (!OperatingSystem.IsMacOS() && !await MediaToolsInstallation.ValidateAsync(mediaDirectory) && !await LauncherDialogs.ConfirmAsync(this, "Memoria — FFmpeg setup", $"Download and verify {options.ArchiveName} for video and replacement audio playback?\n\nSource: {options.ReleaseUrl}\nInstall to: {mediaDirectory}\n\nFFmpeg is a separate third-party LGPL dependency. License notices are kept with the tools. Cancel to stay in the launcher."))
+            if (OperatingSystem.IsMacOS() && !await MediaToolsInstallation.ValidateAsync(mediaDirectory))
+            {
+                return await InstallMacFfmpegAsync(client, installation);
+            }
+            if (!OperatingSystem.IsMacOS() && !await MediaToolsInstallation.ValidateAsync(mediaDirectory) &&!await LauncherDialogs.ConfirmAsync(this, "Memoria — FFmpeg setup", $"Download and verify {options.ArchiveName} for video and replacement audio playback?\n\nSource: {options.ReleaseUrl}\nInstall to: {mediaDirectory}\n\nFFmpeg is a separate third-party LGPL dependency. License notices are kept with the tools. Cancel to stay in the launcher."))
             {
                 return false;
             }
@@ -370,6 +380,68 @@ internal sealed partial class LauncherWindow : Window
         }
     }
 
+    /// <summary>Offers the pinned prebuilt package first; if it cannot be downloaded or validated, offers the local source build.</summary>
+    private async Task<bool> InstallMacFfmpegAsync(HttpClient client, MediaToolsInstallation installation)
+    {
+        if (!await LauncherDialogs.ConfirmAsync(this, "Memoria — FFmpeg setup", MacFfmpegPrebuiltInstall.Prompt(mediaDirectory, RuntimeInformation.ProcessArchitecture)))
+        {
+            // Declining keeps the manual LGPL instructions.
+            return await installation.EnsureAsync(mediaDirectory, _ => false, message => status.Text = message);
+        }
+        string failure;
+        try
+        {
+            if (!await RunMediaSetupAsync(token => MacFfmpegPrebuiltInstall.InstallAsync(client, mediaDirectory, UpdateMediaProgress, token)))
+            {
+                return false;
+            }
+            await RefreshMediaStatusAsync();
+            status.Text = $"Prebuilt FFmpeg {MacFfmpegPrebuiltInstall.Version} was downloaded and validated.";
+            return true;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TimeoutException or InvalidDataException or IOException or UnauthorizedAccessException or InvalidOperationException or PlatformNotSupportedException or System.ComponentModel.Win32Exception)
+        {
+            failure = exception.Message;
+            mediaProgressPanel.IsVisible = false;
+            status.Text = "The prebuilt FFmpeg package could not be installed: " + failure;
+        }
+        if (!await LauncherDialogs.ConfirmAsync(this, "Memoria — FFmpeg setup", MacFfmpegSourceBuild.Prompt(mediaDirectory, failure)))
+        {
+            return await installation.EnsureAsync(mediaDirectory, _ => false, message => status.Text = message);
+        }
+        if (!await RunMediaSetupAsync(token => MacFfmpegSourceBuild.InstallAsync(client, mediaDirectory, UpdateMediaProgress, token)))
+        {
+            return false;
+        }
+        await RefreshMediaStatusAsync();
+        status.Text = $"FFmpeg {MacFfmpegSourceBuild.Version} was built from source and validated.";
+        return true;
+    }
+
+    /// <summary>Runs a cancellable FFmpeg setup step; returns false when the user cancelled it or closed the launcher.</summary>
+    private async Task<bool> RunMediaSetupAsync(Func<CancellationToken, Task> install)
+    {
+        using CancellationTokenSource setup = CancellationTokenSource.CreateLinkedTokenSource(updateLifetime.Token);
+        mediaSetupLifetime = setup;
+        cancelMediaSetup.IsVisible = true;
+        try
+        {
+            await install(setup.Token);
+            return true;
+        }
+        catch (OperationCanceledException) when (setup.IsCancellationRequested)
+        {
+            mediaStatus.Text = "FFmpeg setup was cancelled.";
+            status.Text = "FFmpeg setup was cancelled. Start setup again when ready.";
+            return false;
+        }
+        finally
+        {
+            mediaSetupLifetime = null;
+            cancelMediaSetup.IsVisible = false;
+        }
+    }
+
     private void UpdateMediaProgress(MediaToolsProgress progress)
     {
         mediaStatus.Text = "Setting up FFmpeg…";
@@ -383,6 +455,8 @@ internal sealed partial class LauncherWindow : Window
             MediaToolsStage.Downloading => $"Downloading FFmpeg — {progress.BytesReceived / 1048576d:F1} MiB received",
             MediaToolsStage.Verifying => "Verifying FFmpeg checksum…",
             MediaToolsStage.Extracting => "Extracting FFmpeg…",
+            MediaToolsStage.Configuring => "Configuring the FFmpeg LGPL build…",
+            MediaToolsStage.Compiling => "Compiling FFmpeg — this takes several minutes…",
             MediaToolsStage.Validating => "Checking FFmpeg executables…",
             MediaToolsStage.Complete => "FFmpeg is installed and ready.",
             _ => throw new ArgumentOutOfRangeException(nameof(progress))
@@ -608,11 +682,24 @@ internal sealed partial class LauncherWindow : Window
         play.IsEnabled = !busy && LauncherCapabilities.CanLaunchGame;
         releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
         nightlyUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
+        if (!busy && closeAfterMediaSetup)
+        {
+            closeAfterMediaSetup = false;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => Close());
+        }
     }
 
     private void OnClosing(object? sender, WindowClosingEventArgs args)
     {
-        if (busy && !closingForUpdate)
+        if (mediaSetupLifetime is not null && !closingForUpdate)
+        {
+            // Stop the download or build, let it remove its staging directory, then close once the launcher is idle.
+            args.Cancel = true;
+            closeAfterMediaSetup = true;
+            mediaSetupLifetime.Cancel();
+            status.Text = "Cancelling FFmpeg setup…";
+        }
+        else if (busy && !closingForUpdate)
         {
             args.Cancel = true;
             status.Text = "Wait for the current operation to finish, or close the game before closing the launcher.";

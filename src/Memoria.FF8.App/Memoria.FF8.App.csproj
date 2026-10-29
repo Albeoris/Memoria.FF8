@@ -5,7 +5,7 @@
     <TargetFramework Condition="'$(MemoriaNativeGraphics)' != 'true'">net10.0-windows</TargetFramework>
 
     <ApplicationManifest Condition="'$(MemoriaTargetRuntime)' == 'win-x64'">app.manifest</ApplicationManifest>
-    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget>$(MemoriaTargetArchitecture)</PlatformTarget>
     <AssemblyName>Memoria.FF8</AssemblyName>
     <RootNamespace>Memoria.FF8</RootNamespace>
     <!-- Optimize application methods on first use to avoid frame-time warmup. -->
@@ -35,10 +35,10 @@
     <PackageReference Include="SDL3-CS" />
     <PackageReference Include="MonoGame.Runtime.Windows.DX12" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'" />
     <PackageReference Include="MonoGame.Runtime.Linux.Vulkan" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' And '$(MemoriaTargetRuntime)' == 'linux-x64'" />
-    <PackageReference Include="MonoGame.Runtime.Mac.Vulkan" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' And '$(MemoriaTargetRuntime)' == 'osx-x64'" />
+    <PackageReference Include="MonoGame.Runtime.Mac.Vulkan" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan' And '$(MemoriaTargetMac)' == 'true'" />
     <PackageReference Include="SDL3-CS.Windows" Condition="'$(MemoriaTargetRuntime)' == 'win-x64'" />
     <PackageReference Include="SDL3-CS.Linux" Condition="'$(MemoriaTargetRuntime)' == 'linux-x64'" />
-    <PackageReference Include="SDL3-CS.macOS" Condition="'$(MemoriaTargetRuntime)' == 'osx-x64'" />
+    <PackageReference Include="SDL3-CS.macOS" Condition="'$(MemoriaTargetMac)' == 'true'" />
     <ProjectReference Include="../Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
     <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.FF8.KernelBin/Albeoris.Games.FF8.KernelBin.csproj" />
     <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.FF8.NamedicBin/Albeoris.Games.FF8.NamedicBin.csproj" />

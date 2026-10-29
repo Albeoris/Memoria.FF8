@@ -5,8 +5,10 @@ static class MacNativeClosure
 {
     internal sealed record Image(string Path, string[] Imports, string[] SearchPaths, uint MinimumVersion);
 
-    public static Image Read(string path)
+    public static Image Read(string path, string rid = "osx-x64")
     {
+        // CPU_TYPE_X86_64 or CPU_TYPE_ARM64; universal images are inspected through the matching slice.
+        (uint cpuType, string architecture) = rid == "osx-arm64" ? (0x0100000cu, "Apple Silicon arm64") : (0x01000007u, "Intel x64");
         using FileStream input = File.OpenRead(path);
         using BinaryReader reader = new(input, Encoding.UTF8, leaveOpen: true);
         uint magic = reader.ReadUInt32();
@@ -31,7 +33,7 @@ static class MacNativeClosure
                 {
                     _ = reader.ReadUInt32();
                 }
-                if (cpu == 0x01000007)
+                if (cpu == cpuType)
                 {
                     slice = checked((long)offset);
                     found = true;
@@ -40,14 +42,14 @@ static class MacNativeClosure
             }
             if (!found)
             {
-                throw new BadImageFormatException("Mach-O has no Intel x64 slice.");
+                throw new BadImageFormatException($"Mach-O has no {architecture} slice.");
             }
             input.Position = slice;
             magic = reader.ReadUInt32();
         }
-        if (magic != 0xfeedfacf || reader.ReadUInt32() != 0x01000007)
+        if (magic != 0xfeedfacf || reader.ReadUInt32() != cpuType)
         {
-            throw new BadImageFormatException("Expected a little-endian Intel x64 Mach-O slice.");
+            throw new BadImageFormatException($"Expected a little-endian {architecture} Mach-O slice.");
         }
         input.Position = slice + 16;
         uint commands = reader.ReadUInt32();
@@ -103,12 +105,12 @@ static class MacNativeClosure
         return new Image(path, imports.ToArray(), search.ToArray(), minimum);
     }
 
-    public static void Validate(string bundle)
+    public static void Validate(string bundle, string rid)
     {
         string[] paths = Directory.EnumerateFiles(bundle, "*", SearchOption.AllDirectories).Where(path => path.EndsWith(".dylib", StringComparison.Ordinal) || Path.GetFileName(path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" or "Memoria.PsfDecoder").ToArray();
         foreach (string path in paths)
         {
-            Image image = Read(path);
+            Image image = Read(path, rid);
             if (image.MinimumVersion > 0x001a0000)
             {
                 throw new InvalidDataException("The bundled native library requires a newer macOS version than the bundle declares: " + path);
@@ -117,7 +119,7 @@ static class MacNativeClosure
             {
                 if (!search.StartsWith("@loader_path", StringComparison.Ordinal) && !search.StartsWith("@executable_path", StringComparison.Ordinal))
                 {
-                    throw new InvalidDataException("Non-relocatable Mach-O search path: " + search);
+                    throw new InvalidDataException("Non-relocatable Mach-O search path: " + search + " in " + path);
                 }
             }
             foreach (string import in image.Imports)
@@ -145,7 +147,7 @@ static class MacNativeClosure
                 }
                 else
                 {
-                    throw new InvalidDataException("Non-relocatable Mach-O import: " + import);
+                    throw new InvalidDataException("Non-relocatable Mach-O import: " + import + " required by " + path);
                 }
                 if (!candidates.Any(candidate => Path.GetFullPath(candidate).StartsWith(Path.GetFullPath(bundle) + Path.DirectorySeparatorChar, StringComparison.Ordinal) && File.Exists(candidate)))
                 {

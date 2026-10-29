@@ -10,7 +10,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
 {
     public string RuntimeIdentifier { get; init; } = "win-x64";
     public int LayoutVersion { get; init; } = 1;
-    internal string LauncherEntryPoint => RuntimeIdentifier == "win-x64" ? LauncherPath : RuntimeIdentifier == "osx-x64" ? "Contents/MacOS/Memoria.Launcher" : "Memoria.Launcher";
+    internal string LauncherEntryPoint => RuntimeIdentifier == "win-x64" ? LauncherPath : Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) ? "Contents/MacOS/Memoria.Launcher" : "Memoria.Launcher";
     internal static StringComparer FileSystemComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     internal void ValidateTarget(string runtimeIdentifier)
@@ -61,7 +61,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
 
     internal void ValidatePaths()
     {
-        if ((SchemaVersion != 1 && SchemaVersion != 2) || LayoutVersion != 1 || RuntimeIdentifier is not ("win-x64" or "linux-x64" or "osx-x64") || (SchemaVersion == 1 && RuntimeIdentifier != "win-x64") || (SchemaVersion == 2 && RuntimeIdentifier == "win-x64") || string.IsNullOrWhiteSpace(BuildId) || string.IsNullOrWhiteSpace(Version) || BuiltAt == default || Files is null)
+        if ((SchemaVersion != 1 && SchemaVersion != 2) || LayoutVersion != 1 || RuntimeIdentifier is not ("win-x64" or "linux-x64" or "osx-x64" or "osx-arm64") || (SchemaVersion == 1 && RuntimeIdentifier != "win-x64") || (SchemaVersion == 2 && RuntimeIdentifier == "win-x64") || string.IsNullOrWhiteSpace(BuildId) || string.IsNullOrWhiteSpace(Version) || BuiltAt == default || Files is null)
         {
             throw new InvalidDataException("The distribution manifest has an unsupported schema or missing identity.");
         }
@@ -76,11 +76,11 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
             }
 
             ValidateFilePath(file.Path, false);
-            if (RuntimeIdentifier != "osx-x64" && file.Path.StartsWith("Contents/", StringComparison.Ordinal))
+            if (!Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) && file.Path.StartsWith("Contents/", StringComparison.Ordinal))
             {
                 throw new InvalidDataException("Bundle paths require the macOS runtime inventory.");
             }
-            if (RuntimeIdentifier == "osx-x64" && file.Path != "Contents/Info.plist" && !file.Path.StartsWith("Contents/MacOS/", StringComparison.Ordinal))
+            if (Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) && file.Path != "Contents/Info.plist" && !file.Path.StartsWith("Contents/MacOS/", StringComparison.Ordinal))
             {
                 throw new InvalidDataException("The macOS inventory contains a file outside the fixed bundle layout.");
             }
@@ -104,8 +104,8 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
             }
         }
 
-        string executablePrefix = RuntimeIdentifier == "osx-x64" ? "Contents/MacOS/" : "";
-        if (RuntimeIdentifier == "osx-x64" && !paths.Contains("Contents/Info.plist"))
+        string executablePrefix = Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) ? "Contents/MacOS/" : "";
+        if (Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) && !paths.Contains("Contents/Info.plist"))
         {
             throw new InvalidDataException("The macOS bundle has no Info.plist.");
         }

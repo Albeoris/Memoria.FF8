@@ -4,7 +4,7 @@
 
 ## A clean checkout
 
-Use PowerShell 7 and the .NET 10 SDK pinned by `global.json`. Complete self-contained distributions target Windows x64, Linux x64 and Intel macOS; see [Cross-platform desktop migration](cross-platform.md) and [Linux testing from Windows](linux-testing.md). Run commands from the directory containing `Build.ps1` and `Memoria.FF8.slnx`. Package restore needs access to the configured public NuGet feeds.
+Use PowerShell 7 and the .NET 10 SDK pinned by `global.json`. Complete self-contained distributions target Windows x64, Linux x64 and Intel macOS, and Apple Silicon Macs can build a local `osx-arm64` distribution; see [Cross-platform desktop migration](cross-platform.md) and [Linux testing from Windows](linux-testing.md). Run commands from the directory containing `Build.ps1` and `Memoria.FF8.slnx`. Package restore needs access to the configured public NuGet feeds.
 
 Game hosts also build the standalone PSF codec with CMake 3.20+ and a native C compiler (Visual Studio C++ tools on Windows). Its GPL source, build recipe and notices ship beside every host in `licenses/psf-decoder-source/`; no BIOS is bundled. For a cross-publish, supply a target-native codec directory through `MEMORIA_FF8_PSF_DECODER_DIRECTORY`; the publisher validates its target ABI. Otherwise build on the target OS. Ordinary C# audio-library and launcher-only builds do not require this codec build.
 
@@ -14,11 +14,31 @@ The codec's incremental CMake build lives under `artifacts/native/psf/<key>`, ke
 ./Build.ps1
 ./Build.ps1 -RuntimeIdentifier linux-x64
 ./Build.ps1 -RuntimeIdentifier osx-x64
+./Build.ps1 -RuntimeIdentifier osx-arm64
 ```
 
 The script publishes a self-contained x64 launcher, dispatcher and isolated Windows DX11/Vulkan/DX12 engines built from the same source, plus the common x64 music worker. Linux and macOS offer Vulkan. It checks the actual published dependency assemblies, native ABI and backend-specific embedded shaders before packaging, including embedded codepage and menu resources. Original game data, media tool binaries, saves and fixture inputs are not bundled. See [graphics host selection](graphics-backends.md) and [shader generation](shaders.md).
 
-Generated directories live under `artifacts/package/<RID>`. Linux produces `Memoria-FF8-linux-x64.tar.gz`; Intel macOS produces `Memoria-FF8-osx-x64.tar.gz` containing `Memoria.FF8.app`. The pinned MonoGame Mac runtime requires **macOS 26.0 on Intel**. An older Intel CI runner can build and statically inspect this payload; that does not establish a runtime pass. Unix archives preserve executable modes even when cross-published from Windows.
+Generated directories live under `artifacts/package/<RID>`. Linux produces `Memoria-FF8-linux-x64.tar.gz`; Intel macOS produces `Memoria-FF8-osx-x64.tar.gz` containing `Memoria.FF8.app`. The pinned MonoGame Mac runtime requires **macOS 26.0**. An older Intel CI runner can build and statically inspect this payload; that does not establish a runtime pass. Unix archives preserve executable modes even when cross-published from Windows.
+
+### macOS toolchain
+
+macOS distribution and launcher builds require Microsoft's .NET SDK (the `dotnet-sdk` Homebrew cask or the official installer). Homebrew's source-built `dotnet` formula publishes a runtime linked against Homebrew libraries, so the build stops early when it is active. The Homebrew `powershell` formula depends on that formula, so install PowerShell 7 as a .NET tool or from its official package instead:
+
+```bash
+brew uninstall powershell dotnet   # only if the formulae are installed
+brew install --cask dotnet-sdk
+hash -r
+dotnet --info | grep "Base Path"   # expect /usr/local/share/dotnet/sdk/...
+dotnet tool install --global PowerShell
+echo 'export PATH="$PATH:$HOME/.dotnet/tools"' >> ~/.zprofile
+export PATH="$PATH:$HOME/.dotnet/tools"
+pwsh ./Build.ps1
+```
+
+The official `powershell-<version>-osx-arm64.pkg` (or `-osx-x64.pkg`) from the [PowerShell releases](https://github.com/PowerShell/PowerShell/releases) is a self-contained alternative to the .NET tool. `Build.sh` does not yet run the MoltenVK, manifest and package-validation steps, so use `Build.ps1` for macOS packages.
+
+Apple Silicon Macs produce `Memoria-FF8-osx-arm64.tar.gz` with native arm64 executables; on a Mac, the default RID follows the hardware, including when the shell runs under Rosetta. This is a local build only: releases and CI do not publish it, so its launcher disables online updates. FFmpeg and FFprobe must then also be native arm64 (or universal) LGPL builds; Homebrew's `ffmpeg` enables GPL components and is rejected. On macOS the launcher's FFmpeg setup offers a pinned prebuilt LGPL FFmpeg 9.0.1 package first and, if that fails, offers to build FFmpeg 9.0.2 from the official source release (pinned SHA-256, signature checked against the FFmpeg release key when pinned) with LGPL-only, system-library configuration and only the encoders and muxers playback uses; it needs the Xcode Command Line Tools and writes `ffmpeg-build.log` beside the tools.
 
 Linux also builds the [locked native Vulkan runtime](../../vendor/MonoGame.Native.Vulkan/README.md), including the backbuffer-readback synchronization correction. Its recipe supports native Linux builds and Windows builds through a configured WSL2 distro. The Windows testing workflow prepares the native PSF codec and passes the selected distro to the Vulkan recipe. `./tools/Test-Linux.ps1 -SetupDependencies` installs ordinary Ubuntu native build dependencies; players need neither compilers nor SDKs. Verified native outputs and incremental CMake builds are reused.
 
@@ -52,7 +72,7 @@ For the complete Native graph, including all tool and test assemblies without ex
 dotnet build Memoria.FF8.Native.slnx -c Release -p:MemoriaTargetRuntime=linux-x64 -p:MemoriaGraphicsBackend=Vulkan -p:TargetFramework=net10.0 -p:SkipMusicHost=true -m:1 --artifacts-path artifacts/native-linux
 ```
 
-Use `osx-x64` for Intel Mac. `MemoriaTargetRuntime` chooses native packages at solution level; individual publishes use `-r`. Compilation includes battle-effect test assemblies; execution still requires an authorized affected-effect selection.
+Use `osx-x64` for Intel Mac and `osx-arm64` for a local Apple Silicon build. `MemoriaTargetRuntime` chooses native packages at solution level; individual publishes use `-r`. Compilation includes battle-effect test assemblies; execution still requires an authorized affected-effect selection.
 
 The required Albeoris.Frameworks source closure is included in [vendor/Albeoris.Frameworks](../../vendor/Albeoris.Frameworks/README.md), with its license, upstream revision and retained changes. No sibling checkout or submodule is needed. NuGet versions are centralized in [Directory.Packages.props](../../Directory.Packages.props).
 

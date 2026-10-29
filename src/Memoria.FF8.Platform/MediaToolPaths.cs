@@ -15,6 +15,16 @@ public static class MediaToolPaths
         {
             throw new ArgumentOutOfRangeException(nameof(platform));
         }
-        return Path.Combine(directory, toolName + (platform == HostPlatform.Windows ? ".exe" : ""));
+        string path = Path.Combine(directory, toolName + (platform == HostPlatform.Windows ? ".exe" : ""));
+        if (platform == HostPlatform.MacOS && !File.Exists(path))
+        {
+            // Shared-library macOS packages keep tools in bin/ because they load their libraries from @executable_path/../lib.
+            string packaged = Path.Combine(directory, "bin", toolName);
+            if (File.Exists(packaged))
+            {
+                return packaged;
+            }
+        }
+        return path;
     }
 }

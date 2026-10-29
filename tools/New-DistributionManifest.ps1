@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$PackageRoot,
-    [ValidateSet("win-x64", "linux-x64", "osx-x64")][string]$RuntimeIdentifier = "win-x64"
+    [ValidateSet("win-x64", "linux-x64", "osx-x64", "osx-arm64")][string]$RuntimeIdentifier = "win-x64"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,8 +19,8 @@ if ($env:GITHUB_ACTIONS -eq 'true') {
         $version = $env:GITHUB_REF_NAME
     }
 }
-$prefix = if ($RuntimeIdentifier -eq 'osx-x64') { 'Contents/MacOS/' } else { '' }
-if ($RuntimeIdentifier -eq 'osx-x64') {
+$prefix = if ($RuntimeIdentifier -like 'osx-*') { 'Contents/MacOS/' } else { '' }
+if ($RuntimeIdentifier -like 'osx-*') {
     & dotnet run --project (Join-Path $PSScriptRoot 'Memoria.FF8.Distribution.Check') -c Release -- --set-mac-bundle-version (Join-Path $root 'Contents/Info.plist') $version
     if ($LASTEXITCODE -ne 0) {
         throw 'The macOS bundle version could not be stamped before inventory generation.'

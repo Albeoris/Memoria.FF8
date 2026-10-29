@@ -85,7 +85,7 @@ From a source checkout, use Windows, PowerShell 7 and the .NET 10 SDK:
 
 This validates and packages the distribution. Run focused tests for the changed contract separately; see [Build and test](docs/developers/building-and-testing.md). The optional `-Test` switch runs broader checks, including the entire Runtime.Tests project and its battle-effect tests.
 
-The [cross-platform migration](docs/developers/cross-platform.md) adds portable core and self-contained launcher builds for Windows, Linux and Intel macOS. The complete playable distribution remains Windows DX11 at this stage. Windows developers can use [one-command Linux testing](docs/developers/linux-testing.md) through WSL2 or a configured SSH hardware target; real Linux GPU acceptance remains separate.
+The [cross-platform migration](docs/developers/cross-platform.md) adds portable core and self-contained launcher builds for Windows, Linux and macOS. Released macOS packages target Intel; Apple Silicon Macs can build a native `osx-arm64` package locally. The complete playable distribution remains Windows DX11 at this stage. Windows developers can use [one-command Linux testing](docs/developers/linux-testing.md) through WSL2 or a configured SSH hardware target; real Linux GPU acceptance remains separate.
 
 GitHub Actions serializes packaging by commit SHA. Main pushes, version tags and manual reruns reuse the same tested distribution, including when a tag is pushed after its main build finishes. Release and nightly publication both use that ZIP. Failed builds can be retried; a successful build is not repeated after an upload or publication failure.
 

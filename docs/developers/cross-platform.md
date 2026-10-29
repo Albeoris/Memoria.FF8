@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) / [Build and test](building-and-testing.md)
 
-Windows DX11, Vulkan and DX12 share portable services, presentation, launcher and audio. Linux and Intel macOS package the same Native game host with Vulkan. See [graphics hosts](graphics-backends.md) for selection and isolated payloads. A successful cross-publish is not evidence of desktop, audio-device or gameplay acceptance on that OS.
+Windows DX11, Vulkan and DX12 share portable services, presentation, launcher and audio. Linux and macOS (released Intel packages and local Apple Silicon builds) package the same Native game host with Vulkan. See [graphics hosts](graphics-backends.md) for selection and isolated payloads. A successful cross-publish is not evidence of desktop, audio-device or gameplay acceptance on that OS.
 
 ## Build surfaces
 
@@ -15,6 +15,7 @@ Use PowerShell 7 and the SDK selected by `global.json`:
 ./Build.ps1 -RuntimeIdentifier win-x64
 ./Build.ps1 -RuntimeIdentifier linux-x64
 ./Build.ps1 -RuntimeIdentifier osx-x64
+./Build.ps1 -RuntimeIdentifier osx-arm64
 ```
 
 `Portable` compiles `Memoria.FF8.Portable.slnx` against plain `net10.0`, including portable tool and test roots. Its test selection excludes unrelated battle effects. `Launcher` produces a launcher payload under `artifacts/launcher/<RID>`. `Distribution` compiles the complete Native solution graph and packages the launcher, bootstrap, applicable engines and common x64 music worker under `artifacts/package/<RID>`. Windows retains its released layout and immutable updater gate. The [build guide](building-and-testing.md) gives full Native graph commands.
@@ -28,7 +29,7 @@ Run `./tools/Get-PlatformInventory.ps1` for a project-level JSON inventory, or a
 | Projects | Current build/validation surface |
 | --- | --- |
 | Platform, Runtime, Resources, Assets, Mods, Ui, Events, Rendering, Media, Diagnostics | Portable solution; focused tests on the affected contracts |
-| Launcher | Avalonia `net10.0`; separate self-contained win-x64/linux-x64/osx-x64 publishes |
+| Launcher | Avalonia `net10.0`; separate self-contained win-x64/linux-x64/osx-x64 publishes; local-only osx-arm64 |
 | Audio and Music | Shared managed parser, sequencer, synthesizer and PCM mixer; native SDL3 device adapter; x64 worker |
 | TitleScene | Shared Native GPU renderer under `net10.0`; WindowsDX remains a separate build family |
 | TitleScene.Preview | Portable `--crest` output and Native Vulkan animated GPU preview |
@@ -53,7 +54,7 @@ Text run ordering uses the retained RichTextKit UAX #9 resolver; HarfBuzz shapes
 
 ## M0 and M5 feasibility findings
 
-MonoGame's [3.8.5 native backend announcement](https://monogame.net/blog/2026-07-15-3.8.5-release-2026/) identifies separate Native framework and Vulkan/DX12 runtime families. Version 3.8.5.1 NuGet payloads contain Windows and Linux x64 runtimes and an Intel slice in the macOS universal runtime. A bounded Windows Vulkan probe created and presented five clear frames successfully. This establishes device/window initialization only; it does not establish game rendering.
+MonoGame's [3.8.5 native backend announcement](https://monogame.net/blog/2026-07-15-3.8.5-release-2026/) identifies separate Native framework and Vulkan/DX12 runtime families. Version 3.8.5.1 NuGet payloads contain Windows and Linux x64 runtimes and Intel and arm64 slices in the macOS universal runtime. A bounded Windows Vulkan probe created and presented five clear frames successfully. This establishes device/window initialization only; it does not establish game rendering.
 
 The inspected `MonoGame.Runtime.Mac.Vulkan` 3.8.5.1 Intel slice declares macOS 26.0 in `LC_BUILD_VERSION`. An older baseline requires a separately verified runtime build or compatible upstream package. The Intel CI runner builds and statically validates the complete bundle, including executable modes, native imports and deployment versions. An older runner OS cannot establish macOS 26 runtime acceptance. Cocoa lifecycle, GPU/audio behavior and Metal portability require target acceptance.
 
@@ -63,17 +64,17 @@ Windows graphics hosts live in separate backend directories and select their fra
 
 ## Media tools and external acceptance
 
-FFmpeg and FFprobe are optional separately installed tools. Windows uses the existing checksummed BtbN LGPL ZIP setup. Linux setup selects the checksummed BtbN linux64 LGPL archive and preserves executable modes; that distribution requires glibc 2.28 and kernel 4.18 or newer. macOS currently provides an actionable manual installation route for matching Intel x64 FFmpeg/FFprobe, with the selected distribution's license and corresponding-source notices. Unix executables have no `.exe` suffix. No installation executes a Windows game or requires Wine.
+FFmpeg and FFprobe are optional separately installed tools. Windows uses the existing checksummed BtbN LGPL ZIP setup. Linux setup selects the checksummed BtbN linux64 LGPL archive and preserves executable modes; that distribution requires glibc 2.28 and kernel 4.18 or newer. FFmpeg does not publish macOS binaries itself. The macOS launcher first offers the LGPL variant of [dfloresc/ffmpeg-macos-builds v9.0.1-1](https://github.com/dfloresc/ffmpeg-macos-builds/releases/tag/v9.0.1-1) for the launcher's architecture (`arm64` or `x86_64`, macOS 12 or newer), pinned by SHA-256. That release is built in CI from checksum-pinned upstream sources without GPL or nonfree components and publishes the corresponding sources. Its tools load shared libraries through `@executable_path/../lib`, so setup installs `bin/ffmpeg`, `bin/ffprobe`, `lib/` (with the library version links), `LICENSES/` and `BUILDINFO.txt` together in the media-tools directory and skips the headers; on macOS, tool lookup falls back to `bin/<tool>` when no top-level tool exists. Setup records the entries it installed and never replaces a `bin/` or `lib/` it did not create. The installed tools must pass the usual LGPL validation and list the encoders and muxers playback uses. If the download or validation fails, the launcher offers to build FFmpeg 9.0.2 from the official source release instead: it verifies the pinned SHA-256, builds natively for the launcher's architecture with LGPL-only, system-library configuration (Xcode Command Line Tools required), and keeps the license notices and build log beside the tools. The build keeps FFmpeg's default decoders, demuxers, parsers and filters, but enables only the encoders (`rawvideo`, `pcm_s16le`) and muxers (`rawvideo`, `s16le`, `ivf`) that playback writes, without capture devices or network protocols; setup checks that the built `ffmpeg` lists them. Both downloads fail after 60 seconds without data, and setup can be cancelled from the launcher or by closing it. A matching native LGPL pair can also be installed manually. Unix executables have no `.exe` suffix. No installation executes a Windows game or requires Wine.
 
 Selection validates an explicitly configured directory first, then a valid managed installation, then a paired installation in a local absolute PATH directory. Discovery and executable validation run asynchronously; no PATH or system installation is modified. Both tools must have the current native x64 ABI and report their build configuration. GPL and nonfree configurations are rejected. An invalid managed pair does not hide a valid PATH pair; automatic repair writes only to the managed destination.
 
-Portable CI, package ABI checks and software-rendered output are separate from real-target acceptance. Linux GPU/window/fullscreen, controllers, audio synchronization and gameplay stability require native Linux hardware. Intel macOS startup, audio and graphics require an Intel Mac. WSL2 testing is a development convenience and cannot close those gates.
+Portable CI, package ABI checks and software-rendered output are separate from real-target acceptance. Linux GPU/window/fullscreen, controllers, audio synchronization and gameplay stability require native Linux hardware. Intel macOS startup, audio and graphics require an Intel Mac; the local Apple Silicon build requires an Apple Silicon Mac. WSL2 testing is a development convenience and cannot close those gates.
 
 ## Distribution layouts and prerequisites
 
 Windows preserves Memoria.Launcher.exe, Data/Memoria.FF8.exe and the real x64 worker at Data/audio-host/Memoria.FF8.Music.exe. Data/Game/dx11, vulkan and dx12 have separate runtime families and matching shaders. Linux uses corresponding extensionless executables and only Data/Game/vulkan. Extract Memoria-FF8-linux-x64.tar.gz with a mode-preserving archive tool and start ./Memoria.Launcher. A separately installed .NET runtime is unnecessary. Ubuntu 24.04 x64 is the CI baseline. A Vulkan-capable driver, desktop session, font/fontconfig, X11/Wayland dependencies and working audio are required; [Linux testing](linux-testing.md) gives explicit dependency setup and diagnostics.
 
-Intel macOS requires macOS 26.0 and a Metal-capable Intel Mac compatible with MoltenVK. Extract Memoria-FF8-osx-x64.tar.gz and move Memoria.FF8.app to a writable location. Its executable root is Contents/MacOS, with bootstrap/game/audio under Data; Contents/Info.plist declares the deployment baseline. Builds include official [MoltenVK 1.4.2](https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2), verified against a pinned SHA-256, and its license. The app selects that bundled library explicitly; no Vulkan SDK or Homebrew installation is required. Artifacts are unsigned and not notarized; Gatekeeper approval remains a user action. Signing credentials must stay outside the repository and PR jobs.
+Intel macOS requires macOS 26.0 and a Metal-capable Intel Mac compatible with MoltenVK. Extract Memoria-FF8-osx-x64.tar.gz and move Memoria.FF8.app to a writable location. Its executable root is Contents/MacOS, with bootstrap/game/audio under Data; Contents/Info.plist declares the deployment baseline. A local `osx-arm64` build uses the same bundle layout with native Apple Silicon executables; it is not released and cannot update itself. Builds include official [MoltenVK 1.4.2](https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2), verified against a pinned SHA-256, and its license. The app selects that bundled library explicitly; no Vulkan SDK or Homebrew installation is required. Artifacts are unsigned and not notarized; Gatekeeper approval remains a user action. Signing credentials must stay outside the repository and PR jobs.
 
 Descriptors record RID, layout, entry points, complete SHA-256 inventory and Unix modes. Windows retains schema 1 for released-updater compatibility; Unix uses schema 2. The music worker and every offered graphics host are mandatory inventory entries. Validation rejects links, traversal, duplicate/colliding entries, excessive expansion and foreign native architecture. macOS static validation checks bundled Mach-O imports and LC_RPATH, rejects developer-machine paths, verifies the Vulkan/Metal provider and compares native deployment versions with Info.plist.
 

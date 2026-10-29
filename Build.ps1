@@ -4,7 +4,7 @@ param(
     [string]$Configuration = 'Release',
     [ValidateSet('Distribution', 'Portable', 'Launcher')]
     [string]$Scope = 'Distribution',
-    [ValidateSet('', 'win-x64', 'linux-x64', 'osx-x64')]
+    [ValidateSet('', 'win-x64', 'linux-x64', 'osx-x64', 'osx-arm64')]
     [string]$RuntimeIdentifier = '',
     [switch]$Test
 )
@@ -13,7 +13,15 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 if (!$RuntimeIdentifier) {
-    $RuntimeIdentifier = if ([OperatingSystem]::IsWindows()) { 'win-x64' } elseif ([OperatingSystem]::IsLinux()) { 'linux-x64' } elseif ([OperatingSystem]::IsMacOS()) { 'osx-x64' } else { throw 'Unsupported desktop host.' }
+    $RuntimeIdentifier = if ([OperatingSystem]::IsWindows()) { 'win-x64' } elseif ([OperatingSystem]::IsLinux()) { 'linux-x64' } elseif ([OperatingSystem]::IsMacOS()) { if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'osx-arm64' } else { 'osx-x64' } } else { throw 'Unsupported desktop host.' }
+}
+
+if ($RuntimeIdentifier -like 'osx-*' -and $Scope -ne 'Portable') {
+    # Homebrew's source-built SDK publishes its own runtime, which links Homebrew libraries and cannot ship in the bundle.
+    $basePath = @(& dotnet --info | Select-String -Pattern '^\s*Base Path:\s*(.+)$' -List)
+    if ($basePath.Count -eq 1 -and $basePath[0].Matches[0].Groups[1].Value -match '/(Cellar|opt)/dotnet/') {
+        throw "The active .NET SDK is Homebrew's source-built 'dotnet' formula ($($basePath[0].Matches[0].Groups[1].Value.Trim())). Self-contained macOS publishes would link /opt/homebrew libraries. Install Microsoft's SDK instead (brew uninstall dotnet; brew install --cask dotnet-sdk, or https://dotnet.microsoft.com/download) and make it the first dotnet on PATH."
+    }
 }
 
 function Invoke-DotNet {
@@ -56,7 +64,7 @@ $artifacts = Join-Path $root 'artifacts'
 $package = Join-Path $artifacts ('package/' + $RuntimeIdentifier)
 $staging = Join-Path $artifacts ('staging-' + [Guid]::NewGuid().ToString('N'))
 $payload = $staging
-if ($RuntimeIdentifier -eq 'osx-x64') {
+if ($RuntimeIdentifier -like 'osx-*') {
     $payload = Join-Path $staging 'Memoria.FF8.app/Contents/MacOS'
 }
 $data = Join-Path $payload 'Data'
@@ -135,7 +143,7 @@ try {
             New-Item -ItemType Directory -Force -Path $nativeNotices | Out-Null
             Get-ChildItem -LiteralPath (Join-Path $nativeDirect3D12 'licenses') -Force | Copy-Item -Destination $nativeNotices -Recurse -Force
         }
-        if ($RuntimeIdentifier -eq 'osx-x64') {
+        if ($RuntimeIdentifier -like 'osx-*') {
             & (Join-Path $root 'tools/Get-MoltenVK.ps1') -Destination $hostOutput
         }
         Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', $hostOutput, $RuntimeIdentifier)
@@ -232,11 +240,15 @@ try {
             }
         }
     }
-    if ($RuntimeIdentifier -eq 'osx-x64') {
+    if ($RuntimeIdentifier -like 'osx-*') {
         $plist = Join-Path $staging 'Memoria.FF8.app/Contents/Info.plist'
         Copy-Item -LiteralPath (Join-Path $root 'tools/packaging/Info.plist') -Destination $plist
+        if ($RuntimeIdentifier -eq 'osx-arm64') {
+            # Apple Silicon bundles contain only arm64 executables.
+            [IO.File]::WriteAllText($plist, [IO.File]::ReadAllText($plist).Replace('<key>LSArchitecturePriority</key><array><string>x86_64</string></array>', '<key>LSArchitecturePriority</key><array><string>arm64</string></array>'))
+        }
     }
-    $manifestRoot = if ($RuntimeIdentifier -eq 'osx-x64') { Join-Path $staging 'Memoria.FF8.app' } else { $payload }
+    $manifestRoot = if ($RuntimeIdentifier -like 'osx-*') { Join-Path $staging 'Memoria.FF8.app' } else { $payload }
     & (Join-Path $root 'tools/New-DistributionManifest.ps1') -PackageRoot $manifestRoot -RuntimeIdentifier $RuntimeIdentifier
 
     # Replace only this script's known output directory after every publish succeeds.

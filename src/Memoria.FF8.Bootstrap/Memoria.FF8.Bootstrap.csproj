@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Memoria.FF8</AssemblyName>
     <RootNamespace>Memoria.FF8.Bootstrap</RootNamespace>
-    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget>$(MemoriaTargetArchitecture)</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
