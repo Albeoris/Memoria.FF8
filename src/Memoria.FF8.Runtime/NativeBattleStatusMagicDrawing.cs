@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The distinct6BDB90/6BED30 part contracts over the shared701970 record and7043B0 packet kernel.</summary>
 public static class NativeBattleStatusMagicDrawing
 {
-    public static NativeBattleStatusMagicFrame Draw(NativeBattleStatusMagicFrame frame, NativeBattleStatusMagicResources resources, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleVector anchor, int depth, NativeBattleStatusMagicInputs inputs)
+    public static NativeBattleStatusMagicFrame Draw(NativeBattleStatusMagicFrame frame, NativeBattleStatusMagicResources resources, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleVector anchor, int depth, NativeBattleStatusMagicInputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -44,7 +44,7 @@ public static class NativeBattleStatusMagicDrawing
         NativeBattleActionMatrix matrix = Matrix(resources.Effect, node, anchor, inputs.Projection.View ?? throw new NotSupportedException("Native status layout requires its published battle camera matrix."));
         uint flags = node.Scalar36 == 0 ? 0x2030u : 0x20F0u;
         int bias = resources.Effect == 122 && node.GeometryIndex == 4 ? unchecked(depth - 0x20) : depth;
-        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(data, geometry, selected, matrix, inputs.Projection, new(flags, node.Color32, node.Scalar36, null, null, bias, 17, 2), inputs.Colors);
+        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(data, geometry, selected, matrix, inputs.Projection, new(flags, node.Color32, node.Scalar36, null, null, bias, 17, 2), inputs.Colors, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + node.NodeIndex) } : null);
         return inputs.Execute(frame, new NativeBattleStatusMagicPackets(batch));
     }
 

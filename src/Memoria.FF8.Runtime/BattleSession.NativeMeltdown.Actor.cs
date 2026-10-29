@@ -29,7 +29,7 @@ public sealed partial class BattleSession
             NativeBattleShadowSource shadowSource = rules.Rules.ShadowSource ?? throw new NotSupportedException("Native Meltdown shadow requires its original template.");
             NativeBattleShadowGeometry shadow = NativeBattlePoseMatrices.ShadowGeometry5088A0(actor, bounds, view, shadowSource, capabilities.GouraudAlpha);
             NativeBattleModuleProjectedVertex[] projected = shadow.Vertices.Select(point => NativeBattleModuleProjection.Project45FE10(shadow.CameraMatrix, point, projection)).ToArray();
-            NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(projected, actor.Color44 ?? throw new NotSupportedException("Native Meltdown shadow requires its current packed model color."), capabilities.GouraudAlpha, 0x1010, 16);
+            NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(projected, actor.Color44 ?? throw new NotSupportedException("Native Meltdown shadow requires its current packed model color."), capabilities.GouraudAlpha, 0x1010, 16, shadow.Vertices.Select(point => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shadow.CameraMatrix, point), projection)).ToArray(), request.PilotIdentity is { } shadowIdentity ? shadowIdentity with { Primitive = -1 } : null);
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
             process = written.Process;
             primitive = primitive with { Pending = written.Ordering };
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Native Meltdown world vertices exceed their loaded scratch capacity.");
             }
             NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native Meltdown requires its canonical shared vertex bytes.")).Write(scratch, vertices.AsSpan());
-            NativeBattleGfGeometryBatch batch = NativeBattleMeltdownGeometry.Emit612B40(mesh, vertices, view, projection, color);
+            NativeBattleGfGeometryBatch batch = NativeBattleMeltdownGeometry.Emit612B40(mesh, vertices, view, projection, color, request.PilotIdentity is { } bodyIdentity ? bodyIdentity with { Primitive = 0x10000 + meshIndex } : null);
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
             process = written.Process;
             primitive = primitive with { Pending = written.Ordering };
@@ -76,7 +76,7 @@ public sealed partial class BattleSession
             if (gate.Draw)
             {
                 process = process.PublishModelColor(color);
-                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(DiablosRelocate(linked, actor.LinkedTextureSlots, resource.GeometryRelocated507550), linkedBones, projection, color, uint.MaxValue, new byte[capacity].ToImmutableArray(), colors, 4);
+                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(DiablosRelocate(linked, actor.LinkedTextureSlots, resource.GeometryRelocated507550), linkedBones, projection, color, uint.MaxValue, new byte[capacity].ToImmutableArray(), colors, 4, pilotIdentity: request.PilotIdentity is { } linkedIdentity ? linkedIdentity with { Primitive = 0x20000 } : null);
                 if (drawn.ProjectedBytesWritten != 0)
                 {
                     NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native Meltdown linked projection requires its canonical shared vertex bytes.")).Write(scratch, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));

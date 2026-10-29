@@ -405,12 +405,12 @@ public static partial class NativeBattleTripleController
         private void AdvanceOverlay()
         {
             task = NativeBattleEnhancementMeshPhases.Overlay(task);
-            Execute(new NativeBattleTriplePackets(NativeBattleEffectOverlayPackets.Emit89F950(task, inputs.Projection), 1));
+            Execute(new NativeBattleTriplePackets(NativeBattleEffectOverlayPackets.Emit89F950(task, inputs.Projection, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(21, task)), 1));
         }
 
         private void DrawMesh()
         {
-            NativeBattleGfGeometryBatch? batch = NativeBattleEnhancementDraws.EmitMesh(task, meshAddress => meshAddress == 0x1627970 ? (Frame.Memory.TripleMorph ?? throw new NotSupportedException("Native Triple draw requires current1627970 bytes.")).Bytes : resources.Meshes.Single(mesh => mesh.Address == meshAddress).Bytes, inputs.Projection, inputs.Colors);
+            NativeBattleGfGeometryBatch? batch = NativeBattleEnhancementDraws.EmitMesh(task, meshAddress => meshAddress == 0x1627970 ? (Frame.Memory.TripleMorph ?? throw new NotSupportedException("Native Triple draw requires current1627970 bytes.")).Bytes : resources.Meshes.Single(mesh => mesh.Address == meshAddress).Bytes, inputs.Projection, inputs.Colors, NativeBattlePilotVisualLifetimes.Identity(21, task));
             if (batch is not null)
             {
                 Execute(new NativeBattleTriplePackets(batch));
@@ -419,7 +419,7 @@ public static partial class NativeBattleTripleController
 
         private void DrawOrientedSprite(bool flat)
         {
-            NativeBattleModuleDraw? draw = NativeBattleEnhancementDraws.OrientedSprite(task, sprite => resources.Sprites.Single(resource => resource.Address == sprite), flat ? 0x1626CC8u : null);
+            NativeBattleModuleDraw? draw = NativeBattleEnhancementDraws.OrientedSprite(task, sprite => resources.Sprites.Single(resource => resource.Address == sprite), flat ? 0x1626CC8u : null, NativeBattlePilotVisualLifetimes.Identity(21, task));
             if (draw is not null)
             {
                 Execute(new NativeBattleTripleSprite(draw));
@@ -428,7 +428,7 @@ public static partial class NativeBattleTripleController
 
         private void DrawBillboard()
         {
-            NativeBattleModuleDraw? draw = NativeBattleEnhancementDraws.Billboard(task, sprite => resources.Sprites.Single(resource => resource.Address == sprite));
+            NativeBattleModuleDraw? draw = NativeBattleEnhancementDraws.Billboard(task, sprite => resources.Sprites.Single(resource => resource.Address == sprite), NativeBattlePilotVisualLifetimes.Identity(21, task));
             if (draw is not null)
             {
                 Execute(new NativeBattleTripleSprite(draw));

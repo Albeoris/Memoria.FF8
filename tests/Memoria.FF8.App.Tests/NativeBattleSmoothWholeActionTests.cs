@@ -27,6 +27,9 @@ public sealed class NativeBattleSmoothWholeActionTests
     [InlineData((ushort)38, 17)]
     [InlineData((ushort)146, 18)]
     [InlineData((ushort)149, 19)]
+    [InlineData((ushort)107, 13)]
+    [InlineData((ushort)39, 44)]
+    [InlineData((ushort)148, 49)]
     public void Original_elemental_action_preserves_native_duration_events_and_whole_action_contracts(ushort effect, int action)
     {
         AssertWholeAction(effect, action, false);
@@ -43,9 +46,16 @@ public sealed class NativeBattleSmoothWholeActionTests
     [InlineData((ushort)106, 31)]
     [InlineData((ushort)125, 35)]
     [InlineData((ushort)123, 36)]
+    [InlineData((ushort)109, 28)]
+    [InlineData((ushort)111, 32)]
+    [InlineData((ushort)4, 33)]
+    [InlineData((ushort)21, 34)]
+    [InlineData((ushort)119, 37)]
+    [InlineData((ushort)121, 38)]
+    [InlineData((ushort)122, 41)]
     public void Original_status_action_preserves_native_duration_events_and_whole_action_contracts(ushort effect, int action)
     {
-        AssertWholeAction(effect, action, false, partyTarget: effect != 123);
+        AssertWholeAction(effect, action, false, partyTarget: effect is 1 or 25 or 28 or 147 or 24 or 32 or 33 or 106 or 125 or 111 or 4 or 21);
     }
 
     [Theory]

@@ -150,11 +150,11 @@ public sealed partial class BattleSession
             }
             if ((uint)(frame - 20) < 6)
             {
-                DrawSprite(0x12EC358, frame - 20, anchor, 8192, -2048);
+                DrawSprite(0x12EC358, frame - 20, anchor, 8192, -2048, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(107, task, 1));
             }
             if ((uint)(frame - 23) < 6)
             {
-                DrawSprite(0x12EC8F8, frame - 23, anchor, 8192, -2048);
+                DrawSprite(0x12EC8F8, frame - 23, anchor, 8192, -2048, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(107, task, 2));
             }
             if (frame == 23)
             {
@@ -175,7 +175,7 @@ public sealed partial class BattleSession
                 {
                     short x = unchecked((short)((short)center.Screen >> 3));
                     short y = unchecked((short)((short)(center.Screen >> 16) >> 3));
-                    (NativeBattleGraphicsState drawn, short radius) = DrawNativeEffect107Model(graphics with { OriginalEffect = effect }, model, x, y, Effect107Word(task, 16), intensity);
+                    (NativeBattleGraphicsState drawn, short radius) = DrawNativeEffect107Model(graphics with { OriginalEffect = effect }, model, x, y, Effect107Word(task, 16), intensity, NativeBattlePilotVisualLifetimes.Identity(107, task, 3));
                     graphics = drawn;
                     effect = graphics.OriginalEffect!;
                     task = task.WriteWord(16, unchecked((ushort)radius));
@@ -245,7 +245,7 @@ public sealed partial class BattleSession
             int angle = Effect107Word(task, 20);
             int radius = Effect107Word(task, 22);
             (int X, int Y, int Z) cameraPoint = (unchecked(x + view.X + (NativeBattleCameraMath.Sine(angle) * radius >> 12)), unchecked(y + view.Y + (NativeBattleCameraMath.Cosine(angle) * radius >> 12)), unchecked(z + view.Z));
-            DrawSprite(0x12EC7CC, task.ReadWord(12), default, 4096, 0, 1, unchecked((short)angle), cameraPoint);
+            DrawSprite(0x12EC7CC, task.ReadWord(12), default, 4096, 0, 1, unchecked((short)angle), cameraPoint, NativeBattlePilotVisualLifetimes.Identity(107, task));
             short velocity = unchecked((short)(Effect107Word(task, 24) + Effect107Word(task, 26)));
             radius = unchecked((short)(radius + velocity));
             task = task.WriteWord(24, unchecked((ushort)velocity)).WriteWord(22, unchecked((ushort)radius));
@@ -267,7 +267,7 @@ public sealed partial class BattleSession
             NativeBattleVector position = NativeBattleGfMatrices.RotateShort56C4F0(rotation, local);
             NativeBattleVector origin = Effect107Vector(parent, 24);
             position = new(unchecked((short)(position.X + origin.X)), unchecked((short)(position.Y + origin.Y)), unchecked((short)(position.Z + origin.Z)));
-            DrawSprite(0x12EC6D4, 1, position, 4096, -1024);
+            DrawSprite(0x12EC6D4, 1, position, 4096, -1024, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(107, task));
             task = task.WriteWord(20, unchecked((ushort)(angle + 8)));
             if (Effect107Word(parent, 50) < 512)
             {
@@ -280,7 +280,7 @@ public sealed partial class BattleSession
         int AdvanceSpray(ref NativeBattleModulePoolTask task)
         {
             int scale = Effect107Word(task, 26);
-            DrawSprite(task.ReadDword(16), task.ReadWord(12), Effect107Vector(task, 20), scale, -(scale >> 2));
+            DrawSprite(task.ReadDword(16), task.ReadWord(12), Effect107Vector(task, 20), scale, -(scale >> 2), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(107, task));
             task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
             return Effect107Word(task, 12) < Effect107Word(task, 14) ? 0 : 2;
         }
@@ -316,10 +316,10 @@ public sealed partial class BattleSession
             return pools[1].Slots[(int)(offset / 664)];
         }
         NativeBattleModulePoolTask TargetWorkspace(uint address) => Target(checked(address - 32));
-        void DrawSprite(uint address, int phase, NativeBattleVector anchor, int scale, int depth, ushort flags = 0, short rotation = 0, (int X, int Y, int Z)? cameraTranslation = null)
+        void DrawSprite(uint address, int phase, NativeBattleVector anchor, int scale, int depth, ushort flags = 0, short rotation = 0, (int X, int Y, int Z)? cameraTranslation = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleModuleResource resource = resources.Sprites.Single(sprite => sprite.Address == address);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Phase = checked((ushort)phase), Anchor = new(anchor.X, anchor.Y, anchor.Z, 0), Scale = scale, DepthOffset = depth, Direction = 4096, SpriteFlags = flags, Rotation = rotation };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Phase = checked((ushort)phase), Anchor = new(anchor.X, anchor.Y, anchor.Z, 0), Scale = scale, DepthOffset = depth, Direction = 4096, SpriteFlags = flags, Rotation = rotation, PilotIdentity = pilotIdentity };
             NativeBattleCameraProjection projection = NativeCamera!.Projection!;
             if (cameraTranslation is { } translated)
             {
@@ -327,6 +327,11 @@ public sealed partial class BattleSession
                 projection = projection with { View = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096) };
             }
             NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2);
+            if (cameraTranslation is not null)
+            {
+                NativeBattleCameraProjection displayProjection = NativeCamera!.Projection!;
+                batch = batch with { Primitives = batch.Primitives.Select(allocated => allocated.Primitive.PilotGeometry is { } geometry ? allocated with { Primitive = allocated.Primitive with { PilotGeometry = NativeBattleEffect107Geometry.RebaseCameraGeometry(geometry, displayProjection) } } : allocated).ToImmutableArray() };
+            }
             NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame!;
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, frame.Pending, batch, NativeBattleEffectGouraudWrites.FullDword);
             NativeEffectMemory = written.Memory;

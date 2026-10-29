@@ -86,13 +86,15 @@ public static class NativeBattleDrain39Nodes
                 ushort geometryCursor = frame.State.GeometryCursor ?? throw new NotSupportedException("Native Drain geometry scan WORD is unknown.");
                 NativeBattleEffectNodeInputs callbacks = new((frame.Memory.SharedEffectView2793E58 ?? throw new NotSupportedException("The siphon nodes require their actual packed shared view.")).ReadMatrix(), inputs.ReadModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, first, 40, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, second, 140, ref geometryCursor, emitter, source));
                 NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, callbacks);
+                NativeBattlePilotVisualIdentity? pilotIdentity = profile.Effect == 39 ? NativeBattlePilotVisualLifetimes.Identity(39, task) : null;
+                NativeBattleEffectNodePreparePilotMesh? preparePilotMesh = pilotIdentity.HasValue ? (node, source) => NativeBattleEffect88MeshPreparation.PreparePilot(memory, node, source, projection, colors) : null;
                 _ = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, (node, source) => NativeBattleEffect88MeshPreparation.Prepare(memory, node, source, projection, colors), (_, batch) =>
                 {
                     NativeBattleEffectPacketWrite packets = NativeBattleEffectPacketArena.Append(memory.CaptureProcessMemory(), frame.State.PrimaryDrawCursor ?? throw new NotSupportedException("The siphon nodes require their current private packet cursor."), ordering, batch);
                     memory.PublishProcessMemory(packets.Memory);
                     frame = frame with { State = frame.State with { PrimaryDrawCursor = packets.Cursor } };
                     ordering = packets.Ordering;
-                });
+                }, pilotIdentity, preparePilotMesh);
                 NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
                 bank.Publish();
                 frame = frame with { Memory = written.Memory, Effect = written.Effect, State = frame.State with { EmitterCursor = emitterCursor, GeometryCursor = geometryCursor } };

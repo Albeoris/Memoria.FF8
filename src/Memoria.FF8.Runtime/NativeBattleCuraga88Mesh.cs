@@ -26,13 +26,13 @@ public static class NativeBattleCuraga88Mesh
         return context;
     }
 
-    public static NativeBattleCuraga88MeshStep EmitBatch(ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context88, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
+    public static NativeBattleCuraga88MeshStep EmitBatch(ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context88, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader reader = new(mesh);
-        return EmitBatch(reader, meshAddress, matrix, projection, context88, registers, farControls, dqa, dqb, zsf4, constants, matrixPadding18, zsf3, readVertexW, selectedVerticesAddress, readSelectedVertex);
+        return EmitBatch(reader, meshAddress, matrix, projection, context88, registers, farControls, dqa, dqb, zsf4, constants, matrixPadding18, zsf3, readVertexW, selectedVerticesAddress, readSelectedVertex, pilotIdentity);
     }
 
-    internal static NativeBattleCuraga88MeshStep EmitBatch(NativeBattleGfSourceReader mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context88, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
+    internal static NativeBattleCuraga88MeshStep EmitBatch(NativeBattleGfSourceReader mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context88, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ValidateContext(context88);
         matrix.Validate();
@@ -82,10 +82,15 @@ public static class NativeBattleCuraga88Mesh
             {
                 byte[] face = Read(cursor, faceBytes).ToArray();
                 NativeBattleModuleProjectedVertex[] corners = new NativeBattleModuleProjectedVertex[4];
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[quad ? 4 : 3] : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     (NativeBattleVector vertex, short? w) = Vertex(face, corner);
                     registers = NativeBattleGeometry.LoadVector(registers, corner, vertex, w);
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex), projection);
+                    }
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, dqa, dqb);
                 uint firstFlags = registers.Colors.Flags ?? throw new NotSupportedException("Native Curaga mesh requires the current triple projection flags.");
@@ -112,6 +117,10 @@ public static class NativeBattleCuraga88Mesh
                     }
                     (NativeBattleVector vertex, short? w) = Vertex(face, 3);
                     registers = NativeBattleGeometry.LoadVector(registers, 0, vertex, w);
+                    if (world is not null)
+                    {
+                        world[3] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex), projection);
+                    }
                     registers = NativeBattleGeometry.ProjectSingle(registers, projection, dqa, dqb);
                     corners[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
                     registers = NativeBattleGeometry.Average45E610(registers, zsf4 ?? throw new NotSupportedException("Native Curaga mesh requires the current ZSF4 control."));
@@ -157,7 +166,12 @@ public static class NativeBattleCuraga88Mesh
                     }
                     foreach (NativeBattleGfGeometryAttempt attempt in faceBatch.Attempts)
                     {
-                        attempts.Add(attempt.Primitive is null ? attempt : attempt with { Primitive = attempt.Primitive with { Bucket = bucket } });
+                        NativeBattleGfGeometryAttempt captured = attempt.Primitive is null ? attempt : attempt with { Primitive = attempt.Primitive with { Bucket = bucket } };
+                        if (pilotIdentity is { } identity && world is not null && captured.Primitive is { } primitive)
+                        {
+                            captured = captured with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)world.Length)) } };
+                        }
+                        attempts.Add(captured);
                     }
                 }
                 else

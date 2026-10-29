@@ -60,12 +60,17 @@ public static class NativeBattleMeltdownGeometry
         return result.ToImmutableArray();
     }
 
-    public static NativeBattleGfGeometryBatch Emit612B40(NativeBattleRawMesh mesh, ImmutableArray<byte> world, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, uint color)
+    public static NativeBattleGfGeometryBatch Emit612B40(NativeBattleRawMesh mesh, ImmutableArray<byte> world, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, uint color, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
+        int polygonIndex = 0;
+        System.Numerics.Vector3[]? pilotWorld = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
+        int pilotCorner = 0;
         foreach (NativeBattleRawPolygon polygon in mesh.Polygons)
         {
+            int sourcePolygon = polygonIndex++;
+            pilotCorner = 0;
             int corners = polygon.Quad ? 4 : 3;
             if (polygon.Bytes.Length != (polygon.Quad ? 20 : 16))
             {
@@ -109,7 +114,8 @@ public static class NativeBattleMeltdownGeometry
             int bucket = checked(17 + ((int)average >> 2));
             ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
             ImmutableArray<int> depths = polygon.Quad ? [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, vertices[3].Depth] : [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, 0];
-            attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), new(bucket, words, depths)));
+            NativeBattlePilotVisualGeometry? visual = pilotIdentity is { } identity ? new(identity with { Primitive = unchecked(identity.Primitive * 65537 + sourcePolygon) }, pilotWorld![0], pilotWorld[1], pilotWorld[2], polygon.Quad ? pilotWorld[3] : default, (byte)corners) : null;
+            attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), new(bucket, words, depths) { PilotGeometry = visual }));
             allocated += length;
 
             void Put(int offset, uint value)
@@ -123,7 +129,12 @@ public static class NativeBattleMeltdownGeometry
         NativeBattleModuleProjectedVertex Project(int index)
         {
             ReadOnlySpan<byte> bytes = world.AsSpan().Slice(index * 8, 6);
-            return NativeBattleModuleProjection.Project45FE10(camera, new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..])), projection);
+            NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..]));
+            if (pilotWorld is not null)
+            {
+                pilotWorld[pilotCorner++] = new(point.X, point.Y, point.Z);
+            }
+            return NativeBattleModuleProjection.Project45FE10(camera, point, projection);
         }
     }
 }

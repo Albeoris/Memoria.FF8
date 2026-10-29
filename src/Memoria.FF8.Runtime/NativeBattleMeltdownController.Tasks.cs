@@ -80,7 +80,7 @@ public static partial class NativeBattleMeltdownController
         {
             int age = S(task, 12);
             int actor = S(task, 24);
-            Emit(new NativeBattleMeltdownActor(actor, Anchor(Target(S(task, 14))), Anchor(0x2466630), age < 28 ? age * 81 : 0x305B - age * 364, age < 34));
+            Emit(new NativeBattleMeltdownActor(actor, Anchor(Target(S(task, 14))), Anchor(0x2466630), age < 28 ? age * 81 : 0x305B - age * 364, age < 34) { PilotIdentity = drawingIdentity });
             if (inputs.DrawOnly)
             {
                 return false;
@@ -99,7 +99,7 @@ public static partial class NativeBattleMeltdownController
             int age = S(task, 12);
             int fade = age < 8 ? (8 - age) << 9 : age >= 65 ? (age - 65) << 9 : 0;
             NativeBattleActionMatrix matrix = ScaleFrame(S(task, 14), task.ReadWord(28), task.ReadWord(28));
-            Emit(new NativeBattleMeltdownPackets(NativeBattleMeltdownDrawing.Prim612EE0(resources.Disc, matrix, inputs.Projection, inputs.Colors, age < 8 || age >= 65 ? 0xF0u : 0x30u, fade, 0, -12 * age, 0, 0x80, 0x80, 0x80)));
+            Emit(new NativeBattleMeltdownPackets(NativeBattleMeltdownDrawing.Prim612EE0(resources.Disc, matrix, inputs.Projection, inputs.Colors, age < 8 || age >= 65 ? 0xF0u : 0x30u, fade, 0, -12 * age, 0, 0x80, 0x80, 0x80, drawingIdentity)));
             if (inputs.DrawOnly)
             {
                 return false;
@@ -115,9 +115,9 @@ public static partial class NativeBattleMeltdownController
             uint flags = age < 6 || age >= 32 ? 0xF0u : 0x30u;
             int size = task.ReadWord(28);
             NativeBattleActionMatrix matrix = ScaleFrame(S(task, 14), size, 0x4000);
-            Emit(new NativeBattleMeltdownPackets(NativeBattleMeltdownDrawing.Prim612EE0(resources.FlatGlow, matrix, inputs.Projection, inputs.Colors, flags, fade, age * 24, 0, 0, 0, 0x80, 0x80)));
+            Emit(new NativeBattleMeltdownPackets(NativeBattleMeltdownDrawing.Prim612EE0(resources.FlatGlow, matrix, inputs.Projection, inputs.Colors, flags, fade, age * 24, 0, 0, 0, 0x80, 0x80, drawingIdentity)));
             matrix = ScaleFrame(S(task, 14), size, size);
-            Emit(new NativeBattleMeltdownPackets(NativeBattleMeltdownDrawing.Prim612EE0(resources.Glow, matrix, inputs.Projection, inputs.Colors, flags, fade, 0, age * 8, 0x40, 0, 0x40, 0x80)));
+            Emit(new NativeBattleMeltdownPackets(NativeBattleMeltdownDrawing.Prim612EE0(resources.Glow, matrix, inputs.Projection, inputs.Colors, flags, fade, 0, age * 8, 0x40, 0, 0x40, 0x80, drawingIdentity with { Primitive = 1 })));
             if (inputs.DrawOnly)
             {
                 return false;

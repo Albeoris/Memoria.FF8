@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleAuraDrawing
 {
-    public static NativeBattleAuraFrame Part(NativeBattleAuraFrame frame, NativeBattleAuraResources resources, NativeBattleGfAnimationNode node, NativeBattleActionMatrix placement, NativeBattleAuraInputs inputs)
+    public static NativeBattleAuraFrame Part(NativeBattleAuraFrame frame, NativeBattleAuraResources resources, NativeBattleGfAnimationNode node, NativeBattleActionMatrix placement, NativeBattleAuraInputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -55,11 +55,11 @@ public static class NativeBattleAuraDrawing
             mode |= 0xC0;
             frame = PublishFar(frame, node.Color32);
         }
-        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(data, geometry, selected, matrix, inputs.Projection, new(mode, node.Scalar36 == 0 ? null : node.Color32, node.Scalar36, null, null, null, 17, 2), inputs.Colors);
+        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(data, geometry, selected, matrix, inputs.Projection, new(mode, node.Scalar36 == 0 ? null : node.Color32, node.Scalar36, null, null, null, 17, 2), inputs.Colors, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + node.NodeIndex) } : null);
         return inputs.Execute(frame, new NativeBattleAuraPackets(batch));
     }
 
-    public static NativeBattleGfGeometryBatch Flame(NativeBattleModulePoolTask task, NativeBattleAuraResources resources, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Flame(NativeBattleModulePoolTask task, NativeBattleAuraResources resources, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int age = Word(task, 12);
         int strength = Word(task, 28);
@@ -70,7 +70,7 @@ public static class NativeBattleAuraDrawing
         NativeBattleActionMatrix camera = projection.View ?? throw new NotSupportedException("Native Aura flame requires its published camera matrix.");
         (int x, int y, int z) = NativeBattleGfMatrices.Rotate56C3D0(camera, new(Word(task, 16), Word(task, 18), Word(task, 20)));
         NativeBattleActionMatrix matrix = new([cosine, unchecked((short)-sine), 0, sine, cosine, 0, 0, 0, 4096], unchecked(x + camera.X), unchecked(y + camera.Y), unchecked(z + camera.Z - 256), 4096);
-        return NativeBattleModulePackets.EmitBatch572200(resources.Flame.Bytes, 0, default, matrix, projection, new(0xF3, 0, fade, null, null, null, 17, 2), colors);
+        return NativeBattleModulePackets.EmitBatch572200(resources.Flame.Bytes, 0, default, matrix, projection, new(0xF3, 0, fade, null, null, null, 17, 2), colors, pilotIdentity: pilotIdentity);
     }
 
     public static NativeBattleAuraFrame PublishFar(NativeBattleAuraFrame frame, uint color)

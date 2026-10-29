@@ -132,11 +132,15 @@ public static partial class NativeBattleHoly175Drawing
         return (state, NativeBattleHoly175State.LoadMatrix(retained, 0));
     }
 
-    internal static NativeBattleModulePacketBatch EmitLoadedSprite(NativeBattleHoly175SpriteResource resource, int frame, NativeBattleActionMatrix loadedMatrix, NativeBattleCameraProjection projection, short cameraRoll, ushort flags, uint color, int bucket = 17, byte shift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    internal static NativeBattleModulePacketBatch EmitLoadedSprite(NativeBattleHoly175SpriteResource resource, int frame, NativeBattleActionMatrix loadedMatrix, NativeBattleCameraProjection projection, short cameraRoll, ushort flags, uint color, int bucket = 17, byte shift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = true)
     {
         NativeBattleModuleDraw draw = Sprite(resource, frame, default, 4096, 0, flags, color) with { SpriteWorldRotation = loadedMatrix.Rotation, PilotIdentity = pilotIdentity };
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], loadedMatrix.X, loadedMatrix.Y, loadedMatrix.Z, 4096);
         NativeBattleModulePacketBatch packets = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, cameraRoll, bucket, shift, NativeBattlePoseMatrices.ModuleSpriteCamera(draw, camera, cameraRoll));
+        if (!pilotScreenSpace)
+        {
+            return packets;
+        }
         return packets with
         {
             Primitives = packets.Primitives.Select(item =>

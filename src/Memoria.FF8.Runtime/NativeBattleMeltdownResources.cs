@@ -24,6 +24,10 @@ public sealed record NativeBattleMeltdownSprite(NativeBattleModulePacketBatch Ba
 public sealed record NativeBattleMeltdownSound(uint Sound) : NativeBattleMeltdownOperation;
 public sealed record NativeBattleMeltdownContact(int Index) : NativeBattleMeltdownOperation;
 public sealed record NativeBattleMeltdownFade : NativeBattleMeltdownOperation;
-public sealed record NativeBattleMeltdownActor(int Actor, NativeBattleModuleAnchor Target, NativeBattleModuleAnchor Caster, int Strength, bool Draw) : NativeBattleMeltdownOperation;
+public sealed record NativeBattleMeltdownActor(int Actor, NativeBattleModuleAnchor Target, NativeBattleModuleAnchor Caster, int Strength, bool Draw) : NativeBattleMeltdownOperation
+{
+    [JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleMeltdownFlags(int Actor, ushort Flags) : NativeBattleMeltdownOperation;
 public sealed record NativeBattleMeltdownInputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, bool DrawOnly, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleMeltdownFrame, NativeBattleMeltdownOperation, NativeBattleMeltdownFrame> Execute);

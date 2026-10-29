@@ -131,7 +131,7 @@ public sealed partial class BattleSession
                 {
                     ImmutableArray<byte> shards = NativeBattleStop119Geometry.Advance(ReadShards());
                     WriteShards(shards);
-                    Append(NativeBattleStop119Geometry.Draw(shards, resources.Clock, view, projection, colors));
+                    Append(NativeBattleStop119Geometry.Draw(shards, resources.Clock, view, projection, colors, NativeBattlePilotVisualLifetimes.Identity(119, task, 1), group => NativeBattlePilotVisualLifetimes.Identity(119, NativeEffectMemory!.Arena!, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)(buffer + 0x15FC + NativeBattleStop119Geometry.GroupOffset(group))), 0).Generation));
                 }
             }
             if (counter == 53)
@@ -152,6 +152,7 @@ public sealed partial class BattleSession
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x1C - 12), 0x4E8);
             int frame = workspace.Frame;
             NativeBattleGfAnimationSource source = resources.Clock;
+            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(119, task);
             NativeBattleGfAnimationAdvance advance = workspace.Advance701970(source, 0, (current, node) =>
             {
                 if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -189,13 +190,14 @@ public sealed partial class BattleSession
                         NativeBattleVector center = new(unchecked((short)(anchor.X + node.Vector8.X)), unchecked((short)(anchor.Y + node.Vector8.Y)), unchecked((short)(anchor.Z + node.Vector8.Z)));
                         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Multiply56C090(world, NativeBattleStop119Geometry.Rotation(node)) with { X = anchor.X + node.Vector8.X, Y = anchor.Y + node.Vector8.Y, Z = anchor.Z + node.Vector8.Z };
                         WriteShards(NativeBattleStop119Geometry.Partition(ReadShards(), group, source.Data, geometry, vertices, matrix, center, ref random));
+                        NativeBattlePilotVisualLifetimes.Allocated(NativeEffectMemory!.Arena!, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)(buffer + 0x15FC + NativeBattleStop119Geometry.GroupOffset(group))), 0);
                     }
                     return current;
                 }
                 uint flags = (node.Header & 0x4000) != 0 ? 0x2000u : 0x2030u;
                 flags |= (node.Header & 0x2000) != 0 ? 12u : 0;
                 flags |= node.Scalar36 != 0 ? 0xC0u : 0;
-                Append(NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, vertices, NativeBattleStop119Geometry.Compose(node, context), projection, new(flags, node.Scalar36 != 0 ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2), colors));
+                Append(NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, vertices, NativeBattleStop119Geometry.Compose(node, context), projection, new(flags, node.Scalar36 != 0 ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2), colors, pilotIdentity: identity with { Primitive = unchecked(identity.Primitive * 397 + node.NodeIndex) }));
                 return current;
             });
             task = PublishWorkspace(task, 0x1C, advance.Workspace);

@@ -48,6 +48,7 @@ public static partial class NativeBattleMeltdownController
         private readonly NativeBattleMeltdownInputs inputs;
         private readonly byte[] globals;
         private NativeBattleEffectTaskPool tasks;
+        private NativeBattlePilotVisualIdentity drawingIdentity;
 
         internal Execution(NativeBattleMeltdownFrame frame, NativeBattleMeltdownResources resources, NativeBattleMeltdownInputs inputs)
         {
@@ -72,6 +73,7 @@ public static partial class NativeBattleMeltdownController
             {
                 tasks = pool;
                 NativeBattleModulePoolTask node = tasks.Slots[slot];
+                drawingIdentity = NativeBattlePilotVisualLifetimes.Identity(148, node);
                 bool complete = node.Callback switch
                 {
                     0x612190 => Director(ref node),

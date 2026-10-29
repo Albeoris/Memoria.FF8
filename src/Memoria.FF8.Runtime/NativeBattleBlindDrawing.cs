@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleBlindDrawing
 {
-    public static NativeBattleBlindFrame Part(NativeBattleBlindFrame frame, NativeBattleBlindResources resources, NativeBattleGfAnimationNode node, NativeBattleVector anchor, NativeBattleBlindInputs inputs)
+    public static NativeBattleBlindFrame Part(NativeBattleBlindFrame frame, NativeBattleBlindResources resources, NativeBattleGfAnimationNode node, NativeBattleVector anchor, NativeBattleBlindInputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
         {
@@ -51,15 +51,16 @@ public static class NativeBattleBlindDrawing
         {
             Store(8, node.Color32);
         }
+        NativeBattlePilotVisualIdentity? identity = pilotIdentity is { } owner ? owner with { Primitive = unchecked(owner.Primitive * 397 + node.NodeIndex) } : null;
         NativeBattleGfGeometryBatch batch;
         if (node.GeometryIndex is 0 or 3)
         {
-            batch = Additive(data, geometry, selected, matrix, inputs.Projection, node.Scalar36, node.Color32, inputs.Colors);
+            batch = Additive(data, geometry, selected, matrix, inputs.Projection, node.Scalar36, node.Color32, inputs.Colors, identity);
         }
         else
         {
             uint uvOffset = BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(checked(header + 24), 4));
-            batch = NativeBattleModulePackets.EmitBatch572200(data, geometry, selected, matrix, inputs.Projection, new(node.Scalar36 == 0 ? 0x2030u : 0x20F0u, node.Scalar36 == 0 ? null : node.Color32, node.Scalar36, null, null, uvOffset, 17, 3), inputs.Colors);
+            batch = NativeBattleModulePackets.EmitBatch572200(data, geometry, selected, matrix, inputs.Projection, new(node.Scalar36 == 0 ? 0x2030u : 0x20F0u, node.Scalar36 == 0 ? null : node.Color32, node.Scalar36, null, null, uvOffset, 17, 3), inputs.Colors, pilotIdentity: identity);
         }
         if (node.Scalar36 != 0)
         {
@@ -109,9 +110,9 @@ public static class NativeBattleBlindDrawing
         return matrix;
     }
 
-    public static NativeBattleGfGeometryBatch Additive(ImmutableArray<byte> source, int geometry, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int fade, uint color, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Additive(ImmutableArray<byte> source, int geometry, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int fade, uint color, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return NativeBattleAdditiveQuadPackets.Emit(source, geometry, vertices, matrix, projection, fade, color, colors, true, 0, 3);
+        return NativeBattleAdditiveQuadPackets.Emit(source, geometry, vertices, matrix, projection, fade, color, colors, true, 0, 3, pilotIdentity);
     }
 
 }

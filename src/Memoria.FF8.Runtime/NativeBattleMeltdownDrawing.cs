@@ -5,12 +5,13 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleMeltdownDrawing
 {
-    public static NativeBattleGfGeometryBatch Prim612EE0(NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint flags, int fade, int scrollU, int scrollV, ushort originU, ushort originV, short wrapU, short wrapV)
+    public static NativeBattleGfGeometryBatch Prim612EE0(NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint flags, int fade, int scrollU, int scrollV, ushort originU, ushort originV, short wrapU, short wrapV, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<byte> source = resource.Bytes;
         int cursor = BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan());
         int[] lengths = [12, 12, 20, 24, 20, 24, 28, 36];
         int allocated = 0;
+        Dictionary<ushort, System.Numerics.Vector3>? pilotWorld = pilotIdentity.HasValue ? [] : null;
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         uint window = unchecked((((((uint)(originV & 0xF8) | 0xFFFE2000u) << 5 | (uint)(originU & 0xF8)) << 5 | (0u - unchecked((ushort)wrapV) & 0xF8)) << 2) | ((0u - unchecked((ushort)wrapU)) >> 3 & 0x1F));
         int deltaU = scrollU % wrapU;
@@ -62,7 +63,8 @@ public static class NativeBattleMeltdownDrawing
                         Put(4, window);
                         Put(data.Length - 4, 0xE2000000);
                     }
-                    primitive = accepted with { Words = Enumerable.Range(0, data.Length / 4).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray() };
+                    NativeBattlePilotVisualGeometry? visual = pilotIdentity is { } identity ? new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, pilotWorld![offsets[0]], pilotWorld[offsets[1]], pilotWorld[offsets[2]], corners == 4 ? pilotWorld[offsets[3]] : default, (byte)corners) : null;
+                    primitive = accepted with { PilotGeometry = visual, Words = Enumerable.Range(0, data.Length / 4).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray() };
                     allocated += data.Length;
                 }
                 attempts.Add(new(original.ByteOffsetRelative, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
@@ -95,7 +97,12 @@ public static class NativeBattleMeltdownDrawing
         NativeBattleModuleProjectedVertex Project(ushort offset)
         {
             ReadOnlySpan<byte> bytes = source.AsSpan().Slice(8 + offset * 4, 6);
-            return NativeBattleModuleProjection.Project45FE10(matrix, new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..])), projection);
+            NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..]));
+            if (pilotWorld is not null)
+            {
+                pilotWorld[offset] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+            }
+            return NativeBattleModuleProjection.Project45FE10(matrix, point, projection);
         }
     }
 }

@@ -130,7 +130,7 @@ public static class NativeBattleStop119Geometry
         return shards.ToImmutableArray();
     }
 
-    public static NativeBattleGfGeometryBatch Draw(ImmutableArray<byte> shards, NativeBattleGfAnimationSource source, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Draw(ImmutableArray<byte> shards, NativeBattleGfAnimationSource source, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<int, long>? readGroupGeneration = null)
     {
         Require(shards);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
@@ -154,13 +154,23 @@ public static class NativeBattleStop119Geometry
                     NativeBattleVector position = Vector(shard, 0);
                     int corners = (kind & 1) == 0 ? 3 : 4;
                     NativeBattleModuleProjectedVertex[] vertices = new NativeBattleModuleProjectedVertex[corners];
+                    System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[corners] : null;
                     for (int corner = 0; corner < corners; corner++)
                     {
                         NativeBattleVector offset = Vector(shard, 24 + corner * 8);
-                        vertices[corner] = NativeBattleModuleProjection.Project45FE10(camera, new(unchecked((short)(offset.X + position.X)), unchecked((short)(offset.Y + position.Y)), unchecked((short)(offset.Z + position.Z))), projection);
+                        NativeBattleVector point = new(unchecked((short)(offset.X + position.X)), unchecked((short)(offset.Y + position.Y)), unchecked((short)(offset.Z + position.Z)));
+                        vertices[corner] = NativeBattleModuleProjection.Project45FE10(camera, point, projection);
+                        if (world is not null)
+                        {
+                            world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(camera, point), projection);
+                        }
                     }
                     int fade = Signed(shard, 14);
                     NativeBattleGfGeometryAttempt attempt = NativeBattleGfGeometryPackets.EmitAttempt(source.Data.AsSpan().Slice(cursor, Strides[kind]), vertices, kind, new(0x30u | (fade != 0 ? 0xC0u : 0), 0, fade, null, null, 0, 0, 17, 2), colors, allocated);
+                    if (pilotIdentity is { } identity && world is not null && attempt.Primitive is { } primitive)
+                    {
+                        attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + shardIndex / ShardSize), ResourceGeneration = readGroupGeneration?.Invoke(group) ?? identity.ResourceGeneration }, world[0], world[1], world[2], corners == 4 ? world[3] : default, checked((byte)corners)) } };
+                    }
                     attempts.Add(attempt);
                     if (attempt.Primitive is not null)
                     {

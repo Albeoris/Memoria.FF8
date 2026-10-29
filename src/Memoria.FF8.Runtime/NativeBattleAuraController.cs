@@ -89,9 +89,10 @@ public static class NativeBattleAuraController
                     NativeBattleActionMatrix local = new([scale, 0, 0, 0, scale, 0, 0, 0, scale], feet.X, transform.Angle36, feet.Z, 4096);
                     NativeBattleActionMatrix placement = NativeBattleGfMatrices.Compose56C2F0(inputs.Projection.View ?? throw new NotSupportedException("Native Aura requires its current camera matrix."), local);
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (8), 0x34C);
+                    NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(111, task);
                     NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Layout, 0, (owner, node) =>
                     {
-                        current = NativeBattleAuraDrawing.Part(current, resources, node, placement, inputs);
+                        current = NativeBattleAuraDrawing.Part(current, resources, node, placement, inputs, identity);
                         return owner;
                     });
                     task = StoreWorkspace(task, advanced.Workspace);
@@ -125,7 +126,7 @@ public static class NativeBattleAuraController
                         current = inputs.Execute(current, new NativeBattleAuraFade());
                     }
                     NativeBattleVector position = Bone(actor) with { Y = unchecked((short)(transform.Angle36 - 600)) };
-                    NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Glow, SpriteFrame = resources.Glow.SpriteFrame(glow), Phase = checked((ushort)glow), Anchor = new(position.X, position.Y, position.Z, 0), Scale = 4096, Direction = 4096, DepthOffset = -256, SpriteFlags = 0, SpriteColor = 0x808080 };
+                    NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Glow, SpriteFrame = resources.Glow.SpriteFrame(glow), Phase = checked((ushort)glow), Anchor = new(position.X, position.Y, position.Z, 0), Scale = 4096, Direction = 4096, DepthOffset = -256, SpriteFlags = 0, SpriteColor = 0x808080, PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(111, task, 0x10000) };
                     current = inputs.Execute(current, new NativeBattleAuraSprite(draw));
                 }
                 if (age == 0)
@@ -156,7 +157,7 @@ public static class NativeBattleAuraController
             {
                 NativeBattleModulePoolTask task = pool.Slots[slot];
                 current = NativeBattleAuraDrawing.PublishFar(current, 0);
-                current = inputs.Execute(current, new NativeBattleAuraPackets(NativeBattleAuraDrawing.Flame(task, resources, inputs.Projection, inputs.Colors)));
+                current = inputs.Execute(current, new NativeBattleAuraPackets(NativeBattleAuraDrawing.Flame(task, resources, inputs.Projection, inputs.Colors, NativeBattlePilotVisualLifetimes.Identity(111, task))));
                 bool complete = Word(task, 12) >= 20;
                 if (!complete)
                 {

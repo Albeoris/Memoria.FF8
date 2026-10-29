@@ -6,6 +6,17 @@ namespace Memoria.FF8.Runtime;
 /// <summary>6D1C30's screen-space deformation,6BCB50 body packets and6D23D0 hierarchy packets.</summary>
 public static class NativeBattleEffect107Geometry
 {
+    internal static NativeBattlePilotVisualGeometry RebaseCameraGeometry(NativeBattlePilotVisualGeometry geometry, NativeBattleCameraProjection projection)
+    {
+        System.Numerics.Vector3 World(System.Numerics.Vector3 point) => NativeBattlePilotVisualGeometry.CameraToWorld(point, projection);
+        NativeBattlePilotSpriteGeometry? sprite = geometry.Sprite;
+        if (sprite is not null)
+        {
+            sprite = sprite with { Origin = World(sprite.Origin), AxisX = NativeBattlePilotVisualGeometry.CameraToWorldDirection(sprite.AxisX, projection), AxisY = NativeBattlePilotVisualGeometry.CameraToWorldDirection(sprite.AxisY, projection), AxisZ = NativeBattlePilotVisualGeometry.CameraToWorldDirection(sprite.AxisZ, projection) };
+        }
+        return geometry with { A = World(geometry.A), B = World(geometry.B), C = World(geometry.C), D = geometry.CornerCount == 4 ? World(geometry.D) : default, Sprite = sprite };
+    }
+
     public static NativeBattleProjectedVertex Deform6D1C30(NativeBattleModuleProjectedVertex projected, short centerX, short centerY, short radius, ref short extent, int intensity, Func<uint, int, ImmutableArray<byte>> readResource)
     {
         if (projected.Depth == 0)
@@ -62,7 +73,7 @@ public static class NativeBattleEffect107Geometry
         return new(unchecked((ushort)x) | unchecked((uint)y << 16), projected.Depth | clip << 16);
     }
 
-    public static NativeBattleGfGeometryBatch Emit6BCB50(ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> vertices, uint color, NativeBattleModelTextureBinding? binding, int tableBaseBucket = 17, byte depthShift = 0)
+    public static NativeBattleGfGeometryBatch Emit6BCB50(ImmutableArray<NativeBattleRawPolygon> polygons, IReadOnlyList<NativeBattleProjectedVertex> vertices, uint color, NativeBattleModelTextureBinding? binding, int tableBaseBucket = 17, byte depthShift = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (polygons.IsDefault || depthShift > 31)
         {
@@ -70,8 +81,9 @@ public static class NativeBattleEffect107Geometry
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int cursor = 0;
-        foreach (NativeBattleRawPolygon polygon in polygons)
+        for (int polygonIndex = 0; polygonIndex < polygons.Length; polygonIndex++)
         {
+            NativeBattleRawPolygon polygon = polygons[polygonIndex];
             int length = polygon.Quad ? 20 : 16;
             if (polygon.Bytes.Length != length)
             {
@@ -115,13 +127,19 @@ public static class NativeBattleEffect107Geometry
                 writes.Word(36, BinaryPrimitives.ReadUInt16LittleEndian(source[18..]));
             }
             int bucket = checked(tableBaseBucket + (Average(corners.Select(vertex => vertex.Depth), polygon.Quad) >> depthShift));
-            attempts.Add(writes.Finish(bucket, Payload(corners.Select(vertex => vertex.Depth), polygon.Quad)));
+            NativeBattleGfGeometryAttempt attempt = writes.Finish(bucket, Payload(corners.Select(vertex => vertex.Depth), polygon.Quad));
+            if (pilotIdentity is { } identity && attempt.Primitive is { } primitive)
+            {
+                System.Numerics.Vector3 Screen(int corner) => new(unchecked((short)corners[corner].Screen), unchecked((short)(corners[corner].Screen >> 16)), corners[corner].Depth);
+                attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + polygonIndex) }, Screen(0), Screen(1), Screen(2), polygon.Quad ? Screen(3) : default, checked((byte)corners.Length)) { ScreenSpace = true, SourceDepths = new(corners[0].Depth, corners[1].Depth, corners[2].Depth, polygon.Quad ? corners[3].Depth : 0), UseSourceDepths = true } } };
+            }
+            attempts.Add(attempt);
             cursor = checked(cursor + writes.Length);
         }
         return new(attempts.ToImmutable(), cursor);
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch6D23D0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, Func<int, NativeBattleVector>? readSelectedVertex = null)
+    public static NativeBattleGfGeometryBatch EmitBatch6D23D0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, Func<int, NativeBattleVector>? readSelectedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (source.IsDefault || context.DepthShift > 31 || selectedVertices.IsDefault && readSelectedVertex is null)
         {
@@ -140,9 +158,10 @@ public static class NativeBattleEffect107Geometry
                 bool quad = group == 1;
                 ReadOnlySpan<byte> face = Read(source, position, quad ? 24 : 20);
                 NativeBattleModuleProjectedVertex[] vertices = new NativeBattleModuleProjectedVertex[quad ? 4 : 3];
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[vertices.Length] : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
-                    vertices[corner] = Project(BinaryPrimitives.ReadUInt16LittleEndian(face[(4 + corner * 2)..]) * 4);
+                    vertices[corner] = Project(BinaryPrimitives.ReadUInt16LittleEndian(face[(4 + corner * 2)..]) * 4, world, corner);
                 }
                 PacketWrites writes = new(quad ? 36 : 28, cursor);
                 writes.Dword(0, quad ? 0x8000000u : 0x6000000u);
@@ -156,7 +175,7 @@ public static class NativeBattleEffect107Geometry
                 {
                     if (quad)
                     {
-                        vertices[3] = Project(BinaryPrimitives.ReadUInt16LittleEndian(face[10..]) * 4);
+                        vertices[3] = Project(BinaryPrimitives.ReadUInt16LittleEndian(face[10..]) * 4, world, 3);
                     }
                     for (int corner = 0; corner < vertices.Length; corner++)
                     {
@@ -184,7 +203,12 @@ public static class NativeBattleEffect107Geometry
                     PacketWrites before = Mode(cursor + writes.Length, 0xE1000220);
                     PacketWrites after = Mode(cursor + writes.Length + 8, 0xE1000240);
                     attempts.Add(before.Finish(bucket, [0, 0, 0, 0]));
-                    attempts.Add(writes.Finish(bucket, Payload(vertices.Select(vertex => vertex.Depth), quad)));
+                    NativeBattleGfGeometryAttempt attempt = writes.Finish(bucket, Payload(vertices.Select(vertex => vertex.Depth), quad));
+                    if (pilotIdentity is { } identity && world is not null && attempt.Primitive is { } primitive)
+                    {
+                        attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + position) }, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)world.Length)) } };
+                    }
+                    attempts.Add(attempt);
                     attempts.Add(after.Finish(bucket, [0, 0, 0, 0]));
                     cursor = checked(cursor + writes.Length + 16);
                 }
@@ -197,7 +221,7 @@ public static class NativeBattleEffect107Geometry
         }
         return new(attempts.ToImmutable(), cursor);
 
-        NativeBattleModuleProjectedVertex Project(int offset)
+        NativeBattleModuleProjectedVertex Project(int offset, System.Numerics.Vector3[]? world, int corner)
         {
             NativeBattleVector local;
             if (readSelectedVertex is not null)
@@ -209,7 +233,12 @@ public static class NativeBattleEffect107Geometry
                 ReadOnlySpan<byte> xyz = Read(selectedVertices, offset, 6);
                 local = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
             }
-            return NativeBattleModuleProjection.Project45FE10(matrix, local, projection);
+            NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(matrix, local, projection);
+            if (world is not null)
+            {
+                world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, local), projection);
+            }
+            return projected;
         }
     }
 
@@ -277,7 +306,7 @@ public static class NativeBattleEffect107Geometry
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, short Depth) DrawNativeEffect107Model(NativeBattleGraphicsState graphics, int model, short screenX, short screenY, short priorDepth, int intensity)
+    private (NativeBattleGraphicsState Graphics, short Depth) DrawNativeEffect107Model(NativeBattleGraphicsState graphics, int model, short screenX, short screenY, short priorDepth, int intensity, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsModel target = graphics.Models[model];
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, model);
@@ -304,20 +333,20 @@ public sealed partial class BattleSession
             }
             NativeBattleRawMesh mesh = shared && index == 1 ? linked.Single() : geometry[index];
             NativeBattleModelTextureBinding binding = shared && index == 1 ? target.LinkedTextureSlots ?? throw new NotSupportedException("Native6D19A0 requires its linked texture relocation.") : bodyBinding;
-            graphics = Submit(graphics, mesh, matrices, resource.GeometryRelocated507550 ? null : binding);
+            graphics = Submit(graphics, mesh, matrices, resource.GeometryRelocated507550 ? null : binding, index);
         }
         if (!shared && !linked.IsEmpty)
         {
             ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(target, resource.LinkedPoseSource ?? throw new NotSupportedException("Native6D19A0 requires its independent linked skeleton."), view);
-            foreach (NativeBattleRawMesh mesh in linked)
+            for (int index = 0; index < linked.Length; index++)
             {
-                graphics = Submit(graphics, mesh, linkedMatrices, target.LinkedTextureSlots ?? throw new NotSupportedException("Native6D19A0 requires its linked texture relocation."));
+                graphics = Submit(graphics, linked[index], linkedMatrices, target.LinkedTextureSlots ?? throw new NotSupportedException("Native6D19A0 requires its linked texture relocation."), 0x10000 + index);
             }
         }
         graphics = graphics with { Models = graphics.Models.SetItem(model, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[model], source)) };
         return (graphics, extent);
 
-        NativeBattleGraphicsState Submit(NativeBattleGraphicsState current, NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding)
+        NativeBattleGraphicsState Submit(NativeBattleGraphicsState current, NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding, int meshIndex)
         {
             mesh.Validate();
             List<NativeBattleProjectedVertex> projected = [];
@@ -330,7 +359,7 @@ public sealed partial class BattleSession
                 NativeBattleModuleProjectedVertex point = NativeBattleModuleProjection.Project45FE10(bones[vertex.Bone], vertex.Position, projection);
                 projected.Add(NativeBattleEffect107Geometry.Deform6D1C30(point, screenX, screenY, priorDepth, ref extent, intensity, resources.Read));
             }
-            NativeBattleGfGeometryBatch batch = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, color, binding);
+            NativeBattleGfGeometryBatch batch = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, color, binding, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + meshIndex) } : null);
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native6D19A0 requires its retained packet memory.");
             NativeBattlePrimitiveFrame frame = current.PrimitiveFrame ?? throw new NotSupportedException("Native6D19A0 requires its initialized OT.");
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(memory.PrimitiveProcess ?? throw new NotSupportedException("Native6D19A0 requires its actual common packet cursor."), frame.Pending, batch);

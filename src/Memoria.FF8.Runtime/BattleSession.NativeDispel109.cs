@@ -85,7 +85,7 @@ public sealed partial class BattleSession
             (NativeBattleStackBytes bytes, int offset) = readScaledOperand();
             bool scaled = bytes.IsNonzero(offset);
             NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging ?? throw new NotSupportedException("Native Dispel requires its retained temporary owner."), 88);
-            NativeBattleDispel109Draw drawn = NativeBattleDispel109Geometry.Draw6CF9A0(current, task, node, scaled, resources, projection, colors, temporary.Staging, temporary.Address);
+            NativeBattleDispel109Draw drawn = NativeBattleDispel109Geometry.Draw6CF9A0(current, task, node, scaled, resources, projection, colors, temporary.Staging, temporary.Address, NativeBattlePilotVisualLifetimes.Identity(109, task, node.ResourceOffset));
             NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(drawn.Staging ?? throw new InvalidDataException("Native Dispel drawing lost its physical temporary bytes."), 88);
             current = drawn.Frame;
             if (node.Scalar36 != 0)
@@ -110,7 +110,8 @@ public sealed partial class BattleSession
                 Anchor = new(unchecked((short)task.ReadWord(16)), unchecked((short)task.ReadWord(18)), unchecked((short)task.ReadWord(20)), 0),
                 Scale = unchecked((short)task.ReadWord(22)),
                 DepthOffset = -2048,
-                SpriteFlags = 0
+                SpriteFlags = 0,
+                PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(109, task)
             };
             NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging ?? throw new NotSupportedException("Native Dispel requires its retained temporary owner."), 180);
             NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(temporary.Staging, temporary.Address, resource.Address, 0).Write(temporary.Address + 4, BitConverter.GetBytes(phase));

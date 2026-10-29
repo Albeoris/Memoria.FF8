@@ -113,16 +113,17 @@ public sealed partial class BattleSession
             renderFlags |= 0xC0;
             color = node.Color32;
         }
+        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(107, pools[1].Slots[checked((int)((workspacePointer - Effect107Arena - 32) / 664))], node.NodeIndex);
         NativeBattleGfGeometryBatch batch;
         if ((flags & 0x20000000) != 0)
         {
             cue = node.NodeIndex == 9 ? -128 : node.NodeIndex == 5 ? 128 : 0;
-            batch = NativeBattleEffect107Geometry.EmitBatch6D23D0(source, geometry, vertices, matrix, projection, new(renderFlags, color, cue, null, null, 0, 17, 2));
+            batch = NativeBattleEffect107Geometry.EmitBatch6D23D0(source, geometry, vertices, matrix, projection, new(renderFlags, color, cue, null, null, 0, 17, 2), pilotIdentity: identity);
         }
         else
         {
             int depthBias = (flags & 0x40000000) != 0 ? -512 : 0;
-            batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(source, geometry, vertices, matrix, projection, new(renderFlags, color, cue, null, null, depthBias, 17, 2), definition.NativeGraphics!.Rules.SummonColors);
+            batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(source, geometry, vertices, matrix, projection, new(renderFlags, color, cue, null, null, depthBias, 17, 2), definition.NativeGraphics!.Rules.SummonColors, pilotIdentity: identity);
         }
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame!;
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, frame.Pending, batch);

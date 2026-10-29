@@ -21,7 +21,8 @@ public static partial class NativeBattleMeltdownController
                 NativeBattleFullMacVertex transformed = NativeBattleGfMatrices.TransformMac460840(action, new(W(particle + 4), W(particle + 6), W(particle + 8)));
                 short scale = W(particle + 2);
                 NativeBattleActionMatrix matrix = new([scale, 0, 0, 0, scale, 0, 0, 0, scale], Math.Clamp(transformed.X, short.MinValue, short.MaxValue), Math.Clamp(transformed.Y, short.MinValue, short.MaxValue), Math.Clamp(transformed.Z, short.MinValue, short.MaxValue), 4096);
-                Emit(new NativeBattleMeltdownSprite(NativeBattleHoly175Drawing.EmitLoadedSprite(new(resource.Address, resource.Bytes), frame, matrix, inputs.Projection, 0, 0, 0x808080)));
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(148, current.Memory.Meltdown148!.Packets, first, checked((int)((particle - first) / 20))) with { ResourceGeneration = drawingIdentity.Generation };
+                Emit(new NativeBattleMeltdownSprite(NativeBattleHoly175Drawing.EmitLoadedSprite(new(resource.Address, resource.Bytes), frame, matrix, inputs.Projection, 0, 0, 0x808080, pilotIdentity: identity, pilotScreenSpace: false)));
                 if (inputs.DrawOnly)
                 {
                     continue;
@@ -69,6 +70,7 @@ public static partial class NativeBattleMeltdownController
                     {
                         break;
                     }
+                    NativeBattlePilotVisualLifetimes.Allocated(current.Memory.Meltdown148!.Packets, first, checked((int)((particle - first) / 20)));
                     W(particle, 0);
                     W(particle + 2, Roll() % (second ? 512 : 1024) + (second ? 512 : 1024));
                     int vx = Roll() % 4096 - 2048;

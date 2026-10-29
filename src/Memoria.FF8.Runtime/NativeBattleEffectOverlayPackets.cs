@@ -1,19 +1,21 @@
+using System.Numerics;
+
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Raw8D6790 FT4 stores over its actual80-byte task, prior projection and current caller-selected packet cursor.</summary>
 public static class NativeBattleEffectOverlayPackets
 {
-    public static NativeBattleGfGeometryBatch Emit8D6790(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null)
+    public static NativeBattleGfGeometryBatch Emit8D6790(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return Emit(task, projection, 0x8D6790, observeDepth);
+        return Emit(task, projection, 0x8D6790, observeDepth, pilotIdentity);
     }
 
-    public static NativeBattleGfGeometryBatch Emit89F950(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null)
+    public static NativeBattleGfGeometryBatch Emit89F950(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return Emit(task, projection, 0x89F950, observeDepth);
+        return Emit(task, projection, 0x89F950, observeDepth, pilotIdentity);
     }
 
-    private static NativeBattleGfGeometryBatch Emit(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, uint callback, Action<ushort>? observeDepth)
+    private static NativeBattleGfGeometryBatch Emit(NativeBattleModulePoolTask task, NativeBattleCameraProjection projection, uint callback, Action<ushort>? observeDepth, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         if (task.Callback != callback || task.PayloadLength != 68)
         {
@@ -58,6 +60,11 @@ public static class NativeBattleEffectOverlayPackets
         //45C8E0 inserts at the table head, with flags20=1 and four zero precision DWORDs.
         //RGB4..6 and padding30..31/38..39 are not written. Command2F and the constructed ABR1 page do not select those RGB bytes.
         NativeBattleGeometryPrimitive primitive = new(0, packet.Words(), [0, 0, 0, 0]);
+        if (pilotIdentity is { } identity)
+        {
+            Vector3 world = new(anchor.X, anchor.Y, anchor.Z);
+            primitive = primitive with { PilotGeometry = new(identity, world, world, world, world, 4) { ScreenScale = 0.125f, ScreenOffsets = [new(-halfWidth, -height), new(halfWidth, -height), new(-halfWidth, 0), new(halfWidth, 0)] } };
+        }
         return new([packet.Attempt(primitive)], 40);
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));

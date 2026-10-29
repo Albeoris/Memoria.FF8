@@ -88,9 +88,10 @@ public static class NativeBattleBlindController
                 }
                 NativeBattleVector anchor = new(Word(target, 16), Word(target, 18), Word(target, 20));
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (16), 0x820);
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(121, target);
                 NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Layout, 0, (owner, node) =>
                 {
-                    current = NativeBattleBlindDrawing.Part(current, resources, node, anchor, inputs);
+                    current = NativeBattleBlindDrawing.Part(current, resources, node, anchor, inputs, identity);
                     return owner;
                 });
                 target = StoreWorkspace(target, advanced.Workspace);

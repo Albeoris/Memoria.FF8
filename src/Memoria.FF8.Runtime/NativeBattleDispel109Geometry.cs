@@ -32,7 +32,7 @@ public static class NativeBattleDispel109Geometry
         return matrix with { X = unchecked(x + view.X), Y = unchecked(y + view.Y), Z = unchecked(z + view.Z) };
     }
 
-    public static NativeBattleDispel109Draw Draw6CF9A0(NativeBattleDispel109Frame frame, NativeBattleModulePoolTask target, NativeBattleGfAnimationNode node, bool scaledStackInput, NativeBattleDispel109Resources resources, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleFileStaging? staging = null, uint? temporary = null)
+    public static NativeBattleDispel109Draw Draw6CF9A0(NativeBattleDispel109Frame frame, NativeBattleModulePoolTask target, NativeBattleGfAnimationNode node, bool scaledStackInput, NativeBattleDispel109Resources resources, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleFileStaging? staging = null, uint? temporary = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!Visible(node))
         {
@@ -111,7 +111,7 @@ public static class NativeBattleDispel109Geometry
                 ReadOnlySpan<byte> bytes = selectedBytes.AsSpan().Slice(offset, 6);
                 return new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.Slice(4)));
             }
-            NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch7043B0(staging!, address, checked(source.Address + (uint)geometry), source.Data.Slice(geometry, source.Data.Length - geometry), matrix, projection, new(flags, node.Color32, node.Scalar36, null, null, -256, 17, 2), colors, ReadVertex);
+            NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch7043B0(staging!, address, checked(source.Address + (uint)geometry), source.Data.Slice(geometry, source.Data.Length - geometry), matrix, projection, new(flags, node.Color32, node.Scalar36, null, null, -256, 17, 2), colors, ReadVertex, pilotIdentity);
             staging = drawn.Staging;
             packets = drawn.Batch;
             cursor = checked((int)(BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(address + 32, 4)) - source.Address));
@@ -119,7 +119,7 @@ public static class NativeBattleDispel109Geometry
         else
         {
             NativeBattleMeshPacketContext context = new(flags, far, node.Scalar36, null, null, null, -256, 17, 2);
-            packets = NativeBattleGfGeometryPackets.EmitBatch(source.Data, geometry, selectedBytes, matrix, projection, context, colors, readSelected, observeSourceCursor: value => cursor = value);
+            packets = NativeBattleGfGeometryPackets.EmitBatch(source.Data, geometry, selectedBytes, matrix, projection, context, colors, readSelected, observeSourceCursor: value => cursor = value, pilotIdentity: pilotIdentity);
         }
         return new(frame, packets, matrix, new(checked(source.Address + (uint)geometry), selected, far, node.Scalar36, -256, flags, checked(source.Address + (uint)cursor)), staging);
     }
