@@ -15,7 +15,7 @@ public static partial class NativeBattleRenzokuken160Controller
         {
             throw new NotSupportedException("Native seven/eight-contact Renzokuken requires the actual actor-matrix contact-offset transform.");
         }
-        if (inputs.AbSegments.IsDefaultOrEmpty || resources.ContactLeadFrames.Length < inputs.AbSegments.Length - 1)
+        if (inputs.AbSegments.IsDefault || resources.ContactLeadFrames.IsDefault || resources.ContactLeadFrames.Length < inputs.AbSegments.Length - 1)
         {
             throw new NotSupportedException("Native600110 requires the reached AB contact bytes and original lead-time DWORDs.");
         }
