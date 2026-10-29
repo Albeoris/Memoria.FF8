@@ -8,7 +8,8 @@ using SharpCompress.Compressors.Xz;
 
 namespace Memoria.Launcher;
 
-/// <summary>Builds an LGPL FFmpeg pair from the upstream source release; no prebuilt LGPL macOS tools are published.</summary>
+/// <summary>Builds an LGPL FFmpeg pair from the upstream source release.</summary>
+/// <remarks>Fallback for when the pinned prebuilt package (<see cref="MacFfmpegPrebuiltInstall"/>) cannot be downloaded or validated.</remarks>
 internal static class MacFfmpegSourceBuild
 {
     // Pinned after verifying ffmpeg-9.0.2.tar.xz.asc against the FFmpeg release signing key FCF986EA15E6E293A5644F10B4322F04D67658D8.
@@ -17,8 +18,13 @@ internal static class MacFfmpegSourceBuild
     internal const string ArchiveSha256 = "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e";
     internal const string LogName = "ffmpeg-build.log";
     private const string SourceRoot = "ffmpeg-" + Version;
-    private const long MaximumArchiveSize = 64L * 1024 * 1024;
+    internal const long MaximumArchiveSize = 64L * 1024 * 1024;
     private const long MaximumSourceSize = 512L * 1024 * 1024;
+    // A server or proxy that stops sending headers or data fails the download instead of stalling setup indefinitely.
+    internal static readonly TimeSpan DownloadInactivityTimeout = TimeSpan.FromSeconds(60);
+    // Playback only writes raw video and PCM to pipes (FfmpegMovieDecoder, PcmAudioDecoder) and copies video packets to IVF to count frames.
+    internal static readonly string[] RequiredEncoders = ["rawvideo", "pcm_s16le"];
+    internal static readonly string[] RequiredMuxers = ["rawvideo", "s16le", "ivf"];
     private static readonly string[] RequiredNotices = ["LICENSE.md", "COPYING.LGPLv2.1"];
     private static readonly string[] OptionalNotices = ["COPYING.LGPLv3", "CREDITS"];
     // Isolate the build from Homebrew/MacPorts tools and libraries so the result links only system frameworks.
@@ -27,13 +33,17 @@ internal static class MacFfmpegSourceBuild
 
     internal static Uri ReleaseUrl => new((Environment.GetEnvironmentVariable("MEMORIA_FF8_FFMPEG_SOURCE_URL") ?? "https://ffmpeg.org/releases/").TrimEnd('/') + "/");
 
-    internal static string Prompt(string directory) => $"No prebuilt LGPL FFmpeg is published for macOS. Build FFmpeg {Version} from the official source release now?\n\nSource: {new Uri(ReleaseUrl, ArchiveName)} (SHA-256 verified)\nInstall to: {directory}\n\nThe build needs the Xcode Command Line Tools (macOS offers to install them when missing) and takes several minutes. It enables only LGPL components, without --enable-gpl or --enable-nonfree. License notices are kept with the tools. Cancel to stay in the launcher.";
+    internal static string Prompt(string directory, string? reason = null) => $"{(reason is null ? "" : "The prebuilt FFmpeg package could not be installed: " + reason + "\n\n")}Build FFmpeg {Version} from the official source release {(reason is null ? "now" : "instead")}?\n\nSource: {new Uri(ReleaseUrl, ArchiveName)} (SHA-256 verified)\nInstall to: {directory}\n\nThe build needs the Xcode Command Line Tools (macOS offers to install them when missing) and takes several minutes. It enables only LGPL components, without --enable-gpl or --enable-nonfree. License notices are kept with the tools. Cancel to stay in the launcher.";
 
     /// <summary>Configuration uses only system libraries; FFmpeg's default license is LGPL, and GPL/nonfree parts are never enabled.</summary>
-    /// <remarks>iconv stays disabled: macOS ships it in a separate libiconv that FFmpeg's program link omits, and playback needs no subtitle charset conversion.</remarks>
+    /// <remarks>
+    /// iconv stays disabled: macOS ships it in a separate libiconv that FFmpeg's program link omits, and playback needs no subtitle charset conversion.
+    /// Decoders, demuxers, parsers and filters keep FFmpeg's defaults so original and replacement media remain readable. Output-only encoders and muxers
+    /// are limited to what playback writes, and capture devices and network protocols are left out because only local files are read.
+    /// </remarks>
     internal static string[] ConfigureArguments(string prefix, Architecture architecture)
     {
-        List<string> arguments = ["--prefix=" + prefix, "--disable-autodetect", "--enable-videotoolbox", "--enable-audiotoolbox", "--enable-zlib", "--enable-bzlib", "--disable-doc", "--disable-debug", "--disable-ffplay"];
+        List<string> arguments = ["--prefix=" + prefix, "--disable-autodetect", "--enable-videotoolbox", "--enable-audiotoolbox", "--enable-zlib", "--enable-bzlib", "--disable-doc", "--disable-debug", "--disable-ffplay", "--disable-encoders", "--enable-encoder=" + string.Join(',', RequiredEncoders), "--disable-muxers", "--enable-muxer=" + string.Join(',', RequiredMuxers), "--disable-devices", "--disable-network"];
         if (architecture == Architecture.X64)
         {
             // Apple's toolchain has no NASM; the x64 build stays usable through the C implementations.
@@ -65,7 +75,7 @@ internal static class MacFfmpegSourceBuild
             progress?.Invoke(new(MediaToolsStage.Downloading));
             await using (FileStream archive = File.Create(archivePath))
             {
-                await DownloadAsync(client, source, archive, progress, cancellationToken);
+                await DownloadAsync(client, source, archive, DownloadInactivityTimeout, progress, cancellationToken);
                 progress?.Invoke(new(MediaToolsStage.Verifying));
                 archive.Position = 0;
                 string actual = Convert.ToHexString(await SHA256.HashDataAsync(archive, cancellationToken));
@@ -91,6 +101,9 @@ internal static class MacFfmpegSourceBuild
             await RunAsync("/usr/bin/make", ["install"], tree, log, "FFmpeg install", logPath, cancellationToken);
 
             progress?.Invoke(new(MediaToolsStage.Validating));
+            string built = Path.Combine(prefix, "bin", "ffmpeg");
+            await RequireComponentsAsync(built, "-encoders", RequiredEncoders, cancellationToken);
+            await RequireComponentsAsync(built, "-muxers", RequiredMuxers, cancellationToken);
             string result = Path.Combine(staging, "result");
             Directory.CreateDirectory(result);
             foreach (string tool in MediaToolsInstallation.ToolNames)
@@ -161,6 +174,42 @@ internal static class MacFfmpegSourceBuild
         }
     }
 
+    /// <summary>configure only warns about unmatched component names, so the built tool must list every component playback writes with.</summary>
+    internal static async Task RequireComponentsAsync(string ffmpeg, string listOption, string[] required, CancellationToken cancellationToken)
+    {
+        ProcessStartInfo start = new(ffmpeg) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        start.ArgumentList.Add("-hide_banner");
+        start.ArgumentList.Add(listOption);
+        using Process process = Process.Start(start)!;
+        Task<string> output = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        Task<string> error = process.StandardError.ReadToEndAsync(cancellationToken);
+        await process.WaitForExitAsync(cancellationToken);
+        await error;
+        string[] missing = required.Except(ListedComponents(await output)).ToArray();
+        if (process.ExitCode != 0 || missing.Length > 0)
+        {
+            throw new InvalidDataException($"The built FFmpeg lacks required {listOption.TrimStart('-')}: {string.Join(", ", missing)}.");
+        }
+    }
+
+    /// <summary>Reads component names from ffmpeg -encoders/-muxers rows, which start with a flag column followed by the name (muxers may list several, comma-separated).</summary>
+    internal static HashSet<string> ListedComponents(string output)
+    {
+        HashSet<string> names = new(StringComparer.Ordinal);
+        foreach (string line in output.Split('\n'))
+        {
+            string[] columns = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (columns.Length >= 2)
+            {
+                foreach (string name in columns[1].Split(','))
+                {
+                    names.Add(name);
+                }
+            }
+        }
+        return names;
+    }
+
     private static async Task RunAsync(string file, string[] arguments, string workingDirectory, StreamWriter log, string step, string logPath, CancellationToken cancellationToken)
     {
         ProcessStartInfo start = new(file) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = workingDirectory, RedirectStandardOutput = true, RedirectStandardError = true };
@@ -208,35 +257,47 @@ internal static class MacFfmpegSourceBuild
         }
     }
 
-    private static async Task DownloadAsync(HttpClient client, Uri uri, Stream destination, Action<MediaToolsProgress>? progress, CancellationToken cancellationToken)
+    internal static async Task DownloadAsync(HttpClient client, Uri uri, Stream destination, TimeSpan inactivityTimeout, Action<MediaToolsProgress>? progress, CancellationToken cancellationToken)
     {
         if (uri.Scheme != Uri.UriSchemeHttps)
         {
-            throw new ArgumentException("FFmpeg source downloads require HTTPS.");
+            throw new ArgumentException("FFmpeg downloads require HTTPS.");
         }
-        using HttpResponseMessage response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        long? length = response.Content.Headers.ContentLength;
-        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken);
-        byte[] buffer = new byte[81920];
-        long total = 0;
-        Stopwatch updates = Stopwatch.StartNew();
-        int read;
-        while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
+        // Every wait on the server restarts the inactivity deadline; only the caller's token means cancellation.
+        using CancellationTokenSource inactivity = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        try
         {
-            total += read;
-            if (total > MaximumArchiveSize)
+            inactivity.CancelAfter(inactivityTimeout);
+            using HttpResponseMessage response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, inactivity.Token);
+            response.EnsureSuccessStatusCode();
+            long? length = response.Content.Headers.ContentLength;
+            await using Stream source = await response.Content.ReadAsStreamAsync(inactivity.Token);
+            byte[] buffer = new byte[81920];
+            long total = 0;
+            Stopwatch updates = Stopwatch.StartNew();
+            int read;
+            inactivity.CancelAfter(inactivityTimeout);
+            while ((read = await source.ReadAsync(buffer, inactivity.Token)) > 0)
             {
-                throw new InvalidDataException("The FFmpeg source download exceeds the expected size limit.");
+                total += read;
+                if (total > MaximumArchiveSize)
+                {
+                    throw new InvalidDataException("The FFmpeg download exceeds the expected size limit.");
+                }
+                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                if (updates.ElapsedMilliseconds >= 100)
+                {
+                    progress?.Invoke(new(MediaToolsStage.Downloading, total, length));
+                    updates.Restart();
+                }
+                inactivity.CancelAfter(inactivityTimeout);
             }
-            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            if (updates.ElapsedMilliseconds >= 100)
-            {
-                progress?.Invoke(new(MediaToolsStage.Downloading, total, length));
-                updates.Restart();
-            }
+            progress?.Invoke(new(MediaToolsStage.Downloading, total, length));
         }
-        progress?.Invoke(new(MediaToolsStage.Downloading, total, length));
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException($"The FFmpeg download received no data for {inactivityTimeout.TotalSeconds:F0} seconds. Check the connection and start FFmpeg setup again.");
+        }
     }
 
     /// <summary>Extracts only regular files and directories below the single release root, keeping their Unix modes.</summary>
