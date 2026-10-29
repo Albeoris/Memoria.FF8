@@ -553,6 +553,27 @@ internal sealed partial class RecreateGame
         try
         {
             LocalizationRecord original = localizationWorkbench.Session.Base.Row;
+            localizationWorkbench.CompatibilityReporter = (value, role, dataset) =>
+            {
+                NativeTextContext context = (editingAuthoringHit?.NativeContext ?? NativeDialogueContext) with
+                {
+                    ResourceFamily = original.Category switch { "System" => "System", "World" or "Draw points" => "World", "Battle" => "Battle", _ => "Fields" },
+                    Field = original.Category == "Fields" ? original.File : null
+                };
+                dataset = role == "Target" ? authoringSelection!.Project.Manifest.TargetLanguage : dataset;
+                NativeFontProfile? profile = nativeTextFont?.ProfileFor(context, role, dataset);
+                try
+                {
+                    string body = authoringSyntax.Parse(value).Body;
+                    bool missingArguments = original.Category == "System" && System.Text.CompositeFormat.Parse(value).MinimumArgumentCount > (editingAuthoringBinding?.Arguments.Count ?? 0);
+                    IEnumerable<string> runs = missingArguments ? [] : ParseAuthoringPreview(value, OriginalTextLayout).Pages.SelectMany(page => page.Lines).SelectMany(line => line.Runs).Where(run => !run.IsButton).Select(run => run.Text);
+                    return AuthoringCompatibilityReport.Evaluate(NativeGameFonts, OriginalTextLayout, profile, context, role, dataset, body, runs);
+                }
+                catch (Exception exception) when (exception is InvalidDataException or ArgumentException or FormatException or InvalidOperationException or NotSupportedException)
+                {
+                    return AuthoringCompatibilityReport.Evaluate(NativeGameFonts, OriginalTextLayout, profile, context, role, dataset, value, [], [new("presentation", exception.Message)]);
+                }
+            };
             if (authoringTextInput?.PlatformProblem is { } inputProblem)
             {
                 return [inputProblem];
@@ -567,32 +588,8 @@ internal sealed partial class RecreateGame
             {
                 return rowErrors;
             }
-            if (original.Category == "System" && System.Text.CompositeFormat.Parse(target).MinimumArgumentCount > (editingAuthoringBinding?.Arguments.Count ?? 0))
-            {
-                return [];
-            }
-            DialogueDocument document = ParseAuthoringPreview(target, OriginalTextLayout);
-            if (NativeGameFonts)
-            {
-                NativeTextContext context = (editingAuthoringHit?.NativeContext ?? NativeDialogueContext) with
-                {
-                    ResourceFamily = original.Category switch { "System" => "System", "World" or "Draw points" => "World", "Battle" => "Battle", _ => "Fields" },
-                    Field = original.Category == "Fields" ? original.File : null
-                };
-                Memoria.FF8.Resources.Text.NativeFontProfile? profile = nativeTextFont?.ProfileFor(context);
-                if (profile is null)
-                {
-                    return [nativeTextFont?.Diagnostic ?? "No native font profile is selected for this resource context."];
-                }
-                string body = authoringSyntax.Parse(target).Body;
-                var glyphErrors = document.Pages.SelectMany(page => page.Lines).SelectMany(line => line.Runs).Where(run => !run.IsButton).SelectMany(run => nativeTextFont!.Layout(run.Text, context).Diagnostics).Select(error => error.Message).ToList();
-                if (OriginalTextLayout && original.Category != "System")
-                {
-                    glyphErrors.AddRange(Memoria.FF8.Resources.Text.NativeStrictCodec.Encode(profile, body, context).Diagnostics.Select(error => error.Message));
-                }
-                return glyphErrors;
-            }
-            return [];
+            AuthoringCompatibilityReport report = localizationWorkbench.CompatibilityReporter!(target, "Target", authoringSelection.Project.Manifest.TargetLanguage);
+            return report.PresentationDiagnostics.Select(error => error.Message).ToArray();
         }
         catch (Exception exception) when (exception is InvalidDataException or ArgumentException or FormatException or InvalidOperationException or NotSupportedException)
         {

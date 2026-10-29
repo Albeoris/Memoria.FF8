@@ -8,6 +8,43 @@ namespace Memoria.FF8.App.Tests;
 public sealed class LocalizationWorkbenchTests(ITestOutputHelper output)
 {
     [Fact]
+    public void RenderableMixedAtlasWithoutNativeCodecPreviewsAndReferenceReportKeepsItsRole()
+    {
+        Memoria.FF8.Resources.Text.NativeTextContext context = new("Classic", "Fields", "map", "en");
+        Memoria.FF8.Resources.Text.NativeFontProfile mixed = new()
+        {
+            Id = "mixed",
+            Domains = [new("Classic", "Fields")],
+            Atlases = [new("latin", "latin.png", 8, 12), new("cyrillic", "cyrillic.png", 8, 12)],
+            Images = [new(0, "latin", 0, 0, 8, 12, 8), new(1, "cyrillic", 0, 0, 8, 12, 8)],
+            Glyphs = [new("A", 0), new("\u042f", 1)]
+        };
+        Memoria.FF8.Resources.Text.NativeFontProfile reference = mixed with { Id = "reference", Codec = [new("20", "\u042f")] };
+        FakeStore store = new("A\u042f");
+        LocalizationEditingSession session = new(store, new PlainSyntax(), store.Snapshot);
+        using LocalizationWorkbenchController ui = new();
+        AuthoringCompatibilityReport Report(string text, string role, string? dataset) => AuthoringCompatibilityReport.Evaluate(true, true, role == "Target" ? mixed : reference, context, role, dataset, text, [text]);
+        ui.Open(session, [new("target", "Target", "A\u042f", true), new("ru", "Reference", "\u042f", IsSourceReference: true)], "Mixed atlas", value => Report(value, "Target", "mixed").PresentationDiagnostics.Select(error => error.Message).ToArray());
+        ui.CompatibilityReporter = Report;
+        ui.Preview();
+        Assert.Equal(LocalizationSessionMode.Preview, session.Mode);
+        Assert.True(ui.CompatibilityReport!.CanPreview);
+        Assert.False(ui.CompatibilityReport.NativeEncodingCompatible);
+        Assert.Collection(ui.CompatibilityReport.EncodingDiagnostics, error => Assert.Equal((0, 1), (error.Position, error.Length)), error => Assert.Equal((1, 1), (error.Position, error.Length)));
+        Assert.Equal("Unverified", ui.CompatibilityReport.Deployment);
+        ui.SelectLanguage(1);
+        Assert.Equal("Reference", ui.CompatibilityReport!.Role);
+        Assert.Equal("ru", ui.CompatibilityReport.Dataset);
+        Assert.Equal("reference", ui.CompatibilityReport.ProfileId);
+        Assert.True(ui.CompatibilityReport.NativeEncodingCompatible);
+        Assert.False(Report("?", "Target", "mixed").CanPreview);
+        AuthoringCompatibilityReport system = AuthoringCompatibilityReport.Evaluate(false, true, null, context with { ResourceFamily = "System" }, "Target", "mixed", "\u042f", ["\u042f"]);
+        Assert.True(system.CanPreview);
+        Assert.False(system.NativeEncodingCompatible);
+        Assert.Equal("MemoriaOnly", system.Deployment);
+    }
+
+    [Fact]
     public void EmptyTargetInspectionDoesNotMaterializeAndReferenceEditUsesTargetFallback()
     {
         FakeStore store = new("");

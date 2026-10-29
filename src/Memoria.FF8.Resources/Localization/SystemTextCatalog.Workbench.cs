@@ -5,6 +5,18 @@ public static partial class SystemTextCatalog
     private static void AddWorkbenchDefaults(Dictionary<string, string> defaults)
     {
         AddWorkbenchHostDefaults(defaults);
+        defaults.Add("localization.workbench.compatibility.presentation", "Presentation");
+        defaults.Add("localization.workbench.compatibility.encoding", "Native encoding (advisory)");
+        defaults.Add("localization.workbench.compatibility.deployment", "Original deployment");
+        defaults.Add("localization.workbench.compatibility.native", "Native");
+        defaults.Add("localization.workbench.compatibility.system", "System");
+        defaults.Add("localization.workbench.compatibility.original", "Original");
+        defaults.Add("localization.workbench.compatibility.modern", "Modern");
+        defaults.Add("localization.workbench.compatibility.renderable", "renderable");
+        defaults.Add("localization.workbench.compatibility.compatible", "compatible (byte encoding only)");
+        defaults.Add("localization.workbench.compatibility.incompatible", "incompatible");
+        defaults.Add("localization.workbench.compatibility.memoria", "Memoria-only UI");
+        defaults.Add("localization.workbench.compatibility.unverified", "unverified — resource limits and offsets have not been checked");
         defaults.Add("localization.workbench.clipboard.failed", "Clipboard unavailable: ");
         defaults.Add("localization.workbench.cancel", "Cancel");
         defaults.Add("localization.workbench.cancel.disable", "Cancel closing");

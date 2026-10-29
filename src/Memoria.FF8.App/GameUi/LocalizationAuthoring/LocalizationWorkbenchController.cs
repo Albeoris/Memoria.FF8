@@ -202,6 +202,22 @@ public sealed class LocalizationWorkbenchController : IDisposable
     public int EditorLanguage => language;
     public IReadOnlyList<LocalizationWorkbenchLanguage> EditorLanguages => languages;
     public string Status => status;
+    public Func<string, string, string?, AuthoringCompatibilityReport>? CompatibilityReporter { get; set; }
+    public AuthoringCompatibilityReport? CompatibilityReport
+    {
+        get
+        {
+            if (!IsEditing)
+            {
+                return null;
+            }
+            if (CompatibilityReporter is null)
+            {
+                _ = validate?.Invoke(Session!.Draft.Present ? Session.Draft.Text ?? "" : "");
+            }
+            return CompatibilityReporter?.Invoke(Editor.Text, language == 0 ? "Target" : "Reference", language == 0 ? null : languages[language].Id);
+        }
+    }
     public IReadOnlyList<LocalizationWorkbenchControlHit> ControlHits => controlHits;
     private readonly List<LocalizationWorkbenchControlHit> controlHits = [];
     public UiMultilineEditor Editor { get; } = new();
@@ -283,6 +299,7 @@ public sealed class LocalizationWorkbenchController : IDisposable
         SelectedProjectId = session.Base.ProjectId;
         journalRevision++;
         validate = validator;
+        CompatibilityReporter = null;
         language = 0;
         conflictPane = null;
         status = "";
@@ -903,7 +920,7 @@ public sealed class LocalizationWorkbenchController : IDisposable
                 roleLabel = TargetView().Length == 0 ? T("no.text", "No text available") : T("inherited", "Inherited text — Target remains empty until edited and saved");
             }
             Label(roleLabel, new(x, y + 82, Session!.Mode == LocalizationSessionMode.Preview ? Math.Max(0, width - 250) : width - 20, 22), true);
-            Editor.Arrange(new(x, y + 106, width - 20, Math.Max(55, height - 230)));
+            Editor.Arrange(new(x, y + 106, width - 20, Math.Max(55, height - 290)));
             Editor.Draw(canvas, theme);
             if (Session!.Mode == LocalizationSessionMode.Preview && PreviewChoices.Count != 0)
             {
@@ -913,6 +930,16 @@ public sealed class LocalizationWorkbenchController : IDisposable
                 Button("preview.choice.next", "Choice →", new(editorBounds.Right - 100, choiceY, 88, 25), () => BrowsePreviewChoice(1));
             }
             float actionsY = editorBounds.Bottom - 108;
+            if (CompatibilityReport is { } compatibility)
+            {
+                string mode = T(compatibility.PresentationMode == "Native" ? "compatibility.native" : "compatibility.system", compatibility.PresentationMode);
+                string layout = T(compatibility.LayoutMode == "Original" ? "compatibility.original" : "compatibility.modern", compatibility.LayoutMode);
+                string presentation = compatibility.CanPreview ? T("compatibility.renderable", "renderable") : string.Join("; ", compatibility.PresentationDiagnostics.Select(error => error.Message));
+                Label(T("compatibility.presentation", "Presentation") + ": " + mode + " / " + layout + " · " + compatibility.Role + " " + compatibility.Dataset + " · " + (compatibility.ProfileId ?? "—") + " · " + presentation, new(x, actionsY - 60, width - 20, 19));
+                string encoding = compatibility.NativeEncodingCompatible ? T("compatibility.compatible", "compatible (byte encoding only)") : T("compatibility.incompatible", "incompatible") + ": " + string.Join("; ", compatibility.EncodingDiagnostics.Select(error => error.Position < 0 ? error.Message : "[" + error.Position + ":" + error.Length + "] " + error.Message));
+                Label(T("compatibility.encoding", "Native encoding (advisory)") + ": " + encoding, new(x, actionsY - 40, width - 20, 19));
+                Label(T("compatibility.deployment", "Original deployment") + ": " + (compatibility.Deployment == "MemoriaOnly" ? T("compatibility.memoria", "Memoria-only UI") : T("compatibility.unverified", "unverified — resource limits and offsets have not been checked")), new(x, actionsY - 20, width - 20, 19), true);
+            }
             Button("preview", "Preview", new(x, actionsY, 90, 29), Preview);
             if (Session!.Mode == LocalizationSessionMode.Preview)
             {

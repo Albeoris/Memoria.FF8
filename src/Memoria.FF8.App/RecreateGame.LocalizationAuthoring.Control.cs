@@ -197,6 +197,7 @@ internal sealed partial class RecreateGame
             EditorSelection = new { localizationWorkbench.Editor.Caret, localizationWorkbench.Editor.SelectionStart, localizationWorkbench.Editor.SelectionLength },
             Controls = localizationWorkbench.ControlHits,
             localizationWorkbench.Status,
+            localizationWorkbench.CompatibilityReport,
             Notice = authoringNotice,
             InputProblem = authoringTextInput?.PlatformProblem,
             IsComposing = authoringTextInput?.IsComposing ?? false,
