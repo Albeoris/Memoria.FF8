@@ -6,6 +6,36 @@ namespace Memoria.FF8.Mods.Localization;
 
 public static partial class LocalizationProjectBuilder
 {
+    /// <summary>Creates a canonical insertion candidate from an existing verified source-catalog entry without inferring keys from rendered text.</summary>
+    public static LocalizationRecord CreateVerifiedRecord(LocalizationSourceEntry source, LocalizationManifest manifest)
+    {
+        string Normalize(string language) => language.Equals("ja", StringComparison.OrdinalIgnoreCase) ? "jp" : language;
+        if (!Normalize(source.Language).Equals(Normalize(manifest.FieldScriptBaseLanguage), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("The verified source row does not belong to the project's script-base dataset.");
+        }
+        bool present = IsPresent(source);
+        Dictionary<string, JsonElement> extensions = CreateSourceExtensions(source);
+        extensions["equivalentKeys"] = JsonSerializer.SerializeToElement(new Dictionary<string, string[]> { [manifest.FieldScriptBaseLanguage] = [source.Key] });
+        extensions["equivalentContexts"] = JsonSerializer.SerializeToElement(new Dictionary<string, object>());
+        LocalizationRecord row = new()
+        {
+            Category = source.Category,
+            File = source.File,
+            Key = source.Key,
+            Source = present ? source.Text : null,
+            SourcePresent = present,
+            Target = null,
+            TargetPresent = false,
+            References = manifest.ReferenceLanguages.ToDictionary(pair => pair.Key, pair => Normalize(pair.Value).Equals(Normalize(source.Language), StringComparison.OrdinalIgnoreCase) && present ? source.Text : null, StringComparer.Ordinal),
+            ReferencePresence = manifest.ReferenceLanguages.ToDictionary(pair => pair.Key, pair => Normalize(pair.Value).Equals(Normalize(source.Language), StringComparison.OrdinalIgnoreCase) && present, StringComparer.Ordinal),
+            ReferenceKeys = manifest.ReferenceLanguages.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)(Normalize(pair.Value).Equals(Normalize(source.Language), StringComparison.OrdinalIgnoreCase) ? [source.Key] : []), StringComparer.Ordinal),
+            ExtensionData = extensions
+        };
+        LocalizationProjectIO.Validate(new LocalizationProject { Manifest = manifest with { Artwork = [] }, Entries = [row] });
+        return row;
+    }
+
     public static LocalizationProject Prepare(string gameDirectory, LocalizationAuthoringRequest request, CancellationToken cancellation = default, IProgress<string>? progress = null, IReadOnlyList<LocalizationLayer>? loadedProjects = null, IReadOnlyList<string>? profileOrder = null)
     {
         if (!BuiltInLanguages.Contains(request.FieldScriptBaseLanguage, StringComparer.OrdinalIgnoreCase))
@@ -116,12 +146,11 @@ public static partial class LocalizationProjectBuilder
                     unmapped[family] = unmapped.GetValueOrDefault(family) + 1;
                 }
             }
-            Dictionary<string, JsonElement> extensions = identity.Metadata.ToDictionary(pair => pair.Key, pair => MetadataValue(pair.Key, pair.Value), StringComparer.Ordinal);
+            Dictionary<string, JsonElement> extensions = CreateSourceExtensions(identity);
             if (identity.Metadata.GetValueOrDefault("Field Name") is string fieldName)
             {
                 extensions["Field Name"] = JsonSerializer.SerializeToElement(indexes[baseLanguage].DisplayValue(identity, fieldName));
             }
-            extensions["sourceContext"] = JsonSerializer.SerializeToElement(identity.Metadata);
             extensions["equivalentKeys"] = JsonSerializer.SerializeToElement(aliases);
             extensions["equivalentContexts"] = JsonSerializer.SerializeToElement(counterparts.Where(pair => pair.Value.Length > 1).ToDictionary(pair => pair.Key, pair => pair.Value.Select(entry => new { entry.Key, entry.Text, entry.Metadata }).ToArray()));
             if (identity.Category == "Fields" && identity.Metadata.ContainsKey("Base Key"))
@@ -133,7 +162,6 @@ public static partial class LocalizationProjectBuilder
                     extensions["referenceContextAlternatives"] = JsonSerializer.SerializeToElement(ambiguousContexts);
                 }
             }
-            extensions["sourceGap"] = JsonSerializer.SerializeToElement(IsPresent(identity) ? null : identity.Metadata.GetValueOrDefault("Decode Error") ?? "No native text exists in the selected base dataset.");
             records.Add(new()
             {
                 Category = identity.Category,
@@ -173,6 +201,14 @@ public static partial class LocalizationProjectBuilder
     }
 
     private static bool IsPresent(LocalizationSourceEntry entry) => entry.Metadata.GetValueOrDefault("Source Present") != "false";
+
+    private static Dictionary<string, JsonElement> CreateSourceExtensions(LocalizationSourceEntry entry)
+    {
+        Dictionary<string, JsonElement> extensions = entry.Metadata.ToDictionary(pair => pair.Key, pair => MetadataValue(pair.Key, pair.Value), StringComparer.Ordinal);
+        extensions["sourceContext"] = JsonSerializer.SerializeToElement(entry.Metadata);
+        extensions["sourceGap"] = JsonSerializer.SerializeToElement(IsPresent(entry) ? null : entry.Metadata.GetValueOrDefault("Decode Error") ?? "No native text exists in the selected base dataset.");
+        return extensions;
+    }
 
     private static JsonElement MetadataValue(string key, string? value)
     {

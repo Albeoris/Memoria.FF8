@@ -5,6 +5,7 @@ namespace Memoria.FF8.Localization.Authoring;
 public sealed record LocalizationRecoveredDraft(string DestinationId, LocalizationRowSnapshot Base, LocalizationTargetValue Draft, int Caret, int SelectionLength, DateTimeOffset UpdatedAt)
 {
     public LocalizationRecoveredConflict? Conflict { get; init; }
+    public bool RecordChanges { get; init; } = true;
 }
 public sealed record LocalizationRecoveredConflict(LocalizationRowSnapshot Base, LocalizationTargetValue Ours, LocalizationRowSnapshot Theirs, IReadOnlyDictionary<LocalizationConflictPane, LocalizationTargetValue> Candidates);
 public sealed record LocalizationReplayReview(LocalizationChange Change, LocalizationRowSnapshot Current, LocalizationTargetValue Proposed, bool Redo);

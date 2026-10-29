@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Collections.Immutable;
+using System.Text.Json;
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Resources.Localization;
@@ -16,6 +17,65 @@ public sealed record LocalizationPreparation(LocalizationCatalog Catalog, IReadO
 
 public static class LocalizationRuntime
 {
+    /// <summary>Validates an authoring destination and its declared base chain, then exposes only the selected contribution as a temporary overlay.</summary>
+    public static LocalizationPreparation PrepareAuthoringProject(ModCatalogSnapshot catalog, string selectedPackageId, ResourceSourceDescriptor source, CancellationToken cancellation = default)
+    {
+        ModPackage selected = catalog.Packages.Single(package => package.Id.Equals(selectedPackageId, StringComparison.OrdinalIgnoreCase) && package.HasLocalization);
+        Dictionary<string, LocalizationManifest> manifests = new(StringComparer.OrdinalIgnoreCase);
+        foreach (ModPackage package in catalog.Packages.Where(package => package.HasLocalization))
+        {
+            cancellation.ThrowIfCancellationRequested();
+            try
+            {
+                byte[] bytes = File.ReadAllBytes(LocalizationProjectIO.Resolve(package.RootDirectory, LocalizationProjectIO.ManifestRelativePath));
+                LocalizationManifest manifest = JsonSerializer.Deserialize<LocalizationManifest>(bytes, LocalizationProjectIO.JsonOptions) ?? throw new InvalidDataException("Empty localization manifest.");
+                manifests[package.Id] = manifest;
+            }
+            catch (Exception exception) when (package.Id != selected.Id && exception is IOException or UnauthorizedAccessException or JsonException)
+            {
+                // An unrelated invalid project cannot supply a base; selected dependencies still fail explicitly below.
+            }
+        }
+        List<ModPackage> chain = [];
+        HashSet<string> visiting = new(StringComparer.Ordinal);
+        void Add(ModPackage package)
+        {
+            if (!manifests.TryGetValue(package.Id, out LocalizationManifest? manifest))
+            {
+                throw new InvalidDataException("The selected localization dependency could not be read: " + package.Name);
+            }
+            if (!visiting.Add(manifest.ProjectId))
+            {
+                throw new InvalidDataException("Localization base relationships contain a cycle.");
+            }
+            if (manifest.BaseProjectId is string baseId)
+            {
+                string[] parents = manifests.Where(pair => pair.Value.ProjectId == baseId).Select(pair => pair.Key).ToArray();
+                if (parents.Length != 1)
+                {
+                    throw new InvalidDataException("The selected localization requires one unambiguous base project: " + baseId);
+                }
+                Add(catalog.Packages.Single(candidate => candidate.Id.Equals(parents[0], StringComparison.OrdinalIgnoreCase)));
+            }
+            chain.Add(package with { Status = ModEffectiveStatus.Active });
+            visiting.Remove(manifest.ProjectId);
+        }
+        Add(selected);
+        LocalizationPreparation prepared = Prepare(new ModCatalogSnapshot(catalog.Generation, chain, [], catalog.Diagnostics), chain.Select(package => package.Id).ToArray(), source, cancellation);
+        try
+        {
+            Dictionary<string, LocalizationValue> values = prepared.Catalog.Values.Where(pair => pair.Value.PackageId.Equals(selected.Id, StringComparison.OrdinalIgnoreCase)).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+            var artwork = prepared.Catalog.Artwork.Where(pair => pair.Value.PackageId.Equals(selected.Id, StringComparison.OrdinalIgnoreCase));
+            HashSet<string> selectedKeys = prepared.Layers.Single(layer => layer.PackageId.Equals(selected.Id, StringComparison.OrdinalIgnoreCase)).Project.Entries.Where(row => !string.IsNullOrEmpty(row.Target)).Select(row => row.Key).ToHashSet(StringComparer.Ordinal);
+            return prepared with { Catalog = new LocalizationCatalog(values, [values], artwork), RequiresSelection = false, DormantFieldKeys = prepared.DormantFieldKeys.Where(selectedKeys.Contains).ToArray() };
+        }
+        catch
+        {
+            prepared.InputRevision?.Dispose();
+            throw;
+        }
+    }
+
     /// <summary>Reads a complete candidate off the publication thread. The displayed order is low to high.</summary>
     public static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool allowMissingPayloads = false, bool watchForPublication = false, LocalizationProjectReadCache? readCache = null)
     {

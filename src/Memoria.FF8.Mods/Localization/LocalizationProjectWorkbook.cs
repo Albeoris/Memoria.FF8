@@ -74,7 +74,19 @@ internal static class LocalizationProjectWorkbook
                 Row output = new() { RowIndex = rowIndex };
                 for (int i = 0; i < values.Count; i++)
                 {
-                    output.Append(MakeCell(values[i] ?? "", ColumnName(i) + rowIndex, row.Key, i == (referenceLayout ? 2 : 3) ? 1U : 0U));
+                    int targetIndex = referenceLayout ? 2 : 3;
+                    if (i == targetIndex && !row.TargetPresent)
+                    {
+                        continue;
+                    }
+                    if (i == targetIndex && row.Target is null)
+                    {
+                        output.Append(new Cell { CellReference = ColumnName(i) + rowIndex, StyleIndex = 1U });
+                    }
+                    else
+                    {
+                        output.Append(MakeCell(values[i] ?? "", ColumnName(i) + rowIndex, row.Key, i == targetIndex ? 1U : 0U));
+                    }
                 }
                 data.Append(output);
                 rowIndex++;

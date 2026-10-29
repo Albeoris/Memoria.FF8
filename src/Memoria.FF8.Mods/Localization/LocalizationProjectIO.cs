@@ -413,7 +413,7 @@ public static partial class LocalizationProjectIO
         }
     }
 
-    private static IEnumerable<LocalizationPayload> DiscoverPayloads(string root, LocalizationManifest manifest)
+    internal static IEnumerable<LocalizationPayload> DiscoverPayloads(string root, LocalizationManifest manifest)
     {
         foreach (LocalizationPayload payload in manifest.Payloads)
         {

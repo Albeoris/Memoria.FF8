@@ -6,6 +6,7 @@ using DocumentFormat.OpenXml.Spreadsheet;
 using Memoria.FF8.Localization.Authoring;
 using Memoria.FF8.Mods.Localization;
 using Memoria.FF8.Resources.Localization;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Mods.Tests;
 
@@ -20,6 +21,45 @@ public sealed class LocalizationAuthoringStoreTests : IDisposable
     };
 
     [Fact]
+    public void SelectedAuthoringPatchValidatesDisabledBaseChainWithoutOverlayingBaseText()
+    {
+        LocalizationProject original = Project() with
+        {
+            Manifest = Project().Manifest with { MappingVersion = Memoria.FF8.Assets.Localization.FieldCorrespondenceCatalog.Version },
+            Entries = [new() { Category = "Menus", File = "sample", Key = "$en_sample_0000", Source = "source", Target = "base" }, new() { Category = "Menus", File = "sample", Key = "$en_sample_0001", Source = "source", Target = "base only" }]
+        };
+        string baseDirectory = Path.Combine(root, "base");
+        string patchDirectory = Path.Combine(root, "patch");
+        LocalizationProjectIO.WriteNew(original, baseDirectory, "json", "single", TestContext.Current.CancellationToken);
+        LocalizationProject patch = LocalizationProjectExport.CreatePatch(original, "Patch") with { Entries = [original.Entries[0] with { Target = "selected" }, original.Entries[1] with { Target = "" }] };
+        LocalizationProjectIO.WriteNew(patch, patchDirectory, "json", "single", TestContext.Current.CancellationToken);
+        ModPackage basePackage = new("base", "Base", ModFormat.Memoria, false, false, ModEffectiveStatus.Disabled, baseDirectory) { HasLocalization = true };
+        ModPackage patchPackage = new("patch", "Patch", ModFormat.Memoria, false, false, ModEffectiveStatus.Disabled, patchDirectory) { HasLocalization = true };
+        ModCatalogSnapshot catalog = new(1, [patchPackage, basePackage], []);
+        LocalizationPreparation prepared = LocalizationRuntime.PrepareAuthoringProject(catalog, patchPackage.Id, new("fixture", GameDataEdition.Classic, [], "en"), TestContext.Current.CancellationToken);
+        using var inputRevision = prepared.InputRevision;
+        Assert.Equal(new[] { "base", "patch" }, prepared.RequestedOrder);
+        Assert.Equal("selected", prepared.Catalog.Resolve("$en_sample_0000", "native"));
+        Assert.Equal("native", prepared.Catalog.Resolve("$en_sample_0001", "native"));
+        Assert.All(catalog.Packages, package => Assert.Equal(ModEffectiveStatus.Disabled, package.Status));
+        Assert.False(prepared.RequiresSelection);
+    }
+
+    [Fact]
+    public void VerifiedCatalogRecordRetainsStructuredSourceMetadataAndNoInventedReference()
+    {
+        LocalizationSourceEntry source = new("Menus", "sample", "$en_sample_0000", "native source", "en", new Dictionary<string, string?> { ["Resource Hash"] = "fingerprint", ["Context Bindings"] = "[{\"operation\":7}]" });
+        LocalizationRecord row = LocalizationProjectBuilder.CreateVerifiedRecord(source, Project().Manifest);
+        Assert.Equal(source.Key, row.Key);
+        Assert.Equal(source.Text, row.Source);
+        Assert.Equal(JsonValueKind.Array, row.ExtensionData["Context Bindings"].ValueKind);
+        Assert.Equal("fingerprint", row.ExtensionData["sourceContext"].GetProperty("Resource Hash").GetString());
+        Assert.Null(row.References["Reference [ja]"]);
+        Assert.Equal("native source", row.References["Reference [en]"]);
+        Assert.False(row.TargetPresent);
+    }
+
+    [Fact]
     public async Task JsonRebasesUnrelatedRowsAndConflictsOnReferenceChanges()
     {
         LocalizationProjectIO.WriteNew(Project(), root, "json", "single", TestContext.Current.CancellationToken);
@@ -28,12 +68,13 @@ public sealed class LocalizationAuthoringStoreTests : IDisposable
         string path = Path.Combine(root, "Localization/localization.json");
         JsonNode json = JsonNode.Parse(File.ReadAllText(path))!;
         json["Fields"]!["scene"]!["$en_scene_0001"]!["Target"] = "external other";
+        json["Fields"]!["scene"]!["$en_scene_0000"]!["Unknown"]!["keep"] = JsonNode.Parse("7.00e0");
         File.WriteAllText(path, json.ToJsonString());
         LocalizationCommitResult result = await store.CommitAsync(snapshot, new(true, "new"), TestContext.Current.CancellationToken);
         Assert.Equal(LocalizationCommitStatus.Saved, result.Status);
         LocalizationProject updated = LocalizationProjectIO.Read(root);
         Assert.Equal("external other", updated.Entries[1].Target);
-        Assert.Equal(7, updated.Entries[0].ExtensionData["Unknown"].GetProperty("keep").GetInt32());
+        Assert.Equal(7m, updated.Entries[0].ExtensionData["Unknown"].GetProperty("keep").GetDecimal());
         snapshot = await store.ReadRowAsync(Identity, TestContext.Current.CancellationToken);
         json = JsonNode.Parse(File.ReadAllText(path))!;
         json["Fields"]!["scene"]!["$en_scene_0000"]!["Reference [ja]"] = "changed reference";
@@ -173,16 +214,20 @@ public sealed class LocalizationAuthoringStoreTests : IDisposable
         Assert.Single(session.Changes);
     }
 
-    [Fact]
-    public async Task VerifiedMissingRowInsertsPayloadAndBindingSidecar()
+    [Theory]
+    [InlineData("json")]
+    [InlineData("xlsx")]
+    public async Task VerifiedMissingRowInsertsPayloadAndBindingSidecar(string format)
     {
         LocalizationProject project = Project();
-        LocalizationProjectIO.WriteNew(project with { Manifest = project.Manifest with { SchemaVersion = 2 } }, root, "json", "single", TestContext.Current.CancellationToken);
+        LocalizationProjectIO.WriteNew(project with { Manifest = project.Manifest with { SchemaVersion = 2 } }, root, format, "single", TestContext.Current.CancellationToken);
         LocalizationProjectStore store = new(root);
         LocalizationRecord verified = project.Entries[0] with { Key = "$en_scene_0002", Target = null };
         LocalizationRowSnapshot prepared = await store.ReadOrPrepareRowAsync(verified, TestContext.Current.CancellationToken);
         Assert.True(prepared.Missing);
-        Assert.Equal(LocalizationCommitStatus.Saved, (await store.CommitAsync(prepared, new(true, "inserted"), TestContext.Current.CancellationToken)).Status);
+        LocalizationCommitResult committed = await store.CommitAsync(prepared, new(true, "inserted"), TestContext.Current.CancellationToken);
+        Assert.Equal(LocalizationCommitStatus.Saved, committed.Status);
+        Assert.Equal(committed.Current!.Revision, (await store.ReadRowAsync(prepared.Identity, TestContext.Current.CancellationToken)).Revision);
         LocalizationProject loaded = LocalizationProjectIO.Read(root);
         Assert.Equal(3, loaded.Entries.Count);
         Assert.Equal("inserted", loaded.Entries.Single(row => row.Key == verified.Key).Target);

@@ -57,6 +57,7 @@ public sealed class LocalizationEditingSession
     {
         return new(destinationId, Base, Draft, Caret, SelectionLength, DateTimeOffset.UtcNow)
         {
+            RecordChanges = RecordChanges,
             Conflict = Conflict is null ? null : new(Conflict.Base, Conflict.Ours, Conflict.Theirs, new Dictionary<LocalizationConflictPane, LocalizationTargetValue>(Conflict.Candidates))
         };
     }
@@ -66,7 +67,8 @@ public sealed class LocalizationEditingSession
         {
             Draft = recovered.Draft,
             Caret = recovered.Caret,
-            SelectionLength = recovered.SelectionLength
+            SelectionLength = recovered.SelectionLength,
+            RecordChanges = recovered.RecordChanges
         };
         if (recovered.Conflict is LocalizationRecoveredConflict saved)
         {

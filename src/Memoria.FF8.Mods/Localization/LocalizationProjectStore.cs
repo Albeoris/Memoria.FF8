@@ -1,5 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Globalization;
+using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
@@ -93,7 +95,14 @@ public sealed class LocalizationProjectStore(string packageDirectory) : ILocaliz
         {
             return Snapshot(project, identity);
         }
-        LocalizationRecord prepared = verifiedRow with { Target = null, TargetPresent = false };
+        LocalizationRecord prepared = verifiedRow with
+        {
+            Target = null,
+            TargetPresent = false,
+            References = project.Manifest.ReferenceLanguages.Keys.ToDictionary(label => label, label => verifiedRow.References.GetValueOrDefault(label), StringComparer.Ordinal),
+            ReferencePresence = project.Manifest.ReferenceLanguages.Keys.ToDictionary(label => label, label => verifiedRow.ReferencePresence.TryGetValue(label, out bool present) ? present : verifiedRow.References.ContainsKey(label), StringComparer.Ordinal),
+            ReferenceKeys = project.Manifest.ReferenceLanguages.Keys.ToDictionary(label => label, label => verifiedRow.ReferenceKeys.GetValueOrDefault(label) ?? [], StringComparer.Ordinal)
+        };
         LocalizationProject candidate = project with { Entries = project.Entries.Append(prepared).ToArray() };
         LocalizationProjectIO.Validate(candidate);
         return Snapshot(candidate, identity) with { Missing = true };
@@ -119,7 +128,8 @@ public sealed class LocalizationProjectStore(string packageDirectory) : ILocaliz
             LocalizationRecord changed = current.Row with { Target = target.Text, TargetPresent = target.Present };
             LocalizationRecord[] updatedRows = expected.Missing ? project.Entries.Append(changed).ToArray() : project.Entries.Select(row => Matches(row, expected.Identity) ? changed : row).ToArray();
             LocalizationProjectIO.Validate(project with { Entries = updatedRows });
-            LocalizationPayload payload = project.Manifest.Payloads.Single(item => (item.Category is null || item.Category == expected.Identity.Category) && (item.File is null || item.File == expected.Identity.File) && (expected.Missing || Contains(item, project.Manifest, expected.Identity)));
+            IEnumerable<LocalizationPayload> payloads = expected.Missing ? project.Manifest.Payloads : LocalizationProjectIO.DiscoverPayloads(root, project.Manifest);
+            LocalizationPayload payload = payloads.Single(item => (item.Category is null || item.Category == expected.Identity.Category) && (item.File is null || item.File == expected.Identity.File) && (expected.Missing || Contains(item, project.Manifest, expected.Identity)));
             string destination = LocalizationProjectIO.Resolve(root, payload.Path);
             // Read sharing permits readers and atomic replacement, while refusing cooperative in-place writers.
             using FileStream original = new(destination, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
@@ -224,8 +234,31 @@ public sealed class LocalizationProjectStore(string packageDirectory) : ILocaliz
     {
         JsonObject obj => new JsonObject(obj.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => KeyValuePair.Create(pair.Key, Canonical(pair.Value))).ToArray()),
         JsonArray array => new JsonArray(array.Select(Canonical).ToArray()),
+        JsonValue value when value.GetValueKind() == JsonValueKind.Number => JsonNode.Parse(NormalizeNumber(value.ToJsonString())),
         _ => node?.DeepClone()
     };
+    private static string NormalizeNumber(string text)
+    {
+        bool negative = text.StartsWith('-');
+        string unsigned = negative ? text[1..] : text;
+        int exponentIndex = unsigned.IndexOfAny(['e', 'E']);
+        string mantissa = exponentIndex < 0 ? unsigned : unsigned[..exponentIndex];
+        BigInteger exponent = exponentIndex < 0 ? BigInteger.Zero : BigInteger.Parse(unsigned[(exponentIndex + 1)..], CultureInfo.InvariantCulture);
+        int decimalIndex = mantissa.IndexOf('.');
+        if (decimalIndex >= 0)
+        {
+            exponent -= mantissa.Length - decimalIndex - 1;
+        }
+        string digits = mantissa.Replace(".", "", StringComparison.Ordinal).TrimStart('0');
+        if (digits.Length == 0)
+        {
+            return "0";
+        }
+        int trimmed = digits.Length - digits.TrimEnd('0').Length;
+        digits = digits.TrimEnd('0');
+        exponent += trimmed;
+        return (negative ? "-" : "") + digits + "e" + exponent.ToString(CultureInfo.InvariantCulture);
+    }
     private static byte[] PatchJson(byte[] bytes, LocalizationManifest manifest, LocalizationRowIdentity identity, LocalizationTargetValue target, LocalizationRecord? insertion)
     {
         JsonNode document = JsonNode.Parse(bytes)!;
@@ -299,11 +332,11 @@ public sealed class LocalizationProjectStore(string packageDirectory) : ILocaliz
             else
             {
                 XElement cell = existing ?? new XElement(ns + "c", new XAttribute("r", address));
-                cell.RemoveNodes();
+                cell.Elements().Where(item => item.Name == ns + "v" || item.Name == ns + "is" || item.Name == ns + "f").Remove();
                 cell.SetAttributeValue("t", target.Text is null ? null : "inlineStr");
                 if (target.Text is not null)
                 {
-                    cell.Add(new XElement(ns + "is", new XElement(ns + "t", new XAttribute(XNamespace.Xml + "space", "preserve"), target.Text)));
+                    cell.AddFirst(new XElement(ns + "is", new XElement(ns + "t", new XAttribute(XNamespace.Xml + "space", "preserve"), target.Text)));
                 }
                 if (existing is null)
                 {
