@@ -11,6 +11,8 @@ public sealed partial class BattleSession
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native actor glow requires its current CPU resources.");
         NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native actor glow requires its current staging owner.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native actor glow requires its current projection.");
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
         uint manager = CoreDword(frame, 0x27973EC);
         byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
         uint actorAddress = CoreDword(frame, CoreDword(frame, 0x279744C) + 0x60u + 4u * actorIndex);
@@ -86,13 +88,18 @@ public sealed partial class BattleSession
             int groups = BinaryPrimitives.ReadInt16LittleEndian(ReadKnown(geometry, objectOffset, 2));
             uint sourceCursor = geometryAddress + (uint)objectOffset + 2;
             uint scratchCursor = projectedWork;
+            System.Numerics.Vector3[] worldVertices = new System.Numerics.Vector3[meshes[objectIndex].Vertices.Length];
             for (int group = 0; group < groups; group++)
             {
                 ushort bone = BinaryPrimitives.ReadUInt16LittleEndian(ReadKnown(geometry, checked((int)(sourceCursor - geometryAddress)), 2));
                 sourceCursor += 2;
                 LoadBone(bone);
                 NativeBattleScriptedGraphicsMemory controls = RequireWaterMemory().ScriptedGraphics ?? throw new NotSupportedException("Native actor glow requires its depth cue controls.");
-                NativeBattleCinematicPackedProjectionStep step = NativeBattleCinematicPackedProjection50FD40.Execute(frame, sourceCursor, scratchCursor, Registers(), projection, controls.Dqa, controls.Dqb, ReadGeometry);
+                NativeBattleCinematicPackedProjectionStep step = NativeBattleCinematicPackedProjection50FD40.Execute(frame, sourceCursor, scratchCursor, Registers(), projection, controls.Dqa, controls.Dqb, ReadGeometry, observeSource: (output, vertex, loadedMatrix) =>
+                {
+                    int index = checked((int)((output - projectedWork) / 8));
+                    worldVertices[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(loadedMatrix, vertex), projection);
+                });
                 frame = step.Frame;
                 PublishRegisters(step.Registers);
                 sourceCursor = step.SourceCursor;
@@ -121,7 +128,7 @@ public sealed partial class BattleSession
                 return new NativeBattleProjectedVertex(Dword(address), Dword(address + 4));
             }).ToArray();
             NativeBattleCinematicVertexColors colors = NativeBattleCinematicActorVertexColor20.ReadObjectColors(frame, state, colorBase, objectIndex, mesh.Vertices.Length);
-            Append(NativeBattleCinematicMonsterPackets.Glow(mesh, projected, colors.Colors, OtBucket(frame.ReadTemporaryDword(0x14C)), colors.HighKnown));
+            Append(NativeBattleCinematicMonsterPackets.Glow(mesh, projected, colors.Colors, OtBucket(frame.ReadTemporaryDword(0x14C)), colors.HighKnown, worldVertices, NativeBattleCinematicActorPresentation.Object(visualIdentity, clone, objectIndex, false, geometryAddress)));
         }
         Shadow();
         NativeModelCpuResources = cpu;
@@ -254,7 +261,7 @@ public sealed partial class BattleSession
             }
             NativeBattleGraphicsDefinition native = definition.NativeGraphics ?? throw new NotSupportedException("Native actor glow shadow requires its current graphics definition.");
             NativeBattleEffectMemory memory = RequireWaterMemory();
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(staging, Registers(), actor, projection, memory.ScriptedGraphics ?? throw new NotSupportedException("Native actor glow shadow requires depth controls."), native.Rules.ShadowSource ?? throw new NotSupportedException("Native actor glow shadow requires its original vector source."), native.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Native actor glow shadow requires its current primitive capability."), 0x4064 / 4, 31);
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(staging, Registers(), actor, projection, memory.ScriptedGraphics ?? throw new NotSupportedException("Native actor glow shadow requires depth controls."), native.Rules.ShadowSource ?? throw new NotSupportedException("Native actor glow shadow requires its original vector source."), native.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Native actor glow shadow requires its current primitive capability."), 0x4064 / 4, 31, pilotIdentity: visualIdentity with { Primitive = unchecked((int)0x80000000), ResourceGeneration = geometryAddress });
             staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78);
             staging = NativeBattleTemporaryMemory.Release5082D0(staging, 0x78);
             PublishRegisters(shadow.Registers);
@@ -264,7 +271,7 @@ public sealed partial class BattleSession
         void Append(NativeBattleGfGeometryBatch batch)
         {
             uint output = CoreDword(frame, manager + 0x7C);
-            var written = AppendNativeCinematicPackets(frame, output, null, batch, graphics);
+            var written = AppendNativeCinematicPackets(frame, output, null, NativeBattleCinematicActorPresentation.NativeDepths(batch), graphics);
             frame = WriteCoreDword(written.Frame, manager + 0x7C, unchecked(output + (uint)batch.AllocationBytes));
             graphics = written.Graphics;
         }

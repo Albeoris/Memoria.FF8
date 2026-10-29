@@ -128,7 +128,9 @@ public sealed partial class BattleSession
             NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native actor animation requires original color arithmetic tables.");
             NativeBattleGeometryViewport viewport = new(Word(current, clone + 0x54), Word(current, clone + 0x56), Word(current, clone + 0x58), Word(current, clone + 0x5A));
             int length = meshes.Where((_, index) => (mask & (1u << (index & 31))) != 0).Select(mesh => mesh.Vertices.Length * 8).DefaultIfEmpty().Max();
-            NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, projection, color, mask, new byte[length].ToImmutableArray(), colors, 4, viewport, OtBucket(current.ReadTemporaryDword(0x14C)), Word(current, clone + 0x64));
+            NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
+            NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, current, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, visualBank)) with { ResourceGeneration = geometry };
+            NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, projection, color, mask, new byte[length].ToImmutableArray(), colors, 4, viewport, OtBucket(current.ReadTemporaryDword(0x14C)), Word(current, clone + 0x64), visualIdentity);
             NativeEffectMemory = NativeBattleCinematicActorAnimation2C.PublishProjectionRegisters(RequireWaterMemory(), current.Arena, skeleton, meshes, mask);
             if (draw.ProjectedBytesWritten != 0)
             {

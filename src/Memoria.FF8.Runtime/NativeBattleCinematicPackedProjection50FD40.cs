@@ -8,7 +8,7 @@ public sealed record NativeBattleCinematicPackedProjectionStep(NativeBattleWater
 
 public static class NativeBattleCinematicPackedProjection50FD40
 {
-    public static NativeBattleCinematicPackedProjectionStep Execute(NativeBattleWaterExecutionFrame frame, uint sourceCursor, uint scratchCursor, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, short dqa, int dqb, Func<uint, int, (byte[] Data, bool[] Known)> readSource)
+    public static NativeBattleCinematicPackedProjectionStep Execute(NativeBattleWaterExecutionFrame frame, uint sourceCursor, uint scratchCursor, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, short dqa, int dqb, Func<uint, int, (byte[] Data, bool[] Known)> readSource, Action<uint, NativeBattleVector, NativeBattleActionMatrix>? observeSource = null)
     {
         ArgumentNullException.ThrowIfNull(readSource);
         var countBytes = Read(sourceCursor, 2);
@@ -24,6 +24,7 @@ public static class NativeBattleCinematicPackedProjection50FD40
             var input = Read(sourceCursor, 8);
             RequireKnown(input.Known, 6);
             registers = registers with { Colors = registers.Colors with { NormalInput = input.Data.ToImmutableArray(), NormalInputKnown = input.Known.All(value => value) ? null : input.Known.ToImmutableArray() } };
+            NativeBattleActionMatrix? sourceMatrix = observeSource is null ? null : NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(registers.Geometry).ReadMatrix();
             registers = NativeBattleGeometry.ProjectSingle(registers, projection, dqa, dqb);
             uint screen = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Packed projection requires its current screen result.");
             uint depth = registers.Geometry.Sz[3] ?? throw new NotSupportedException("Packed projection requires its current depth result.");
@@ -32,6 +33,10 @@ public static class NativeBattleCinematicPackedProjection50FD40
             BinaryPrimitives.WriteUInt32LittleEndian(output, screen);
             BinaryPrimitives.WriteUInt32LittleEndian(output.AsSpan(4), (Math.Max(10u, depth) & 0xFFFF) | (flags & 0xFFFF0000));
             frame = frame with { Arena = frame.Arena.Write(ArenaOffset(scratchCursor, 8), output) };
+            if (observeSource is not null)
+            {
+                observeSource(scratchCursor, new(BinaryPrimitives.ReadInt16LittleEndian(input.Data), BinaryPrimitives.ReadInt16LittleEndian(input.Data.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(input.Data.AsSpan(4))), sourceMatrix!);
+            }
             sourceCursor = unchecked(sourceCursor + 6);
             scratchCursor = unchecked(scratchCursor + 8);
         }

@@ -6,6 +6,33 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleWaterParticleRectangleTests
 {
+    [Theory]
+    [InlineData((ushort)231)]
+    [InlineData((ushort)232)]
+    [InlineData((ushort)238)]
+    [InlineData((ushort)240)]
+    public void Group17_direct_rectangle_capture_keeps_actual_particle_birth_and_native_FIFO_writes(ushort effect)
+    {
+        var nativeFrame = Fixture();
+        var capturedFrame = Fixture();
+        NativeBattlePilotVisualLifetimes.Allocated(capturedFrame.Arena, 0x2200000, 3);
+        var identity = NativeBattlePilotVisualLifetimes.Identity(effect, capturedFrame.Arena, 0x2200000, 3);
+        var projection = new NativeBattleCameraProjection(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), 216, 0, 0);
+        var native = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(nativeFrame, Registers(Matrix), projection, 1365, 0, 0, Resolve);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(capturedFrame, Registers(Matrix), projection, 1365, 0, 0, Resolve, Matrix, identity);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.Null(Assert.Single(native.Packets.Attempts).Primitive!.PilotGeometry);
+        var primitive = Assert.Single(captured.Packets.Attempts).Primitive!;
+        var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(effect, geometry.Identity.Effect);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(4, geometry.CornerCount);
+        Assert.Equal(primitive.VertexPayload4, Assert.Single(native.Packets.Attempts).Primitive!.VertexPayload4);
+        NativeBattlePilotVisualLifetimes.Allocated(capturedFrame.Arena, 0x2200000, 3);
+        Assert.NotEqual(identity.Generation, NativeBattlePilotVisualLifetimes.Identity(effect, capturedFrame.Arena, 0x2200000, 3).Generation);
+    }
+
     private const uint ArenaBase = 0x20DFAB8;
     private const uint Manager = 0x2797690;
     private const int Source = 0x10000;

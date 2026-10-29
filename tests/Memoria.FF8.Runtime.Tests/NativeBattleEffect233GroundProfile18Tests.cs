@@ -197,6 +197,30 @@ public sealed class NativeBattleEffect233GroundProfile18Tests
         return bytes;
     }
 
+    [Fact]
+    public void Presentation_preserves_full_native_ground_ledger_and_explicit_empty_depth_policy()
+    {
+        Capture plain = new() { CaptureWorld = true };
+        Capture captured = new() { CaptureWorld = true };
+        NativeBattleWaterExecutionFrame a = NativeBattleCinematicGroundProfile18.Draw(Create(), plain.Services());
+        NativeBattleWaterExecutionFrame b = NativeBattleCinematicGroundProfile18.Draw(Create(), captured.Services(), new(233, 0x100, 0, 123, 18));
+        Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        Assert.Equal(plain.Inputs, captured.Inputs);
+        NativeBattleGfGeometryAttempt[] packets = captured.Batch!.Attempts.Where(attempt => attempt.Primitive is not null).ToArray();
+        Assert.Equal(496, packets.Length);
+        Assert.Equal(496, packets.Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+        Assert.All(packets, attempt =>
+        {
+            NativeBattlePilotVisualGeometry geometry = attempt.Primitive!.PilotGeometry!;
+            Assert.Equal((ushort)233, geometry.Identity.Effect);
+            Assert.Equal(0.125f, geometry.ScreenScale);
+            Assert.Empty(attempt.Primitive.VertexPayload4);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        });
+    }
+
     private sealed class Capture
     {
         public NativeBattleGfGeometryBatch? Batch { get; private set; }
@@ -205,6 +229,7 @@ public sealed class NativeBattleEffect233GroundProfile18Tests
         public int Resolves { get; private set; }
         public int Bases { get; private set; }
         public int Depth { get; init; } = 400;
+        public bool CaptureWorld { get; init; }
 
         public NativeBattleCinematicGroundProfile18Services Services() => new(Resolve, Prepare, Project, Append);
 
@@ -229,7 +254,7 @@ public sealed class NativeBattleEffect233GroundProfile18Tests
             Inputs.Add((x, y, z));
             Padding.Add(frame.TemporaryFrame.IsKnown(0xD6, 1));
             uint screen = unchecked((uint)(ushort)x | ((uint)(ushort)y << 16));
-            return new(frame, screen, Depth, 0x80000000);
+            return new(frame, screen, Depth, 0x80000000) { PilotWorld = CaptureWorld ? new System.Numerics.Vector3(x, y, z) : null };
         }
 
         private NativeBattleWaterExecutionFrame Append(NativeBattleWaterExecutionFrame frame, uint output, uint ordering, NativeBattleGfGeometryBatch batch)

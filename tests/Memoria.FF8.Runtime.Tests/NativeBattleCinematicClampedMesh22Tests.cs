@@ -6,6 +6,22 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleCinematicClampedMesh22Tests
 {
+    [Theory]
+    [InlineData((ushort)0, 13, -7)]
+    [InlineData((ushort)8, 17, 0)]
+    public void Group17_earthquake_capture_uses_final_reached_clamped_or_retained_WORD_source(ushort flags, int x, int y)
+    {
+        var native = Project(Fixture(flags));
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattlePilotVisualIdentity owner = new(240, 0x2200000, 3, 87, 0) { ResourceGeneration = Base + Shape };
+        var captured = Project(Fixture(flags), pilotIdentity: owner);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.True(native.PilotVertices.IsDefaultOrEmpty);
+        Assert.Equal(new System.Numerics.Vector3(x, y, 1000), Assert.Single(captured.PilotVertices));
+        Assert.Equal(owner, captured.PilotIdentity);
+        Assert.Equal(0x3F000000u, captured.DepthScaleBits1877DA8);
+    }
+
     private const uint Base = NativeBattleEffectNodeMemory.ArenaAddress;
     private const uint Manager = 0x2797690;
     private const int Shape = 0x10000;
@@ -76,10 +92,10 @@ public sealed class NativeBattleCinematicClampedMesh22Tests
         Assert.Equal(Base + 0x40000 + 32u, WaterSchedulerFixture.ReadCoreDword(result.Frame, Manager + 0x7C));
     }
 
-    private static NativeBattleScriptedMeshProjected Project(NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, short, uint>? resolveShape = null)
+    private static NativeBattleScriptedMeshProjected Project(NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, short, uint>? resolveShape = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleScriptedGraphicsMemory controls = NativeBattleScriptedGraphicsMemory.FromColdProcess() with { Depths = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(0x12345678u)), DepthScaleBits1877DA8 = 0x3F000000 };
-        return NativeBattleCinematicClampedMesh22.Project(frame, (_, selector) => selector == -2 ? Base + 0x2100 : throw new InvalidDataException(), resolveShape ?? ((_, selector) => selector == 2 ? Base + Shape : throw new InvalidDataException()), new(null, 216, 160, 108), controls, NativeBattleScriptedLightingMemory.Unknown(), new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()));
+        return NativeBattleCinematicClampedMesh22.Project(frame, (_, selector) => selector == -2 ? Base + 0x2100 : throw new InvalidDataException(), resolveShape ?? ((_, selector) => selector == 2 ? Base + Shape : throw new InvalidDataException()), new(Identity, 216, 160, 108), controls, NativeBattleScriptedLightingMemory.Unknown(), new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), pilotIdentity);
     }
 
     private static NativeBattleWaterExecutionFrame Fixture(ushort flags)

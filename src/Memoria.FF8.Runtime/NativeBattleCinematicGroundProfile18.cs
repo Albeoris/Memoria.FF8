@@ -190,7 +190,7 @@ public static class NativeBattleCinematicGroundProfile18
                 NativeBattlePilotVisualGeometry? geometryMetadata = null;
                 if (pilotIdentity is { } identity && pilotWorld is not null && pilotWorld.TryGetValue(packet + 8, out System.Numerics.Vector3 first) && pilotWorld.TryGetValue(packet + 20, out System.Numerics.Vector3 second) && pilotWorld.TryGetValue(packet + 32, out System.Numerics.Vector3 third) && pilotWorld.TryGetValue(packet + 44, out System.Numerics.Vector3 fourth))
                 {
-                    geometryMetadata = new(identity with { Primitive = sector * 32 + index }, first, second, third, fourth, 4) { ScreenScale = 0.125f };
+                    geometryMetadata = new(identity with { Primitive = sector * 32 + index }, first, second, third, fourth, 4) { ScreenScale = 0.125f, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true };
                 }
                 packets.Insert(packet, offset / 4, geometryMetadata);
                 cursor += 52;

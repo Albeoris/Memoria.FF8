@@ -9,7 +9,7 @@ public sealed record NativeBattleCinematicOverlayStep(NativeBattleWaterExecution
 /// <summary>The cinematic signed-channel screen quad and its separately linked draw mode.</summary>
 public static class NativeBattleCinematicOverlay
 {
-    public static NativeBattleCinematicOverlayStep Draw(NativeBattleWaterExecutionFrame frame, Func<uint, int> resolveBucket)
+    public static NativeBattleCinematicOverlayStep Draw(NativeBattleWaterExecutionFrame frame, Func<uint, int> resolveBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint depth = (ReadSlot(frame, 0xDE, 1)[0] & 0x60) != 0 ? BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xC0, 4)) : 0;
         frame = frame.WriteTemporaryDword(0xF0, 0x20);
@@ -52,7 +52,12 @@ public static class NativeBattleCinematicOverlay
             NativeBattleGeometryPrimitive primitive = new(bucket, words, []) { PhysicalWriteMask = mask };
             if (offset == 0)
             {
-                primitive = primitive with { PilotGeometry = new(new(0, 0, 0, 0, 0x2A), new(0, 0, 0), new(320, 0, 0), new(0, 256, 0), new(320, 256, 0), 4, false) { ScreenSpace = true } };
+                NativeBattlePilotVisualGeometry geometry = new(pilotIdentity ?? new(0, 0, 0, 0, 0x2A), new(0, 0, 0), new(320, 0, 0), new(0, 256, 0), new(320, 256, 0), 4, false) { ScreenSpace = true };
+                if (pilotIdentity.HasValue)
+                {
+                    geometry = geometry with { UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero };
+                }
+                primitive = primitive with { PilotGeometry = geometry };
             }
             attempts.Add(new(offset, bytes.ToImmutableArray(), mask, primitive));
         }

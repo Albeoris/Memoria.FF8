@@ -6,6 +6,61 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleWaterMeshPreparationTests
 {
+    [Fact]
+    public void Group17_mesh7_uses_current_view_full_MAC_and_own_scale_morph_fields()
+    {
+        var frame = Fixture();
+        frame = Matrix(frame, 0, [4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 50000, -60000, 100000, 0);
+        frame = SlotWord(frame, 0, 0x94, 30000);
+        frame = SlotWord(frame, 0, 0x96, unchecked((ushort)-20000));
+        frame = SlotWord(frame, 0, 0x98, 10000);
+        frame = SlotDword(frame, 0, 0xB8, 2048);
+        frame = SlotDword(frame, 0, 0xBC, 0x12345678);
+        int slot = Bank.SlotOffset(frame.Arena, 0);
+        frame = frame with { Arena = frame.Arena.Write(slot + 0x8C, new byte[6]).MarkUnknown(slot + 0x9C, 2) };
+        string core = NativeBattleTestSnapshots.Json(frame.Core);
+        string arena = NativeBattleTestSnapshots.Json(frame.Arena);
+        var result = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, Bank, 0, 7, 216);
+        Assert.Equal((80000, -80000, 110000), (result.Matrix.X, result.Matrix.Y, result.Matrix.Z));
+        Assert.Equal((short)216, result.Focal);
+        Assert.Equal(Enumerable.Repeat(2048u, 3), new[] { result.Frame.ReadTemporaryDword(0x40), result.Frame.ReadTemporaryDword(0x44), result.Frame.ReadTemporaryDword(0x48) });
+        Assert.Equal(0x12345678u, result.Frame.ReadTemporaryDword(0x4C));
+        Assert.False(result.Frame.TemporaryFrame.IsKnown(0x32, 2));
+        Assert.Equal(core, NativeBattleTestSnapshots.Json(result.Frame.Core));
+        Assert.Equal(arena, NativeBattleTestSnapshots.Json(result.Frame.Arena));
+    }
+
+    [Theory]
+    [InlineData((ushort)220)]
+    [InlineData((ushort)231)]
+    [InlineData((ushort)238)]
+    [InlineData((ushort)240)]
+    public void Group17_ordinary_cinematic_projection_retains_actual_effect_source_and_native_state(ushort effect)
+    {
+        NativeBattleScriptedMeshProjected Run(bool capture)
+        {
+            var frame = Fixture();
+            if (effect == 220)
+            {
+                frame = Matrix(frame, 0, [4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 0);
+            }
+            var prepared = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, Bank, 0, effect == 220 ? (byte)7 : (byte)1, 216);
+            var projection = new NativeBattleCameraProjection(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), 216, 160, 108);
+            var registers = new NativeBattleGeometryRegisterStep(NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), prepared.Matrix, true, true, null), NativeBattleScriptedColorRegisters.Unknown());
+            NativeBattlePilotVisualIdentity? identity = capture ? new(effect, 0x2790000, 2, 123, 0) { ResourceGeneration = ArenaBase + Shape } : null;
+            return NativeBattleScriptedMeshPreparation.Project(prepared, 0x218, projection, 0, 0, Depths(), NativeBattleScriptedLightingMemory.Unknown(), registers, pilotIdentity: identity);
+        }
+        var native = Run(false);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = Run(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.True(native.PilotVertices.IsDefaultOrEmpty);
+        Assert.Equal(24, captured.PilotVertices.Length);
+        Assert.Equal(new System.Numerics.Vector3(1, 2, 3000), captured.PilotVertices[0]);
+        Assert.Equal(effect, captured.PilotIdentity!.Value.Effect);
+        Assert.Equal(ArenaBase + Shape, captured.PilotIdentity.Value.ResourceGeneration);
+    }
+
     private const uint ArenaBase = NativeBattleEffectNodeMemory.ArenaAddress;
     private const uint Manager = 0x2797690;
     private const int File0 = 0x10000;

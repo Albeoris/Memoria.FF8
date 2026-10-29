@@ -5,6 +5,39 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleRawModelBodyDrawingTests
 {
+    [Fact]
+    public void Group17_actor_animation_body_capture_retains_actual232_slot_object_source_and_native_packets()
+    {
+        byte[] polygon = new byte[16];
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon, 0x8000);
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(2), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(4), 2);
+        NativeBattleRawMesh mesh = new([new(new(-10, -10, 1000), 0), new(new(10, -10, 1000), 0), new(new(0, 10, 1000), 0)], [new(false, polygon.ToImmutableArray())]);
+        NativeBattleCameraProjection projection = new(Identity, 1000, 160, 108);
+        var frame = WaterSchedulerFixture.Create();
+        var bank = new NativeBattleWaterSlotBank(0, 0x4000, 2, 0x2000);
+        frame = frame with { Arena = NativeBattleWaterSlots.InitializeB65160(frame.Arena, bank, 0, 0, 0, 0) };
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(232, frame, bank, 0) with { ResourceGeneration = 0x193F000 };
+        var native = NativeBattleRawModelBodyDrawing.Draw5099D0([mesh, mesh], [Identity], projection, 0x808080, 3, new byte[24].ToImmutableArray(), Colors);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var actual = NativeBattleRawModelBodyDrawing.Draw5099D0([mesh, mesh], [Identity], projection, 0x808080, 3, new byte[24].ToImmutableArray(), Colors, pilotIdentity: identity);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(actual));
+        Assert.Equal(2, actual.Packets.Attempts.Length);
+        Assert.Equal(2, actual.Packets.Attempts.Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+        foreach (var packet in actual.Packets.Attempts)
+        {
+            var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(packet.Primitive!.PilotGeometry);
+            Assert.Equal((ushort)232, visual.Identity.Effect);
+            Assert.Equal(identity.Generation, visual.Identity.Generation);
+            Assert.Equal(identity.ResourceGeneration, visual.Identity.ResourceGeneration);
+            Assert.Equal(new System.Numerics.Vector3(-10, -10, 1000), visual.A);
+        }
+        frame = frame with { Arena = NativeBattleWaterSlots.InitializeB65160(frame.Arena, bank, 0, 0, 0, 0) };
+        var recycled = NativeBattleCinematicVisualIdentity.Identity(232, frame, bank, 0);
+        Assert.NotEqual(identity.Generation, recycled.Generation);
+        Assert.NotEqual(identity, identity with { ResourceGeneration = 0x193F100 });
+    }
+
     private static readonly NativeBattleActionMatrix Identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
     private static readonly NativeBattleSummonColors Colors = new(0, 0, 1f / 4096, 6755401588539392d);
 

@@ -7,6 +7,44 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCinematicOverlayTests
 {
     [Theory]
+    [InlineData((short)0)]
+    [InlineData((short)120)]
+    public void Group17_overlay_optional238_owner_preserves_native_stores_discrete_extent_and_zero_depth(short red)
+    {
+        var nativeFrame = Fixture(red, 0, 0);
+        var capturedFrame = Fixture(red, 0, 0);
+        var bank = new NativeBattleWaterSlotBank(0, 0x4000, 2, 0x2000);
+        NativeBattleCinematicVisualIdentity.Allocated(capturedFrame.Arena, bank, 0);
+        var owner = NativeBattleCinematicVisualIdentity.Identity(238, capturedFrame, bank, 0);
+        var native = NativeBattleCinematicOverlay.Draw(nativeFrame, _ => 17);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = NativeBattleCinematicOverlay.Draw(capturedFrame, _ => 17, owner);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        if (red == 0)
+        {
+            Assert.Null(Assert.Single(captured.Packets.Attempts).Primitive);
+            return;
+        }
+        var quad = captured.Packets.Attempts[1].Primitive!;
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(quad.PilotGeometry);
+        Assert.Equal(owner, visual.Identity);
+        Assert.Equal((ushort)0, native.Packets.Attempts[1].Primitive!.PilotGeometry!.Identity.Effect);
+        var fallback = native.Packets.Attempts[1].Primitive!.PilotGeometry!;
+        Assert.Equal(new NativeBattlePilotVisualGeometry(new(0, 0, 0, 0, 0x2A), new(0, 0, 0), new(320, 0, 0), new(0, 256, 0), new(320, 256, 0), 4, false) { ScreenSpace = true }, fallback);
+        Assert.False(fallback.UseSourceDepths);
+        Assert.Null(fallback.SourceDepths);
+        Assert.False(visual.Continuous);
+        Assert.True(visual.ScreenSpace);
+        Assert.True(visual.UseSourceDepths);
+        Assert.Equal(System.Numerics.Vector4.Zero, visual.SourceDepths);
+        Assert.Empty(quad.VertexPayload4);
+        Assert.Equal(new System.Numerics.Vector3(320, 256, 0), visual.D);
+        Assert.Null(captured.Packets.Attempts[2].Primitive!.PilotGeometry);
+        NativeBattleCinematicVisualIdentity.Allocated(capturedFrame.Arena, bank, 0);
+        Assert.NotEqual(owner.Generation, NativeBattleCinematicVisualIdentity.Identity(238, capturedFrame, bank, 0).Generation);
+    }
+
+    [Theory]
     [InlineData(0x004D)]
     [InlineData(0xFE4D)]
     public void Registration_reads_no_operand_clears_only_selected_fields_and_registers_draw4(ushort instruction)

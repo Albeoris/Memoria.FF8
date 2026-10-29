@@ -103,7 +103,55 @@ public sealed class NativeBattleEffect239PackedProjectionTests
         Assert.Equal(new uint?[] { 3, 0x00A00050, 0xFFD80050 }, cold.Registers.Geometry.Sxy);
     }
 
-    private static NativeBattleCinematicPackedProjectionStep Run(NativeBattleWaterExecutionFrame frame, NativeBattleGeometryRegisterStep registers, byte[] bytes, List<(uint Address, int Length)>? reads = null, int? unknownAbsoluteOffset = null, NativeBattleCameraProjection? projection = null)
+    [Fact]
+    public void Presentation_observer_uses_actual_consumed_XYZ_loaded_matrix_and_post_store_output_without_extra_reads()
+    {
+        List<(uint Address, int Length)> plainReads = [];
+        List<(uint Address, int Length)> capturedReads = [];
+        List<(uint Output, NativeBattleVector Vertex, NativeBattleActionMatrix Matrix)> observed = [];
+        byte[] source = Bytes(2, 10, 20, 100, 20, -10, 200, 0);
+        NativeBattleGeometryRegisterStep registers = Registers() with { Geometry = Registers().Geometry with { Translation = [3, 4, 1000] } };
+        NativeBattleCinematicPackedProjectionStep plain = Run(WaterSchedulerFixture.Create(), NativeBattleTestSnapshots.Independent(registers), source, plainReads);
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
+        NativeBattleCinematicPackedProjectionStep captured = Run(frame, NativeBattleTestSnapshots.Independent(registers), source, capturedReads, observeSource: (output, vertex, matrix) =>
+        {
+            Assert.True(frame.Arena.ReadSnapshot(checked((int)(output - NativeBattleEffectNodeMemory.ArenaAddress)), 8).Known.All(value => value));
+            observed.Add((output, vertex, matrix));
+        });
+        Assert.Equal(plainReads, capturedReads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(new[] { Scratch, Scratch + 8 }, observed.Select(value => value.Output));
+        Assert.Equal(new[] { new NativeBattleVector(10, 20, 100), new NativeBattleVector(20, -10, 200) }, observed.Select(value => value.Vertex));
+        Assert.All(observed, value =>
+        {
+            Assert.Equal(3, value.Matrix.X);
+            Assert.Equal(4, value.Matrix.Y);
+            Assert.Equal(1000, value.Matrix.Z);
+            Assert.Equal(registers.Geometry.Rotation20.Take(18), NativeBattlePackedMatrix32.FromMatrix(value.Matrix, null).Bytes.Take(18).Select(value => (byte?)value));
+        });
+    }
+
+    [Fact]
+    public void Presentation_observer_retains_later_unknown_XYZ_partial_prefix_and_nonpositive_empty_paths()
+    {
+        byte[] source = Bytes(2, 10, 20, 100, 20, -10, 200, 0);
+        NativeBattleWaterExecutionFrame plain = WaterSchedulerFixture.Create();
+        NativeBattleWaterExecutionFrame captured = WaterSchedulerFixture.Create();
+        int observed = 0;
+        Assert.Throws<NotSupportedException>(() => Run(plain, Registers(), source, unknownAbsoluteOffset: 9));
+        Assert.Throws<NotSupportedException>(() => Run(captured, Registers(), source, unknownAbsoluteOffset: 9, observeSource: (_, _, _) => observed++));
+        Assert.Equal(1, observed);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        Assert.All(captured.Arena.ReadSnapshot(0x500, 8).Known, value => Assert.True(value));
+        foreach (short count in new short[] { 0, -1 })
+        {
+            NativeBattleCinematicPackedProjectionStep a = Run(WaterSchedulerFixture.Create(), Registers(), Bytes(count));
+            NativeBattleCinematicPackedProjectionStep b = Run(WaterSchedulerFixture.Create(), Registers(), Bytes(count), observeSource: (_, _, _) => throw new InvalidOperationException());
+            Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
+        }
+    }
+
+    private static NativeBattleCinematicPackedProjectionStep Run(NativeBattleWaterExecutionFrame frame, NativeBattleGeometryRegisterStep registers, byte[] bytes, List<(uint Address, int Length)>? reads = null, int? unknownAbsoluteOffset = null, NativeBattleCameraProjection? projection = null, Action<uint, NativeBattleVector, NativeBattleActionMatrix>? observeSource = null)
     {
         return NativeBattleCinematicPackedProjection50FD40.Execute(frame, Source, Scratch, registers, projection ?? Projection, 2, 4096, (address, length) =>
         {
@@ -112,7 +160,7 @@ public sealed class NativeBattleEffect239PackedProjectionTests
             byte[] data = bytes.AsSpan(offset, length).ToArray();
             bool[] known = Enumerable.Range(offset, length).Select(index => index != unknownAbsoluteOffset).ToArray();
             return (data, known);
-        });
+        }, observeSource: observeSource);
     }
 
     private static byte[] Bytes(short count, params short[] words)

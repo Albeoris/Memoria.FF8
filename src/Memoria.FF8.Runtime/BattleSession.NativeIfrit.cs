@@ -1038,7 +1038,7 @@ public sealed partial class BattleSession
                     graphics = wireMorph.Graphics;
                     return wireMorph.Frame;
                 }
-                if (selectedDrawHandler == 0xB5BB00)
+                if (selectedDrawHandler == 0xB5BB00 || profile.Effect == 220 && selectedDrawHandler == 0xB27220)
                 {
                     var mesh = DrawNativeCinematicMesh(frame, 7, assets[1].Data.Length, resources, graphics);
                     graphics = mesh.Graphics;

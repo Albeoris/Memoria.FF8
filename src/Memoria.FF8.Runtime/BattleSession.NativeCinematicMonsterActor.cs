@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private sealed record CinematicMonsterMesh(NativeBattleRawMesh Mesh, ImmutableArray<NativeBattleActionMatrix> Bones, int ObjectIndex);
+    private sealed record CinematicMonsterMesh(NativeBattleRawMesh Mesh, ImmutableArray<NativeBattleActionMatrix> Bones, int ObjectIndex, bool Linked = false);
 
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicMonsterActor(NativeBattleWaterExecutionFrame frame, bool glow, int resourceLength, NativeBattleCinematicResources resources, NativeBattleCinematicModelServices modelServices, NativeBattleGraphicsState graphics)
     {
@@ -70,6 +70,7 @@ public sealed partial class BattleSession
             }
         }
         ImmutableArray<CinematicMonsterMesh> meshes;
+        long visualSource;
         if (embedded)
         {
             _ = modelServices.ResolveShape(frame, unchecked((short)Word(clone + 8)));
@@ -79,6 +80,7 @@ public sealed partial class BattleSession
             uint table = Dword(clone + 0x14);
             uint skeleton = Dword(table);
             uint geometry = Dword(table + 4);
+            visualSource = geometry;
             int boneCount = frame.Arena.Read(ArenaOffset(skeleton, 1), 1)[0];
             ImmutableArray<NativeBattleRawMesh> geometryMeshes = NativeBattleRawGeometryReader.Read((offset, length) => frame.Arena.Read(ArenaOffset(geometry + (uint)offset, length), length), boneCount);
             ImmutableArray<NativeBattleActionMatrix> bones = Enumerable.Range(0, boneCount).Select(index => NativeBattleArenaPose.ReadMatrix(frame.Arena, ArenaOffset(skeleton + 0x20u + 0x30u * (uint)index, 32))).ToImmutableArray();
@@ -101,6 +103,7 @@ public sealed partial class BattleSession
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, basis);
             graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
             meshes = CinematicActorMeshes(actor, resource, NativeBattleBodyBoneMatrices.Require(actor, source), node, !glow);
+            visualSource = actor.ActiveStagedResourceRow100 is not null || actor.ActiveResourceRow100 is not null ? NativeBattleModelResourceRow.Address100(actor) : NativeBattlePilotVisualLifetimes.EpochFor(resource);
             if (!glow)
             {
                 Shadow();
@@ -161,7 +164,7 @@ public sealed partial class BattleSession
                 continue;
             }
             System.Numerics.Vector3[] worldVertices = new System.Numerics.Vector3[item.Mesh.Vertices.Length];
-            NativeBattlePilotVisualIdentity meshIdentity = visualIdentity with { Primitive = unchecked((int)clone * 397 + item.ObjectIndex) };
+            NativeBattlePilotVisualIdentity meshIdentity = NativeBattleCinematicActorPresentation.Object(visualIdentity, clone, item.ObjectIndex, item.Linked, visualSource);
             NativeBattleProjectedVertex[] projected = new NativeBattleProjectedVertex[item.Mesh.Vertices.Length];
             for (int index = 0; index < projected.Length; index++)
             {
@@ -203,7 +206,7 @@ public sealed partial class BattleSession
                 batch = NativeBattleCinematicMonsterPackets.Pack(NativeBattleRawGeometryPackets.EmitProjected5099D0(item.Mesh.Polygons, projected, Dword(clone + 0x5C), OtBucket(frame.ReadTemporaryDword(0x14C)), 4, unchecked((short)Word(clone + 0x64)), null, definition.NativeGraphics!.Rules.SummonColors, pilotWorldVertices: worldVertices, pilotIdentity: meshIdentity));
             }
             uint output = CoreDword(frame, manager + 0x7C);
-            var written = AppendNativeCinematicPackets(frame, output, null, batch, graphics);
+            var written = AppendNativeCinematicPackets(frame, output, null, NativeBattleCinematicActorPresentation.NativeDepths(batch), graphics);
             frame = WriteCoreDword(written.Frame, manager + 0x7C, unchecked(output + (uint)batch.AllocationBytes));
             graphics = written.Graphics;
             drawn++;
@@ -264,9 +267,9 @@ public sealed partial class BattleSession
             NativeBattleShadowSource source = native.Rules.ShadowSource ?? throw new NotSupportedException("Native cinematic monster shadow requires its original seed matrix/vector.");
             NativeBattleShadowGeometry shape = NativeBattlePoseMatrices.ShadowGeometry5088A0(actor, actor.GeometryBounds52 ?? throw new NotSupportedException("Native cinematic monster shadow requires its current model bounds."), projection.View ?? throw new NotSupportedException("Native cinematic monster shadow requires its current camera matrix."), source, gouraud);
             NativeBattleModuleProjectedVertex[] vertices = shape.Vertices.Select(vertex => NativeBattleModuleProjection.Project45FE10(shape.CameraMatrix, vertex, projection)).ToArray();
-            NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, actor.Color44 ?? throw new NotSupportedException("Native cinematic monster shadow requires its current shadow color."), gouraud, 4121, 31, shape.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shape.CameraMatrix, vertex), projection)).ToArray(), visualIdentity with { Primitive = unchecked((int)0x80000000) });
+            NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, actor.Color44 ?? throw new NotSupportedException("Native cinematic monster shadow requires its current shadow color."), gouraud, 4121, 31, shape.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shape.CameraMatrix, vertex), projection)).ToArray(), visualIdentity with { Primitive = unchecked((int)0x80000000), ResourceGeneration = visualSource });
             uint output = CoreDword(frame, manager + 0x7C);
-            var written = AppendNativeCinematicPackets(frame, output, null, batch, graphics);
+            var written = AppendNativeCinematicPackets(frame, output, null, NativeBattleCinematicActorPresentation.NativeDepths(batch), graphics);
             frame = WriteCoreDword(written.Frame, manager + 0x7C, unchecked(output + (uint)batch.AllocationBytes));
             graphics = written.Graphics;
         }
@@ -313,7 +316,7 @@ public sealed partial class BattleSession
             {
                 mesh = mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, binding) }).ToImmutableArray() };
             }
-            result.Add(new(mesh, bones, index));
+            result.Add(new(mesh, bones, index, shared && index == 1));
         }
         if (includeWeapon && !shared && !linked.IsEmpty)
         {
@@ -322,7 +325,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleRawMesh mesh = linked[index];
                 NativeBattleModelTextureBinding binding = actor.LinkedTextureSlots ?? throw new NotSupportedException("Native cinematic monster drawing requires its weapon materials.");
-                result.Add(new(mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, binding) }).ToImmutableArray() }, weapon, index));
+                result.Add(new(mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, binding) }).ToImmutableArray() }, weapon, index, true));
             }
         }
         return result.ToImmutable();

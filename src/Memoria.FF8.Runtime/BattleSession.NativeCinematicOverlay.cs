@@ -7,7 +7,13 @@ public sealed partial class BattleSession
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicOverlay(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsState graphics)
     {
         uint start = CoreDword(frame, CoreDword(frame, 0x27973EC) + 0x7C);
-        NativeBattleCinematicOverlayStep overlay = NativeBattleCinematicOverlay.Draw(frame, OtBucket);
+        NativeBattlePilotVisualIdentity? pilotIdentity = null;
+        if (graphics.OriginalEffect!.Binding.Effect == 238)
+        {
+            NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, NativeBattleEffectInitializerPolicy.Assets(graphics.OriginalEffect.Binding)[1].Data.Length);
+            pilotIdentity = NativeBattleCinematicVisualIdentity.Identity(238, frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank));
+        }
+        NativeBattleCinematicOverlayStep overlay = NativeBattleCinematicOverlay.Draw(frame, OtBucket, pilotIdentity);
         frame = overlay.Frame;
         NativeBattleEffectMemory memory = RequireWaterMemory() with { Arena = frame.Arena, ScriptedEffects = frame.Core };
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic overlay requires its current ordering table.");
