@@ -56,7 +56,7 @@ public sealed class SnapshotRetainedEffectMigrationTests
 
             SnapshotMigrations.Apply(saved, Options);
 
-            Assert.Equal(4, saved["SnapshotSchemaVersion"]!.GetValue<int>());
+            Assert.Equal(GameState.CurrentSnapshotSchemaVersion, saved["SnapshotSchemaVersion"]!.GetValue<int>());
             Assert.Equal(123L, saved["Battle"]!["Frame"]!.GetValue<long>());
             foreach (JsonObject copy in EffectCopies(saved))
             {
@@ -299,10 +299,9 @@ public sealed class SnapshotRetainedEffectMigrationTests
     }
 
     [Fact]
-    public void Current_version_four_preserves_missing_and_unknown_owners()
+    public void Current_version_preserves_missing_and_unknown_owners()
     {
-        Assert.Equal(4, GameState.CurrentSnapshotSchemaVersion);
-        JsonObject saved = Snapshot(4);
+        JsonObject saved = Snapshot(GameState.CurrentSnapshotSchemaVersion);
         foreach (Contract contract in Contracts)
         {
             EffectCopies(saved)[1][contract.Name] = contract.Unknown(true);

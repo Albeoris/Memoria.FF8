@@ -40,6 +40,9 @@ internal static class SnapshotMigrations
                 case 3:
                     SnapshotRetainedEffectMigration.Apply(saved, options);
                     break;
+                case 4:
+                    SnapshotRetainedEffectMigration.ApplyEffect30(saved, options);
+                    break;
                 default:
                     throw new InvalidDataException($"No forward migration is available for snapshot schema {version}.");
             }
@@ -55,6 +58,10 @@ internal static class SnapshotMigrations
         if (originalVersion < 3)
         {
             SnapshotSigh46Migration.Apply(saved, options);
+        }
+        if (originalVersion < 5)
+        {
+            SnapshotRetainedEffectMigration.ApplyEffect30(saved, options);
         }
         if (originalVersion < 4)
         {

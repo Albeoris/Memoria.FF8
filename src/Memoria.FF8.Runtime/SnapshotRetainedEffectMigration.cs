@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Upgrades complete legacy placeholders while preserving retained effect execution and source history.</summary>
 internal static class SnapshotRetainedEffectMigration
 {
-    private sealed record Rule(string Owner, ushort Effect, uint Entry, Func<JsonSerializerOptions, JsonNode> Cold, Func<JsonObject, JsonSerializerOptions, JsonSerializerOptions, bool> IsPlaceholder);
+    private sealed record Rule(string Owner, ushort Effect, uint Entry, Func<JsonSerializerOptions, JsonNode> Cold, Func<JsonObject, JsonSerializerOptions, JsonSerializerOptions, bool> IsPlaceholder, bool IncludeNull = false);
 
     private static readonly Rule[] Rules =
     [
@@ -31,19 +31,26 @@ internal static class SnapshotRetainedEffectMigration
         Create<NativeBattleEffect345State>(nameof(NativeBattleEffectMemory.Effect345), 345, NativeBattleEffect345Profile.Entry, NativeBattleEffect345State.FromColdProcess, NativeBattleEffect345State.FromUnknown)
     ];
 
+    private static readonly Rule Effect30Rule = Create<NativeBattleEffect30State>(nameof(NativeBattleEffectMemory.Effect30), 30, NativeBattleEffect30Profile.Entry, NativeBattleEffect30State.FromColdProcess, NativeBattleEffect30State.FromUnknown) with { IncludeNull = true };
+
     private static readonly HashSet<string> Owners = Rules.Select(rule => rule.Owner).ToHashSet(StringComparer.Ordinal);
 
     internal static bool Owns(string owner) => Owners.Contains(owner);
 
     internal static void ExcludeFromDefaults(JsonObject effects)
     {
+        effects.Remove(nameof(NativeBattleEffectMemory.Effect30));
         foreach (string owner in Owners)
         {
             effects.Remove(owner);
         }
     }
 
-    internal static void Apply(JsonObject saved, JsonSerializerOptions options)
+    internal static void Apply(JsonObject saved, JsonSerializerOptions options) => Apply(saved, options, Rules);
+
+    internal static void ApplyEffect30(JsonObject saved, JsonSerializerOptions options) => Apply(saved, options, [Effect30Rule]);
+
+    private static void Apply(JsonObject saved, JsonSerializerOptions options, Rule[] rules)
     {
         JsonObject?[] memories =
         [
@@ -59,7 +66,7 @@ internal static class SnapshotRetainedEffectMigration
         {
             initialOptions.Converters.Remove(converter);
         }
-        foreach (Rule rule in Rules)
+        foreach (Rule rule in rules)
         {
             if (HasInitializedEffect(selected, rule) || memories.Any(memory => HasInitializedEffect(memory?["DetachedReturnedTask"] as JsonObject, rule)))
             {
@@ -72,7 +79,7 @@ internal static class SnapshotRetainedEffectMigration
                 {
                     continue;
                 }
-                if (!memory.TryGetPropertyValue(rule.Owner, out JsonNode? owner) || owner is JsonObject current && rule.IsPlaceholder(current, options, initialOptions))
+                if (!memory.TryGetPropertyValue(rule.Owner, out JsonNode? owner) || owner is null && rule.IncludeNull || owner is JsonObject current && rule.IsPlaceholder(current, options, initialOptions))
                 {
                     cold ??= rule.Cold(initialOptions);
                     memory[rule.Owner] = cold.DeepClone();

@@ -15,7 +15,7 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
-    public const int CurrentSnapshotSchemaVersion = 4;
+    public const int CurrentSnapshotSchemaVersion = 5;
 
     public int SnapshotSchemaVersion { get; init; } = CurrentSnapshotSchemaVersion;
 

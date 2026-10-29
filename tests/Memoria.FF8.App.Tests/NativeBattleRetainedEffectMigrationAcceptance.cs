@@ -35,7 +35,7 @@ internal static class NativeBattleRetainedEffectMigrationAcceptance
         carrier["NativeBattleMemory"]!["EffectMemory"]![contract.Owner] = cold ? Capture(contract.Unknown()) : originalState.DeepClone();
         using MemoryStream input = new(Encoding.UTF8.GetBytes(carrier.ToJsonString(Options)));
         GameState migrated = SnapshotDefaults.Deserialize(input, Options);
-        Assert.Equal(4, migrated.SnapshotSchemaVersion);
+        Assert.Equal(GameState.CurrentSnapshotSchemaVersion, migrated.SnapshotSchemaVersion);
         object migratedSnapshot = property.GetValue(migrated.NativeBattleMemory!.EffectMemory!)!;
         Assert.True(JsonNode.DeepEquals(cold ? coldState : originalState, Capture(migratedSnapshot)), contract.Owner);
 
