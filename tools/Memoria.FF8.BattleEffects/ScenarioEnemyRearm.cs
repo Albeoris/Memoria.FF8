@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Memoria.FF8.Runtime;
 
@@ -44,8 +45,8 @@ public static partial class ScenarioDiscovery
                 repair = new JsonObject { ["actor_id"] = actorId, ["hit_points"] = hp, ["revive"] = false };
                 repairs.Add(repair);
             }
-            repair["remove_statuses0"] = (repair["remove_statuses0"]?.GetValue<int>() ?? 0) | saved;
-            repair["remove_statuses1"] = (repair["remove_statuses1"]?.GetValue<uint>() ?? 0) | battle;
+            repair["remove_statuses0"] = (repair["remove_statuses0"]?.Deserialize<ushort>() ?? 0) | saved;
+            repair["remove_statuses1"] = (repair["remove_statuses1"]?.Deserialize<uint>() ?? 0) | battle;
         }
     }
 

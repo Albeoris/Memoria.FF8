@@ -145,7 +145,7 @@ public sealed class ScenarioEnemyStatusRearmTests
             File.WriteAllText(template, """{"fixture":{"characters":[{"row":0,"character_id":0,"stocks":[],"guardian_forces":[0]}]},"driver":{}}""");
             Assert.True(ScenarioDiscovery.TryPrepareEnemyRecipe(assets, initial, NativeBattleExperienceDefinitionReader.Read(kernel), owner, discovery.ScriptedActions, template, out JsonObject? recipe, out EnemyScenarioFormation? chosen, out _, out string? blocker, discovery.Startups), blocker);
             Assert.Equal(246, chosen!.FormationId);
-            Assert.Equal(201, recipe!["driver"]!["enemy_ability"]!["target_selector"]!.GetValue<int>());
+            Assert.Equal((byte)201, recipe!["driver"]!["enemy_ability"]!["target_selector"]!.Deserialize<byte>());
             BattleDiagnosticCombatRepair repair = Assert.Single(Repairs(recipe));
             repair.Validate();
             Assert.Equal("party-0", repair.ActorId);
