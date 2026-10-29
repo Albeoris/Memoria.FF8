@@ -11,7 +11,15 @@ public static class NativeFontProfileIO
 
     public static NativeFontProfile Load(string path)
     {
-        string json = File.ReadAllText(path);
+        return Parse(File.ReadAllText(path));
+    }
+
+    public static NativeFontProfile Parse(string json)
+    {
+        if (json.Length != 0 && json[0] == '\uFEFF')
+        {
+            json = json[1..];
+        }
         using (JsonDocument document = JsonDocument.Parse(json))
         {
             JsonElement root = document.RootElement;
@@ -138,7 +146,9 @@ public static class NativeFontProfileIO
         }
         string fullRoot = Path.GetFullPath(root);
         string current = Path.GetPathRoot(fullRoot)!;
-        foreach (string part in Path.GetRelativePath(current, fullRoot).Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries).Concat(relative.Split('/')))
+        string[] rootParts = Path.GetRelativePath(current, fullRoot).Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+        int partIndex = 0;
+        foreach (string part in rootParts.Concat(relative.Split('/')))
         {
             current = Path.Combine(current, part);
             if ((File.Exists(current) || Directory.Exists(current)) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
@@ -146,7 +156,7 @@ public static class NativeFontProfileIO
                 throw new InvalidDataException($"Symbolic links/reparse points are not portable profile dependencies: '{relative}'.");
             }
             string? parent = Path.GetDirectoryName(current);
-            if (parent is not null && Directory.Exists(parent))
+            if (partIndex >= rootParts.Length && parent is not null && Directory.Exists(parent))
             {
                 string name = Path.GetFileName(current);
                 string[] matches = Directory.EnumerateFileSystemEntries(parent).Where(entry => Path.GetFileName(entry).Equals(name, StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -155,6 +165,7 @@ public static class NativeFontProfileIO
                     throw new InvalidDataException($"Dependency path casing does not match its portable declaration: '{relative}'.");
                 }
             }
+            partIndex++;
         }
         return current;
     }

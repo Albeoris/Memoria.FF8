@@ -58,6 +58,10 @@ These indices and byte sequences are illustrative. They are not a claim about or
 
 Source script language, reference dataset, target identifier, selected font/codec profile and dictionary language are separate dimensions. Assignments use roles `Source`, `Reference` or `Target`, dataset identifiers, stable profile IDs and explicit contexts. Changing the selected reference profile does not change the Target assignment. An exported enabled selection must contain every profile referenced by its assignments.
 
+The game keeps a validated catalog of enabled profile namespaces. Auto resolves the requested role/dataset and edition/resource/field/dictionary context. A field-specific assignment overrides a matching generic assignment; equally specific assignments to different IDs are an error. Assignments may refer to another profile in the enabled catalog. The explicit Native font profile setting overrides Target selection; reference operations continue using their own assignments. `Auto` is reserved for the selector and cannot be used as a profile's stable ID. Duplicate IDs across copied packages are allowed only for byte-identical profile/dependency closures.
+
+Profile and dependency content is checked in the background, including changes that preserve file timestamps. A malformed or missing dependency rejects the new catalog and keeps the last validated catalog active with a reload diagnostic. Profiles are discovered only at `Encoding/Name/profile.json`; nested dependency files do not become additional profiles. Failed native selection does not choose another profile based on the text being displayed.
+
 ## Strict encoding and native support
 
 `NativeStrictCodec.Encode` reports unrepresentable elements/controls at UTF-16 positions and returns no output bytes on failure. Pass the output resource's byte limit explicitly; output offset/directory constraints remain the responsibility of that resource's existing writer. `{Page}` is not lowered to `{Next}`. Unknown or incomplete native sequences fail with byte positions. Prefix collisions, reserved printable assignments and ambiguous canonical mappings fail profile validation.
