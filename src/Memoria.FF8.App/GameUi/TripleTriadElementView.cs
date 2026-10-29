@@ -1,5 +1,6 @@
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.GameUi;
 
@@ -72,7 +73,7 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
             TripleTriadRules.Random => controller.SystemText("card.rule.random", "Random"),
             _ => rule.ToString()
         }).ToArray();
-        string[] lines = [controller.SystemText("card.ui.drawrules.rules", "Rules:"), .. rules.Select(rule => "·  " + rule), controller.SystemText("card.ui.drawrules.trade.rule", "·  Trade Rule: ") + controller.TradeRuleDescription, controller.SystemText("card.ui.drawrules.play", "Play"), controller.SystemText("card.ui.drawrules.quit", "Quit")];
+        string[] lines = [controller.SystemText("card.ui.drawrules.rules", "Rules:"), .. rules.Select(rule => LocalizationTextComposition.Concat("·  ", rule)), LocalizationTextComposition.Concat(controller.SystemText("card.ui.drawrules.trade.rule", "·  Trade Rule: "), controller.TradeRuleDescription), controller.SystemText("card.ui.drawrules.play", "Play"), controller.SystemText("card.ui.drawrules.quit", "Quit")];
         UiSize[] sizes = lines.Select(line => canvas.MeasureText(line, fontSize, float.PositiveInfinity)).ToArray();
         float rowHeight = Math.Max(38, sizes.Max(size => size.Height) + 8);
         float width = sizes.Select((size, index) => size.Width + (index >= lines.Length - 2 ? choiceIndent : padding)).Max() + padding + 4;

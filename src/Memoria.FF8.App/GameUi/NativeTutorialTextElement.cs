@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.TextEncoding.Tags;
 using Memoria.FF8.Ui;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.GameUi;
 
@@ -8,6 +9,7 @@ namespace Memoria.FF8.GameUi;
 internal sealed partial class NativeTutorialTextElement(string text, float nativeWidth, string? fontFamily) : UiElement
 {
     public string Text { get; } = text;
+    private readonly LocalizationTextBinding? binding = LocalizationTextTrace.Find(text);
     public float FontSize { get; init; } = 27;
 
     public override void Arrange(UiRect bounds)
@@ -46,7 +48,8 @@ internal sealed partial class NativeTutorialTextElement(string text, float nativ
                 float advance = measurer.Measure(value);
                 if (visible.Length > 0)
                 {
-                    TutorialTextRun run = new(visible, FontSize, fontFamily);
+                    string displayed = binding is null ? visible : LocalizationTextTrace.Attach(visible, binding);
+                    TutorialTextRun run = new(displayed, FontSize, fontFamily);
                     run.Arrange(new UiRect(left, y, Math.Max(1, bounds.Right - left), lineHeight));
                     Children.Add(run);
                 }

@@ -1,5 +1,7 @@
 # Localization authoring contracts
 
+The [translator-focused audit](localization-workbench-audit.md) follows canonical identities through each renderer family and records bounded integration findings.
+
 `Memoria.FF8.Localization.Authoring` references Resources only. It supplies row/Target snapshots, asynchronous storage contracts, the edit/preview/conflict session, draft undo/redo, immutable saved-change records, selective replay proposals, search and separately persisted user authoring state. GPU objects, window handles, installed-game paths and filesystem-provider implementations do not enter this assembly.
 
 `LocalizationProjectStore` in Mods owns JSON/XLSX persistence. `FieldMessageTargetSyntax` delegates grammar validation to `FieldMessageContext`; its transient spans preserve untouched prefix components and the body. The overload accepting `nativeBase` seeds an absent Target with designated source prose and verified base WH/choice blocks. Reference presentation is never imported as native layout merely because its prose was selected.

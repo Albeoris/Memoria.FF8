@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using Memoria.FF8.Resources.Localization;
 using Albeoris.Games.FF8.MngrpBin.Abstractions;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -96,10 +97,10 @@ public sealed partial class LiveMenuCatalog
                 {
                     NativeWeaponRecipe recipe = weapons.Recipes[row[24]];
                     lines.Add(recipe.Name);
-                    lines.Add(string.Join(", ", recipe.Materials.Where(material => material.ItemId != 0).Select(material => $"{ItemName(material.ItemId)} ×{material.Count}")));
+                    lines.Add(LocalizationTextComposition.Join(", ", recipe.Materials.Where(material => material.ItemId != 0).Select(material => LocalizationTextComposition.Format("{0} ×{1}", ItemName(material.ItemId), material.Count))));
                     int recipeId = row[24];
                     linePresentation.Add(() => WeaponName(recipeId) ?? recipe.Name);
-                    linePresentation.Add(() => string.Join(", ", recipe.Materials.Where(material => material.ItemId != 0).Select(material => $"{ItemName(material.ItemId)} ×{material.Count}")));
+                    linePresentation.Add(() => LocalizationTextComposition.Join(", ", recipe.Materials.Where(material => material.ItemId != 0).Select(material => LocalizationTextComposition.Format("{0} ×{1}", ItemName(material.ItemId), material.Count))));
                     int y = row[30];
                     int x = BinaryPrimitives.ReadUInt16LittleEndian(row[28..]);
                     foreach (NativeItemStock material in recipe.Materials)

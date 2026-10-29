@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.TextEncoding.Tags;
 using Memoria.FF8.Ui;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.GameUi;
 
@@ -8,6 +9,7 @@ namespace Memoria.FF8.GameUi;
 internal sealed class NativeTutorialDocumentElement(string text, float fontSize, string fontFamily) : UiElement
 {
     private readonly DialogueLine[] source = ReadSource(text);
+    private readonly LocalizationTextBinding? binding = LocalizationTextTrace.Find(text);
     private readonly List<(int Line, UiButton Button)> links = [];
     private readonly Dictionary<string, float> advances = new(StringComparer.Ordinal);
     private DialogueVisualLine[] lines = [];
@@ -116,7 +118,8 @@ internal sealed class NativeTutorialDocumentElement(string text, float fontSize,
                     if (character == value.Length || IsIcon(value[character]))
                     {
                         string segment = value[start..character];
-                        canvas.Text(segment, renderedFontSize, new UiRect(x, Bounds.Y + index * lineHeight, Math.Max(0, Bounds.Right - x), lineHeight), new UiColor(color.R, color.G, color.B, color.A), fontFamily);
+                        string displayed = binding is null ? segment : LocalizationTextTrace.Attach(segment, binding);
+                        canvas.Text(displayed, renderedFontSize, new UiRect(x, Bounds.Y + index * lineHeight, Math.Max(0, Bounds.Right - x), lineHeight), new UiColor(color.R, color.G, color.B, color.A), fontFamily);
                         x += advances[segment];
                         if (character < value.Length)
                         {
