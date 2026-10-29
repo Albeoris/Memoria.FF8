@@ -48,7 +48,7 @@ public sealed class NativeBattleDrawStock15NodeResourcesTests
         }
         Assert.Equal(new[] { 8, 2, 5, 0 }, counts);
         Assert.Same(fixedBank, fixedBank.Initialize87EA20(source));
-        NativeBattleCuragaExecutableState restored = JsonSerializer.Deserialize<NativeBattleCuragaExecutableState>(JsonSerializer.Serialize(fixedBank))!;
+        NativeBattleCuragaExecutableState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleCuragaExecutableState>(NativeBattleSnapshotJson.Serialize(fixedBank))!;
         Assert.Equal(fixedBank.Read(Address, 0x5944), restored.Initialize87EA20(source).Read(Address, 0x5944));
     }
 
@@ -78,11 +78,11 @@ public sealed class NativeBattleDrawStock15NodeResourcesTests
         Assert.Equal(Address, first.Frame.Memory.DrawStock15Executable!.ResourceAddress);
         Assert.Same(memory.CuragaExecutable, first.Frame.Memory.CuragaExecutable);
         Assert.Same(memory.Potion52Executable, first.Frame.Memory.Potion52Executable);
-        NativeBattleCuragaFrame restored = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(first.Frame))!;
+        NativeBattleCuragaFrame restored = NativeBattleSnapshotJson.Deserialize<NativeBattleCuragaFrame>(NativeBattleSnapshotJson.Serialize(first.Frame))!;
         NativeBattleCuragaNodeCycleStep expected = NativeBattleCuragaNodeKinematics.AdvanceList8804D0(first.Frame, appended.Address, first.Random, ReadModel, false);
         NativeBattleCuragaNodeCycleStep actual = NativeBattleCuragaNodeKinematics.AdvanceList8804D0(restored, appended.Address, first.Random, ReadModel, false);
         Assert.Equal(expected.Random, actual.Random);
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(expected.Frame), NativeBattleSnapshotJson.Serialize(actual.Frame));
     }
 
     private static NativeBattleGraphicsModel ReadModel(int index) => new(index, 2)

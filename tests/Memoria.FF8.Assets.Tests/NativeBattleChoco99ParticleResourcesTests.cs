@@ -28,9 +28,9 @@ public sealed class NativeBattleChoco99ParticleResourcesTests
                 Assert.NotNull(module.ProjectedFrame571C80(frame));
             }
         }
-        NativeBattleChoco99ParticleResources restored = JsonSerializer.Deserialize<NativeBattleChoco99ParticleResources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleChoco99ParticleResources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleChoco99ParticleResources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
     }
 
     [Theory]
@@ -56,9 +56,9 @@ public sealed class NativeBattleChoco99ParticleResourcesTests
         List<ushort> frames = [];
         for (int callback = 0; callback < 13; callback++)
         {
-            NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+            NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
             NativeBattleChoco99ParticleStep next = Advance(task);
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Advance(restored)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Advance(restored)));
             Assert.Equal(callback == 12 ? 0 : 4, next.Packets.Length);
             if (callback < 12)
             {

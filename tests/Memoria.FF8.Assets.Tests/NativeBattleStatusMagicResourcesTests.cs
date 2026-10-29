@@ -48,8 +48,8 @@ public sealed class NativeBattleStatusMagicResourcesTests
             Assert.Equal(duration - index - 1, advanced.Remaining);
             if (index == duration / 2)
             {
-                workspace = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace))!;
-                frame = JsonSerializer.Deserialize<NativeBattleStatusMagicFrame>(JsonSerializer.Serialize(frame))!;
+                workspace = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace))!;
+                frame = NativeBattleSnapshotJson.Deserialize<NativeBattleStatusMagicFrame>(NativeBattleSnapshotJson.Serialize(frame))!;
             }
         }
         Assert.Equal(nodes * duration, callbacks);

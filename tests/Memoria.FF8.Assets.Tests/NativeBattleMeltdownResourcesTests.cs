@@ -70,9 +70,9 @@ public sealed class NativeBattleMeltdownResourcesTests
             if (now == 56)
             {
                 Assert.Equal((ushort)12, flags);
-                string json = JsonSerializer.Serialize(frame);
-                frame = JsonSerializer.Deserialize<NativeBattleMeltdownFrame>(json)!;
-                Assert.Equal(json, JsonSerializer.Serialize(frame));
+                string json = NativeBattleSnapshotJson.Serialize(frame);
+                frame = NativeBattleSnapshotJson.Deserialize<NativeBattleMeltdownFrame>(json)!;
+                Assert.Equal(json, NativeBattleSnapshotJson.Serialize(frame));
             }
         }
         Assert.Equal(92, now);

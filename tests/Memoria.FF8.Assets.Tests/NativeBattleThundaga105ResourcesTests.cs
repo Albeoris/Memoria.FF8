@@ -38,8 +38,8 @@ public sealed class NativeBattleThundaga105ResourcesTests
         Assert.Equal(new[] { 16, 17 }, Enumerable.Range(0, 32).Where(index => resources.NodeSelector.Data[index] != 0).ToArray());
         Assert.All(resources.NodeSelector.Data, value => Assert.True(value is 0 or 1));
         Assert.NotNull(NativeBattleEffectTextureState.FromColdProcess().Register5099A0(resources.Animation).Animation);
-        string json = JsonSerializer.Serialize(resources);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleThundaga105Resources>(json)!));
+        string json = NativeBattleSnapshotJson.Serialize(resources);
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(NativeBattleSnapshotJson.Deserialize<NativeBattleThundaga105Resources>(json)!));
         Assert.Throws<NotSupportedException>(() => NativeBattleThundaga105ResourcesReader.Read(new byte[128]));
     }
 
@@ -87,8 +87,8 @@ public sealed class NativeBattleThundaga105ResourcesTests
             Assert.Equal(63 - frame, next.Remaining);
             if (frame == 31)
             {
-                NativeBattleGfAnimationWorkspace cold = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace))!;
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(cold.Advance701970(source, 0, (current, _) => current)));
+                NativeBattleGfAnimationWorkspace cold = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace))!;
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(cold.Advance701970(source, 0, (current, _) => current)));
             }
             nodes += next.EmittedNodes;
             workspace = next.Workspace;
@@ -142,9 +142,9 @@ public sealed class NativeBattleThundaga105ResourcesTests
             Assert.Equal((uint)(frame + 1), next.Task.ReadDword(0x20));
             if (frame == 31)
             {
-                PrimaryState restored = JsonSerializer.Deserialize<PrimaryState>(JsonSerializer.Serialize(new PrimaryState(memory, task)))!;
+                PrimaryState restored = NativeBattleSnapshotJson.Deserialize<PrimaryState>(NativeBattleSnapshotJson.Serialize(new PrimaryState(memory, task)))!;
                 NativeBattleThundaga105ProgramDraw cold = NativeBattleThundaga105ProgramDrawing.Advance6D43B0(restored.Memory, restored.Task, resources.ProgramSource, resources.NodeSelector.Data, anchor, view, view, projection, colors);
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(cold));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(cold));
             }
             byte[] currentScratch = next.Memory.Arena!.Read(0x2254, 0x7D0);
             scratchChanged |= !scratch.AsSpan().SequenceEqual(currentScratch);

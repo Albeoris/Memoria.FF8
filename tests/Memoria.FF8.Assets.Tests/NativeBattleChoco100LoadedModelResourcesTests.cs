@@ -17,8 +17,8 @@ public sealed class NativeBattleChoco100LoadedModelResourcesTests
         Assert.Same(resources, game.ReadNativeChoco100LoadedModelResources());
         resources.Validate();
         NativeBattleEffectFileAsset file = Assert.Single(game.ReadNativeChoco100IoResources().Files, item => item.FileId == 498);
-        Assert.Equal(0x5090, file.Data.Length);
-        Assert.Equal(file.Data.ToArray(), resources.Model.Bytes.ToArray());
+        Assert.Equal(0x5090, NativeBattleStorageSnapshots.Capture(file).Data.Length);
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(file).Data.ToArray(), resources.Model.Bytes.ToArray());
         Assert.Equal(17, resources.Model.PoseSource.BoneCount);
         Assert.Equal(new byte[] { 1, 28, 1 }, NativeBattlePoseDecoder.ReadFrameCounts(resources.Model.PoseSource.Animations.AsSpan()));
         Assert.Equal(508, Assert.Single(resources.Model.Geometry).Vertices.Length);
@@ -26,13 +26,13 @@ public sealed class NativeBattleChoco100LoadedModelResourcesTests
         Assert.Equal(42, resources.Model.Geometry[0].Polygons.Count(polygon => polygon.Quad));
         Assert.Equal(new short[] { unchecked((short)0xC000), unchecked((short)0xC000), unchecked((short)0xC000), unchecked((short)0xC000), unchecked((short)0xF400), 0 }, resources.YProgram.Values);
         Assert.Equal(0x1529F38u, resources.TextureProgram.Address);
-        Assert.Equal(0x2C, resources.TextureProgram.Data.Length);
+        Assert.Equal(0x2C, NativeBattleStorageSnapshots.Capture(resources.TextureProgram).Data.Length);
         Assert.Equal(0x00808080u, resources.DefaultFadeColor58);
-        NativeBattleChoco100LoadedModelResources restored = JsonSerializer.Deserialize<NativeBattleChoco100LoadedModelResources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleChoco100LoadedModelResources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleChoco100LoadedModelResources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
         byte[] padded = new byte[0xECA0];
-        file.Data.AsSpan().CopyTo(padded);
+        NativeBattleStorageSnapshots.Capture(file).Data.AsSpan().CopyTo(padded);
         Assert.Throws<InvalidDataException>(() => NativeBattleChoco100LoadedModelResourcesReader.ReadModel(padded.ToImmutableArray()));
     }
 
@@ -56,11 +56,11 @@ public sealed class NativeBattleChoco100LoadedModelResourcesTests
         {
             byte phase = current.Task.ReadByte(0x29);
             bool firstPhase = phases.Add(phase);
+            Saved? restored = firstPhase || phase == 5 || callback % 19 == 0 ? NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(current)) : null;
             Next next = Step(current);
-            if (firstPhase || phase == 5 || callback % 19 == 0)
+            if (restored is not null)
             {
-                Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(current))!;
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Step(restored)));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored)));
                 restoredBoundaries++;
             }
             if (phase == 5)
@@ -131,9 +131,9 @@ public sealed class NativeBattleChoco100LoadedModelResourcesTests
         Assert.Equal(0xFE0, shortDraw.ProjectedScratch.Length);
         Assert.Equal(loadedDraw.ProjectedScratch.AsSpan().Slice(0xCD0).ToArray(), shortDraw.ProjectedScratch.AsSpan().Slice(0xCD0).ToArray());
         Shared saved = new(first, second, shortDraw.ProjectedScratch);
-        Shared restored = JsonSerializer.Deserialize<Shared>(JsonSerializer.Serialize(saved))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(first, saved.Scratch, loaded.Model, rules)), JsonSerializer.Serialize(Draw(restored.Loaded, restored.Scratch, loaded.Model, rules)));
-        Assert.Equal(JsonSerializer.Serialize(first.State), JsonSerializer.Serialize(saved.Loaded.State));
+        Shared restored = NativeBattleSnapshotJson.Deserialize<Shared>(NativeBattleSnapshotJson.Serialize(saved))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(Draw(first, saved.Scratch, loaded.Model, rules)), NativeBattleSnapshotJson.Serialize(Draw(restored.Loaded, restored.Scratch, loaded.Model, rules)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(first.State), NativeBattleSnapshotJson.Serialize(saved.Loaded.State));
         Assert.NotEqual(first.State.TaskAddress, second.State.TaskAddress);
         Assert.NotEqual(first.State.ResourceAddress, second.State.ResourceAddress);
     }

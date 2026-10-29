@@ -27,7 +27,7 @@ public sealed class NativeBattleGilgameshMeshAuxiliaryResourcesTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleGilgameshMeshAuxiliaryResources resources = game.ReadNativeGilgameshMeshAuxiliaryResources();
-        NativeBattleGilgameshMeshAuxiliaryResources restoredResources = JsonSerializer.Deserialize<NativeBattleGilgameshMeshAuxiliaryResources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleGilgameshMeshAuxiliaryResources restoredResources = NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshMeshAuxiliaryResources>(NativeBattleSnapshotJson.Serialize(resources))!;
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x21FFD58, 0x21FFD68, 36, 100);
         NativeBattleGilgameshMeshAuxiliaryInitialization initialized = delayed ? NativeBattleGilgameshMeshAuxiliaries.Initialize594160(pool, new(1), resources) : NativeBattleGilgameshMeshAuxiliaries.Initialize593550(pool, new(1));
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
@@ -38,9 +38,9 @@ public sealed class NativeBattleGilgameshMeshAuxiliaryResourcesTests
             NativeBattleGilgameshMeshAuxiliaryStep? step = null;
             for (int frame = 0; frame < 60; frame++)
             {
+                NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(current))!;
                 step = NativeBattleGilgameshMeshAuxiliaries.Step(current, resources, view, projection, 0);
-                NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(current))!;
-                Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleGilgameshMeshAuxiliaries.Step(restored, restoredResources, view, projection, 0)));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshMeshAuxiliaries.Step(restored, restoredResources, view, projection, 0)));
                 current = step.UpdatedTask;
                 if (step.Result == 2)
                 {

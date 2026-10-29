@@ -87,9 +87,9 @@ public sealed class NativeBattleDeathResourcesTests
             }
             if (now is 14 or 60)
             {
-                string json = JsonSerializer.Serialize(frame);
-                frame = JsonSerializer.Deserialize<NativeBattleDeathFrame>(json)!;
-                Assert.Equal(json, JsonSerializer.Serialize(frame));
+                string json = NativeBattleSnapshotJson.Serialize(frame);
+                frame = NativeBattleSnapshotJson.Deserialize<NativeBattleDeathFrame>(json)!;
+                Assert.Equal(json, NativeBattleSnapshotJson.Serialize(frame));
             }
         }
         Assert.Equal(new[] { NativeBattlePoseDecoder.ReadFrameCounts(resources.Model.PoseSource.Animations.AsSpan())[5] + 12 }, contacts);
@@ -108,7 +108,7 @@ public sealed class NativeBattleDeathResourcesTests
         Assert.False(copiedWorld.Known[19]);
         Assert.All(copiedWorld.Known.Take(18), known => Assert.True(known));
         Assert.All(copiedWorld.Known.Skip(20), known => Assert.True(known));
-        Assert.Equal(JsonSerializer.Serialize(copiedWorld.ReadMatrix()), JsonSerializer.Serialize(frame.Memory.SharedCustomMatrix!.ReadMatrix50D790()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(copiedWorld.ReadMatrix()), NativeBattleSnapshotJson.Serialize(frame.Memory.SharedCustomMatrix!.ReadMatrix50D790()));
         Assert.Equal(!immune, frame.Effect.Pools[6].Slots.Any(task => task.Callback == 0x8BDBD0));
 
         NativeBattleDeathModelStep Draw(NativeBattleDeathFrame current, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState model)

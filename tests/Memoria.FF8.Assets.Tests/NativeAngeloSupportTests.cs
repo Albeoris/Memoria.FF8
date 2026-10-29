@@ -109,6 +109,8 @@ public sealed class NativeAngeloSupportTests
         BattleSession battle = new(new BattleDefinition
         {
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeFieldBattleRules = 0,
             NativeActions = [.. assets.NativeActions, attack],

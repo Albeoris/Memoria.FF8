@@ -37,9 +37,9 @@ public sealed class NativeBattleLevelDeath74BindingTests
     {
         using GameAssets game = Open();
         NativeBattleDeathResources source = game.ReadNativeLevelDeath74Resources().FamilyResources();
-        string json = JsonSerializer.Serialize(source);
-        NativeBattleDeathResources restored = JsonSerializer.Deserialize<NativeBattleDeathResources>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = NativeBattleSnapshotJson.Serialize(source);
+        NativeBattleDeathResources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleDeathResources>(json)!;
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal((ushort)74, restored.Profile.Effect);
         Assert.Equal(0x1771F5Cu, restored.Profile.AuraAddress);
         Assert.Equal(0x1776950u, restored.Profile.DarkAddress);
@@ -61,19 +61,21 @@ public sealed class NativeBattleLevelDeath74BindingTests
         Assert.True(level.PendingColdSources);
         Assert.Null(level.AuraActors);
         Assert.Null(level.DarkActors);
-        Assert.Equal(new byte[profile.ModuleLength], level.Module.Read(0, profile.ModuleLength));
+        (byte[] bytes, bool[] known) = level.Module.ReadSnapshot(0, profile.ModuleLength);
+        Assert.Equal(new byte[profile.ModuleLength], bytes);
+        Assert.Equal(Enumerable.Range(0, profile.ModuleLength).Select(index => index < 4 || index >= 8), known);
         Assert.Throws<NotSupportedException>(() => profile.RequireState(cold with { LevelDeath74 = null }));
         NativeBattleDeathState retained = level with { Module = level.Module.Write(0x20, [0xA1, 0xB2, 0xC3, 0xD4]).MarkUnknown(0, 4), Cursor = 1234 };
         NativeBattleEffectMemory changed = profile.WithState(cold, retained);
         Assert.Same(cold.Death14, changed.Death14);
-        string json = JsonSerializer.Serialize(changed);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!;
+        string json = NativeBattleSnapshotJson.Serialize(changed);
+        NativeBattleEffectMemory restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectMemory>(json)!;
         NativeBattleDeathState actual = profile.RequireState(restored);
         Assert.Throws<NotSupportedException>(() => actual.Module.Read(0, 4));
         Assert.Equal(new byte[] { 0xA1, 0xB2, 0xC3, 0xD4 }, actual.Module.Read(0x20, 4));
         Assert.Equal((int?)1234, actual.Cursor);
         Assert.Equal(new byte[4], restored.Death14!.Module.Read(0, 4));
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(restored));
     }
 
     private static GameAssets Open()

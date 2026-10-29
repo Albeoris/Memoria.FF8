@@ -34,8 +34,8 @@ public sealed class NativeBattleCactuarAuxiliaryDrawingTests
             Assert.NotEmpty(draw.Packets.Primitives);
             Assert.All(draw.Packets.Primitives, primitive => Assert.Equal((ushort)0, primitive.Flags20));
             Assert.Equal(particle, before.ToArray());
-            ImmutableArray<byte> cold = JsonSerializer.Deserialize<ImmutableArray<byte>>(JsonSerializer.Serialize(before));
-            Assert.Equal(JsonSerializer.Serialize(draw), JsonSerializer.Serialize(NativeBattleCactuarAuxiliaryDrawing.Particle5A9290(cold, resources.Sprite, view, projection)));
+            ImmutableArray<byte> cold = NativeBattleSnapshotJson.Deserialize<ImmutableArray<byte>>(NativeBattleSnapshotJson.Serialize(before));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(draw), NativeBattleSnapshotJson.Serialize(NativeBattleCactuarAuxiliaryDrawing.Particle5A9290(cold, resources.Sprite, view, projection)));
         }
         BinaryPrimitives.WriteUInt32LittleEndian(particle, 0);
         Assert.Null(NativeBattleCactuarAuxiliaryDrawing.Particle5A9290(particle.ToImmutableArray(), resources.Sprite, view, projection));
@@ -57,15 +57,15 @@ public sealed class NativeBattleCactuarAuxiliaryDrawingTests
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 8192, 4096);
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
         NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, (uint)callback, new byte[0x20].ToImmutableArray()).WriteWord(0xC, checked((ushort)counter)).WriteWord(0x18, 512).WriteWord(0x1C, 4096);
-        string before = JsonSerializer.Serialize(task);
+        string before = NativeBattleSnapshotJson.Serialize(task);
         NativeBattleGfGeometryBatch batch = NativeBattleCactuarAuxiliaryDrawing.Mesh(task, resources, -1590, view, projection, colors);
         Assert.NotEmpty(batch.Attempts);
         Assert.True(batch.AllocationBytes > 0);
         NativeBattleStaticMeshResource mesh = callback == 0x5A9140 ? resources.MeshC : callback == 0x5A9570 ? resources.MeshA : resources.MeshB;
         NativeBattleCactuarMeshDraw description = NativeBattleCactuarAuxiliaryDrawing.DescribeMesh(task, mesh, -1590, view);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, description.Matrix, projection, description.Context, colors)), JsonSerializer.Serialize(batch));
-        Assert.Equal(before, JsonSerializer.Serialize(task));
-        NativeBattleModulePoolTask cold = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(before)!;
-        Assert.Equal(JsonSerializer.Serialize(batch), JsonSerializer.Serialize(NativeBattleCactuarAuxiliaryDrawing.Mesh(cold, resources, -1590, view, projection, colors)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, description.Matrix, projection, description.Context, colors)), NativeBattleSnapshotJson.Serialize(batch));
+        Assert.Equal(before, NativeBattleSnapshotJson.Serialize(task));
+        NativeBattleModulePoolTask cold = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(before)!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(batch), NativeBattleSnapshotJson.Serialize(NativeBattleCactuarAuxiliaryDrawing.Mesh(cold, resources, -1590, view, projection, colors)));
     }
 }

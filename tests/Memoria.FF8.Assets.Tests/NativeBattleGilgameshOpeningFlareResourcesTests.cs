@@ -49,11 +49,11 @@ public sealed class NativeBattleGilgameshOpeningFlareResourcesTests
         NativeBattleGilgameshOpeningFlareStep first = NativeBattleGilgameshOpeningFlare.Step593250(task, imported, resources, new(1000, 2000, -3000), view, projection, -256, 0x1000000, 0);
         NativeBattleGilgameshOpeningFlareStep expected = NativeBattleGilgameshOpeningFlare.Step593250(first.UpdatedTask, first.State, resources, new(1000, 2000, -3000), view, projection, -256, 0x1000000, 0);
         NativeBattleGilgameshOpeningFlareStep actual = NativeBattleGilgameshOpeningFlare.Step593250(RoundTrip(first.UpdatedTask), RoundTrip(first.State), restoredResources, new(1000, 2000, -3000), view, projection, -256, 0x1000000, 0);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(expected), NativeBattleSnapshotJson.Serialize(actual));
         Assert.Throws<InvalidDataException>(() => (resources with { Rows = resources.Rows.RemoveAt(7) }).Validate());
         Assert.Throws<InvalidDataException>(() => (resources with { Rows = resources.Rows.SetItem(5, resources.Rows[5] with { Weight = 512 }) }).Validate());
         Assert.Throws<InvalidDataException>(() => (resources with { Sprite = resources.Sprite with { Bytes = resources.Sprite.Bytes.RemoveAt(0) } }).Validate());
     }
 
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleSnapshotJson.Deserialize<T>(NativeBattleSnapshotJson.Serialize(value))!;
 }

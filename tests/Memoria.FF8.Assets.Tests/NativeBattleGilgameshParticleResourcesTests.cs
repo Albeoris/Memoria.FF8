@@ -36,16 +36,17 @@ public sealed class NativeBattleGilgameshParticleResourcesTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleGilgameshParticleResources resources = game.ReadNativeGilgameshParticleResources();
-        NativeBattleGilgameshParticleResources restoredResources = JsonSerializer.Deserialize<NativeBattleGilgameshParticleResources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleGilgameshParticleResources restoredResources = NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshParticleResources>(NativeBattleSnapshotJson.Serialize(resources))!;
         NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, callback, new byte[24].ToImmutableArray()).WriteWord(14, source).WriteWord(22, 1);
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
         NativeCrtRandomState random = new(1);
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
         NativeBattleCameraProjection projection = new(null, 288, 160, 108);
         NativeBattleGilgameshParticleStep first = NativeBattleGilgameshParticles.Step(task, arena, random, resources, view, projection, 0);
-        NativeBattleGilgameshParticleStep restored = JsonSerializer.Deserialize<NativeBattleGilgameshParticleStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleGilgameshParticleStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshParticleStep>(NativeBattleSnapshotJson.Serialize(first))!;
+        NativeBattleGilgameshParticleStep comparison = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(first));
         Assert.NotEmpty(first.Packets);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleGilgameshParticles.Step(first.UpdatedTask, first.Arena, first.Random, resources, view, projection, 0)), JsonSerializer.Serialize(NativeBattleGilgameshParticles.Step(restored.UpdatedTask, restored.Arena, restored.Random, restoredResources, view, projection, 0)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshParticles.Step(comparison.UpdatedTask, comparison.Arena, comparison.Random, resources, view, projection, 0)), NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshParticles.Step(restored.UpdatedTask, restored.Arena, restored.Random, restoredResources, view, projection, 0)));
         NativeBattleGilgameshParticleStep current = first;
         for (int frame = 1; frame < 24 && current.Result == 0; frame++)
         {

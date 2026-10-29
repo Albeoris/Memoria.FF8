@@ -30,22 +30,22 @@ public sealed class NativeBattleEffect311ResourcesTests
         workspace = workspace.Initialize7016B0(hierarchy, 756);
         for (int frame = 0; frame < 74; frame++)
         {
-            NativeBattleGfAnimationWorkspace restored = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace))!;
+            NativeBattleGfAnimationWorkspace restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace))!;
             List<string> firstNodes = [];
             List<string> secondNodes = [];
             NativeBattleGfAnimationAdvance first = workspace.Advance701970(hierarchy, 0, (current, node) =>
             {
-                firstNodes.Add(JsonSerializer.Serialize(node));
+                firstNodes.Add(NativeBattleSnapshotJson.Serialize(node));
                 return current;
             });
             NativeBattleGfAnimationAdvance second = restored.Advance701970(hierarchy, 0, (current, node) =>
             {
-                secondNodes.Add(JsonSerializer.Serialize(node));
+                secondNodes.Add(NativeBattleSnapshotJson.Serialize(node));
                 return current;
             });
             Assert.Equal(firstNodes, secondNodes);
             Assert.Equal(11, first.EmittedNodes);
-            Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(first), NativeBattleSnapshotJson.Serialize(second));
             workspace = first.Workspace;
         }
         Assert.Equal(0, workspace.Advance701970(hierarchy, 0, (current, _) => throw new InvalidOperationException("Expired hierarchy emitted again.")).EmittedNodes);

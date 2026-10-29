@@ -28,8 +28,8 @@ public sealed class NativeBattleWaterMeshResourcesTests
             Assert.Equal(file0.Skip(offsets[index]).Take(lengths[index]), shape.Bytes);
             Assert.Equal(types[index], shape.Groups().Select(group => group.Type));
             Assert.Equal(counts[index], shape.Groups().Select(group => group.Count));
-            NativeBattleWaterMeshShape restored = JsonSerializer.Deserialize<NativeBattleWaterMeshShape>(JsonSerializer.Serialize(shape))!;
-            Assert.Equal(JsonSerializer.Serialize(shape.Groups()), JsonSerializer.Serialize(restored.Groups()));
+            NativeBattleWaterMeshShape restored = NativeBattleSnapshotJson.Deserialize<NativeBattleWaterMeshShape>(NativeBattleSnapshotJson.Serialize(shape))!;
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(shape.Groups()), NativeBattleSnapshotJson.Serialize(restored.Groups()));
             byte[] projected = new byte[shape.VertexCount * 8];
             for (int vertex = 0; vertex < shape.VertexCount; vertex++)
             {
@@ -63,11 +63,11 @@ public sealed class NativeBattleWaterMeshResourcesTests
         int vertices = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(original.Bytes.AsSpan().Slice(0x14)));
         byte replacement = unchecked((byte)(original.Bytes[vertices] + 1));
         arena = arena.Write(fileOffset + original.FileOffset + vertices, [replacement]);
-        NativeBattleEffectArena cold = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
+        NativeBattleEffectArena cold = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectArena>(NativeBattleSnapshotJson.Serialize(arena))!;
         NativeBattleWaterMeshShape updated = NativeBattleWaterMeshes.ReadShape(cold, fileOffset, file0.Length, 2);
         Assert.Equal(replacement, updated.Vertices[0]);
         Assert.NotEqual(original.Vertices[0], updated.Vertices[0]);
-        Assert.Equal(JsonSerializer.Serialize(original.Groups()), JsonSerializer.Serialize(updated.Groups()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(original.Groups()), NativeBattleSnapshotJson.Serialize(updated.Groups()));
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterMeshes.ReadShape(cold, fileOffset, file0.Length, 4));
     }
 

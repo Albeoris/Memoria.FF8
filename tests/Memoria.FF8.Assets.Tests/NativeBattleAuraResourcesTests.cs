@@ -67,9 +67,9 @@ public sealed class NativeBattleAuraResourcesTests
             if (now == 20)
             {
                 Assert.Equal(16, frame.Effect.Pools[2].Slots.Count(task => (task.Flags & 1) != 0));
-                string json = JsonSerializer.Serialize(frame);
-                frame = JsonSerializer.Deserialize<NativeBattleAuraFrame>(json)!;
-                Assert.Equal(json, JsonSerializer.Serialize(frame));
+                string json = NativeBattleSnapshotJson.Serialize(frame);
+                frame = NativeBattleSnapshotJson.Deserialize<NativeBattleAuraFrame>(json)!;
+                Assert.Equal(json, NativeBattleSnapshotJson.Serialize(frame));
             }
         }
         Assert.Equal(41, now);

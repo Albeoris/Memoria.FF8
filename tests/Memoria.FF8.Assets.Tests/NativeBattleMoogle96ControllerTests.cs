@@ -34,12 +34,12 @@ public sealed class NativeBattleMoogle96ControllerTests
                 cameraPhases.Add(camera.ReadByte(0x29));
             }
             string? boundary = current.FileIo.ActiveCount > 0 ? "file" : model is not null ? $"model{model.ReadByte(0x29)}" : shared.Nodes.Banks[1].InitializationFlag != 0 ? "second-bank" : null;
+            Run? restored = boundary is not null && restoredBoundaries.Add(boundary) ? NativeBattleSnapshotJson.Deserialize<Run>(NativeBattleSnapshotJson.Serialize(current)) : null;
             Run next = Step(current, fixture.Packets, resources, rules);
-            if (boundary is not null && restoredBoundaries.Add(boundary))
+            if (restored is not null)
             {
-                Run restored = JsonSerializer.Deserialize<Run>(JsonSerializer.Serialize(current))!;
                 Assert.NotSame(current.Frame.Effect.Pools[0], restored.Frame.Effect.Pools[0]);
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Step(restored, fixture.Packets, resources, rules)));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored, fixture.Packets, resources, rules)));
             }
             current = next;
         }
@@ -64,7 +64,7 @@ public sealed class NativeBattleMoogle96ControllerTests
         Assert.Contains("file", restoredBoundaries);
         Assert.True(restoredBoundaries.Count >= 4);
         Assert.All(current.Frame.Memory.Moogle96!.Nodes.Banks, bank => Assert.Equal(1u, bank.InitializationFlag));
-        Assert.False(resources.ProgramSource.Data.SequenceEqual(current.Frame.Memory.Moogle96.ProgramSource!.Data));
+        Assert.False(NativeBattleStorageSnapshots.Capture(resources.ProgramSource).Data.SequenceEqual(NativeBattleStorageSnapshots.Capture(current.Frame.Memory.Moogle96.ProgramSource!).Data));
         Assert.Equal(0xFD8, current.Frame.Memory.Moogle96.ProjectedScratch!.Value.Length);
         Assert.Contains((short)4096, current.Depths);
         Assert.Equal((short)0, current.Depths[^1]);
@@ -100,13 +100,13 @@ public sealed class NativeBattleMoogle96ControllerTests
         }
         Assert.NotNull(current.Frame.Memory.Moogle96!.Io);
         NativeBattleMoogle96State retained = current.Frame.Memory.Moogle96;
-        NativeBattleMoogle96Frame restored = JsonSerializer.Deserialize<NativeBattleMoogle96Frame>(JsonSerializer.Serialize(current.Frame))!;
+        NativeBattleMoogle96Frame restored = NativeBattleSnapshotJson.Deserialize<NativeBattleMoogle96Frame>(NativeBattleSnapshotJson.Serialize(current.Frame))!;
         NativeBattleMoogle96Frame nextCast = NativeBattleMoogle96Controller.Initialize731DE0(restored.Memory, initial.Effect, fixture.Packets, resources, restored.Random);
-        Assert.Equal(JsonSerializer.Serialize(retained.ProgramSource), JsonSerializer.Serialize(nextCast.Memory.Moogle96!.ProgramSource));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(retained.ProgramSource), NativeBattleSnapshotJson.Serialize(nextCast.Memory.Moogle96!.ProgramSource));
         Assert.Equal(retained.Io!.Script.ToArray(), nextCast.Memory.Moogle96.Io!.Script.ToArray());
         Assert.False(nextCast.Memory.Moogle96.ProgramSourceKnownCold);
         Assert.False(nextCast.Memory.Moogle96.IoScriptKnownCold);
-        Assert.Equal(JsonSerializer.Serialize(retained.Nodes), JsonSerializer.Serialize(nextCast.Memory.Moogle96.Nodes));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(retained.Nodes), NativeBattleSnapshotJson.Serialize(nextCast.Memory.Moogle96.Nodes));
         Run first = Step(fixture.Run, fixture.Packets, resources, rules);
         Assert.Equal(0x2000, first.Frame.Memory.Moogle96!.PrivateBufferAliasOffset);
         Run second = Step(first, fixture.Packets, resources, rules);

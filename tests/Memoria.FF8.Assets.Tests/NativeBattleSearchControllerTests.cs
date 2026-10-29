@@ -79,10 +79,10 @@ public sealed class NativeBattleSearchControllerTests
         {
             normal = NativeBattleSearchController.Advance7552B0(normal, inputs, resources);
             flagged = NativeBattleSearchController.Advance7552B0(flagged, inputs with { GraphicsFlags = 0x201 }, resources);
-            Assert.Equal(JsonSerializer.Serialize(normal), JsonSerializer.Serialize(flagged));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(normal), NativeBattleSnapshotJson.Serialize(flagged));
             if (callback is 25 or 80 or 115)
             {
-                flagged = JsonSerializer.Deserialize<NativeBattleSearchFrame>(JsonSerializer.Serialize(normal))!;
+                flagged = NativeBattleSnapshotJson.Deserialize<NativeBattleSearchFrame>(NativeBattleSnapshotJson.Serialize(normal))!;
                 Assert.NotSame(normal.Effect.Pools[3].Slots[0], flagged.Effect.Pools[3].Slots[0]);
             }
         }

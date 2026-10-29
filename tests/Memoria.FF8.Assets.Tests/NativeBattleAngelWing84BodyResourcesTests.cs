@@ -23,9 +23,9 @@ public sealed class NativeBattleAngelWing84BodyResourcesTests
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096);
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
         NativeBattleShadowSource shadow = new(view with { Z = 0 }, new(4096, 0, 4096), Enumerable.Repeat(new NativeBattleVector(0, 0, 0), 10).ToImmutableArray());
-        NativeBattleAngelWing84Frame restored = JsonSerializer.Deserialize<NativeBattleAngelWing84Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleAngelWing84Frame restored = NativeBattleSnapshotJson.Deserialize<NativeBattleAngelWing84Frame>(NativeBattleSnapshotJson.Serialize(frame))!;
         NativeBattleAngelWing84BodyDrawStep shader = Draw(frame);
-        Assert.Equal(JsonSerializer.Serialize(shader), JsonSerializer.Serialize(Draw(restored)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(shader), NativeBattleSnapshotJson.Serialize(Draw(restored)));
         Assert.Contains(shader.Ordering.Packets, packet => packet.Words.Length == 10);
         Assert.Throws<NotSupportedException>(() => shader.Frame.State.BodyDrawStorage!.Vertices.Read(6, 2));
         Assert.Equal(append.Address, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(shader.Frame.State.Scene!.Settings.Read(24, 4)));
@@ -55,8 +55,8 @@ public sealed class NativeBattleAngelWing84BodyResourcesTests
         NativeBattleEffectOwnedModelStep initialized = NativeBattleEffectOwnedModel.Initialize8DD0F0(pool.Slots[slot], 0x25C9D80, resources.Model, 3, resources.DefaultColor44);
         NativeBattleEffectOwnedModelStep selected = NativeBattleEffectOwnedModel.Select8DD190(initialized.Task, initialized.State, resources.Model, 0);
         Assert.NotNull(selected.State.DecodedPose);
-        NativeBattleEffectOwnedModelStep restored = JsonSerializer.Deserialize<NativeBattleEffectOwnedModelStep>(JsonSerializer.Serialize(selected))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(selected.Task, selected.State, resources.Model)), JsonSerializer.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(restored.Task, restored.State, resources.Model)));
+        NativeBattleEffectOwnedModelStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectOwnedModelStep>(NativeBattleSnapshotJson.Serialize(selected))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(selected.Task, selected.State, resources.Model)), NativeBattleSnapshotJson.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(restored.Task, restored.State, resources.Model)));
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class NativeBattleAngelWing84BodyResourcesTests
         task = task.WriteByte(41, 4).WriteWord(314, 3840);
         hierarchy = hierarchy.Write(append.Address, task);
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
-        NativeBattleAngelWing84Frame restored = JsonSerializer.Deserialize<NativeBattleAngelWing84Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleAngelWing84Frame restored = NativeBattleSnapshotJson.Deserialize<NativeBattleAngelWing84Frame>(NativeBattleSnapshotJson.Serialize(frame))!;
         operations.Clear();
         NativeBattleAngelWing84LeafStep terminal = NativeBattleAngelWing84Body.Advance(frame, append.Address, inputs);
         Assert.Empty(operations);
@@ -99,7 +99,7 @@ public sealed class NativeBattleAngelWing84BodyResourcesTests
         Assert.Equal(0x02000000u, task.ReadDword(88));
         Assert.Equal(0x32000000u, task.ReadDword(92));
         Assert.Equal((byte)0, task.ReadByte(55));
-        Assert.Equal(JsonSerializer.Serialize(terminal), JsonSerializer.Serialize(NativeBattleAngelWing84Body.Advance(restored, append.Address, inputs)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(terminal), NativeBattleSnapshotJson.Serialize(NativeBattleAngelWing84Body.Advance(restored, append.Address, inputs)));
     }
 
 }

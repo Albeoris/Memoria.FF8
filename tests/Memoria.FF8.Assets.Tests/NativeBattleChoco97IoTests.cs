@@ -23,16 +23,16 @@ public sealed class NativeBattleChoco97IoTests
             foreach (NativeBattleEffectFileAsset file in files)
             {
                 using FileStream stream = new(Path.Combine(export, $"data-{file.FileId}.bin"), FileMode.CreateNew);
-                stream.Write(file.Data.AsSpan());
+                stream.Write(NativeBattleStorageSnapshots.Capture(file).Data.AsSpan());
             }
-            File.WriteAllText(Path.Combine(export, "manifest.json"), JsonSerializer.Serialize(files.Select(file => new { file.FileId, file.Name, Bytes = file.Data.Length, Sha256 = Convert.ToHexString(SHA256.HashData(file.Data.AsSpan())) }), new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(export, "manifest.json"), JsonSerializer.Serialize(files.Select(file => new { file.FileId, file.Name, Bytes = NativeBattleStorageSnapshots.Capture(file).Data.Length, Sha256 = Convert.ToHexString(SHA256.HashData(NativeBattleStorageSnapshots.Capture(file).Data.AsSpan())) }), new JsonSerializerOptions { WriteIndented = true }));
         }
 
         Assert.Equal("FF8_EN:152B930", resources.Script.Identity);
-        Assert.Equal(256, resources.Script.Data.Length);
+        Assert.Equal(256, NativeBattleStorageSnapshots.Capture(resources.Script).Data.Length);
         Assert.Equal(Enumerable.Range(442, 12).Select(value => (short)value).ToArray(), resources.Files.Select(file => file.FileId).ToArray());
         Assert.All(resources.Files, file => Assert.StartsWith("MAG096_B.", file.Name));
-        ushort[] opcodes = Enumerable.Range(0, 16).Select(row => U16(resources.Script.Data, row * 16)).ToArray();
+        ushort[] opcodes = Enumerable.Range(0, 16).Select(row => U16(NativeBattleStorageSnapshots.Capture(resources.Script).Data, row * 16)).ToArray();
         Assert.Equal(3, opcodes.Count(opcode => opcode == 0));
         Assert.Equal(8, opcodes.Count(opcode => opcode == 1));
         Assert.Equal(1, opcodes.Count(opcode => opcode == 2));
@@ -41,17 +41,17 @@ public sealed class NativeBattleChoco97IoTests
         int index = 0;
         for (int row = 0; row < 16; row++)
         {
-            Assert.Equal(0u, U32(resources.Script.Data, row * 16 + 12));
+            Assert.Equal(0u, U32(NativeBattleStorageSnapshots.Capture(resources.Script).Data, row * 16 + 12));
             if (opcodes[row] is 1 or 2 or 3)
             {
-                Assert.Equal(checked((ushort)resources.Files[index].FileId), U16(resources.Script.Data, row * 16 + 2));
-                Assert.Equal(resources.Files[index].Data.Length, checked((int)U32(resources.Script.Data, row * 16 + 8)));
+                Assert.Equal(checked((ushort)resources.Files[index].FileId), U16(NativeBattleStorageSnapshots.Capture(resources.Script).Data, row * 16 + 2));
+                Assert.Equal(NativeBattleStorageSnapshots.Capture(resources.Files[index]).Data.Length, checked((int)U32(NativeBattleStorageSnapshots.Capture(resources.Script).Data, row * 16 + 8)));
                 index++;
             }
         }
         Assert.Equal(12, index);
-        string json = JsonSerializer.Serialize(resources);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleChoco97IoResources>(json)));
+        string json = NativeBattleSnapshotJson.Serialize(resources);
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(NativeBattleSnapshotJson.Deserialize<NativeBattleChoco97IoResources>(json)));
         Assert.Throws<NotSupportedException>(() => NativeBattleChoco97IoResourcesReader.Read(new byte[128], []));
     }
 
@@ -62,7 +62,7 @@ public sealed class NativeBattleChoco97IoTests
         NativeBattleChoco97IoResources resources = game.ReadNativeChoco97IoResources();
         // Explicit diagnostic allocation only; no native bank capacity is inferred from file extents.
         NativeBattleChoco97IoBanks banks = new(0x19DB018, 0x20000, NativeBattleEffectArena.Clear().MarkUnknown(0, 0x20000));
-        NativeBattleChoco97IoInitialization initialized = NativeBattleChoco97Io.Initialize729EF0(resources.Script.Data, Buffer, banks);
+        NativeBattleChoco97IoInitialization initialized = NativeBattleChoco97Io.Initialize729EF0(NativeBattleStorageSnapshots.Capture(resources.Script).Data, Buffer, banks);
         Pending current = new(initialized.State, new(1, 0, null, 0x729FF0, new byte[0x30 - 12].ToImmutableArray()), NativeBattleEffectMemory.FromColdProcess().BeginLoad(97), NativeBattleFileIoState.FromColdProcess());
         int barriers = 0;
         int timCompletions = 0;
@@ -89,14 +89,14 @@ public sealed class NativeBattleChoco97IoTests
             NativeBattleChoco97IoRequest request = Assert.IsType<NativeBattleChoco97IoRequest>(begun.Request);
             NativeBattleEffectFileAsset file = Assert.Single(resources.Files, file => file.FileId == request.FileId);
             Assert.Equal(opcode, request.Opcode);
-            Assert.Equal(file.Data.Length, request.DeclaredLength);
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(file).Data.Length, request.DeclaredLength);
             Assert.Equal(current.State.CursorAddress, begun.State.CursorAddress);
             if (opcode is 2 or 3)
             {
                 Assert.Equal(current.State.RangeCount + 1, begun.State.RangeCount);
                 int range = begun.State.RangeCount - 1;
                 Assert.Equal(request.DestinationAddress, U32(begun.State.Control, range * 4));
-                Assert.Equal(unchecked(request.DestinationAddress + (uint)file.Data.Length), U32(begun.State.Control, 0x80 + range * 4));
+                Assert.Equal(unchecked(request.DestinationAddress + (uint)NativeBattleStorageSnapshots.Capture(file).Data.Length), U32(begun.State.Control, 0x80 + range * 4));
                 ranges.Add(request.DestinationAddress);
             }
             NativeBattleChoco97IoQueued copied = NativeBattleChoco97Io.CopyAndQueueFile(begun.State, current.Memory, current.FileIo, file);
@@ -105,22 +105,22 @@ public sealed class NativeBattleChoco97IoTests
             Assert.Equal(0, copied.Memory.Textures!.Count);
             if (opcode is 2 or 3)
             {
-                Assert.Equal(file.Data.ToArray(), copied.State.Banks.Read(request.DestinationAddress, file.Data.Length));
+                Assert.Equal(NativeBattleStorageSnapshots.Capture(file).Data.ToArray(), copied.State.Banks.Read(request.DestinationAddress, NativeBattleStorageSnapshots.Capture(file).Data.Length));
             }
             if (file.FileId == 449)
             {
-                ImmutableArray<byte> old = Assert.Single(resources.Files, file => file.FileId == 445).Data;
+                ImmutableArray<byte> old = NativeBattleStorageSnapshots.Capture(Assert.Single(resources.Files, file => file.FileId == 445)).Data;
                 Assert.Equal(old.ToArray(), copied.State.Banks.Read(0x19DB018, old.Length));
                 Assert.Throws<NotSupportedException>(() => copied.State.Banks.Read(0x19E8660, 1));
             }
             Pending pending = new(copied.State, begun.Task, copied.Memory, copied.FileIo);
-            Pending cold = JsonSerializer.Deserialize<Pending>(JsonSerializer.Serialize(pending))!;
+            Pending cold = NativeBattleSnapshotJson.Deserialize<Pending>(NativeBattleSnapshotJson.Serialize(pending))!;
             int callbacks = pending.FileIo.Rows.Single(row => row.SchedulerCallback != 0).Countdown!.Value + 1;
             for (int callback = 0; callback < callbacks; callback++)
             {
                 pending = Pump(pending);
                 cold = Pump(cold);
-                Assert.Equal(JsonSerializer.Serialize(pending), JsonSerializer.Serialize(cold));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(pending), NativeBattleSnapshotJson.Serialize(cold));
                 if (callback + 1 < callbacks)
                 {
                     Assert.Equal((ushort)1, pending.State.Busy);
@@ -157,7 +157,7 @@ public sealed class NativeBattleChoco97IoTests
         short[] dataFileIds = [445, 448, 449, 450];
         for (int index = 0; index < dataFileIds.Length; index++)
         {
-            int length = Assert.Single(resources.Files, file => file.FileId == dataFileIds[index]).Data.Length;
+            int length = NativeBattleStorageSnapshots.Capture(Assert.Single(resources.Files, file => file.FileId == dataFileIds[index])).Data.Length;
             Assert.Equal(index + 1 < ranges.Count ? ranges[index + 1] : 0x19EEA80u, ranges[index] + (uint)length);
         }
         Assert.Equal((short)4, current.State.RangeCount);
@@ -165,7 +165,7 @@ public sealed class NativeBattleChoco97IoTests
         NativeBattleChoco97IoInitialization warm = NativeBattleChoco97Io.Initialize729EF0(current.State.Script, initialized.NextAddress, current.State.Banks);
         Assert.Equal(current.State.Script.ToArray(), warm.State.Script.ToArray());
         Assert.Equal(initialized.NextAddress, warm.State.BufferAddress);
-        Assert.Equal(0u, U32(resources.Script.Data, 28));
+        Assert.Equal(0u, U32(NativeBattleStorageSnapshots.Capture(resources.Script).Data, 28));
         Assert.Equal(Buffer, U32(current.State.Script, 28));
     }
 

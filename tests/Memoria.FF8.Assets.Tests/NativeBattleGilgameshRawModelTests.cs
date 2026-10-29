@@ -24,9 +24,9 @@ public sealed class NativeBattleGilgameshRawModelTests
         Assert.Equal((byte)0x80, state.Model[0x14]);
         Assert.Throws<InvalidDataException>(() => NativeBattleCactuarRawModel.Validate(state, resource));
         state = NativeBattleCactuarRawModel.Select5A8FB0(state, resource, 0, binding);
+        NativeBattleCactuarRawModelState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleCactuarRawModelState>(NativeBattleSnapshotJson.Serialize(state))!;
         NativeBattleCactuarRawModelStep expected = NativeBattleCactuarRawModel.Advance5A8FD0(state, resource, binding);
-        NativeBattleCactuarRawModelState restored = JsonSerializer.Deserialize<NativeBattleCactuarRawModelState>(JsonSerializer.Serialize(state))!;
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(NativeBattleCactuarRawModel.Advance5A8FD0(restored, resource, binding)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(expected), NativeBattleSnapshotJson.Serialize(NativeBattleCactuarRawModel.Advance5A8FD0(restored, resource, binding)));
     }
 
     [Fact]
@@ -65,8 +65,8 @@ public sealed class NativeBattleGilgameshRawModelTests
             Assert.Equal(first.Words.ToArray(), second.Words.ToArray());
             Assert.InRange(second.Bucket - 17 - 2 * (first.Bucket - 17), 0, 1);
         }
-        NativeBattleGilgameshRawModelDraw restored = NativeBattleGilgameshRawModel.Draw595E40(JsonSerializer.Deserialize<NativeBattleCactuarRawModelState>(JsonSerializer.Serialize(depth4.State))!, resource, binding.ControlAddress, JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(depth4.Arena))!, parent, projection, colors);
-        Assert.Equal(JsonSerializer.Serialize(depth4), JsonSerializer.Serialize(restored));
+        NativeBattleGilgameshRawModelDraw restored = NativeBattleGilgameshRawModel.Draw595E40(NativeBattleSnapshotJson.Deserialize<NativeBattleCactuarRawModelState>(NativeBattleSnapshotJson.Serialize(depth4.State))!, resource, binding.ControlAddress, NativeBattleSnapshotJson.Deserialize<NativeBattleEffectArena>(NativeBattleSnapshotJson.Serialize(depth4.Arena))!, parent, projection, colors);
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(depth4), NativeBattleSnapshotJson.Serialize(restored));
         BinaryPrimitives.WriteUInt32LittleEndian(model.AsSpan(0x7C), 0);
         NativeBattleGilgameshRawModelDraw masked = NativeBattleGilgameshRawModel.Draw595E40(state with { Model = model.ToImmutableArray() }, resource, binding.ControlAddress, arena, parent, projection, colors);
         Assert.Same(arena, masked.Arena);

@@ -23,7 +23,7 @@ public sealed class NativeBattleDevour62RetainedMemoryTests
         Assert.Null(state.PrimaryDrawCursor);
         Assert.Null(state.SecondaryDrawCursor);
         Assert.Null(state.AuxiliaryCursor);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectMemory>(NativeBattleSnapshotJson.Serialize(memory))!;
         restored.Validate();
         Assert.Equal(state, restored.RequireDevour62());
     }
@@ -33,7 +33,7 @@ public sealed class NativeBattleDevour62RetainedMemoryTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         Assert.Null(memory.Devour62);
-        Assert.DoesNotContain("Devour62", JsonSerializer.Serialize(memory));
+        Assert.DoesNotContain("Devour62", NativeBattleSnapshotJson.Serialize(memory));
         Assert.Throws<NotSupportedException>(() => memory.RequireDevour62());
         NativeBattleDevour62State current = NativeBattleDevour62State.FromColdProcess(12, 34) with { PrimaryDrawCursor = 99 };
         memory = memory.WithDevour62(current);

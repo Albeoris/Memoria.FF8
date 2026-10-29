@@ -18,7 +18,7 @@ public sealed class NativeBattleRinoa89ResourcesTests
         Assert.Null(binding.InitializerResource);
         NativeBattleRinoa89Resources resources = Assert.IsType<NativeBattleRinoa89Resources>(binding.Rinoa89Resources);
         Assert.Equal(new short[] { 758, 759, 760, 761, 762, 763, 764, 360, 361, 362 }, resources.Files.Select(file => file.FileId));
-        Assert.All(resources.Files, file => Assert.False(file.Data.IsDefaultOrEmpty));
+        Assert.All(resources.Files, file => Assert.False(NativeBattleStorageSnapshots.Capture(file).Data.IsDefaultOrEmpty));
     }
 
     [Fact]
@@ -26,8 +26,8 @@ public sealed class NativeBattleRinoa89ResourcesTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRinoa89Resources resources = game.ReadNativeRinoa89Resources();
-        Assert.Equal(0x14D0740 - 0x14913FC, resources.StaticImage.Data.Length);
-        Assert.Equal(new[] { 33824, 101408 }, resources.InitialTextures.Select(texture => texture.Data.Length));
+        Assert.Equal(0x14D0740 - 0x14913FC, NativeBattleStorageSnapshots.Capture(resources.StaticImage).Data.Length);
+        Assert.Equal(new[] { 33824, 101408 }, resources.InitialTextures.Select(texture => NativeBattleStorageSnapshots.Capture(texture).Data.Length));
         Assert.Equal(new short[] { 758, 759, 760, 761, 762, 763, 764, 360, 361, 362 }, resources.Files.Select(file => file.FileId));
         NativeBattleEffectOwnedModelResource body = Assert.IsType<NativeBattleEffectOwnedModelResource>(resources.Body);
         Assert.Equal(34, body.PoseSource.BoneCount);
@@ -59,8 +59,8 @@ public sealed class NativeBattleRinoa89ResourcesTests
             Assert.Equal(0u, (rotation - 0x20DFAB8u - 30468) % 20);
         }
         Assert.Equal(120, NativeBattleRinoa89ShardDrawing.Draw6FCFD0(arena).Attempts.Count(attempt => attempt.Primitive is not null));
-        NativeBattleRinoa89Frame restored = JsonSerializer.Deserialize<NativeBattleRinoa89Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleRinoa89Controller.AdvanceShards6FD100(frame, 2560)), JsonSerializer.Serialize(NativeBattleRinoa89Controller.AdvanceShards6FD100(restored, 2560)));
+        NativeBattleRinoa89Frame restored = NativeBattleSnapshotJson.Deserialize<NativeBattleRinoa89Frame>(NativeBattleSnapshotJson.Serialize(frame))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleRinoa89Controller.AdvanceShards6FD100(frame, 2560)), NativeBattleSnapshotJson.Serialize(NativeBattleRinoa89Controller.AdvanceShards6FD100(restored, 2560)));
     }
 
     [Fact]
@@ -73,19 +73,19 @@ public sealed class NativeBattleRinoa89ResourcesTests
         NativeBattleModulePoolTask task = new(1, 0, null, 0x6FA780, new byte[1040].ToImmutableArray());
         task = NativeBattleRinoa89Model.Initialize6EC060(task, 0x20DFAB8 + 23104, body);
         NativeBattleRinoa89ModelStep selected = NativeBattleRinoa89Model.Select6574D0(frame, task, body, 3);
-        NativeBattleRinoa89ModelStep restored = JsonSerializer.Deserialize<NativeBattleRinoa89ModelStep>(JsonSerializer.Serialize(selected))!;
+        NativeBattleRinoa89ModelStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleRinoa89ModelStep>(NativeBattleSnapshotJson.Serialize(selected))!;
         for (int advance = 0; advance < 8; advance++)
         {
             selected = NativeBattleRinoa89Model.Advance6FBDB0(selected.Frame, selected.Task, body);
             restored = NativeBattleRinoa89Model.Advance6FBDB0(restored.Frame, restored.Task, body);
-            Assert.Equal(JsonSerializer.Serialize(selected), JsonSerializer.Serialize(restored));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(selected), NativeBattleSnapshotJson.Serialize(restored));
         }
     }
 
     private static NativeBattleRinoa89Frame Frame(NativeBattleRinoa89Resources resources)
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
-        NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown().Write(NativeBattleRinoa89Resources.StaticAddress, resources.StaticImage.Data.AsSpan()));
+        NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown().Write(NativeBattleRinoa89Resources.StaticAddress, NativeBattleStorageSnapshots.Capture(resources.StaticImage).Data.AsSpan()));
         return new(memory, null!, staging, new(1));
     }
 }

@@ -38,8 +38,8 @@ public sealed class NativeBattleStatusIconResourcesTests
         Assert.Equal(42, game.ReadNativeBattleModuleResources().Length);
         Assert.DoesNotContain(game.ReadNativeBattleModuleResources(), resource => icons.Entries.Any(entry => entry.Sprite.Address == resource.Address));
         NativeBattleGraphicsRules oldMetadata = game.ReadNativeBattleGraphicsRules() with { StatusIcons = null };
-        Assert.DoesNotContain("StatusIcons", JsonSerializer.Serialize(oldMetadata));
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleGraphicsRules>(JsonSerializer.Serialize(oldMetadata))!.StatusIcons);
+        Assert.DoesNotContain("StatusIcons", NativeBattleSnapshotJson.Serialize(oldMetadata));
+        Assert.Null(NativeBattleSnapshotJson.Deserialize<NativeBattleGraphicsRules>(NativeBattleSnapshotJson.Serialize(oldMetadata))!.StatusIcons);
         using BattleAssets assets = new(game.GameDirectory);
         NativeBattleArchiveFile wave = assets.ReadNativeBattleFile(0xA5);
         Assert.Equal("b0wave.dat", wave.Name);
@@ -101,12 +101,12 @@ public sealed class NativeBattleStatusIconResourcesTests
         Assert.Equal(0, before.Models[0].Flags2!.Value & 4);
         byte timer = before.Models[0].StatusTimers[5] ?? throw new InvalidDataException("Original poison initialization did not own its selected graphics timer.");
         Assert.Equal(game.ReadColdProcessNativeBattleMemory().ModelStatusTimers!.Value[0][6], before.Models[0].StatusTimers[6]);
-        string saved = JsonSerializer.Serialize(session.Capture());
-        BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved)!);
+        string saved = NativeBattleSnapshotJson.Serialize(session.Capture());
+        BattleSession clone = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(saved)!);
         TimeSpan callbackStep = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         session.AdvanceNativeGraphicsPresentation(callbackStep);
         clone.AdvanceNativeGraphicsPresentation(callbackStep);
-        Assert.Equal(JsonSerializer.Serialize(session.Capture()), JsonSerializer.Serialize(clone.Capture()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(session.Capture()), NativeBattleSnapshotJson.Serialize(clone.Capture()));
         NativeBattleGraphicsState after = session.NativeGraphics!;
         Assert.Equal(before.Callback + 1, after.Callback);
         Assert.Equal((byte?)((timer + 1) % 8), after.Models[0].StatusTimers[5]);
@@ -122,7 +122,7 @@ public sealed class NativeBattleStatusIconResourcesTests
     {
         NativeBattleEffectTextureState textures = session.NativeEffectMemory!.Textures!;
         Assert.Equal(0, textures.Count);
-        NativeBattleEffectArena vram = new(textures.VramRegions);
+        NativeBattleEffectArena vram = new(NativeBattleStorageSnapshots.Capture(textures).VramRegions);
         int offset = 8;
         List<(short X, short Y, short Width, short Height)> rectangles = [];
         for (int block = 0; block < 2; block++)

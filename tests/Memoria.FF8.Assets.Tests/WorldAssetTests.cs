@@ -77,7 +77,8 @@ public sealed class WorldAssetTests
         Assert.Equal(new[] { 1, 20, 11, 12, 50, 1, 20, 30 }, uniform.Animations.Select(animation => animation.Frames.Count));
         Assert.Equal(new[] { 20, 44 }, uniform.Textures.Select(texture => texture.Width));
         Assert.Equal("World character shape 5", assets.GetFootModel(2).Name);
-        Assert.Throws<NotSupportedException>(() => assets.GetFootModel(3));
+        Assert.Equal("World character shape 0", assets.GetFootModel(3).Name);
+        Assert.Throws<NotSupportedException>(() => assets.GetFootModel(255));
         WorldTerrainRenderer renderer = new(assets, 320, 224);
         Vector3 position = new(24576, 658, -29406);
         WorldCamera camera = WorldCamera.Foot(2048, 2048) with { TargetPosition = position + new Vector3(0, 256, 0) };

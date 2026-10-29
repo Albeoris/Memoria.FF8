@@ -53,9 +53,9 @@ public sealed class NativeBattleBreath129ResourcesTests
         Assert.Equal(32, BinaryPrimitives.ReadInt16LittleEndian(resources.Read(CameraAddress + 4, 2).AsSpan()));
         Assert.Equal(resources.SourceSeeds.Data.AsSpan(8, 6).ToArray(), next.State.Read(MeshAddress + 8, 6));
         Assert.Same(next.State, next.State.RequireSeeds(resources));
-        NativeBattleBreath129State restored = JsonSerializer.Deserialize<NativeBattleBreath129State>(JsonSerializer.Serialize(next.State))!;
+        NativeBattleBreath129State restored = NativeBattleSnapshotJson.Deserialize<NativeBattleBreath129State>(NativeBattleSnapshotJson.Serialize(next.State))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(next.State), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(next.State), NativeBattleSnapshotJson.Serialize(restored));
     }
 
     [Fact]
@@ -63,9 +63,9 @@ public sealed class NativeBattleBreath129ResourcesTests
     {
         using GameAssets game = Open();
         NativeBattleBreath129Resources resources = game.ReadNativeBreath129Resources();
-        NativeBattleBreath129Resources restored = JsonSerializer.Deserialize<NativeBattleBreath129Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleBreath129Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleBreath129Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
         Assert.Throws<InvalidDataException>(() => (resources with { SourceSeeds = resources.SourceSeeds with { Data = resources.SourceSeeds.Data.RemoveAt(0) } }).Validate());
         Assert.Throws<InvalidDataException>(() => (resources with { SqrtWords256 = resources.SqrtWords256.SetItem(0, (ushort)(resources.SqrtWords256[0] ^ 1)) }).Validate());
         byte[] pairs = resources.ControlPairs.ToArray();

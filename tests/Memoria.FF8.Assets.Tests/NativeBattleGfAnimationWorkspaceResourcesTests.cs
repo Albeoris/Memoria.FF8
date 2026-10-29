@@ -20,18 +20,18 @@ public sealed class NativeBattleGfAnimationWorkspaceResourcesTests(ITestOutputHe
         Assert.Equal(expectedCount, BinaryPrimitives.ReadInt32LittleEndian(original.AsSpan().Slice(table)));
         Assert.Equal(expectedDuration, BinaryPrimitives.ReadInt32LittleEndian(original.AsSpan().Slice(table + 4)));
         NativeBattleGfAnimationWorkspace prior = new(Enumerable.Repeat((byte)0xA5, clearSize + 4).ToImmutableArray());
-        NativeBattleGfAnimationWorkspace workspace = prior.Initialize7016B0(source, clearSize);
-        Assert.Equal(new byte[] { 0xA5, 0xA5, 0xA5, 0xA5 }, workspace.Data.AsSpan().Slice(clearSize).ToArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(prior)).Initialize7016B0(source, clearSize);
+        Assert.Equal(new byte[] { 0xA5, 0xA5, 0xA5, 0xA5 }, NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan().Slice(clearSize).ToArray());
         List<NativeBattleGfAnimationNode> firstNodes = [];
         NativeBattleGfAnimationAdvance first = workspace.Advance701970(source, 0, (current, node) =>
         {
             Assert.Equal(0, current.Frame);
-            firstNodes.Add(node);
+            firstNodes.Add(NativeBattleStorageSnapshots.Capture(node));
             return current;
         });
         Assert.Equal(expectedCount, first.EmittedNodes);
         Assert.Equal(Enumerable.Range(0, expectedCount).Select(index => (ushort)index).ToArray(), firstNodes.Select(node => node.NodeIndex).ToArray());
-        Assert.All(firstNodes, node => Assert.Equal(44, node.Data.Length));
+        Assert.All(firstNodes, node => Assert.Equal(44, NativeBattleStorageSnapshots.Capture(node).Data.Length));
         NativeBattleGfAnimationNode? firstDrawable = firstNodes.FirstOrDefault(node => !Skips6C6060(node));
         int drawableCount = firstNodes.Count(node => !Skips6C6060(node));
         Report($"Source={address:X8}; frame=0; nodes={firstNodes.Count}; drawable={drawableCount}; skipped={firstNodes.Count - drawableCount}");
@@ -48,20 +48,20 @@ public sealed class NativeBattleGfAnimationWorkspaceResourcesTests(ITestOutputHe
         }
         Assert.Equal(1, first.Workspace.Frame);
         Assert.Equal(expectedDuration - 1, first.Remaining);
-        NativeBattleGfAnimationWorkspace restored = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(first.Workspace))!;
+        NativeBattleGfAnimationWorkspace restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(first.Workspace))!;
         List<byte[]> left = [];
         List<byte[]> right = [];
         NativeBattleGfAnimationAdvance expected = first.Workspace.Advance701970(source, 0, (current, node) =>
         {
-            left.Add(node.Data.ToArray());
+            left.Add(NativeBattleStorageSnapshots.Capture(node).Data.ToArray());
             return current;
         });
         NativeBattleGfAnimationAdvance actual = restored.Advance701970(source, 0, (current, node) =>
         {
-            right.Add(node.Data.ToArray());
+            right.Add(NativeBattleStorageSnapshots.Capture(node).Data.ToArray());
             return current;
         });
-        Assert.Equal(expected.Workspace.Data.ToArray(), actual.Workspace.Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(expected.Workspace).Data.ToArray(), NativeBattleStorageSnapshots.Capture(actual.Workspace).Data.ToArray());
         Assert.Equal(expected.Remaining, actual.Remaining);
         Assert.Equal(left.Count, right.Count);
         for (int index = 0; index < left.Count; index++)
@@ -69,7 +69,7 @@ public sealed class NativeBattleGfAnimationWorkspaceResourcesTests(ITestOutputHe
             Assert.Equal(left[index], right[index]);
         }
         Assert.Equal(original.ToArray(), source.Data.ToArray());
-        Assert.All(prior.Data, value => Assert.Equal((byte)0xA5, value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(prior).Data, value => Assert.Equal((byte)0xA5, value));
     }
 
     [Fact]
@@ -83,34 +83,34 @@ public sealed class NativeBattleGfAnimationWorkspaceResourcesTests(ITestOutputHe
         NativeBattleEffectMemory memory = game.ReadColdProcessNativeBattleMemory().EffectMemory!.BeginLoad(116);
         memory = memory with { QuezacotlExecutableMemory = memory.QuezacotlExecutableMemory!.Write(NativeBattleQuezacotlExecutableMemory.Address, file.Data.AsSpan()), Arena = memory.Arena!.Write(NativeBattleQuezacotlWorkspace.Offset, Enumerable.Repeat((byte)0xA5, NativeBattleQuezacotlWorkspace.SecondLength).ToArray()) };
         NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(memory);
-        NativeBattleGfAnimationWorkspace prefix = NativeBattleQuezacotlWorkspace.Read(memory, NativeBattleQuezacotlWorkspace.ThirdLength).Initialize7016B0(source, NativeBattleQuezacotlWorkspace.ThirdLength);
-        NativeBattleGfAnimationWorkspace larger = NativeBattleQuezacotlWorkspace.Read(memory, NativeBattleQuezacotlWorkspace.SecondLength).Initialize7016B0(source, NativeBattleQuezacotlWorkspace.ThirdLength);
+        NativeBattleGfAnimationWorkspace prefix = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(NativeBattleQuezacotlWorkspace.Read(memory, NativeBattleQuezacotlWorkspace.ThirdLength))).Initialize7016B0(source, NativeBattleQuezacotlWorkspace.ThirdLength);
+        NativeBattleGfAnimationWorkspace larger = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(NativeBattleQuezacotlWorkspace.Read(memory, NativeBattleQuezacotlWorkspace.SecondLength))).Initialize7016B0(source, NativeBattleQuezacotlWorkspace.ThirdLength);
         List<byte[]> smallNodes = [];
         List<byte[]> largeNodes = [];
         NativeBattleGfAnimationAdvance small = prefix.Advance701970(source, 0, (current, node) =>
         {
-            smallNodes.Add(node.Data.ToArray());
+            smallNodes.Add(NativeBattleStorageSnapshots.Capture(node).Data.ToArray());
             return current;
         });
         NativeBattleGfAnimationAdvance large = larger.Advance701970(source, 0, (current, node) =>
         {
-            largeNodes.Add(node.Data.ToArray());
+            largeNodes.Add(NativeBattleStorageSnapshots.Capture(node).Data.ToArray());
             return current;
         });
         Assert.Equal(3, small.EmittedNodes);
         Assert.Equal(63, small.Remaining);
-        Assert.Equal(small.Workspace.Data.ToArray(), large.Workspace.Data.AsSpan().Slice(0, NativeBattleQuezacotlWorkspace.ThirdLength).ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(small.Workspace).Data.ToArray(), NativeBattleStorageSnapshots.Capture(large.Workspace).Data.AsSpan().Slice(0, NativeBattleQuezacotlWorkspace.ThirdLength).ToArray());
         Assert.Equal(smallNodes.Count, largeNodes.Count);
         for (int index = 0; index < smallNodes.Count; index++)
         {
             Assert.Equal(smallNodes[index], largeNodes[index]);
         }
-        Assert.All(large.Workspace.Data.Skip(NativeBattleQuezacotlWorkspace.ThirdLength), value => Assert.Equal((byte)0xA5, value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(large.Workspace).Data.Skip(NativeBattleQuezacotlWorkspace.ThirdLength), value => Assert.Equal((byte)0xA5, value));
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(0x2521738, 0x20DFAB8, 0x8D0, 1);
         (child, _) = child.Append(0x6C3940);
         NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { Pools = [child] };
         NativeBattleQuezacotlWorkspaceWrite persisted = NativeBattleQuezacotlWorkspace.Write(memory, effect, small.Workspace);
-        Assert.Equal(small.Workspace.Data.ToArray(), persisted.Memory.Arena!.Read(NativeBattleQuezacotlWorkspace.Offset, NativeBattleQuezacotlWorkspace.ThirdLength));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(small.Workspace).Data.ToArray(), persisted.Memory.Arena!.Read(NativeBattleQuezacotlWorkspace.Offset, NativeBattleQuezacotlWorkspace.ThirdLength));
         Assert.All(persisted.Memory.Arena.Read(NativeBattleQuezacotlWorkspace.Offset + NativeBattleQuezacotlWorkspace.ThirdLength, NativeBattleQuezacotlWorkspace.SecondLength - NativeBattleQuezacotlWorkspace.ThirdLength), value => Assert.Equal((byte)0xA5, value));
     }
     private static bool Skips6C6060(NativeBattleGfAnimationNode node)

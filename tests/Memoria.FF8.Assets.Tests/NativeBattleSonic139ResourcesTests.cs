@@ -23,9 +23,9 @@ public sealed class NativeBattleSonic139ResourcesTests
         Assert.Equal(0x641C8u, resources.Sound);
         Assert.Equal(4096, resources.SineWords4096.Length);
         Assert.Throws<NotSupportedException>(() => resources.Read(MutableFramesAddress, 4));
-        NativeBattleSonic139Resources restored = JsonSerializer.Deserialize<NativeBattleSonic139Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleSonic139Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleSonic139Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
     }
 
     [Fact]
@@ -34,11 +34,12 @@ public sealed class NativeBattleSonic139ResourcesTests
         using GameAssets game = Open();
         NativeBattleSonic139Resources resources = game.ReadNativeSonic139Resources();
         NativeBattleSonic139State state = NativeBattleSonic139State.FromColdProcess().CopyEntrySnapshot6A8860(resources);
+        uint originalFrameWord = state.ReadDword(MutableFramesAddress + 12);
         NativeBattleSonic139Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), new(139, 138, new(139, Entry, Initializer), null, 0), new(0), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
         NativeBattleSonic139Frame after = NativeBattleSonic139Preprocessing.Initialize(frame, resources);
         Assert.NotNull(after.Memory.GeometryRegisters!.Lzcs);
         Assert.NotNull(after.Memory.GeometryRegisters.Lzcr);
-        Assert.NotEqual(state.ReadDword(MutableFramesAddress + 12), after.State.ReadDword(MutableFramesAddress + 12));
+        Assert.NotEqual(originalFrameWord, after.State.ReadDword(MutableFramesAddress + 12));
         NativeBattleSonic139State warm = after.State.CopyEntrySnapshot6A8860(resources);
         Assert.Equal(after.State.Read(MutableFramesAddress, MutableFramesLength), warm.Read(CopiedMeshAddress + MutableFramesAddress - SourceMeshAddress, MutableFramesLength));
         Assert.Equal(NativeBattleTemporaryMemory.Address, BitConverter.ToUInt32(after.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));

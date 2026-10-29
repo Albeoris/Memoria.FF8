@@ -53,9 +53,9 @@ public sealed class NativeBattleReflectResourcesTests
             Assert.All(ordering.Proxies, proxy => Assert.Equal("2523C98", proxy.Packet.Bank));
             if (tick == 21)
             {
-                string json = JsonSerializer.Serialize(frame);
-                frame = JsonSerializer.Deserialize<NativeBattleReflectFrame>(json)!;
-                Assert.Equal(json, JsonSerializer.Serialize(frame));
+                string json = NativeBattleSnapshotJson.Serialize(frame);
+                frame = NativeBattleSnapshotJson.Deserialize<NativeBattleReflectFrame>(json)!;
+                Assert.Equal(json, NativeBattleSnapshotJson.Serialize(frame));
             }
             if (tick < expectedTicks)
             {

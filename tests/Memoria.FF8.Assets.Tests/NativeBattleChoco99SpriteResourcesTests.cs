@@ -23,10 +23,10 @@ public sealed class NativeBattleChoco99SpriteResourcesTests
         NativeBattleChoco97SpriteStep? step = null;
         for (int callback = 1; callback <= 27; callback++)
         {
+            NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
             step = Advance(task);
-            NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Advance(restored)));
-            Assert.Equal(0xB0 - 12, step.Task.Payload.Length);
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(Advance(restored)));
+            Assert.Equal(0xB0 - 12, NativeBattleStorageSnapshots.Capture(step.Task).Payload.Length);
             Assert.Equal((ushort)0xBEEF, step.Task.ReadWord(0x6C));
             Assert.Equal((ushort)0xCAFE, step.Task.ReadWord(0x70));
             Assert.Equal((ushort)0xABCD, step.Task.ReadWord(0xAE));
@@ -48,9 +48,9 @@ public sealed class NativeBattleChoco99SpriteResourcesTests
         Assert.Equal(Enumerable.Range(0, 10).Select(value => (ushort)value).Concat(new ushort[] { 8, 9 }).Concat(Enumerable.Range(10, 10).Select(value => (ushort)value)).ToArray(), frames.ToArray());
         Assert.True(step!.ReadyToComplete);
         Assert.Null(step.Packets);
-        NativeBattleModulePoolTask truncated = task with { Payload = task.Payload.Take(0x70 - 12).ToImmutableArray() };
+        NativeBattleModulePoolTask truncated = new(task.Flags, task.State, task.Next, task.Callback, NativeBattleStorageSnapshots.Capture(task).Payload.Take(0x70 - 12).ToImmutableArray());
         Assert.Throws<InvalidDataException>(() => Advance(truncated));
-        Assert.Throws<InvalidDataException>(() => Advance(task with { Callback = 0x730C10 }));
+        Assert.Throws<InvalidDataException>(() => Advance(new(task.Flags, task.State, task.Next, 0x730C10, NativeBattleStorageSnapshots.Capture(task).Payload)));
 
         NativeBattleChoco97SpriteStep Advance(NativeBattleModulePoolTask current) => NativeBattleChoco99Sprite.Advance71EE40(current, resource, [10, 0, 20, 0, 30, 0, 40, 0], view, projection, 256);
     }

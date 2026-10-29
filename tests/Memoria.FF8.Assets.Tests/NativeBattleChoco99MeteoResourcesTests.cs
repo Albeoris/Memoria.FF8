@@ -26,9 +26,9 @@ public sealed class NativeBattleChoco99MeteoResourcesTests
                 Assert.NotNull(module.ProjectedFrame571C80(frame));
             }
         }
-        NativeBattleChoco99MeteoResources restored = JsonSerializer.Deserialize<NativeBattleChoco99MeteoResources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleChoco99MeteoResources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleChoco99MeteoResources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
     }
 
     [Fact]
@@ -47,9 +47,9 @@ public sealed class NativeBattleChoco99MeteoResourcesTests
             bool terminal = false;
             for (int index = 0; !terminal && index < 64; index++)
             {
-                NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+                NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
                 NativeBattleChoco97SpriteStep step = Advance(task);
-                Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Advance(restored)));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(Advance(restored)));
                 if (step.Packets is not null)
                 {
                     frames.Add(step.Task.ReadWord(0x50));

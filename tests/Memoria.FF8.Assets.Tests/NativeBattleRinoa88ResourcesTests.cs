@@ -16,12 +16,12 @@ public sealed class NativeBattleRinoa88ResourcesTests
         Assert.Equal(2, resources.SecondaryModel.PoseSource.BoneCount);
         Assert.Equal(23840, resources.PrimaryModel.Bytes.Length);
         Assert.Equal(1828, resources.SecondaryModel.Bytes.Length);
-        Assert.Equal(7148, resources.ActorOverride.Data.Length);
-        Assert.Equal(new[] { 8356, 10912, 7984, 12944, 33824, 33824 }, resources.Io.Files.Select(file => file.Data.Length));
+        Assert.Equal(7148, NativeBattleStorageSnapshots.Capture(resources.ActorOverride).Data.Length);
+        Assert.Equal(new[] { 8356, 10912, 7984, 12944, 33824, 33824 }, resources.Io.Files.Select(file => NativeBattleStorageSnapshots.Capture(file).Data.Length));
         resources.Nodes.Validate();
         resources.Camera.Validate();
-        Assert.Equal(new byte[] { 0, 0, 4, 4 }, new[] { 0x1B44, 0x1C9C, 0x1DF4, 0x1F4C }.Select(offset => resources.Nodes.Data[offset + 22]));
-        NativeBattleRinoa88IoState io = NativeBattleRinoa88Io.Initialize7689C0(resources.Io.Script.Data, 0x20FFAB8);
+        Assert.Equal(new byte[] { 0, 0, 4, 4 }, new[] { 0x1B44, 0x1C9C, 0x1DF4, 0x1F4C }.Select(offset => NativeBattleStorageSnapshots.Capture(resources.Nodes).Data[offset + 22]));
+        NativeBattleRinoa88IoState io = NativeBattleRinoa88Io.Initialize7689C0(NativeBattleStorageSnapshots.Capture(resources.Io.Script).Data, 0x20FFAB8);
         Assert.Equal(0x19F3A8Cu, BinaryPrimitives.ReadUInt32LittleEndian(io.Control.AsSpan().Slice(296)));
         Assert.Equal(0x19EF0BCu, BinaryPrimitives.ReadUInt32LittleEndian(io.Control.AsSpan().Slice(324)));
         Assert.Equal(0x19F1B5Cu, BinaryPrimitives.ReadUInt32LittleEndian(io.Control.AsSpan().Slice(328)));
@@ -35,7 +35,7 @@ public sealed class NativeBattleRinoa88ResourcesTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRinoa88Resources resources = game.ReadNativeRinoa88Resources();
-        NativeBattleGfAnimationSource source = program == 0 ? resources.Program : new(0x19F3A8C, resources.Io.Files[3].Data);
+        NativeBattleGfAnimationSource source = program == 0 ? resources.Program : new(0x19F3A8C, NativeBattleStorageSnapshots.Capture(resources.Io.Files[3]).Data);
         NativeBattleSummonColors colors = game.ReadNativeBattleGraphicsRules().SummonColors!;
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 18000, 4096);
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
@@ -49,7 +49,7 @@ public sealed class NativeBattleRinoa88ResourcesTests
         int remaining = -1;
         for (int call = 0; call < 256 && remaining != 0; call++)
         {
-            NativeBattleGfAnimationWorkspace clone = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace))!;
+            NativeBattleGfAnimationWorkspace clone = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace))!;
             ImmutableArray<byte> before = morph;
             List<NativeBattleGfGeometryBatch> first = [];
             NativeBattleGfAnimationAdvance next = workspace.Advance701970(source, 0, (current, node) =>
@@ -70,8 +70,8 @@ public sealed class NativeBattleRinoa88ResourcesTests
                 second.Add(drawn.Packets);
                 return current;
             });
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(restored));
-            Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(restored));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(first), NativeBattleSnapshotJson.Serialize(second));
             Assert.Equal(morph.ToArray(), restoredMorph.ToArray());
             workspace = next.Workspace;
             remaining = next.Remaining;

@@ -14,14 +14,29 @@ public sealed class NativeBattleGenericInitializerTests
         byte[] executable = File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"));
         using PEReader reader = new(new MemoryStream(executable));
         var catalog = assets.ReadNativeEffectCatalog();
-        Assert.Equal(263, catalog.Count(binding => binding.InitializerResource is not null));
+        Assert.Equal(264, catalog.Count(binding => binding.InitializerResource is not null));
         Assert.Equal(57, catalog.Count(binding => binding.Initializer == 0));
         Assert.Equal(17, catalog.Count(binding => binding.InitializerIsRet == true));
-        Assert.Equal(63, catalog.Count(binding => binding.Initializer != 0 && binding.InitializerIsRet != true && binding.InitializerResource is null));
+        Assert.Equal(62, catalog.Count(binding => binding.Initializer != 0 && binding.InitializerIsRet != true && binding.InitializerResource is null));
         Assert.Equal((ushort)2, Assert.Single(catalog.Where(binding => binding.InitializerAsset is not null)).Effect);
         foreach (NativeBattleEffectBinding binding in catalog.Where(binding => binding.InitializerResource is not null))
         {
             NativeBattleEffectInitializerResource descriptor = binding.InitializerResource!;
+            if (binding.Initializer == NativeBattleEffect140Profile.Initializer)
+            {
+                Assert.Equal(NativeBattleEffect140Profile.Effect, binding.Effect);
+                Assert.Equal(NativeBattleEffect140Profile.InitializerGlobal, descriptor.GlobalAddress);
+                byte[] original = new NativeExecutableMemory(executable).Read(binding.Initializer, 29);
+                Assert.Equal(new byte[] { 0x56, 0x68 }, original.AsSpan(0, 2).ToArray());
+                Assert.Equal(new byte[] { 0xC7, 5 }, original.AsSpan(6, 2).ToArray());
+                Assert.Equal(0x1DCD6E8u, BinaryPrimitives.ReadUInt32LittleEndian(original.AsSpan(8)));
+                Assert.Equal(NativeBattleEffect140Profile.LoaderCallback, BinaryPrimitives.ReadUInt32LittleEndian(original.AsSpan(12)));
+                Assert.Equal((byte)0xE8, original[16]);
+                Assert.Equal(0x571B80L, binding.Initializer + 21L + BinaryPrimitives.ReadInt32LittleEndian(original.AsSpan(17)));
+                Assert.Equal(new byte[] { 0x83, 0xC4, 4, 0xA3 }, original.AsSpan(21, 4).ToArray());
+                Assert.Equal(descriptor.GlobalAddress, BinaryPrimitives.ReadUInt32LittleEndian(original.AsSpan(25)));
+                continue;
+            }
             if (binding.Initializer == 0x6897F0)
             {
                 Assert.Equal((ushort)274, binding.Effect);

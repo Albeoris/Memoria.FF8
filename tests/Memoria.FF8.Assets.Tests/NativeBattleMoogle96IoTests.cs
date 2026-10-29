@@ -15,7 +15,7 @@ public sealed class NativeBattleMoogle96IoTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleMoogle96Resources resources = game.ReadNativeMoogle96Resources();
-        NativeBattleMoogle96IoInitialization initialized = NativeBattleMoogle96Io.Initialize7322A0(resources.IoScript.Data, Buffer);
+        NativeBattleMoogle96IoInitialization initialized = NativeBattleMoogle96Io.Initialize7322A0(NativeBattleStorageSnapshots.Capture(resources.IoScript).Data, Buffer);
         NativeBattleModulePoolTask task = new(1, 0, null, 0x732390, new byte[0x30 - 12].ToImmutableArray());
         NativeBattleMoogle96IoAdvance waiting = NativeBattleMoogle96Io.Advance732390(task, initialized.State);
         Assert.Null(waiting.Request);
@@ -30,11 +30,11 @@ public sealed class NativeBattleMoogle96IoTests
             NativeBattleMoogle96IoAdvance begun = NativeBattleMoogle96Io.Advance732390(current.Task, current.State);
             NativeBattleMoogle96IoRequest request = Assert.IsType<NativeBattleMoogle96IoRequest>(begun.Request);
             Assert.Equal(file.FileId, request.FileId);
-            Assert.Equal(file.Data.Length, request.DeclaredLength);
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(file).Data.Length, request.DeclaredLength);
             Assert.Equal(Buffer, request.DestinationAddress);
             Assert.Equal(0x732590u, request.CompletionCallback);
             NativeBattleMoogle96IoQueued copied = NativeBattleMoogle96Io.CopyAndQueueFile(begun.State, current.Memory, current.FileIo, file);
-            Assert.Equal(file.Data.ToArray(), copied.Memory.Arena!.Read(checked((int)(Buffer - Arena)), file.Data.Length));
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(file).Data.ToArray(), copied.Memory.Arena!.Read(checked((int)(Buffer - Arena)), NativeBattleStorageSnapshots.Capture(file).Data.Length));
             Assert.Equal((ushort)1, begun.State.Busy);
             Assert.Equal(0, copied.Memory.Textures!.Count);
             Assert.Equal((short)1, copied.FileIo.ActiveCount);
@@ -47,15 +47,15 @@ public sealed class NativeBattleMoogle96IoTests
             Assert.Equal(cursor, polled.State.CursorAddress);
             Assert.Equal((ushort)1, polled.State.Busy);
             Pending pending = new(polled.State, polled.Task, copied.Memory, copied.FileIo);
-            Pending restored = JsonSerializer.Deserialize<Pending>(JsonSerializer.Serialize(pending))!;
-            Assert.Equal(JsonSerializer.Serialize(pending), JsonSerializer.Serialize(restored));
+            Pending restored = NativeBattleSnapshotJson.Deserialize<Pending>(NativeBattleSnapshotJson.Serialize(pending))!;
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(pending), NativeBattleSnapshotJson.Serialize(restored));
             Pending completed = pending;
             int schedulerCallbacks = copied.FileIo.Rows[0].Countdown!.Value + 1;
             for (int callback = 0; callback < schedulerCallbacks; callback++)
             {
                 completed = Pump(completed);
                 restored = Pump(restored);
-                Assert.Equal(JsonSerializer.Serialize(completed), JsonSerializer.Serialize(restored));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(completed), NativeBattleSnapshotJson.Serialize(restored));
                 if (callback + 1 < schedulerCallbacks)
                 {
                     Assert.Equal((ushort)1, completed.State.Busy);
@@ -93,7 +93,7 @@ public sealed class NativeBattleMoogle96IoTests
         {
             Assert.Equal(Buffer, BinaryPrimitives.ReadUInt32LittleEndian(nextCast.State.Script.AsSpan().Slice(index * 16 + 12)));
         }
-        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(resources.IoScript.Data.AsSpan().Slice(16 + 12)));
+        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(resources.IoScript).Data.AsSpan().Slice(16 + 12)));
     }
 
     private static Pending Pump(Pending pending)

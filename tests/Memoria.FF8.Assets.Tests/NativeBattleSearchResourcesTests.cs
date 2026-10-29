@@ -14,25 +14,26 @@ public sealed class NativeBattleSearchResourcesTests
         NativeBattleGfAnimationSource source = game.ReadNativeSearchResources().ProgramSource;
         NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, 0, Enumerable.Repeat((byte)0xA5, 0x17C - 12).ToImmutableArray()).WriteDword(0x74, source.Address).WriteDword(0x78, 0xE0).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096).WriteWord(0x60, 0).WriteWord(0x62, 0).WriteWord(0x64, 0).WriteWord(0x1C, 0).WriteWord(0x1E, 0).WriteWord(0x20, 0).WriteWord(0x86, unchecked((ushort)-256));
         task = NativeBattleSearchProgramDrawing.InitializeWorkspace7016B0(task, source);
-        Assert.All(task.Payload.AsSpan().Slice(0x174 - 12, 8).ToArray(), value => Assert.Equal(0xA5, value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(0x174 - 12, 8).ToArray(), value => Assert.Equal(0xA5, value));
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 10000, 4096);
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
         int packets = 0;
         for (int frame = 0; frame < 12; frame++)
         {
+            string? taskCheckpoint = frame == 5 ? NativeBattleSnapshotJson.Serialize(task) : null;
             NativeBattleSearchProgramDraw advanced = NativeBattleSearchProgramDrawing.Advance758D70(task, source, view, projection, NativeBattleGteColorInterpolation.CodeConstants45F270);
             if (frame == 5)
             {
-                NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+                NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(taskCheckpoint!)!;
                 NativeBattleSearchProgramDraw cold = NativeBattleSearchProgramDrawing.Advance758D70(restored, source, view, projection, NativeBattleGteColorInterpolation.CodeConstants45F270);
-                Assert.Equal(JsonSerializer.Serialize(advanced), JsonSerializer.Serialize(cold));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(advanced), NativeBattleSnapshotJson.Serialize(cold));
             }
             Assert.Equal(11 - frame, advanced.Remaining);
             packets += advanced.Packets.Attempts.Count(attempt => attempt.Primitive is not null);
             task = advanced.Task;
         }
         Assert.True(packets > 0);
-        Assert.All(task.Payload.AsSpan().Slice(0x174 - 12, 8).ToArray(), value => Assert.Equal(0xA5, value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(0x174 - 12, 8).ToArray(), value => Assert.Equal(0xA5, value));
     }
 
     [Fact]
@@ -63,8 +64,8 @@ public sealed class NativeBattleSearchResourcesTests
         Assert.Equal(resources.Animation, textures.Animation!.Source);
         Assert.Same(resources, game.ReadNativeSearchResources());
         Assert.Null(game.ReadNativeEffectCatalog()[91].SearchResources);
-        string json = JsonSerializer.Serialize(binding);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffectBinding>(json)!));
+        string json = NativeBattleSnapshotJson.Serialize(binding);
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(NativeBattleSnapshotJson.Deserialize<NativeBattleEffectBinding>(json)!));
         Assert.Throws<NotSupportedException>(() => NativeBattleSearchResourcesReader.Read(new byte[128]));
     }
 

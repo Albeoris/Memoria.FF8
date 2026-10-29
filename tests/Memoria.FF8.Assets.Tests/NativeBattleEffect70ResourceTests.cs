@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json;
@@ -27,7 +27,7 @@ public sealed class NativeBattleEffect70ResourceTests
             int physical = index >= 3 ? MainWorkspaceLength : SecondaryWorkspaceLength;
             NativeBattleGfAnimationWorkspace workspace = new(Enumerable.Repeat((byte)0xA5, physical).ToImmutableArray());
             workspace = workspace.Initialize7016B0(source, WorkspaceClearLengths[index]);
-            Assert.All(workspace.Data.AsSpan().Slice(WorkspaceClearLengths[index]).ToArray(), value => Assert.Equal((byte)0xA5, value));
+            Assert.All(NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan().Slice(WorkspaceClearLengths[index]).ToArray(), value => Assert.Equal((byte)0xA5, value));
             int callbacks = 0;
             for (int frame = 0; frame < frames[index]; frame++)
             {
@@ -43,8 +43,8 @@ public sealed class NativeBattleEffect70ResourceTests
                 workspace = next.Workspace;
             }
             Assert.True(callbacks > 0);
-            Assert.Equal(physical, workspace.Data.Length);
-            Assert.All(workspace.Data.AsSpan().Slice(WorkspaceClearLengths[index]).ToArray(), value => Assert.Equal((byte)0xA5, value));
+            Assert.Equal(physical, NativeBattleStorageSnapshots.Capture(workspace).Data.Length);
+            Assert.All(NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan().Slice(WorkspaceClearLengths[index]).ToArray(), value => Assert.Equal((byte)0xA5, value));
         }
     }
 
@@ -90,10 +90,10 @@ public sealed class NativeBattleEffect70ResourceTests
     {
         using GameAssets game = Open();
         NativeBattleEffect70Resources resources = game.ReadNativeEffect70Resources();
-        string json = JsonSerializer.Serialize(resources);
-        NativeBattleEffect70Resources restored = JsonSerializer.Deserialize<NativeBattleEffect70Resources>(json)!;
+        string json = NativeBattleSnapshotJson.Serialize(resources);
+        NativeBattleEffect70Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect70Resources>(json)!;
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(restored));
         Assert.Throws<NotSupportedException>(() => resources.Act(MainActAddress + 1));
         Assert.Throws<NotSupportedException>(() => resources.Puff(PuffAddresses[0] + 1));
         Assert.Throws<NotSupportedException>(() => resources.ReadFile(362));

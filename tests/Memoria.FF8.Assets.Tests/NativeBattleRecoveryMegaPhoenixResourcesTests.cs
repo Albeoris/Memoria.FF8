@@ -71,7 +71,7 @@ public sealed class NativeBattleRecoveryMegaPhoenixResourcesTests
         Assert.Equal(0xD3C, channels.Length);
         Assert.All(channels, value => Assert.Equal((byte)0, value));
         NativeBattleRecoveryExecutableState changed = cold with { Channels = channels.SetItem(0, 0xA5).SetItem(channels.Length - 1, 0x5A) };
-        NativeBattleRecoveryExecutableState restored = JsonSerializer.Deserialize<NativeBattleRecoveryExecutableState>(JsonSerializer.Serialize(changed))!;
+        NativeBattleRecoveryExecutableState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleRecoveryExecutableState>(NativeBattleSnapshotJson.Serialize(changed))!;
         Assert.Same(restored, restored.Initialize(resources.Executable));
         Assert.Equal(new byte[] { 0xA5 }, restored.Read(0x2760B64, 1));
         Assert.Equal(new byte[] { 0x5A }, restored.Read(0x276189F, 1));

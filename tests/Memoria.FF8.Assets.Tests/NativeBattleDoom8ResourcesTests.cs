@@ -47,9 +47,9 @@ public sealed class NativeBattleDoom8ResourcesTests
         Assert.Equal(new ushort[] { 768, 256, 64, 128 }, Block(resources.DirectorTims[1].Data, 532));
         Assert.Equal(new ushort[] { 704, 256, 64, 256 }, Block(resources.File(386).Data, 532));
         Assert.Equal(new ushort[] { 768, 384, 56, 128 }, Block(resources.File(387).Data, 532));
-        NativeBattleDoom8Resources restored = JsonSerializer.Deserialize<NativeBattleDoom8Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleDoom8Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleDoom8Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
     }
 
     [Fact]
@@ -80,11 +80,11 @@ public sealed class NativeBattleDoom8ResourcesTests
         Assert.Equal(507, geometry.Polygons.Count(polygon => !polygon.Quad));
         Assert.Equal(19, geometry.Polygons.Count(polygon => polygon.Quad));
         Assert.Equal(25, geometry.PackedVertexGroups!.Value.Length);
-        NativeBattleDoom8Resources restored = JsonSerializer.Deserialize<NativeBattleDoom8Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleDoom8Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleDoom8Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources.NodeSource), JsonSerializer.Serialize(restored.NodeSource));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattlePoseDecoder.DecodeFrames(model.PoseSource.Animations.AsSpan(), 28)), JsonSerializer.Serialize(NativeBattlePoseDecoder.DecodeFrames(restored.ReaperModel.PoseSource.Animations.AsSpan(), 28)));
-        Assert.Equal(JsonSerializer.Serialize(model.Geometry), JsonSerializer.Serialize(restored.ReaperModel.Geometry));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources.NodeSource), NativeBattleSnapshotJson.Serialize(restored.NodeSource));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattlePoseDecoder.DecodeFrames(model.PoseSource.Animations.AsSpan(), 28)), NativeBattleSnapshotJson.Serialize(NativeBattlePoseDecoder.DecodeFrames(restored.ReaperModel.PoseSource.Animations.AsSpan(), 28)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(model.Geometry), NativeBattleSnapshotJson.Serialize(restored.ReaperModel.Geometry));
         Assert.Throws<InvalidDataException>(() => (resources with { NodeSource = resources.NodeSource with { Data = resources.NodeSource.Data.RemoveAt(17459) } }).Validate());
         NativeBattleCuragaExecutableSource invalidChannel = resources.NodeSource with { Data = SetDword(resources.NodeSource.Data, 0x3ED4 + 0xC8, 17460) };
         Assert.Throws<InvalidDataException>(() => (resources with { NodeSource = invalidChannel }).Validate());
@@ -112,8 +112,8 @@ public sealed class NativeBattleDoom8ResourcesTests
         NativeBattleGfAnimationAdvance first = Advance(workspace);
         Assert.Equal(duration - 1, first.Remaining);
         Assert.True(first.EmittedNodes > 0);
-        NativeBattleGfAnimationWorkspace restored = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(first.Workspace))!;
-        Assert.Equal(JsonSerializer.Serialize(Advance(first.Workspace)), JsonSerializer.Serialize(Advance(restored)));
+        NativeBattleGfAnimationWorkspace restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(first.Workspace))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(Advance(first.Workspace)), NativeBattleSnapshotJson.Serialize(Advance(restored)));
 
         NativeBattleGfAnimationAdvance Advance(NativeBattleGfAnimationWorkspace current)
         {
@@ -156,10 +156,10 @@ public sealed class NativeBattleDoom8ResourcesTests
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(resources.NodeSource.Data.AsSpan()));
         Assert.Same(materialized, materialized.Initialize87EA20(resources.NodeSource));
         state = state with { NodeProgram = materialized };
-        NativeBattleDoom8State restored = JsonSerializer.Deserialize<NativeBattleDoom8State>(JsonSerializer.Serialize(state))!;
+        NativeBattleDoom8State restored = NativeBattleSnapshotJson.Deserialize<NativeBattleDoom8State>(NativeBattleSnapshotJson.Serialize(state))!;
         restored.Validate();
         NativeBattleCuragaExecutableState continued = restored.NodeProgram!.Initialize87EA20(resources.NodeSource);
-        Assert.Equal(JsonSerializer.Serialize(materialized), JsonSerializer.Serialize(continued));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(materialized), NativeBattleSnapshotJson.Serialize(continued));
         Assert.Null(NativeBattleDoom8State.FromUnknown().NodeProgram);
         Assert.Throws<InvalidDataException>(() => (state with { NodeProgram = NativeBattleCuragaExecutableState.FromColdProcess() }).Validate());
     }
@@ -184,11 +184,11 @@ public sealed class NativeBattleDoom8ResourcesTests
             NativeBattleDoom8Frame frame = NativeBattleDoom8Models.Select(initialized, appended.Address, resources.ReaperModel, animation);
             for (int tick = 0; tick < counts[animation] + 1; tick++)
             {
-                NativeBattleDoom8Frame cold = JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(frame))!;
+                NativeBattleDoom8Frame cold = NativeBattleSnapshotJson.Deserialize<NativeBattleDoom8Frame>(NativeBattleSnapshotJson.Serialize(frame))!;
                 cold.State.Validate();
                 NativeBattleDoom8Step warm = NativeBattleDoom8Models.Advance(frame, appended.Address, resources.ReaperModel, true);
                 NativeBattleDoom8Step resumed = NativeBattleDoom8Models.Advance(cold, appended.Address, resources.ReaperModel, true);
-                Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(resumed));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(warm), NativeBattleSnapshotJson.Serialize(resumed));
                 Assert.Single(warm.Frame.State.Models!.Value);
                 frame = warm.Frame;
             }

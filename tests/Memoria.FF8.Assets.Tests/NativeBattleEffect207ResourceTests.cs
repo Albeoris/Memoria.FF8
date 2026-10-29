@@ -24,7 +24,7 @@ public sealed class NativeBattleEffect207ResourceTests
         Assert.Throws<InvalidDataException>(() => resources.PaletteWord(0, -1));
         Assert.Throws<NotSupportedException>(() => resources.ReadStatic(MutableMeshAddress, 4));
         NativeBattleGfAnimationWorkspace workspace = new(new byte[ProgrammeWorkspaceLength].ToImmutableArray());
-        Assert.Equal(ProgrammeWorkspaceLength, workspace.Initialize7016B0(resources.Programme, ProgrammeWorkspaceLength).Data.Length);
+        Assert.Equal(ProgrammeWorkspaceLength, NativeBattleStorageSnapshots.Capture(workspace.Initialize7016B0(resources.Programme, ProgrammeWorkspaceLength)).Data.Length);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class NativeBattleEffect207ResourceTests
     {
         using GameAssets game = Open();
         NativeBattleEffect207Resources original = game.ReadNativeEffect207Resources();
-        NativeBattleEffect207Resources resources = JsonSerializer.Deserialize<NativeBattleEffect207Resources>(JsonSerializer.Serialize(original))!;
+        NativeBattleEffect207Resources resources = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect207Resources>(NativeBattleSnapshotJson.Serialize(original))!;
         resources.Validate();
         Assert.Equal(original.ReadStatic(ShapingTableAddress, ShapingTableLength), resources.ReadStatic(ShapingTableAddress, ShapingTableLength));
         NativeBattleCameraBank bank = new(resources.Camera.Data.AsSpan().Slice(CameraModelOffset).ToArray().ToImmutableArray());

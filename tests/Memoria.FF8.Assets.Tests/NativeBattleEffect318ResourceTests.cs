@@ -84,7 +84,7 @@ public sealed class NativeBattleEffect318ResourceTests
                 Assert.Equal(nodes[index], step.EmittedNodes);
                 workspace = step.Workspace;
             }
-            workspace = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace))!;
+            workspace = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace))!;
             Assert.Equal(0, workspace.Advance701970(source, 0, (_, _) => throw new InvalidDataException("A completed source emitted another node.")).EmittedNodes);
         }
         Assert.Equal(865, total);
@@ -99,7 +99,7 @@ public sealed class NativeBattleEffect318ResourceTests
     {
         using GameAssets game = Open();
         NativeBattleEffect318Resources resources = game.ReadNativeEffect318Resources();
-        NativeBattleEffect318Resources restored = JsonSerializer.Deserialize<NativeBattleEffect318Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleEffect318Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect318Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
         Assert.Equal(resources.ReadFile(360).Data.ToArray(), restored.ReadFile(360).Data.ToArray());
         int[] frames = [12];

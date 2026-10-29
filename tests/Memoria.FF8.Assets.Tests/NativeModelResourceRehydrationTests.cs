@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
-using System.Text.Json;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
@@ -17,11 +16,11 @@ public sealed class NativeModelResourceRehydrationTests
         using Inputs input = new(autoAnimation);
         NativeFieldRegistrationResources changed = WithValidatedTrailingPadding(input.Source);
         NativeFieldRegistrationStep old = input.Initial;
-        string retainedBefore = JsonSerializer.Serialize(old.Memory);
+        string retainedBefore = NativeBattleSnapshotJson.Serialize(old.Memory);
         NativeFieldRetainedPresentation presentation = input.Presentation[0];
         NativeCrtRandomState random = new(12345);
         NativeFieldRegistrationStep rebuilt = NativeFieldRegistrationMachine.RehydrateInactiveResources(changed, old.State, old.Memory, input.Actors, input.Presentation);
-        Assert.Equal(retainedBefore, JsonSerializer.Serialize(old.Memory));
+        Assert.Equal(retainedBefore, NativeBattleSnapshotJson.Serialize(old.Memory));
         Assert.Equal(old.State.FieldId, rebuilt.State.FieldId);
         Assert.Equal(old.State.ProgramHash, rebuilt.State.ProgramHash);
         Assert.Equal(old.State.Instances.Select(instance => (instance.ObjectId, instance.ModelId)), rebuilt.State.Instances.Select(instance => (instance.ObjectId, instance.ModelId)));
@@ -88,13 +87,13 @@ public sealed class NativeModelResourceRehydrationTests
             NativeBattleEffectTextureState textures = retained.EffectMemory!.Textures!.EnqueueCopy505EB0(0, 0, 1, 1, 1, 0);
             retained = retained with { EffectMemory = retained.EffectMemory with { Textures = textures } };
         }
-        string before = JsonSerializer.Serialize(retained);
-        string bindings = JsonSerializer.Serialize(input.Initial.State);
-        string actorState = JsonSerializer.Serialize(presentation);
+        string before = NativeBattleSnapshotJson.Serialize(retained);
+        string bindings = NativeBattleSnapshotJson.Serialize(input.Initial.State);
+        string actorState = NativeBattleSnapshotJson.Serialize(presentation);
         Assert.Throws<NotSupportedException>(() => NativeFieldRegistrationMachine.RehydrateInactiveResources(input.Source, input.Initial.State, retained, input.Actors, presentation));
-        Assert.Equal(before, JsonSerializer.Serialize(retained));
-        Assert.Equal(bindings, JsonSerializer.Serialize(input.Initial.State));
-        Assert.Equal(actorState, JsonSerializer.Serialize(presentation));
+        Assert.Equal(before, NativeBattleSnapshotJson.Serialize(retained));
+        Assert.Equal(bindings, NativeBattleSnapshotJson.Serialize(input.Initial.State));
+        Assert.Equal(actorState, NativeBattleSnapshotJson.Serialize(presentation));
     }
 
     private static NativeFieldRegistrationResources WithValidatedTrailingPadding(NativeFieldRegistrationResources original)

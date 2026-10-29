@@ -38,8 +38,8 @@ public sealed class NativeBattleRecover93ResourcesTests
         Assert.NotEmpty(upload.State.Drain505D20().Uploads);
         Assert.Same(resources, game.ReadNativeRecover93Resources());
         Assert.Null(game.ReadNativeEffectCatalog()[92].Recover93Resources);
-        string json = JsonSerializer.Serialize(binding);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffectBinding>(json)!));
+        string json = NativeBattleSnapshotJson.Serialize(binding);
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(NativeBattleSnapshotJson.Deserialize<NativeBattleEffectBinding>(json)!));
         Assert.Throws<NotSupportedException>(() => NativeBattleRecover93ResourcesReader.Read(new byte[128]));
     }
 
@@ -57,12 +57,12 @@ public sealed class NativeBattleRecover93ResourcesTests
             NativeBattleEffectOwnedModelStep initialized = NativeBattleEffectOwnedModel.Initialize8DD0F0(task, 0x2200000, resources.Model, 3, resources.DefaultColor44);
             task = initialized.Task.WriteDword(0x114, 4096).WriteDword(0x118, 4096).WriteDword(0x11C, 4096);
             NativeBattleEffectOwnedModelStep selected = NativeBattleEffectOwnedModel.Select8DD190(task, initialized.State, resources.Model, animation);
+            NativeBattleEffectOwnedModelStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectOwnedModelStep>(NativeBattleSnapshotJson.Serialize(selected))!;
             NativeBattleEffectOwnedModelDraw draw = Draw(selected);
-            Assert.Equal(0x140 - 12, draw.Task.Payload.Length);
+            Assert.Equal(0x140 - 12, NativeBattleStorageSnapshots.Capture(draw.Task).Payload.Length);
             Assert.Equal(0x970, draw.ProjectedBytesWritten);
             Assert.NotEmpty(draw.Packets.Attempts);
-            NativeBattleEffectOwnedModelStep restored = JsonSerializer.Deserialize<NativeBattleEffectOwnedModelStep>(JsonSerializer.Serialize(selected))!;
-            Assert.Equal(JsonSerializer.Serialize(draw), JsonSerializer.Serialize(Draw(restored)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(draw), NativeBattleSnapshotJson.Serialize(Draw(restored)));
         }
 
         NativeBattleEffectOwnedModelDraw Draw(NativeBattleEffectOwnedModelStep selected) => NativeBattleEffectOwnedModelDrawing.Draw7558A0(selected.Task, selected.State, resources.Model, view, projection, rules.ShadowSource!, NativeBattlePrimitiveCapabilities.PrimaryRgba8(), rules.SummonColors!, Enumerable.Repeat((byte)0xA5, 0x970).ToImmutableArray());
@@ -76,7 +76,7 @@ public sealed class NativeBattleRecover93ResourcesTests
         Assert.Equal(0x16B8480u, source.Address);
         Assert.Equal(0x510, source.Data.Length);
         NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, 0x754950, Enumerable.Repeat((byte)0xA5, 0x17C - 12).ToImmutableArray()).WriteDword(0x74, source.Address).WriteDword(0x78, 0xE0).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096).WriteWord(0x24, 0).WriteWord(0x60, 0).WriteWord(0x62, 0).WriteWord(0x64, 0).WriteWord(0x1C, 0).WriteWord(0x1E, 123).WriteWord(0x20, 0).WriteWord(0x86, unchecked((ushort)-256)).WriteWord(0x174, 456).WriteWord(0x176, 789).WriteWord(0x178, 1234);
-        byte[] tail = task.Payload.AsSpan().Slice(0x174 - 12, 8).ToArray();
+        byte[] tail = NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(0x174 - 12, 8).ToArray();
         task = NativeBattleSearchProgramDrawing.InitializeWorkspace7016B0(task, source);
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         NativeBattleActionMatrix view = View();
@@ -84,15 +84,16 @@ public sealed class NativeBattleRecover93ResourcesTests
         int packets = 0;
         for (int frame = 0; frame < 12; frame++)
         {
+            string? taskCheckpoint = frame == 5 ? NativeBattleSnapshotJson.Serialize(task) : null;
             NativeBattleSearchProgramDraw advanced = NativeBattleSearchProgramDrawing.Advance758D70(task, source, view, projection, rules.SummonColors!);
             Assert.Equal(11 - frame, advanced.Remaining);
             Assert.Equal((uint)(frame + 1), advanced.Task.ReadDword(0x98));
             Assert.Equal((ushort)123, advanced.Task.ReadWord(0x1E));
-            Assert.Equal(tail, advanced.Task.Payload.AsSpan().Slice(0x174 - 12, 8).ToArray());
+            Assert.Equal(tail, NativeBattleStorageSnapshots.Capture(advanced.Task).Payload.AsSpan().Slice(0x174 - 12, 8).ToArray());
             if (frame == 5)
             {
-                NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-                Assert.Equal(JsonSerializer.Serialize(advanced), JsonSerializer.Serialize(NativeBattleSearchProgramDrawing.Advance758D70(restored, source, view, projection, rules.SummonColors!)));
+                NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(taskCheckpoint!)!;
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(advanced), NativeBattleSnapshotJson.Serialize(NativeBattleSearchProgramDrawing.Advance758D70(restored, source, view, projection, rules.SummonColors!)));
             }
             packets += advanced.Packets.Attempts.Count(attempt => attempt.Primitive is not null);
             task = advanced.Task;

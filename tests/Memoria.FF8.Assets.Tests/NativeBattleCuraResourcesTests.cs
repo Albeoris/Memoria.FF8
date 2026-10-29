@@ -22,23 +22,23 @@ public sealed class NativeBattleCuraResourcesTests
         int packets = 0;
         for (int frame = 0; frame < duration; frame++)
         {
-            NativeBattleGfAnimationWorkspace independent = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace))!;
+            NativeBattleGfAnimationWorkspace independent = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace))!;
             List<string> actual = [];
             List<string> restored = [];
             NativeBattleGfAnimationAdvance step = workspace.Advance88A980(source, (current, node) =>
             {
                 NativeBattleModulePacketBatch batch = NativeBattleCuraScenePackets.Emit88AF90(scene, node, camera, projection, flags, 0);
                 packets += batch.Primitives.Length;
-                actual.Add(JsonSerializer.Serialize(batch));
+                actual.Add(NativeBattleSnapshotJson.Serialize(batch));
                 return current;
             });
             NativeBattleGfAnimationAdvance clone = independent.Advance88A980(source, (current, node) =>
             {
-                restored.Add(JsonSerializer.Serialize(NativeBattleCuraScenePackets.Emit88AF90(scene, node, camera, projection, flags, 0)));
+                restored.Add(NativeBattleSnapshotJson.Serialize(NativeBattleCuraScenePackets.Emit88AF90(scene, node, camera, projection, flags, 0)));
                 return current;
             });
             Assert.Equal(actual, restored);
-            Assert.Equal(step.Workspace.Data.ToArray(), clone.Workspace.Data.ToArray());
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(step.Workspace).Data.ToArray(), NativeBattleStorageSnapshots.Capture(clone.Workspace).Data.ToArray());
             Assert.Equal(duration - frame - 1, step.Remaining);
             Assert.Equal(1, step.EmittedNodes);
             workspace = step.Workspace;
@@ -66,7 +66,7 @@ public sealed class NativeBattleCuraResourcesTests
             BinaryPrimitives.WriteInt32LittleEndian(regular, BinaryPrimitives.ReadInt32LittleEndian(regular) - 4);
             NativeBattleStaticMeshResource conventional = selected.Resource with { Bytes = regular.ToImmutableArray() };
             NativeBattleModulePacketBatch baseline = NativeBattleModulePackets.EmitMesh572200(draw, conventional, projection, 17, 2);
-            Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(baseline));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(original), NativeBattleSnapshotJson.Serialize(baseline));
             emitted.Add(original);
         }
         Assert.Contains(emitted[0].Primitives, primitive => (primitive.Primitive.Words[1] >> 24 & 0xFC) == 0x2C);

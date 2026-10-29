@@ -23,19 +23,20 @@ public sealed class NativeBattleRush91ProgramDrawingTests
         bool consumedDepth88 = false;
         for (int frame = 0; frame < 48; frame++)
         {
+            string taskCheckpoint = NativeBattleSnapshotJson.Serialize(task);
             NativeBattleRush91ProgramDraw next = NativeBattleRush91ProgramDrawing.Advance761BB0(task, source, scratch, view, projection, colors);
             Assert.Equal(47 - frame, next.Remaining);
             Assert.Equal((uint)(frame + 1), next.Task.ReadDword(0x98));
             Assert.Equal(0x12345678u, next.Task.ReadDword(0x104));
-            NativeBattleRush91ProgramDraw unused86 = NativeBattleRush91ProgramDrawing.Advance761BB0(task.WriteWord(0x86, 0), source, scratch, view, projection, colors);
-            Assert.Equal(JsonSerializer.Serialize(next.Packets), JsonSerializer.Serialize(unused86.Packets));
-            NativeBattleRush91ProgramDraw biased88 = NativeBattleRush91ProgramDrawing.Advance761BB0(task.WriteWord(0x88, 0xFF00), source, scratch, view, projection, colors);
+            NativeBattleRush91ProgramDraw unused86 = NativeBattleRush91ProgramDrawing.Advance761BB0(NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(taskCheckpoint).WriteWord(0x86, 0), source, scratch, view, projection, colors);
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next.Packets), NativeBattleSnapshotJson.Serialize(unused86.Packets));
+            NativeBattleRush91ProgramDraw biased88 = NativeBattleRush91ProgramDrawing.Advance761BB0(NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(taskCheckpoint).WriteWord(0x88, 0xFF00), source, scratch, view, projection, colors);
             consumedDepth88 |= !next.Packets.Attempts.Select(item => item.Primitive?.Bucket).SequenceEqual(biased88.Packets.Attempts.Select(item => item.Primitive?.Bucket));
             if (frame == 23)
             {
-                NativeBattleModulePoolTask coldTask = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-                ImmutableArray<byte> coldScratch = JsonSerializer.Deserialize<ImmutableArray<byte>>(JsonSerializer.Serialize(scratch));
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(NativeBattleRush91ProgramDrawing.Advance761BB0(coldTask, source, coldScratch, view, projection, colors)));
+                NativeBattleModulePoolTask coldTask = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(taskCheckpoint)!;
+                ImmutableArray<byte> coldScratch = NativeBattleSnapshotJson.Deserialize<ImmutableArray<byte>>(NativeBattleSnapshotJson.Serialize(scratch));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(NativeBattleRush91ProgramDrawing.Advance761BB0(coldTask, source, coldScratch, view, projection, colors)));
             }
             packets += next.Packets.Attempts.Count(attempt => attempt.Primitive is not null);
             changedScratch |= !scratch.AsSpan().SequenceEqual(next.MorphScratch.AsSpan());

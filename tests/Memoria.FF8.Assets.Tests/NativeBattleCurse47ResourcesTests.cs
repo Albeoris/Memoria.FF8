@@ -34,9 +34,9 @@ public sealed class NativeBattleCurse47ResourcesTests
         {
             Assert.Equal(0u, Dword(resources.InitialIoScript.Data, row * 16 + 12));
         }
-        NativeBattleCurse47Resources restored = JsonSerializer.Deserialize<NativeBattleCurse47Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleCurse47Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleCurse47Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
         NativeBattleCurse47State warm = NativeBattleCurse47State.FromColdProcess(resources.InitialIoScript.Data);
         Assert.Equal(resources.InitialIoScript.Data.ToArray(), warm.IoScript!.Value.ToArray());
         Assert.Equal(0u, Dword(resources.InitialIoScript.Data, 28));
@@ -82,11 +82,13 @@ public sealed class NativeBattleCurse47ResourcesTests
         Assert.Same(source, resources.Act(source.Address));
         Assert.Equal((uint)geometries, Dword(source.Data, 0));
         NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[workspaceBytes].ToImmutableArray()).Initialize7016B0(source, workspaceBytes);
+        string initialWorkspace = NativeBattleSnapshotJson.Serialize(workspace);
         NativeBattleGfAnimationAdvance first = Advance(workspace);
         Assert.Equal(39, first.Remaining);
         Assert.True(first.EmittedNodes > 0);
-        NativeBattleGfAnimationWorkspace restored = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(first.Workspace))!;
-        Assert.Equal(JsonSerializer.Serialize(Advance(first.Workspace)), JsonSerializer.Serialize(Advance(restored)));
+        NativeBattleGfAnimationWorkspace restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(first.Workspace))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(Advance(first.Workspace)), NativeBattleSnapshotJson.Serialize(Advance(restored)));
+        workspace = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(initialWorkspace);
         for (int frame = 0; frame < 40; frame++)
         {
             NativeBattleGfAnimationAdvance next = Advance(workspace);

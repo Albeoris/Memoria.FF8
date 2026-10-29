@@ -43,8 +43,8 @@ public sealed class NativeBattleRush91ResourcesTests
         var upload = textures.EnqueueTim505E30(resources.ModelTim);
         Assert.Equal(0x8420, upload.NextOffset);
         Assert.NotEmpty(upload.State.Drain505D20().Uploads);
-        string json = JsonSerializer.Serialize(resources);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleRush91Resources>(json)!));
+        string json = NativeBattleSnapshotJson.Serialize(resources);
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(NativeBattleSnapshotJson.Deserialize<NativeBattleRush91Resources>(json)!));
         Assert.Null(game.ReadNativeEffectCatalog()[90].Rush91Resources);
         Assert.Throws<NotSupportedException>(() => NativeBattleRush91ResourcesReader.Read(new byte[128]));
     }
@@ -88,6 +88,7 @@ public sealed class NativeBattleRush91ResourcesTests
         int nodes = 0;
         for (int frame = 0; frame < 48; frame++)
         {
+            string? workspaceCheckpoint = frame == 23 ? NativeBattleSnapshotJson.Serialize(workspace) : null;
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
             {
                 Assert.Equal(0x3010u, node.AnimationFlags);
@@ -97,9 +98,9 @@ public sealed class NativeBattleRush91ResourcesTests
             Assert.Equal(47 - frame, advanced.Remaining);
             if (frame == 23)
             {
-                NativeBattleGfAnimationWorkspace restored = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace))!;
+                NativeBattleGfAnimationWorkspace restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(workspaceCheckpoint!)!;
                 NativeBattleGfAnimationAdvance cold = restored.Advance701970(source, 0, (current, _) => current);
-                Assert.Equal(JsonSerializer.Serialize(advanced), JsonSerializer.Serialize(cold));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(advanced), NativeBattleSnapshotJson.Serialize(cold));
             }
             nodes += advanced.EmittedNodes;
             workspace = advanced.Workspace;

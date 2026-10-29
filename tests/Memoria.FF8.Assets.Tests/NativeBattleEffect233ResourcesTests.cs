@@ -86,9 +86,9 @@ public sealed class NativeBattleEffect233ResourcesTests
         Assert.Null(queued.Slots[0]!.Source);
         Assert.Equal(File1Offset + 0x840, queued.Slots[0]!.ArenaOffset);
         frame = frame with { Arena = frame.Arena.Write(File1Offset + 0x840, [0x5A, 0xA5]).Write(File1Offset + 0x1083E, [0xC3, 0x3C]) };
-        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(queued))!;
+        NativeBattleEffectTextureState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectTextureState>(NativeBattleSnapshotJson.Serialize(queued))!;
         NativeBattleEffectTextureDrain drain = queued.Drain505D20(frame.Arena);
-        Assert.Equal(JsonSerializer.Serialize(drain), JsonSerializer.Serialize(restored.Drain505D20(frame.Arena)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(drain), NativeBattleSnapshotJson.Serialize(restored.Drain505D20(frame.Arena)));
         NativeBattleEffectVramUpload upload = Assert.Single(drain.Uploads);
         Assert.Equal(frame.Arena.Read(File1Offset + 0x840, 65536), upload.Bytes.ToArray());
         Assert.Equal(files[1].Data.ToArray(), NativeBattleEffectInitializerPolicy.Assets(Binding(game))[1].Data.ToArray());

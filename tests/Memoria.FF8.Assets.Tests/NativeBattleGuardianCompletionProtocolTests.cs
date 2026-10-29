@@ -122,6 +122,7 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([116]),
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,

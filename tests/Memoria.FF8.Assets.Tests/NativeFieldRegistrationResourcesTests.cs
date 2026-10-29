@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -19,8 +18,8 @@ public sealed class NativeFieldRegistrationResourcesTests
         // Declared cold resource component: these retained bindings do not migrate or reconstruct a historical field save.
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
         NativeFieldRegistrationStep first = NativeFieldRegistrationMachine.ReloadKind3(source, actors, cold);
-        NativeFieldRegistrationStep restored = NativeFieldRegistrationMachine.ReloadKind3(JsonSerializer.Deserialize<NativeFieldRegistrationResources>(JsonSerializer.Serialize(source))!, actors, JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(cold))!);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(restored));
+        NativeFieldRegistrationStep restored = NativeFieldRegistrationMachine.ReloadKind3(NativeBattleSnapshotJson.Deserialize<NativeFieldRegistrationResources>(NativeBattleSnapshotJson.Serialize(source))!, actors, NativeBattleSnapshotJson.Deserialize<NativeBattleRetainedMemory>(NativeBattleSnapshotJson.Serialize(cold))!);
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(first), NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal(new[] { 0, 5, 9 }, first.State.Resources.Select(resource => resource.ModelId));
         Assert.Equal(bindings.Select(binding => binding.Object), first.State.Instances.Select(instance => instance.ObjectId));
         Assert.Equal(bindings.Select(binding => binding.Model), first.State.Instances.Select(instance => instance.ModelId));
@@ -82,12 +81,12 @@ public sealed class NativeFieldRegistrationResourcesTests
         Assert.NotNull(source.Loader);
         ushort group = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(field.Jsm.AsSpan(8, 2));
         NativeFieldRetainedActor[] actors = [new(0, 0, group >> 7, (group >> 7) + (group & 127) + 1)];
-        NativeBattleRetainedMemory original = NativeBattleRetainedMemory.FromColdProcess();
-        string before = JsonSerializer.Serialize(original);
+        NativeBattleRetainedMemory original = NativeBattleStorageSnapshots.Capture(NativeBattleRetainedMemory.FromColdProcess());
+        string before = NativeBattleSnapshotJson.Serialize(original);
         NativeFieldRegistrationStep first = NativeFieldRegistrationMachine.ReloadKind3(source, actors, original);
-        NativeFieldRegistrationStep second = NativeFieldRegistrationMachine.ReloadKind3(JsonSerializer.Deserialize<NativeFieldRegistrationResources>(JsonSerializer.Serialize(source))!, actors, JsonSerializer.Deserialize<NativeBattleRetainedMemory>(before)!);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
-        Assert.Equal(before, JsonSerializer.Serialize(original));
+        NativeFieldRegistrationStep second = NativeFieldRegistrationMachine.ReloadKind3(NativeBattleSnapshotJson.Deserialize<NativeFieldRegistrationResources>(NativeBattleSnapshotJson.Serialize(source))!, actors, NativeBattleSnapshotJson.Deserialize<NativeBattleRetainedMemory>(before)!);
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(first), NativeBattleSnapshotJson.Serialize(second));
+        Assert.Equal(before, NativeBattleSnapshotJson.Serialize(original));
         first.State.Validate(first.Memory);
         NativeFieldRegisteredResource registered = Assert.Single(first.State.Resources);
         Assert.Equal(field.Models[0].NativeParts!.SourceHash, registered.SourceHash);
@@ -136,7 +135,7 @@ public sealed class NativeFieldRegistrationResourcesTests
                 Assert.Equal(selected ? (ushort)0 : parts.SkinBindings[skin].OriginalFlags, parts.ReadInitializedSkinFlags(skin));
             }
         }
-        NativeFieldRegistrationResources restored = JsonSerializer.Deserialize<NativeFieldRegistrationResources>(JsonSerializer.Serialize(source))!;
+        NativeFieldRegistrationResources restored = NativeBattleSnapshotJson.Deserialize<NativeFieldRegistrationResources>(NativeBattleSnapshotJson.Serialize(source))!;
         restored.Validate();
         Assert.Equal(source.One.Sha256, restored.One.Sha256);
         Assert.Same(source, game.LoadField(fieldId).NativeRegistration);

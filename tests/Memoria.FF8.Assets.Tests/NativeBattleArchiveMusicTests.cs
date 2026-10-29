@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
-using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -53,11 +52,11 @@ public sealed class NativeBattleArchiveMusicTests
                 commands.Add(receipt.Command);
             }
             // The independent save retains shared bytes, globals and the physical caller, rather than a task-local completion ledger.
-            staging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
-            process = JsonSerializer.Deserialize<NativeBattleMusicProcessState>(JsonSerializer.Serialize(process))!;
-            sound = JsonSerializer.Deserialize<NativeGlobalSoundProcess>(JsonSerializer.Serialize(sound))!;
-            descriptors = JsonSerializer.Deserialize<NativeBattleDescriptorState>(JsonSerializer.Serialize(descriptors))!;
-            auxiliary = JsonSerializer.Deserialize<NativeBattleAuxiliaryState>(JsonSerializer.Serialize(auxiliary))!;
+            staging = NativeBattleSnapshotJson.Deserialize<NativeBattleFileStaging>(NativeBattleSnapshotJson.Serialize(staging))!;
+            process = NativeBattleSnapshotJson.Deserialize<NativeBattleMusicProcessState>(NativeBattleSnapshotJson.Serialize(process))!;
+            sound = NativeBattleSnapshotJson.Deserialize<NativeGlobalSoundProcess>(NativeBattleSnapshotJson.Serialize(sound))!;
+            descriptors = NativeBattleSnapshotJson.Deserialize<NativeBattleDescriptorState>(NativeBattleSnapshotJson.Serialize(descriptors))!;
+            auxiliary = NativeBattleSnapshotJson.Deserialize<NativeBattleAuxiliaryState>(NativeBattleSnapshotJson.Serialize(auxiliary))!;
         }
         Assert.Equal(new byte[] { 1, 2 }, commands);
         Assert.Equal((byte)1, descriptors.Tasks[caller].Payload[2]);
@@ -79,6 +78,7 @@ public sealed class NativeBattleArchiveMusicTests
         NativeBattleModelDatSource model = assets.ReadNativeModelDatSource(0, false, 0);
         NativeBattleModelLoadStep request = NativeBattleModelLoader.Queue507080(0, 0, 0, 0, 0).Poll507070(-1, [model], NativeBattleFileStaging.Unknown());
         NativeBattleModelLoadStep prepared = request.State.Poll507070(model.Bytes.Length, [model], request.Staging);
+        NativeBattleModelLoadStep preparedSnapshot = NativeBattleStorageSnapshots.Capture(prepared);
         NativeBattleArchiveFile victory = assets.ReadNativeBattleFile(766);
         NativeBattleFileStaging overwritten = prepared.Staging.Write(NativeBattleFileStaging.Address, victory.Bytes.AsSpan());
         NativeBattleModelLoadStep completion = prepared.State.Poll507070(victory.Bytes.Length, [model], overwritten);
@@ -87,7 +87,7 @@ public sealed class NativeBattleArchiveMusicTests
         Assert.Equal(model.FileId, bound.Task.File!.FileId);
         Assert.Equal(model.Name, bound.PreparedDat.Name);
         Assert.Equal(victory.Bytes.ToArray(), completion.Staging.ReadDat(NativeBattleFileStaging.Address).ToArray());
-        Assert.Equal(model.Bytes.Length, prepared.Staging.ReadDat(NativeBattleFileStaging.Address).Length);
+        Assert.Equal(model.Bytes.Length, preparedSnapshot.Staging.ReadDat(NativeBattleFileStaging.Address).Length);
     }
 
     [Fact]

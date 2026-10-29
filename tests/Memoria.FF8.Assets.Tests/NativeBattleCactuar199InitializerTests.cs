@@ -42,9 +42,9 @@ public sealed class NativeBattleCactuar199InitializerTests
         Assert.Null(initialized.Effect.Parameters);
         Assert.Null(initialized.Effect.ReturnedDescriptor);
         Saved saved = new(initialized.Memory, initialized.Effect);
-        string json = JsonSerializer.Serialize(saved);
-        Saved restored = JsonSerializer.Deserialize<Saved>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = NativeBattleSnapshotJson.Serialize(saved);
+        Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(json)!;
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(restored));
         (NativeBattleEffectTextureState queued, _) = restored.Memory.Textures!.EnqueueTim505E30(restored.Effect.ReadHeapResource(restored.Memory, 0x225A82C));
         Assert.NotEmpty(queued.Drain505D20(restored.Memory.Arena).Uploads);
         var nextLoad = NativeBattleOriginalEffects.Initialize(restored.Memory, selected);

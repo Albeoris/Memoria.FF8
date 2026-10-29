@@ -21,11 +21,11 @@ public sealed class NativeBattleCurse47MemoryTests
         NativeBattleCurse47State changed = memory.Curse47.WriteWord(NativeBattleCurse47State.SharedAddress + 0x4A, 123) with { IoScript = memory.Curse47.IoScript.Value.SetItem(12, 0xAB) };
         memory = memory with { Curse47 = changed, SoundPublishedFlags = 0x12345678 };
         staging = staging.Write(0x15B8028, [1, 2, 3, 4]);
-        NativeBattleEffectMemory imported = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        NativeBattleFileStaging importedStaging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        NativeBattleEffectMemory imported = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectMemory>(NativeBattleSnapshotJson.Serialize(memory))!;
+        NativeBattleFileStaging importedStaging = NativeBattleSnapshotJson.Deserialize<NativeBattleFileStaging>(NativeBattleSnapshotJson.Serialize(staging))!;
         var warm = NativeBattleCurse47Memory.Prepare(imported, importedStaging, resources);
-        Assert.Equal(JsonSerializer.Serialize(memory), JsonSerializer.Serialize(warm.Memory));
-        Assert.Equal(JsonSerializer.Serialize(staging), JsonSerializer.Serialize(warm.Staging));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(memory), NativeBattleSnapshotJson.Serialize(warm.Memory));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(staging), NativeBattleSnapshotJson.Serialize(warm.Staging));
     }
 
     [Fact]

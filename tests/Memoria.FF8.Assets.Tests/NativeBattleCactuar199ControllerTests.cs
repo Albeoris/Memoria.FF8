@@ -21,13 +21,16 @@ public sealed class NativeBattleCactuar199ControllerTests
         Run current = Step(fixture.Run, fixture.Packets, resources, colors, 0);
         NativeBattleEffectTaskPool children = current.Frame.Effect.Pools[1];
         Assert.Equal(0x63E9C0u, children.Slots[1].Callback);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(0xC, 10)).SetItem(2, children.Slots[2].WriteWord(0xE, 0xCAFE)) };
+        children = children.WriteSlot(0, children.Slots[0].WriteWord(0xC, 10));
+        children = children.WriteSlot(2, children.Slots[2].WriteWord(0xE, 0xCAFE));
         current = current with { Frame = current.Frame with { Effect = current.Frame.Effect with { Pools = current.Frame.Effect.Pools.SetItem(1, children) } } };
         current = Step(current, fixture.Packets, resources, colors, 0);
         children = current.Frame.Effect.Pools[1];
         Assert.Equal(0x5A8C20u, children.Slots[2].Callback);
         Assert.Equal((ushort)0, children.Slots[2].ReadWord(0xE));
-        children = children with { Slots = children.Slots.SetItem(2, children.Slots[2].WriteWord(0xC, 43)).SetItem(3, children.Slots[3].WriteWord(0xE, 0xDEAD)).SetItem(4, children.Slots[4].WriteWord(0xE, 0xBEEF)) };
+        children = children.WriteSlot(2, children.Slots[2].WriteWord(0xC, 43));
+        children = children.WriteSlot(3, children.Slots[3].WriteWord(0xE, 0xDEAD));
+        children = children.WriteSlot(4, children.Slots[4].WriteWord(0xE, 0xBEEF));
         current = current with { Frame = current.Frame with { Effect = current.Frame.Effect with { Pools = current.Frame.Effect.Pools.SetItem(1, children) } } };
         current = Step(current, fixture.Packets, resources, colors, 0);
         children = current.Frame.Effect.Pools[1];
@@ -60,8 +63,8 @@ public sealed class NativeBattleCactuar199ControllerTests
             int body = current.Frame.Effect.Pools[1].Slots.Where(task => (task.Flags & 1) != 0 && task.Callback == 0x5A8C20).Select(task => (int)task.ReadWord(0xC)).DefaultIfEmpty(-1).First();
             if (body is 0 or 5 or 40 or 43 or 87 or 116 && restoredAt.Add(body))
             {
-                Run restored = JsonSerializer.Deserialize<Run>(JsonSerializer.Serialize(current))!;
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Step(restored, fixture.Packets, resources, colors, 0)));
+                Run restored = NativeBattleSnapshotJson.Deserialize<Run>(NativeBattleSnapshotJson.Serialize(current))!;
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored, fixture.Packets, resources, colors, 0)));
             }
             observedParticles |= next.ParticleDraws > 0;
             observedNeedles |= next.NeedleDraws > 0;
@@ -100,16 +103,16 @@ public sealed class NativeBattleCactuar199ControllerTests
         NativeBattleCactuar199Resources resources = game.ReadNativeCactuar199Resources();
         NativeBattleSummonColors colors = game.ReadNativeBattleGraphicsRules().SummonColors!;
         Fixture fixture = Create(game, resources);
-        Run initializedCamera = Step(fixture.Run, fixture.Packets, resources, colors, 0);
+        Run initializedCamera = Step(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Run)), fixture.Packets, resources, colors, 0);
         Assert.NotNull(initializedCamera.Frame.Memory.Cactuar199!.CameraTask);
         NativeBattleModulePoolTask timeline = initializedCamera.Frame.Effect.Pools[1].Slots.Single(task => (task.Flags & 1) != 0 && task.Callback == 0x5A8940);
         ushort cameraFrame = initializedCamera.Frame.Memory.Cactuar199.CameraTask!.Frame;
         uint seed = initializedCamera.Frame.Random.Seed;
-        Run pause200 = Step(initializedCamera, fixture.Packets, resources, colors, 0x200);
+        Run pause200 = Step(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(initializedCamera)), fixture.Packets, resources, colors, 0x200);
         Assert.Equal(timeline.ReadWord(0xC), pause200.Frame.Effect.Pools[1].Slots.Single(task => (task.Flags & 1) != 0 && task.Callback == 0x5A8940).ReadWord(0xC));
         Assert.Equal(unchecked((ushort)(cameraFrame + 1)), pause200.Frame.Memory.Cactuar199!.CameraTask!.Frame);
         Assert.Equal(seed, pause200.Frame.Random.Seed);
-        Run pause1 = Step(initializedCamera, fixture.Packets, resources, colors, 1);
+        Run pause1 = Step(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(initializedCamera)), fixture.Packets, resources, colors, 1);
         Assert.Equal(cameraFrame, pause1.Frame.Memory.Cactuar199!.CameraTask!.Frame);
         Assert.Equal(seed, pause1.Frame.Random.Seed);
         Assert.Equal<int>(initializedCamera.Frame.Effect.Pools[0].Slots[0].ReadWord(0xC) + 1, pause1.Frame.Effect.Pools[0].Slots[0].ReadWord(0xC));

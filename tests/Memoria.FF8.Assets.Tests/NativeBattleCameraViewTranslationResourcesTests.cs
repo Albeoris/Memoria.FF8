@@ -12,7 +12,7 @@ public sealed class NativeBattleCameraViewTranslationResourcesTests
         NativeBattleRetainedMemory cold = game.ReadColdProcessNativeBattleMemory();
         NativeBattleCameraState camera = Assert.IsType<NativeBattleCameraState>(cold.Camera);
         Assert.Equal(new NativeBattleCameraViewTranslationScratch(0, 0, 0), camera.ViewTranslationScratch);
-        NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(cold))!;
+        NativeBattleRetainedMemory restored = NativeBattleSnapshotJson.Deserialize<NativeBattleRetainedMemory>(NativeBattleSnapshotJson.Serialize(cold))!;
         NativeBattleCameraState restoredCamera = Assert.IsType<NativeBattleCameraState>(restored.Camera);
         Assert.Equal(camera.ViewTranslationScratch, restoredCamera.ViewTranslationScratch);
         Assert.Equal(new NativeBattleCameraViewTranslationScratch(0, 32, 0), restoredCamera.AddViewTranslationY61B8D5(32).ViewTranslationScratch);

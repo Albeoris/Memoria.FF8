@@ -87,11 +87,11 @@ public sealed class NativeBattleEffect344ResourceTests
         Assert.Null(binding.InitializerResource);
         Assert.Null(binding.InitializerAsset);
         Assert.Same(resources, binding.Effect344Resources);
-        NativeBattleEffect344Resources restored = JsonSerializer.Deserialize<NativeBattleEffect344Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleEffect344Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect344Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
         Assert.Equal(resources.ReadStatic(CameraAddress, CameraLength), restored.ReadStatic(CameraAddress, CameraLength));
         byte[] malformed = resources.Music.Data.ToArray();
-        BinaryPrimitives.WriteInt32LittleEndian(malformed.AsSpan(12), MusicLength - 1);
+        BinaryPrimitives.WriteInt32LittleEndian(malformed.AsSpan(8), MusicLength - 1);
         Assert.Throws<InvalidDataException>(() => (resources with { Music = resources.Music with { Data = malformed.ToImmutableArray() } }).Validate());
     }
 
@@ -110,7 +110,7 @@ public sealed class NativeBattleEffect344ResourceTests
         int section = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(32));
         int indices = section + BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(section + 8));
         int text = section + BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(section + 12));
-        NativeBattleGraphicsResource restored = JsonSerializer.Deserialize<NativeBattleGraphicsResource>(JsonSerializer.Serialize(resource))!;
+        NativeBattleGraphicsResource restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGraphicsResource>(NativeBattleSnapshotJson.Serialize(resource))!;
         for (int index = 3; index <= 6; index++)
         {
             int start = text + BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(indices + 2 * index));

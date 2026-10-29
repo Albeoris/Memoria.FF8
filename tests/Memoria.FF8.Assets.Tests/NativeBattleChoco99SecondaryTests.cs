@@ -17,7 +17,7 @@ public sealed class NativeBattleChoco99SecondaryTests
         NativeBattleChoco99SecondaryResources resources = game.ReadNativeChoco99SecondaryResources();
         NativeBattleStaticMeshResource mesh = timed ? resources.File481 : resources.File480;
         NativeBattleEffectFileAsset file = Assert.Single(game.ReadNativeChoco99IoResources().Files, file => file.FileId == (timed ? 481 : 480));
-        Assert.Equal(file.Data.ToArray(), mesh.Bytes.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(file).Data.ToArray(), mesh.Bytes.ToArray());
         Assert.Equal(timed ? 0x19DE510u : 0x19DD2D0u, mesh.Address);
         Assert.Equal(timed ? 0xE70 : 0x1240, mesh.Bytes.Length);
         NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, timed ? 0x721390u : 0x7211D0u, new byte[0x58 - 12].ToImmutableArray()).WriteWord(0x1C, unchecked((ushort)-200)).WriteWord(0x20, 300).WriteWord(0x22, 0x4321).WriteDword(0x40, 0x00112233).WriteWord(0x50, 123).WriteWord(0x52, 0x1234).WriteWord(0x54, 0x5678);
@@ -28,9 +28,9 @@ public sealed class NativeBattleChoco99SecondaryTests
         int completeCall = -1;
         for (int call = 0; call < 20; call++)
         {
+            NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
             NativeBattleChoco99SecondaryStep step = Step(task);
-            NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Step(restored)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(Step(restored)));
             Assert.Equal((ushort)0x4321, step.Task.ReadWord(0x22));
             Assert.Equal((ushort)0x1234, step.Task.ReadWord(0x52));
             Assert.Equal(0x00112233u, step.Task.ReadDword(0x40));
@@ -42,7 +42,7 @@ public sealed class NativeBattleChoco99SecondaryTests
                 Assert.Equal(timed ? (ushort)16 : (ushort)0x5678, step.Task.ReadWord(0x54));
             }
             NativeBattleGfGeometryBatch changedLifetime = NativeBattleChoco99Secondary.Draw721230(step.Task.WriteWord(0x52, 0xFFFF).WriteWord(0x54, 0x8000), mesh, view, projection, colors);
-            Assert.Equal(JsonSerializer.Serialize(step.Packets), JsonSerializer.Serialize(changedLifetime));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(step.Packets), NativeBattleSnapshotJson.Serialize(changedLifetime));
             Assert.Equal(timed ? 108 : 160, step.Packets.Attempts.Length);
             accepted += step.Packets.Attempts.Count(attempt => attempt.Primitive is not null);
             task = step.Task;

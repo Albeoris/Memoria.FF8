@@ -17,7 +17,7 @@ public sealed class NativeBattleRinoa89ProgramsTests
         NativeBattleRinoa89Resources resources = game.ReadNativeRinoa89Resources();
         NativeBattleGfAnimationSource source = resources.Program(address);
         NativeBattleEffectMemory memory = new(NativeBattleEffectArena.Clear(), 0, 0, ImmutableArray.CreateRange(new NativeBattleEffectHeapAllocation?[256]), 0, 0, 0, 0);
-        NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown().Write(NativeBattleRinoa89Resources.StaticAddress, resources.StaticImage.Data.AsSpan()));
+        NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown().Write(NativeBattleRinoa89Resources.StaticAddress, NativeBattleStorageSnapshots.Capture(resources.StaticImage).Data.AsSpan()));
         NativeBattleRinoa89Frame frame = new(memory, null!, staging, new(1));
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 18000, 4096);
         NativeBattleCameraProjection projection = new(view, 216, 160, 108);
@@ -28,8 +28,8 @@ public sealed class NativeBattleRinoa89ProgramsTests
         int nodes = 0;
         for (int call = 0; call < calls; call++)
         {
-            NativeBattleRinoa89Frame? cloned = call == calls / 2 ? JsonSerializer.Deserialize<NativeBattleRinoa89Frame>(JsonSerializer.Serialize(frame)) : null;
-            NativeBattleGfAnimationWorkspace? clonedWorkspace = cloned is not null ? JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace)) : null;
+            NativeBattleRinoa89Frame? cloned = call == calls / 2 ? NativeBattleSnapshotJson.Deserialize<NativeBattleRinoa89Frame>(NativeBattleSnapshotJson.Serialize(frame)) : null;
+            NativeBattleGfAnimationWorkspace? clonedWorkspace = cloned is not null ? NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace)) : null;
             List<NativeBattleGfGeometryBatch> actual = [];
             NativeBattleGfAnimationAdvance next = workspace.Advance701970(source, 0, (current, node) =>
             {
@@ -50,9 +50,9 @@ public sealed class NativeBattleRinoa89ProgramsTests
                     expected.Add(draw.Packets);
                     return current;
                 });
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(cloneNext));
-                Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
-                Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(expected));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(cloneNext));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(frame), NativeBattleSnapshotJson.Serialize(restored));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(actual), NativeBattleSnapshotJson.Serialize(expected));
             }
             workspace = next.Workspace;
         }

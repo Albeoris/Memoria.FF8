@@ -17,23 +17,23 @@ public sealed class NativeBattleChoco100CameraResourcesTests
         Assert.Same(resources, game.ReadNativeChoco100CameraResources());
         resources.Validate();
         Assert.Equal(0x25652E8u, NativeBattleChoco100CameraResources.StateAddress);
-        NativeBattleChoco100CameraResources restoredResources = JsonSerializer.Deserialize<NativeBattleChoco100CameraResources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleChoco100CameraResources restoredResources = NativeBattleSnapshotJson.Deserialize<NativeBattleChoco100CameraResources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restoredResources.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restoredResources));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restoredResources));
         NativeBattleMoogleCameraState retained = NativeBattleMoogleCamera.Reset732AF0();
         for (int index = 0; index < resources.Sources.Length; index++)
         {
             NativeBattleMoogleCameraSource source = resources.Sources[index];
-            Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(source.Data.AsSpan()));
-            Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(source.Data.AsSpan().Slice(0x24)));
+            Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(source).Data.AsSpan()));
+            Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(NativeBattleStorageSnapshots.Capture(source).Data.AsSpan().Slice(0x24)));
             bool completionConsumed = index is 0 or 6;
             NativeBattleMoogleCameraStep step = NativeBattleMoogleCamera.Initialize732B10(retained, source, [10, 0, 20, 0, 30, 0, 40, 0], 0);
             int callbacks = 0;
             while (completionConsumed ? !step.Complete && callbacks++ < 4096 : callbacks++ < 16)
             {
-                NativeBattleMoogleCameraState restored = JsonSerializer.Deserialize<NativeBattleMoogleCameraState>(JsonSerializer.Serialize(step.State))!;
+                NativeBattleMoogleCameraState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleMoogleCameraState>(NativeBattleSnapshotJson.Serialize(step.State))!;
                 NativeBattleMoogleCameraStep next = NativeBattleMoogleCamera.Advance732E00(step.State);
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(NativeBattleMoogleCamera.Advance732E00(restored)));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(NativeBattleMoogleCamera.Advance732E00(restored)));
                 step = next;
             }
             if (completionConsumed)
@@ -65,12 +65,12 @@ public sealed class NativeBattleChoco100CameraResourcesTests
             phases.Add(phase);
             ushort mode = phase <= 8 ? (ushort)8 : phase <= 10 ? (ushort)9 : (ushort)10;
             context = context.WriteWord(0x40, mode).WriteWord(0x42, mode).WriteWord(0x44, mode);
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(new Saved(task, camera, context)))!;
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(new Saved(task, camera, context)))!;
             NativeBattleChoco100CameraTaskStep step = NativeBattleChoco100CameraTask.Advance7148C0(task, camera, resources, context);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleChoco100CameraTask.Advance7148C0(restored.Task, restored.Camera, resources, restored.Context)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(NativeBattleChoco100CameraTask.Advance7148C0(restored.Task, restored.Camera, resources, restored.Context)));
             foreach (NativeBattleChoco97CameraPublish publication in step.Operations.OfType<NativeBattleChoco97CameraPublish>())
             {
-                uint source = BinaryPrimitives.ReadUInt32LittleEndian(publication.Step.State.Data.AsSpan().Slice(0xAC));
+                uint source = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(publication.Step.State).Data.AsSpan().Slice(0xAC));
                 if (source != previous)
                 {
                     sources.Add(source);

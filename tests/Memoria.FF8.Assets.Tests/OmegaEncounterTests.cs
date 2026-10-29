@@ -42,6 +42,7 @@ public sealed class OmegaEncounterTests
             BattleSnapshot next = QueueCallback(current with
             {
                 QueuedActions = [],
+                NativePresentationStatusMemory = current.NativePresentationStatusMemory!.Observe(initialized.Combatants.Single(actor => actor.Id == "party").NativeParticipant!.ActorIndex, initialized.Combatants.Single(actor => actor.Id == "party").NativeStatus!.Presentation!),
                 Combatants = current.Combatants.Select(actor => actor.Id == "party" ? actor with { CurrentHp = 9999, NativeStatus = initialized.Combatants.Single(source => source.Id == "party").NativeStatus, StatusEffects = [] } : actor).ToArray()
             }, omega.Id, 1);
             original = BattleSession.Restore(next);
@@ -100,6 +101,8 @@ public sealed class OmegaEncounterTests
             StageId = encounter.StageId,
             PersistentAiVariables = new uint[8],
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeStatusRules = assets.ReadNativeStatusRules(0),
             NativeMessageSpeed = 1,
             NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(),

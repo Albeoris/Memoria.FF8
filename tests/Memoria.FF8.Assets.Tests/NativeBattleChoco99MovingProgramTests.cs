@@ -32,9 +32,9 @@ public sealed class NativeBattleChoco99MovingProgramTests
         {
             int phase = current.Task.ReadByte(0x29);
             short mode = small ? (short)(call >= 8 ? 8 : 0) : (short)(phase == 3 && current.Task.ReadWord(0x84) >= 8 ? 10 : 0);
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(current))!;
             StepResult next = Step(current, mode, 0);
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(current))!;
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Step(restored, mode, 0)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored, mode, 0)));
             Assert.Equal((ushort)0x1234, next.Draw.Draw.Task.ReadWord(0x22));
             Assert.Equal((ushort)3, next.Draw.Draw.Task.ReadWord(0x6C));
             if (phase == 1 || !small && phase == 3)

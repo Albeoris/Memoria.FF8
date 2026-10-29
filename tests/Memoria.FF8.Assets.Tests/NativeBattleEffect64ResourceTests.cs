@@ -37,7 +37,7 @@ public sealed class NativeBattleEffect64ResourceTests
             int clear = ProgrammeWorkspaceLengths[index];
             NativeBattleGfAnimationWorkspace workspace = new(Enumerable.Repeat((byte)0xA5, clear + 8).ToImmutableArray());
             workspace = workspace.Initialize7016B0(source, clear);
-            Assert.All(workspace.Data.AsSpan().Slice(clear).ToArray(), value => Assert.Equal((byte)0xA5, value));
+            Assert.All(NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan().Slice(clear).ToArray(), value => Assert.Equal((byte)0xA5, value));
             int frames = index == 0 ? 12 : 60;
             for (int frame = 0; frame < frames; frame++)
             {
@@ -68,7 +68,7 @@ public sealed class NativeBattleEffect64ResourceTests
         Assert.Equal(Initializer, binding.Initializer);
         Assert.Same(resources, binding.Effect64Resources);
         Assert.Equal(new NativeBattleEffectInitializerResource("mag063.tim", InitializerGlobal), binding.InitializerResource);
-        NativeBattleEffect64Resources restored = JsonSerializer.Deserialize<NativeBattleEffect64Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleEffect64Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect64Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect64State.FromUnknown().BindScriptSource(restored, ScriptAddresses[0]));
         Assert.Throws<InvalidDataException>(() => (restored with { ProgrammeDescriptors = restored.ProgrammeDescriptors.SetItem(8, (byte)'1') }).Validate());

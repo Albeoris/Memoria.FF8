@@ -19,9 +19,9 @@ public sealed class NativeBattleChoco98ProgramResourcesTests
         NativeBattleChoco98ProgramResources resources = game.ReadNativeChoco98ProgramResources();
         NativeBattleGfAnimationSource source = resources.ProgramSource;
         Assert.Equal(0x1680B9Cu, source.Address);
-        Assert.Equal(game.ReadNativeChoco97ProgramResources().ProgramSource.Data.ToArray(), source.Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(game.ReadNativeChoco97ProgramResources().ProgramSource).Data.ToArray(), NativeBattleStorageSnapshots.Capture(source).Data.ToArray());
         NativeBattleModulePoolTask task = NativeBattleChoco98ProgramDrawing.InitializeWorkspace7224C0(Task(source, 0x722460, 0x4AC), source, Actor);
-        Assert.All(task.Payload.Skip(0x94 - 12 + 0x4AC), value => Assert.Equal((byte)0xA5, value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(task).Payload.Skip(0x94 - 12 + 0x4AC), value => Assert.Equal((byte)0xA5, value));
         Assert.Equal((ushort)20, task.ReadWord(0x1E));
         ImmutableArray<byte> scratch = Scratch();
         NativeBattleSummonColors colors = game.ReadNativeBattleGraphicsRules().SummonColors!;
@@ -30,9 +30,9 @@ public sealed class NativeBattleChoco98ProgramResourcesTests
         int remaining = -1;
         for (int frame = 0; frame < 30; frame++)
         {
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(new Saved(task, source, scratch)))!;
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(new Saved(task, source, scratch)))!;
             NativeBattleChoco97ProgramDraw next = NativeBattleChoco98ProgramDrawing.Advance722520(task, source, scratch, View, Projection, colors, 0);
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(NativeBattleChoco98ProgramDrawing.Advance722520(restored.Task, restored.Source, restored.Scratch, View, Projection, colors, 0)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(NativeBattleChoco98ProgramDrawing.Advance722520(restored.Task, restored.Source, restored.Scratch, View, Projection, colors, 0)));
             Assert.Equal((uint)(frame + 1), next.Task.ReadDword(0x98));
             Padding(next.MorphScratch);
             Assert.All(next.MorphScratch.Skip(36 * 8), value => Assert.Equal((byte)0xA5, value));
@@ -69,16 +69,16 @@ public sealed class NativeBattleChoco98ProgramResourcesTests
         while (!ready && calls < 100)
         {
             Saved saved = new(task, source, scratch);
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(saved))!;
             NativeBattleChoco98LoadedProgramDraw next = Step(saved, 0);
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(saved))!;
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Step(restored, 0)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored, 0)));
             if (calls == 0)
             {
                 Assert.Equal(unchecked((ushort)y), next.Draw.Task.ReadWord(0x1E));
                 Assert.Equal(unchecked((ushort)z), next.Draw.Task.ReadWord(0x20));
                 Assert.Equal((ushort)fourth, next.Draw.Task.ReadWord(0x22));
                 Assert.Equal(profile == NativeBattleChoco98LoadedProgram.File461 ? 0u : 1u, next.Draw.Task.ReadDword(0x98));
-                Assert.All(next.Draw.Task.Payload.Skip(0x94 - 12 + definition.Clear), value => Assert.Equal((byte)0xA5, value));
+                Assert.All(NativeBattleStorageSnapshots.Capture(next.Draw.Task).Payload.Skip(0x94 - 12 + definition.Clear), value => Assert.Equal((byte)0xA5, value));
                 (int Geometry, int Delta)[] scrolls = profile switch
                 {
                     NativeBattleChoco98LoadedProgram.File457 => [(0, 12), (3, 12)],
@@ -87,13 +87,13 @@ public sealed class NativeBattleChoco98ProgramResourcesTests
                     NativeBattleChoco98LoadedProgram.File463 => [(0, 6), (1, 4), (2, 6), (5, 8)],
                     _ => throw new InvalidDataException("Absent test profile.")
                 };
-                ImmutableArray<byte> expectedSource = source.Data;
+                ImmutableArray<byte> expectedSource = NativeBattleStorageSnapshots.Capture(source).Data;
                 foreach ((int geometry, int delta) in scrolls)
                 {
-                    int offset = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(8 + geometry * 4));
+                    int offset = BinaryPrimitives.ReadInt32LittleEndian(NativeBattleStorageSnapshots.Capture(source).Data.AsSpan().Slice(8 + geometry * 4));
                     expectedSource = NativeBattleChoco97Uv.Scroll7311C0(expectedSource, offset / 4 * 4, delta);
                 }
-                Assert.Equal(expectedSource.ToArray(), next.Draw.Source.Data.ToArray());
+                Assert.Equal(expectedSource.ToArray(), NativeBattleStorageSnapshots.Capture(next.Draw.Source).Data.ToArray());
                 if (profile == NativeBattleChoco98LoadedProgram.File461)
                 {
                     Assert.Empty(next.Draw.Packets.Attempts);
@@ -102,7 +102,7 @@ public sealed class NativeBattleChoco98ProgramResourcesTests
                 {
                     NativeBattleModulePoolTask initialized = NativeBattleChoco98ProgramDrawing.InitializeWorkspace7224C0(task, source, profile is NativeBattleChoco98LoadedProgram.File462 or NativeBattleChoco98LoadedProgram.File463 ? Target : Actor).WriteWord(0x1E, next.Draw.Task.ReadWord(0x1E)).WriteWord(0x20, next.Draw.Task.ReadWord(0x20));
                     NativeBattleChoco97ProgramDraw beforeV = NativeBattleChoco98ProgramDrawing.Advance722520(initialized, source, scratch, View, Projection, colors, 0);
-                    Assert.Equal(JsonSerializer.Serialize(beforeV.Packets), JsonSerializer.Serialize(next.Draw.Packets));
+                    Assert.Equal(NativeBattleSnapshotJson.Serialize(beforeV.Packets), NativeBattleSnapshotJson.Serialize(next.Draw.Packets));
                 }
             }
             if (next.SoundDescriptor is uint sound)
@@ -123,14 +123,15 @@ public sealed class NativeBattleChoco98ProgramResourcesTests
         Assert.Equal((uint)duration, task.ReadDword(0x98));
         Assert.Equal(profile == NativeBattleChoco98LoadedProgram.File463, morphed);
         Assert.Equal(profile == NativeBattleChoco98LoadedProgram.File462 ? new uint[] { 0x152AF3C } : [], sounds.ToArray());
-        Assert.Equal(profile == NativeBattleChoco98LoadedProgram.File462, original.Data.AsSpan().SequenceEqual(source.Data.AsSpan()));
+        Assert.Equal(profile == NativeBattleChoco98LoadedProgram.File462, NativeBattleStorageSnapshots.Capture(original).Data.AsSpan().SequenceEqual(NativeBattleStorageSnapshots.Capture(source).Data.AsSpan()));
+        ImmutableArray<byte> heldSourceBefore = NativeBattleStorageSnapshots.Capture(source).Data;
         NativeBattleChoco98LoadedProgramDraw held = Step(new(task.WriteByte(0x28, 1), source, scratch), 1);
         Assert.False(held.Draw.ReadyToComplete);
         Assert.Empty(held.Draw.Packets.Attempts);
         Assert.Null(held.SoundDescriptor);
-        Assert.Equal(profile == NativeBattleChoco98LoadedProgram.File462, source.Data.AsSpan().SequenceEqual(held.Draw.Source.Data.AsSpan()));
+        Assert.Equal(profile == NativeBattleChoco98LoadedProgram.File462, heldSourceBefore.AsSpan().SequenceEqual(NativeBattleStorageSnapshots.Capture(held.Draw.Source).Data.AsSpan()));
         Assert.Throws<NotSupportedException>(() => Step(new(task, source, new byte[0x3C0].ToImmutableArray()), 0));
-        Assert.Equal(original.Data.ToArray(), Assert.Single(game.ReadNativeChoco98ProgramResources().Loaded, loaded => loaded.Profile == profile).ProgramSource.Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(original).Data.ToArray(), NativeBattleStorageSnapshots.Capture(Assert.Single(game.ReadNativeChoco98ProgramResources().Loaded, loaded => loaded.Profile == profile).ProgramSource).Data.ToArray());
 
         NativeBattleChoco98LoadedProgramDraw Step(Saved saved, uint freeze) => NativeBattleChoco98ProgramDrawing.AdvanceLoaded(profile, saved.Task, saved.Source, Actor, Target, saved.Scratch, View, Projection, colors, freeze);
     }

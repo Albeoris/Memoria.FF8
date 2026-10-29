@@ -45,7 +45,7 @@ public sealed class NativeBattleEffect289ResourceTests
                 }).Workspace;
                 Assert.Equal(nodes[sourceIndex], callbacks);
                 Assert.Equal(frame + 1, workspace.Frame);
-                Assert.All(workspace.Data.Skip(clears[sourceIndex]), value => Assert.Equal((byte)0xA5, value));
+                Assert.All(NativeBattleStorageSnapshots.Capture(workspace).Data.Skip(clears[sourceIndex]), value => Assert.Equal((byte)0xA5, value));
             }
         }
         Assert.Equal(544, maximumMorph);
@@ -101,9 +101,9 @@ public sealed class NativeBattleEffect289ResourceTests
     {
         using GameAssets game = Open();
         NativeBattleEffect289Resources resources = game.ReadNativeEffect289Resources();
-        NativeBattleEffect289Resources restored = JsonSerializer.Deserialize<NativeBattleEffect289Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleEffect289Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect289Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal(0x61B85u, resources.Sound);
         Assert.Throws<InvalidDataException>(() => (resources with { Meshes = resources.Meshes.SetItem(0, resources.Meshes[0] with { Bytes = resources.Meshes[0].Bytes.RemoveAt(0) }) }).Validate());
         Assert.Throws<InvalidDataException>(() => (resources with { MainProgramme = resources.MainProgramme with { Data = resources.MainProgramme.Data.RemoveAt(0) } }).Validate());

@@ -23,9 +23,9 @@ public sealed class NativeBattleChoco98SpriteResourcesTests
         NativeBattleChoco97SpriteStep? step = null;
         for (int callback = 0; callback < 27; callback++)
         {
+            NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
             step = Advance(task);
-            NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Advance(restored)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(Advance(restored)));
             if (step.Packets is { } packets)
             {
                 Assert.NotEmpty(packets.Primitives);
@@ -37,7 +37,7 @@ public sealed class NativeBattleChoco98SpriteResourcesTests
         Assert.True(step!.ReadyToComplete);
         Assert.Null(step.Packets);
         Assert.Equal(resource.Address, task.ReadDword(0x4C));
-        Assert.Throws<InvalidDataException>(() => Advance(task with { Callback = 0x730C10 }));
+        Assert.Throws<InvalidDataException>(() => Advance(new(task.Flags, task.State, task.Next, 0x730C10, NativeBattleStorageSnapshots.Capture(task).Payload)));
         Assert.Throws<InvalidDataException>(() => NativeBattleChoco98Sprite.Advance728780(task, game.ReadNativeChoco97SpriteResources(), [], view, projection, 0));
 
         NativeBattleChoco97SpriteStep Advance(NativeBattleModulePoolTask current) => NativeBattleChoco98Sprite.Advance728780(current, resource, [10, 0, 20, 0, 30, 0, 40, 0], view, projection, 256);

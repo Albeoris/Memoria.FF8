@@ -15,12 +15,12 @@ public sealed class NativeBattleGilgameshPointResourcesTests
         resources.Validate();
         Assert.Same(resources, game.ReadNativeGilgameshPointResources());
         NativeExecutableMemory memory = new(game.ReadNativeExecutable());
-        Assert.Equal(memory.Read(0xCD0428, 64), resources.Colors.Data.ToArray());
+        Assert.Equal(memory.Read(0xCD0428, 64), NativeBattleStorageSnapshots.Capture(resources.Colors).Data.ToArray());
         uint[] colors = [0x6A404040, 0x6A808080, 0x6A808080, 0x6A808080, 0x6A808080, 0x6A808080, 0x6A808080, 0x6A808080, 0x6A808080, 0x6A707070, 0x6A606060, 0x6A505050, 0x6A404040, 0x6A303030, 0x6A202020, 0x6A101010];
         Assert.Equal(colors, Enumerable.Range(0, 16).Select(resources.Color));
         NativeBattleGilgameshPointResources restored = RoundTrip(resources);
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
         NativeBattleActionMatrix worldView = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, -50, 3000, 4096);
         NativeBattleCameraProjection projection = new(null, 288, 160, 108);
         NativeBattleModuleProjectedVertex Project(NativeBattleVector point) => NativeBattleModuleProjection.Project45FAA0(worldView, point, projection, -256, 0x1000000);
@@ -52,14 +52,15 @@ public sealed class NativeBattleGilgameshPointResourcesTests
             Assert.Equal(new[] { 0, 0, 0, 0 }, attempt.Primitive.VertexPayload4.ToArray());
         }
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(first.Arena.Read(0x2F800 + 15 * 32, 4)));
+        NativeBattleGilgameshPointStep restoredFirst = NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshPointStep>(NativeBattleSnapshotJson.Serialize(first))!;
         NativeBattleGilgameshPointStep expected = NativeBattleGilgameshPointBurst.Step593E80(first.Task, first.Arena, first.Random, resources, 0, Project);
-        NativeBattleGilgameshPointStep actual = NativeBattleGilgameshPointBurst.Step593E80(RoundTrip(first.Task), RoundTrip(first.Arena), RoundTrip(first.Random), restored, 0, Project);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
-        Assert.Throws<InvalidDataException>(() => (resources with { Colors = resources.Colors with { Data = resources.Colors.Data.RemoveAt(0) } }).Validate());
-        Assert.Throws<InvalidDataException>(() => (resources with { Colors = resources.Colors with { Data = resources.Colors.Data.SetItem(3, 0) } }).Validate());
+        NativeBattleGilgameshPointStep actual = NativeBattleGilgameshPointBurst.Step593E80(restoredFirst.Task, restoredFirst.Arena, restoredFirst.Random, restored, 0, Project);
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(expected), NativeBattleSnapshotJson.Serialize(actual));
+        Assert.Throws<InvalidDataException>(() => (resources with { Colors = resources.Colors with { Data = NativeBattleStorageSnapshots.Capture(resources.Colors).Data.RemoveAt(0) } }).Validate());
+        Assert.Throws<InvalidDataException>(() => (resources with { Colors = resources.Colors with { Data = NativeBattleStorageSnapshots.Capture(resources.Colors).Data.SetItem(3, 0) } }).Validate());
         Assert.Throws<InvalidDataException>(() => resources.Color(-1));
         Assert.Throws<InvalidDataException>(() => resources.Color(16));
     }
 
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleSnapshotJson.Deserialize<T>(NativeBattleSnapshotJson.Serialize(value))!;
 }

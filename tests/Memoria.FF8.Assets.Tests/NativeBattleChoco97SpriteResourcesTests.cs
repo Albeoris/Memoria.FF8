@@ -30,9 +30,9 @@ public sealed class NativeBattleChoco97SpriteResourcesTests
         NativeBattleChoco97SpriteStep? step = null;
         for (int callback = 0; callback < 27; callback++)
         {
+            NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
             step = Advance(task);
-            NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Advance(restored)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(Advance(restored)));
             if (step.Packets is { } packets)
             {
                 Assert.NotEmpty(packets.Primitives);

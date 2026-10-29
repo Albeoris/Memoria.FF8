@@ -21,7 +21,7 @@ public sealed class NativeCallbackQueueTests
         Assert.Equal(100, fact.ActionId);
         Assert.Equal(9999, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
         Assert.Equal(new BattleNativeCallback(0, 7), Assert.Single(battle.QueuedActions, command => command.NativeCallback is not null).NativeCallback);
-        Assert.Equal(random, battle.Capture().Random);
+        Assert.Equal(JsonSerializer.Serialize(random), JsonSerializer.Serialize(battle.Capture().Random));
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         for (int frame = 0; frame < 128 && battle.ActiveAction?.NativeQueuedCommand != 245; frame++)
         {
@@ -92,7 +92,7 @@ public sealed class NativeCallbackQueueTests
         Assert.Equal(12, queued.ActionId);
         Assert.Equal((ushort)1, queued.NativeTargetMask);
         Assert.Equal(BattleNativePlayerReaction.AngeloPeriodic, queued.NativePlayerReaction);
-        Assert.Equal(random, battle.Capture().Random);
+        Assert.Equal(JsonSerializer.Serialize(random), JsonSerializer.Serialize(battle.Capture().Random));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 

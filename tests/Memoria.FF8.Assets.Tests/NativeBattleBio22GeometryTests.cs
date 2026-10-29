@@ -30,7 +30,7 @@ public sealed class NativeBattleBio22GeometryTests
                 Assert.Equal(original.Bytes.AsSpan().Slice(8 + vertex * 8 + 6, 2).ToArray(), changed.Bytes.AsSpan().Slice(8 + vertex * 8 + 6, 2).ToArray());
             }
         }
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory.BeginLoad(22)))!;
+        NativeBattleEffectMemory restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectMemory>(NativeBattleSnapshotJson.Serialize(memory.BeginLoad(22)))!;
         Assert.Equal(first.Bytes.ToArray(), restored.Bio22Geometry!.Bytes.ToArray());
         Assert.Equal(second.Bytes.ToArray(), restored.Bio22SecondaryGeometry!.Bytes.ToArray());
         Assert.Equal(memory.Bio22FourthGeometry!.Morph89B0D0(resources.SecondFamilyMorphSources[3].Data, resources.SecondFamilyMorphSources[4].Data, 3072).Bytes.ToArray(), restored.Bio22FourthGeometry!.Morph89B0D0(resources.SecondFamilyMorphSources[3].Data, resources.SecondFamilyMorphSources[4].Data, 3072).Bytes.ToArray());
@@ -61,7 +61,7 @@ public sealed class NativeBattleBio22GeometryTests
         NativeBattleEffectMemory warm = memory.BeginLoad(22);
         Assert.Same(primary, warm.Bio22Geometry);
         Assert.Same(changed, warm.Bio22SecondaryGeometry);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(warm))!;
+        NativeBattleEffectMemory restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectMemory>(NativeBattleSnapshotJson.Serialize(warm))!;
         NativeBattleBio22Geometry endpoint = restored.Bio22SecondaryGeometry!.Morph89B0D0(resources.MorphSources[5].Data, resources.MorphSources[6].Data, 4096);
         Assert.Equal(changed.Morph89B0D0(resources.MorphSources[5].Data, resources.MorphSources[6].Data, 4096).Bytes.ToArray(), endpoint.Bytes.ToArray());
         Assert.Equal(primary.Bytes.ToArray(), restored.Bio22Geometry!.Bytes.ToArray());
@@ -100,7 +100,7 @@ public sealed class NativeBattleBio22GeometryTests
         }
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Bio22Geometry = next };
         Assert.Same(next, memory.BeginLoad(22).Bio22Geometry);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectMemory>(NativeBattleSnapshotJson.Serialize(memory))!;
         NativeBattleBio22Geometry expectedNext = next.Morph89B0D0(resources.MorphFirst.Data, resources.MorphSecond.Data, 3072);
         NativeBattleBio22Geometry actualNext = restored.Bio22Geometry!.Morph89B0D0(resources.MorphFirst.Data, resources.MorphSecond.Data, 3072);
         Assert.Equal(expectedNext.Bytes.ToArray(), actualNext.Bytes.ToArray());

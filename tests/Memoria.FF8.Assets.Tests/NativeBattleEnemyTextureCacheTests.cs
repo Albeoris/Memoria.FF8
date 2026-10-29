@@ -62,16 +62,16 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
         Assert.Equal(original.Cache.BlockedSlots, clone.Cache.BlockedSlots);
         Assert.Equal(original.Cache.Rows[0], clone.Cache.Rows[1]);
 
-        NativeBattleModelTextureCache restored = JsonSerializer.Deserialize<NativeBattleModelTextureCache>(JsonSerializer.Serialize(clone.Cache))!;
+        NativeBattleModelTextureCache restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModelTextureCache>(NativeBattleSnapshotJson.Serialize(clone.Cache))!;
         NativeBattleModelTextureCache firstReleased = clone.Cache.Release5080D0(original.ResourceIndex);
         NativeBattleModelTextureCache independentFirst = restored.Release5080D0(original.ResourceIndex);
-        Assert.Equal(JsonSerializer.Serialize(firstReleased), JsonSerializer.Serialize(independentFirst));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(firstReleased), NativeBattleSnapshotJson.Serialize(independentFirst));
         Assert.Equal((byte)0, firstReleased.Rows[0].Kind);
         Assert.Equal((byte)3, firstReleased.Rows[1].Kind);
         Assert.Equal(upload.Binding, firstReleased.Rows[0].Binding);
         Assert.Equal(clone.Cache.BlockedSlots, firstReleased.BlockedSlots);
         NativeBattleModelTextureCache lastReleased = firstReleased.Release5080D0(clone.ResourceIndex);
-        Assert.Equal(JsonSerializer.Serialize(lastReleased), JsonSerializer.Serialize(independentFirst.Release5080D0(clone.ResourceIndex)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(lastReleased), NativeBattleSnapshotJson.Serialize(independentFirst.Release5080D0(clone.ResourceIndex)));
         Assert.Equal((ushort)63, lastReleased.BlockedSlots);
         Assert.All(lastReleased.Rows, row => Assert.Equal((byte)0, row.Kind));
         NativeBattleModelTextureCacheLoad reloaded = lastReleased.LoadEnemy(77, pack);
@@ -140,7 +140,7 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
             EncounterId = 94,
             StageId = encounter.StageId,
             Combatants = actors,
-            NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), LimitProgress = game.ReadNewGameLimitProgress(), NativeSavedOptions = game.ReadNewGameInputConfiguration().Options, NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeMusicProcess = musicEntry.MusicProcess,
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeGlobalSoundProcess = musicEntry.SoundProcess,
@@ -178,12 +178,12 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
         Assert.Contains(textures.ReadVram(), value => value != 0);
 
         BattleSnapshot snapshot = battle.Capture();
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
+        BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(snapshot))!);
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(snapshot), NativeBattleSnapshotJson.Serialize(restored.Capture()));
         TimeSpan callbackDuration = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         battle.AdvanceNativeGraphicsPresentation(callbackDuration);
         restored.AdvanceNativeGraphicsPresentation(callbackDuration);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
 
         Assert.Equal(0, enemy.Flags2!.Value & 4);
         foreach ((uint soundFlags, int loadCount, bool cleared) in new (uint, int, bool)[] { (0, 1, true), (1, 0, false), (0x80000000, 0, false), (uint.MaxValue, 1, false) })

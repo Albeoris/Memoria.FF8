@@ -180,7 +180,7 @@ public sealed class NativeBattleGraphicsEntryTests
         BattleDefinition seed = Create(game, assets, 61, ready: false).Capture().Definition;
         BattleDefinition definition = seed with { NativeClockRules = new(10), NativeBattleSpeed = 2, Combatants = seed.Combatants.Select((actor, index) => actor with { Speed = index == 0 ? 100 : actor.IsPlayer ? 10 : 1 }).ToArray() };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        TimeSpan frame = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+        TimeSpan frame = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();
@@ -248,19 +248,19 @@ public sealed class NativeBattleGraphicsEntryTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 61);
         battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(500_000));
-        Assert.Equal(1, battle.NativeGraphics!.Callback);
-        Assert.Equal(5_000_000, battle.NativeGraphics.PresentationSubticks);
+        Assert.Equal(0, battle.NativeGraphics!.Callback);
+        Assert.Equal(7_750_000, battle.NativeGraphics.PresentationSubticks);
         battle.Tick();
-        Assert.Equal(1, battle.NativeGraphics.Callback);
+        Assert.Equal(0, battle.NativeGraphics.Callback);
         BattleSnapshot saved = battle.Capture();
         BattleSession headless = BattleSession.Restore(saved);
         headless.Tick();
-        Assert.Equal(2, headless.NativeGraphics!.Callback);
+        Assert.Equal(1, headless.NativeGraphics!.Callback);
         BattleSession hosted = BattleSession.Restore(saved);
         hosted.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(500_000));
-        Assert.Equal(3, hosted.NativeGraphics!.Callback);
+        Assert.Equal(1, hosted.NativeGraphics!.Callback);
         hosted.Tick();
-        Assert.Equal(3, hosted.NativeGraphics.Callback);
+        Assert.Equal(1, hosted.NativeGraphics.Callback);
         Assert.Equal(0, hosted.Frame);
     }
 

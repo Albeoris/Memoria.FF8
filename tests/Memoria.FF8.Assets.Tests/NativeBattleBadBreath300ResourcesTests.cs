@@ -36,9 +36,9 @@ public sealed class NativeBattleBadBreath300ResourcesTests
             }
             Assert.Equal(mesh.Length, cursor);
         }
-        NativeBattleBadBreath300Resources restored = JsonSerializer.Deserialize<NativeBattleBadBreath300Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleBadBreath300Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleBadBreath300Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         NativeBattleBadBreath300ResourcesReader.ValidatePayloads(restored);
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
     }
 
     [Fact]
@@ -55,9 +55,9 @@ public sealed class NativeBattleBadBreath300ResourcesTests
         NativeBattleBadBreath300State unknown = NativeBattleBadBreath300State.FromUnknown();
         Assert.Same(unknown, unknown.SeedColdSources(resources));
         Assert.Throws<NotSupportedException>(() => unknown.ReadMesh(NativeBattleBadBreath300Profile.MeshAAddress));
-        NativeBattleBadBreath300State restored = JsonSerializer.Deserialize<NativeBattleBadBreath300State>(JsonSerializer.Serialize(warm))!;
+        NativeBattleBadBreath300State restored = NativeBattleSnapshotJson.Deserialize<NativeBattleBadBreath300State>(NativeBattleSnapshotJson.Serialize(warm))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(warm), NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal(normalized.AsSpan().ToArray(), NativeBattleBadBreath300Controller.Normalize6B7CB0(normalized).AsSpan().ToArray());
     }
 

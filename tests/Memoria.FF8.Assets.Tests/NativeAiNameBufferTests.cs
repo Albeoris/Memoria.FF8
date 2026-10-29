@@ -24,10 +24,11 @@ public sealed class NativeAiNameBufferTests
     [InlineData(23, 0)]
     public void Name_copy_uses_its_loaded_extent_without_padding_unknown_bytes(int available, int expected)
     {
+        using BattleAssets assets = new(TestResources.GameDirectory);
         byte[] bytes = new byte[40];
         bytes[4] = 0x47;
-        System.Reflection.MethodInfo decode = typeof(BattleAssets).GetMethod("DecodeEnemyTextBank", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
-        var result = ((string[] Texts, byte[][] NameBuffers, string[] DisplayNames))decode.Invoke(null, [bytes, 0, 4, 8, 4 + available])!;
+        System.Reflection.MethodInfo decode = typeof(BattleAssets).GetMethod("DecodeEnemyTextBank", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var result = ((string[] Texts, byte[][] NameBuffers, string[] DisplayNames))decode.Invoke(assets, [bytes, 0, 4, 8, 4 + available])!;
         Assert.Equal(expected, result.NameBuffers[0].Length);
         Assert.Equal(expected, result.NameBuffers[1].Length);
     }

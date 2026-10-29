@@ -14,7 +14,7 @@ public sealed class NativeBattleGilgameshOpeningResourcesTests
         Assert.Same(resources, game.ReadNativeGilgameshOpeningResources());
         Assert.Equal(new uint[] { 0xCC8F5C, 0xCCB92C, 0xCCC434, 0xCCA14C, 0xCCAD3C }, new[] { resources.BaseMesh.Address, resources.RingA.Address, resources.RingB.Address, resources.SpireA.Address, resources.SpireB.Address });
         Assert.Equal(new[] { 0x11F0, 0xB08, 0x6E8, 0xBF0, 0xBF0 }, new[] { resources.BaseMesh.Bytes.Length, resources.RingA.Bytes.Length, resources.RingB.Bytes.Length, resources.SpireA.Bytes.Length, resources.SpireB.Bytes.Length });
-        NativeBattleGilgameshOpeningResources restored = JsonSerializer.Deserialize<NativeBattleGilgameshOpeningResources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleGilgameshOpeningResources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshOpeningResources>(NativeBattleSnapshotJson.Serialize(resources))!;
         NativeBattleGilgameshOpeningInitialization initial = NativeBattleGilgameshOpening.Initialize592D00(NativeBattleEffectTaskPool.Initialize(0x21FFD58, 0x21FFD68, 36, 100), new(1));
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
         NativeBattleCameraProjection projection = new(null, 288, 160, 108);
@@ -24,8 +24,8 @@ public sealed class NativeBattleGilgameshOpeningResourcesTests
             NativeBattleGilgameshOpeningStep step = NativeBattleGilgameshOpening.Step(task, resources, view, projection, 0);
             Assert.Equal(2, step.Result);
             Assert.NotEmpty(step.Batch.Attempts);
-            NativeBattleModulePoolTask restoredTask = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleGilgameshOpening.Step(restoredTask, restored, view, projection, 0)));
+            NativeBattleModulePoolTask restoredTask = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshOpening.Step(restoredTask, restored, view, projection, 0)));
         }
         Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshOpeningResourcesReader.Read(new byte[128]));
     }

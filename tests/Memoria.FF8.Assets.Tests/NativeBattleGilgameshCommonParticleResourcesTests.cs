@@ -20,7 +20,7 @@ public sealed class NativeBattleGilgameshCommonParticleResourcesTests
         Assert.Equal(0xCC6DC8u, resources.Sprite.Address);
         Assert.Equal(0xCCCB1Cu, resources.NestedMesh.Address);
         Assert.Equal(168, BinaryPrimitives.ReadInt32LittleEndian(resources.NestedMesh.Bytes.AsSpan().Slice(4)));
-        NativeBattleGilgameshCommonParticleResources restored = JsonSerializer.Deserialize<NativeBattleGilgameshCommonParticleResources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleGilgameshCommonParticleResources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshCommonParticleResources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 16000, 4096);
         NativeBattleCameraProjection projection = new(null, 288, 160, 108);
@@ -29,12 +29,13 @@ public sealed class NativeBattleGilgameshCommonParticleResourcesTests
             NativeBattleModulePoolTask task = new(1, 0, null, callback, new byte[24].ToImmutableArray());
             NativeBattleGilgameshParticleStep first = NativeBattleGilgameshCommonParticles.Step(task, NativeBattleEffectArena.Clear(), new(1), resources, view, projection, 0);
             Assert.Equal(callback == 0x593770 ? 8 : 12, first.Packets.Length);
+            NativeBattleGilgameshParticleStep restoredFirst = NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshParticleStep>(NativeBattleSnapshotJson.Serialize(first))!;
             NativeBattleGilgameshParticleStep expected = NativeBattleGilgameshCommonParticles.Step(first.UpdatedTask, first.Arena, first.Random, resources, view, projection, 0);
-            NativeBattleGilgameshParticleStep actual = NativeBattleGilgameshCommonParticles.Step(JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(first.UpdatedTask))!, JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(first.Arena))!, first.Random, restored, view, projection, 0);
-            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+            NativeBattleGilgameshParticleStep actual = NativeBattleGilgameshCommonParticles.Step(restoredFirst.UpdatedTask, restoredFirst.Arena, restoredFirst.Random, restored, view, projection, 0);
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(expected), NativeBattleSnapshotJson.Serialize(actual));
         }
         NativeBattleModulePoolTask nested = new NativeBattleModulePoolTask(1, 0, null, 0x593D20, new byte[24].ToImmutableArray()).WriteWord(12, 18).WriteWord(28, 4096).WriteWord(32, 4096).WriteWord(34, 186);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleGilgameshCommonParticles.Step593D20(nested, resources, view, projection, 0)), JsonSerializer.Serialize(NativeBattleGilgameshCommonParticles.Step593D20(nested, restored, view, projection, 0)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshCommonParticles.Step593D20(nested, resources, view, projection, 0)), NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshCommonParticles.Step593D20(nested, restored, view, projection, 0)));
         Assert.Throws<InvalidDataException>(() => (resources with { Sprite = resources.Sprite with { Bytes = resources.Sprite.Bytes.RemoveAt(0) } }).Validate());
         Assert.Throws<InvalidDataException>(() => (resources with { NestedMesh = resources.NestedMesh with { Bytes = resources.NestedMesh.Bytes.RemoveAt(0) } }).Validate());
     }

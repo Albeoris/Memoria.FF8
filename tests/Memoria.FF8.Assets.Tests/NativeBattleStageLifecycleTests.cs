@@ -48,9 +48,9 @@ public sealed class NativeBattleStageLifecycleTests
         Assert.Equal((short)1, battle.NativeStage.Task!.Phase);
         Assert.Equal(0, battle.NativeStage.Rotation);
         Assert.All(battle.NativeStage.Groups, group => Assert.Equal((byte)1, group.Counter));
-        Assert.False(battle.NativeEffectMemory!.Textures!.VramRegions.IsEmpty);
+        Assert.False(NativeBattleStorageSnapshots.Capture(battle.NativeEffectMemory!.Textures!).VramRegions.IsEmpty);
         BattleSnapshot boundary = battle.Capture();
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(boundary))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(boundary))!);
         if (source.NativeSource!.Callback!.UpdateTexture0 == true)
         {
             Assert.Equal(source.NativeSource.TextureAnimations.ToArray(), battle.NativeStage.TextureAnimations!.Value.ToArray());
@@ -66,7 +66,7 @@ public sealed class NativeBattleStageLifecycleTests
             Assert.Equal(source.NativeSource.TextureAnimations.ToArray(), frozenTexture.NativeStage!.TextureAnimations!.Value.ToArray());
             Assert.Equal(source.NativeSource.RotationSpeed, frozenTexture.NativeStage.Rotation);
         }
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
         for (int callback = 0; callback < 300 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();
@@ -120,7 +120,7 @@ public sealed class NativeBattleStageLifecycleTests
             Assert.Equal(new NativeBattleStage147State(), battle.NativeStage.Extended!.Stage147);
         }
         Assert.NotNull(battle.NativeStage.PaletteAllocation);
-        Assert.False(battle.NativeEffectMemory!.Textures!.VramRegions.IsEmpty);
+        Assert.False(NativeBattleStorageSnapshots.Capture(battle.NativeEffectMemory!.Textures!).VramRegions.IsEmpty);
         Assert.All(battle.NativeStage.Groups, group =>
         {
             Assert.NotNull(group.Source);
@@ -176,7 +176,7 @@ public sealed class NativeBattleStageLifecycleTests
         NativeBattleStage37Step expected = NativeBattleStage37.Advance518F50(state, 1, battle.NativeStage!.RotationSpeed, shake);
         Assert.Single(expected.Draws);
         AssertResumesNextCallback(battle);
-        Assert.Equal(JsonSerializer.Serialize(expected.State), JsonSerializer.Serialize(battle.NativeStage!.Extended!.Stage37));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(expected.State), NativeBattleSnapshotJson.Serialize(battle.NativeStage!.Extended!.Stage37));
         if (service == 2)
         {
             Assert.Contains(battle.NativeGraphics!.PrimitiveFrame!.LastCommands, command => command.Command.Opcode == 0x66);
@@ -209,12 +209,12 @@ public sealed class NativeBattleStageLifecycleTests
     private static void AssertResumesNextCallback(BattleSession battle)
     {
         BattleSnapshot snapshot = battle.Capture();
-        string serialized = JsonSerializer.Serialize(snapshot);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(serialized)!);
-        Assert.Equal(serialized, JsonSerializer.Serialize(restored.Capture()));
+        string serialized = NativeBattleSnapshotJson.Serialize(snapshot);
+        BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(serialized)!);
+        Assert.Equal(serialized, NativeBattleSnapshotJson.Serialize(restored.Capture()));
         battle.Tick();
         restored.Tick();
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
     }
 
     private static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, BattleEncounter formation, BattleStage source, int stageId)

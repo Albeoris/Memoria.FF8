@@ -39,9 +39,10 @@ public sealed class NativeBattleGilgameshSwordParticleResourcesTests
             NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, callback, new byte[24].ToImmutableArray()).WriteWord(28, 1).WriteWord(30, 0);
             NativeBattleGilgameshSwordParticleStep first = NativeBattleGilgameshSwordParticles.Step(task, NativeBattleEffectArena.Clear(), new(1), resources, view, projection, 0, ReadBone);
             Assert.Equal(callback == 0x5948A0 ? 6 : 4, first.Survivors);
+            NativeBattleGilgameshSwordParticleStep restoredFirst = NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshSwordParticleStep>(NativeBattleSnapshotJson.Serialize(first))!;
             NativeBattleGilgameshSwordParticleStep expected = NativeBattleGilgameshSwordParticles.Step(first.UpdatedTask, first.Arena, first.Random, resources, view, projection, 0, ReadBone);
-            NativeBattleGilgameshSwordParticleStep actual = NativeBattleGilgameshSwordParticles.Step(RoundTrip(first.UpdatedTask), RoundTrip(first.Arena), RoundTrip(first.Random), restoredResources, view, projection, 0, ReadBone);
-            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+            NativeBattleGilgameshSwordParticleStep actual = NativeBattleGilgameshSwordParticles.Step(restoredFirst.UpdatedTask, restoredFirst.Arena, restoredFirst.Random, restoredResources, view, projection, 0, ReadBone);
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(expected), NativeBattleSnapshotJson.Serialize(actual));
         }
         Assert.Throws<InvalidDataException>(() => (resources with { SwordOrder = [0, 1, 2, 3] }).Validate());
         Assert.Throws<InvalidDataException>(() => (resources with { Mesh = resources.Mesh with { Bytes = resources.Mesh.Bytes.RemoveAt(0) } }).Validate());
@@ -54,15 +55,15 @@ public sealed class NativeBattleGilgameshSwordParticleResourcesTests
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleGilgameshEffectResources resources = game.ReadNativeGilgameshEffectResources();
         Assert.Same(game.ReadNativeGilgameshSwordParticleResources(), resources.SwordParticles);
-        string json = JsonSerializer.Serialize(resources);
-        Assert.Equal(json, JsonSerializer.Serialize(RoundTrip(resources)));
+        string json = NativeBattleSnapshotJson.Serialize(resources);
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(RoundTrip(resources)));
         foreach (string property in new[] { nameof(NativeBattleGilgameshEffectResources.Files), nameof(NativeBattleGilgameshEffectResources.InitialStreamNumber), nameof(NativeBattleGilgameshEffectResources.SwordParticles) })
         {
             JsonObject missing = JsonNode.Parse(json)!.AsObject();
             missing.Remove(property);
-            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleGilgameshEffectResources>(missing.ToJsonString()));
+            Assert.Throws<JsonException>(() => NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshEffectResources>(missing.ToJsonString()));
         }
     }
 
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleSnapshotJson.Deserialize<T>(NativeBattleSnapshotJson.Serialize(value))!;
 }

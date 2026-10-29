@@ -27,15 +27,15 @@ public sealed class NativeBattleChoco97ModelTests
         Assert.Equal(410, mesh.Vertices.Length);
         Assert.Equal(602, mesh.Polygons.Count(polygon => !polygon.Quad));
         Assert.Equal(48, mesh.Polygons.Count(polygon => polygon.Quad));
-        Assert.Equal(0x4220, resources.ModelTim.Data.Length);
+        Assert.Equal(0x4220, NativeBattleStorageSnapshots.Capture(resources.ModelTim).Data.Length);
         Assert.Equal(choco98 ? 0x152B580u : 0x152BB58u, resources.TextureProgram.Address);
         Assert.Equal(resources.Model.Address + 0x4EDCu, resources.TextureTable.Address);
         if (choco98)
         {
             NativeBattleChoco97ModelResources previous = game.ReadNativeChoco97ModelResources();
             Assert.Equal(previous.Model.Bytes.ToArray(), resources.Model.Bytes.ToArray());
-            Assert.Equal(previous.ModelTim.Data.ToArray(), resources.ModelTim.Data.ToArray());
-            Assert.Equal(previous.TextureProgram.Data.ToArray(), resources.TextureProgram.Data.ToArray());
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(previous.ModelTim).Data.ToArray(), NativeBattleStorageSnapshots.Capture(resources.ModelTim).Data.ToArray());
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(previous.TextureProgram).Data.ToArray(), NativeBattleStorageSnapshots.Capture(resources.TextureProgram).Data.ToArray());
             Assert.NotEqual(previous.Model.Address, resources.Model.Address);
         }
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
@@ -45,6 +45,7 @@ public sealed class NativeBattleChoco97ModelTests
             NativeBattleEffectOwnedModelStep step = Initialize(resources, choco98);
             Assert.Equal((ushort)1, step.Task.ReadWord(0xDE));
             step = NativeBattleEffectOwnedModel.Select8DD190(step.Task.WriteDword(0x114, 0x1800).WriteDword(0x118, 0x1800).WriteDword(0x11C, 0x1800), step.State, resources.Model, pose);
+            NativeBattleEffectOwnedModelStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectOwnedModelStep>(NativeBattleSnapshotJson.Serialize(step))!;
             NativeBattleEffectOwnedModelDraw draw = Draw(step, Scratch(8), resources, rules);
             Assert.Equal(0xCD0, draw.ProjectedBytesWritten);
             Assert.Equal(0xCD8, draw.ProjectedScratch.Length);
@@ -59,9 +60,8 @@ public sealed class NativeBattleChoco97ModelTests
             }
             Assert.All(draw.ProjectedScratch.Skip(0xCD0), value => Assert.Equal((byte)0xA5, value));
             accepted += draw.Packets.Attempts.Count(attempt => attempt.Primitive is not null);
-            NativeBattleEffectOwnedModelStep restored = JsonSerializer.Deserialize<NativeBattleEffectOwnedModelStep>(JsonSerializer.Serialize(step))!;
-            Assert.Equal(JsonSerializer.Serialize(draw), JsonSerializer.Serialize(Draw(restored, Scratch(8), resources, rules)));
-            Assert.Equal(JsonSerializer.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(step.Task, step.State, resources.Model)), JsonSerializer.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(restored.Task, restored.State, resources.Model)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(draw), NativeBattleSnapshotJson.Serialize(Draw(restored, Scratch(8), resources, rules)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(step.Task, step.State, resources.Model)), NativeBattleSnapshotJson.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(restored.Task, restored.State, resources.Model)));
         }
         Assert.True(accepted > 0);
     }
@@ -82,9 +82,9 @@ public sealed class NativeBattleChoco97ModelTests
         while (current.Task.ReadByte(0x29) != 9 && callbacks++ < 2048)
         {
             phases.Add(current.Task.ReadByte(0x29));
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(current))!;
             StepResult next = Step(current);
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(current))!;
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Step(restored)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored)));
             operations.AddRange(next.Operations);
             Assert.False(next.Advance.ReadyToComplete);
             if (current.Task.ReadByte(0x29) == 8 && next.Advance.Task.ReadByte(0x29) == 9)
@@ -134,9 +134,9 @@ public sealed class NativeBattleChoco97ModelTests
         List<NativeBattleTextureCopy> copies = [];
         for (int callback = 0; task.ReadDword(0x110) != 0 && callback < 512; callback++)
         {
+            NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
             NativeBattleMoogle96TextureStep next = NativeBattleMoogle96TextureMotion.Advance739890(task, resources.TextureProgram, resources.TextureTable);
-            NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(NativeBattleMoogle96TextureMotion.Advance739890(restored, resources.TextureProgram, resources.TextureTable)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(NativeBattleMoogle96TextureMotion.Advance739890(restored, resources.TextureProgram, resources.TextureTable)));
             copies.AddRange(next.Copies);
             task = next.Task;
         }

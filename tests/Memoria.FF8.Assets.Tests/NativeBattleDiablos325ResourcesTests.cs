@@ -87,8 +87,8 @@ public sealed class NativeBattleDiablos325ResourcesTests
         NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(ImmutableArray.CreateRange(new byte[0xE0])).Initialize7016B0(resources.OpeningProgramme, 0xE0);
         Assert.Equal(0xFD8584u, workspace.ResourceAddress);
         Assert.Equal(0, workspace.Frame);
-        NativeBattleDiablos325Resources restored = JsonSerializer.Deserialize<NativeBattleDiablos325Resources>(JsonSerializer.Serialize(resources))!;
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        NativeBattleDiablos325Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleDiablos325Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
         Assert.Throws<InvalidDataException>(() => (resources with { OpeningProgramme = resources.OpeningProgramme with { Address = 0 } }).Validate());
     }
 }

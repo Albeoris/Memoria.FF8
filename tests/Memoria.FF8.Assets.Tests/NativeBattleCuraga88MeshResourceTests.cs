@@ -40,13 +40,13 @@ public sealed class NativeBattleCuraga88MeshResourceTests
             NativeBattleEffectArena context = NativeBattleCuraga88Mesh.PrepareContext(NativeBattleEffectArena.Clear().MarkUnknown(0, 88), address, 0, 2048, 0xC08040);
             NativeBattleCuraga88MeshStep result = NativeBattleCuraga88Mesh.EmitBatch(mesh, address, matrix, projection, context, new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), new(1, 2, 3, 4, 5), 0, 0, 0x100, constants, 0x1234, 0x155);
             NativeBattleGfGeometryBatch expected = NativeBattleCuragaMeshPackets.EmitBatch87EEB0(mesh, matrix, projection, packetContext, colors: constants);
-            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
-            NativeBattleCuraga88MeshStep restored = JsonSerializer.Deserialize<NativeBattleCuraga88MeshStep>(JsonSerializer.Serialize(result))!;
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(expected), NativeBattleSnapshotJson.Serialize(result.Batch));
+            NativeBattleCuraga88MeshStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleCuraga88MeshStep>(NativeBattleSnapshotJson.Serialize(result))!;
             NativeBattleCuraga88MeshStep Continue(NativeBattleCuraga88MeshStep prior)
             {
                 return NativeBattleCuraga88Mesh.EmitBatch(mesh, address, matrix, projection, prior.Context88, prior.Registers, prior.FarControls, 0, 0, 0x100, constants, 0x1234, 0x155);
             }
-            Assert.Equal(JsonSerializer.Serialize(Continue(result)), JsonSerializer.Serialize(Continue(restored)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(Continue(result)), NativeBattleSnapshotJson.Serialize(Continue(restored)));
             Assert.Equal(address + (uint)mesh.Length, BinaryPrimitives.ReadUInt32LittleEndian(result.Context88.Read(0x20, 4)));
             for (int lane = 0; lane < 9; lane++)
             {

@@ -46,8 +46,8 @@ public sealed class NativeBattleReverse94ResourcesTests
         Assert.NotEmpty(upload.State.Drain505D20().Uploads);
         Assert.Same(resources, game.ReadNativeReverse94Resources());
         Assert.Null(game.ReadNativeEffectCatalog()[93].Reverse94Resources);
-        string json = JsonSerializer.Serialize(binding);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffectBinding>(json)!));
+        string json = NativeBattleSnapshotJson.Serialize(binding);
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(NativeBattleSnapshotJson.Deserialize<NativeBattleEffectBinding>(json)!));
         Assert.Null(game.ReadNativeEffectCatalogForEffects([93])[92].Reverse94Resources);
         Assert.Throws<NotSupportedException>(() => NativeBattleReverse94ResourcesReader.Read(new byte[128]));
     }
@@ -65,13 +65,14 @@ public sealed class NativeBattleReverse94ResourcesTests
         int packets = 0;
         for (int frame = 0; frame < 12; frame++)
         {
+            string? taskCheckpoint = frame == 5 ? NativeBattleSnapshotJson.Serialize(task) : null;
             NativeBattleSearchProgramDraw next = NativeBattleSearchProgramDrawing.Advance758D70(task, source, view, projection, colors);
             Assert.Equal(11 - frame, next.Remaining);
             Assert.Equal((uint)(frame + 1), next.Task.ReadDword(0x98));
             if (frame == 5)
             {
-                NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(NativeBattleSearchProgramDrawing.Advance758D70(restored, source, view, projection, colors)));
+                NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(taskCheckpoint!)!;
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(NativeBattleSearchProgramDrawing.Advance758D70(restored, source, view, projection, colors)));
             }
             packets += next.Packets.Attempts.Count(attempt => attempt.Primitive is not null);
             task = next.Task;

@@ -7,6 +7,8 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleGilgameshSwordTrailResourcesTests
 {
+    private sealed record Continuation(NativeBattleGilgameshSwordTrailState State, NativeBattleModulePoolTask Task);
+
     [Fact]
     public void Original_trail_colors_are_authenticated_cached_and_required_when_imported()
     {
@@ -15,8 +17,8 @@ public sealed class NativeBattleGilgameshSwordTrailResourcesTests
         resources.Validate();
         Assert.Same(resources, game.ReadNativeGilgameshSwordTrailResources());
         Assert.Equal(new uint[] { 0x3A602020, 0x3A407070, 0x3A903030, 0x3A303090 }, resources.Colors.ToArray());
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleGilgameshSwordTrailResources>(JsonSerializer.Serialize(resources))));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleGilgameshSwordTrailResources>("{}"));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshSwordTrailResources>(NativeBattleSnapshotJson.Serialize(resources))));
+        Assert.Throws<JsonException>(() => NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshSwordTrailResources>("{}"));
         Assert.Throws<InvalidDataException>(() => (resources with { Colors = resources.Colors.SetItem(3, 0x3A303091) }).Validate());
     }
 
@@ -33,8 +35,8 @@ public sealed class NativeBattleGilgameshSwordTrailResourcesTests
         NativeBattleGilgameshModelMemory models = NativeBattleGilgameshSwords.Step594FD0(NativeBattleGilgameshModelMemory.FromColdProcess(), NativeBattleEffectArena.Clear(), swordTask, resources, view, projection, registers, 0x201).ModelMemory;
         NativeBattleGilgameshSwordTrailState state = NativeBattleGilgameshSwordTrailState.FromColdProcess();
         state.Validate();
-        Assert.Empty(state.Memory.Regions);
-        Assert.Empty(state.Memory.UnknownRegions);
+        Assert.Empty(NativeBattleStorageSnapshots.Capture(state.Memory).Regions);
+        Assert.Empty(NativeBattleStorageSnapshots.Capture(state.Memory).UnknownRegions);
         NativeBattleModulePoolTask task = new(1, 0, null, 0x5943D0, new byte[24].ToImmutableArray());
         for (int frame = 0; frame < 10; frame++)
         {
@@ -56,8 +58,10 @@ public sealed class NativeBattleGilgameshSwordTrailResourcesTests
             }
             if (frame == 4)
             {
-                NativeBattleGilgameshSwordTrailState restored = JsonSerializer.Deserialize<NativeBattleGilgameshSwordTrailState>(JsonSerializer.Serialize(step.State))!;
-                Assert.Equal(JsonSerializer.Serialize(Run(step.State, step.UpdatedTask)), JsonSerializer.Serialize(Run(restored, step.UpdatedTask)));
+                Continuation checkpoint = NativeBattleStorageSnapshots.Capture(new Continuation(step.State, step.UpdatedTask));
+                Continuation expected = NativeBattleStorageSnapshots.Restore(checkpoint);
+                Continuation restored = NativeBattleSnapshotJson.Deserialize<Continuation>(NativeBattleSnapshotJson.Serialize(checkpoint))!;
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(Run(expected.State, expected.Task)), NativeBattleSnapshotJson.Serialize(Run(restored.State, restored.Task)));
             }
             state = step.State;
             task = step.UpdatedTask;

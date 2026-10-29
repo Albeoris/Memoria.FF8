@@ -28,9 +28,9 @@ public sealed class NativeBattleWhiteWind297ResourcesTests
         Assert.Equal("FF8_EN:1056888", resources.CasterDat.Identity);
         Assert.Equal(0x1B74, resources.CasterDat.Data.Length);
         Assert.Equal(new uint[] { 3, 0x14, 0x1648, 0x1698, 0x1B74 }, Enumerable.Range(0, 5).Select(index => Dword(resources.CasterDat.Data, index * 4)));
-        NativeBattleWhiteWind297Resources restored = JsonSerializer.Deserialize<NativeBattleWhiteWind297Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleWhiteWind297Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleWhiteWind297Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         NativeBattleWhiteWind297ResourcesReader.ValidatePayloads(restored);
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
     }
 
     [Theory]
@@ -43,11 +43,13 @@ public sealed class NativeBattleWhiteWind297ResourcesTests
         NativeBattleWhiteWind297Resources resources = game.ReadNativeWhiteWind297Resources();
         NativeBattleGfAnimationSource source = index == 0 ? resources.Caster : index == 1 ? resources.Sweep : resources.Target;
         NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[size].ToImmutableArray()).Initialize7016B0(source, size);
+        string initialWorkspace = NativeBattleSnapshotJson.Serialize(workspace);
         NativeBattleGfAnimationAdvance first = Advance(workspace);
         Assert.Equal(duration - 1, first.Remaining);
         Assert.True(first.EmittedNodes > 0);
-        NativeBattleGfAnimationWorkspace cold = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(first.Workspace))!;
-        Assert.Equal(JsonSerializer.Serialize(Advance(first.Workspace)), JsonSerializer.Serialize(Advance(cold)));
+        NativeBattleGfAnimationWorkspace cold = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(first.Workspace))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(Advance(first.Workspace)), NativeBattleSnapshotJson.Serialize(Advance(cold)));
+        workspace = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(initialWorkspace);
         for (int frame = 0; frame < duration; frame++)
         {
             NativeBattleGfAnimationAdvance next = Advance(workspace);

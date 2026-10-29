@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -43,7 +43,7 @@ public sealed class NativeBattleSandStorm176ResourcesTests
             frame = NativeBattleSandStorm176Controller.Advance(frame, resources, inputs);
             if (tick == 30)
             {
-                frame = JsonSerializer.Deserialize<NativeBattleSandStorm176Frame>(JsonSerializer.Serialize(frame))!;
+                frame = NativeBattleSnapshotJson.Deserialize<NativeBattleSandStorm176Frame>(NativeBattleSnapshotJson.Serialize(frame))!;
                 if (pauseFunnel)
                 {
                     NativeBattleEffectTaskPool active = frame.Effect.Pools[1];

@@ -40,9 +40,9 @@ public sealed class NativeBattleChoco100ProgramResourcesTests
         for (int call = 0; call < maximum; call++)
         {
             Saved saved = new(task, source, scratch);
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(saved))!;
             NativeBattleChoco99ProgramDraw next = Step(saved, 0);
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(saved))!;
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Step(restored, 0)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored, 0)));
             if (call == 0)
             {
                 Assert.Equal(unchecked((ushort)(file == 502 ? 60 + 0xA800 : file == 496 ? 20 - 1024 : file == 492 ? 20 - 384 : 20)), next.Draw.Task.ReadWord(0x1E));
@@ -51,9 +51,9 @@ public sealed class NativeBattleChoco100ProgramResourcesTests
                 Assert.Equal(file == 502 ? 0x2800u : 4096u, next.Draw.Task.ReadDword(0x58));
                 Assert.Equal((ushort)(file == 502 ? 0xF000 : 0), next.Draw.Task.ReadWord(0x86));
                 Assert.Equal(file == 496 ? 0u : 1u, next.Draw.Task.ReadDword(0x98));
-                Assert.All(next.Draw.Task.Payload.Skip(0x94 - 12 + definition.Clear), value => Assert.Equal((byte)0xA5, value));
-                ImmutableArray<byte> expected = Scroll(source.Data);
-                Assert.Equal(expected.ToArray(), next.Draw.Source.Data.ToArray());
+                Assert.All(NativeBattleStorageSnapshots.Capture(next.Draw.Task).Payload.Skip(0x94 - 12 + definition.Clear), value => Assert.Equal((byte)0xA5, value));
+                ImmutableArray<byte> expected = Scroll(NativeBattleStorageSnapshots.Capture(source).Data);
+                Assert.Equal(expected.ToArray(), NativeBattleStorageSnapshots.Capture(next.Draw.Source).Data.ToArray());
             }
             for (int offset = 6; offset < scratch.Length; offset += 8)
             {
@@ -84,15 +84,17 @@ public sealed class NativeBattleChoco100ProgramResourcesTests
         {
             Assert.Equal((byte)1, task.ReadByte(0x29));
             Assert.Equal((byte)0, task.ReadByte(0x26));
+            ImmutableArray<byte> terminalSourceBefore = NativeBattleStorageSnapshots.Capture(source).Data;
             NativeBattleChoco99ProgramDraw terminal = Step(new(task, source, scratch), (short)(file == 496 ? 5 : 9));
             Assert.True(terminal.Draw.ReadyToComplete);
             Assert.Null(terminal.Draw.Remaining);
             Assert.Empty(terminal.Draw.Packets.Attempts);
             Assert.Equal(task.ReadDword(0x98), terminal.Draw.Task.ReadDword(0x98));
-            Assert.Equal(Scroll(source.Data).ToArray(), terminal.Draw.Source.Data.ToArray());
+            Assert.Equal(Scroll(terminalSourceBefore).ToArray(), NativeBattleStorageSnapshots.Capture(terminal.Draw.Source).Data.ToArray());
+            ImmutableArray<byte> retainedSourceBefore = NativeBattleStorageSnapshots.Capture(terminal.Draw.Source).Data;
             NativeBattleChoco99ProgramDraw retainedTerminal = Step(new(terminal.Draw.Task, terminal.Draw.Source, terminal.Draw.MorphScratch), (short)(file == 496 ? 5 : 9));
             Assert.Empty(retainedTerminal.Draw.Packets.Attempts);
-            Assert.Equal(Scroll(terminal.Draw.Source.Data).ToArray(), retainedTerminal.Draw.Source.Data.ToArray());
+            Assert.Equal(Scroll(retainedSourceBefore).ToArray(), NativeBattleStorageSnapshots.Capture(retainedTerminal.Draw.Source).Data.ToArray());
             Assert.False(Step(new(task.WriteByte(0x28, 1), source, scratch), (short)(file == 496 ? 5 : 9)).Draw.ReadyToComplete);
         }
         else
@@ -100,7 +102,7 @@ public sealed class NativeBattleChoco100ProgramResourcesTests
             Assert.True(Step(new(task, source, scratch), 0).Draw.ReadyToComplete);
             Assert.Equal((uint)duration, task.ReadDword(0x98));
         }
-        Assert.Equal(original.Data.ToArray(), file == 0 ? game.ReadNativeChoco100ProgramResources().ProgramSource.Data.ToArray() : Assert.Single(game.ReadNativeChoco100ProgramResources().Loaded, loaded => loaded.Profile == profile).ProgramSource.Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(original).Data.ToArray(), file == 0 ? NativeBattleStorageSnapshots.Capture(game.ReadNativeChoco100ProgramResources().ProgramSource).Data.ToArray() : NativeBattleStorageSnapshots.Capture(Assert.Single(game.ReadNativeChoco100ProgramResources().Loaded, loaded => loaded.Profile == profile).ProgramSource).Data.ToArray());
         Assert.Throws<InvalidDataException>(() => Step(new(task, source, new byte[0x760].ToImmutableArray()), 0));
 
         NativeBattleChoco99ProgramDraw Step(Saved saved, short mode) => file == 0 ? NativeBattleChoco100ProgramDrawing.AdvanceInitial(saved.Task, saved.Source, Actor, saved.Scratch, View, Projection, colors, 0) : NativeBattleChoco100ProgramDrawing.AdvanceLoaded(profile, saved.Task, saved.Source, Actor, Target, mode, saved.Scratch, View, Projection, colors, 0);

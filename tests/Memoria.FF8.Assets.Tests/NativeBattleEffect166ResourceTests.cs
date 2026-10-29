@@ -40,7 +40,7 @@ public sealed class NativeBattleEffect166ResourceTests
     {
         using GameAssets game = Open();
         NativeBattleEffect166Resources resources = game.ReadNativeEffect166Resources();
-        NativeBattleEffect166Resources restored = JsonSerializer.Deserialize<NativeBattleEffect166Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleEffect166Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect166Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
         Assert.Equal(resources.MeshTable.ToArray(), restored.MeshTable.ToArray());
         NativeBattleCameraBank bank = new(restored.Camera.Data.AsSpan().Slice(32).ToArray().ToImmutableArray());
@@ -63,7 +63,7 @@ public sealed class NativeBattleEffect166ResourceTests
         NativeBattleEffect166State state = NativeBattleEffect166State.FromColdProcess().BindCapturePacket(resources);
         byte[] payload = state.ReadCapturePacket().Read(4, 20);
         state = state.WriteCapturePacket(state.ReadCapturePacket().Write(0, BitConverter.GetBytes(0x05ABCDEFu)));
-        state = JsonSerializer.Deserialize<NativeBattleEffect166State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect166State>(NativeBattleSnapshotJson.Serialize(state))!;
         state = state.BindCapturePacket(resources);
         state.Validate();
         Assert.Equal(BitConverter.GetBytes(0x05ABCDEFu), state.ReadCapturePacket().Read(0, 4));

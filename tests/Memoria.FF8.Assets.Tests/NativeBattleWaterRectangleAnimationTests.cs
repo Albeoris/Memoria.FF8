@@ -42,11 +42,11 @@ public sealed class NativeBattleWaterRectangleAnimationTests
         int callbacks = sequence == 1 ? 2 : 10;
         for (int i = 0; i < callbacks; i++)
         {
-            NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleWaterExecutionFrame restored = NativeBattleSnapshotJson.Deserialize<NativeBattleWaterExecutionFrame>(NativeBattleSnapshotJson.Serialize(frame))!;
             (NativeBattleWaterExecutionFrame next, NativeBattleGfGeometryBatch? packets) = Advance(frame);
             (NativeBattleWaterExecutionFrame coldNext, NativeBattleGfGeometryBatch? coldPackets) = Advance(restored);
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(coldNext));
-            Assert.Equal(JsonSerializer.Serialize(packets), JsonSerializer.Serialize(coldPackets));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(coldNext));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(packets), NativeBattleSnapshotJson.Serialize(coldPackets));
             if (sequence == 1 && i == 1)
             {
                 Assert.Null(packets);

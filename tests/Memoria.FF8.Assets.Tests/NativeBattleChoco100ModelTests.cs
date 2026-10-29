@@ -20,8 +20,8 @@ public sealed class NativeBattleChoco100ModelTests
         Assert.Equal(0x1529F18u, resources.TextureProgram.Address);
         Assert.Equal(resources.Model.Address + 0x4EDCu, resources.TextureTable.Address);
         Assert.Equal(prior.Model.Bytes.ToArray(), resources.Model.Bytes.ToArray());
-        Assert.Equal(prior.ModelTim.Data.ToArray(), resources.ModelTim.Data.ToArray());
-        Assert.Equal(prior.TextureProgram.Data.ToArray(), resources.TextureProgram.Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(prior.ModelTim).Data.ToArray(), NativeBattleStorageSnapshots.Capture(resources.ModelTim).Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(prior.TextureProgram).Data.ToArray(), NativeBattleStorageSnapshots.Capture(resources.TextureProgram).Data.ToArray());
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         NativeBattleEffectOwnedModelStep initialized = Initialize(resources, 0x200000);
         NativeBattleEffectOwnedModelStep second = Initialize(resources, 0x200140);
@@ -30,12 +30,12 @@ public sealed class NativeBattleChoco100ModelTests
         for (short pose = 0; pose <= 5; pose++)
         {
             NativeBattleEffectOwnedModelStep selected = NativeBattleEffectOwnedModel.Select8DD190(initialized.Task.WriteDword(0x114, 6144).WriteDword(0x118, 6144).WriteDword(0x11C, 6144), initialized.State, resources.Model, pose);
+            NativeBattleEffectOwnedModelStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectOwnedModelStep>(NativeBattleSnapshotJson.Serialize(selected))!;
             NativeBattleEffectOwnedModelDraw draw = Draw(selected, Scratch(), resources, rules);
             Assert.Equal(0xCD0, draw.ProjectedBytesWritten);
             Assert.NotEmpty(draw.Packets.Attempts);
-            NativeBattleEffectOwnedModelStep restored = JsonSerializer.Deserialize<NativeBattleEffectOwnedModelStep>(JsonSerializer.Serialize(selected))!;
-            Assert.Equal(JsonSerializer.Serialize(draw), JsonSerializer.Serialize(Draw(restored, Scratch(), resources, rules)));
-            Assert.Equal(JsonSerializer.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(selected.Task, selected.State, resources.Model)), JsonSerializer.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(restored.Task, restored.State, resources.Model)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(draw), NativeBattleSnapshotJson.Serialize(Draw(restored, Scratch(), resources, rules)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(selected.Task, selected.State, resources.Model)), NativeBattleSnapshotJson.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(restored.Task, restored.State, resources.Model)));
         }
     }
 
@@ -98,9 +98,9 @@ public sealed class NativeBattleChoco100ModelTests
 
         StepResult Step(Saved saved, bool request5, bool finish)
         {
+            Saved cold = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(saved))!;
             StepResult first = Advance(saved);
-            Saved cold = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(saved))!;
-            Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(Advance(cold)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(first), NativeBattleSnapshotJson.Serialize(Advance(cold)));
             return first;
 
             StepResult Advance(Saved source)

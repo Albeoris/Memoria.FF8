@@ -29,8 +29,8 @@ public sealed class NativeBattleBio22ActorPacketTests
                 Assert.Throws<NotSupportedException>(() => current.Work.Read(0x10000, 4));
                 Assert.Throws<NotSupportedException>(() => current.Work.Read(0x1000A, 6));
             }
-            NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(current.Work))!;
-            Assert.Equal(JsonSerializer.Serialize(Draw(mesh, current.Work)), JsonSerializer.Serialize(Draw(mesh, restored)));
+            NativeBattleEffectArena restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectArena>(NativeBattleSnapshotJson.Serialize(current.Work))!;
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(Draw(mesh, current.Work)), NativeBattleSnapshotJson.Serialize(Draw(mesh, restored)));
             work = current.Work;
         }
         Assert.True(packets > 0);

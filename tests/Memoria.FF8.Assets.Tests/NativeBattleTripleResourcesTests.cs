@@ -17,9 +17,9 @@ public sealed class NativeBattleTripleResourcesTests
         Assert.Equal(Assert.Single(game.ReadNativeTripleResources().Meshes, mesh => mesh.Address == 0x1627970).Bytes.ToArray(), current.Bytes.ToArray());
         Assert.Same(current, memory.BeginLoad(20).TripleMorph);
         Assert.Null(NativeBattleEffectMemory.FromColdProcess().TripleMorph);
-        JsonObject saved = JsonNode.Parse(JsonSerializer.Serialize(memory))!.AsObject();
+        JsonObject saved = JsonNode.Parse(NativeBattleSnapshotJson.Serialize(memory))!.AsObject();
         Assert.True(saved.Remove("TripleMorph"));
-        NativeBattleEffectMemory old = JsonSerializer.Deserialize<NativeBattleEffectMemory>(saved.ToJsonString())!;
+        NativeBattleEffectMemory old = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectMemory>(saved.ToJsonString())!;
         Assert.Null(old.TripleMorph);
         Assert.Null(old.BeginLoad(20).TripleMorph);
     }
@@ -73,7 +73,7 @@ public sealed class NativeBattleTripleResourcesTests
                 Assert.Equal(source.AsSpan().Slice(offset, 6).ToArray(), next.Bytes.AsSpan().Slice(offset, 6).ToArray());
             }
         }
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleTripleMorph>(JsonSerializer.Serialize(next))));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(NativeBattleSnapshotJson.Deserialize<NativeBattleTripleMorph>(NativeBattleSnapshotJson.Serialize(next))));
     }
 
     [Theory]

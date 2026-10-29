@@ -5,7 +5,7 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleTurnBasedClockTests
 {
-    private static readonly TimeSpan PresentationFrame = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+    private static readonly TimeSpan PresentationFrame = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
 
     [Fact]
     public void Zero_work_budget_reaches_readiness_with_one_graphics_callback_and_resumes_exactly()
@@ -25,7 +25,7 @@ public sealed class NativeBattleTurnBasedClockTests
         long logicalSteps = battle.Frame - before.Frame;
         Assert.Equal(before.NativeHostCallbacks!.Value + logicalSteps + 1, battle.NativeHostCallbacks!.Value);
         Assert.Equal(before.NativeExamTimer!.ClockCalls + 4 * (logicalSteps + 1), battle.NativeExamTimer!.ClockCalls);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
 
         long heldFrame = battle.Frame;
         int heldGauge = battle.Combatants[1].NativeAtb!.Current;
@@ -37,7 +37,7 @@ public sealed class NativeBattleTurnBasedClockTests
         Assert.Equal(heldGauge, battle.Combatants[1].NativeAtb!.Current);
         Assert.Equal(callbacks + 1, battle.NativeHostCallbacks.Value);
         Assert.Equal(timerCalls + 4, battle.NativeExamTimer.ClockCalls);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
         SaveOptionalSnapshot(battle, nameof(Zero_work_budget_reaches_readiness_with_one_graphics_callback_and_resumes_exactly));
     }
 
@@ -64,12 +64,12 @@ public sealed class NativeBattleTurnBasedClockTests
         Assert.Equal(before.Frame + advanced, after.Frame);
         Assert.Equal(before.NativeGraphics!.Callback, after.NativeGraphics!.Callback);
         // Full-gauge registration may enqueue UI readiness; all presentation owners stay at their saved boundary.
-        Assert.Equal(JsonSerializer.Serialize(before.NativeGraphics), JsonSerializer.Serialize(after.NativeGraphics with { UiServices = before.NativeGraphics.UiServices }));
-        Assert.Equal(JsonSerializer.Serialize(before.NativeActionPackets), JsonSerializer.Serialize(after.NativeActionPackets));
-        Assert.Equal(JsonSerializer.Serialize(before.ActiveAction), JsonSerializer.Serialize(after.ActiveAction));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(before.NativeGraphics), NativeBattleSnapshotJson.Serialize(after.NativeGraphics with { UiServices = before.NativeGraphics.UiServices }));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(before.NativeActionPackets), NativeBattleSnapshotJson.Serialize(after.NativeActionPackets));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(before.ActiveAction), NativeBattleSnapshotJson.Serialize(after.ActiveAction));
         Assert.Equal(before.NativeHostCallbacks!.Value + advanced, after.NativeHostCallbacks!.Value);
         Assert.Equal(before.NativeExamTimer!.ClockCalls + 4L * advanced, after.NativeExamTimer!.ClockCalls);
-        Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(after), NativeBattleSnapshotJson.Serialize(restored.Capture()));
         SaveOptionalSnapshot(battle, $"ExplicitAdvance{nextActor}");
     }
 
@@ -112,8 +112,8 @@ public sealed class NativeBattleTurnBasedClockTests
         Assert.Equal(before.Combatants[0].NativeStatus!.Timers, after.Combatants[0].NativeStatus!.Timers);
         Assert.Equal(before.Combatants[0].StatusEffects, after.Combatants[0].StatusEffects);
         Assert.Equal(before.NativeGraphics.Callback + 1, after.NativeGraphics!.Callback);
-        Assert.NotEqual(JsonSerializer.Serialize(before.NativeGraphics), JsonSerializer.Serialize(after.NativeGraphics));
-        Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture()));
+        Assert.NotEqual(NativeBattleSnapshotJson.Serialize(before.NativeGraphics), NativeBattleSnapshotJson.Serialize(after.NativeGraphics));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(after), NativeBattleSnapshotJson.Serialize(restored.Capture()));
 
         BattleCombatantSnapshot ally = after.Combatants[1];
         BattleCombatantSnapshot[] unready = after.Combatants.ToArray();
@@ -132,9 +132,9 @@ public sealed class NativeBattleTurnBasedClockTests
         BattleSnapshot passed = battle.Capture();
         Assert.Equal(beforePass.ActiveAction, passed.ActiveAction);
         Assert.Equal(beforePass.NativeClock.ActionPause, passed.NativeClock!.ActionPause);
-        Assert.Equal(JsonSerializer.Serialize(beforePass.NativeGraphics), JsonSerializer.Serialize(passed.NativeGraphics! with { UiServices = beforePass.NativeGraphics!.UiServices }));
-        Assert.Equal(JsonSerializer.Serialize(beforePass.NativeActionPackets), JsonSerializer.Serialize(passed.NativeActionPackets));
-        Assert.Equal(JsonSerializer.Serialize(passed), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(beforePass.NativeGraphics), NativeBattleSnapshotJson.Serialize(passed.NativeGraphics! with { UiServices = beforePass.NativeGraphics!.UiServices }));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(beforePass.NativeActionPackets), NativeBattleSnapshotJson.Serialize(passed.NativeActionPackets));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(passed), NativeBattleSnapshotJson.Serialize(restored.Capture()));
         SaveOptionalSnapshot(battle, nameof(Ready_player_without_menu_holds_gauges_and_statuses_during_original_action));
     }
 
@@ -166,7 +166,7 @@ public sealed class NativeBattleTurnBasedClockTests
 
     private static BattleSession Resume(BattleSession battle)
     {
-        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        return BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(battle.Capture()))!);
     }
 
     private static void SaveOptionalSnapshot(BattleSession battle, string name)
@@ -178,6 +178,6 @@ public sealed class NativeBattleTurnBasedClockTests
         directory = Path.GetFullPath(directory);
         Directory.CreateDirectory(directory);
         using FileStream stream = new(Path.Combine(directory, $"{name}.json"), FileMode.CreateNew, FileAccess.Write);
-        JsonSerializer.Serialize(stream, battle.Capture());
+        NativeBattleSnapshotJson.Serialize(stream, battle.Capture());
     }
 }

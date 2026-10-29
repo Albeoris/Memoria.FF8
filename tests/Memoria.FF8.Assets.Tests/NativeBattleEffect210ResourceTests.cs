@@ -44,7 +44,7 @@ public sealed class NativeBattleEffect210ResourceTests
                 Assert.Equal(frames - frame - 1, next.Remaining);
                 workspace = next.Workspace;
             }
-            Assert.All(workspace.Data.AsSpan().Slice(length).ToArray(), value => Assert.Equal((byte)0xA5, value));
+            Assert.All(NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan().Slice(length).ToArray(), value => Assert.Equal((byte)0xA5, value));
         }
         Assert.Equal(1261, outputs);
         Assert.Equal(1704, maximumMorph);
@@ -65,7 +65,7 @@ public sealed class NativeBattleEffect210ResourceTests
         Assert.Throws<NotSupportedException>(() => resources.ReadStatic(BaseAddress, 4));
         Assert.Throws<NotSupportedException>(() => resources.ReadStatic(MainSelectorsAddress, 8));
         Assert.Throws<NotSupportedException>(() => resources.ReadFile(703));
-        NativeBattleEffect210Resources restored = JsonSerializer.Deserialize<NativeBattleEffect210Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleEffect210Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect210Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
         Assert.Equal(resources.ReadFile(704).Data.ToArray(), restored.ReadFile(704).Data.ToArray());
         Assert.Equal(resources.ReadStatic(MainSelectorsAddress, 7), restored.ReadStatic(MainSelectorsAddress, 7));

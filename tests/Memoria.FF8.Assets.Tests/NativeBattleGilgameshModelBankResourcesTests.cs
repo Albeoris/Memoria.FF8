@@ -44,7 +44,7 @@ public sealed class NativeBattleGilgameshModelBankResourcesTests
         Assert.Equal((byte)2, advanced.Model[0x72]);
         NativeBattleGilgameshModelBankStep repeated = Run(first.ModelMemory.Write(primary, advanced), task, resources, 0x201);
         Assert.Equal((byte)1, repeated.ModelMemory.Read(primary).State.Model[0x72]);
-        Assert.Equal(JsonSerializer.Serialize(first.ModelMemory), JsonSerializer.Serialize(repeated.ModelMemory));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(first.ModelMemory), NativeBattleSnapshotJson.Serialize(repeated.ModelMemory));
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class NativeBattleGilgameshModelBankResourcesTests
         Assert.Equal(5, draw.Packets.Length);
         NativeBattleCactuarRawModelState primary = draw.ModelMemory.Read(0x2200F00).State;
         NativeBattleGilgameshRawModelDraw expectedPrimary = NativeBattleGilgameshRawModel.Draw595E40(memory.Read(0x2200F00).State, resources.Stream749Models[0], 0x21FF2B0, NativeBattleEffectArena.Clear(), View(), Projection(), NativeBattleGteColorInterpolation.CodeConstants45F270, 3);
-        Assert.Equal(JsonSerializer.Serialize(expectedPrimary.Packets), JsonSerializer.Serialize(draw.Packets[0]));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(expectedPrimary.Packets), NativeBattleSnapshotJson.Serialize(draw.Packets[0]));
         for (int index = 0; index < 4; index++)
         {
             NativeBattleCactuarRawModelState child = draw.ModelMemory.Read(Clone(index)).State;
@@ -72,10 +72,10 @@ public sealed class NativeBattleGilgameshModelBankResourcesTests
             Assert.Equal(Int(primary.Model, 0x28), Int(child.Model, 0x28));
             Assert.Equal((byte)1, child.Model[0x72]);
         }
+        NativeBattleGilgameshModelBankStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshModelBankStep>(NativeBattleSnapshotJson.Serialize(draw))!;
         NativeBattleGilgameshModelBankStep repeated = Run(draw.ModelMemory, Task(0x596800, 41), resources, 0x201, draw.Arena);
         Assert.All(Enumerable.Range(0, 4), index => Assert.Equal(203, Int(repeated.ModelMemory.Read(Clone(index)).State.Model, 0x5C)));
-        NativeBattleGilgameshModelBankStep restored = JsonSerializer.Deserialize<NativeBattleGilgameshModelBankStep>(JsonSerializer.Serialize(draw))!;
-        Assert.Equal(JsonSerializer.Serialize(repeated), JsonSerializer.Serialize(Run(restored.ModelMemory, Task(0x596800, 41), resources, 0x201, restored.Arena)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(repeated), NativeBattleSnapshotJson.Serialize(Run(restored.ModelMemory, Task(0x596800, 41), resources, 0x201, restored.Arena)));
     }
 
     [Theory]
@@ -137,7 +137,7 @@ public sealed class NativeBattleGilgameshModelBankResourcesTests
         NativeBattleGilgameshModelBankStep paused = Run(memory, Task(0x5966B0, 104), resources, 0x201);
         NativeBattleGilgameshModelBankStep step = Run(memory, Task(0x5966B0, 104), resources, 0);
         Assert.Single(step.Packets);
-        Assert.Equal(JsonSerializer.Serialize(paused.Packets), JsonSerializer.Serialize(step.Packets));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(paused.Packets), NativeBattleSnapshotJson.Serialize(step.Packets));
         Assert.Equal((byte)1, paused.ModelMemory.Read(0x21FF760).State.Model[0x72]);
         Assert.Equal((byte)2, step.ModelMemory.Read(0x21FF760).State.Model[0x72]);
         Assert.Equal(2, step.Result);

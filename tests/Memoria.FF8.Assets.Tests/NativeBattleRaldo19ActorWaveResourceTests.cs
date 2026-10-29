@@ -40,13 +40,13 @@ public sealed class NativeBattleRaldo19ActorWaveResourceTests
             NativeBattleEffectArena context = NativeBattleActorWaveMesh.PrepareContext(NativeBattleEffectArena.Clear().MarkUnknown(0, 104), address, 0, 2048, 0xC08040);
             NativeBattleActorWaveMeshStep result = NativeBattleActorWaveMesh.EmitBatch(mesh, address, matrix, projection, context, new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), new(1, 2, 3, 4, 5), 0, 0, 0x100, constants, 0x1234, 0x155);
             NativeBattleGfGeometryBatch expected = NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh, matrix, projection, packetContext, constants);
-            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
-            NativeBattleActorWaveMeshStep restored = JsonSerializer.Deserialize<NativeBattleActorWaveMeshStep>(JsonSerializer.Serialize(result))!;
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(expected), NativeBattleSnapshotJson.Serialize(result.Batch));
+            NativeBattleActorWaveMeshStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleActorWaveMeshStep>(NativeBattleSnapshotJson.Serialize(result))!;
             NativeBattleActorWaveMeshStep Continue(NativeBattleActorWaveMeshStep prior)
             {
                 return NativeBattleActorWaveMesh.EmitBatch(mesh, address, matrix, projection, prior.Context104, prior.Registers, prior.FarControls, 0, 0, 0x100, constants, 0x1234, 0x155);
             }
-            Assert.Equal(JsonSerializer.Serialize(Continue(result)), JsonSerializer.Serialize(Continue(restored)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(Continue(result)), NativeBattleSnapshotJson.Serialize(Continue(restored)));
             Assert.Equal(address + (uint)mesh.Length, BinaryPrimitives.ReadUInt32LittleEndian(result.Context104.Read(0x2C, 4)));
             for (int lane = 0; lane < 9; lane++)
             {

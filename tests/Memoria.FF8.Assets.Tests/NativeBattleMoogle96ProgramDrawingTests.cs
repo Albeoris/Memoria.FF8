@@ -30,32 +30,38 @@ public sealed class NativeBattleMoogle96ProgramDrawingTests
         int packets = 0;
         for (int frame = 0; frame < 135; frame++)
         {
+            Shared? checkpoint = frame == 67 ? NativeBattleStorageSnapshots.Capture(new Shared(task, task, source)) : null;
             NativeBattleMoogle96ProgramDraw next = NativeBattleMoogle96ProgramDrawing.Advance734450(task, source, View, Projection, colors, 0);
             Assert.Equal(134 - frame, next.Remaining);
             Assert.Equal((uint)(frame + 1), next.Task.ReadDword(0x98));
             Assert.Equal((ushort)0xA5A5, next.Task.ReadWord(0x92));
             if (frame == 67)
             {
-                Shared saved = new(task, task, source);
-                Shared restored = JsonSerializer.Deserialize<Shared>(JsonSerializer.Serialize(saved))!;
+                Shared restored = NativeBattleStorageSnapshots.Restore(checkpoint!);
                 NativeBattleMoogle96ProgramDraw cold = NativeBattleMoogle96ProgramDrawing.Advance734450(restored.First, restored.Source, View, Projection, colors, 0);
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(cold));
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleMoogle96ProgramDrawing.MutateUv7340A0(source)), JsonSerializer.Serialize(NativeBattleMoogle96ProgramDrawing.MutateUv7340A0(restored.Source)));
-                NativeBattleMoogle96ProgramDraw unused86 = NativeBattleMoogle96ProgramDrawing.Advance734450(task.WriteWord(0x86, 0xFF00), source, View, Projection, colors, 0);
-                Assert.Equal(JsonSerializer.Serialize(next.Packets), JsonSerializer.Serialize(unused86.Packets));
-                NativeBattleMoogle96ProgramDraw frozen = NativeBattleMoogle96ProgramDrawing.Advance734450(task, source, View, Projection, colors, 0x10000);
-                Assert.Equal(task.ReadDword(0x98), frozen.Task.ReadDword(0x98));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(cold));
+                Shared uvExpected = NativeBattleStorageSnapshots.Restore(checkpoint!);
+                Shared uvActual = NativeBattleSnapshotJson.Deserialize<Shared>(NativeBattleSnapshotJson.Serialize(checkpoint))!;
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleMoogle96ProgramDrawing.MutateUv7340A0(uvExpected.Source)), NativeBattleSnapshotJson.Serialize(NativeBattleMoogle96ProgramDrawing.MutateUv7340A0(uvActual.Source)));
+                Shared unused = NativeBattleStorageSnapshots.Restore(checkpoint!);
+                NativeBattleMoogle96ProgramDraw unused86 = NativeBattleMoogle96ProgramDrawing.Advance734450(unused.First.WriteWord(0x86, 0xFF00), unused.Source, View, Projection, colors, 0);
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next.Packets), NativeBattleSnapshotJson.Serialize(unused86.Packets));
+                Shared paused = NativeBattleStorageSnapshots.Restore(checkpoint!);
+                uint pausedCounter = paused.First.ReadDword(0x98);
+                NativeBattleMoogle96ProgramDraw frozen = NativeBattleMoogle96ProgramDrawing.Advance734450(paused.First, paused.Source, View, Projection, colors, 0x10000);
+                Assert.Equal(pausedCounter, frozen.Task.ReadDword(0x98));
             }
             packets += next.Packets.Attempts.Count(attempt => attempt.Primitive is not null);
+            ImmutableArray<byte> sourceBefore = NativeBattleStorageSnapshots.Capture(source).Data;
             NativeBattleGfAnimationSource changed = NativeBattleMoogle96ProgramDrawing.MutateUv7340A0(source);
             Assert.Equal(source.Address, changed.Address);
-            Assert.False(source.Data.AsSpan().SequenceEqual(changed.Data.AsSpan()));
+            Assert.False(sourceBefore.AsSpan().SequenceEqual(NativeBattleStorageSnapshots.Capture(changed).Data.AsSpan()));
             source = changed;
             task = next.Task;
         }
         Assert.True(packets > 0);
-        Assert.False(original.Data.AsSpan().SequenceEqual(source.Data.AsSpan()));
-        Assert.Equal(game.ReadNativeMoogle96Resources().ProgramSource.Data.ToArray(), original.Data.ToArray());
+        Assert.False(NativeBattleStorageSnapshots.Capture(original).Data.AsSpan().SequenceEqual(NativeBattleStorageSnapshots.Capture(source).Data.AsSpan()));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(game.ReadNativeMoogle96Resources().ProgramSource).Data.ToArray(), NativeBattleStorageSnapshots.Capture(original).Data.ToArray());
     }
 
     [Fact]
@@ -70,15 +76,17 @@ public sealed class NativeBattleMoogle96ProgramDrawingTests
         Shared state = new(first, second, source);
         for (int frame = 0; frame < 135; frame++)
         {
+            Shared checkpoint = NativeBattleStorageSnapshots.Capture(state);
+            Shared independent = NativeBattleStorageSnapshots.Restore(checkpoint);
             Shared next = Step(state, out NativeBattleGfGeometryBatch secondPackets);
-            NativeBattleGfGeometryBatch stalePackets = NativeBattleMoogle96ProgramDrawing.Advance734450(state.Second, state.Source, View, Projection, colors, 0).Packets;
-            secondObservedFirst |= JsonSerializer.Serialize(stalePackets) != JsonSerializer.Serialize(secondPackets);
+            NativeBattleGfGeometryBatch stalePackets = NativeBattleMoogle96ProgramDrawing.Advance734450(independent.Second, independent.Source, View, Projection, colors, 0).Packets;
+            secondObservedFirst |= NativeBattleSnapshotJson.Serialize(stalePackets) != NativeBattleSnapshotJson.Serialize(secondPackets);
             if (frame == 67)
             {
-                Shared restored = JsonSerializer.Deserialize<Shared>(JsonSerializer.Serialize(state))!;
+                Shared restored = NativeBattleSnapshotJson.Deserialize<Shared>(NativeBattleSnapshotJson.Serialize(checkpoint))!;
                 Shared cold = Step(restored, out NativeBattleGfGeometryBatch coldPackets);
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(cold));
-                Assert.Equal(JsonSerializer.Serialize(secondPackets), JsonSerializer.Serialize(coldPackets));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(cold));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(secondPackets), NativeBattleSnapshotJson.Serialize(coldPackets));
             }
             Assert.Equal((uint)(frame + 1), next.First.ReadDword(0x98));
             Assert.Equal((uint)(frame + 1), next.Second.ReadDword(0x98));

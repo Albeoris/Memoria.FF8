@@ -74,10 +74,10 @@ public sealed class NativeBattleWaterMorphPreparationTests
             Assert.Equal((ushort)starts[step], U16(frame.Arena, tuple + 2));
             Assert.Equal((ushort)ends[step], U16(frame.Arena, tuple + 4));
             frame = frame.WriteTemporaryDword(0x4C, arenaBase + (uint)tuple);
-            NativeBattleWaterExecutionFrame cold = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleWaterExecutionFrame cold = NativeBattleSnapshotJson.Deserialize<NativeBattleWaterExecutionFrame>(NativeBattleSnapshotJson.Serialize(frame))!;
             NativeBattleWaterExecutionFrame actual = NativeBattleWaterMeshPreparation.MorphSelected(frame, bank, 0, resources, map, selected.VertexCount);
             NativeBattleWaterExecutionFrame restored = NativeBattleWaterMeshPreparation.MorphSelected(cold, bank, 0, resources, map, selected.VertexCount);
-            Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(actual), NativeBattleSnapshotJson.Serialize(restored));
             Assert.Equal(arenaBase + (uint)(file0 + shapeOffsets[starts[step] - 5] + 0x30), actual.ReadTemporaryDword(0xF0));
             Assert.Equal(arenaBase + (uint)(file0 + shapeOffsets[ends[step] - 5] + 0x30), actual.ReadTemporaryDword(0xF4));
             Assert.Equal(170u, actual.ReadTemporaryDword(0xF8));

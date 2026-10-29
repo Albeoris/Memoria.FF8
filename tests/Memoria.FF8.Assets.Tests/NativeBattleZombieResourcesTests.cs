@@ -22,24 +22,24 @@ public sealed class NativeBattleZombieResourcesTests
         {
             live = live.Advance701970(resources.Layout, 0, (owner, _) => owner).Workspace;
         }
-        NativeBattleGfAnimationWorkspace restored = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(live))!;
+        NativeBattleGfAnimationWorkspace restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(live))!;
         for (int callback = 20; callback < 49; callback++)
         {
             List<string> first = [];
             List<string> second = [];
             NativeBattleGfAnimationAdvance a = live.Advance701970(resources.Layout, 0, (owner, node) =>
             {
-                first.Add(JsonSerializer.Serialize(node));
+                first.Add(NativeBattleSnapshotJson.Serialize(node));
                 return owner;
             });
             NativeBattleGfAnimationAdvance b = restored.Advance701970(resources.Layout, 0, (owner, node) =>
             {
-                second.Add(JsonSerializer.Serialize(node));
+                second.Add(NativeBattleSnapshotJson.Serialize(node));
                 return owner;
             });
             Assert.Equal(first, second);
             Assert.Equal(a.Remaining, b.Remaining);
-            Assert.Equal(JsonSerializer.Serialize(a.Workspace), JsonSerializer.Serialize(b.Workspace));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(a.Workspace), NativeBattleSnapshotJson.Serialize(b.Workspace));
             live = a.Workspace;
             restored = b.Workspace;
         }

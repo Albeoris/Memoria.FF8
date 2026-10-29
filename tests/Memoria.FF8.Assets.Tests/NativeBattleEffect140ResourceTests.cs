@@ -39,13 +39,13 @@ public sealed class NativeBattleEffect140ResourceTests
         (NativeBattleEffect140State state, NativeBattleFileStaging staging) = NativeBattleEffect140State.FromColdProcess().BindSources(NativeBattleFileStaging.Unknown(), resources);
         uint w = MutableMeshAddresses[0] + 14;
         staging = staging.Write(w, BitConverter.GetBytes((ushort)0xCAFE));
-        state = JsonSerializer.Deserialize<NativeBattleEffect140State>(JsonSerializer.Serialize(state))!;
-        staging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        state = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect140State>(NativeBattleSnapshotJson.Serialize(state))!;
+        staging = NativeBattleSnapshotJson.Deserialize<NativeBattleFileStaging>(NativeBattleSnapshotJson.Serialize(staging))!;
         (state, staging) = state.BindSources(staging, resources);
         Assert.True(state.StaticSourcesBound);
         Assert.Equal(BitConverter.GetBytes((ushort)0xCAFE), staging.Read(w, 2));
         Assert.Equal(BitConverter.GetBytes((ushort)0xCAFE), resources.ReadCurrentMesh(staging, MutableMeshAddresses[0]).Bytes.AsSpan(14, 2).ToArray());
-        NativeBattleEffect140Resources restored = JsonSerializer.Deserialize<NativeBattleEffect140Resources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleEffect140Resources restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect140Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
         Assert.Equal(resources.Sprite(0x11D0164).Bytes.ToArray(), restored.Sprite(0x11D0164).Bytes.ToArray());
     }

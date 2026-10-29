@@ -16,7 +16,7 @@ public sealed class NativeBattleMoogle96TextureMotionTests
         int section = resources.Model.Section(3);
         NativeBattleMoogle96TextureTable table = new(checked(resources.Model.Address + (uint)section), resources.Model.Bytes.AsSpan().Slice(section).ToArray().ToImmutableArray());
         Assert.Equal(0x1532C4Cu, table.Address);
-        Assert.Equal(24, table.Data.Length);
+        Assert.Equal(24, NativeBattleStorageSnapshots.Capture(table).Data.Length);
         Assert.Equal(3, resources.TextureSequences.Length);
         NativeBattleEffectHierarchy hierarchy = new([NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 0x140, 1)]);
         NativeBattleEffectHierarchyAppend append = hierarchy.Append8DC540(0, 1, 0x140);
@@ -26,16 +26,16 @@ public sealed class NativeBattleMoogle96TextureMotionTests
         bool anyStop = false;
         for (int script = 0; script < 3; script++)
         {
-            NativeBattleMoogle96TextureProgram program = new(addresses[script], resources.TextureSequences[script].Data);
+            NativeBattleMoogle96TextureProgram program = new(addresses[script], NativeBattleStorageSnapshots.Capture(resources.TextureSequences[script]).Data);
             NativeBattleModulePoolTask task = initialized.WriteDword(0x110, program.Address).WriteWord(0x12C, 0).WriteWord(0x12E, script == 0 ? (ushort)1 : (ushort)0).WriteWord(0x130, 0).WriteWord(0x132, 0);
             int requests = 0;
             bool loop = false;
             for (int callback = 0; callback < 128 && task.ReadDword(0x110) != 0; callback++)
             {
-                NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+                NativeBattleModulePoolTask restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
                 ushort prior = task.ReadWord(0x12C);
                 NativeBattleMoogle96TextureStep step = NativeBattleMoogle96TextureMotion.Advance739890(task, program, table);
-                Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleMoogle96TextureMotion.Advance739890(restored, program, table)));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(NativeBattleMoogle96TextureMotion.Advance739890(restored, program, table)));
                 NativeBattleEffectTextureState queue = NativeBattleEffectTextureState.FromColdProcess();
                 foreach (NativeBattleTextureCopy copy in step.Copies)
                 {

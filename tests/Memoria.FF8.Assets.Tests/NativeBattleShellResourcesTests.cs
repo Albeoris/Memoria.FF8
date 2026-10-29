@@ -74,9 +74,9 @@ public sealed class NativeBattleShellResourcesTests
             }
             if (now == 30)
             {
-                string json = JsonSerializer.Serialize(frame);
-                frame = JsonSerializer.Deserialize<NativeBattleShellFrame>(json)!;
-                Assert.Equal(json, JsonSerializer.Serialize(frame));
+                string json = NativeBattleSnapshotJson.Serialize(frame);
+                frame = NativeBattleSnapshotJson.Deserialize<NativeBattleShellFrame>(json)!;
+                Assert.Equal(json, NativeBattleSnapshotJson.Serialize(frame));
             }
         }
         Assert.Equal(new[] { 35 }, contacts);

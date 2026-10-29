@@ -24,9 +24,9 @@ public sealed class NativeBattleFullCure280ResourcesTests
         workspace = workspace.Initialize7016B0(resources.Layout, 2244);
         for (int counter = 0; counter < 30; counter++)
         {
-            NativeBattleGfAnimationWorkspace restored = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace))!;
+            NativeBattleGfAnimationWorkspace restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace))!;
             NativeBattleGfAnimationAdvance next = workspace.Advance701970(resources.Layout, 0, (current, _) => current);
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(restored.Advance701970(resources.Layout, 0, (current, _) => current)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(restored.Advance701970(resources.Layout, 0, (current, _) => current)));
             Assert.Equal(29 - counter, next.Remaining);
             workspace = next.Workspace;
         }

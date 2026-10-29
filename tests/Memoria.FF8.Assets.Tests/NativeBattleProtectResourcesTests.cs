@@ -79,9 +79,9 @@ public sealed class NativeBattleProtectResourcesTests
             frame = NativeBattleProtectController.Advance(frame, resources, inputs);
             if (now == 30)
             {
-                string json = JsonSerializer.Serialize(frame);
-                frame = JsonSerializer.Deserialize<NativeBattleProtectFrame>(json)!;
-                Assert.Equal(json, JsonSerializer.Serialize(frame));
+                string json = NativeBattleSnapshotJson.Serialize(frame);
+                frame = NativeBattleSnapshotJson.Deserialize<NativeBattleProtectFrame>(json)!;
+                Assert.Equal(json, NativeBattleSnapshotJson.Serialize(frame));
             }
             if (now < 49)
             {

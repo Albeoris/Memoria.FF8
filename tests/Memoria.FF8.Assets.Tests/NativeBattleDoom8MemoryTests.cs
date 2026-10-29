@@ -23,11 +23,11 @@ public sealed class NativeBattleDoom8MemoryTests
         NativeBattleDoom8State changed = memory.Doom8.WriteWord(NativeBattleDoom8State.SharedAddress + 0x4A, 123) with { IoScript = memory.Doom8.IoScript.Value.SetItem(12, 0xAB) };
         memory = memory with { Doom8 = changed, SoundPublishedFlags = 0x12345678 };
         staging = staging.Write(0x1636C04, [1, 2, 3, 4]);
-        NativeBattleEffectMemory imported = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        NativeBattleFileStaging importedStaging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        NativeBattleEffectMemory imported = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectMemory>(NativeBattleSnapshotJson.Serialize(memory))!;
+        NativeBattleFileStaging importedStaging = NativeBattleSnapshotJson.Deserialize<NativeBattleFileStaging>(NativeBattleSnapshotJson.Serialize(staging))!;
         var warm = NativeBattleDoom8Memory.Prepare(imported, importedStaging, resources);
-        Assert.Equal(JsonSerializer.Serialize(memory), JsonSerializer.Serialize(warm.Memory));
-        Assert.Equal(JsonSerializer.Serialize(staging), JsonSerializer.Serialize(warm.Staging));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(memory), NativeBattleSnapshotJson.Serialize(warm.Memory));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(staging), NativeBattleSnapshotJson.Serialize(warm.Staging));
     }
 
     [Fact]

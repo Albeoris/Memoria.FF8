@@ -23,23 +23,23 @@ public sealed class NativeBattleRushOverlayProgramTests
         for (int callback = 0; callback < 4; callback++)
         {
             frame = frame with { Ordering = NativeBattleLogicalOrdering.Clear() };
-            NativeBattleFullscreenOverlayFrame restored = JsonSerializer.Deserialize<NativeBattleFullscreenOverlayFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleFullscreenOverlayFrame restored = NativeBattleSnapshotJson.Deserialize<NativeBattleFullscreenOverlayFrame>(NativeBattleSnapshotJson.Serialize(frame))!;
             NativeBattleFullscreenOverlayStep step = NativeBattleFullscreenOverlay.Advance8DDEC0(frame, append.Address, 0, program);
             NativeBattleFullscreenOverlayStep coldStep = NativeBattleFullscreenOverlay.Advance8DDEC0(restored, append.Address, 0, program);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(coldStep));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(coldStep));
             Assert.Equal(0, step.Result);
             Assert.Equal(5, step.Frame.Ordering.ProxyCursor);
             Assert.Equal(program.Commands[callback], step.Frame.Pools[0].Slots[0].ReadDword(0x30));
             frame = step.Frame;
         }
-        string retained = JsonSerializer.Serialize(frame.Memory.FullscreenOverlay);
+        string retained = NativeBattleSnapshotJson.Serialize(frame.Memory.FullscreenOverlay);
         NativeBattleFullscreenOverlayStep terminal = NativeBattleFullscreenOverlay.Advance8DDEC0(frame, append.Address, 0, program);
         Assert.Equal(2, terminal.Result);
         Assert.Equal(0, terminal.Frame.Pools[0].Head);
         NativeBattleEffectHierarchyStep released = new NativeBattleEffectHierarchy(terminal.Frame.Pools).Advance(0, (current, _) => new(current, terminal.Result));
         Assert.Equal(0, released.Survivors);
         Assert.Null(released.Hierarchy.Pools[0].Head);
-        Assert.Equal(retained, JsonSerializer.Serialize(terminal.Frame.Memory.FullscreenOverlay));
+        Assert.Equal(retained, NativeBattleSnapshotJson.Serialize(terminal.Frame.Memory.FullscreenOverlay));
         Assert.Equal((ushort)5, terminal.Frame.Pools[0].Slots[0].ReadWord(0x24));
     }
 }

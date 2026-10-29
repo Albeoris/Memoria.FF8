@@ -23,11 +23,11 @@ public sealed class NativeBattleGuestCinematicResourcesTests
         frame = Dword(frame, 0x2797690 + 0x9C, resources.TextureProfile.ClutRectangleAddress);
         frame = Dword(frame, 0x2797690 + 0xA4, resources.TextureProfile.PixelSourceMapAddress);
         frame = frame with { Arena = frame.Arena.Write(0x4000, [0x52, 0, 8, 0]).Write(0x2092, [0x60, 0]) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleSnapshotJson.Deserialize<NativeBattleWaterExecutionFrame>(NativeBattleSnapshotJson.Serialize(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleWaterTextureMetadata.Execute52AA3A60(frame, resources);
         Assert.Equal((ushort)0xE5, BinaryPrimitives.ReadUInt16LittleEndian(result.Arena.Read(0x2092, 2)));
         Assert.Equal((ushort)0x6058, BinaryPrimitives.ReadUInt16LittleEndian(result.Arena.Read(0x209A, 2)));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleWaterTextureMetadata.Execute52AA3A60(restored, resources)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(result), NativeBattleSnapshotJson.Serialize(NativeBattleWaterTextureMetadata.Execute52AA3A60(restored, resources)));
 
         static NativeBattleWaterExecutionFrame Dword(NativeBattleWaterExecutionFrame current, uint address, uint value) => current with { Core = current.Core.Write(address, BitConverter.GetBytes(value)) };
     }

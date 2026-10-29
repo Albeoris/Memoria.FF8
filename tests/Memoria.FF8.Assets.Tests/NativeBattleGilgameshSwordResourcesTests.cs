@@ -28,8 +28,8 @@ public sealed class NativeBattleGilgameshSwordResourcesTests
             Assert.Equal((byte)0xA5, model.Control[0]);
         }
         NativeBattleGilgameshSwordStep repeated = Run(step.ModelMemory, step.Arena, task, models, 0x201);
-        Assert.Equal(JsonSerializer.Serialize(step.ModelMemory), JsonSerializer.Serialize(repeated.ModelMemory));
-        Assert.Equal(JsonSerializer.Serialize(step.Packets), JsonSerializer.Serialize(repeated.Packets));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(step.ModelMemory), NativeBattleSnapshotJson.Serialize(repeated.ModelMemory));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(step.Packets), NativeBattleSnapshotJson.Serialize(repeated.Packets));
         for (int index = 0; index < 76; index++)
         {
             Assert.Throws<NotSupportedException>(() => step.Arena.Read(0x31800 + index * 8 + 6, 2));
@@ -45,12 +45,12 @@ public sealed class NativeBattleGilgameshSwordResourcesTests
         NativeBattleGilgameshSwordStep initial = Run(Retained(), Scratch(), Task(0), models, 0x201);
         NativeBattleGilgameshSwordStep pausedTen = Run(initial.ModelMemory, initial.Arena, Task(10), models, 0x201);
         NativeBattleGilgameshSwordStep ten = Run(initial.ModelMemory, initial.Arena, Task(10), models, 0);
-        Assert.Equal(JsonSerializer.Serialize(pausedTen.Packets), JsonSerializer.Serialize(ten.Packets));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(pausedTen.Packets), NativeBattleSnapshotJson.Serialize(ten.Packets));
         Assert.Equal((byte)6, pausedTen.ModelMemory.Read(Address(0)).State.Model[0]);
         Assert.Equal((byte)14, ten.ModelMemory.Read(Address(0)).State.Model[0]);
         NativeBattleGilgameshSwordStep pausedFortyFive = Run(ten.ModelMemory, ten.Arena, Task(45), models, 0x201);
         NativeBattleGilgameshSwordStep fortyFive = Run(ten.ModelMemory, ten.Arena, Task(45), models, 0);
-        Assert.Equal(JsonSerializer.Serialize(pausedFortyFive.Packets), JsonSerializer.Serialize(fortyFive.Packets));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(pausedFortyFive.Packets), NativeBattleSnapshotJson.Serialize(fortyFive.Packets));
         Assert.Equal((byte)14, pausedFortyFive.ModelMemory.Read(Address(0)).State.Model[0]);
         Assert.Equal((byte)6, fortyFive.ModelMemory.Read(Address(0)).State.Model[0]);
         for (int index = 1; index < 4; index++)
@@ -70,8 +70,8 @@ public sealed class NativeBattleGilgameshSwordResourcesTests
         NativeBattleGilgameshSwordStep current = Run(initial.ModelMemory, initial.Arena, Task(counter), models, 0);
         Assert.Equal(expected, current.UpdatedTask.ReadWord(12));
         Assert.Equal(result, current.Result);
-        NativeBattleGilgameshSwordStep restored = JsonSerializer.Deserialize<NativeBattleGilgameshSwordStep>(JsonSerializer.Serialize(current))!;
-        Assert.Equal(JsonSerializer.Serialize(Run(current.ModelMemory, current.Arena, current.UpdatedTask, models, 0)), JsonSerializer.Serialize(Run(restored.ModelMemory, restored.Arena, restored.UpdatedTask, models, 0)));
+        NativeBattleGilgameshSwordStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshSwordStep>(NativeBattleSnapshotJson.Serialize(current))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(Run(current.ModelMemory, current.Arena, current.UpdatedTask, models, 0)), NativeBattleSnapshotJson.Serialize(Run(restored.ModelMemory, restored.Arena, restored.UpdatedTask, models, 0)));
     }
 
     [Fact]

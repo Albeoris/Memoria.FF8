@@ -46,15 +46,15 @@ public sealed class NativeBattleMoogle96NodesTests
         for (int sourceIndex = 0; sourceIndex < 2; sourceIndex++)
         {
             uint source = sourceIndex == 0 ? 0x169227Cu : 0x1696DE8u;
-            NativeBattleMoogle96NodeResource resource = new(source, sourceIndex == 0 ? resources.NodesA.Data : resources.NodesB.Data);
+            NativeBattleMoogle96NodeResource resource = new(source, sourceIndex == 0 ? NativeBattleStorageSnapshots.Capture(resources.NodesA).Data : NativeBattleStorageSnapshots.Capture(resources.NodesB).Data);
             frame = NativeBattleMoogle96Nodes.InitializeContext(frame, addresses[sourceIndex], resource, packets, Model, _ => poseSource, dog);
             Assert.Equal(1u, frame.State.Banks[sourceIndex].InitializationFlag);
-            Assert.Null(frame.State.Work.Data);
+            Assert.Null(NativeBattleStorageSnapshots.Capture(frame.State.Work).Data);
             Assert.Equal(0u, frame.State.Work.InitializationFlag);
             if (sourceIndex == 0)
             {
                 Assert.Equal(0u, frame.State.Banks[1].InitializationFlag);
-                Assert.Null(frame.State.Banks[1].Data);
+                Assert.Null(NativeBattleStorageSnapshots.Capture(frame.State.Banks[1]).Data);
                 Assert.Throws<NotSupportedException>(() => NativeBattleMoogle96Nodes.AdvanceContext(frame, addresses[1], Model, projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!));
             }
             bool complete = false;
@@ -64,11 +64,11 @@ public sealed class NativeBattleMoogle96NodesTests
             {
                 frame = frame with { Memory = frame.Memory with { PrimitiveProcess = frame.Memory.PrimitiveProcess!.Initialize500400() } };
                 frame = NativeBattleMoogle96Nodes.BeginPass(frame, view, 0x20000);
-                NativeBattleMoogle96NodeFrame restored = JsonSerializer.Deserialize<NativeBattleMoogle96NodeFrame>(JsonSerializer.Serialize(frame))!;
+                NativeBattleMoogle96NodeFrame restored = NativeBattleSnapshotJson.Deserialize<NativeBattleMoogle96NodeFrame>(NativeBattleSnapshotJson.Serialize(frame))!;
                 NativeBattleMoogle96NodeStep step = NativeBattleMoogle96Nodes.AdvanceContext(frame, addresses[sourceIndex], Model, projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
                 NativeBattleMoogle96NodeStep coldStep = NativeBattleMoogle96Nodes.AdvanceContext(restored, addresses[sourceIndex], Model, projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
-                Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(coldStep));
-                Assert.Null(step.Frame.State.Work.Data);
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(coldStep));
+                Assert.Null(NativeBattleStorageSnapshots.Capture(step.Frame.State.Work).Data);
                 Assert.Equal(0u, step.Frame.State.Work.InitializationFlag);
                 Assert.Equal(0x20000 + step.PrivateSprites.Sum(batch => batch.AllocationBytes), step.Frame.State.Work.PrivateDrawCursor);
                 Assert.Equal(step.CommonMeshes.Sum(batch => batch.AllocationBytes), step.Frame.Memory.PrimitiveProcess!.ByteCursor);
@@ -84,16 +84,16 @@ public sealed class NativeBattleMoogle96NodesTests
             Assert.Equal((ushort)0, frame.State.Work.PassGeometryCount);
             if (sourceIndex == 0)
             {
-                firstBank = JsonSerializer.Serialize(frame.State.Banks[0]);
+                firstBank = NativeBattleSnapshotJson.Serialize(frame.State.Banks[0]);
             }
             else
             {
-                Assert.Equal(firstBank, JsonSerializer.Serialize(frame.State.Banks[0]));
+                Assert.Equal(firstBank, NativeBattleSnapshotJson.Serialize(frame.State.Banks[0]));
             }
         }
         NativeBattleMoogle96NodeState missing = frame.State with { Banks = frame.State.Banks.SetItem(0, frame.State.Banks[0] with { Data = null }) };
         Assert.Throws<NotSupportedException>(missing.Validate);
-        Assert.Throws<InvalidDataException>(() => (frame.State with { Work = frame.State.Work with { InitializationFlag = 1, Data = frame.State.Banks[0].Data } }).Validate());
+        Assert.Throws<InvalidDataException>(() => (frame.State with { Work = frame.State.Work with { InitializationFlag = 1, Data = NativeBattleStorageSnapshots.Capture(frame.State.Banks[0]).Data } }).Validate());
     }
     private static GameAssets Installed()
     {

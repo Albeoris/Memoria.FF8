@@ -19,8 +19,8 @@ public sealed class NativeBattleGilgamesh329InitializerTests
         Assert.Equal("mag326-329.tim", Assert.Single(resources).Name);
         Assert.Equal(0x2200F9Cu, resources[0].GlobalAddress);
         Assert.Equal(resources.Select(resource => resource.Name), assets.Select(asset => asset.Name));
-        Assert.Equal(167136, Assert.Single(assets).Data.Length);
-        Assert.Equal(selected.Binding.GilgameshResources.Models.InitializerTim.Data.ToArray(), assets[0].Data.ToArray());
+        Assert.Equal(167136, NativeBattleStorageSnapshots.Capture(Assert.Single(assets)).Data.Length);
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(selected.Binding.GilgameshResources.Models.InitializerTim).Data.ToArray(), NativeBattleStorageSnapshots.Capture(assets[0]).Data.ToArray());
         NativeBattleEffectMemory cold = game.ReadColdProcessNativeBattleMemory().EffectMemory ?? throw new InvalidDataException("Original initializer requires its explicit cold process.");
         cold = cold with { Gilgamesh = cold.Gilgamesh! with { Variant = unchecked((int)0xA5A51234) } };
         var initialized = NativeBattleOriginalEffects.Initialize(cold, selected);
@@ -28,14 +28,14 @@ public sealed class NativeBattleGilgamesh329InitializerTests
         Assert.Equal(328, initialized.Memory.SelectedIndex);
         Assert.Equal(1, initialized.Memory.Active);
         Assert.Equal(0, initialized.Memory.AllocationCount);
-        Assert.Equal(assets[0].Data.ToArray(), initialized.Memory.Arena!.Read(0, assets[0].Data.Length));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(assets[0]).Data.ToArray(), initialized.Memory.Arena!.Read(0, NativeBattleStorageSnapshots.Capture(assets[0]).Data.Length));
         Assert.Equal(new NativeBattleEffectResourcePointer(0x2200F9C, 0), Assert.Single(initialized.Effect.ResourcePointers));
         Assert.Equal(unchecked((int)0xA5A51234), initialized.Memory.Gilgamesh!.Variant);
         Assert.Null(initialized.Effect.ReturnedDescriptor);
         Assert.Empty(initialized.Effect.Pools);
-        Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(new Saved(initialized.Memory, initialized.Effect)))!;
-        Assert.Equal(JsonSerializer.Serialize(initialized.Memory), JsonSerializer.Serialize(restored.Memory));
-        Assert.Equal(JsonSerializer.Serialize(initialized.Effect), JsonSerializer.Serialize(restored.Effect));
+        Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(new Saved(initialized.Memory, initialized.Effect)))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(initialized.Memory), NativeBattleSnapshotJson.Serialize(restored.Memory));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(initialized.Effect), NativeBattleSnapshotJson.Serialize(restored.Effect));
         Assert.Throws<NotSupportedException>(() => NativeBattleOriginalEffects.Initialize(cold, selected with { Binding = selected.Binding with { InitializerAsset = null } }));
     }
 

@@ -43,7 +43,7 @@ public sealed class NativeBattleRestorationAdmissionResourcesTests
         NativeBattleRestorationExecutableState retained = (effect == 24 ? frame.Memory.EsunaExecutable : frame.Memory.FullLifeExecutable)!;
         NativeBattleRestorationExecutableState initialized = retained.Initialize(resources.Executable!);
         Assert.Equal(1u, initialized.InitializationFlag);
-        NativeBattleRestorationExecutableState clone = JsonSerializer.Deserialize<NativeBattleRestorationExecutableState>(JsonSerializer.Serialize(initialized))!;
+        NativeBattleRestorationExecutableState clone = NativeBattleSnapshotJson.Deserialize<NativeBattleRestorationExecutableState>(NativeBattleSnapshotJson.Serialize(initialized))!;
         Assert.Equal(initialized.Read(profile.ExecutableAddress + 4, 64), clone.Read(profile.ExecutableAddress + 4, 64));
         Assert.Same(initialized, initialized.Initialize(resources.Executable!));
     }

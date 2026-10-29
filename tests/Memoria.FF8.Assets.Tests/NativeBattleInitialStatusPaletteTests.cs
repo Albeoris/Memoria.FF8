@@ -26,6 +26,8 @@ public sealed class NativeBattleInitialStatusPaletteTests
             StageId = encounter.StageId,
             Combatants = actors,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeMusicProcess = musicEntry.MusicProcess,
             NativeGlobalSoundProcess = musicEntry.SoundProcess,
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),

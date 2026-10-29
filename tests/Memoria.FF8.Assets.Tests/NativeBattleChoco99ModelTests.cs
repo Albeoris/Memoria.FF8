@@ -20,8 +20,8 @@ public sealed class NativeBattleChoco99ModelTests
         Assert.Equal(0x152AED0u, resources.TextureProgram.Address);
         Assert.Equal(resources.Model.Address + 0x4EDCu, resources.TextureTable.Address);
         Assert.Equal(prior.Model.Bytes.ToArray(), resources.Model.Bytes.ToArray());
-        Assert.Equal(prior.ModelTim.Data.ToArray(), resources.ModelTim.Data.ToArray());
-        Assert.Equal(prior.TextureProgram.Data.ToArray(), resources.TextureProgram.Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(prior.ModelTim).Data.ToArray(), NativeBattleStorageSnapshots.Capture(resources.ModelTim).Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(prior.TextureProgram).Data.ToArray(), NativeBattleStorageSnapshots.Capture(resources.TextureProgram).Data.ToArray());
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         NativeBattleEffectOwnedModelStep initialized = Initialize(resources, 0x256D750);
         NativeBattleEffectOwnedModelStep second = Initialize(resources, 0x256D890);
@@ -30,12 +30,12 @@ public sealed class NativeBattleChoco99ModelTests
         for (short pose = 0; pose <= 4; pose++)
         {
             NativeBattleEffectOwnedModelStep selected = NativeBattleEffectOwnedModel.Select8DD190(initialized.Task.WriteDword(0x114, 6144).WriteDword(0x118, 6144).WriteDword(0x11C, 6144), initialized.State, resources.Model, pose);
+            NativeBattleEffectOwnedModelStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectOwnedModelStep>(NativeBattleSnapshotJson.Serialize(selected))!;
             NativeBattleEffectOwnedModelDraw draw = Draw(selected, Scratch(), resources, rules);
             Assert.Equal(0xCD0, draw.ProjectedBytesWritten);
             Assert.NotEmpty(draw.Packets.Attempts);
-            NativeBattleEffectOwnedModelStep restored = JsonSerializer.Deserialize<NativeBattleEffectOwnedModelStep>(JsonSerializer.Serialize(selected))!;
-            Assert.Equal(JsonSerializer.Serialize(draw), JsonSerializer.Serialize(Draw(restored, Scratch(), resources, rules)));
-            Assert.Equal(JsonSerializer.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(selected.Task, selected.State, resources.Model)), JsonSerializer.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(restored.Task, restored.State, resources.Model)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(draw), NativeBattleSnapshotJson.Serialize(Draw(restored, Scratch(), resources, rules)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(selected.Task, selected.State, resources.Model)), NativeBattleSnapshotJson.Serialize(NativeBattleEffectOwnedModel.AdvanceOnce8DD220(restored.Task, restored.State, resources.Model)));
         }
     }
 
@@ -54,9 +54,9 @@ public sealed class NativeBattleChoco99ModelTests
         for (int callback = 0; current.Task.ReadByte(0x29) != 7 && callback < 2048; callback++)
         {
             phases.Add(current.Task.ReadByte(0x29));
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(current))!;
             StepResult next = Step(current, false);
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(current))!;
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Step(restored, false)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored, false)));
             poses.Add(next.Next.Task.ReadByte(0x9C));
             operations.AddRange(next.Operations);
             textureCopies += next.Advance.TextureCopies.Length;
@@ -70,13 +70,14 @@ public sealed class NativeBattleChoco99ModelTests
         NativeBattleChoco97ModelAppendAuxiliary aux = Assert.Single(operations.OfType<NativeBattleChoco97ModelAppendAuxiliary>());
         Assert.Equal((0x71EE40u, 0xB0, 0x2565C20u), (aux.Callback, aux.TaskBytes, aux.PoolAddress));
         Assert.Equal(0x1529FA8u, Assert.Single(operations.OfType<NativeBattleChoco97ModelSound>()).DescriptorAddress);
+        ushort waitingCounter = current.Task.ReadWord(0x136);
         StepResult waiting = Step(current, false);
         Assert.Equal((byte)7, waiting.Next.Task.ReadByte(0x29));
-        Assert.Equal(unchecked((ushort)(current.Task.ReadWord(0x136) + 1)), waiting.Next.Task.ReadWord(0x136));
+        Assert.Equal(unchecked((ushort)(waitingCounter + 1)), waiting.Next.Task.ReadWord(0x136));
         Assert.NotNull(waiting.Advance.Drawing);
+        Saved terminalRestored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(current))!;
         StepResult terminal = Step(current, true);
-        Saved terminalRestored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(current))!;
-        Assert.Equal(JsonSerializer.Serialize(terminal), JsonSerializer.Serialize(Step(terminalRestored, true)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(terminal), NativeBattleSnapshotJson.Serialize(Step(terminalRestored, true)));
         Assert.Equal((byte)8, terminal.Next.Task.ReadByte(0x29));
         Assert.Null(terminal.Advance.Drawing);
         Assert.Empty(terminal.Advance.TextureCopies);
@@ -85,7 +86,7 @@ public sealed class NativeBattleChoco99ModelTests
         {
             Assert.Equal(current.Task.ReadByte(offset), terminal.Next.Task.ReadByte(offset));
         }
-        Assert.Equal(JsonSerializer.Serialize(current.State.DecodedPose), JsonSerializer.Serialize(terminal.Next.State.DecodedPose));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(current.State.DecodedPose), NativeBattleSnapshotJson.Serialize(terminal.Next.State.DecodedPose));
         Assert.False(Step(terminal.Next, true).Advance.ReadyToComplete);
         Assert.True(Step(terminal.Next with { Task = terminal.Next.Task.WriteByte(0x28, 0) }, true).Advance.ReadyToComplete);
         Assert.Throws<NotSupportedException>(() => Step(terminal.Next with { Task = terminal.Next.Task.WriteByte(0x29, 9) }, true));

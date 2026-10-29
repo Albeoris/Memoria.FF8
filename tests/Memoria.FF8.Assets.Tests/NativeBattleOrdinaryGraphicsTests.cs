@@ -47,6 +47,7 @@ public sealed class NativeBattleOrdinaryGraphicsTests
             NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl,
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeActionCameraRules = game.ReadNativeActionCameraRules()
         };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);

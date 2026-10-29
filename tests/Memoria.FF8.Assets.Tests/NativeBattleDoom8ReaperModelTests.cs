@@ -38,7 +38,7 @@ public sealed class NativeBattleDoom8ReaperModelTests
         NativeBattleDoom8Frame resumed = Cold(drawn.Frame);
         NativeBattleDoom8ModelDrawStep next = component.AdvanceNormal(drawn.Frame);
         NativeBattleDoom8ModelDrawStep coldNext = component.AdvanceNormal(resumed);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(coldNext));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(coldNext));
         Assert.Equal(expectedAlpha, NativeBattleDoom8Controller.Read(next.Frame, component.Address).ReadByte(0x37));
         AssertReleased(next);
         Assert.NotEmpty(BodyPackets(next.Batch));
@@ -70,7 +70,7 @@ public sealed class NativeBattleDoom8ReaperModelTests
             if (callback is 0 or 17 or 18 or 32)
             {
                 NativeBattleDoom8ModelDrawStep coldNext = component.AdvanceAppearance(Cold(frame));
-                Assert.Equal(JsonSerializer.Serialize(drawn), JsonSerializer.Serialize(coldNext));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(drawn), NativeBattleSnapshotJson.Serialize(coldNext));
             }
             customPackets += BodyPackets(drawn.Batch).Length;
             byte[] ages = drawn.Frame.State.Read(NativeBattleDoom8ReaperAppearance.ScratchAddress + 0x5D, 526);
@@ -158,7 +158,7 @@ public sealed class NativeBattleDoom8ReaperModelTests
         {
             (byte[] bytes, bool[] known) = staging.ReadSnapshot(skeleton + 32u + (uint)(index * 48), 32);
             NativeBattlePackedMatrix32 packed = new(bytes.ToImmutableArray(), known.ToImmutableArray());
-            Assert.Equal(JsonSerializer.Serialize(expected[index]), JsonSerializer.Serialize(packed.ReadMatrix()));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(expected[index]), NativeBattleSnapshotJson.Serialize(packed.ReadMatrix()));
             short parent = BinaryPrimitives.ReadInt16LittleEndian(resource.PoseSource.Skeleton.AsSpan().Slice(16 + index * 48));
             Assert.Equal(parent < 0 && !state.DecodedPose!.HasScale, known[18]);
             Assert.Equal(known[18], known[19]);
@@ -168,13 +168,13 @@ public sealed class NativeBattleDoom8ReaperModelTests
     private static void AssertReleased(NativeBattleDoom8ModelDrawStep step)
     {
         Assert.Equal(NativeBattleTemporaryMemory.Address, Dword(step.Staging.Read(NativeBattleTemporaryMemory.Cursor, 4)));
-        Assert.Equal(JsonSerializer.Serialize(step.Staging), JsonSerializer.Serialize(step.Frame.Staging));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(step.Staging), NativeBattleSnapshotJson.Serialize(step.Frame.Staging));
         Assert.NotNull(step.Frame.Memory.GeometryRegisters!.Sxy[2]);
     }
 
     private static NativeBattleDoom8Frame Cold(NativeBattleDoom8Frame frame)
     {
-        NativeBattleDoom8Frame restored = JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleDoom8Frame restored = NativeBattleSnapshotJson.Deserialize<NativeBattleDoom8Frame>(NativeBattleSnapshotJson.Serialize(frame))!;
         restored.State.Validate();
         return restored;
     }

@@ -37,11 +37,11 @@ public sealed class NativeBattleWendigoResourcesTests
         NativeBattleWendigoFrame frame = NativeBattleWendigoController.Initialize(memory, effect, packets, resources, new(1));
         NativeBattleWendigoState state = (shoot ? frame.Memory.Shoot42 : frame.Memory.Dribble41)!;
         Assert.False(state.PendingColdSources);
-        Assert.Equal(resources.ActorBank, state.ActorBank);
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources.ActorBank), NativeBattleSnapshotJson.Serialize(state.ActorBank));
         Assert.Equal(shoot ? 5 : 4, frame.Effect.Pools.Length);
         Assert.Equal(shoot ? (ushort)40 : (ushort)20, (ushort)frame.Effect.Pools[3].Slots.Length);
-        string json = JsonSerializer.Serialize(frame);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleWendigoFrame>(json)));
+        string json = NativeBattleSnapshotJson.Serialize(frame);
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(NativeBattleSnapshotJson.Deserialize<NativeBattleWendigoFrame>(json)));
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
@@ -56,7 +56,7 @@ public sealed class NativeBattleWendigoResourcesTests
             frame = NativeBattleWendigoController.Advance(frame, resources, inputs);
             if (callback == 4)
             {
-                frame = JsonSerializer.Deserialize<NativeBattleWendigoFrame>(JsonSerializer.Serialize(frame))!;
+                frame = NativeBattleSnapshotJson.Deserialize<NativeBattleWendigoFrame>(NativeBattleSnapshotJson.Serialize(frame))!;
             }
         }
         NativeBattleEffectTaskPool roots = frame.Effect.Pools[0];

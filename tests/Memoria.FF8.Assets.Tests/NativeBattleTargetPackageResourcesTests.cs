@@ -67,8 +67,8 @@ public sealed class NativeBattleTargetPackageResourcesTests
         Assert.Null(initialized.Effect.ReturnedDescriptor);
         Assert.Empty(initialized.Effect.Pools);
         Assert.Equal(resources.Length, initialized.Effect.ResourcePointers.Length);
-        NativeBattleEffectMemory restoredMemory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(initialized.Memory))!;
-        NativeBattleOriginalEffectState restoredEffect = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(initialized.Effect))!;
+        NativeBattleEffectMemory restoredMemory = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectMemory>(NativeBattleSnapshotJson.Serialize(initialized.Memory))!;
+        NativeBattleOriginalEffectState restoredEffect = NativeBattleSnapshotJson.Deserialize<NativeBattleOriginalEffectState>(NativeBattleSnapshotJson.Serialize(initialized.Effect))!;
         restoredMemory.Validate();
         restoredEffect.Validate();
         Assert.Equal(resources, NativeBattleEffectInitializerPolicy.Resources(restoredEffect.Binding).ToArray());

@@ -42,9 +42,9 @@ public sealed class NativeBattleRestorationAnimatedAnchorAssetsTests
         BinaryPrimitives.WriteInt16LittleEndian(matrix.AsSpan(8), 4096);
         BinaryPrimitives.WriteInt16LittleEndian(matrix.AsSpan(16), 4096);
         frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(node + 0x2C, matrix).Write(node + 0x60, [1, 0]).Write(node + 0x58, [0xEF, 0xBE, 0xAD, 0xDE]).MarkUnknown(node + 0x2C + 18, 2) } };
-        NativeBattleRestorationFrame clone = JsonSerializer.Deserialize<NativeBattleRestorationFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleRestorationFrame clone = NativeBattleSnapshotJson.Deserialize<NativeBattleRestorationFrame>(NativeBattleSnapshotJson.Serialize(frame))!;
         NativeBattleRestorationFrame actual = NativeBattleRestorationAnimatedAnchor.Advance(frame, generic.Address, node);
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(NativeBattleRestorationAnimatedAnchor.Advance(clone, generic.Address, node)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(actual), NativeBattleSnapshotJson.Serialize(NativeBattleRestorationAnimatedAnchor.Advance(clone, generic.Address, node)));
         Assert.Equal(new int[] { 10 << 16, expectedY, 20 << 16 }, Enumerable.Range(0, 3).Select(axis => BinaryPrimitives.ReadInt32LittleEndian(actual.Memory.Arena!.Read(node + 0x4C + axis * 4, 4))));
         Assert.Equal(0xDEADBEEFu, BinaryPrimitives.ReadUInt32LittleEndian(actual.Memory.Arena!.Read(node + 0x58, 4)));
         Assert.Throws<NotSupportedException>(() => actual.Memory.Arena!.Read(node + 0x2C + 18, 2));

@@ -46,7 +46,7 @@ public sealed class NativeBattleMegaSpark279ResourcesTests
                     return retained;
                 }).Workspace;
                 Assert.Equal(nodes[index], callbacks);
-                Assert.All(workspace.Data.Skip(cacheLengths[index]), value => Assert.Equal((byte)0xA5, value));
+                Assert.All(NativeBattleStorageSnapshots.Capture(workspace).Data.Skip(cacheLengths[index]), value => Assert.Equal((byte)0xA5, value));
             }
             Assert.Equal(frames[index], workspace.Frame);
             for (int geometry = 0; geometry < geometryCounts[index]; geometry++)
@@ -81,9 +81,9 @@ public sealed class NativeBattleMegaSpark279ResourcesTests
     {
         using GameAssets game = Open();
         var resources = game.ReadNativeMegaSpark279Resources();
-        var restored = JsonSerializer.Deserialize<NativeBattleMegaSpark279Resources>(JsonSerializer.Serialize(resources))!;
+        var restored = NativeBattleSnapshotJson.Deserialize<NativeBattleMegaSpark279Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal(24, restored.SourcePoints24.Length);
         Assert.Equal(8, restored.ExtraPoint8.Length);
         Assert.Equal(new short[] { 17, 18, 21 }, Enumerable.Range(0, 3).Select(index => BinaryPrimitives.ReadInt16LittleEndian(restored.SourcePoints24.AsSpan().Slice(index * 8 + 6))));

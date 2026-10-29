@@ -36,8 +36,8 @@ public sealed class NativeBattleRaldo19ResourcesTests
         Assert.Equal(0x2730418u, NativeBattleRaldo19Profile.DescriptorAddress + 48);
         Assert.True(NativeBattleRaldo19Profile.BodyScratchAddress + NativeBattleRaldo19Profile.BodyScratchLength <= 0x272B8F0u);
         Assert.Equal(0x272FFE0u, NativeBattleRaldo19Profile.VertexScratchAddress + NativeBattleRaldo19Profile.VertexScratchLength);
-        NativeBattleRaldo19State restored = JsonSerializer.Deserialize<NativeBattleRaldo19State>(JsonSerializer.Serialize(cold))!;
+        NativeBattleRaldo19State restored = NativeBattleSnapshotJson.Deserialize<NativeBattleRaldo19State>(NativeBattleSnapshotJson.Serialize(cold))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(cold), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(cold), NativeBattleSnapshotJson.Serialize(restored));
     }
 }

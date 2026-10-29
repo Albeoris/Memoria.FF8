@@ -31,7 +31,7 @@ public sealed class NativeBattleEffect107ResourcesTests
         List<int> firstNodeFrames = [];
         for (int frame = 0; frame < 76; frame++)
         {
-            NativeBattleGfAnimationWorkspace restored = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace))!;
+            NativeBattleGfAnimationWorkspace restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace))!;
             List<string> emitted = [];
             NativeBattleGfAnimationAdvance first = workspace.Advance701970(hierarchy, 0, (current, node) =>
             {
@@ -39,17 +39,17 @@ public sealed class NativeBattleEffect107ResourcesTests
                 {
                     firstNodeFrames.Add(current.Frame);
                 }
-                emitted.Add(JsonSerializer.Serialize(node));
+                emitted.Add(NativeBattleSnapshotJson.Serialize(node));
                 return current;
             });
             List<string> cloneEmitted = [];
             NativeBattleGfAnimationAdvance second = restored.Advance701970(hierarchy, 0, (current, node) =>
             {
-                cloneEmitted.Add(JsonSerializer.Serialize(node));
+                cloneEmitted.Add(NativeBattleSnapshotJson.Serialize(node));
                 return current;
             });
             Assert.Equal(emitted, cloneEmitted);
-            Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(first), NativeBattleSnapshotJson.Serialize(second));
             Assert.Equal(12, first.EmittedNodes);
             workspace = first.Workspace;
         }

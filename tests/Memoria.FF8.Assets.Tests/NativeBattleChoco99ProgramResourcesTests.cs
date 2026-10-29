@@ -33,23 +33,23 @@ public sealed class NativeBattleChoco99ProgramResourcesTests
         while (!ready && calls < 70)
         {
             Saved saved = new(task, source, scratch);
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(saved))!;
             NativeBattleChoco99ProgramDraw step = Step(saved);
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(saved))!;
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Step(restored)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(Step(restored)));
             if (calls == 0)
             {
                 Assert.Equal(unchecked((ushort)y), step.Draw.Task.ReadWord(0x1E));
                 Assert.Equal(unchecked((ushort)z), step.Draw.Task.ReadWord(0x20));
                 Assert.Equal((ushort)40, step.Draw.Task.ReadWord(0x22));
                 Assert.Equal(file == 474 ? 0u : 1u, step.Draw.Task.ReadDword(0x98));
-                Assert.All(step.Draw.Task.Payload.Skip(0x94 - 12 + definition.Clear), value => Assert.Equal((byte)0xA5, value));
-                ImmutableArray<byte> expected = source.Data;
+                Assert.All(NativeBattleStorageSnapshots.Capture(step.Draw.Task).Payload.Skip(0x94 - 12 + definition.Clear), value => Assert.Equal((byte)0xA5, value));
+                ImmutableArray<byte> expected = NativeBattleStorageSnapshots.Capture(source).Data;
                 foreach ((int geometry, int delta) in file == 471 ? new[] { (0, 12), (3, 12) } : file == 474 ? new[] { (2, 18) } : Array.Empty<(int, int)>())
                 {
-                    int offset = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(8 + geometry * 4));
+                    int offset = BinaryPrimitives.ReadInt32LittleEndian(NativeBattleStorageSnapshots.Capture(source).Data.AsSpan().Slice(8 + geometry * 4));
                     expected = NativeBattleChoco97Uv.Scroll7311C0(expected, offset / 4 * 4, delta);
                 }
-                Assert.Equal(expected.ToArray(), step.Draw.Source.Data.ToArray());
+                Assert.Equal(expected.ToArray(), NativeBattleStorageSnapshots.Capture(step.Draw.Source).Data.ToArray());
             }
             if (step.SoundDescriptor is uint sound)
             {
@@ -75,7 +75,7 @@ public sealed class NativeBattleChoco99ProgramResourcesTests
         Assert.False(held.Draw.ReadyToComplete);
         Assert.Empty(held.Draw.Packets.Attempts);
         Assert.Null(held.SoundDescriptor);
-        Assert.Equal(file == 0, source.Data.AsSpan().SequenceEqual(held.Draw.Source.Data.AsSpan()));
+        Assert.Equal(file == 0, NativeBattleStorageSnapshots.Capture(source).Data.AsSpan().SequenceEqual(NativeBattleStorageSnapshots.Capture(held.Draw.Source).Data.AsSpan()));
         Assert.Throws<NotSupportedException>(() => Step(new(task, source, new byte[0x3C0].ToImmutableArray())));
 
         NativeBattleChoco99ProgramDraw Step(Saved saved) => file == 0 ? NativeBattleChoco99ProgramDrawing.AdvanceInitial(saved.Task, saved.Source, Actor, saved.Scratch, View, Projection, colors, 0) : NativeBattleChoco99ProgramDrawing.AdvanceLoaded(profile, saved.Task, saved.Source, Actor, saved.Scratch, View, Projection, colors, 0);
@@ -99,10 +99,11 @@ public sealed class NativeBattleChoco99ProgramResourcesTests
         for (int call = 0; call < calls; call++)
         {
             Saved saved = new(task, source, scratch);
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(saved))!;
+            Saved? independentInput = profile == NativeBattleChoco99LoadedProgram.File482 ? NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(saved)) : null;
             NativeBattleChoco99ProgramDraw step = Step(saved, 0);
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(saved))!;
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Step(restored, 0)));
-            Assert.Equal(source.Data.ToArray(), step.Draw.Source.Data.ToArray());
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(Step(restored, 0)));
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(source).Data.ToArray(), NativeBattleStorageSnapshots.Capture(step.Draw.Source).Data.ToArray());
             Assert.Equal((ushort)0xA5A5, step.Draw.Task.ReadWord(0x22));
             Assert.Equal(0xA5A5A5A5u, step.Draw.Task.ReadDword(0x540));
             Assert.Equal(0xA5A5A5A5u, step.Draw.Task.ReadDword(0x544));
@@ -113,14 +114,14 @@ public sealed class NativeBattleChoco99ProgramResourcesTests
                 Assert.Equal(profile is NativeBattleChoco99LoadedProgram.File483 or NativeBattleChoco99LoadedProgram.File484 ? (ushort)1536 : (ushort)0, step.Draw.Task.ReadWord(0x1E));
                 Assert.Equal(profile == NativeBattleChoco99LoadedProgram.File482 ? (ushort)864 : (ushort)0, step.Draw.Task.ReadWord(0x20));
                 Assert.Equal(profile == NativeBattleChoco99LoadedProgram.File482 ? 0u : 4096u, step.Draw.Task.ReadDword(0x50));
-                Assert.All(step.Draw.Task.Payload.Skip(0x94 - 12 + definition.Clear), value => Assert.Equal((byte)0xA5, value));
+                Assert.All(NativeBattleStorageSnapshots.Capture(step.Draw.Task).Payload.Skip(0x94 - 12 + definition.Clear), value => Assert.Equal((byte)0xA5, value));
             }
             if (profile == NativeBattleChoco99LoadedProgram.File482)
             {
                 NativeBattleActionMatrix otherView = new([0, 4096, 0, 4096, 0, 0, 0, 0, -4096], 321, 654, -7000, 4096);
-                NativeBattleModulePoolTask changed = saved.Task.WriteDword(0x50, 123).WriteDword(0x54, 456).WriteDword(0x58, 789).WriteWord(0x60, 999);
-                NativeBattleChoco99ProgramDraw independent = NativeBattleChoco99ProgramDrawing.AdvanceHeldOrStatic(profile, changed, source, 0, saved.Scratch, otherView, Projection, colors, 0);
-                Assert.Equal(JsonSerializer.Serialize(step.Draw.Packets), JsonSerializer.Serialize(independent.Draw.Packets));
+                NativeBattleModulePoolTask changed = independentInput!.Task.WriteDword(0x50, 123).WriteDword(0x54, 456).WriteDword(0x58, 789).WriteWord(0x60, 999);
+                NativeBattleChoco99ProgramDraw independent = NativeBattleChoco99ProgramDrawing.AdvanceHeldOrStatic(profile, changed, independentInput.Source, 0, independentInput.Scratch, otherView, Projection, colors, 0);
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(step.Draw.Packets), NativeBattleSnapshotJson.Serialize(independent.Draw.Packets));
                 Assert.Equal(step.Draw.MorphScratch.ToArray(), independent.Draw.MorphScratch.ToArray());
             }
             accepted += step.Draw.Packets.Attempts.Count(attempt => attempt.Primitive is not null);

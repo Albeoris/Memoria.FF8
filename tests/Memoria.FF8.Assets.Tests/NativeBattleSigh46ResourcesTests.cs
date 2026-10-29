@@ -56,16 +56,16 @@ public sealed class NativeBattleSigh46ResourcesTests
         var state = NativeBattleSigh46State.FromColdProcess().EnsureSources(resources);
         uint faceAddress = MeshAAddress + 656;
         state = state.WriteDword(faceAddress, 0x3E123456).WriteView(MeshAAddress + 14, NativeBattleEffectArena.Clear().MarkUnknown(0, 2), 2);
-        var restored = JsonSerializer.Deserialize<NativeBattleSigh46State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleSnapshotJson.Deserialize<NativeBattleSigh46State>(NativeBattleSnapshotJson.Serialize(state))!;
         restored.Validate();
         Assert.Same(restored, restored.EnsureSources(resources));
         Assert.Equal(0x3E123456u, restored.ReadDword(faceAddress));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(MeshAAddress + 14));
         Assert.Equal(MeshLength, restored.ReadMesh(resources, MeshAAddress).Bytes.Length);
         Assert.NotEqual(0x3E123456u, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadMesh(MeshAAddress).Bytes.AsSpan().Slice(656)));
-        var resourceCopy = JsonSerializer.Deserialize<NativeBattleSigh46Resources>(JsonSerializer.Serialize(resources))!;
+        var resourceCopy = NativeBattleSnapshotJson.Deserialize<NativeBattleSigh46Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         resourceCopy.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(resourceCopy));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(resourceCopy));
     }
 
     [Fact]

@@ -17,13 +17,13 @@ public sealed class NativeBattleRestorationMeshAssetsTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleRestorationExecutableState bank = NativeBattleRestorationExecutableState.FromColdProcess(24).Initialize(game.ReadNativeRestorationResources(24).Executable!);
-        NativeBattleRestorationExecutableState restored = JsonSerializer.Deserialize<NativeBattleRestorationExecutableState>(JsonSerializer.Serialize(bank))!;
+        NativeBattleRestorationExecutableState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleRestorationExecutableState>(NativeBattleSnapshotJson.Serialize(bank))!;
         NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 20000 };
         NativeBattleCameraProjection projection = new(matrix, 216, 160, 108);
         NativeBattleEsunaMeshContext context = new(0x30, null, null, 0, 0, vertical, new(0, 0, 256, 256), new(0, 0, vertical == 0 ? (short)256 : (short)128, vertical == 0 ? (short)256 : (short)128), 17, 2);
         ImmutableArray<byte> mesh = ReadMesh(bank, index);
         NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh, matrix, projection, context);
-        Assert.Equal(JsonSerializer.Serialize(batch), JsonSerializer.Serialize(NativeBattleRestorationMeshPackets.EmitBatch88E240(ReadMesh(restored, index), matrix, projection, context)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(batch), NativeBattleSnapshotJson.Serialize(NativeBattleRestorationMeshPackets.EmitBatch88E240(ReadMesh(restored, index), matrix, projection, context)));
         Assert.Equal(faces, batch.Attempts.Count(attempt => attempt.Primitive is { } primitive && (primitive.Words[1] >> 24) != 0xE2));
         Assert.Equal(vertical == 0 ? faces : faces * 4, batch.Attempts.Length);
         Assert.Equal(index switch { 0 => 80, 1 or 2 => 90 * 76, _ => 16 * 32 + 32 * 40 }, batch.AllocationBytes);
@@ -51,7 +51,7 @@ public sealed class NativeBattleRestorationMeshAssetsTests
         NativeBattleCameraProjection projection = new(matrix, 216, 160, 108);
         NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitBatch884370(mesh, matrix, projection, new(0x30, null, null, null, null, null, 17, 2));
         NativeBattleGfGeometryBatch normalized = NativeBattleCuragaMeshPackets.EmitBatch87EEB0(mesh, matrix, projection, new(0x30, null, null, null, null, null, 17, 2));
-        Assert.Equal(JsonSerializer.Serialize(normalized), JsonSerializer.Serialize(batch));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(normalized), NativeBattleSnapshotJson.Serialize(batch));
         Assert.Equal(faces, batch.Attempts.Length);
         Assert.Equal(faces * 40, batch.AllocationBytes);
     }
@@ -85,12 +85,12 @@ public sealed class NativeBattleRestorationMeshAssetsTests
         Assert.Equal(0u, gouraud.Words[3]);
         Assert.Equal(color & 0xFFFFFF, gouraud.Words[5]);
         Assert.Equal(0u, gouraud.Words[7]);
-        NativeBattleRestorationExecutableState restored = JsonSerializer.Deserialize<NativeBattleRestorationExecutableState>(JsonSerializer.Serialize(bank))!;
-        Assert.Equal(JsonSerializer.Serialize(complete), JsonSerializer.Serialize(NativeBattleRestorationMeshPackets.EmitBatch884370(ReadMesh(restored, index), matrix, projection, new(0x30, null, null, null, null, null, 17, 2))));
+        NativeBattleRestorationExecutableState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleRestorationExecutableState>(NativeBattleSnapshotJson.Serialize(bank))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(complete), NativeBattleSnapshotJson.Serialize(NativeBattleRestorationMeshPackets.EmitBatch884370(ReadMesh(restored, index), matrix, projection, new(0x30, null, null, null, null, null, 17, 2))));
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeBattleEffectMemory.FromColdProcess().BeginLoad(26), 128, NativeBattleLogicalOrdering.Clear(), complete);
         Assert.Equal(188, written.Cursor);
         using BattleAssets assets = new(game.GameDirectory);
-        NativeBattleLogicalOrdering restoredOrdering = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(written.Ordering))!;
+        NativeBattleLogicalOrdering restoredOrdering = NativeBattleSnapshotJson.Deserialize<NativeBattleLogicalOrdering>(NativeBattleSnapshotJson.Serialize(written.Ordering))!;
         Assert.Equal(new byte[] { 0x3A, 0x2A }, restoredOrdering.Traverse(assets.ReadNativePrimitiveTables().WordLengths).Select(command => command.Opcode));
     }
 

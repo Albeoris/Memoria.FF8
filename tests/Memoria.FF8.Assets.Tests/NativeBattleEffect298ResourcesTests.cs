@@ -65,7 +65,7 @@ public sealed class NativeBattleEffect298ResourcesTests
                     return retained;
                 }).Workspace;
                 Assert.Equal(nodes[index], callbacks);
-                Assert.All(workspace.Data.Skip(clears[index]), value => Assert.Equal((byte)0xA5, value));
+                Assert.All(NativeBattleStorageSnapshots.Capture(workspace).Data.Skip(clears[index]), value => Assert.Equal((byte)0xA5, value));
             }
         }
         Assert.Equal(new[] { 2, 3, 4, 5, 7 }, groups.Order().ToArray());
@@ -101,14 +101,14 @@ public sealed class NativeBattleEffect298ResourcesTests
         Assert.Equal(148, resources.ReadScript(0x10567E8).Length);
         uint first = ScriptCounterAddresses[0];
         var current = cold.WriteWord(first, 0);
-        var restored = JsonSerializer.Deserialize<NativeBattleEffect298State>(JsonSerializer.Serialize(current))!;
+        var restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect298State>(NativeBattleSnapshotJson.Serialize(current))!;
         restored.Validate();
         Assert.Equal(new byte[2], restored.ReadStatic(resources, first, 2));
         Assert.Equal((ushort)10, BinaryPrimitives.ReadUInt16LittleEndian(resources.ReadStatic(first, 2).AsSpan()));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect298State.FromUnknown().ReadStatic(resources, first, 2));
-        var resourceCopy = JsonSerializer.Deserialize<NativeBattleEffect298Resources>(JsonSerializer.Serialize(resources))!;
+        var resourceCopy = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect298Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         resourceCopy.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(resourceCopy));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(resourceCopy));
         Assert.Equal(0x64230u, resourceCopy.Sound);
         Assert.Equal(304, resourceCopy.Vibration.Bank.Bytes.Length);
         Assert.Equal(new[] { 0, 256 }, resourceCopy.Vibration.Bank.Offsets.ToArray());

@@ -15,7 +15,7 @@ public sealed class NativeBattleChoco97ProgramResourcesTests
         NativeBattleChoco97ProgramResources resources = game.ReadNativeChoco97ProgramResources();
         NativeBattleGfAnimationSource source = resources.ProgramSource;
         Assert.Equal(0x168F8BCu, source.Address);
-        Assert.Equal(0x2884, source.Data.Length);
+        Assert.Equal(0x2884, NativeBattleStorageSnapshots.Capture(source).Data.Length);
         NativeBattleModulePoolTask initial = new NativeBattleModulePoolTask(1, 0, null, 0x72A660, Enumerable.Repeat((byte)0xA5, 0x540 - 12).ToImmutableArray()).WriteDword(0x74, source.Address).WriteDword(0x78, 0x4AC).WriteWord(0x60, 0).WriteWord(0x62, 0).WriteWord(0x64, 0);
         NativeBattleModulePoolTask task = NativeBattleChoco97ProgramDrawing.InitializeWorkspace72A6C0(initial, source, [10, 0, 20, 0, 30, 0, 40, 0]);
         Assert.Equal((ushort)20, task.ReadWord(0x1E));
@@ -31,9 +31,9 @@ public sealed class NativeBattleChoco97ProgramResourcesTests
         for (int frame = 0; frame < 30; frame++)
         {
             Saved saved = new(task, source, scratch);
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(saved))!;
             NativeBattleChoco97ProgramDraw next = NativeBattleChoco97ProgramDrawing.Advance72A720(task, source, scratch, view, projection, colors, 0);
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(saved))!;
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(NativeBattleChoco97ProgramDrawing.Advance72A720(restored.Task, restored.Source, restored.Scratch, view, projection, colors, 0)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(NativeBattleChoco97ProgramDrawing.Advance72A720(restored.Task, restored.Source, restored.Scratch, view, projection, colors, 0)));
             NativeBattleChoco97ProgramDraw frozen = NativeBattleChoco97ProgramDrawing.Advance72A720(task, source, scratch, view, projection, colors, 0x10000);
             Assert.Equal(task.ReadDword(0x98), frozen.Task.ReadDword(0x98));
             Assert.Equal((uint)(frame + 1), next.Task.ReadDword(0x98));
@@ -53,7 +53,7 @@ public sealed class NativeBattleChoco97ProgramResourcesTests
         Assert.True(morphed);
         Assert.True(primitives > 0);
         Assert.Same(resources, game.ReadNativeChoco97ProgramResources());
-        Assert.Equal(resources.ProgramSource.Data.ToArray(), source.Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(resources.ProgramSource).Data.ToArray(), NativeBattleStorageSnapshots.Capture(source).Data.ToArray());
         Assert.Throws<NotSupportedException>(() => NativeBattleChoco97ProgramDrawing.Advance72A720(task, source, default, view, projection, colors, 0));
     }
 

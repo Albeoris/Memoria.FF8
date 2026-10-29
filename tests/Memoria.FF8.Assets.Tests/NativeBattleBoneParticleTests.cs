@@ -23,7 +23,7 @@ public sealed class NativeBattleBoneParticleTests
         NativeBattleGraphicsBinding binding = graphics.Bindings.Single(binding => binding.ActorId == "party");
         graphics = graphics with { Bindings = graphics.Bindings.SetItem(graphics.Bindings.IndexOf(binding), binding with { Resource = binding.Resource with { SequenceSection = program.ToImmutableArray() } }) };
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, formation.Id);
-        BattleSession battle = new(new() { StageId = formation.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeMusicProcess = musicEntry.MusicProcess, NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeStageSource = assets.LoadStage(formation.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(formation.StageId).NativeCameraBank, NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(formation.StageId).NativeCameraControl, NativeGraphics = graphics, NativeModuleResources = game.ReadNativeBattleModuleResources(), Combatants = actors }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new() { StageId = formation.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), LimitProgress = game.ReadNewGameLimitProgress(), NativeSavedOptions = game.ReadNewGameInputConfiguration().Options, NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap, NativeMusicProcess = musicEntry.MusicProcess, NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeStageSource = assets.LoadStage(formation.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(formation.StageId).NativeCameraBank, NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(formation.StageId).NativeCameraControl, NativeGraphics = graphics, NativeModuleResources = game.ReadNativeBattleModuleResources(), Combatants = actors }, BattleAtbMode.TurnBased);
         for (int callback = 0; callback < 300 && !battle.NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830); callback++)
         {
             battle.Tick();
@@ -31,12 +31,12 @@ public sealed class NativeBattleBoneParticleTests
         BattleSnapshot pending = battle.Capture();
         NativeBattleAuxiliaryTask task = Assert.Single(pending.NativeGraphics!.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830);
         Assert.Equal(24, task.Program!.Offset);
-        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(8)));
+        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(8)));
         Assert.Equal(0x81, task.Program.Source[task.Program.Offset]);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(pending))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(pending))!);
         battle.Tick();
         restored.Tick();
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
         Assert.DoesNotContain(battle.NativeGraphics!.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830);
         NativeBattleModuleDraw draw = Assert.Single(battle.NativeGraphics.ModuleDraws, draw => draw.Kind == NativeBattleModuleDrawKind.Sprite);
         Assert.Equal((short)0, draw.Anchor!.Y);
@@ -52,7 +52,7 @@ public sealed class NativeBattleBoneParticleTests
         Assert.Equal(0x570CC0u, resource.WrapperCallback);
         Assert.Equal(0x570BC0u, resource.Callback);
         NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendBoneParticle(3, 240, short.MinValue, resource, 3u | 9u << 16);
-        NativeBattleModuleState restored = JsonSerializer.Deserialize<NativeBattleModuleState>(JsonSerializer.Serialize(state))!;
+        NativeBattleModuleState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleModuleState>(NativeBattleSnapshotJson.Serialize(state))!;
         NativeBattleModuleInputs inputs = new(0) { Resources = [resource], ReadModelBone = (model, bone, fraction) =>
         {
             Assert.Equal(3, model);
@@ -61,7 +61,7 @@ public sealed class NativeBattleBoneParticleTests
             return new(10, 20, 30);
         } };
         NativeBattleModuleStep step = state.Advance(inputs);
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(restored.Advance(inputs)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(restored.Advance(inputs)));
         NativeBattleModuleDraw draw = Assert.Single(step.Draws);
         Assert.Equal(NativeBattleModuleDrawKind.Sprite, draw.Kind);
         Assert.Equal(new NativeBattleModuleAnchor(10, 0, 30, 0), draw.Anchor);

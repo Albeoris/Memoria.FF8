@@ -58,7 +58,7 @@ public sealed class NativeBattleSharedEffectLoadingTests
         Assert.Equal((byte?)2, initialized.Memory.Parameter82);
         Assert.Equal(selected.Binding.InitializerAsset!.Data.ToArray(), initialized.Memory.Arena!.Read(0, initialized.Memory.Cursor));
         Assert.Equal(new NativeBattleEffectResourcePointer(0x2521650, 0), Assert.Single(initialized.Effect.ResourcePointers));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(initialized.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectMemory>(NativeBattleSnapshotJson.Serialize(initialized.Memory))!;
         restored.Validate();
         Assert.Equal((byte?)8, restored.Parameter80);
         Assert.Equal((byte?)2, restored.Parameter82);

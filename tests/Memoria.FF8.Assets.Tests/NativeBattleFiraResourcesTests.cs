@@ -36,9 +36,9 @@ public sealed class NativeBattleFiraResourcesTests
         Assert.True(binding.InitializerAsset.Data.AsSpan().SequenceEqual(initialized.Memory.Arena!.Read(0, binding.InitializerAsset.Data.Length)));
         NativeBattleEffectTextureState textures = initialized.Memory.Textures!.Register5099A0(resources.Animation).EnqueueArenaTim505E30(initialized.Memory.Arena!, 0).State;
         Assert.NotEmpty(textures.Drain505D20(initialized.Memory.Arena).Uploads);
-        string json = JsonSerializer.Serialize(new Saved(initialized.Memory, initialized.Effect));
-        Saved restored = JsonSerializer.Deserialize<Saved>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = NativeBattleSnapshotJson.Serialize(new Saved(initialized.Memory, initialized.Effect));
+        Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(json)!;
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal(resources.UvOffsets.ToArray(), restored.Effect.Binding.FiraResources!.UvOffsets.ToArray());
         Assert.Equal(resources.Animation.Data.ToArray(), restored.Effect.Binding.FiraResources.Animation.Data.ToArray());
         Assert.Same(restored.Effect, NativeBattleEffectResourceResolver.MaterializeSelected(restored.Effect, null));

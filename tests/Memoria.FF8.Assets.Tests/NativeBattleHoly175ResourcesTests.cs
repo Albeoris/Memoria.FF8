@@ -49,8 +49,8 @@ public sealed class NativeBattleHoly175ResourcesTests
         Assert.Equal(new[] { 0xA8, 0x74, 0xDC, 0x334 }, resources.ProjectedSprites.Select(sprite => sprite.Bytes.Length).ToArray());
         Assert.Equal(new uint[] { 0xD527F8, 0xD52DD8, 0xD53688, 0xD53BA0, 0xD54588, 0xD56C58 }, resources.Meshes.Select(mesh => mesh.Address).ToArray());
         Assert.Equal(new[] { 0x5E0, 0x8B0, 0x518, 0x9E8, 0x26D0, 0x2528 }, resources.Meshes.Select(mesh => mesh.Bytes.Length).ToArray());
-        string json = JsonSerializer.Serialize(resources);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleHoly175Resources>(json)!));
+        string json = NativeBattleSnapshotJson.Serialize(resources);
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(NativeBattleSnapshotJson.Deserialize<NativeBattleHoly175Resources>(json)!));
         Assert.Throws<NotSupportedException>(() => resources.Sprite(0));
         Assert.Throws<NotSupportedException>(() => resources.Mesh(0));
         Assert.Throws<NotSupportedException>(() => NativeBattleHoly175ResourcesReader.Read(new byte[128]));
@@ -78,7 +78,7 @@ public sealed class NativeBattleHoly175ResourcesTests
             {
                 NativeBattleModuleSpriteFrame selected = projected.ProjectedFrame571C80(frame);
                 Assert.Equal(0, selected.Quads.Length % 20);
-                Assert.Equal(JsonSerializer.Serialize(selected), JsonSerializer.Serialize(projected.SpriteFrame(frame)));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(selected), NativeBattleSnapshotJson.Serialize(projected.SpriteFrame(frame)));
             }
             Assert.Throws<InvalidDataException>(() => projected.ProjectedFrame571C80(frames[index]));
         }
@@ -104,13 +104,13 @@ public sealed class NativeBattleHoly175ResourcesTests
         Assert.Equal(resources.Tim.Data.Length, end);
         Assert.Equal(1, queued.Count);
         Assert.Same(resources.Tim, queued.Slots[0]!.Source);
-        string json = JsonSerializer.Serialize(queued);
-        NativeBattleEffectTextureState cold = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(cold));
+        string json = NativeBattleSnapshotJson.Serialize(queued);
+        NativeBattleEffectTextureState cold = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectTextureState>(json)!;
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(cold));
         NativeBattleEffectTextureDrain drained = queued.Drain505D20();
         Assert.Equal(2, drained.Uploads.Length);
         Assert.All(drained.Uploads, upload => Assert.Equal(upload.Width * upload.Height * 2, upload.Bytes.Length));
-        Assert.Equal(JsonSerializer.Serialize(drained), JsonSerializer.Serialize(cold.Drain505D20()));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(drained), NativeBattleSnapshotJson.Serialize(cold.Drain505D20()));
         Assert.Equal(0, drained.State.Count);
     }
 }

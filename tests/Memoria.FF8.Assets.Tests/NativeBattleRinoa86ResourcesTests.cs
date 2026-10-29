@@ -26,7 +26,7 @@ public sealed class NativeBattleRinoa86ResourcesTests
         int remaining = -1;
         for (int call = 0; call < 256 && remaining != 0; call++)
         {
-            NativeBattleGfAnimationWorkspace clone = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace))!;
+            NativeBattleGfAnimationWorkspace clone = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace))!;
             ImmutableArray<byte> before = morph;
             List<NativeBattleGfGeometryBatch> first = [];
             NativeBattleGfAnimationAdvance next = workspace.Advance701970(source, 0, (current, node) =>
@@ -47,8 +47,8 @@ public sealed class NativeBattleRinoa86ResourcesTests
                 second.Add(drawn.Packets);
                 return current;
             });
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(restored));
-            Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(restored));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(first), NativeBattleSnapshotJson.Serialize(second));
             Assert.Equal(morph.ToArray(), restoredMorph.ToArray());
             workspace = next.Workspace;
             remaining = next.Remaining;
@@ -68,23 +68,23 @@ public sealed class NativeBattleRinoa86ResourcesTests
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeBattleRinoa86Resources resources = assets.ReadNativeRinoa86Resources();
-        Assert.Equal(0x220, resources.Animation.Data.Length);
-        Assert.Equal(64, resources.Io.Script.Data.Length);
+        Assert.Equal(0x220, NativeBattleStorageSnapshots.Capture(resources.Animation).Data.Length);
+        Assert.Equal(64, NativeBattleStorageSnapshots.Capture(resources.Io.Script).Data.Length);
         Assert.Equal(new short[] { 405, 406 }, resources.Io.Files.Select(file => file.FileId));
         Assert.Equal(new[] { "MAG085_B.1T0", "MAG085_B.1T1" }, resources.Io.Files.Select(file => file.Name));
-        Assert.All(resources.Io.Files, file => Assert.Equal(33312, file.Data.Length));
+        Assert.All(resources.Io.Files, file => Assert.Equal(33312, NativeBattleStorageSnapshots.Capture(file).Data.Length));
         Assert.Equal(34, resources.Model.PoseSource.BoneCount);
         Assert.Equal(0x4934, resources.Model.Bytes.Length);
         Assert.Equal(new[] { 0x18, 0x688, 0x3344, 0x4928, 0x4934 }, Enumerable.Range(0, 5).Select(index => resources.Model.Section(index)));
-        Assert.Equal(0x1D60, resources.ActorOverride.Data.Length);
+        Assert.Equal(0x1D60, NativeBattleStorageSnapshots.Capture(resources.ActorOverride).Data.Length);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x25BBEE8, 0x25BBD88, 352, 1);
         (pool, int slot) = pool.Append(0x77FF90);
         NativeBattleEffectOwnedModelStep initialized = NativeBattleEffectOwnedModel.Initialize8DD0F0(pool.Slots[slot], 0x25BBD88, resources.Model, 3, resources.DefaultColor44);
         NativeBattleEffectOwnedModelStep selected = NativeBattleEffectOwnedModel.Select8DD190(initialized.Task, initialized.State, resources.Model, 0);
         Assert.NotNull(selected.State.DecodedPose);
-        NativeBattleEffectOwnedModelStep restored = JsonSerializer.Deserialize<NativeBattleEffectOwnedModelStep>(JsonSerializer.Serialize(selected))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffectOwnedModel.AdvanceLoop8DD1C0(selected.Task, selected.State, resources.Model)), JsonSerializer.Serialize(NativeBattleEffectOwnedModel.AdvanceLoop8DD1C0(restored.Task, restored.State, resources.Model)));
-        NativeBattleRinoa86IoState io = NativeBattleRinoa86Io.ReleaseWait77FDB0(NativeBattleRinoa86Io.Initialize77F680(resources.Io.Script.Data, 0x20DFAB8 + 0x20000)).State;
+        NativeBattleEffectOwnedModelStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectOwnedModelStep>(NativeBattleSnapshotJson.Serialize(selected))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleEffectOwnedModel.AdvanceLoop8DD1C0(selected.Task, selected.State, resources.Model)), NativeBattleSnapshotJson.Serialize(NativeBattleEffectOwnedModel.AdvanceLoop8DD1C0(restored.Task, restored.State, resources.Model)));
+        NativeBattleRinoa86IoState io = NativeBattleRinoa86Io.ReleaseWait77FDB0(NativeBattleRinoa86Io.Initialize77F680(NativeBattleStorageSnapshots.Capture(resources.Io.Script).Data, 0x20DFAB8 + 0x20000)).State;
         NativeBattleModulePoolTask task = new(1, 0, null, 0x77F780, new byte[36].ToImmutableArray());
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(86);
         for (int index = 0; index < 2; index++)

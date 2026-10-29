@@ -27,6 +27,8 @@ public sealed class NativeBattleControlGraphicsTests
             EncounterId = 94,
             StageId = formation.StageId,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeMusicProcess = musicEntry.MusicProcess,
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeGlobalSoundProcess = musicEntry.SoundProcess,
@@ -59,14 +61,14 @@ public sealed class NativeBattleControlGraphicsTests
         NativeBattleGraphicsState graphics = boundary.NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         battle = BattleSession.Restore(boundary with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(battle.Capture()))!);
         bool selected = false;
         bool waitedForSequence = false;
         for (int tick = 0; tick < 200 && battle.NativeGraphics!.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104); tick++)
         {
             battle.Tick();
             restored.Tick();
-            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
             selected |= battle.NativeGraphics.ActionGraphics?.Callback == callback;
             waitedForSequence |= battle.NativeGraphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 2);
         }
@@ -81,7 +83,7 @@ public sealed class NativeBattleControlGraphicsTests
             {
                 battle.Tick();
                 restored.Tick();
-                Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
             }
             Assert.Contains(battle.Events, item => item.NativeSound is not null);
             BattleEvent sound = battle.Events.First(item => item.NativeSound is not null);

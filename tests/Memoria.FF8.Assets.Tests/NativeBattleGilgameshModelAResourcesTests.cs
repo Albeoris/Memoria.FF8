@@ -26,7 +26,7 @@ public sealed class NativeBattleGilgameshModelAResourcesTests
         NativeBattleCactuarRawModelState advanced = NativeBattleCactuarRawModel.Advance5A8FD0(model, resource, new(0x21FF4B8, 4)).State;
         Assert.Equal((byte)2, advanced.Model[0x72]);
         NativeBattleGilgameshModelAStep repeated = Run(result.ModelMemory.Write(0x21FF760, advanced), result.Arena, task, resource, 0x201);
-        Assert.Equal(JsonSerializer.Serialize(result.ModelMemory), JsonSerializer.Serialize(repeated.ModelMemory));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(result.ModelMemory), NativeBattleSnapshotJson.Serialize(repeated.ModelMemory));
     }
 
     [Fact]
@@ -68,16 +68,16 @@ public sealed class NativeBattleGilgameshModelAResourcesTests
         for (ushort counter = 26; counter <= 44; counter++)
         {
             NativeBattleModulePoolTask task = Task(counter);
+            NativeBattleGilgameshModelAStep? restored = counter == 30 ? NativeBattleSnapshotJson.Deserialize<NativeBattleGilgameshModelAStep>(NativeBattleSnapshotJson.Serialize(current)) : null;
             NativeBattleGilgameshModelAStep step = Run(current.ModelMemory, current.Arena, task, resource, 0x201);
             Assert.Same(task, step.UpdatedTask);
             Assert.Equal(0x22000 + 1966, step.LabelEndOffset);
             Assert.InRange(step.Packets.Attempts.Length, 0, 983);
-            Assert.Equal(JsonSerializer.Serialize(initial.ModelMemory.Read(0x21FF760).State.DecodedPose), JsonSerializer.Serialize(step.ModelMemory.Read(0x21FF760).State.DecodedPose));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(initial.ModelMemory.Read(0x21FF760).State.DecodedPose), NativeBattleSnapshotJson.Serialize(step.ModelMemory.Read(0x21FF760).State.DecodedPose));
             accepted += step.Packets.Attempts.Count(attempt => attempt.Primitive is not null);
-            if (counter == 30)
+            if (restored is not null)
             {
-                NativeBattleGilgameshModelAStep restored = JsonSerializer.Deserialize<NativeBattleGilgameshModelAStep>(JsonSerializer.Serialize(current))!;
-                Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(Run(restored.ModelMemory, restored.Arena, task, resource, 0x201)));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(Run(restored.ModelMemory, restored.Arena, task, resource, 0x201)));
             }
             current = step;
         }
@@ -98,7 +98,7 @@ public sealed class NativeBattleGilgameshModelAResourcesTests
         model = model with { Model = bytes.ToImmutableArray() };
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().MarkUnknown(0x31800, 505 * 8).MarkUnknown(0x22000, 2048);
         NativeBattleGilgameshModelADraw draw = NativeBattleGilgameshModelA.Draw596010(model, resource, arena, null!, null!, null, 1);
-        Assert.Equal(JsonSerializer.Serialize(arena), JsonSerializer.Serialize(draw.Arena));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(arena), NativeBattleSnapshotJson.Serialize(draw.Arena));
         Assert.Equal(0x22000, draw.LabelEndOffset);
         Assert.Empty(draw.Packets.Attempts);
         Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshModelA.Draw596010(model with { DecodedPose = null }, resource, arena, null!, null!, null, 1));

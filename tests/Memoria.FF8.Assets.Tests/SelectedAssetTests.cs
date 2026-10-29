@@ -105,6 +105,11 @@ public sealed class SelectedAssetTests
         FieldRenderer renderer = new(classroom);
         byte[] dark = renderer.Render(states, [], TimeSpan.Zero, cameraIndex: 1, backgroundModuleShades: new Dictionary<int, Vector3> { [3] = Vector3.Zero }).ToArray();
         byte[] light = renderer.Render(states, [], TimeSpan.Zero, cameraIndex: 1, backgroundModuleShades: new Dictionary<int, Vector3> { [3] = new(126) }).ToArray();
+        // 471F70 uses the INF origin in a 224-line DRAWENV; the PC viewport scales it to 240 lines.
+        FieldBounds screen = classroom.Information!.ScreenBounds[0];
+        int nativeOriginY = screen.Top + (screen.Bottom - screen.Top) / 2;
+        int terminalTop = (int)MathF.Ceiling((terminal.Min(tile => tile.Y) + nativeOriginY) * (240f / 224) - 0.5f);
+        int terminalBottom = (int)MathF.Ceiling((terminal.Max(tile => tile.Y) + 16 + nativeOriginY) * (240f / 224) - 0.5f) - 1;
         int changed = 0;
         for (int pixel = 0; pixel < 320 * 240; pixel++)
         {
@@ -112,7 +117,7 @@ public sealed class SelectedAssetTests
             {
                 changed++;
                 Assert.InRange(pixel % 320, 128, 175);
-                Assert.InRange(pixel / 320, 24, 55);
+                Assert.InRange(pixel / 320, terminalTop, terminalBottom);
             }
         }
         Assert.True(changed > 0);
@@ -244,8 +249,9 @@ public sealed class SelectedAssetTests
     [Fact]
     public void HighResolutionModelFilteringPreservesCutoutsAndWorldDepth()
     {
-        PixelImage texture = new(2, 2, [new(240, 0, 0), new(0, 240, 0), new(0, 0, 240), new(240, 240, 240)]);
-        FieldModel model = new("sampling-fixture", [new(-1, 0)], [new(new Vector3(0, -10, -10), 0), new(new Vector3(0, 10, -10), 0), new(new Vector3(0, 0, 10), 0)], [new([0, 1, 2], [Vector2.One, Vector2.One, Vector2.One], 0, false)], [texture], [new([new(Vector3.Zero, [Vector3.Zero])])]);
+        // Integer UVs are texel centers. Halfway coordinates select the white point texel while blending four RGB neighbors.
+        PixelImage texture = new(3, 3, [new(0, 0, 0), new(0, 0, 0), new(0, 0, 0), new(0, 0, 0), new(240, 240, 240), new(240, 0, 0), new(0, 0, 0), new(0, 240, 0), new(0, 0, 240)]);
+        FieldModel model = new("sampling-fixture", [new(-1, 0)], [new(new Vector3(0, -10, -10), 0), new(new Vector3(0, 10, -10), 0), new(new Vector3(0, 0, 10), 0)], [new([0, 2, 1], [new Vector2(1.5f), new Vector2(1.5f), new Vector2(1.5f)], 0, false)], [texture], [new([new(Vector3.Zero, [Vector3.Zero])])]);
         PixelImage background = new(16, 16, Enumerable.Repeat(new Rgba32(100, 0, 0), 256).ToArray());
         FieldAssets field = new(0, "sampling-fixture", [], [], [new(0, 0, 26, 255, 0, 0, MapBlendMode.None, false, true, background)], new FieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, Vector3.Zero, Vector2.Zero, 100), new FieldWalkmesh([]), [model]);
         ActorVisual[] actors = [new(0, 0, 0, 0, 100, 192, 0, 0, true, PolygonColor: new Vector3(128))];
@@ -256,9 +262,9 @@ public sealed class SelectedAssetTests
         Assert.Equal(new byte[] { 240, 240, 240, 255 }, nearest.AsSpan(sample, 4).ToArray());
         Assert.Equal(new byte[] { 120, 120, 120, 255 }, filtered.AsSpan(sample, 4).ToArray());
         // Transparent source RGB must not form dark/colored halos, or fill a native cutout.
-        texture[0, 0] = new Rgba32(255, 0, 255, 0);
-        texture[1, 0] = new Rgba32(255, 0, 255, 0);
-        texture[0, 1] = new Rgba32(255, 0, 255, 0);
+        texture[2, 1] = new Rgba32(255, 0, 255, 0);
+        texture[1, 2] = new Rgba32(255, 0, 255, 0);
+        texture[2, 2] = new Rgba32(255, 0, 255, 0);
         filtered = new FieldRenderer(field, 960, 720).Render(states, actors, TimeSpan.Zero);
         Assert.Equal(new byte[] { 240, 240, 240, 255 }, filtered.AsSpan(sample, 4).ToArray());
         texture[1, 1] = new Rgba32(255, 0, 255, 0);
@@ -339,7 +345,7 @@ public sealed class SelectedAssetTests
     {
         PixelImage background = new(16, 16, Enumerable.Repeat(new Rgba32(200, 0, 0), 256).ToArray());
         PixelImage texture = new(16, 16, Enumerable.Repeat(new Rgba32(0, 0, 200), 256).ToArray());
-        FieldModel model = new("triangle", [new(-1, 0)], [new(new Vector3(0, -10, -10), 0), new(new Vector3(0, 10, -10), 0), new(new Vector3(0, 0, 10), 0)], [new([0, 1, 2], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, false)], [texture], [new([new(Vector3.Zero, [Vector3.Zero])])]);
+        FieldModel model = new("triangle", [new(-1, 0)], [new(new Vector3(0, -10, -10), 0), new(new Vector3(0, 10, -10), 0), new(new Vector3(0, 0, 10), 0)], [new([0, 2, 1], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, false)], [texture], [new([new(Vector3.Zero, [Vector3.Zero])])]);
         FieldAssets field = new(0, "test", [], [], [new(0, 0, 26, 255, 0, 0, MapBlendMode.None, false, true, background)], new FieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, Vector3.Zero, Vector2.Zero, 100), new FieldWalkmesh([]), [model]);
         ActorVisual[] actors = [new(0, 0, 0, 0, 100, 192, 0, 0, true, PolygonColor: new Vector3(128))];
         int sample = (121 * 320 + 161) * 4;

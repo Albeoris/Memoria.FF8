@@ -56,7 +56,7 @@ public sealed class NativeBattleEffect303ResourcesTests
                 }).Workspace;
                 Assert.Equal(nodes[index], callbacks);
                 Assert.Equal(frame + 1, workspace.Frame);
-                Assert.All(workspace.Data.Skip(clears[index]), value => Assert.Equal((byte)0xA5, value));
+                Assert.All(NativeBattleStorageSnapshots.Capture(workspace).Data.Skip(clears[index]), value => Assert.Equal((byte)0xA5, value));
             }
         }
         Assert.Equal(new[] { 3 }, groups.Order().ToArray());
@@ -75,9 +75,9 @@ public sealed class NativeBattleEffect303ResourcesTests
     {
         using GameAssets game = Open();
         var resources = game.ReadNativeEffect303Resources();
-        var restored = JsonSerializer.Deserialize<NativeBattleEffect303Resources>(JsonSerializer.Serialize(resources))!;
+        var restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffect303Resources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal(0x6419Du, resources.Sound);
         Assert.Equal(new[] { 0, 256 }, resources.Vibration.Bank.Offsets.ToArray());
         Assert.Equal(14, resources.Vibration.Bank.ReadWord(256));

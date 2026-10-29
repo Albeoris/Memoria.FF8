@@ -35,9 +35,9 @@ public sealed class NativeBattlePetrifyStare127ResourcesTests
     {
         using GameAssets game = Open();
         NativeBattleEffectBinding source = game.ReadNativeEffectCatalogForEffects([127])[126];
-        string json = JsonSerializer.Serialize(source);
-        NativeBattleEffectBinding restored = JsonSerializer.Deserialize<NativeBattleEffectBinding>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = NativeBattleSnapshotJson.Serialize(source);
+        NativeBattleEffectBinding restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectBinding>(json)!;
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(restored));
         restored.PetrifyStare127Resources!.Validate();
         Assert.Equal(source.PetrifyStare127Resources!.FirstAct.Data.ToArray(), restored.PetrifyStare127Resources.FirstAct.Data.ToArray());
         Assert.Equal(source.PetrifyStare127Resources.SecondAct.Data.ToArray(), restored.PetrifyStare127Resources.SecondAct.Data.ToArray());
@@ -52,17 +52,17 @@ public sealed class NativeBattlePetrifyStare127ResourcesTests
         cold.Validate();
         Assert.Equal(0u, cold.ReadDword(NativeBattlePetrifyStare127Profile.WorkingGlobal));
         NativeBattlePetrifyStare127State live = cold.WriteDword(NativeBattlePetrifyStare127Profile.WorkingGlobal, 0x20DFAB8);
-        string json = JsonSerializer.Serialize(live);
-        NativeBattlePetrifyStare127State restored = JsonSerializer.Deserialize<NativeBattlePetrifyStare127State>(json)!;
+        string json = NativeBattleSnapshotJson.Serialize(live);
+        NativeBattlePetrifyStare127State restored = NativeBattleSnapshotJson.Deserialize<NativeBattlePetrifyStare127State>(json)!;
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal(0x20DFAB8u, restored.ReadDword(NativeBattlePetrifyStare127Profile.WorkingGlobal));
         Assert.Throws<InvalidDataException>(() => restored.ReadDword(NativeBattlePetrifyStare127Profile.RootBank));
         NativeBattlePetrifyStare127State unknown = NativeBattlePetrifyStare127State.FromUnknown();
         unknown.Validate();
-        string unknownJson = JsonSerializer.Serialize(unknown);
-        NativeBattlePetrifyStare127State unknownRestored = JsonSerializer.Deserialize<NativeBattlePetrifyStare127State>(unknownJson)!;
-        Assert.Equal(unknownJson, JsonSerializer.Serialize(unknownRestored));
+        string unknownJson = NativeBattleSnapshotJson.Serialize(unknown);
+        NativeBattlePetrifyStare127State unknownRestored = NativeBattleSnapshotJson.Deserialize<NativeBattlePetrifyStare127State>(unknownJson)!;
+        Assert.Equal(unknownJson, NativeBattleSnapshotJson.Serialize(unknownRestored));
         Assert.Throws<NotSupportedException>(() => unknownRestored.ReadDword(NativeBattlePetrifyStare127Profile.WorkingGlobal));
     }
 

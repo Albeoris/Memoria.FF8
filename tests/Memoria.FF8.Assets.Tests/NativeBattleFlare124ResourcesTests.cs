@@ -27,10 +27,10 @@ public sealed class NativeBattleFlare124ResourcesTests
             NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[length].ToImmutableArray()).Initialize7016B0(source, length);
             for (int frame = 0; frame < 88; frame++)
             {
-                NativeBattleGfAnimationWorkspace restored = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(workspace))!;
+                NativeBattleGfAnimationWorkspace restored = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace))!;
                 NativeBattleGfAnimationAdvance live = workspace.Advance701970(source, 0, (current, _) => current);
                 Assert.Equal(87 - frame, live.Remaining);
-                Assert.Equal(JsonSerializer.Serialize(live), JsonSerializer.Serialize(restored.Advance701970(source, 0, (current, _) => current)));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(live), NativeBattleSnapshotJson.Serialize(restored.Advance701970(source, 0, (current, _) => current)));
                 workspace = live.Workspace;
             }
         }

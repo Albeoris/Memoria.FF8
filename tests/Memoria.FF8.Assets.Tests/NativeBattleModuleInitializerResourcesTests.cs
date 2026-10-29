@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -35,9 +34,9 @@ public sealed class NativeBattleModuleInitializerResourcesTests
             {
                 Assert.True(originals[index].Data.AsSpan().SequenceEqual(initialized.Memory.Arena!.Read(initialized.Effect.ResourcePointers[index].ArenaOffset, originals[index].Data.Length)));
             }
-            string json = JsonSerializer.Serialize(new Saved(initialized.Memory, initialized.Effect));
-            Saved restored = JsonSerializer.Deserialize<Saved>(json)!;
-            Assert.Equal(json, JsonSerializer.Serialize(restored));
+            string json = NativeBattleSnapshotJson.Serialize(new Saved(initialized.Memory, initialized.Effect));
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(json)!;
+            Assert.Equal(json, NativeBattleSnapshotJson.Serialize(restored));
             Assert.Equal(initialized.Memory.Cursor, restored.Memory.Cursor);
             Assert.Equal(initialized.Memory.Active, restored.Memory.Active);
             Assert.Same(restored.Effect, NativeBattleEffectResourceResolver.MaterializeSelected(restored.Effect, null));

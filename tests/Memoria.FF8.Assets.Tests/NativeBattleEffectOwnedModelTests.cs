@@ -47,7 +47,8 @@ public sealed class NativeBattleEffectOwnedModelTests
             Assert.Equal(profile.Model.Address + (uint)profile.Model.Section(section), initialized.Task.ReadDword(0xCC + section * 4));
         }
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectOwnedModel.Validate(initialized.Task, initialized.State with { TaskAddress = 0x2200004 }, profile.Model));
-        Assert.Throws<InvalidDataException>(() => NativeBattleEffectOwnedModel.Validate(initialized.Task.WriteDword(0xD0, 0), initialized.State, profile.Model));
+        NativeBattleModulePoolTask invalidTask = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(initialized.Task));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectOwnedModel.Validate(invalidTask.WriteDword(0xD0, 0), initialized.State, profile.Model));
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectOwnedModel.Validate(initialized.Task, initialized.State, profile.Model with { Address = profile.Model.Address + 4 }));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffectOwnedModel.Select8DD190(initialized.Task, initialized.State, profile.Model, 0));
     }
@@ -70,24 +71,24 @@ public sealed class NativeBattleEffectOwnedModelTests
             Assert.Equal((ushort)0, selected.Task.ReadWord(0x136));
             Assert.Equal((ushort)7, selected.Task.ReadWord(0x138));
             Assert.Equal((byte)0xA4, selected.Task.ReadByte(0x9D));
-            Assert.Equal(JsonSerializer.Serialize(reference[animation][0]), JsonSerializer.Serialize(selected.State.DecodedPose));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(reference[animation][0]), NativeBattleSnapshotJson.Serialize(selected.State.DecodedPose));
             NativeBattleEffectOwnedModelStep current = selected;
             for (int frame = 2; frame <= counts[animation]; frame++)
             {
-                NativeBattleEffectOwnedModelStep restored = JsonSerializer.Deserialize<NativeBattleEffectOwnedModelStep>(JsonSerializer.Serialize(current))!;
+                NativeBattleEffectOwnedModelStep restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectOwnedModelStep>(NativeBattleSnapshotJson.Serialize(current))!;
                 NativeBattleEffectOwnedModelStep next = NativeBattleEffectOwnedModel.AdvanceOnce8DD220(current.Task, current.State, resource);
                 NativeBattleEffectOwnedModelStep coldNext = NativeBattleEffectOwnedModel.AdvanceOnce8DD220(restored.Task, restored.State, resource);
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(coldNext));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(coldNext));
                 Assert.False(next.Completed);
                 Assert.Equal((byte)frame, next.Task.ReadByte(0xA2));
-                Assert.Equal(JsonSerializer.Serialize(reference[animation][frame - 1]), JsonSerializer.Serialize(next.State.DecodedPose));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(reference[animation][frame - 1]), NativeBattleSnapshotJson.Serialize(next.State.DecodedPose));
                 current = next;
             }
             NativeBattleEffectOwnedModelStep once = NativeBattleEffectOwnedModel.AdvanceOnce8DD220(current.Task, current.State, resource);
             Assert.True(once.Completed);
             Assert.Equal(counts[animation], once.Task.ReadByte(0xA2));
             Assert.Equal((ushort)0, once.Task.ReadWord(0x138));
-            Assert.Equal(JsonSerializer.Serialize(current.State.DecodedPose), JsonSerializer.Serialize(once.State.DecodedPose));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(current.State.DecodedPose), NativeBattleSnapshotJson.Serialize(once.State.DecodedPose));
             NativeBattleEffectOwnedModelStep loop = NativeBattleEffectOwnedModel.AdvanceLoop8DD1C0(current.Task.WriteWord(0x136, 0xFFFF).WriteWord(0x138, 0xFFFF), current.State, resource);
             Assert.True(loop.Completed);
             Assert.Equal((ushort)0, loop.Task.ReadWord(0x136));
@@ -95,7 +96,7 @@ public sealed class NativeBattleEffectOwnedModelTests
             Assert.Equal((byte)1, loop.Task.ReadByte(0xA2));
             Assert.Equal(selected.Task.ReadWord(0x9E), loop.Task.ReadWord(0x9E));
             Assert.Equal(selected.Task.ReadWord(0xA0), loop.Task.ReadWord(0xA0));
-            Assert.Equal(JsonSerializer.Serialize(selected.State.DecodedPose), JsonSerializer.Serialize(loop.State.DecodedPose));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(selected.State.DecodedPose), NativeBattleSnapshotJson.Serialize(loop.State.DecodedPose));
             NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
             Assert.Equal(34, NativeBattlePoseMatrices.EffectOwnedGeometryMatrices(resource.PoseSource, loop.State.DecodedPose!, identity, identity).Length);
         }

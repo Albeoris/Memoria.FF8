@@ -26,8 +26,8 @@ public sealed class NativeBattleGilgameshFinalRingResourcesTests
         NativeBattleGilgameshFinalRingStep step = NativeBattleGilgameshFinalRing.Step591F50(task, mesh, view, projection, 0);
         Assert.Equal(24, step.Batch.Attempts.Length);
         Assert.Equal(2, step.Result);
-        NativeBattleStaticMeshResource restored = JsonSerializer.Deserialize<NativeBattleStaticMeshResource>(JsonSerializer.Serialize(mesh))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleGilgameshFinalRing.Step591F50(task, restored, view, projection, 0)));
+        NativeBattleStaticMeshResource restored = NativeBattleSnapshotJson.Deserialize<NativeBattleStaticMeshResource>(NativeBattleSnapshotJson.Serialize(mesh))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshFinalRing.Step591F50(task, restored, view, projection, 0)));
         Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshFinalRingResourcesReader.Read(new byte[128]));
     }
 }

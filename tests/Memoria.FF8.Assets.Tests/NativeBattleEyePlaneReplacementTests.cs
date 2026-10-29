@@ -113,12 +113,12 @@ public sealed class NativeBattleEyePlaneReplacementTests
         }
         int pageX = (baseline.Page & 15) * 64;
         int pageY = (baseline.Page & 16) * 16;
-        NativeBattleEffectTextureState unrelated = state.Upload45BD30((short)pageX, (short)(pageY + baseline.V), 1, 1, [9, 9]);
+        NativeBattleEffectTextureState unrelated = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(state)).Upload45BD30((short)pageX, (short)(pageY + baseline.V), 1, 1, [9, 9]);
         PixelImage native = Decode(unrelated);
         Assert.Same(native, NativeBattleEffectTextureReader.ApplyModelReplacements(native, unrelated, baseline.Page, baseline.Clut, baseline.U, baseline.V, null, replacements));
         int paletteX = (baseline.Clut & 63) * 16;
         int paletteY = baseline.Clut >> 6;
-        NativeBattleEffectTextureState changedPalette = state.Upload45BD30((short)paletteX, (short)paletteY, 1, 1, [9, 9]);
+        NativeBattleEffectTextureState changedPalette = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(state)).Upload45BD30((short)paletteX, (short)paletteY, 1, 1, [9, 9]);
         native = Decode(changedPalette);
         Assert.Same(native, NativeBattleEffectTextureReader.ApplyModelReplacements(native, changedPalette, baseline.Page, baseline.Clut, baseline.U, baseline.V, null, replacements));
         copy = NativeBattleTextureMotion.Plan50C780(model.NativeTextureAnimations, load.AllocatedSlots, 0, 0)!;

@@ -25,6 +25,8 @@ public sealed class NativeAutomaticGuardianPreparationTests
             StageId = encounter.StageId,
             Combatants = actors,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
             NativeMusicProcess = music.MusicProcess,
             NativeGlobalSoundProcess = music.SoundProcess,
             NativeVibrationProcess = NativeVibrationProcessState.FromColdProcess(),

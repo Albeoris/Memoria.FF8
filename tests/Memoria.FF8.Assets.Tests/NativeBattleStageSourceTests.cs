@@ -1,5 +1,4 @@
 using Memoria.FF8.Runtime;
-using System.Text.Json;
 
 namespace Memoria.FF8.Assets.Tests;
 
@@ -35,9 +34,9 @@ public sealed class NativeBattleStageSourceTests
         }
         NativeBattleStageState state = NativeBattleStageState.FromColdProcess().Reset506C50().Initialize500EA0(source);
         state.Validate();
-        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(state))!;
+        NativeBattleStageState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleStageState>(NativeBattleSnapshotJson.Serialize(state))!;
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        Assert.Equal(JsonSerializer.Serialize(state.Step500FD0(camera)), JsonSerializer.Serialize(restored.Step500FD0(camera)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(state.Step500FD0(camera)), NativeBattleSnapshotJson.Serialize(restored.Step500FD0(camera)));
     }
 
     [Fact]

@@ -37,9 +37,9 @@ public sealed class NativeBattleEerieSoundWave130ResourcesTests
     {
         using GameAssets game = Open();
         NativeBattleEffectBinding source = game.ReadNativeEffectCatalogForEffects([130])[129];
-        string json = JsonSerializer.Serialize(source);
-        NativeBattleEffectBinding restored = JsonSerializer.Deserialize<NativeBattleEffectBinding>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = NativeBattleSnapshotJson.Serialize(source);
+        NativeBattleEffectBinding restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectBinding>(json)!;
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(restored));
         restored.EerieSoundWave130Resources!.Validate();
         Assert.Equal(source.EerieSoundWave130Resources!.MainAct.Data.ToArray(), restored.EerieSoundWave130Resources.MainAct.Data.ToArray());
         Assert.Equal(source.EerieSoundWave130Resources.TravelAct.Data.ToArray(), restored.EerieSoundWave130Resources.TravelAct.Data.ToArray());
@@ -55,17 +55,17 @@ public sealed class NativeBattleEerieSoundWave130ResourcesTests
         cold.Validate();
         Assert.Equal(0u, cold.ReadDword(NativeBattleEerieSoundWave130Profile.WorkingGlobal));
         NativeBattleEerieSoundWave130State live = cold.WriteDword(NativeBattleEerieSoundWave130Profile.WorkingGlobal, 0x20DFAB8);
-        string json = JsonSerializer.Serialize(live);
-        NativeBattleEerieSoundWave130State restored = JsonSerializer.Deserialize<NativeBattleEerieSoundWave130State>(json)!;
+        string json = NativeBattleSnapshotJson.Serialize(live);
+        NativeBattleEerieSoundWave130State restored = NativeBattleSnapshotJson.Deserialize<NativeBattleEerieSoundWave130State>(json)!;
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal(0x20DFAB8u, restored.ReadDword(NativeBattleEerieSoundWave130Profile.WorkingGlobal));
         Assert.Throws<InvalidDataException>(() => restored.ReadDword(NativeBattleEerieSoundWave130Profile.RootBank));
         NativeBattleEerieSoundWave130State unknown = NativeBattleEerieSoundWave130State.FromUnknown();
         unknown.Validate();
-        string unknownJson = JsonSerializer.Serialize(unknown);
-        NativeBattleEerieSoundWave130State unknownRestored = JsonSerializer.Deserialize<NativeBattleEerieSoundWave130State>(unknownJson)!;
-        Assert.Equal(unknownJson, JsonSerializer.Serialize(unknownRestored));
+        string unknownJson = NativeBattleSnapshotJson.Serialize(unknown);
+        NativeBattleEerieSoundWave130State unknownRestored = NativeBattleSnapshotJson.Deserialize<NativeBattleEerieSoundWave130State>(unknownJson)!;
+        Assert.Equal(unknownJson, NativeBattleSnapshotJson.Serialize(unknownRestored));
         Assert.Throws<NotSupportedException>(() => unknownRestored.ReadDword(NativeBattleEerieSoundWave130Profile.WorkingGlobal));
     }
 

@@ -178,13 +178,13 @@ public sealed class NativeBattleEffect242ResourcesTests
         Assert.Null(queued.Slots[0]!.Source);
         int mutableSource = file1Offset + pixelOffsets[0];
         frame = frame with { Arena = frame.Arena.Write(mutableSource, new byte[] { 0x5A, 0xA5 }).Write(mutableSource + 8190, new byte[] { 0xC3, 0x3C }) };
-        NativeBattleEffectTextureState restoredQueue = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(queued))!;
-        NativeBattleWaterExecutionFrame restoredFrame = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleEffectTextureState restoredQueue = NativeBattleSnapshotJson.Deserialize<NativeBattleEffectTextureState>(NativeBattleSnapshotJson.Serialize(queued))!;
+        NativeBattleWaterExecutionFrame restoredFrame = NativeBattleSnapshotJson.Deserialize<NativeBattleWaterExecutionFrame>(NativeBattleSnapshotJson.Serialize(frame))!;
         NativeBattleEffectTextureDrain drain = queued.Drain505D20(frame.Arena);
         NativeBattleEffectTextureDrain restoredDrain = restoredQueue.Drain505D20(restoredFrame.Arena);
         NativeBattleEffectVramUpload upload = Assert.Single(drain.Uploads);
         Assert.Equal(frame.Arena.Read(mutableSource, 8192), upload.Bytes.ToArray());
-        Assert.Equal(JsonSerializer.Serialize(drain), JsonSerializer.Serialize(restoredDrain));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(drain), NativeBattleSnapshotJson.Serialize(restoredDrain));
         Assert.Equal(0, drain.State.Count);
         Assert.Equal(new byte[] { 0x5A, 0xA5 }, upload.Bytes.Take(2));
         Assert.Equal(new byte[] { 0xC3, 0x3C }, upload.Bytes.TakeLast(2));

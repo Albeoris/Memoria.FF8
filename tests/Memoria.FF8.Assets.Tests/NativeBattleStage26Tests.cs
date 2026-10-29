@@ -27,13 +27,13 @@ public sealed class NativeBattleStage26Tests
         NativeBattleStageState state = NativeBattleStageState.FromColdProcess().Initialize500EA0(source);
         Assert.Equal(pose.BoneCount, state.Groups[2].Matrices.Length);
         Assert.All(stage.Meshes, item => Assert.All(item.Vertices, vertex => Assert.InRange(vertex.Bone, 0, source.Groups[item.NativeStageGroup!.Value]!.BoneCount - 1)));
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = NativeBattleSnapshotJson.Serialize(state);
+        NativeBattleStageState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleStageState>(json)!;
+        Assert.Equal(json, NativeBattleSnapshotJson.Serialize(restored));
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 10, 20, 30, 4096);
         state = state.Step500FD0(camera);
         restored = restored.Step500FD0(camera);
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(state), NativeBattleSnapshotJson.Serialize(restored));
         Assert.Equal(pose.BoneCount, state.Groups[2].Matrices.Length);
         state.Validate();
     }

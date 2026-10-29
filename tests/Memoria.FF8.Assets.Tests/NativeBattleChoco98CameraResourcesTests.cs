@@ -17,9 +17,9 @@ public sealed class NativeBattleChoco98CameraResourcesTests
         Assert.Same(resources, game.ReadNativeChoco98CameraResources());
         resources.Validate();
         Assert.Equal(36, resources.Curve.Values.Length);
-        NativeBattleChoco98CameraResources restoredResources = JsonSerializer.Deserialize<NativeBattleChoco98CameraResources>(JsonSerializer.Serialize(resources))!;
+        NativeBattleChoco98CameraResources restoredResources = NativeBattleSnapshotJson.Deserialize<NativeBattleChoco98CameraResources>(NativeBattleSnapshotJson.Serialize(resources))!;
         restoredResources.Validate();
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(restoredResources));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources), NativeBattleSnapshotJson.Serialize(restoredResources));
         NativeBattleMoogleCameraState retained = NativeBattleMoogleCamera.Reset732AF0();
         for (int index = 0; index < 5; index++)
         {
@@ -28,14 +28,14 @@ public sealed class NativeBattleChoco98CameraResourcesTests
             int callbacks = 0;
             while (!step.Complete && callbacks++ < 4096)
             {
-                NativeBattleMoogleCameraState restored = JsonSerializer.Deserialize<NativeBattleMoogleCameraState>(JsonSerializer.Serialize(step.State))!;
+                NativeBattleMoogleCameraState restored = NativeBattleSnapshotJson.Deserialize<NativeBattleMoogleCameraState>(NativeBattleSnapshotJson.Serialize(step.State))!;
                 NativeBattleMoogleCameraStep next = NativeBattleMoogleCamera.Advance732E00(step.State, resources.Curve);
-                Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(NativeBattleMoogleCamera.Advance732E00(restored, resources.Curve)));
+                Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(NativeBattleMoogleCamera.Advance732E00(restored, resources.Curve)));
                 step = next;
             }
             Assert.True(step.Complete);
-            Assert.Equal(anchor.ToArray(), step.State.Data.AsSpan().Slice(0xA4, 8).ToArray());
-            Assert.Equal(index < 3 ? 0u : resources.Curve.Address + 70, BinaryPrimitives.ReadUInt32LittleEndian(step.State.Data.AsSpan().Slice(0x50)));
+            Assert.Equal(anchor.ToArray(), NativeBattleStorageSnapshots.Capture(step.State).Data.AsSpan().Slice(0xA4, 8).ToArray());
+            Assert.Equal(index < 3 ? 0u : resources.Curve.Address + 70, BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(step.State).Data.AsSpan().Slice(0x50)));
             retained = step.State;
         }
     }
@@ -56,12 +56,12 @@ public sealed class NativeBattleChoco98CameraResourcesTests
         for (int callback = 0; task.ReadByte(0x29) != 8 && callback < 4096; callback++)
         {
             phases.Add(task.ReadByte(0x29));
-            Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(new Saved(task, camera)))!;
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(new Saved(task, camera)))!;
             NativeBattleChoco98CameraTaskStep next = Advance(task, camera);
-            Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Advance(restored.Task, restored.Camera)));
+            Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Advance(restored.Task, restored.Camera)));
             foreach (NativeBattleMoogleCameraStep publication in next.Publications)
             {
-                uint source = BinaryPrimitives.ReadUInt32LittleEndian(publication.State.Data.AsSpan().Slice(0xAC));
+                uint source = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(publication.State).Data.AsSpan().Slice(0xAC));
                 if (source != previous)
                 {
                     sourceTransitions.Add(source);
