@@ -59,7 +59,8 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
-        TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
+        TimeSpan callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
+        HashSet<ushort> publishedCounters = [];
         while (Counter(first.Capture()) < 88)
         {
             first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
@@ -69,7 +70,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             byte[] pixels = new BattleScenePresentation(assets, definition, true).Render(first, 320, 224).ToArray();
             Assert.Equal(pixels, new BattleScenePresentation(assets, definition, true).Render(second, 320, 224).ToArray());
             ushort counter = Counter(current);
-            if (counter is 2 or 3 or 4 or 10 or 18 or 28 or 38 or 48 or 68 or 88)
+            if ((counter is 2 or 3 or 4 or 10 or 18 or 28 or 38 or 48 or 68 or 88) && publishedCounters.Add(counter))
             {
                 NativeBattleRestorationPresentationTests.Publish(output, counter == 88 ? "before-sparkle-boundary" : counter == 2 ? "before-model-construction" : "master-" + counter, current, pixels);
             }

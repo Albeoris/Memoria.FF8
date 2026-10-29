@@ -11,9 +11,15 @@ $receiptPath = $outputPath + '.migration.json'
 if ($inputPath.Equals($outputPath, [StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $outputPath) -or (Test-Path -LiteralPath $receiptPath)) {
     throw 'Choose a distinct new recipe path; original recipes and migration receipts are preserved.'
 }
-$source = [IO.File]::ReadAllBytes($inputPath)
-if ($source.Length -gt 4MB) {
-    throw 'The recipe exceeds the supported size.'
+$sourceStream = [IO.File]::Open($inputPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+try {
+    if ($sourceStream.Length -gt 4MB) {
+        throw 'The recipe exceeds the supported size.'
+    }
+    $source = [byte[]]::new([int]$sourceStream.Length)
+    $sourceStream.ReadExactly($source)
+} finally {
+    $sourceStream.Dispose()
 }
 [Reflection.Assembly]::LoadFrom([IO.Path]::GetFullPath($RuntimeAssembly)) | Out-Null
 $recipe = [Text.Encoding]::UTF8.GetString($source).TrimStart([char]0xFEFF) | ConvertFrom-Json
