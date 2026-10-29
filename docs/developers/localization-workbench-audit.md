@@ -92,16 +92,18 @@ The [architecture and ownership contracts](localization-authoring.md#dependency-
 
 | Boundary | Status |
 | --- | --- |
-| Windows package | The initial full `Build.ps1` package passed ABI, updater and extraction gates; the Native build also compiled successfully. The final package rerun after the last font allocation fix remains pending. |
+| Windows package | The final full `Build.ps1` run after rebasing onto the current local main passed ABI, inventory, containment, extraction, updater installation/rollback and retained-user-file gates. The Windows native runtime built and verified its additive text-input export. The distribution does not include original game assets. |
 | Installed authoring | System and Native workflows passed, including inspected final Native output. Full historical-state browsing, live clearing/project switching and every renderer family are not established by these cases. |
 | Desktop input/workbook coexistence | Portable input and workbook-lock/conflict tests pass. Live desktop IME candidate-window behavior and actual Excel GUI coexistence remain unverified. |
 | Other platform runtimes | Runtime acceptance was unavailable on the other target desktops. The macOS IME composition bridge is explicitly missing; compilation or synthetic input does not close that gap. |
 | Font import/deployment | Automatic Japanese native font-image import is unsupported; supply explicit page/field/profile assignments. Original-game native deployment remains unverified. |
 
-M5 is not fully verified while the final package rerun and the explicitly unverified acceptance boundaries remain outstanding.
+The available Windows implementation, end-to-end workflow and distribution checks are complete. M5 does not establish the unavailable desktop/platform checks or every historical-state workflow listed above; those remain explicit validation limits.
 
 ## Verification limits
 
 Portable storage regression coverage includes complete row conflicts, explicit source roles, missing/null/empty Targets, unknown metadata, ancillary workbook parts, generic missing-family insertion, recoverable new-file transactions and independent replay. Renderer/host checks must additionally cover the final production draw and lifecycle paths; a passing exporter or parser test alone does not close a renderer finding.
 
 The audit uses redistributable synthetic inputs, source inspection and explicitly configured optional installed-resource checks. No original assets or private evidence are distributed with it. Native-style presentation, native-resource compatibility and original-game deployment are separate claims. A mixed-atlas rendering pass or installed field test does not establish the other claims or complete M5.
+
+The rebased host also passed a final Native-only installed workflow with inspected Preview, editable conflict and final menu captures. All nine distinct translated level arguments, ordinary names, HP, time/rank and navigation render; the final native diagnostic is empty. A focused post-rebase selection passed 38 cases with one optional installed-resource case unavailable in that invocation; the separately configured installed workflow passed. Profile duplication additionally remaps only self-references, preserves external namespaces and passes the 22-case encoding selection.
