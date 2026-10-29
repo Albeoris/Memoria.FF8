@@ -41,7 +41,7 @@ public static partial class NativeBattleEffect210Controller
         }
         if (age >= 65 && age < 73)
         {
-            frame = DrawEarlyMesh(frame, caster, age - 65, resources, inputs);
+            frame = DrawEarlyMesh(frame, address, caster, age - 65, resources, inputs);
         }
         if (age >= 72 && age < 100)
         {
@@ -64,14 +64,14 @@ public static partial class NativeBattleEffect210Controller
                 uint geometry = source.Address + BinaryPrimitives.ReadUInt32LittleEndian(source.Data.AsSpan().Slice(24));
                 NativeBattleDuel216Extents bounds = NativeBattleDuel216Camera.Extents69A700(resources.ReadGeometry(geometry).Bytes);
                 NativeBattleEffectArena values = PutPoint(PutPoint(NativeBattleEffectArena.Clear().MarkUnknown(0, 12), 0, bounds.Minimum), 6, bounds.Maximum);
-                frame = inputs.Execute(frame, new NativeBattleEffect210Capture9440(address + 0x58, values));
+                frame = inputs.Execute(frame, new NativeBattleEffect210Capture9440(address + 0x58, values) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(210, Read(frame, address), 0x9440) });
             }
             int scale = phase >= 22 ? (phase - 22) * 4096 / 8 : 0;
             NativeBattleEffectArena center = ReadBytes(frame, address + 0x58, 8);
-            frame = NativeBattleEffect210Lower.Draw8BF0(frame, center, 2048, 0, phase * 512, phase * 32, scale, resources, inputs);
+            frame = NativeBattleEffect210Lower.Draw8BF0(frame, center, 2048, 0, phase * 512, phase * 32, scale, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(210, Read(frame, address), 0x8BF0));
             if (phase >= 11)
             {
-                frame = NativeBattleEffect210Lower.Draw8BF0(frame, center, -1024, 512, (phase - 11) * 512, phase * 32, scale, resources, inputs);
+                frame = NativeBattleEffect210Lower.Draw8BF0(frame, center, -1024, 512, (phase - 11) * 512, phase * 32, scale, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(210, Read(frame, address), 0x8BF1));
             }
         }
         if (age >= 115 && age < 195)
@@ -142,7 +142,7 @@ public static partial class NativeBattleEffect210Controller
         }
         if (age >= 227 && age < 243)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect210DrawBatch(NativeBattleModuleRenderCommands.Emit700150(age - 227, 240, 240, 240, 6, 4, 6), CursorGlobal));
+            frame = inputs.Execute(frame, new NativeBattleEffect210DrawBatch(NativeBattleModuleRenderCommands.Emit700150(age - 227, 240, 240, 240, 6, 4, 6, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(210, Read(frame, address), 0x700150)), CursorGlobal));
         }
         if (age == 33)
         {

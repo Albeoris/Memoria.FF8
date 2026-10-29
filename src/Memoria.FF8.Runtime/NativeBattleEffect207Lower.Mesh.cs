@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect207Lower
 {
-    public static NativeBattleEffect207Frame Draw45E0(NativeBattleEffect207Frame frame, uint temporary, NativeBattleEffect207Resources resources, NativeBattleEffect207Inputs inputs)
+    public static NativeBattleEffect207Frame Draw45E0(NativeBattleEffect207Frame frame, uint temporary, NativeBattleEffect207Resources resources, NativeBattleEffect207Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = Context(frame, temporary, 108);
         uint source = L207U(context, 0);
@@ -33,7 +33,7 @@ public static partial class NativeBattleEffect207Lower
             cursor = checked(cursor + 4 + count * strides[group]);
         }
         uint selected = L207U(context, 4);
-        NativeBattleWindowedMeshContext108Step drawn = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, 63, ReadVertex);
+        NativeBattleWindowedMeshContext108Step drawn = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, 63, ReadVertex, pilotIdentity: pilotIdentity);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int extra = 0;
         foreach (NativeBattleGfGeometryAttempt original in drawn.Batch.Attempts)

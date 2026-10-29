@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleEffect166Frame Frame) CaptureNativeEffect166Stage(NativeBattleGraphicsState graphics, NativeBattleEffect166Frame frame, NativeBattleEffect166CapturePreparation preparation, NativeBattleEffect166Resources resources, NativeBattleEffect166Inputs inputs)
+    private (NativeBattleGraphicsState Graphics, NativeBattleEffect166Frame Frame) CaptureNativeEffect166Stage(NativeBattleGraphicsState graphics, NativeBattleEffect166Frame frame, NativeBattleEffect166CapturePreparation preparation, NativeBattleEffect166Resources resources, NativeBattleEffect166Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect166 capture requires its current camera.");
         NativeBattleCameraProjection prior = camera.Projection ?? throw new NotSupportedException("Effect166 capture requires its current projection.");
@@ -55,7 +55,7 @@ public sealed partial class BattleSession
             NativeStage = stage with { Groups = stage.Groups.SetItem(index, group) };
             NativeFileStaging = frame.Staging;
             uint geometry = RequireNativeCurrentStageGeometryAddress(index);
-            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, context, group.Matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), (offset, count) => ReadBytes(frame, checked(geometry + (uint)offset), count).Read(0, count), geometry, ReadBytes(frame, scratchAddress, scratchLength), scratchLength, NativeCamera.Projection!, inputs.Colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect166 capture requires its renderer capability."), 17, 16, frame.State.ReadDword(CursorGlobal));
+            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, context, group.Matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), (offset, count) => ReadBytes(frame, checked(geometry + (uint)offset), count).Read(0, count), geometry, ReadBytes(frame, scratchAddress, scratchLength), scratchLength, NativeCamera.Projection!, inputs.Colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect166 capture requires its renderer capability."), 17, 16, frame.State.ReadDword(CursorGlobal), pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + index), ResourceGeneration = geometry } : null, pilotScreenSpace: true, pilotContinuous: false);
             frame = frame with { Memory = drawn.Memory };
             frame = WriteBytes(frame, contextAddress, drawn.Context44, 44);
             frame = WriteBytes(frame, scratchAddress, drawn.ProjectedScratch, scratchLength);

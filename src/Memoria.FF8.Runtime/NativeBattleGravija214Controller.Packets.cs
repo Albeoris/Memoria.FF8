@@ -7,14 +7,14 @@ public sealed record NativeBattleGravija214DeliverBatch(NativeBattleGfGeometryBa
 
 public static partial class NativeBattleGravija214Controller
 {
-    private static NativeBattleGravija214Frame Deliver214(NativeBattleGravija214Frame frame, NativeBattleGravija214Inputs inputs, byte[] bytes, NativeBattleGfPacketByteState[] mask, int bucket, ushort flags)
+    private static NativeBattleGravija214Frame Deliver214(NativeBattleGravija214Frame frame, NativeBattleGravija214Inputs inputs, byte[] bytes, NativeBattleGfPacketByteState[] mask, int bucket, ushort flags, NativeBattlePilotVisualGeometry? pilotGeometry = null)
     {
         uint[] words = new uint[bytes.Length / 4];
         for (int index = 0; index < words.Length; index++)
         {
             words[index] = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4));
         }
-        NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutableArray(), flags == 0 ? [0, 0, 0, 0] : []);
+        NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutableArray(), flags == 0 ? [0, 0, 0, 0] : []) { PilotGeometry = pilotGeometry };
         NativeBattleGfGeometryAttempt attempt = new(0, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive);
         NativeBattleGfGeometryBatch batch = new([attempt], bytes.Length);
         uint cursor = frame.State.ReadDword(0x2510114);
@@ -30,7 +30,7 @@ public static partial class NativeBattleGravija214Controller
         return Deliver214(frame, inputs, bytes, Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 8).ToArray(), bucket, 0);
     }
 
-    private static NativeBattleGravija214Frame DrawDirectGroup214(NativeBattleGravija214Frame frame, uint temporary, bool quad, bool textured, int bucket, NativeBattleGravija214Inputs inputs)
+    private static NativeBattleGravija214Frame DrawDirectGroup214(NativeBattleGravija214Frame frame, uint temporary, bool quad, bool textured, int bucket, NativeBattleGravija214Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = Context(frame, temporary, 72);
         uint cursor = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(16, 4));
@@ -52,8 +52,24 @@ public static partial class NativeBattleGravija214Controller
             frame = frame with { Memory = drawn.Memory };
             if (drawn.Attempt is { } attempt)
             {
+                NativeBattlePilotVisualGeometry? geometry = null;
+                if (pilotIdentity.HasValue)
+                {
+                    System.Numerics.Vector3 Corner(int corner)
+                    {
+                        uint screen = BinaryPrimitives.ReadUInt32LittleEndian(rows[corner].Read(textured ? 0 : 4, 4));
+                        return new(unchecked((short)screen), unchecked((short)(screen >> 16)), 0);
+                    }
+                    int role = (quad ? 1 : 0) | (textured ? 2 : 0);
+                    geometry = new(pilotIdentity.Value with { Primitive = checked((int)cursor * 4 + role) }, Corner(0), Corner(1), Corner(2), quad ? Corner(3) : default, checked((byte)corners))
+                    {
+                        ScreenSpace = true,
+                        UseSourceDepths = true,
+                        SourceDepths = System.Numerics.Vector4.Zero
+                    };
+                }
                 frame = PublishContext(frame, temporary, context, 72);
-                frame = Deliver214(frame, inputs, attempt.Data.ToArray(), attempt.WriteMask.ToArray(), bucket, 1);
+                frame = Deliver214(frame, inputs, attempt.Data.ToArray(), attempt.WriteMask.ToArray(), bucket, 1, geometry);
             }
             cursor += (uint)(quad ? 24 : 20);
             context = context.Write(16, BitConverter.GetBytes(cursor));

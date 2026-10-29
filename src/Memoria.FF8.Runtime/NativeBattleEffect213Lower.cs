@@ -60,7 +60,7 @@ public static class NativeBattleEffect213Lower
         frame = PrepareSprite(frame, point, Signed(task, 0x16), inputs);
         NativeBattleEffectArena context = PutWord(PutWord(Put(Context(frame, temporary, 180), 0, source), 4, Signed(task, 12)), 0x24, 0);
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(213, task) with { ResourceGeneration = source } : null);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect213DrawBatch(draw.Batch, CursorGlobal));
         frame = Release(frame, 180);
@@ -91,7 +91,7 @@ public static class NativeBattleEffect213Lower
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);
         frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(composed, null));
         NativeBattleEffectArena context = Put(Put(Context(frame, temporary, 88), 0, 0x117D6C8), 0x1C, 0);
-        frame = DrawStatic(frame, temporary, context, 0x117D6C8, resources, inputs);
+        frame = DrawStatic(frame, temporary, context, 0x117D6C8, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(213, task) with { ResourceGeneration = 0x117D6C8 } : null);
         frame = Release(frame, 88);
         task = Read(frame, address);
         task = NativeBattleStorm11Motion.MoveDebris6EB790(task, out bool ended);
@@ -118,17 +118,17 @@ public static class NativeBattleEffect213Lower
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), scaled);
         frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(composed, null));
         NativeBattleEffectArena context = Put(Put(Context(frame, temporary, 88), 0, 0x117D360), 0x1C, 0x30);
-        frame = DrawStatic(frame, temporary, context, 0x117D360, resources, inputs);
+        frame = DrawStatic(frame, temporary, context, 0x117D360, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(213, task) with { ResourceGeneration = 0x117D360 } : null);
         frame = Release(frame, 88);
         task = Read(frame, address);
         short next = unchecked((short)(Signed(task, 14) + 128));
         return new(Write(frame, address, task.WriteWord(14, unchecked((ushort)next))), next >= 4096 ? 2 : 0);
     }
 
-    public static NativeBattleEffect213Frame DrawStatic(NativeBattleEffect213Frame frame, uint temporary, NativeBattleEffectArena context, uint source, NativeBattleEffect213Resources resources, NativeBattleEffect213Inputs inputs)
+    public static NativeBattleEffect213Frame DrawStatic(NativeBattleEffect213Frame frame, uint temporary, NativeBattleEffectArena context, uint source, NativeBattleEffect213Resources resources, NativeBattleEffect213Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         frame = PublishContext(frame, temporary, context, 88);
-        NativeBattleStaticMeshContext88Step draw = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
+        NativeBattleStaticMeshContext88Step draw = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context, 88);
         return inputs.Execute(frame, new NativeBattleEffect213DrawBatch(draw.Batch, CursorGlobal));
     }

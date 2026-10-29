@@ -37,7 +37,7 @@ public static partial class NativeBattleEffect166Controller
         }
         if (age == 43)
         {
-            frame = NativeBattleEffect166Lower.Invoke(frame, 0x5E5700, resources, inputs);
+            frame = NativeBattleEffect166Lower.Invoke(frame, 0x5E5700, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(166, Read(frame, address)) : null);
         }
         if (age == 1)
         {

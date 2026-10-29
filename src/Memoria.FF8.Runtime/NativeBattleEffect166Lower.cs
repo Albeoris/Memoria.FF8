@@ -5,13 +5,13 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect166Lower
 {
-    public static NativeBattleEffect166Frame Invoke(NativeBattleEffect166Frame frame, uint function, NativeBattleEffect166Resources resources, NativeBattleEffect166Inputs inputs)
+    public static NativeBattleEffect166Frame Invoke(NativeBattleEffect166Frame frame, uint function, NativeBattleEffect166Resources resources, NativeBattleEffect166Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (function != 0x5E5700)
         {
             throw new NotSupportedException("Effect166 direct lower call is unsupported.");
         }
-        return inputs.Execute(frame, new NativeBattleEffect166Capture5700(NativeBattleEffect166Capture.Prepare(frame.State.ReadView(0x23C3248, 8))));
+        return inputs.Execute(frame, new NativeBattleEffect166Capture5700(NativeBattleEffect166Capture.Prepare(frame.State.ReadView(0x23C3248, 8))) { PilotIdentity = pilotIdentity });
     }
 
     public static NativeBattleEffect166Step Advance(NativeBattleEffect166Frame frame, uint address, NativeBattleEffect166Resources resources, NativeBattleEffect166Inputs inputs)

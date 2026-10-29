@@ -10,12 +10,18 @@ public sealed record NativeBattleEffect166FactoryStep(NativeBattleEffect166Frame
 public sealed record NativeBattleEffect166PointStep(NativeBattleEffect166Frame Frame, NativeBattleEffectArena Output8);
 public sealed record NativeBattleEffect166Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect166Frame, uint> ReadFlags, Func<NativeBattleEffect166Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect166Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect166Frame, int, int, NativeBattlePackedMatrix32> ReadCurrentBoneMatrix32, Func<NativeBattleEffect166Frame, int, NativeBattlePackedMatrix32> ReadWorld, Func<NativeBattleEffect166Frame, int, byte> ReadSequenceHeaderByte0, Func<NativeBattleEffect166Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect166Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect166Frame, NativeBattleEffect166Operation, NativeBattleEffect166Frame> Execute)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
     public Func<NativeBattleEffect166Frame, int, NativeBattleEffectArena>? ReadModelArena9C { get; init; }
     public Func<NativeBattleEffect166Frame, int, NativeBattleEffectArena, NativeBattleEffect166PointStep>? ReadAnchor571400 { get; init; }
     public Func<NativeBattleEffect166Frame, short>? ReadCameraRoll { get; init; }
 }
 
-public abstract record NativeBattleEffect166Operation;
+public abstract record NativeBattleEffect166Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect166UploadTim505E30(uint SourceAddress) : NativeBattleEffect166Operation;
 public sealed record NativeBattleEffect166RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect166Operation;
 public sealed record NativeBattleEffect166TargetCenter5020A0(ushort Mask, uint DestinationAddress) : NativeBattleEffect166Operation;

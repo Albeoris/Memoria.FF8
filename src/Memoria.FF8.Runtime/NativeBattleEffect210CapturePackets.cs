@@ -17,7 +17,7 @@ public static class NativeBattleEffect210CapturePackets
         return Packet(data, clear ? 9 : 6, 3, clear ? 36 : 24, true);
     }
 
-    public static NativeBattleGfGeometryBatch Black(NativeBattleEffectArena retained24)
+    public static NativeBattleGfGeometryBatch Black(NativeBattleEffectArena retained24, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         (byte[] bytes, _) = retained24.ReadSnapshot(0, 24);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, 0x05000000);
@@ -26,7 +26,8 @@ public static class NativeBattleEffect210CapturePackets
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(12), 192);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(16), 256u << 16);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(20), 192u | (256u << 16));
-        return Packet(bytes.ToImmutableArray(), 6, 0, 24, false);
+        NativeBattleGfGeometryBatch batch = Packet(bytes.ToImmutableArray(), 6, 0, 24, false);
+        return pilotIdentity is { } identity ? batch with { Attempts = batch.Attempts.Select(attempt => attempt with { Primitive = NativeBattleEffect210VisualCapture.Screen(attempt.Primitive!, identity, 8, false) }).ToImmutableArray() } : batch;
     }
 
     public static NativeBattleGfGeometryBatch Area(NativeBattleEffectArena retained12)

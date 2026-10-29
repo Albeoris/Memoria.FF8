@@ -19,7 +19,7 @@ public static partial class NativeBattleGravija214Controller
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(0x1172B40u)).Write(4, BitConverter.GetBytes((ushort)1)).Write(36, BitConverter.GetBytes((ushort)0));
         frame = PublishContext(frame, temporary, context, 180);
-        frame = inputs.Execute(frame, new NativeBattleGravija214DrawSprite180(temporary, 0x1172B40));
+        frame = inputs.Execute(frame, new NativeBattleGravija214DrawSprite180(temporary, 0x1172B40) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(214, task) with { ResourceGeneration = 0x1172B40 } : null });
         frame = Release(frame, 180);
         task = Read(frame, address);
         short age = unchecked((short)(task.ReadWord(0x0C) + 1));

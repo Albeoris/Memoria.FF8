@@ -18,14 +18,14 @@ public static partial class NativeBattleGravija214Controller
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(resources.Programme, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x30, current);
-            frame = DrawProgrammeNode214(frame, resources.Programme, node, position, -128, resources, inputs, Signed(Read(frame, address), 0x2E));
+            frame = DrawProgrammeNode214(frame, resources.Programme, node, position, -128, resources, inputs, Signed(Read(frame, address), 0x2E), inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(214, Read(frame, address), node.ResourceOffset) with { ResourceGeneration = ((long)resources.Programme.Address << 32) | 0x30 } : null);
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x30, advanced.Workspace);
         return frame;
     }
 
-    public static NativeBattleGravija214Frame DrawProgrammeNode214(NativeBattleGravija214Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleVector callerPosition, int depthBias, NativeBattleGravija214Resources resources, NativeBattleGravija214Inputs inputs, short? callerW = null)
+    public static NativeBattleGravija214Frame DrawProgrammeNode214(NativeBattleGravija214Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleVector callerPosition, int depthBias, NativeBattleGravija214Resources resources, NativeBattleGravija214Inputs inputs, short? callerW = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -89,7 +89,7 @@ public static partial class NativeBattleGravija214Controller
             context = context.Write(8, BitConverter.GetBytes(node.Color32));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleGravija214DrawMesh7043B0(temporary, geometryAddress, vertices));
+        frame = inputs.Execute(frame, new NativeBattleGravija214DrawMesh7043B0(temporary, geometryAddress, vertices) { PilotIdentity = pilotIdentity });
         return Release(frame, 88);
     }
 

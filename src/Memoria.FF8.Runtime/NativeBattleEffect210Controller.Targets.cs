@@ -54,7 +54,7 @@ public static partial class NativeBattleEffect210Controller
             frame = WriteBytes(frame, record + 12, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(angle)), 2);
             short midpoint = unchecked((short)((Word(ReadBytes(frame, record + 20, 2), 0) + Word(ReadBytes(frame, record + 22, 2), 0)) >> 1));
             NativeBattleEffectArena pivot = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, new byte[6]).Write(2, BitConverter.GetBytes(midpoint));
-            frame = inputs.Execute(frame, new NativeBattleEffect210DrawModel9960(model, ReadBytes(frame, record + 12, 8), pivot));
+            frame = inputs.Execute(frame, new NativeBattleEffect210DrawModel9960(model, ReadBytes(frame, record + 12, 8), pivot) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(210, Read(frame, main), index) });
         }
         return frame;
     }

@@ -7,6 +7,54 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleGravija214LowerTests
 {
+    [Theory]
+    [InlineData(100)]
+    [InlineData(-10)]
+    public void Group16_warp_capture_retains_both_actual_screen_passes_and_all_native_stores(int x)
+    {
+        var resources = NativeBattleGravija214StateTests.Resources();
+        List<NativeBattleGravija214DeliverBatch> nativePackets = [];
+        List<NativeBattleGravija214DeliverBatch> capturedPackets = [];
+        var native = DrawWarp69E020(Frame(resources, x, x), CopiedMeshAddress, CopiedMeshAddress + 8, 37, 1024, 64, 8, resources, Inputs((frame, operation) =>
+        {
+            nativePackets.Add(Assert.IsType<NativeBattleGravija214DeliverBatch>(operation));
+            return frame;
+        }));
+        NativeBattlePilotVisualIdentity owner = new(214, 901, 2, 211, 0) { ResourceGeneration = CopiedMeshAddress };
+        var captured = DrawWarp69E020(Frame(resources, x, x), CopiedMeshAddress, CopiedMeshAddress + 8, 37, 1024, 64, 8, resources, Inputs((frame, operation) =>
+        {
+            capturedPackets.Add(Assert.IsType<NativeBattleGravija214DeliverBatch>(operation));
+            return frame;
+        }), owner);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(NativeBattleTestSnapshots.Json(nativePackets), NativeBattleTestSnapshots.Json(capturedPackets));
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        foreach (var packet in capturedPackets)
+        {
+            var primitive = Assert.Single(packet.Batch.Attempts).Primitive!;
+            if (packet.Flags == 0)
+            {
+                Assert.Null(primitive.PilotGeometry);
+                continue;
+            }
+            var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            Assert.True(visual.ScreenSpace);
+            Assert.True(visual.UseSourceDepths);
+            Assert.Equal(System.Numerics.Vector4.Zero, visual.SourceDepths);
+            Assert.Empty(primitive.VertexPayload4);
+            Assert.Equal(owner.Generation, visual.Identity.Generation);
+            Assert.Equal(owner.ResourceGeneration, visual.Identity.ResourceGeneration);
+            identities.Add(visual.Identity);
+            for (int corner = 0; corner < visual.CornerCount; corner++)
+            {
+                uint screen = primitive.Words[2 + corner * 2];
+                Assert.Equal(new System.Numerics.Vector3(unchecked((short)screen), unchecked((short)(screen >> 16)), 0), visual.Corner(corner));
+            }
+        }
+        Assert.NotEmpty(identities);
+        Assert.Equal(identities.Count, identities.Distinct().Count());
+    }
+
     [Fact]
     public void Preprocessing_rotates_current_G3_G4_and_converts_indices_once()
     {

@@ -63,14 +63,14 @@ public static class NativeBattleEffect210Particles
         frame = PublishContext(frame, temporary, context, 180);
         if (falling)
         {
-            NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, temporary, 180), candidate => candidate == source ? common! : throw new InvalidDataException("Effect210 shared sprite address changed."), inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, allowFirstPaletteOverride: true);
+            NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, temporary, 180), candidate => candidate == source ? common! : throw new InvalidDataException("Effect210 shared sprite address changed."), inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, allowFirstPaletteOverride: true, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(210, task) with { ResourceGeneration = source });
             frame = frame with { Memory = draw.Memory };
             frame = PublishContext(frame, temporary, draw.Temporary180, 180);
             frame = inputs.Execute(frame, new NativeBattleEffect210DrawBatch(draw.Batch, CursorGlobal));
         }
         else
         {
-            frame = DrawSprite(frame, temporary, resources.Sprite, inputs);
+            frame = DrawSprite(frame, temporary, resources.Sprite, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(210, task));
         }
         frame = Release(frame, 180);
         if (Paused(frame))
@@ -154,7 +154,7 @@ public static class NativeBattleEffect210Particles
         NativeBattleEffectArena context = Put(Context(frame, temporary, 180), 0, 0x14708C0);
         context = PutWord(PutWord(context, 4, Signed(task, 12)), 0x24, 0);
         frame = PublishContext(frame, temporary, context, 180);
-        frame = DrawSprite(frame, temporary, resources.Sprite, inputs);
+        frame = DrawSprite(frame, temporary, resources.Sprite, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(210, task));
         NativeBattleActionMatrix local = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CD50(new(1024, 0, 0)), scale, scale, 4096) with { X = Signed(task, 0x10), Y = Signed(task, 0x16), Z = Signed(task, 0x14) };
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);
         frame = LoadCpuMatrix(frame, composed);
@@ -162,7 +162,7 @@ public static class NativeBattleEffect210Particles
         context = Put(Context(frame, temporary, 180), 0, 0x1470A6C);
         context = PutWord(PutWord(context, 4, Signed(task, 12)), 0x24, 12).Write(0x1C, [unchecked((byte)intensity), unchecked((byte)intensity), unchecked((byte)intensity)]);
         frame = PublishContext(frame, temporary, context, 180);
-        frame = DrawSprite(frame, temporary, resources.Sprite, inputs);
+        frame = DrawSprite(frame, temporary, resources.Sprite, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(210, task));
         frame = Release(frame, 180);
         if (Paused(frame))
         {

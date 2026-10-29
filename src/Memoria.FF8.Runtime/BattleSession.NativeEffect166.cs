@@ -13,6 +13,7 @@ public sealed partial class BattleSession
         NativeBattleEffect166Inputs inputs = null!;
         inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect166 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.Models[actor], ReadBone, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect166 requires its current model world matrix."), null), (_, actor) => graphics.Models[actor].Sequence ?? throw new NotSupportedException("Effect166 requires its current sequence header BYTE0."), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect166 requires its current projection."), Execute)
         {
+            CapturePresentation = true,
             ReadModelArena9C = (_, actor) => NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]),
             ReadCameraRoll = _ => Camera().Roll,
             ReadAnchor571400 = Anchor
@@ -117,7 +118,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { Auxiliary = auxiliary };
                     return current;
                 case NativeBattleEffect166Capture5700 capture:
-                    (graphics, current) = CaptureNativeEffect166Stage(graphics, current, capture.Preparation, resources, inputs);
+                    (graphics, current) = CaptureNativeEffect166Stage(graphics, current, capture.Preparation, resources, inputs, capture.PilotIdentity);
                     return current;
                 case NativeBattleEffect166DrawBatch draw:
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect166 requires its current ordering table.");

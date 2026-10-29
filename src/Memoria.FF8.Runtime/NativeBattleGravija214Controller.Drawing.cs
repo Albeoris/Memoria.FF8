@@ -6,7 +6,7 @@ public sealed record NativeBattleGravija214BoundsStep(NativeBattleGravija214Fram
 
 public static partial class NativeBattleGravija214Controller
 {
-    public static NativeBattleGravija214Frame DrawWarp69E020(NativeBattleGravija214Frame frame, uint mesh, uint vertices, int bucket, int cue, int amplitude, int phase, NativeBattleGravija214Resources resources, NativeBattleGravija214Inputs inputs)
+    public static NativeBattleGravija214Frame DrawWarp69E020(NativeBattleGravija214Frame frame, uint mesh, uint vertices, int bucket, int cue, int amplitude, int phase, NativeBattleGravija214Resources resources, NativeBattleGravija214Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int count = checked((int)frame.State.ReadDword(mesh + 4));
         if (mesh != 0x25089BC || vertices != mesh + 8 || count != 241)
@@ -85,13 +85,13 @@ public static partial class NativeBattleGravija214Controller
         NativeBattleModelRendererRegisters far = process.ModelRendererRegisters ?? throw new NotSupportedException("Gravija warp requires its current far-color controls.");
         NativeBattleScriptedColorRegisters colors = frame.Memory.ScriptedColorRegisters!;
         frame = frame with { Memory = frame.Memory with { ScriptedColorRegisters = colors with { Ir0 = unchecked((uint)cue) }, PrimitiveProcess = process with { ModelRendererRegisters = far with { FarRed = 0, FarGreen = 0, FarBlue = 0 } } } };
-        frame = DrawDirectGroup214(frame, temporary, false, false, bucket, inputs);
-        frame = DrawDirectGroup214(frame, temporary, true, false, bucket, inputs);
+        frame = DrawDirectGroup214(frame, temporary, false, false, bucket, inputs, pilotIdentity);
+        frame = DrawDirectGroup214(frame, temporary, true, false, bucket, inputs, pilotIdentity);
         frame = DrawMode214(frame, inputs, bucket, 0xE1000240);
         context = Context(frame, temporary, 72).Write(16, BitConverter.GetBytes(group));
         frame = PublishContext(frame, temporary, context, 72);
-        frame = DrawDirectGroup214(frame, temporary, false, true, bucket, inputs);
-        frame = DrawDirectGroup214(frame, temporary, true, true, bucket, inputs);
+        frame = DrawDirectGroup214(frame, temporary, false, true, bucket, inputs, pilotIdentity);
+        frame = DrawDirectGroup214(frame, temporary, true, true, bucket, inputs, pilotIdentity);
         return Release(frame, 72);
     }
 

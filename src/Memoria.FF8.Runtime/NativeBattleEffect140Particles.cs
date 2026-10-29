@@ -36,7 +36,7 @@ public static class NativeBattleEffect140Particles
             frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(matrix, null));
             NativeBattleEffectArena context = Put(Put(Context(frame, temporary, 88), 0, 0x11D4B1C), 0x1C, 0xF0).Write(8, new byte[3]);
             context = Put(context, 12, unchecked((uint)(Signed(task, 18) << 8)));
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(0x11D4B1C), inputs.ReadProjection(frame), context, inputs.Colors);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(0x11D4B1C), inputs.ReadProjection(frame), context, inputs.Colors, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(140, task) with { ResourceGeneration = 0x11D4B1C } : null);
             frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context, 88);
             frame = inputs.Execute(frame, new NativeBattleEffect140DrawBatch(drawn.Batch, Cursor));
             frame = Release(frame, 88);
@@ -46,7 +46,7 @@ public static class NativeBattleEffect140Particles
             frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), new(Signed(task, 12), Signed(task, 14), Signed(task, 16)), Signed(task, 18), 1024, -256) };
             (frame, uint temporary) = Allocate(frame, 180);
             frame = PublishContext(frame, temporary, Word(Word(Put(Context(frame, temporary, 180), 0, 0x11D495C), 4, Signed(task, 18)), 0x24, 0), 180);
-            frame = DrawSprite(frame, temporary, resources.Sprite(0x11D495C), resources, inputs);
+            frame = DrawSprite(frame, temporary, resources.Sprite(0x11D495C), resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(140, task) with { ResourceGeneration = 0x11D495C } : null);
             frame = Release(frame, 180);
         }
         else
@@ -81,16 +81,16 @@ public static class NativeBattleEffect140Particles
         return new(Write(frame, address, task.WriteWord(18, unchecked((ushort)age))), age >= 16 ? 2 : 0);
     }
 
-    public static NativeBattleEffect140Frame Draw85A0(NativeBattleEffect140Frame frame, uint temporary180, short spriteFrame, NativeBattleEffect140Resources resources, NativeBattleEffect140Inputs inputs)
+    public static NativeBattleEffect140Frame Draw85A0(NativeBattleEffect140Frame frame, uint temporary180, short spriteFrame, NativeBattleEffect140Resources resources, NativeBattleEffect140Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = Word(Word(Put(Context(frame, temporary180, 180), 0, 0x11D0164), 4, spriteFrame), 0x24, 0);
         frame = PublishContext(frame, temporary180, context, 180);
-        return DrawSprite(frame, temporary180, resources.Sprite(0x11D0164), resources, inputs);
+        return DrawSprite(frame, temporary180, resources.Sprite(0x11D0164), resources, inputs, pilotIdentity);
     }
 
-    private static NativeBattleEffect140Frame DrawSprite(NativeBattleEffect140Frame frame, uint address, NativeBattleModuleResource source, NativeBattleEffect140Resources resources, NativeBattleEffect140Inputs inputs)
+    private static NativeBattleEffect140Frame DrawSprite(NativeBattleEffect140Frame frame, uint address, NativeBattleModuleResource source, NativeBattleEffect140Resources resources, NativeBattleEffect140Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, address, 180), _ => source, inputs.ReadProjection(frame), inputs.ReadCameraPose(frame).Roll, 17, 2);
+        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, address, 180), _ => source, inputs.ReadProjection(frame), inputs.ReadCameraPose(frame).Roll, 17, 2, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = drawn.Memory }, address, drawn.Temporary180, 180);
         return inputs.Execute(frame, new NativeBattleEffect140DrawBatch(drawn.Batch, Cursor));
     }

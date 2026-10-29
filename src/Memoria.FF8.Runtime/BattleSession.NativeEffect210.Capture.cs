@@ -61,14 +61,14 @@ public sealed partial class BattleSession
                 }
                 return geometryStaging.Read(checked(geometryAddress + (uint)offset), length);
             }
-            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, temporary, group.Matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), ReadGeometry, geometryAddress, NativeDeformedBodyView(frame.Staging!, scratchAddress, capacity), capacity, captureProjection, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect210 capture requires its color tables."), definition.NativeGraphics.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect210 capture requires its renderer capability."), 17, 16, frame.State.ReadDword(CursorGlobal));
+            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, temporary, group.Matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), ReadGeometry, geometryAddress, NativeDeformedBodyView(frame.Staging!, scratchAddress, capacity), capacity, captureProjection, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect210 capture requires its color tables."), definition.NativeGraphics.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect210 capture requires its renderer capability."), 17, 16, frame.State.ReadDword(CursorGlobal), pilotIdentity: operation.PilotIdentity is { } stageIdentity ? stageIdentity with { ResourceGeneration = geometryAddress } : null, pilotScreenSpace: true, pilotContinuous: false);
             staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, allocation.Address, drawn.Context44, 44);
             staging = NativeBattleTemporaryMemory.PublishView(staging, scratchAddress, drawn.ProjectedScratch, capacity);
             frame = frame with { Memory = drawn.Memory, Staging = staging };
             frame = DeliverNativeEffect210Batch(ref graphics, frame, new(drawn.Batch, CursorGlobal));
             frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging!, 44) };
         }
-        frame = DeliverNativeEffect210Batch(ref graphics, frame, new(NativeBattleEffect210CapturePackets.Black(ReadNativeEffect210PacketBytes(frame, 24)), CursorGlobal, 1));
+        frame = DeliverNativeEffect210Batch(ref graphics, frame, new(NativeBattleEffect210CapturePackets.Black(ReadNativeEffect210PacketBytes(frame, 24), pilotIdentity: operation.PilotIdentity is { } blackIdentity ? blackIdentity with { Primitive = 0xB1AC } : null), CursorGlobal, 1));
         NativeCamera = NativeCamera! with { Projection = NativeCamera.Projection! with { OffsetX = projection.OffsetX, OffsetY = projection.OffsetY } };
         frame = DeliverNativeEffect210Batch(ref graphics, frame, new(NativeBattleEffect210CapturePackets.Area(ReadNativeEffect210PacketBytes(frame, 12)), CursorGlobal));
         return DeliverNativeEffect210Batch(ref graphics, frame, new(NativeBattleEffect210CapturePackets.Offset(ReadNativeEffect210PacketBytes(frame, 12)), CursorGlobal));

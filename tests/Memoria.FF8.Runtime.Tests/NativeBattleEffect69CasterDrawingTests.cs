@@ -10,6 +10,25 @@ public sealed class NativeBattleEffect69CasterDrawingTests
     private const uint ScratchAddress = 0x1968428;
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Capture_preserves_native_half_plane_skin_and_quarter_depth_with_independent_arenas(bool quad)
+    {
+        NativeBattleEffect69CasterDrawingStep native = Draw(Source(quad, false));
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattleEffect69CasterDrawingStep captured = Draw(Source(quad, false), pilotIdentity: new(140, 1, 2, 3, 4));
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), geometry.A);
+        Assert.Equal(quad ? 4 : 3, geometry.CornerCount);
+        Assert.Equal(new System.Numerics.Vector4(500, 500, 500, quad ? 500 : 0), geometry.SourceDepths);
+        Assert.True(geometry.UseSourceDepths);
+        NativeBattleEffect69CasterDrawingStep rejected = Draw(Source(quad, false), worldZ: 0, pilotIdentity: new(140, 1, 2, 3, 4));
+        Assert.All(rejected.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
@@ -188,7 +207,7 @@ public sealed class NativeBattleEffect69CasterDrawingTests
         return bytes;
     }
 
-    private static NativeBattleEffect69CasterDrawingStep Draw(byte[] source, int worldZ = 2000, NativeBattleEffectArena? scratch = null, uint mask = 1, int scratchLength = 32, Action<uint, int>? observe = null, NativeBattleScriptedGraphicsMemory? controls = null, uint shift = 0, bool unknownOrderingAddress = false)
+    private static NativeBattleEffect69CasterDrawingStep Draw(byte[] source, int worldZ = 2000, NativeBattleEffectArena? scratch = null, uint mask = 1, int scratchLength = 32, Action<uint, int>? observe = null, NativeBattleScriptedGraphicsMemory? controls = null, uint shift = 0, bool unknownOrderingAddress = false, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         NativeBattleEffectArena temporary = NativeBattleEffectArena.Clear().MarkUnknown(0, 96).Write(4, BitConverter.GetBytes(ScratchAddress)).Write(0x0C, new byte[4]).Write(0x10, BitConverter.GetBytes((short)320)).Write(0x12, BitConverter.GetBytes((short)216)).Write(0x14, BitConverter.GetBytes(0x00112233u)).Write(0x18, BitConverter.GetBytes(mask)).Write(0x4C, new byte[4]).Write(0x54, BitConverter.GetBytes(0x1D8E04Cu + 0x44)).Write(0x58, BitConverter.GetBytes(shift));
@@ -202,7 +221,7 @@ public sealed class NativeBattleEffect69CasterDrawingTests
             observe?.Invoke(address, length);
             int offset = checked((int)(address - SourceAddress));
             return NativeBattleEffectArena.Clear().Write(0, source.AsSpan(offset, length));
-        }, SourceAddress, [bone], NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), new(null, 100, 160, 108), controls ?? NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), scratch ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 32), scratchLength);
+        }, SourceAddress, [bone], NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), controls ?? NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), scratch ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 32), scratchLength, pilotIdentity: pilotIdentity);
     }
 
     private static uint U(NativeBattleEffectArena source, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(source.Read(offset, 4));

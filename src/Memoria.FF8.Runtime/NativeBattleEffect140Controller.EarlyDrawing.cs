@@ -27,7 +27,7 @@ public static partial class NativeBattleEffect140Controller
             NativeBattleVector point = blend.Position with { Z = unchecked((short)(center - blend.Position.Z)) };
             (frame, uint sprite) = Allocate(frame, 180);
             frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), point, null, 1600, -256) };
-            frame = NativeBattleEffect140Particles.Draw85A0(frame, sprite, (short)(index >> 1), resources, inputs);
+            frame = NativeBattleEffect140Particles.Draw85A0(frame, sprite, (short)(index >> 1), resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(140, Read(frame, task), index * 2 + 0) with { ResourceGeneration = 0x11D0164 } : null);
             if (index == 0 && relative == 20)
             {
                 NativeBattleCameraPose pose = inputs.ReadCameraPose(frame);
@@ -35,7 +35,7 @@ public static partial class NativeBattleEffect140Controller
             }
             point = point with { X = unchecked((short)-point.X) };
             frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), point, null, 1600, -256) };
-            frame = NativeBattleEffect140Particles.Draw85A0(frame, sprite, (short)(index >> 1), resources, inputs);
+            frame = NativeBattleEffect140Particles.Draw85A0(frame, sprite, (short)(index >> 1), resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(140, Read(frame, task), index * 2 + 1) with { ResourceGeneration = 0x11D0164 } : null);
             if (index == 0 && relative == 40)
             {
                 NativeBattleCameraPose pose = inputs.ReadCameraPose(frame);
@@ -58,7 +58,7 @@ public static partial class NativeBattleEffect140Controller
         {
             context = Context(frame, temporary, 152).Write(0, BitConverter.GetBytes(sources[index])).Write(4, BitConverter.GetBytes(sources[index] + 8)).Write(0x10, BitConverter.GetBytes(unchecked((short)phases[index])));
             frame = PublishContext(frame, temporary, context, 152);
-            frame = NativeBattleEffect140Meshes.DrawMirrored(frame, temporary, resources, inputs);
+            frame = NativeBattleEffect140Meshes.DrawMirrored(frame, temporary, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(140, Read(frame, task), index) with { ResourceGeneration = sources[index] } : null);
         }
         frame = Release(frame, 152);
         return AdvanceEarlyClock6A6A6E(frame, task, relative, center, inputs);

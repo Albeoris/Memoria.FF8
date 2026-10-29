@@ -15,7 +15,7 @@ public static class NativeBattleDuelEchoWalker
         return Draw(context, offset, sectionAddress, readSection, echo, echoOffset, history, projection, writeCpu, readCpu, submit, tableBaseBucket, depthShift, zsf3, zsf4, observeContext, 1152, 576);
     }
 
-    internal static NativeBattleModulePoolTask Draw(NativeBattleModulePoolTask context, int offset, uint sectionAddress, Func<int, int, byte[]> readSection, NativeBattleModulePoolTask echo, int echoOffset, int history, NativeBattleCameraProjection projection, Action<int, ImmutableArray<byte>> writeCpu, Func<int, (byte[] Data, bool[] Known)> readCpu, Action<NativeBattleGfGeometryBatch> submit, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext, int historyStride, int preparedOffset)
+    internal static NativeBattleModulePoolTask Draw(NativeBattleModulePoolTask context, int offset, uint sectionAddress, Func<int, int, byte[]> readSection, NativeBattleModulePoolTask echo, int echoOffset, int history, NativeBattleCameraProjection projection, Action<int, ImmutableArray<byte>> writeCpu, Func<int, (byte[] Data, bool[] Known)> readCpu, Action<NativeBattleGfGeometryBatch> submit, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext, int historyStride, int preparedOffset, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int count = Int(0);
         if (count > 256)
@@ -87,7 +87,7 @@ public static class NativeBattleDuelEchoWalker
                     }
                 }
                 return new(BinaryPrimitives.ReadUInt32LittleEndian(raw), BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(4)), BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(6))) { KnownBytesMask = mask };
-            }, tableBaseBucket, depthShift, zsf3, zsf4, observeContext);
+            }, tableBaseBucket, depthShift, zsf3, zsf4, observeContext, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + mesh) } : null);
             context = packets.Context;
             submit(packets.Batch);
         }

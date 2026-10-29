@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Gravija214 requires its actual process memory.");
         NativeBattleGravija214Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Gravija214 requires its actual CRT stream."), (memory.Gravija214 ?? throw new NotSupportedException("Gravija214 requires its retained executable storage."))) { Staging = NativeFileStaging ?? throw new NotSupportedException("Gravija214 requires its actual temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Gravija214 requires its original arithmetic constants.");
-        NativeBattleGravija214Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], Anchor, _ => nativeActionPackets, Execute) { ReadOrderingTable = _ => OrderingTable() };
+        NativeBattleGravija214Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], Anchor, _ => nativeActionPackets, Execute) { ReadOrderingTable = _ => OrderingTable(), CapturePresentation = true };
         frame = initialize ? NativeBattleGravija214Controller.Initialize(frame, resources, inputs) : NativeBattleGravija214Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -153,7 +153,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Gravija mesh selected pointer differs from its actual context.");
             }
-            NativeBattleGravija214MeshContext88Step drawn = NativeBattleGravija214MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex);
+            NativeBattleGravija214MeshContext88Step drawn = NativeBattleGravija214MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context88, 88) };
             return Deliver(current, drawn.Batch);
 
@@ -194,7 +194,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Gravija sprite source differs from its current temporary pointer.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Gravija sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Gravija sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

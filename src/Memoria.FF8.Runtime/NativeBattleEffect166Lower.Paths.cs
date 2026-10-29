@@ -46,6 +46,13 @@ public static partial class NativeBattleEffect166Lower
                 path = NativeBattleGilgameshSwordTrailCurve.Evaluate571690(5, work, sample * 4096 / 47, path, 56 + sample * 8);
             }
             frame = frame with { State = frame.State.WriteView(pathAddress, path, 820) };
+            if (inputs.CapturePresentation)
+            {
+                for (int sample = 0; sample < 48; sample++)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, pathAddress + 56, sample);
+                }
+            }
             frame = Release(frame, 400);
             (frame, uint beam) = Append(frame, 0x23C0540, 0x5E6030);
             NativeBattleModulePoolTask child = Read(frame, beam).WriteWord(12, 0).WriteWord(14, task.ReadWord(14)).WriteWord(24, 0).WriteWord(26, 2);
@@ -87,7 +94,7 @@ public static partial class NativeBattleEffect166Lower
         {
             context = Put(Put(context, 12, unchecked((uint)(age == 0 ? 2048 : (age - 16) << 9))), 0x1C, 0xF3);
         }
-        NativeBattleEffect166Mesh108Step drawn = NativeBattleEffect166Mesh108.DrawLoaded(frame.Memory, resources.ReadMesh(0xD719E4), inputs.ReadProjection(frame), context, inputs.Colors);
+        NativeBattleEffect166Mesh108Step drawn = NativeBattleEffect166Mesh108.DrawLoaded(frame.Memory, resources.ReadMesh(0xD719E4), inputs.ReadProjection(frame), context, inputs.Colors, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(166, task) with { ResourceGeneration = 0xD719E4 } : null);
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context108, 108);
         frame = Deliver(frame, drawn.Batch, inputs);
         frame = Release(frame, 108);

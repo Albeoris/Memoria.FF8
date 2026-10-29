@@ -6,7 +6,7 @@ public sealed record NativeBattleRibbonPair72Step(NativeBattleEffectMemory Memor
 
 public static class NativeBattleRibbonPair72
 {
-    public static NativeBattleRibbonPair72Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleEffectArena firstSamples, NativeBattleEffectArena secondSamples, NativeBattleEffectArena temporary64, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint initialColor)
+    public static NativeBattleRibbonPair72Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleEffectArena firstSamples, NativeBattleEffectArena secondSamples, NativeBattleEffectArena temporary64, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint initialColor, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<int, NativeBattlePilotVisualIdentity>? pilotSegmentIdentity = null)
     {
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Trail drawing requires its current primitive owner.");
         NativeBattleModelRendererRegisters far = (process.ModelRendererRegisters ?? throw new NotSupportedException("Trail drawing requires its current color controls.")) with { FarRed = 0, FarGreen = 0, FarBlue = 0 };
@@ -24,6 +24,13 @@ public static class NativeBattleRibbonPair72
             registers = LoadTrailPoint(registers, 0, firstSamples, segment * 8);
             registers = LoadTrailPoint(registers, 1, firstSamples, segment * 8 + 8);
             registers = LoadTrailPoint(registers, 2, secondSamples, segment * 8);
+            System.Numerics.Vector3[]? world = pilotIdentity is null && pilotSegmentIdentity is null ? null : new System.Numerics.Vector3[4];
+            if (world is not null)
+            {
+                world[0] = World(firstSamples, segment * 8);
+                world[1] = World(firstSamples, segment * 8 + 8);
+                world[2] = World(secondSamples, segment * 8);
+            }
             registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
             uint flags = registers.Colors.Flags ?? throw new NotSupportedException("Trail drawing requires its current projection flags.");
             temporary64 = LowerPut(temporary64, 12, flags);
@@ -34,6 +41,10 @@ public static class NativeBattleRibbonPair72
             }
             uint[] screens = registers.Geometry.Sxy.Select(value => value ?? throw new NotSupportedException("Trail drawing requires its current screen FIFO.")).ToArray();
             registers = LoadTrailPoint(registers, 0, secondSamples, segment * 8 + 8);
+            if (world is not null)
+            {
+                world[3] = World(secondSamples, segment * 8 + 8);
+            }
             registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
             uint fourth = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Trail drawing requires its current fourth projection.");
             registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Trail drawing requires its current ZSF4."));
@@ -65,11 +76,26 @@ public static class NativeBattleRibbonPair72
             second.Word(32, fourth);
             ImmutableArray<int> payload = registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Trail drawing requires all four current depths.")))).ToImmutableArray();
             int bucket = unchecked(17 + ((int)depth >> 2));
-            attempts.Add(first.Attempt(new(bucket, first.Words(), payload)));
-            attempts.Add(second.Attempt(new(bucket, second.Words(), payload)));
+            NativeBattleGeometryPrimitive firstPrimitive = new(bucket, first.Words(), payload);
+            NativeBattleGeometryPrimitive secondPrimitive = new(bucket, second.Words(), payload);
+            NativeBattlePilotVisualIdentity? segmentIdentity = pilotSegmentIdentity?.Invoke(segment) ?? pilotIdentity;
+            if (segmentIdentity is { } identity && world is not null)
+            {
+                NativeBattlePilotVisualGeometry geometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + segment * 2) }, world[0], world[1], world[2], world[3], 4) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true };
+                firstPrimitive = firstPrimitive with { PilotGeometry = geometry };
+                secondPrimitive = secondPrimitive with { PilotGeometry = geometry with { Identity = geometry.Identity with { Primitive = geometry.Identity.Primitive + 1 } } };
+            }
+            attempts.Add(first.Attempt(firstPrimitive));
+            attempts.Add(second.Attempt(secondPrimitive));
             allocated += 72;
         }
         return new(memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, temporary64, new(attempts.ToImmutable(), allocated + 36) { NativeUnlinkedAllocation = true });
+
+        System.Numerics.Vector3 World(NativeBattleEffectArena points, int offset)
+        {
+            NativeBattleActionMatrix matrix = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(registers.Geometry).ReadMatrix();
+            return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, LowerVector(points, offset)), projection);
+        }
     }
 
     private static NativeBattleGeometryRegisterStep LoadTrailPoint(NativeBattleGeometryRegisterStep registers, int slot, NativeBattleEffectArena points, int offset)

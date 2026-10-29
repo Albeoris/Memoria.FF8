@@ -12,7 +12,7 @@ public sealed record NativeBattleDuelEchoPacketsResult(NativeBattleModulePoolTas
 /// <summary>68AAE0's original flat-lit textured echo faces over a retained projected vertex stream.</summary>
 public static class NativeBattleDuelEchoPackets
 {
-    public static NativeBattleDuelEchoPacketsResult Emit68AAE0(NativeBattleModulePoolTask context, int offset, ImmutableArray<byte> faces, Func<int, NativeBattleDuelEchoProjectedVertex> readVertex, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext = null)
+    public static NativeBattleDuelEchoPacketsResult Emit68AAE0(NativeBattleModulePoolTask context, int offset, ImmutableArray<byte> faces, Func<int, NativeBattleDuelEchoProjectedVertex> readVertex, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (faces.IsDefault || depthShift > 31)
         {
@@ -103,7 +103,14 @@ public static class NativeBattleDuelEchoPackets
                         }
                         int bucket = checked(tableBaseBucket + (int)(depth >> depthShift));
                         NativeBattleModuleProjectedVertex[] projected = vertices.Select(vertex => new NativeBattleModuleProjectedVertex(vertex.Screen, vertex.Depth, 0)).ToArray();
-                        attempts.Add(packet.Attempt(new(bucket, packet.Words(), NativeBattleEffectMeshPackets.Payload(projected, color))));
+                        NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), NativeBattleEffectMeshPackets.Payload(projected, color));
+                        if (pilotIdentity is { } identity)
+                        {
+                            System.Numerics.Vector3 Point(int corner) => new(unchecked((short)vertices[corner].Screen), unchecked((short)(vertices[corner].Screen >> 16)), 0);
+                            System.Numerics.Vector4 depths = primitive.VertexPayload4.Length == 4 ? new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]) : System.Numerics.Vector4.Zero;
+                            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + source) }, Point(0), Point(1), Point(2), quad ? Point(3) : default, (byte)vertices.Length, false) { ScreenSpace = true, SourceDepths = depths, UseSourceDepths = true } };
+                        }
+                        attempts.Add(packet.Attempt(primitive));
                         allocated = checked(allocated + length);
                     }
                 }

@@ -16,7 +16,11 @@ public sealed record NativeBattleEffect210Inputs(NativeBattleSummonColors Colors
     public Func<NativeBattleEffect210Frame, int, NativeBattleModuleResource>? ReadCommonSprite5710B0 { get; init; }
 }
 
-public abstract record NativeBattleEffect210Operation;
+public abstract record NativeBattleEffect210Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect210UploadTim505E30(uint SourceAddress) : NativeBattleEffect210Operation;
 public sealed record NativeBattleEffect210RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect210Operation;
 public sealed record NativeBattleEffect210WriteModelBytes(int Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect210Operation;

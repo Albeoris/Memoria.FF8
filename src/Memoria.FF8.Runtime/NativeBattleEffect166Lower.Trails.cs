@@ -15,6 +15,10 @@ public static partial class NativeBattleEffect166Lower
         int age = Signed(task, 12);
         int ring = age % 3;
         path = Put(path, 440 + ring * 20, 1);
+        if (inputs.CapturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, pathAddress + 440, ring);
+        }
         path = Copy(Copy(path, 444 + ring * 20, frame.State.ReadView(0x23C3260, 8), 0, 8), 452 + ring * 20, path, 56 + Signed(task, 24) * 8, 8);
         int maximum = age >= 21 ? 24 - age : 3;
         int count = 0;
@@ -88,7 +92,12 @@ public static partial class NativeBattleEffect166Lower
                     }
                     int bucket = 17 + (unchecked((int)depth) >> 2);
                     ImmutableArray<int> payload = Depths(registers);
-                    attempts.Add(first.Attempt(new(bucket, first.Words(), payload)));
+                    NativeBattlePilotVisualGeometry? historyGeometry = null;
+                    if (inputs.CapturePresentation)
+                    {
+                        historyGeometry = new(NativeBattleEffect166VisualIdentity.History(frame, task, pathAddress, count, segment * 2), TrailWorld(registers, path, 564 + segment * 8, inputs.ReadProjection(frame)), TrailWorld(registers, path, 572 + segment * 8, inputs.ReadProjection(frame)), TrailWorld(registers, path, 692 + segment * 8, inputs.ReadProjection(frame)), TrailWorld(registers, path, 700 + segment * 8, inputs.ReadProjection(frame)), 4) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true };
+                    }
+                    attempts.Add(first.Attempt(new(bucket, first.Words(), payload) { PilotGeometry = historyGeometry }));
                     SkinWrites second = new(36, allocated + 36);
                     second.Word(0, 0x08000000);
                     for (int corner = 0; corner < 4; corner++)
@@ -96,7 +105,7 @@ public static partial class NativeBattleEffect166Lower
                         second.Word(8 + corner * 8, screens[corner]);
                         second.Word(4 + corner * 8, corner < 2 ? 0x3A000000u : corner == 2 ? raw : dim);
                     }
-                    attempts.Add(second.Attempt(new(bucket, second.Words(), payload)));
+                    attempts.Add(second.Attempt(new(bucket, second.Words(), payload) { PilotGeometry = historyGeometry is { } history ? history with { Identity = history.Identity with { Primitive = unchecked(history.Identity.Primitive + 1) } } : null }));
                     allocated += 72;
                 }
                 else
@@ -212,8 +221,18 @@ public static partial class NativeBattleEffect166Lower
                     }
                     int bucket = 17 + (unchecked((int)depth) >> 2);
                     ImmutableArray<int> payload = Depths(registers);
-                    attempts.Add(first.Attempt(new(bucket, first.Words(), payload)));
-                    attempts.Add(second.Attempt(new(bucket, second.Words(), payload)));
+                    NativeBattlePilotVisualGeometry? firstGeometry = null;
+                    NativeBattlePilotVisualGeometry? secondGeometry = null;
+                    if (inputs.CapturePresentation)
+                    {
+                        System.Numerics.Vector3 Point(int offset) => TrailWorld(registers, rows, row + offset, inputs.ReadProjection(frame));
+                        System.Numerics.Vector4 depths = new(payload[0], payload[1], payload[2], payload[3]);
+                        NativeBattlePilotVisualIdentity identity = NativeBattleEffect166VisualIdentity.Segment(frame, task, Path(task), segment, segment + 1, segment * 2);
+                        firstGeometry = new(identity, Point(32), Point(24), Point(8), Point(0), 4) { SourceDepths = depths, UseSourceDepths = true };
+                        secondGeometry = new(identity with { Primitive = unchecked(identity.Primitive + 1) }, Point(24), Point(40), Point(0), Point(16), 4) { SourceDepths = depths, UseSourceDepths = true };
+                    }
+                    attempts.Add(first.Attempt(new(bucket, first.Words(), payload) { PilotGeometry = firstGeometry }));
+                    attempts.Add(second.Attempt(new(bucket, second.Words(), payload) { PilotGeometry = secondGeometry }));
                     allocated += 72;
                 }
                 else
@@ -236,6 +255,8 @@ public static partial class NativeBattleEffect166Lower
         task = task.WriteWord(24, unchecked((ushort)(next >= 48 ? 47 : next))).WriteWord(26, unchecked((ushort)(velocity > 2 ? velocity - 1 : velocity)));
         return Clock(Write(frame, address, task), address, task, 36);
     }
+
+    private static System.Numerics.Vector3 TrailWorld(NativeBattleGeometryRegisterStep registers, NativeBattleEffectArena rows, int offset, NativeBattleCameraProjection projection) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(NativeBattleGeometry.CaptureMatrix(registers.Geometry), Vector(rows, offset)), projection);
 
     private static NativeBattleGeometryRegisterStep LoadPoint(NativeBattleGeometryRegisterStep registers, int vector, NativeBattleEffectArena rows, int offset)
     {

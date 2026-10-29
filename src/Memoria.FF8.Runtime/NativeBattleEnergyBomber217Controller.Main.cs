@@ -124,10 +124,19 @@ public static partial class NativeBattleEnergyBomber217Controller
         for (int index = unchecked((short)Read(frame, address).ReadWord(0x42)); index < count; index++)
         {
             NativeBattleVector point = TaskVector(Read(frame, address), checked(0x30 + index * 8));
-            frame = inputs.Execute(frame, new NativeBattleEnergyBomber217DrawTrail120(allocation.Address, point, unchecked(3072 + index * 1024 / 2)));
+            frame = inputs.Execute(frame, new NativeBattleEnergyBomber217DrawTrail120(allocation.Address, point, unchecked(3072 + index * 1024 / 2))
+            {
+                PilotIdentity = inputs.CapturePresentation ? TrailIdentity(Read(frame, address), index) : null
+            });
         }
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging!, 120) };
         return Write(frame, address, Read(frame, address).WriteWord(0x42, unchecked((ushort)(Read(frame, address).ReadWord(0x42) + 1))));
+    }
+
+    internal static NativeBattlePilotVisualIdentity TrailIdentity(NativeBattleModulePoolTask task, int index)
+    {
+        int birthAge = unchecked((short)task.ReadWord(12)) - 1 - index;
+        return NativeBattlePilotVisualLifetimes.Identity(217, task) with { ResourceGeneration = ((long)NativeBattleEnergyBomber217Profile.TrailMeshAddress << 32) | (uint)birthAge };
     }
 
     private static NativeBattleEnergyBomber217Frame BirthSprites(NativeBattleEnergyBomber217Frame frame, uint address)

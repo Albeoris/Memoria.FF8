@@ -29,7 +29,7 @@ public sealed partial class BattleSession
         if (draw.Custom)
         {
             temporary = temporary.Write(4, BitConverter.GetBytes(draw.ScratchAddress)).Write(0xC, new byte[4]).Write(0x10, BitConverter.GetBytes((short)320)).Write(0x12, BitConverter.GetBytes((short)216)).Write(0x14, BitConverter.GetBytes(color)).Write(0x18, BitConverter.GetBytes(mask)).Write(0x4C, BitConverter.GetBytes(draw.FarInput)).Write(0x58, new byte[4]).MarkUnknown(0x54, 4);
-            NativeBattleEffect69CasterDrawingStep rendered = NativeBattleEffect69CasterDrawing.Draw(frame.Memory, temporary, (address, length) => ReadBytes(frame, address, length), resources.Model.Address + (uint)resources.Model.Section(1), NativeBattleEffectOwnedModelRendering.CaptureBones(staging, resources.Model), view, inputs.ReadProjection(frame), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect140 body requires its current GTE controls."), scratch, scratchLength);
+            NativeBattleEffect69CasterDrawingStep rendered = NativeBattleEffect69CasterDrawing.Draw(frame.Memory, temporary, (address, length) => ReadBytes(frame, address, length), resources.Model.Address + (uint)resources.Model.Section(1), NativeBattleEffectOwnedModelRendering.CaptureBones(staging, resources.Model), view, inputs.ReadProjection(frame), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect140 body requires its current GTE controls."), scratch, scratchLength, pilotIdentity: draw.PilotIdentity);
             frame = frame with { Memory = rendered.Memory };
             temporary = rendered.Temporary96;
             scratch = rendered.Scratch;
@@ -43,7 +43,7 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect140 body requires its current renderer process.");
             uint geometry = resources.Model.Address + (uint)resources.Model.Section(1);
             NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(temporary, 0x20, NativeBattleEffectArena.Clear().MarkUnknown(0, 44), 0, 44);
-            NativeBattleModelContext44Step rendered = NativeBattleModelContext44.Draw(frame.Memory, context, NativeBattleEffectOwnedModelRendering.CaptureBones(staging, resources.Model), (offset, length) => ReadBytes(frame, checked(geometry + (uint)offset), length).Read(0, length), geometry, scratch, scratchLength, inputs.ReadProjection(frame), inputs.Colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect140 body requires its actual hardware capability."), 17, 4, CurrentPacketAddress(process));
+            NativeBattleModelContext44Step rendered = NativeBattleModelContext44.Draw(frame.Memory, context, NativeBattleEffectOwnedModelRendering.CaptureBones(staging, resources.Model), (offset, length) => ReadBytes(frame, checked(geometry + (uint)offset), length).Read(0, length), geometry, scratch, scratchLength, inputs.ReadProjection(frame), inputs.Colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect140 body requires its actual hardware capability."), 17, 4, CurrentPacketAddress(process), pilotIdentity: draw.PilotIdentity);
             temporary = NativeBattleEffectNodeContextMemory.Copy(rendered.Context44, 0, temporary, 0x20, 44);
             frame = frame with { Memory = rendered.Memory };
             scratch = rendered.ProjectedScratch;

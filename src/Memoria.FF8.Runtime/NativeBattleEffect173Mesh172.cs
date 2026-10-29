@@ -63,7 +63,7 @@ public static partial class NativeBattleEffect173Lower
 
 public static class NativeBattleEffect173Mesh172
 {
-    public static NativeBattleEffect173Mesh172Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context172, NativeBattleEffectArena records, uint recordsAddress, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool moving, bool paused, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleEffect173Mesh172Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context172, NativeBattleEffectArena records, uint recordsAddress, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool moving, bool paused, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int polygon = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan());
         int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(polygon + 24, 4));
@@ -136,10 +136,15 @@ public static class NativeBattleEffect173Mesh172
                 context172 = Put(context172, 12, 0);
                 registers = LoadMatrix(registers, Packed(context172, 0x6C));
             }
+            System.Numerics.Vector3[]? world = pilotIdentity is null ? null : new System.Numerics.Vector3[3];
             for (int corner = 0; corner < 3; corner++)
             {
                 (byte[] bytes, bool[] known) = context172.ReadSnapshot(0x40 + corner * 8, 8);
                 ImmutableArray<byte?> input = bytes.Select((value, index) => known[index] ? (byte?)value : null).ToImmutableArray();
+                if (world is not null)
+                {
+                    world[corner] = NativeBattleEffect210VisualCapture.World(registers.Geometry, new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4))), projection);
+                }
                 registers = corner switch
                 {
                     0 => registers with { Colors = registers.Colors with { NormalInput = bytes.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray() } },
@@ -178,7 +183,12 @@ public static class NativeBattleEffect173Mesh172
                     packet.Word(28, tinted.Rgb[1] ?? throw new NotSupportedException("Custom mesh drawing requires current RGB1."));
                     packet.Word(4, tinted.Rgb[2] ?? throw new NotSupportedException("Custom mesh drawing requires current RGB2."));
                     ImmutableArray<int> payload = registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Custom mesh drawing requires all current depths.")))).ToImmutableArray();
-                    attempts.Add(packet.Attempt(new(unchecked(tableBaseBucket + ((int)depth >> depthShift)), packet.Words(), payload)));
+                    NativeBattleGeometryPrimitive primitive = new(unchecked(tableBaseBucket + ((int)depth >> depthShift)), packet.Words(), payload);
+                    if (pilotIdentity is { } identity && world is not null)
+                    {
+                        primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + face) }, world[0], world[1], world[2], default, 3) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+                    }
+                    attempts.Add(packet.Attempt(primitive));
                     allocated += 40;
                     accepted = true;
                 }

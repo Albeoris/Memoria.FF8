@@ -46,17 +46,17 @@ public static partial class NativeBattleEffect210Lower
     public static NativeBattleEffectArena PutWord(NativeBattleEffectArena arena, int offset, int value) => arena.Write(offset, BitConverter.GetBytes(unchecked((short)value)));
     public static NativeBattleEffect210Frame LoadCpuMatrix(NativeBattleEffect210Frame frame, NativeBattleActionMatrix matrix) => LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(matrix, null));
 
-    public static NativeBattleEffect210Frame DrawSprite(NativeBattleEffect210Frame frame, uint temporary, Func<uint, NativeBattleModuleResource> readResource, NativeBattleEffect210Inputs inputs)
+    public static NativeBattleEffect210Frame DrawSprite(NativeBattleEffect210Frame frame, uint temporary, Func<uint, NativeBattleModuleResource> readResource, NativeBattleEffect210Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleModuleSpriteDraw result = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, temporary, 180), readResource, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw result = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, temporary, 180), readResource, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: pilotIdentity is { } owner ? owner with { ResourceGeneration = Dword(Context(frame, temporary, 180), 0) } : null);
         frame = frame with { Memory = result.Memory };
         frame = PublishContext(frame, temporary, result.Temporary180, 180);
         return inputs.Execute(frame, new NativeBattleEffect210DrawBatch(result.Batch, CursorGlobal));
     }
 
-    public static NativeBattleEffect210Frame DrawStatic88(NativeBattleEffect210Frame frame, uint temporary, uint source, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs)
+    public static NativeBattleEffect210Frame DrawStatic88(NativeBattleEffect210Frame frame, uint temporary, uint source, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), Context(frame, temporary, 88), inputs.Colors, 17, 2);
+        NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), Context(frame, temporary, 88), inputs.Colors, 17, 2, pilotIdentity: pilotIdentity is { } owner ? owner with { ResourceGeneration = source } : null);
         frame = frame with { Memory = result.Memory };
         frame = PublishContext(frame, temporary, result.Context, 88);
         return inputs.Execute(frame, new NativeBattleEffect210DrawBatch(result.Batch, CursorGlobal));
@@ -72,7 +72,7 @@ public static partial class NativeBattleEffect210Lower
             NativeBattleEffectArena context = Put(Context(frame, temporary, 180), 0, 0x145D4EC);
             context = PutWord(PutWord(context, 4, Signed(task, 0x12)), 0x24, 0);
             frame = PublishContext(frame, temporary, context, 180);
-            frame = DrawSprite(frame, temporary, resources.Sprite, inputs);
+            frame = DrawSprite(frame, temporary, resources.Sprite, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(210, task));
             frame = Release(frame, 180);
             if (Paused(frame))
             {
@@ -94,7 +94,7 @@ public static partial class NativeBattleEffect210Lower
         meshContext = Put(Put(meshContext, 0, 0x1461D98), 0x1C, 0);
         frame = PublishContext(frame, meshTemporary, meshContext, 152);
         frame = LoadCpuMatrix(frame, composed);
-        frame = DrawStatic88(frame, meshTemporary, 0x1461D98, resources, inputs);
+        frame = DrawStatic88(frame, meshTemporary, 0x1461D98, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(210, task));
         frame = Release(frame, 152);
         if (Paused(frame))
         {

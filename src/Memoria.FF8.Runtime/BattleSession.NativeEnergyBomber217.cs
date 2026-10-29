@@ -12,7 +12,8 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Energy Bomber requires its actual process memory.");
         NativeBattleEnergyBomber217Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Energy Bomber requires its CRT stream."), memory.EnergyBomber217 ?? throw new NotSupportedException("Energy Bomber requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Energy Bomber requires its addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Energy Bomber requires its original interpolation constants.");
-        NativeBattleEnergyBomber217Inputs inputs = new(nativeActionPackets, Anchor, Bone, AdvanceAct, Blend, Execute);
+        bool capturePresentation = true;
+        NativeBattleEnergyBomber217Inputs inputs = new(nativeActionPackets, Anchor, Bone, AdvanceAct, Blend, Execute) { CapturePresentation = capturePresentation };
         frame = initialize ? NativeBattleEnergyBomber217Controller.Initialize(frame, resources, inputs) : NativeBattleEnergyBomber217Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -83,7 +84,7 @@ public sealed partial class BattleSession
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("EnergyBomber217 drawing requires its addressed temporary memory."), 88);
                 NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
                 uint morph = checked(current.State.ReadDword(NativeBattleEnergyBomber217Profile.WorkingGlobal) + NativeBattleEnergyBomber217Profile.MorphOffset);
-                NativeBattleAnchorDepthAct16Step drawn = NativeBattleAnchorDepthAct16.Draw(current.Memory, source, node, context, Camera().CapturePackedView1D97778(), temporary, Camera().Projection ?? throw new NotSupportedException("EnergyBomber217 requires its current projection."), colors, morph, NativeBattleEnergyBomber217Profile.MorphBytes);
+                NativeBattleAnchorDepthAct16Step drawn = NativeBattleAnchorDepthAct16.Draw(current.Memory, source, node, context, Camera().CapturePackedView1D97778(), temporary, Camera().Projection ?? throw new NotSupportedException("EnergyBomber217 requires its current projection."), colors, morph, NativeBattleEnergyBomber217Profile.MorphBytes, pilotIdentity: capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(217, NativeBattleEnergyBomber217Controller.Read(current, address), node.ResourceOffset) with { ResourceGeneration = ((long)source.Address << 32) | (uint)offset } : null);
                 NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.Temporary88, 88);
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("EnergyBomber217 requires its current ordering table.");
                 uint cursor = current.State.ReadDword(NativeBattleEnergyBomber217Profile.CursorGlobal);
@@ -114,7 +115,7 @@ public sealed partial class BattleSession
                     NativeStage = previous with { Groups = previous.Groups.Select(group => group with { ColorDepth = stage.Depth, ColorFlags = stage.Color }).ToImmutableArray() };
                     return current;
                 case NativeBattleEnergyBomber217DrawTrail120 trail:
-                    NativeBattleEnergyBomber217TrailStep drawnTrail = NativeBattleEnergyBomber217Trail.Draw(current.Memory, current.Staging ?? throw new NotSupportedException("Energy Bomber requires its actual trail temporary memory."), trail.Temporary120, trail.Position, resources.TrailMesh, Camera().CapturePackedView1D97778(), Projection(), colors, trail.Cue);
+                    NativeBattleEnergyBomber217TrailStep drawnTrail = NativeBattleEnergyBomber217Trail.Draw(current.Memory, current.Staging ?? throw new NotSupportedException("Energy Bomber requires its actual trail temporary memory."), trail.Temporary120, trail.Position, resources.TrailMesh, Camera().CapturePackedView1D97778(), Projection(), colors, trail.Cue, trail.PilotIdentity);
                     return Deliver(current with { Memory = drawnTrail.Memory, Staging = drawnTrail.Staging }, drawnTrail.Batch);
                 case NativeBattleEnergyBomber217Sound sound:
                     Publish(current);
@@ -133,7 +134,7 @@ public sealed partial class BattleSession
                     NativeBattleEffectMemory prepared = NativeBattleModuleSpriteSetup.Setup571BC0(current.Memory, Camera().CapturePackedView1D97778(), position, phase, 2048, -512);
                     NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(current.Staging!, sprite.Temporary180, resources.Sprite.Address, 0).Write(sprite.Temporary180 + 4, BitConverter.GetBytes(phase));
                     NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, sprite.Temporary180, 180), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 180), 0, 180);
-                    NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(prepared, temporary, address => address == resources.Sprite.Address ? resources.Sprite : throw new NotSupportedException("Energy Bomber selected an unsupported sprite source."), Projection(), Camera().Roll);
+                    NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(prepared, temporary, address => address == resources.Sprite.Address ? resources.Sprite : throw new NotSupportedException("Energy Bomber selected an unsupported sprite source."), Projection(), Camera().Roll, pilotIdentity: capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(217, task) with { ResourceGeneration = resources.Sprite.Address } : null);
                     return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, sprite.Temporary180, drawn.Temporary180, 180) }, drawn.Batch);
                 default:
                     throw new NotSupportedException("Energy Bomber operation has no proved implementation.");

@@ -114,7 +114,7 @@ public static class NativeBattleStatusCureItemController
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(child, 12 + (8), profile.WorkspaceBytes);
                     NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Layout, 0, (current, node) =>
                     {
-                        if (profile.Effect is 292 or 293 or 294 && inputs.DrawWithPilotIdentity is { } drawWithIdentity)
+                        if (profile.Effect is 292 or 293 or 294 or 295 or 296 && inputs.DrawWithPilotIdentity is { } drawWithIdentity)
                         {
                             NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(profile.Effect, child, node.ResourceOffset) with { ResourceGeneration = ((long)resources.Layout.Address << 32) | 20u };
                             frame = drawWithIdentity(frame, node, anchor, identity);

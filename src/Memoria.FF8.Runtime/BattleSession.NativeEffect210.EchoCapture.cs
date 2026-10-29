@@ -17,6 +17,7 @@ public sealed partial class BattleSession
             NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(matrices[bone], null);
             return (packed.Bytes.ToArray(), packed.Known.ToArray());
         });
+        NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, operation.HeaderAddress, task.ReadByte(0x63));
         return NativeBattleEffect210Controller.Write(frame, taskAddress, task);
     }
 }

@@ -181,7 +181,7 @@ public static partial class NativeBattleGravija214Controller
         }
         int cue = time < 48 ? 3072 : unchecked((int)((uint)((time + 0x3FFFD0) << 10) >> 3) + 0xC40);
         frame = LoadMatrix(frame, ReadMatrix214(frame));
-        return DrawWarp69E020(frame, 0x25089BC, 0x25089C4, (minimumDepth >> 2) + 17, cue, sine * 2, fraction, resources, inputs);
+        return DrawWarp69E020(frame, 0x25089BC, 0x25089C4, (minimumDepth >> 2) + 17, cue, sine * 2, fraction, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(214, Read(frame, address)) with { ResourceGeneration = 0x25089BC } : null);
     }
 
     private static NativeBattlePackedMatrix32 ReadMatrix214(NativeBattleGravija214Frame frame)

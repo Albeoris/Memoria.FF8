@@ -7,7 +7,7 @@ public sealed record NativeBattleModelContext44Step(NativeBattleEffectMemory Mem
 
 public static class NativeBattleModelContext44
 {
-    public static NativeBattleModelContext44Step Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena context44, IReadOnlyList<NativeBattlePackedMatrix32> bones, Func<int, int, byte[]> readGeometry, uint geometryAddress, NativeBattleEffectArena projectedScratch, int projectedLength, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool hardware, int tableBaseBucket, byte depthShift, uint? packetPhysicalStart = null)
+    public static NativeBattleModelContext44Step Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena context44, IReadOnlyList<NativeBattlePackedMatrix32> bones, Func<int, int, byte[]> readGeometry, uint geometryAddress, NativeBattleEffectArena projectedScratch, int projectedLength, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool hardware, int tableBaseBucket, byte depthShift, uint? packetPhysicalStart = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false, bool pilotContinuous = true)
     {
         RequireTemporary(context44);
         if (geometryAddress == 0 || projectedLength < 0 || projectedLength > NativeBattleEffectArena.Length || bones.Count == 0 || depthShift > 31)
@@ -61,7 +61,7 @@ public static class NativeBattleModelContext44
                 temporary = Word(temporary, 8 + group * 2, layout.Counts[group]);
             }
             (byte[] previous, _) = projectedScratch.ReadSnapshot(0, bytes);
-            NativeBattleRawModelBodyDraw body = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, matrices, projection, groupColor, 1, previous.ToImmutableArray(), colors, depthShift, viewport, tableBaseBucket, groupDepth);
+            NativeBattleRawModelBodyDraw body = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, matrices, projection, groupColor, 1, previous.ToImmutableArray(), colors, depthShift, viewport, tableBaseBucket, groupDepth, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + objectIndex) } : null, pilotScreenSpace: pilotScreenSpace, pilotContinuous: pilotContinuous);
             if (body.ProjectedBytesWritten != 0)
             {
                 projectedScratch = projectedScratch.Write(0, body.ProjectedScratch.AsSpan().Slice(0, body.ProjectedBytesWritten));

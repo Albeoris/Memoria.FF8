@@ -63,17 +63,17 @@ public static class NativeBattleEffect140Meshes
         return Release(frame, 704);
     }
 
-    public static NativeBattleEffect140Frame DrawMirrored(NativeBattleEffect140Frame frame, uint temporary152, NativeBattleEffect140Resources resources, NativeBattleEffect140Inputs inputs)
+    public static NativeBattleEffect140Frame DrawMirrored(NativeBattleEffect140Frame frame, uint temporary152, NativeBattleEffect140Resources resources, NativeBattleEffect140Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = Context(frame, temporary152, 152);
         uint source = U(context, 0);
         NativeBattleStaticMeshResource template = resources.ReadMesh(source);
-        NativeBattleEffect140MirroredStep drawn = DrawLoaded(frame.Memory, template, inputs.ReadProjection(frame), context, inputs.Colors, offset => ReadBytes(frame, source + 8u + (uint)offset, 8));
+        NativeBattleEffect140MirroredStep drawn = DrawLoaded(frame.Memory, template, inputs.ReadProjection(frame), context, inputs.Colors, offset => ReadBytes(frame, source + 8u + (uint)offset, 8), pilotIdentity);
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary152, drawn.Context152, 152);
         return inputs.Execute(frame, new NativeBattleEffect140DrawBatch(drawn.Batch, Cursor));
     }
 
-    public static NativeBattleEffect140MirroredStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, Func<int, NativeBattleEffectArena>? readCurrentVertex = null)
+    public static NativeBattleEffect140MirroredStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, Func<int, NativeBattleEffectArena>? readCurrentVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (U(context, 0) != mesh.Address || U(context, 4) != mesh.Address + 8)
         {
@@ -119,7 +119,7 @@ public static class NativeBattleEffect140Meshes
             }
             for (int mirror = 0; mirror < 2; mirror++)
             {
-                DrawFace();
+                DrawFace(mirror);
                 if (mirror == 0)
                 {
                     for (int corner = 0; corner < 4; corner++)
@@ -133,8 +133,17 @@ public static class NativeBattleEffect140Meshes
         }
         return new(memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, context, new(attempts.ToImmutable(), allocated));
 
-        void DrawFace()
+        void DrawFace(int mirror)
         {
+            NativeBattleActionMatrix? pilotMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+            System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
+            void Capture(int corner)
+            {
+                if (world is not null)
+                {
+                    world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix!, Vector(context, 0x3C + corner * 8)), projection);
+                }
+            }
             byte[] packet = new byte[52];
             NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[52];
             Store(0, 0x0C000000);
@@ -145,6 +154,7 @@ public static class NativeBattleEffect140Meshes
             for (int corner = 0; corner < 3; corner++)
             {
                 registers = NativeBattleGeometry.LoadVector(registers, corner, Vector(context, 0x3C + corner * 8), S(context, 0x42 + corner * 8));
+                Capture(corner);
             }
             registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
             uint flags = registers.Colors.Flags!.Value;
@@ -162,6 +172,7 @@ public static class NativeBattleEffect140Meshes
                 depths[corner] = (int)registers.Geometry.Sz[corner + 1]!.Value;
                 Store(8 + corner * 12, screens[corner]);
             }
+            Capture(3);
             registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(registers, 0, Vector(context, 0x54), S(context, 0x5A)), projection, controls.Dqa, controls.Dqb);
             screens[3] = registers.Geometry.Sxy[2]!.Value;
             depths[3] = (int)registers.Geometry.Sz[3]!.Value;
@@ -181,7 +192,7 @@ public static class NativeBattleEffect140Meshes
             ImmutableArray<NativeBattleGfPacketByteState> written = mask.ToImmutableArray();
             ImmutableArray<uint> words = Enumerable.Range(0, 13).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(index * 4))).ToImmutableArray();
             attempts.Add(Packet(allocated + 52, [0x02000000, Window(0x14), 0], bucket, []));
-            attempts.Add(new(allocated, packet.ToImmutableArray(), written, new(bucket, words, depths.ToImmutableArray()) { PhysicalWriteMask = written }));
+            attempts.Add(new(allocated, packet.ToImmutableArray(), written, new(bucket, words, depths.ToImmutableArray()) { PhysicalWriteMask = written, PilotGeometry = pilotIdentity is { } identity && world is not null ? new(identity with { Primitive = unchecked((identity.Primitive * 65537 + cursor) * 2 + mirror) }, world[0], world[1], world[2], world[3], 4) { SourceDepths = new(depths[0], depths[1], depths[2], depths[3]), UseSourceDepths = true } : null }));
             attempts.Add(Packet(allocated + 64, [0x02000000, Window(0x1C), 0], bucket, []));
             allocated += 76;
 

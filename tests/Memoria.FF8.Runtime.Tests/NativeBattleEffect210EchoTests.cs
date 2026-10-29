@@ -116,6 +116,33 @@ public sealed class NativeBattleEffect210EchoTests
         Assert.Equal((byte)0, direct.Echo.ReadByte(Header + 1));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_two_native_histories_preserve_frozen_ack_copy_cadence_and_full_scratch(bool frozen)
+    {
+        EchoFrame plain = Draw(Prepare(), frozen);
+        EchoFrame captured = Draw(Prepare(), frozen, new(210, 0x100, 0, 123, 0x7EE0));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(2, captured.Batches.Length);
+        NativeBattlePilotVisualGeometry first = captured.Batches[0].Attempts[0].Primitive!.PilotGeometry!;
+        NativeBattlePilotVisualGeometry second = captured.Batches[1].Attempts[0].Primitive!.PilotGeometry!;
+        Assert.Equal(1000L + Header + 200, first.Identity.ResourceGeneration);
+        Assert.Equal(1000L + Header + 136, second.Identity.ResourceGeneration);
+        Assert.NotEqual(first.Identity, second.Identity);
+        Assert.True(first.ScreenSpace);
+        Assert.False(first.Continuous);
+        Assert.Equal(frozen ? (byte)1 : (byte)0, captured.Echo.ReadByte(Header));
+        Assert.Equal((byte)2, captured.Echo.ReadByte(Header + 1));
+
+        static EchoFrame Prepare()
+        {
+            EchoFrame frame = Fixture();
+            frame = frame with { Echo = NativeBattleDuelEcho.Capture8200(frame.Echo, Header, 3, _ => MatrixBytes(Identity(10, 0, 400), false)) };
+            return frame with { Echo = NativeBattleDuelEcho.Capture8200(frame.Echo, Header, 3, _ => MatrixBytes(Identity(80, 0, 600), false)) };
+        }
+    }
+
     private sealed record EchoFrame(NativeBattleModulePoolTask Echo, NativeBattleFileStaging Staging, ImmutableArray<NativeBattleGfGeometryBatch> Batches, ImmutableArray<(int Offset, int Length)> EchoWrites);
 
     private static EchoFrame Fixture()
@@ -125,11 +152,11 @@ public sealed class NativeBattleEffect210EchoTests
         return new(Echo(), staging, [], []);
     }
 
-    private static EchoFrame Draw(EchoFrame frame, bool frozen)
+    private static EchoFrame Draw(EchoFrame frame, bool frozen, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         byte[] geometry = Geometry();
         NativeBattleGraphicsModel model = new(0, 3) { GeometryWorldMatrix = Identity(), SequenceState = new() { MeshMask124 = 1 }, Color40 = 0x606060 };
-        return NativeBattleDuelEchoDrawing.Draw7EE0(frame, model, EchoAddress, Header, current => current.Echo, (current, task, writes) => current with { Echo = task, EchoWrites = current.EchoWrites.AddRange(writes) }, 0x1000000, (_, offset, length) => geometry.AsSpan(offset, length).ToArray(), 3, Identity(), new(null, 256, 160, 108), (current, address, bytes) => current with { Staging = current.Staging.Write(address, bytes.AsSpan()) }, (current, address, length) => current.Staging.ReadSnapshot(address, length), (current, batch) => current with { Batches = current.Batches.Add(batch) }, 0x155, 0x100, current => current.Staging, (current, staging) => current with { Staging = staging }, frozen);
+        return NativeBattleDuelEchoDrawing.Draw7EE0(frame, model, EchoAddress, Header, current => current.Echo, (current, task, writes) => current with { Echo = task, EchoWrites = current.EchoWrites.AddRange(writes) }, 0x1000000, (_, offset, length) => geometry.AsSpan(offset, length).ToArray(), 3, Identity(), new(Identity(), 256, 160, 108), (current, address, bytes) => current with { Staging = current.Staging.Write(address, bytes.AsSpan()) }, (current, address, length) => current.Staging.ReadSnapshot(address, length), (current, batch) => current with { Batches = current.Batches.Add(batch) }, 0x155, 0x100, current => current.Staging, (current, staging) => current with { Staging = staging }, frozen, pilotIdentity: pilotIdentity, pilotHistoryGeneration: bank => 1000 + bank);
     }
 
     private static NativeBattleModulePoolTask Echo()

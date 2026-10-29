@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleGroup15ItemCaptureTests
 {
+
     [Theory]
     [InlineData((ushort)292)]
     [InlineData((ushort)293)]
@@ -38,7 +39,7 @@ public sealed class NativeBattleGroup15ItemCaptureTests
         Assert.Equal(NativeBattleTestSnapshots.Json(nativeBirth.Frame), NativeBattleTestSnapshots.Json(capturedBirth.Frame));
         Assert.Equal(nativeBirth.Contacts, capturedBirth.Contacts);
         Assert.Equal(nativeBirth.Sounds, capturedBirth.Sounds);
-        if (effect is 292 or 293 or 294)
+        if (effect is 292 or 293 or 294 or 295 or 296)
         {
             NativeBattlePilotVisualIdentity identity = Assert.Single(identities);
             NativeBattleModulePoolTask actualChild = capturedBirth.Frame.Effect.Pools[1].Slots[0];
@@ -68,6 +69,8 @@ public sealed class NativeBattleGroup15ItemCaptureTests
     [InlineData((ushort)292)]
     [InlineData((ushort)293)]
     [InlineData((ushort)294)]
+    [InlineData((ushort)295)]
+    [InlineData((ushort)296)]
     public void Authored_node_identity_survives_workspace_frame_advance_and_preserves_contacts(ushort effect)
     {
         ItemFixture fixture = Fixture(effect);
@@ -99,6 +102,10 @@ public sealed class NativeBattleGroup15ItemCaptureTests
     [InlineData((ushort)293, true)]
     [InlineData((ushort)294, false)]
     [InlineData((ushort)294, true)]
+    [InlineData((ushort)295, false)]
+    [InlineData((ushort)295, true)]
+    [InlineData((ushort)296, false)]
+    [InlineData((ushort)296, true)]
     public void Selected_and_actual_morph_corners_keep_native_packets_arena_fourth_words_and_depth_bias(ushort effect, bool morph)
     {
         ItemFixture native = Fixture(effect);
@@ -132,6 +139,8 @@ public sealed class NativeBattleGroup15ItemCaptureTests
     [InlineData((ushort)292)]
     [InlineData((ushort)293)]
     [InlineData((ushort)294)]
+    [InlineData((ushort)295)]
+    [InlineData((ushort)296)]
     public void Native_near_rejection_keeps_invalid_fourth_unreached_with_capture(ushort effect)
     {
         ItemFixture native = Fixture(effect, true);
@@ -142,6 +151,27 @@ public sealed class NativeBattleGroup15ItemCaptureTests
         Assert.Null(Assert.Single(actual.Batch.Attempts).Primitive);
         Assert.Equal(NativeBattleTestSnapshots.Json(baseline.Batch), NativeBattleTestSnapshots.Json(actual.Batch));
         Assert.Equal(NativeBattleTestSnapshots.Json(baseline.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
+    }
+
+    [Fact]
+    public void Group16_echo_screen_reached_billboard_header_keeps_actual_source_and_native_state()
+    {
+        ItemFixture native = Fixture(295);
+        ItemFixture captured = Fixture(295);
+        NativeBattleActionMatrix billboard = new([0, -4096, 0, 4096, 0, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        native = native with { Frame = native.Frame with { Execution = native.Frame.Execution with { Billboard = billboard } } };
+        captured = captured with { Frame = captured.Frame with { Execution = captured.Frame.Execution with { Billboard = billboard } } };
+        var node = Node(false);
+        byte[] data = node.Data.ToArray();
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4), 0x1000);
+        node = node with { Data = data.ToImmutableArray() };
+        var baseline = NativeBattleStatusCureItemGeometry.Emit(native.Frame, native.Resources, node, default, Projection);
+        var actual = NativeBattleStatusCureItemGeometry.Emit(captured.Frame, captured.Resources, node, default, Projection, pilotIdentity: ChildIdentity(captured));
+        Assert.Equal(NativeBattleTestSnapshots.Json(baseline), NativeBattleTestSnapshots.Json(actual));
+        var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(actual.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal((ushort)295, geometry.Identity.Effect);
+        Assert.Equal(new Vector3(100, -100, 1000), geometry.A);
+        Assert.Equal(new Vector3(-100, 100, 1000), geometry.D);
     }
 
     private sealed record ItemFixture(NativeBattleStatusCureItemFrame Frame, NativeBattleStatusCureItemResources Resources, NativeBattleStatusCureItemInputs Inputs);

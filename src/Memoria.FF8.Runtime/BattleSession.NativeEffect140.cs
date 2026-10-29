@@ -15,6 +15,7 @@ public sealed partial class BattleSession
         inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect140 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.Models[actor], (_, actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect140 requires its current projection."), _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect140 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, _ => Camera().EyePaddingF6, _ => Camera().TargetPaddingFE, Execute)
         {
             ReadCommonSize = _ => NativeBattleEffectArena.Length,
+            CapturePresentation = true,
             Poll534270 = PollIo
         };
         frame = initialize ? NativeBattleEffect140Controller.Initialize(frame, resources, inputs) : NativeBattleEffect140Controller.Advance(frame, resources, inputs);

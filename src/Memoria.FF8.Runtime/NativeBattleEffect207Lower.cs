@@ -22,7 +22,7 @@ public static partial class NativeBattleEffect207Lower
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), Vector(point), known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null, 4096, -1024) };
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = L207Word(L207Word(L207Put(Context(frame, temporary, 180), 0, 0x11AC414), 4, task.ReadWord(0x12)), 0x24, 0);
-        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(207, task) with { ResourceGeneration = 0x11AC414 });
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect207DrawBatch(drawn.Batch, L207Cursor));
         frame = Release(frame, 180);

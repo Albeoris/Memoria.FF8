@@ -19,25 +19,25 @@ public static class NativeBattleEffect173Programme
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         NativeBattleEffectArena caller = CopyBytes(TaskView(task, 16, 8), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 40), 0, 8).Write(8, BitConverter.GetBytes(ProgrammeFlagsAddress)).Write(12, BitConverter.GetBytes(checked(frame.State.ReadDword(ArenaGlobal) + 0x1C700u))).Write(16, new byte[4]).Write(20, BitConverter.GetBytes(task.ReadWord(26))).Write(22, BitConverter.GetBytes((ushort)1)).Write(24, BitConverter.GetBytes((int)Signed(task, 24))).Write(28, BitConverter.GetBytes((int)Signed(task, 24))).Write(32, BitConverter.GetBytes((int)Signed(task, 24))).Write(36, BitConverter.GetBytes(1));
-        NativeBattleEffect173Step advanced = Advance95B0(frame, address + ProgrammeWorkspaceOffset, caller, resources, inputs);
+        NativeBattleEffect173Step advanced = Advance95B0(frame, address + ProgrammeWorkspaceOffset, caller, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(173, task));
         return new(advanced.Frame, advanced.Result == 0 ? 2 : 0);
     }
 
-    public static NativeBattleEffect173Step Advance95B0(NativeBattleEffect173Frame frame, uint workspaceAddress, NativeBattleEffectArena caller40, NativeBattleEffect173Resources resources, NativeBattleEffect173Inputs inputs)
+    public static NativeBattleEffect173Step Advance95B0(NativeBattleEffect173Frame frame, uint workspaceAddress, NativeBattleEffectArena caller40, NativeBattleEffect173Resources resources, NativeBattleEffect173Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGfAnimationWorkspace Workspace() => NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, ProgrammeWorkspaceLength);
         NativeBattleGfAnimationSource source = resources.ReadProgramme(Workspace().ResourceAddress);
         NativeBattleGfAnimationAdvance result = Workspace().Advance701970(source, (int)(inputs.ReadFlags(frame) & 1), (workspace, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, workspace);
-            frame = DrawNode9130(frame, source, node, caller40, resources, inputs);
+            frame = DrawNode9130(frame, source, node, caller40, resources, inputs, pilotIdentity: pilotIdentity is { } owner ? owner with { Primitive = node.ResourceOffset, ResourceGeneration = ((long)source.Address << 32) | workspaceAddress } : null);
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, result.Workspace);
         return new(frame, result.Remaining);
     }
 
-    public static NativeBattleEffect173Frame DrawNode9130(NativeBattleEffect173Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller40, NativeBattleEffect173Resources resources, NativeBattleEffect173Inputs inputs)
+    public static NativeBattleEffect173Frame DrawNode9130(NativeBattleEffect173Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller40, NativeBattleEffect173Resources resources, NativeBattleEffect173Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!NativeBattleActMeshRendering.Visible(node))
         {
@@ -98,7 +98,7 @@ public static class NativeBattleEffect173Programme
         {
             NativeBattleEffectArena row = morph ? ReadBytes(frame, vertices + (uint)offset, 8) : NativeBattleEffectArena.Clear().Write(0, source.Data.AsSpan().Slice(checked((int)(vertices - source.Address)) + offset, 8));
             return (Vector(row), (short?)Word(row, 6));
-        });
+        }, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect173DrawBatch(drawn.Batch, CursorGlobal));
         return Release(frame, 88);

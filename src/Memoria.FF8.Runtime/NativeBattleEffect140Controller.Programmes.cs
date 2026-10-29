@@ -76,11 +76,11 @@ public static partial class NativeBattleEffect140Controller
             {
                 frame = Write(frame, task, Read(frame, task).WriteDword(0xBC, unchecked(Read(frame, task).ReadDword(0xBC) - (uint)(relative << 4))));
             }
-            frame = NativeBattleEffect140Screen.Fade(frame, 180, 180, 120, relative, 16, resources, inputs);
+            frame = NativeBattleEffect140Screen.Fade(frame, 180, 180, 120, relative, 16, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(140, Read(frame, task), unchecked((int)0x7F000000)) : null);
             if (relative > 12)
             {
                 int current = relative <= 16 ? 4 - (NativeBattleCameraMath.Sine((relative - 12) << 8) >> 10) : relative - 12;
-                frame = NativeBattleEffect140Screen.Fade(frame, 150, 120, 75, current, relative <= 16 ? 4 : 44, resources, inputs);
+                frame = NativeBattleEffect140Screen.Fade(frame, 150, 120, 75, current, relative <= 16 ? 4 : 44, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(140, Read(frame, task), unchecked((int)0x7F000000)) : null);
             }
             NativeBattleEffectArena caller = Caller40(NativeBattlePandemona291Restoration.Rotation701270(0) with { Z = 4096 }, -1024, unchecked((short)(-14 * relative)), scratch, 0);
             frame = NativeBattleEffect140Programme.Advance(frame, task + 0x110, 0xF8, caller, resources, inputs).Frame;

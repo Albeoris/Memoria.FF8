@@ -193,6 +193,45 @@ public sealed class NativeBattleEffect207LowerTests
         Assert.False(restored.Staging!.ReadSnapshot(NativeBattleTemporaryMemory.Address + 0x57, 1).Known[0]);
     }
 
+    [Fact]
+    public void Presentation_captures_all_four_exact_final_warp_passes_without_changing_native_state()
+    {
+        Fixture plain = Prepare();
+        Fixture captured = Prepare();
+        NativeBattleEffect207Frame a = NativeBattleEffect207Lower.Draw5700(plain.Frame, MutableMeshAddress, MutableMeshAddress + 8, 37, 2048, 1, plain.Resources, plain.Inputs());
+        NativeBattleEffect207Frame b = NativeBattleEffect207Lower.Draw5700(captured.Frame, MutableMeshAddress, MutableMeshAddress + 8, 37, 2048, 1, captured.Resources, captured.Inputs(), pilotIdentity: new(207, 0x100, 0, 123, 0x5700));
+        Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Deliveries), NativeBattleTestSnapshots.Json(captured.Deliveries));
+        NativeBattleGeometryPrimitive[] faces = captured.Deliveries.SelectMany(draw => draw.Batch.Attempts).Where(attempt => attempt.Primitive?.PilotGeometry is not null).Select(attempt => attempt.Primitive!).ToArray();
+        Assert.Equal(4, faces.Length);
+        Assert.Equal(4, faces.Select(face => face.PilotGeometry!.Identity).Distinct().Count());
+        foreach (NativeBattleGeometryPrimitive face in faces)
+        {
+            NativeBattlePilotVisualGeometry geometry = face.PilotGeometry!;
+            Assert.True(geometry.ScreenSpace);
+            Assert.Equal(8, geometry.ScreenScale);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+            for (int corner = 0; corner < geometry.CornerCount; corner++)
+            {
+                uint screen = face.Words[2 + corner * 2];
+                Assert.Equal(new System.Numerics.Vector3(unchecked((short)screen), unchecked((short)(screen >> 16)), 0), geometry.Corner(corner));
+            }
+        }
+
+        static Fixture Prepare()
+        {
+            Fixture fixture = new();
+            fixture.Frame = NativeBattleEffect207Lower.Preprocess6070(fixture.Frame, MutableMeshAddress, fixture.Resources, fixture.Inputs());
+            for (int index = 0; index < 4; index++)
+            {
+                Assert.InRange(unchecked((short)fixture.Frame.State.ReadWord(MutableMeshAddress + 14u + (uint)(index * 8))), (short)0, (short)127);
+            }
+            fixture.Frame = fixture.Frame with { Memory = fixture.Frame.Memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(fixture.Frame.Memory.GeometryRegisters!, Identity(100, 100), true, true, null) } };
+            return fixture;
+        }
+    }
+
     private sealed class Fixture
     {
         public NativeBattleEffect207Frame Frame;

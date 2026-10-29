@@ -19,7 +19,7 @@ public static partial class NativeBattleEffect140Controller
         if ((uint)(age - 93) < 24)
         {
             int relative = age - 93;
-            frame = NativeBattleEffect140Screen.Fade(frame, 255, 200, 140, relative < 8 ? 8 - relative : relative - 8, relative < 8 ? 8 : 16, resources, inputs);
+            frame = NativeBattleEffect140Screen.Fade(frame, 255, 200, 140, relative < 8 ? 8 - relative : relative - 8, relative < 8 ? 8 : 16, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(140, Read(frame, address), unchecked((int)0x7F000000)) : null);
         }
         if ((uint)(age - 101) < 136)
         {
@@ -29,7 +29,7 @@ public static partial class NativeBattleEffect140Controller
             }
             int relative = age - 101;
             frame = Write(frame, address, Read(frame, address).WriteDword(0xBC, relative < 20 ? (uint)((20 - relative) * 32) : 0));
-            frame = inputs.Execute(frame, new NativeBattleEffect140DrawOwnedModel(address + 0x64, frame.State.ReadDword(0x2517B28) + 0x878, 0, relative < 20));
+            frame = inputs.Execute(frame, new NativeBattleEffect140DrawOwnedModel(address + 0x64, frame.State.ReadDword(0x2517B28) + 0x878, 0, relative < 20) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(140, Read(frame, address), relative < 20 ? 0 : 1) with { ResourceGeneration = resources.Model.Address } : null });
         }
         frame = AdvanceProgrammes6A6C65(frame, address, age, center, resources, inputs);
         return AdvanceTimeline6A7119(frame, address, resources, inputs);

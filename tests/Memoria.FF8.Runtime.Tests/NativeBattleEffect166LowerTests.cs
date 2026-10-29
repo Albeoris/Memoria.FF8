@@ -7,6 +7,105 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect166LowerTests
 {
+    [Theory]
+    [InlineData(2)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public void Custom_mesh_capture_preserves_native_loaded_source_and_full_payload(int group)
+    {
+        NativeBattleGfGeometryBatch Run(bool capture, out string state)
+        {
+            NativeBattleStaticMeshResource mesh = Mesh(group);
+            Assert.Equal((short)-100, BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(8, 2)));
+            Assert.Equal((short)-100, BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(10, 2)));
+            Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(12, 2)));
+            NativeBattlePilotVisualIdentity? identity = capture ? new(166, 1, 2, 3, 4) : null;
+            NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+            if (group == 2)
+            {
+                NativeBattleEffect166ModeMesh96Step drawn = NativeBattleEffect166ModeMesh96.DrawLoaded(Memory(), mesh, projection, Context(mesh, 0, 96).Write(0x58, BitConverter.GetBytes(0xE1000020u)).Write(0x5C, BitConverter.GetBytes(0xE1000220u)), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: identity);
+                state = NativeBattleTestSnapshots.Json(drawn);
+                return drawn.Batch;
+            }
+            NativeBattleEffect166Mesh108Step result = NativeBattleEffect166Mesh108.DrawLoaded(Memory(), mesh, projection, Context(mesh, 0x33, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: identity);
+            state = NativeBattleTestSnapshots.Json(result);
+            return result.Batch;
+        }
+        NativeBattleGfGeometryBatch native = Run(false, out string baseline);
+        string nativeBatch = NativeBattleTestSnapshots.Json(native);
+        NativeBattleGfGeometryBatch captured = Run(true, out string state);
+        Assert.Equal(baseline, state);
+        Assert.Equal(nativeBatch, NativeBattleTestSnapshots.Json(captured));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(1240u | 824u << 16, primitive.Words[group == 2 ? 3 : 2]);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 2000), geometry.A);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+        Assert.True(geometry.UseSourceDepths);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Trail_capture_preserves_both_native_surfaces_and_actual_source_depth_FIFO(bool history)
+    {
+        NativeBattleEffect166Frame Run(bool capture, out NativeBattleGfGeometryBatch output)
+        {
+            NativeBattleEffect166Frame frame = Frame(history ? 0x5E7AE0u : 0x5E7ED0u);
+            NativeBattleModulePoolTask task = Read(frame, 0x23C0550).WriteWord(24, 1).WriteWord(26, 2).WriteWord(12, history ? (ushort)1 : (ushort)0);
+            frame = Write(frame, 0x23C0550, task);
+            uint path = 0x23C1428;
+            frame = frame with { State = frame.State.WriteWord(path + 56, unchecked((ushort)-100)).WriteWord(path + 64, 100) };
+            if (history)
+            {
+                frame = frame with { State = frame.State.WriteDword(path + 440, 1).WriteWord(path + 452, unchecked((ushort)-100)) };
+            }
+            NativeBattleGfGeometryBatch? batch = null;
+            NativeBattleEffect166Inputs inputs = Inputs(0x201) with
+            {
+                CapturePresentation = capture,
+                ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 100, 160, 108),
+                Execute = (current, operation) =>
+                {
+                    batch = Assert.IsType<NativeBattleEffect166DrawBatch>(operation).Batch;
+                    return current;
+                }
+            };
+            NativeBattleEffect166Frame result = NativeBattleEffect166Lower.Advance(frame, 0x23C0550, Resources(), inputs).Frame;
+            output = Assert.IsType<NativeBattleGfGeometryBatch>(batch);
+            return result;
+        }
+        NativeBattleEffect166Frame native = Run(false, out var nativeBatch);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        string packetBaseline = NativeBattleTestSnapshots.Json(nativeBatch);
+        NativeBattleEffect166Frame captured = Run(true, out var batch);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(packetBaseline, NativeBattleTestSnapshots.Json(batch));
+        Assert.Equal(history ? 28 : 2, batch.Attempts.Length);
+        Assert.Equal(batch.Attempts.Length, batch.Attempts.Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+        Assert.All(batch.Attempts, attempt =>
+        {
+            NativeBattleGeometryPrimitive primitive = attempt.Primitive!;
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+            Assert.True(geometry.UseSourceDepths);
+        });
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Either_physical_path_endpoint_rebirth_breaks_segment_capture_identity(int endpoint)
+    {
+        NativeBattleEffect166Frame frame = Frame(0x5E7ED0);
+        uint path = 0x23C1428;
+        NativeBattleModulePoolTask task = Read(frame, 0x23C0550);
+        NativeBattlePilotVisualIdentity before = NativeBattleEffect166VisualIdentity.Segment(frame, task, path, 0, 1, 0);
+        NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, path + 56, endpoint);
+        Assert.NotEqual(before, NativeBattleEffect166VisualIdentity.Segment(frame, task, path, 0, 1, 0));
+        Assert.Equal(before.Generation, NativeBattleEffect166VisualIdentity.Segment(frame, task, path, 0, 1, 0).Generation);
+    }
+
     [Fact]
     public void Capture_preparation_keeps_unknown_padding_and_uses_native_axis_scale_and_rectangle()
     {

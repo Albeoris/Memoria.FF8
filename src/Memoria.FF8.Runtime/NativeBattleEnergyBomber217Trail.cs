@@ -7,7 +7,7 @@ public sealed record NativeBattleEnergyBomber217TrailStep(NativeBattleEffectMemo
 
 public static class NativeBattleEnergyBomber217Trail
 {
-    public static NativeBattleEnergyBomber217TrailStep Draw(NativeBattleEffectMemory memory, NativeBattleFileStaging staging, uint temporary120, NativeBattleVector point, NativeBattleStaticMeshResource mesh, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, int cue)
+    public static NativeBattleEnergyBomber217TrailStep Draw(NativeBattleEffectMemory memory, NativeBattleFileStaging staging, uint temporary120, NativeBattleVector point, NativeBattleStaticMeshResource mesh, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, int cue, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, temporary120, 120), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 120), 0, 120);
         NativeBattleActionMatrix view = camera.ReadMatrix();
@@ -23,7 +23,7 @@ public static class NativeBattleEnergyBomber217Trail
         };
         temporary = temporary.Write(0, BitConverter.GetBytes(mesh.Address)).Write(8, new byte[4]).Write(12, BitConverter.GetBytes(cue)).Write(0x1C, BitConverter.GetBytes(0x30u));
         NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(temporary, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
-        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(memory with { GeometryRegisters = geometry }, mesh, projection, context, constants);
+        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(memory with { GeometryRegisters = geometry }, mesh, projection, context, constants, pilotIdentity: pilotIdentity);
         temporary = NativeBattleEffectNodeContextMemory.Copy(drawn.Context, 0, temporary, 0, 88);
         return new(drawn.Memory, NativeBattleTemporaryMemory.PublishView(staging, temporary120, temporary, 120), drawn.Batch);
     }

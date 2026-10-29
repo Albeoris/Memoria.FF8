@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect207Lower
 {
-    public static NativeBattleEffect207Frame Draw5700(NativeBattleEffect207Frame frame, uint source, uint vertices, int bucket, int fade, int palette, NativeBattleEffect207Resources resources, NativeBattleEffect207Inputs inputs)
+    public static NativeBattleEffect207Frame Draw5700(NativeBattleEffect207Frame frame, uint source, uint vertices, int bucket, int fade, int palette, NativeBattleEffect207Resources resources, NativeBattleEffect207Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<byte> environment = frame.Memory.PrimitiveProcess?.Software?.EnvironmentBuffers?.CurrentGlobal ?? throw new NotSupportedException("Effect207 warp requires its current drawing environment.");
         if (environment.IsDefault || environment.Length != 92)
@@ -83,16 +83,16 @@ public static partial class NativeBattleEffect207Lower
         NativeBattleModelRendererRegisters far = process.ModelRendererRegisters ?? throw new NotSupportedException("Effect207 warp requires its current far-color owner.");
         NativeBattleScriptedColorRegisters colors = frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect207 warp requires its current arithmetic owner.");
         frame = frame with { Memory = frame.Memory with { ScriptedColorRegisters = colors with { Ir0 = unchecked((uint)fade) }, PrimitiveProcess = process with { ModelRendererRegisters = far with { FarRed = 0, FarGreen = 0, FarBlue = 0 } } } };
-        frame = L207DrawDirect(frame, temporary, false, false, bucket, inputs);
-        frame = L207DrawDirect(frame, temporary, true, false, bucket, inputs);
+        frame = L207DrawDirect(frame, temporary, false, false, bucket, inputs, pilotIdentity);
+        frame = L207DrawDirect(frame, temporary, true, false, bucket, inputs, pilotIdentity);
         frame = L207DrawMode(frame, bucket, 0xE1000240, inputs);
         frame = PublishContext(frame, temporary, L207Put(Context(frame, temporary, 72), 16, polygon), 72);
-        frame = L207DrawDirect(frame, temporary, false, true, bucket, inputs);
-        frame = L207DrawDirect(frame, temporary, true, true, bucket, inputs);
+        frame = L207DrawDirect(frame, temporary, false, true, bucket, inputs, pilotIdentity);
+        frame = L207DrawDirect(frame, temporary, true, true, bucket, inputs, pilotIdentity);
         return Release(frame, 72);
     }
 
-    private static NativeBattleEffect207Frame L207DrawDirect(NativeBattleEffect207Frame frame, uint temporary, bool quad, bool textured, int bucket, NativeBattleEffect207Inputs inputs)
+    private static NativeBattleEffect207Frame L207DrawDirect(NativeBattleEffect207Frame frame, uint temporary, bool quad, bool textured, int bucket, NativeBattleEffect207Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         NativeBattleEffectArena context = Context(frame, temporary, 72);
         uint cursor = L207U(context, 16);
@@ -114,6 +114,11 @@ public static partial class NativeBattleEffect207Lower
             frame = frame with { Memory = drawn.Memory };
             if (drawn.Attempt is { } attempt)
             {
+                if (attempt.Primitive is { } primitive && pilotIdentity is { } identity)
+                {
+                    int role = (textured ? 2 : 0) + (quad ? 1 : 0);
+                    attempt = attempt with { Primitive = NativeBattleEffect210VisualCapture.Screen(primitive, identity with { Primitive = unchecked(identity.Primitive * 397 + role * 65537 + index) }, 8, true) };
+                }
                 frame = PublishContext(frame, temporary, context, 72);
                 frame = inputs.Execute(frame, new NativeBattleEffect207DrawBatch(new([attempt], attempt.PacketLength), L207Cursor, 1));
             }

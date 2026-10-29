@@ -41,7 +41,7 @@ public static partial class NativeBattleEffect173Lower
         context = L173Put(L173Put(L173Put(L173Put(context, 0, source), 8, 0), 0x1C, 0x30), 0x20, unchecked((uint)(age >= 10 ? age - 10 : age)));
         context = L173Put(context, 0x24, unchecked((uint)index));
         context = CopyBytes(PackedArena(composed), 0, context, 0x6C, 32);
-        NativeBattleEffect173Mesh172Step drawn = NativeBattleEffect173Mesh172.DrawLoaded(frame.Memory, mesh, context, frame.State.ReadView(recordAddress, count * 32), recordAddress, inputs.ReadProjection(frame), inputs.Colors, age >= 10, L173Paused(frame, inputs));
+        NativeBattleEffect173Mesh172Step drawn = NativeBattleEffect173Mesh172.DrawLoaded(frame.Memory, mesh, context, frame.State.ReadView(recordAddress, count * 32), recordAddress, inputs.ReadProjection(frame), inputs.Colors, age >= 10, L173Paused(frame, inputs), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(173, task) with { ResourceGeneration = source });
         context = L173Put(drawn.Context172, 0x24, drawn.Batch.AllocationBytes != 0 ? 1u : 0u);
         frame = frame with { Memory = drawn.Memory, State = frame.State.WriteView(recordAddress, drawn.Records, count * 32) };
         frame = PublishContext(frame, temporary, context, 172);
@@ -88,7 +88,7 @@ public static partial class NativeBattleEffect173Lower
         {
             context = L173Put(context, 12, unchecked((uint)((age - threshold) << 10)));
         }
-        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
+        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(173, task) with { ResourceGeneration = source });
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect173DrawBatch(drawn.Batch, L173Cursor));
         frame = Release(frame, 88);
@@ -118,9 +118,9 @@ public static partial class NativeBattleEffect173Lower
         short? w = known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null;
         return frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), L173Vector(point, 0), w, scale, depth) };
     }
-    private static NativeBattleEffect173Frame L173Sprite(NativeBattleEffect173Frame frame, uint temporary, NativeBattleEffectArena context, NativeBattleEffect173Resources resources, NativeBattleEffect173Inputs inputs)
+    private static NativeBattleEffect173Frame L173Sprite(NativeBattleEffect173Frame frame, uint temporary, NativeBattleEffectArena context, NativeBattleEffect173Resources resources, NativeBattleEffect173Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Temporary180, 180);
         return inputs.Execute(frame, new NativeBattleEffect173DrawBatch(drawn.Batch, L173Cursor));
     }

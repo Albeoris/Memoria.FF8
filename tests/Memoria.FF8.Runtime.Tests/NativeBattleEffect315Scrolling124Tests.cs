@@ -7,6 +7,28 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect315Scrolling124Tests
 {
     [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(7)]
+    public void Optional_capture_keeps_loaded_vertices_zero_depth_windows_and_native_ledger(int group)
+    {
+        NativeBattleEffect315Scrolling124Step native = Draw(Mesh(group), Context(0xF3, 10, -5));
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattleEffect315Scrolling124Step captured = Draw(Mesh(group), Context(0xF3, 10, -5), pilotIdentity: new(166, 1, 2, 3, 4));
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(group == 2 ? 3 : 4, geometry.CornerCount);
+        Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), geometry.A);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        Assert.Equal(new[] { 0, 0, 0, 0 }, primitive.VertexPayload4);
+        NativeBattleEffect315Scrolling124Step rejected = Draw(Mesh(group), Context(0x33).MarkUnknown(0x5C, 16), 1, pilotIdentity: new(166, 1, 2, 3, 4));
+        Assert.All(rejected.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+        Assert.DoesNotContain(true, rejected.Context124.ReadSnapshot(0x5C, 16).Known);
+    }
+
+    [Theory]
     [InlineData(2, 0x33u)]
     [InlineData(2, 0xF3u)]
     [InlineData(3, 0x33u)]
@@ -173,10 +195,10 @@ public sealed class NativeBattleEffect315Scrolling124Tests
         Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[^1]);
         Assert.Null(result.Memory.ScriptedColorRegisters!.Material);
     }
-    private static NativeBattleEffect315Scrolling124Step Draw(NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context, int z = 2000, NativeBattleEffectMemory? memory = null)
+    private static NativeBattleEffect315Scrolling124Step Draw(NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context, int z = 2000, NativeBattleEffectMemory? memory = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         memory ??= NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = z }, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
-        return NativeBattleEffect315Scrolling124.DrawLoaded(memory, mesh, new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        return NativeBattleEffect315Scrolling124.DrawLoaded(memory, mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleEffectArena Context(uint flags, int u = 0, int v = 0) => NativeBattleEffectArena.Clear().MarkUnknown(0, 124).Write(0, BitConverter.GetBytes(0x10000000u)).Write(8, new byte[4]).Write(12, BitConverter.GetBytes(2048u)).Write(0x10, BitConverter.GetBytes(u)).Write(0x14, BitConverter.GetBytes(v)).Write(0x18, BitConverter.GetBytes((short)0)).Write(0x1A, BitConverter.GetBytes((short)192)).Write(0x1C, BitConverter.GetBytes((short)128)).Write(0x1E, BitConverter.GetBytes((short)64)).Write(0x20, BitConverter.GetBytes(flags));

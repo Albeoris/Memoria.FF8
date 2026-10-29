@@ -6,6 +6,22 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEnergyBomber217TrailTests
 {
+    [Fact]
+    public void Group16_trail_capture_uses_loaded_point_matrix_without_changing_padding_or_packets()
+    {
+        NativeBattleTemporaryAllocation nativeAllocation = Allocate();
+        NativeBattleTemporaryAllocation capturedAllocation = Allocate();
+        NativeBattlePilotVisualIdentity identity = new(217, 17, 0, 67, 0) { ResourceGeneration = 55 };
+        var native = NativeBattleEnergyBomber217Trail.Draw(Memory(), nativeAllocation.Staging, nativeAllocation.Address, new(10, 20, 30), Mesh(3), NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Constants, 3072);
+        var actual = NativeBattleEnergyBomber217Trail.Draw(Memory(), capturedAllocation.Staging, capturedAllocation.Address, new(10, 20, 30), Mesh(3), NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Constants, 3072, identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(actual));
+        Assert.Null(Assert.Single(native.Batch.Attempts).Primitive!.PilotGeometry);
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(actual.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-390, -380, 2030), visual.A);
+        Assert.Equal(new System.Numerics.Vector3(410, 420, 2030), visual.D);
+        Assert.Equal(identity.ResourceGeneration, visual.Identity.ResourceGeneration);
+    }
+
     private const uint Address = 0x1001000;
     private static NativeBattleSummonColors Constants => NativeBattleGteColorInterpolation.CodeConstants45F270;
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);

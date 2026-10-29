@@ -57,7 +57,7 @@ public static partial class NativeBattleEffect166Lower
         if (callback == 0x5E8330)
         {
             context = context.Write(0, BitConverter.GetBytes(0xD7398Cu)).Write(0x1C, BitConverter.GetBytes(0u)).Write(0x58, BitConverter.GetBytes(0xE1000020u)).Write(0x5C, BitConverter.GetBytes(0xE1000220u));
-            NativeBattleEffect166ModeMesh96Step drawn = NativeBattleEffect166ModeMesh96.DrawLoaded(frame.Memory, resources.ReadMesh(0xD7398C), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
+            NativeBattleEffect166ModeMesh96Step drawn = NativeBattleEffect166ModeMesh96.DrawLoaded(frame.Memory, resources.ReadMesh(0xD7398C), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(166, task) with { ResourceGeneration = callback == 0x5E8330 ? 0xD7398Cu : U(context, 0) } : null);
             frame = frame with { Memory = drawn.Memory };
             frame = PublishContext(frame, temporary, drawn.Context96, length);
             frame = inputs.Execute(frame, new NativeBattleEffect166DrawBatch(drawn.Batch, CursorGlobal));
@@ -70,7 +70,7 @@ public static partial class NativeBattleEffect166Lower
             {
                 context = context.Write(12, BitConverter.GetBytes(age < 4 ? (4 - age) << 10 : (age - 10) << 9)).Write(0x20, BitConverter.GetBytes(0xF3u));
             }
-            NativeBattleEffect315Scrolling124Step drawn = NativeBattleEffect315Scrolling124.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
+            NativeBattleEffect315Scrolling124Step drawn = NativeBattleEffect315Scrolling124.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(166, task) with { ResourceGeneration = callback == 0x5E8330 ? 0xD7398Cu : U(context, 0) } : null);
             frame = frame with { Memory = drawn.Memory };
             frame = PublishContext(frame, temporary, drawn.Context124, length);
             frame = inputs.Execute(frame, new NativeBattleEffect166DrawBatch(drawn.Batch, CursorGlobal));
@@ -119,7 +119,7 @@ public static partial class NativeBattleEffect166Lower
                 context = context.Write(12, BitConverter.GetBytes(factor));
             }
             byte shift = anchored ? (byte)3 : (byte)2;
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, shift);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, shift, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(166, task) with { ResourceGeneration = source } : null);
             frame = frame with { Memory = drawn.Memory };
             frame = PublishContext(frame, temporary, drawn.Context, length);
             frame = inputs.Execute(frame, new NativeBattleEffect166DrawBatch(drawn.Batch, CursorGlobal));

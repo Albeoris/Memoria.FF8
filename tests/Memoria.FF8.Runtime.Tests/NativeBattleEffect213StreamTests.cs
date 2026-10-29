@@ -8,6 +8,50 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect213StreamTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Group16_bad_fourth_source_is_deferred_by_native_FLAG_with_or_without_capture(bool gouraud)
+    {
+        NativeBattlePilotVisualIdentity identity = new(213, 7, 1, 33, 0);
+        var native = Draw(gouraud, z: 0, badFourth: true);
+        var captured = Draw(gouraud, z: 0, pilotIdentity: identity, badFourth: true);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        var attempt = Assert.Single(captured.Batch.Attempts);
+        Assert.Null(attempt.Primitive);
+        Assert.Contains(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask);
+        Assert.Throws<InvalidDataException>(() => Draw(gouraud, badFourth: true));
+        Assert.Throws<InvalidDataException>(() => Draw(gouraud, pilotIdentity: identity, badFourth: true));
+    }
+
+    [Theory]
+    [InlineData(false, 2000)]
+    [InlineData(true, 2000)]
+    [InlineData(false, 0)]
+    [InlineData(true, 0)]
+    public void Group16_stream_capture_keeps_native_writes_and_lazy_corners(bool gouraud, int z)
+    {
+        NativeBattleEffect213StreamStep baseline = Draw(gouraud, z);
+        NativeBattlePilotVisualIdentity identity = new(213, 0x2501000, 3, 91, 0) { ResourceGeneration = 0x117ADD8 };
+        NativeBattleEffect213StreamStep captured = Draw(gouraud, z, pilotIdentity: identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(baseline), NativeBattleTestSnapshots.Json(captured));
+        if (z == 0)
+        {
+            Assert.Null(Assert.Single(captured.Batch.Attempts).Primitive);
+            return;
+        }
+        Assert.Null(baseline.Batch.Attempts[2].Primitive!.PilotGeometry);
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(captured.Batch.Attempts[2].Primitive!.PilotGeometry);
+        Assert.Equal(identity.Generation, visual.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, visual.Identity.ResourceGeneration);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, z), visual.A);
+        Assert.Equal(new System.Numerics.Vector3(100, 100, z), visual.D);
+        Assert.Equal(new System.Numerics.Vector4(z), visual.SourceDepths);
+        Assert.True(visual.UseSourceDepths);
+        Assert.Null(captured.Batch.Attempts[1].Primitive!.PilotGeometry);
+        Assert.Null(captured.Batch.Attempts[3].Primitive!.PilotGeometry);
+    }
+
+    [Theory]
     [InlineData(false, 64, 40)]
     [InlineData(true, 76, 52)]
     public void Accepted_stream_brackets_the_body_and_publishes_all_current_depths(bool gouraud, int allocation, int rawLength)
@@ -84,7 +128,7 @@ public sealed class NativeBattleEffect213StreamTests
 
     internal static NativeBattleActionMatrix Identity(int z = 0) => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, z, 4096);
 
-    private static NativeBattleEffect213StreamStep Draw(bool gouraud, int z = 2000, bool reverse = false, int scroll = 0, int firstU = 0, int fade = 0)
+    private static NativeBattleEffect213StreamStep Draw(bool gouraud, int z = 2000, bool reverse = false, int scroll = 0, int firstU = 0, int fade = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool badFourth = false)
     {
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 92).Write(0, BitConverter.GetBytes(0x117ADD8u)).Write(8, BitConverter.GetBytes(fade)).Write(12, BitConverter.GetBytes((ushort)scroll));
         context = context.Write(0x10, new byte[16]).Write(0x14, BitConverter.GetBytes((short)256)).Write(0x16, BitConverter.GetBytes((short)256)).Write(0x1C, BitConverter.GetBytes((short)128)).Write(0x1E, BitConverter.GetBytes((short)256));
@@ -92,10 +136,10 @@ public sealed class NativeBattleEffect213StreamTests
         {
             context = context.Write(4, new byte[] { 1, 2, 3, 0 });
         }
-        return NativeBattleEffect213Stream.DrawLoaded(Memory(z), Mesh(gouraud, reverse, firstU), new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        return NativeBattleEffect213Stream.DrawLoaded(Memory(z), Mesh(gouraud, reverse, firstU, badFourth), new(Identity(), 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
     }
 
-    private static NativeBattleStaticMeshResource Mesh(bool gouraud, bool reverse, int firstU)
+    private static NativeBattleStaticMeshResource Mesh(bool gouraud, bool reverse, int firstU, bool badFourth = false)
     {
         byte[] bytes = new byte[gouraud ? 96 : 84];
         BinaryPrimitives.WriteInt32LittleEndian(bytes, 28);
@@ -113,7 +157,7 @@ public sealed class NativeBattleEffect213StreamTests
         int[] order = reverse ? [0, 2, 1, 3] : [0, 1, 2, 3];
         for (int index = 0; index < 4; index++)
         {
-            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(face + 4 + index * 2), (ushort)(order[index] * 2));
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(face + 4 + index * 2), badFourth && index == 3 ? ushort.MaxValue : (ushort)(order[index] * 2));
         }
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(face + 12), 0x12340000u | (uint)firstU);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(face + 16), 0x01000040);

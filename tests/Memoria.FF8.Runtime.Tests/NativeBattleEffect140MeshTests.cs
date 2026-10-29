@@ -9,6 +9,52 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect140MeshTests
 {
     [Fact]
+    public void Programme_workspace_identity_keeps_actual_task_generation_and_source_copy_domains()
+    {
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2517AD8, 0x1000, 0x620, 1);
+        (pool, int slot) = pool.Append(0x6A6750);
+        NativeBattleEffect140Frame frame = Frame();
+        frame = frame with { Effect = frame.Effect with { Pools = [pool] } };
+        NativeBattlePilotVisualIdentity identity = NativeBattleEffect140VisualIdentity.Workspace(frame, 0x1110, 0x11C6C54, 44);
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(140, pool.Slots[slot]).Generation, identity.Generation);
+        Assert.NotEqual(identity, NativeBattleEffect140VisualIdentity.Workspace(frame, 0x1288, 0x11C6C54, 44));
+        Assert.NotEqual(identity, NativeBattleEffect140VisualIdentity.Workspace(frame, 0x1110, 0x11C8FDC, 44));
+        pool = pool.Advance((owner, _) => new(owner, 2)).Pool;
+        (pool, _) = pool.Append(0x6A6750);
+        frame = frame with { Effect = frame.Effect with { Pools = [pool] } };
+        Assert.NotEqual(identity.Generation, NativeBattleEffect140VisualIdentity.Workspace(frame, 0x1110, 0x11C6C54, 44).Generation);
+    }
+
+    [Theory]
+    [InlineData(2000)]
+    [InlineData(1)]
+    public void Captured_mirrored_copies_retain_actual_selected_source_and_native_depths(int z)
+    {
+        NativeBattleEffect140MirroredStep Run(bool capture)
+        {
+            NativeBattleStaticMeshResource mesh = Mesh();
+            return NativeBattleEffect140Meshes.DrawLoaded(Frame(z).Memory, mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context(mesh), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: capture ? new(140, 1, 2, 3, 4) : null);
+        }
+        NativeBattleEffect140MirroredStep native = Run(false);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattleEffect140MirroredStep captured = Run(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        if (z == 1)
+        {
+            Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+            return;
+        }
+        NativeBattlePilotVisualGeometry first = captured.Batch.Attempts[1].Primitive!.PilotGeometry!;
+        NativeBattlePilotVisualGeometry second = captured.Batch.Attempts[4].Primitive!.PilotGeometry!;
+        Assert.NotEqual(first.Identity, second.Identity);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, z), first.A);
+        Assert.Equal(new System.Numerics.Vector3(100, -100, z), second.A);
+        Assert.Equal(new System.Numerics.Vector4(z, z, z, z), first.SourceDepths);
+        Assert.True(first.UseSourceDepths);
+        Assert.Null(captured.Batch.Attempts[0].Primitive!.PilotGeometry);
+    }
+
+    [Fact]
     public void Current_staged_vertex_reads_match_mesh_words_depth_and_state_without_aliasing()
     {
         NativeBattleStaticMeshResource mesh = Mesh();

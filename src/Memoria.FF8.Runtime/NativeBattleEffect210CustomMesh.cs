@@ -7,7 +7,7 @@ public sealed record NativeBattleEffect210CustomMeshStep(NativeBattleEffectMemor
 
 public static class NativeBattleEffect210CustomMesh
 {
-    public static NativeBattleEffect210CustomMeshStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleEffect210CustomMeshStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ReadOnlySpan<byte> source = mesh.Bytes.AsSpan();
         int polygon = BinaryPrimitives.ReadInt32LittleEndian(source);
@@ -70,6 +70,15 @@ public static class NativeBattleEffect210CustomMesh
                 int value = wraps ? translatedV[corner] - context.Read(0x20, 1)[0] : translatedV[corner];
                 context = context.Write(uvOffsets[corner] + 1, [unchecked((byte)value)]);
             }
+            System.Numerics.Vector3[]? world = pilotIdentity is null ? null : new System.Numerics.Vector3[4];
+            if (world is not null)
+            {
+                for (int corner = 0; corner < 3; corner++)
+                {
+                    int row = rowOffsets[corner];
+                    world[corner] = NativeBattleEffect210VisualCapture.World(registers.Geometry, new(unchecked((short)Word(context, row)), unchecked((short)Word(context, row + 2)), unchecked((short)Word(context, row + 4))), projection);
+                }
+            }
             registers = Load(registers, 0, context, 0x3C);
             registers = Load(registers, 1, context, 0x44);
             registers = Load(registers, 2, context, 0x4C);
@@ -93,6 +102,10 @@ public static class NativeBattleEffect210CustomMesh
                 packet.Word(8 + corner * 12, screen[corner]);
             }
             registers = Load(registers, 0, context, 0x54);
+            if (world is not null)
+            {
+                world[3] = NativeBattleEffect210VisualCapture.World(registers.Geometry, new(unchecked((short)Word(context, 0x54)), unchecked((short)Word(context, 0x56)), unchecked((short)Word(context, 0x58))), projection);
+            }
             registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
             uint fourth = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Effect210 custom mesh requires its fourth screen.");
             packet.Word(44, fourth);
@@ -116,7 +129,12 @@ public static class NativeBattleEffect210CustomMesh
             SkinWrites reset = Window(context, 0x14, allocated + 52);
             SkinWrites window = Window(context, 0x1C, allocated + 64);
             attempts.Add(reset.Attempt(new(bucket, reset.Words(), [0, 0, 0, 0])));
-            attempts.Add(packet.Attempt(new(bucket, packet.Words(), payload)));
+            NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), payload);
+            if (pilotIdentity is { } identity && world is not null)
+            {
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + faceIndex) }, world[0], world[1], world[2], world[3], 4) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+            }
+            attempts.Add(packet.Attempt(primitive));
             attempts.Add(window.Attempt(new(bucket, window.Words(), [0, 0, 0, 0])));
             allocated += 76;
         }

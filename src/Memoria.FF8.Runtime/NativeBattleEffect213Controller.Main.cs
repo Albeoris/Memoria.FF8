@@ -35,7 +35,7 @@ public static partial class NativeBattleEffect213Controller
             }
             NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CD50(new(-128, unchecked((short)(yaw + 2048)), 0)) with { X = mouth.X, Y = mouth.Y, Z = mouth.Z };
             NativeBattleActionMatrix view = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), world);
-            NativeBattleEffect213Step programme = NativeBattleEffect213Programme.Advance(frame, address + 0x64, 0x4A0, NativeBattlePackedMatrix32.FromMatrix(view, null), 0x118102C, frame.State.ReadDword(ArenaGlobal) + MorphOffset, resources, inputs);
+            NativeBattleEffect213Step programme = NativeBattleEffect213Programme.Advance(frame, address + 0x64, 0x4A0, NativeBattlePackedMatrix32.FromMatrix(view, null), 0x118102C, frame.State.ReadDword(ArenaGlobal) + MorphOffset, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(213, Read(frame, address)) : null);
             frame = programme.Frame;
             Roll(ref frame);
             int angle = Roll(ref frame);
@@ -54,7 +54,7 @@ public static partial class NativeBattleEffect213Controller
             NativeBattleVector saved = Vector(TaskView(task, 0x3C, 8));
             NativeBattleActionMatrix basis = Packed(TaskView(task, 0x44, 32)).ReadMatrix() with { X = saved.X, Y = saved.Y, Z = saved.Z };
             NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), basis);
-            frame = NativeBattleEffect213Programme.Advance(frame, address + 0x64, 0x140, NativeBattlePackedMatrix32.FromMatrix(composed, null), 0x1181054, frame.State.ReadDword(ArenaGlobal) + MorphOffset, resources, inputs).Frame;
+            frame = NativeBattleEffect213Programme.Advance(frame, address + 0x64, 0x140, NativeBattlePackedMatrix32.FromMatrix(composed, null), 0x1181054, frame.State.ReadDword(ArenaGlobal) + MorphOffset, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(213, Read(frame, address)) : null).Frame;
         }
         if ((uint)(age - 35) < 30)
         {
@@ -135,7 +135,7 @@ public static partial class NativeBattleEffect213Controller
             context = Word(context, offset, value);
         }
         frame = PublishContext(frame, temporary, context, 92);
-        frame = NativeBattleEffect213Stream.Draw(frame, temporary, resources, inputs);
+        frame = NativeBattleEffect213Stream.Draw(frame, temporary, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(213, Read(frame, address), 1) with { ResourceGeneration = 0x117ADD8 } : null);
         frame = Release(frame, 92);
         return (frame, world, dx, dz, distance);
     }

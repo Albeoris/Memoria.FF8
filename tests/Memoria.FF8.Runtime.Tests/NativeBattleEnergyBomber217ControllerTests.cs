@@ -8,6 +8,43 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEnergyBomber217ControllerTests
 {
     [Fact]
+    public void Group16_history_identity_follows_the_native_copy_not_the_physical_row()
+    {
+        Fixture native = new();
+        Fixture captured = new();
+        var nativeFrame = native.At(55);
+        var capturedFrame = captured.At(55);
+        var inputs = captured.Inputs with { CapturePresentation = true };
+        for (int age = 55; age <= 58; age++)
+        {
+            nativeFrame = native.Main(nativeFrame).Frame;
+            capturedFrame = NativeBattleEnergyBomber217Controller.AdvanceMain(capturedFrame, captured.MainAddress, captured.Resources, inputs).Frame;
+            Assert.Equal(NativeBattleTestSnapshots.Json(nativeFrame), NativeBattleTestSnapshots.Json(capturedFrame));
+        }
+        var trails = captured.Operations.OfType<NativeBattleEnergyBomber217DrawTrail120>().ToArray();
+        Assert.Equal(5, trails.Length);
+        var first = Assert.IsType<NativeBattlePilotVisualIdentity>(trails[0].PilotIdentity);
+        Assert.Equal(((long)TrailMeshAddress << 32) | 55u, first.ResourceGeneration);
+        Assert.Equal(first, trails[2].PilotIdentity);
+        Assert.NotEqual(first, trails[1].PilotIdentity);
+        Assert.Equal(trails[1].PilotIdentity, trails[4].PilotIdentity);
+        Assert.Equal(trails[0].Position, trails[2].Position);
+        Assert.All(native.Operations.OfType<NativeBattleEnergyBomber217DrawTrail120>(), trail => Assert.Null(trail.PilotIdentity));
+        Fixture other = new();
+        Assert.NotEqual(first.Generation, NativeBattleEnergyBomber217Controller.TrailIdentity(other.Task(other.At(56)), 0).Generation);
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEnergyBomber217Frame>(NativeBattleTestSnapshots.Json(capturedFrame));
+        Assert.Equal(NativeBattleEnergyBomber217Controller.TrailIdentity(captured.Task(capturedFrame), 0).ResourceGeneration, NativeBattleEnergyBomber217Controller.TrailIdentity(captured.Task(restored), 0).ResourceGeneration);
+        NativeBattleEffectTaskPool recycled = capturedFrame.Effect.Pools[1];
+        long oldGeneration = NativeBattleEnergyBomber217Controller.TrailIdentity(recycled.Slots[0], 0).Generation;
+        recycled = recycled.Advance((pool, _) => new(pool, 2)).Pool;
+        (recycled, int reusedSlot) = recycled.Append(MainCallback);
+        recycled = recycled.WriteSlot(reusedSlot, recycled.Slots[reusedSlot].WriteWord(12, 56));
+        Assert.Equal(0, reusedSlot);
+        Assert.NotEqual(oldGeneration, NativeBattleEnergyBomber217Controller.TrailIdentity(recycled.Slots[0], 0).Generation);
+
+    }
+
+    [Fact]
     public void Root_selects_second_bank_first_then_initializes_real_pools_and_captures_anchor_W()
     {
         Fixture fixture = new();

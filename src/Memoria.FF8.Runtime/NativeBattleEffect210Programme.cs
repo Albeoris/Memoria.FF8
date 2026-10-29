@@ -15,14 +15,14 @@ public static class NativeBattleEffect210Programme
         return frame;
     }
 
-    public static NativeBattleEffect210Step Advance(NativeBattleEffect210Frame frame, uint workspace, int length, NativeBattleEffectArena caller48, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs)
+    public static NativeBattleEffect210Step Advance(NativeBattleEffect210Frame frame, uint workspace, int length, NativeBattleEffectArena caller48, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGfAnimationWorkspace Current() => NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, length);
         NativeBattleGfAnimationSource source = resources.Act(Current().ResourceAddress);
         NativeBattleGfAnimationAdvance result = Current().Advance701970(source, unchecked((int)frame.State.ReadDword(FrozenGlobal)), (cache, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
-            frame = DrawNode(frame, source, node, caller48, resources, inputs);
+            frame = DrawNode(frame, source, node, caller48, resources, inputs, pilotIdentity: pilotIdentity is { } owner ? owner with { Primitive = node.ResourceOffset, ResourceGeneration = ((long)source.Address << 32) | workspace } : null);
             return Current();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, result.Workspace);
@@ -35,11 +35,11 @@ public static class NativeBattleEffect210Programme
         NativeBattleActionMatrix local = NativeBattlePandemona291Restoration.Rotation701270(0) with { X = Signed(task, 12), Y = Signed(task, 14), Z = Signed(task, 16) };
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);
         NativeBattleEffectArena caller = PackedArena(NativeBattlePackedMatrix32.FromMatrix(matrix, null)).Write(0x20, BitConverter.GetBytes(SelectorsAddress)).Write(0x24, BitConverter.GetBytes((short)-128)).Write(0x2C, BitConverter.GetBytes(frame.State.ReadDword(ArenaGlobal) + 0xAB10));
-        NativeBattleEffect210Step step = Advance(frame, taskAddress + 0x14, 0x1C0, caller, resources, inputs);
+        NativeBattleEffect210Step step = Advance(frame, taskAddress + 0x14, 0x1C0, caller, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(210, task));
         return new(step.Frame, step.Result == 0 ? 2 : 0);
     }
 
-    public static NativeBattleEffect210Frame DrawNode(NativeBattleEffect210Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller48, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs, uint cursorGlobal = CursorGlobal)
+    public static NativeBattleEffect210Frame DrawNode(NativeBattleEffect210Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller48, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs, uint cursorGlobal = CursorGlobal, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!NativeBattleActMeshRendering.Visible(node))
         {
@@ -128,7 +128,7 @@ public static class NativeBattleEffect210Programme
                 throw new NotSupportedException("Effect210 ACT requires its reached current vertex XYZ.");
             }
             return (new NativeBattleVector(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4))), known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : (short?)null);
-        });
+        }, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporaryAddress, drawn.Context108, 108);
         frame = inputs.Execute(frame, new NativeBattleEffect210DrawBatch(drawn.Batch, cursorGlobal));
         return Release(frame, 108);

@@ -38,7 +38,7 @@ public static partial class NativeBattleEffect173Lower
             frame = PublishContext(frame, scratchAddress, scratch, 136);
             frame = LoadMatrix(frame, composed);
             sprite = L173Word(sprite, 4, L173S(row, 4));
-            frame = L173Sprite(frame, temporary, sprite, resources, inputs);
+            frame = L173Sprite(frame, temporary, sprite, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(173, Read(frame, address), index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(173, frame.State.Storage, rowAddress, 0).Generation });
             sprite = Context(frame, temporary, 180);
             if (!L173Paused(frame, inputs))
             {
@@ -93,6 +93,7 @@ public static partial class NativeBattleEffect173Lower
             var normal = NativeBattleActionGeometryRules.NormalizeVector56BC50(x, 0, z);
             row = L173Store(row, 16, new(unchecked((short)normal.X), unchecked((short)normal.Y), unchecked((short)normal.Z)));
             frame = frame with { State = frame.State.WriteView(address, row, 24) };
+            NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, address, 0);
         }
         return frame;
     }

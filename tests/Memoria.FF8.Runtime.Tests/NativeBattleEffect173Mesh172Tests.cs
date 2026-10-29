@@ -102,12 +102,43 @@ public sealed class NativeBattleEffect173Mesh172Tests
         Assert.Equal(0x2398AA8u + 32, U(Context(result, temporary, 172), 0x28));
     }
 
-    private static NativeBattleEffect173Mesh172Step Draw(bool moving, int phase = 0, int z = 2000, bool degenerate = false, NativeBattleEffectArena? records = null, bool paused = false)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_retains_actual_moving_centroid_corners_native_fifo_and_all_writes(bool paused)
+    {
+        NativeBattleEffect173Mesh172Step plain = Draw(true, records: MovingRecord(), paused: paused);
+        NativeBattleEffect173Mesh172Step captured = Draw(true, records: MovingRecord(), paused: paused, pilotIdentity: new(173, 0x100, 0, 123, 7));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Context172), NativeBattleTestSnapshots.Json(captured.Context172));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Records), NativeBattleTestSnapshots.Json(captured.Records));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-95, -94, 2007), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(105, -94, 2007), geometry.B);
+        Assert.Equal(new System.Numerics.Vector3(-95, 106, 2007), geometry.C);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(777, 2007, 2007, 2007), geometry.SourceDepths);
+
+        static NativeBattleEffectArena MovingRecord() => Records().Write(0, BitConverter.GetBytes((short)20)).Write(2, BitConverter.GetBytes((short)30)).Write(4, BitConverter.GetBytes((short)40)).Write(8, BitConverter.GetBytes((short)5)).Write(10, BitConverter.GetBytes((short)6)).Write(12, BitConverter.GetBytes((short)7));
+    }
+
+    [Fact]
+    public void Presentation_retains_rejected_native_partial_writes()
+    {
+        NativeBattleEffect173Mesh172Step plain = Draw(false, phase: 12, z: 0);
+        NativeBattleEffect173Mesh172Step captured = Draw(false, phase: 12, z: 0, pilotIdentity: new(173, 0x100, 0, 123, 7));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        Assert.Null(Assert.Single(captured.Batch.Attempts).Primitive);
+    }
+
+    private static NativeBattleEffect173Mesh172Step Draw(bool moving, int phase = 0, int z = 2000, bool degenerate = false, NativeBattleEffectArena? records = null, bool paused = false, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleStaticMeshResource mesh = Mesh(degenerate);
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 172).Write(0, BitConverter.GetBytes(mesh.Address)).Write(8, BitConverter.GetBytes(0u)).Write(0x1C, BitConverter.GetBytes(0x30u)).Write(0x20, BitConverter.GetBytes(phase));
         context = CopyBytes(PackedArena(NativeBattlePackedMatrix32.FromMatrix(Identity(z), null)), 0, context, 0x6C, 32);
-        return NativeBattleEffect173Mesh172.DrawLoaded(Memory(), mesh, context, records ?? Records(), 0x2398AA8, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, moving, paused);
+        return NativeBattleEffect173Mesh172.DrawLoaded(Memory(), mesh, context, records ?? Records(), 0x2398AA8, new(Identity(0), 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, moving, paused, pilotIdentity: pilotIdentity);
     }
     private static NativeBattleEffectArena Records() => NativeBattleEffectArena.Clear().MarkUnknown(0, 32).Write(0, new byte[22]).Write(24, new byte[8]).Write(6, BitConverter.GetBytes((short)-1));
     internal static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), Identity(2000), true, true, null) with { Sz = [11, 22, 33, 777] }, ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };

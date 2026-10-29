@@ -31,6 +31,10 @@ public static partial class NativeBattleEffect166Lower
                 row = Word(row, 10, S(row, 10) - 400 - Roll(ref frame) % 2200);
                 row = Word(row, 12, S(row, 12) + Roll(ref frame) % 2400 - 1200);
                 frame = frame with { State = frame.State.WriteView(location, row, 24) };
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, 0x23BF080, free);
+                }
             }
         }
         (frame, uint spriteAddress) = Allocate(frame, 180);
@@ -54,7 +58,7 @@ public static partial class NativeBattleEffect166Lower
             sprite = Word(Context(frame, spriteAddress, 180), 4, S(row, 4));
             frame = PublishContext(frame, spriteAddress, sprite, 180);
             frame = frame with { Memory = NativeBattleEffect315Gte.MacToTranslation64DE40(frame.Memory) };
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, sprite, resources.Sprite, inputs.ReadProjection(frame), (inputs.ReadCameraRoll ?? throw new NotSupportedException("Effect166 sprites require their current camera roll."))(frame), 17, 2);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, sprite, resources.Sprite, inputs.ReadProjection(frame), (inputs.ReadCameraRoll ?? throw new NotSupportedException("Effect166 sprites require their current camera roll."))(frame), 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(166, task, index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(166, frame.State.Storage, 0x23BF080, index).Generation } : null);
             frame = PublishContext(frame with { Memory = drawn.Memory }, spriteAddress, drawn.Temporary180, 180);
             frame = Deliver(frame, drawn.Batch, inputs);
             if (!Paused(frame, inputs))
@@ -69,6 +73,7 @@ public static partial class NativeBattleEffect166Lower
                     survivors++;
                 }
                 frame = frame with { State = frame.State.WriteView(location, row, 24) };
+
             }
         }
         frame = Release(Release(frame, 180), 72);

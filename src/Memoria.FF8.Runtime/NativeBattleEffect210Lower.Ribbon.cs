@@ -37,6 +37,7 @@ public static partial class NativeBattleEffect210Lower
         data = Put(data, 0x10 + ring * 20, 1);
         data = CopyBytes(context, 0x20, data, 0x14 + ring * 20, 8);
         data = CopyBytes(context, 0x28, data, 0x1C + ring * 20, 8);
+        NativeBattleEffect210RibbonBirths.Observe(frame.State.Storage, address, task, ring, age);
         int maximum = age >= 53 ? 60 - age : 7;
         int count = 0;
         for (; count < maximum; count++)
@@ -72,7 +73,7 @@ public static partial class NativeBattleEffect210Lower
             data = Direction(data, 0x31C, 0x324, 0x33C);
             frame = WriteBytes(frame, address, data, 0x34C);
             frame = LoadMatrix(frame, inputs.ReadView(frame));
-            NativeBattleRibbonPair72Step result = NativeBattleRibbonPair72.DrawLoaded(frame.Memory, CopyBytes(data, 0x11C, NativeBattleEffectArena.Clear().MarkUnknown(0, 256), 0, 256), CopyBytes(data, 0x21C, NativeBattleEffectArena.Clear().MarkUnknown(0, 256), 0, 256), context, inputs.ReadProjection(frame), inputs.Colors, 0x3A185820);
+            NativeBattleRibbonPair72Step result = NativeBattleRibbonPair72.DrawLoaded(frame.Memory, CopyBytes(data, 0x11C, NativeBattleEffectArena.Clear().MarkUnknown(0, 256), 0, 256), CopyBytes(data, 0x21C, NativeBattleEffectArena.Clear().MarkUnknown(0, 256), 0, 256), context, inputs.ReadProjection(frame), inputs.Colors, 0x3A185820, pilotIdentity: NativeBattleEffect210RibbonBirths.Identity(frame.State.Storage, address, task, age % 7, (age - count + 1) % 7));
             frame = frame with { Memory = result.Memory };
             context = result.Temporary64;
             frame = PublishContext(frame, temporary, context, 64);

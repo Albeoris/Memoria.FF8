@@ -115,6 +115,65 @@ public sealed class NativeBattleEffect210LowerTests
         Assert.Equal(result.Batch.Attempts[0].Primitive!.Words, restored.Batch.Attempts[0].Primitive!.Words);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2000)]
+    public void Presentation_custom_mesh_preserves_all_stores_and_captures_actual_mutable_depths(int z)
+    {
+        NativeBattleEffect210CustomMeshStep plain = Draw(null);
+        NativeBattleEffect210CustomMeshStep captured = Draw(new(210, 0x100, 0, 123, 9));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        if (z != 0)
+        {
+            NativeBattleGeometryPrimitive body = captured.Batch.Attempts[1].Primitive!;
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(body.PilotGeometry);
+            Assert.Equal(new System.Numerics.Vector3(-100, -100, 1744), geometry.A);
+            Assert.Equal(new System.Numerics.Vector3(100, 100, 2256), geometry.D);
+            Assert.Equal(new System.Numerics.Vector4(1744, 2016, 2128, 2256), geometry.SourceDepths);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Null(captured.Batch.Attempts[0].Primitive!.PilotGeometry);
+            Assert.Null(captured.Batch.Attempts[2].Primitive!.PilotGeometry);
+        }
+        else
+        {
+            Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+        }
+
+        NativeBattleEffect210CustomMeshStep Draw(NativeBattlePilotVisualIdentity? identity) => NativeBattleEffect210CustomMesh.DrawLoaded(Memory(z), Mesh(7, [-256, 16, 128, 256]), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), CustomContext(0), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: identity);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2000)]
+    public void Presentation_ribbon_keeps_both_passes_full_fifo_and_unlinked_allocation(int z)
+    {
+        NativeBattleRibbonPair72Step plain = Draw(null);
+        NativeBattleRibbonPair72Step captured = Draw(new(210, 0x100, 0, 123, 10));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        if (z != 0)
+        {
+            Assert.Equal(60, captured.Batch.Attempts.Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+            NativeBattlePilotVisualGeometry first = captured.Batch.Attempts[0].Primitive!.PilotGeometry!;
+            Assert.Equal(new System.Numerics.Vector3(-60, -100, 2000), first.A);
+            Assert.Equal(new System.Numerics.Vector3(-56, 100, 2000), first.D);
+            Assert.Equal(first.A, captured.Batch.Attempts[1].Primitive!.PilotGeometry!.A);
+            Assert.True(first.UseSourceDepths);
+        }
+        Assert.True(captured.Batch.NativeUnlinkedAllocation);
+
+        NativeBattleRibbonPair72Step Draw(NativeBattlePilotVisualIdentity? identity)
+        {
+            NativeBattleEffectArena first = NativeBattleEffectArena.Clear().MarkUnknown(0, 256);
+            NativeBattleEffectArena second = NativeBattleEffectArena.Clear().MarkUnknown(0, 256);
+            for (int index = 0; index < 32; index++)
+            {
+                first = Point(first, index * 8, index * 4 - 60, -100, 0);
+                second = Point(second, index * 8, index * 4 - 60, 100, 0);
+            }
+            return NativeBattleRibbonPair72.DrawLoaded(Memory(z), first, second, NativeBattleEffectArena.Clear().MarkUnknown(0, 64), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, 0x3A185820, pilotIdentity: identity);
+        }
+    }
+
     private static NativeBattleEffect210CustomMeshStep Custom(int z, bool reverse = false) => NativeBattleEffect210CustomMesh.DrawLoaded(Memory(z), Mesh(7, [0, 0, 0, 0], reverse), new(null, 100, 160, 108), CustomContext(256), NativeBattleGteColorInterpolation.CodeConstants45F270);
 
     private static NativeBattleEffectArena CustomContext(int bias)

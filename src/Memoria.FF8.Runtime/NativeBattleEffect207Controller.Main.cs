@@ -12,7 +12,7 @@ public static partial class NativeBattleEffect207Controller
         if ((uint)age < 80)
         {
             NativeBattleEffectArena caller = CopyBytes(TaskView(Read(frame, address), 40, 8), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 20), 0, 8).Write(8, BitConverter.GetBytes(SelectorsAddress)).Write(12, BitConverter.GetBytes((short)-128)).Write(14, BitConverter.GetBytes(unchecked((ushort)(age * 32)))).Write(16, BitConverter.GetBytes(frame.State.ReadDword(ArenaGlobal) + 0xCE8u));
-            frame = NativeBattleEffect207Programme.Advance(frame, address + ProgrammeWorkspaceOffset, caller, resources, inputs).Frame;
+            frame = NativeBattleEffect207Programme.Advance(frame, address + ProgrammeWorkspaceOffset, caller, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(207, Read(frame, address))).Frame;
         }
         int elapsed = age - 32;
         if ((uint)elapsed < 48)
@@ -88,7 +88,7 @@ public static partial class NativeBattleEffect207Controller
         var snapshot = ReadBytes(frame, MatrixAddress, 32).ReadSnapshot(0, 32);
         frame = LoadMatrix(frame, new NativeBattlePackedMatrix32(snapshot.Data.ToImmutableArray(), snapshot.Known.ToImmutableArray()));
         int fade = 4096 - NativeBattleCameraMath.Sine(elapsed * 2048 / 48);
-        return NativeBattleEffect207Lower.Draw5700(frame, MutableMeshAddress, MutableMeshAddress + 8, (metric >> 2) + 17, fade, PaletteIndex(elapsed), resources, inputs);
+        return NativeBattleEffect207Lower.Draw5700(frame, MutableMeshAddress, MutableMeshAddress + 8, (metric >> 2) + 17, fade, PaletteIndex(elapsed), resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(207, Read(frame, address), 0x5700) with { ResourceGeneration = MutableMeshAddress });
     }
 
     public static int PaletteIndex(int elapsed)

@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleEffect140Screen
 {
-    public static NativeBattleEffect140Frame Fade(NativeBattleEffect140Frame frame, int red, int green, int blue, int current, int maximum, NativeBattleEffect140Resources resources, NativeBattleEffect140Inputs inputs)
+    public static NativeBattleEffect140Frame Fade(NativeBattleEffect140Frame frame, int red, int green, int blue, int current, int maximum, NativeBattleEffect140Resources resources, NativeBattleEffect140Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int remaining = unchecked(maximum - current);
         if (remaining <= 0)
@@ -16,6 +16,10 @@ public static class NativeBattleEffect140Screen
         }
         uint color = 0x2A000000u | (byte)(unchecked(red * remaining) / maximum) | (uint)(byte)(unchecked(green * remaining) / maximum) << 8 | (uint)(byte)(unchecked(blue * remaining) / maximum) << 16;
         NativeBattleGfGeometryAttempt attempt = Packet(0, [0x05000000, color, 0, 320, 216u << 16, 320u | 216u << 16], 8, [0, 0, 0, 0]);
+        if (pilotIdentity is { } identity && attempt.Primitive is { } primitive)
+        {
+            attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity, new(0, 0, 0), new(320, 0, 0), new(0, 216, 0), new(320, 216, 0), 4, false) { ScreenSpace = true, ScreenScale = 8, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } } };
+        }
         return inputs.Execute(frame, new NativeBattleEffect140DrawBatch(new([attempt], 24), Cursor, 1));
     }
 

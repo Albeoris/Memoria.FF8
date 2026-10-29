@@ -41,7 +41,7 @@ public static partial class NativeBattleEffect166Lower
             work = CopyBytes(raw, 0, work, 8, 32);
             frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(matrix, null));
             draw = draw.Write(0, BitConverter.GetBytes(source));
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), draw, inputs.Colors, 17, 2);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), draw, inputs.Colors, 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(166, Read(frame, address), index) with { ResourceGeneration = unchecked((long)source * 397 ^ NativeBattlePilotVisualLifetimes.Identity(166, frame.State.Storage, SecondRecordsAddress, index).Generation) } : null);
             draw = drawn.Context;
             frame = frame with { Memory = drawn.Memory };
             frame = PublishContext(frame, drawAddress, draw, 88);
@@ -121,6 +121,10 @@ public static partial class NativeBattleEffect166Lower
                 int angle = Roll(ref frame) % 4096;
                 record = record.Write(0x16, BitConverter.GetBytes((short)angle)).Write(0x1A, BitConverter.GetBytes((short)(angle >> 1)));
                 frame = WriteBytes(frame, recordAddress, record, SecondRecordStride);
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, SecondRecordsAddress, free);
+                }
             }
         }
         short nextAge = unchecked((short)(age + 1));

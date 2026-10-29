@@ -34,7 +34,7 @@ public static partial class NativeBattleEffect173Lower
             frame = L173Setup(frame, CopyBytes(scratch, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), unchecked((short)scale), unchecked((short)-(scale >> 4)), inputs);
             sprite = L173Word(Context(frame, spriteAddress, 180), 4, L173S(row, 4));
             sprite = L173Word(L173Put(sprite, 0, 0xD5EAA4), 0x24, 0);
-            frame = L173Sprite(frame, spriteAddress, sprite, resources, inputs);
+            frame = L173Sprite(frame, spriteAddress, sprite, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(173, Read(frame, address), index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(173, frame.State.Storage, rowAddress, 0).Generation });
             if (!L173Paused(frame, inputs))
             {
                 row = L173Word(row, 4, L173S(row, 4) + 1);
@@ -100,6 +100,7 @@ public static partial class NativeBattleEffect173Lower
             row = L173Word(row, 18, radius / (L173Random(ref frame) % 14 + 18));
             row = L173Word(row, 22, L173Random(ref frame) % 50 + 25);
             frame = frame with { State = frame.State.WriteView(address, row, 24) };
+            NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, address, 0);
         }
         return frame;
     }
@@ -125,7 +126,7 @@ public static partial class NativeBattleEffect173Lower
             sprite = L173Put(L173Word(sprite, 4, phase), 0x1C, resources.Palette[phase]);
             int scale = L173S(row, 6);
             frame = L173Setup(frame, CopyBytes(row, 8, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), unchecked((short)scale), unchecked((short)-(scale >> 4)), inputs);
-            frame = L173Sprite(frame, temporary, sprite, resources, inputs);
+            frame = L173Sprite(frame, temporary, sprite, resources, inputs, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(173, Read(frame, address), index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(173, frame.State.Storage, rowAddress, 0).Generation });
             sprite = Context(frame, temporary, 180);
             if (!L173Paused(frame, inputs))
             {
@@ -199,6 +200,7 @@ public static partial class NativeBattleEffect173Lower
             row = L173Word(row, 18, y + lift + L173Random(ref frame) % 20 - 10);
             row = L173Word(row, 20, z + L173Random(ref frame) % 20 - 10);
             frame = frame with { State = frame.State.WriteView(address, row, 24) };
+            NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, address, 0);
         }
         return frame;
     }

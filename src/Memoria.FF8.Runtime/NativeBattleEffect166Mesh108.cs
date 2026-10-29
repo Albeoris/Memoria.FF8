@@ -7,7 +7,7 @@ public sealed record NativeBattleEffect166Mesh108Step(NativeBattleEffectMemory M
 
 public static class NativeBattleEffect166Mesh108
 {
-    public static NativeBattleEffect166Mesh108Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context108, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleEffect166Mesh108Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context108, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint flags = U(context108, 0x1C);
         if (U(context108, 0) != mesh.Address || flags is not (0x33 or 0xF3) || depthShift > 31)
@@ -46,6 +46,8 @@ public static class NativeBattleEffect166Mesh108
             for (int index = 0; index < count; index++)
             {
                 byte[] face = mesh.Bytes.AsSpan().Slice(cursor, faceLength).ToArray();
+                NativeBattleActionMatrix? pilotMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     Load(corner, corner);
@@ -121,7 +123,7 @@ public static class NativeBattleEffect166Mesh108
                             {
                                 packet.Word(4 + corner * 8, resultColors[corner]);
                             }
-                            attempts.Add(packet.Attempt(new(tableBaseBucket + (unchecked((int)depth) >> depthShift), packet.Words(), registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Custom mesh requires all four current SZ sidecars.")))).ToImmutableArray())));
+                            attempts.Add(packet.Attempt(new(tableBaseBucket + (unchecked((int)depth) >> depthShift), packet.Words(), registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Custom mesh requires all four current SZ sidecars.")))).ToImmutableArray()) { PilotGeometry = pilotIdentity is { } identity && world is not null ? new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, (byte)corners) { UseSourceDepths = true, SourceDepths = new(registers.Geometry.Sz[0]!.Value, registers.Geometry.Sz[1]!.Value, registers.Geometry.Sz[2]!.Value, registers.Geometry.Sz[3]!.Value) } : null }));
                             allocated += packetLength;
                             accepted = true;
                         }
@@ -142,7 +144,12 @@ public static class NativeBattleEffect166Mesh108
                         throw new InvalidDataException("Custom mesh selected an invalid current vertex row.");
                     }
                     ReadOnlySpan<byte> vertex = mesh.Bytes.AsSpan().Slice(8 + offset, 6);
-                    registers = NativeBattleGeometry.LoadVector(registers, register, new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..])), null);
+                    NativeBattleVector position = new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..]));
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix!, position), projection);
+                    }
+                    registers = NativeBattleGeometry.LoadVector(registers, register, position, null);
                 }
             }
         }

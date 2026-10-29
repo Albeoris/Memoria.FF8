@@ -7,7 +7,7 @@ public sealed record NativeBattleEffect315Scrolling124Step(NativeBattleEffectMem
 
 public static class NativeBattleEffect315Scrolling124
 {
-    public static NativeBattleEffect315Scrolling124Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 3)
+    public static NativeBattleEffect315Scrolling124Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 3, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint flags = Dword(context, 0x20);
         if (Dword(context, 0) != mesh.Address || flags is not (0x33 or 0xF3) || Dword(context, 8) != 0 || depthShift > 31 || context.ExceedsExtent(124))
@@ -48,11 +48,21 @@ public static class NativeBattleEffect315Scrolling124
             {
                 byte[] face = Read(cursor, lengths[group]).ToArray();
                 bool quad = (group & 1) != 0;
+                NativeBattleActionMatrix? pilotMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
+                void Capture(int corner, NativeBattleVector point)
+                {
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix!, point), projection);
+                    }
+                }
                 bool gouraud = group >= 6;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     (NativeBattleVector point, short w) = Vertex(corner);
                     registers = NativeBattleGeometry.LoadVector(registers, corner, point, w);
+                    Capture(corner, point);
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
                 uint projectedFlags = registers.Colors.Flags ?? throw new NotSupportedException("Effect315 scrolling requires current projection flags.");
@@ -81,6 +91,7 @@ public static class NativeBattleEffect315Scrolling124
                     {
                         (NativeBattleVector point, short w) = Vertex(corner);
                         registers = NativeBattleGeometry.LoadVector(registers, 0, point, w);
+                        Capture(corner, point);
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
                         registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Effect315 scrolling requires its current ZSF4."));
@@ -110,6 +121,11 @@ public static class NativeBattleEffect315Scrolling124
                         }
                         registers = gouraud ? NativeBattleGouraudMeshRegisters.Shade(registers, face, quad, true, flags, cue, far, colors) : registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, material, cue, far, colors).Registers };
                     }
+                }
+                if (pilotIdentity is { } identity && world is not null)
+                {
+                    NativeBattlePilotVisualGeometry geometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, quad ? (byte)4 : (byte)3) { SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true };
+                    leaf = leaf with { Attempts = leaf.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = geometry } } : attempt).ToImmutableArray() };
                 }
                 attempts.AddRange(leaf.Attempts);
                 allocated = checked(allocated + leaf.AllocationBytes);

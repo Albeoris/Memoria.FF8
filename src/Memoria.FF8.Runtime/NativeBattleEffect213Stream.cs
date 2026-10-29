@@ -40,16 +40,16 @@ public static class NativeBattleEffect213Stream
         return frame;
     }
 
-    public static NativeBattleEffect213Frame Draw(NativeBattleEffect213Frame frame, uint temporary92, NativeBattleEffect213Resources resources, NativeBattleEffect213Inputs inputs)
+    public static NativeBattleEffect213Frame Draw(NativeBattleEffect213Frame frame, uint temporary92, NativeBattleEffect213Resources resources, NativeBattleEffect213Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         frame = Bind(frame, resources);
         NativeBattleStaticMeshResource mesh = resources.ReadCurrentMesh(frame.Staging!, 0x117ADD8);
-        NativeBattleEffect213StreamStep draw = DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), Context(frame, temporary92, 92), inputs.Colors);
+        NativeBattleEffect213StreamStep draw = DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), Context(frame, temporary92, 92), inputs.Colors, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary92, draw.Context92, 92);
         return inputs.Execute(frame, new NativeBattleEffect213DrawBatch(draw.Batch, CursorGlobal));
     }
 
-    public static NativeBattleEffect213StreamStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleEffect213StreamStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (mesh.Address != 0x117ADD8 || mesh.Bytes.IsDefaultOrEmpty || mesh.Bytes.Length < 8 || Dword(context, 0) != mesh.Address || depthShift > 31)
         {
@@ -79,6 +79,8 @@ public static class NativeBattleEffect213Stream
             for (int face = 0; face < count; face++)
             {
                 int current = cursor;
+                NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     Load(corner, corner);
@@ -149,7 +151,10 @@ public static class NativeBattleEffect213Stream
                         }
                         int bucket = unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift));
                         ImmutableArray<int> payload = registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("The stream requires all four actual depth FIFO entries.")))).ToImmutableArray();
-                        NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), payload);
+                        NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), payload)
+                        {
+                            PilotGeometry = pilotIdentity.HasValue ? new(pilotIdentity.Value with { Primitive = current }, world![0], world[1], world[2], world[3], 4) { UseSourceDepths = true, SourceDepths = new(payload[0], payload[1], payload[2], payload[3]) } : null
+                        };
                         NativeBattleTextureWindow before = new(SignedWord(context, 0x10), SignedWord(context, 0x12), SignedWord(context, 0x14), SignedWord(context, 0x16));
                         NativeBattleTextureWindow after = new(SignedWord(context, 0x18), SignedWord(context, 0x1A), SignedWord(context, 0x1C), SignedWord(context, 0x1E));
                         NativeBattleGfGeometryBatch bracket = NativeBattleEffectTextureWindows.Bracket(packet.Attempt(null), primitive, before, after);
@@ -176,6 +181,10 @@ public static class NativeBattleEffect213Stream
                     ReadOnlySpan<byte> row = mesh.Bytes.AsSpan().Slice(offset, 8);
                     NativeBattleVector vector = new(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..]));
                     registers = NativeBattleGeometry.LoadVector(registers, slot, vector, BinaryPrimitives.ReadInt16LittleEndian(row[6..]));
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, vector), projection);
+                    }
                 }
             }
             if (group == 0)

@@ -6,6 +6,44 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleGravija214MeshContext88Tests
 {
     [Theory]
+    [InlineData(3, false)]
+    [InlineData(5, false)]
+    [InlineData(7, false)]
+    [InlineData(3, true)]
+    [InlineData(5, true)]
+    [InlineData(7, true)]
+    public void Group16_programme_capture_keeps_selected_loads_and_native_rejection(int group, bool near)
+    {
+        List<int> nativeReads = [];
+        List<int> capturedReads = [];
+        NativeBattleVector Read(int offset, List<int> reads)
+        {
+            reads.Add(offset);
+            if (near)
+            {
+                Assert.NotEqual(24, offset);
+            }
+            return new((short)(offset == 0 || offset == 16 ? -400 : 400), (short)(offset < 16 ? -400 : 400), (short)(near ? -1999 : 0));
+        }
+        var native = Draw(Mesh(group), Context(0x2030), offset => (Read(offset, nativeReads), null));
+        NativeBattlePilotVisualIdentity identity = new(214, 123, 0, 42, 71);
+        var captured = Draw(Mesh(group), Context(0x2030), offset => (Read(offset, capturedReads), null), identity);
+        Assert.Equal(nativeReads, capturedReads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        if (near)
+        {
+            Assert.Null(Assert.Single(captured.Batch.Attempts).Primitive);
+        }
+        else
+        {
+            var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+            Assert.Equal(identity.Generation, geometry.Identity.Generation);
+            Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), geometry.A);
+            Assert.Equal(new System.Numerics.Vector3(400, 400, 2000), geometry.D);
+        }
+    }
+
+    [Theory]
     [InlineData(3, 0x2030u)]
     [InlineData(3, 0x20F0u)]
     [InlineData(5, 0x2030u)]
@@ -55,11 +93,11 @@ public sealed class NativeBattleGravija214MeshContext88Tests
         Assert.Throws<NotSupportedException>(() => actual.Context88.Read(0x10, 8));
     }
 
-    private static NativeBattleGravija214MeshContext88Step Draw(NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context, Func<int, (NativeBattleVector Vertex, short? W)>? read = null)
+    private static NativeBattleGravija214MeshContext88Step Draw(NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context, Func<int, (NativeBattleVector Vertex, short? W)>? read = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector[] points = [new(-400, -400, 0), new(400, -400, 0), new(-400, 400, 0), new(400, 400, 0)];
         var memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
-        return NativeBattleGravija214MeshContext88.DrawLoaded(memory, mesh, new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, read ?? (offset => (points[offset / 8], null)));
+        return NativeBattleGravija214MeshContext88.DrawLoaded(memory, mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, read ?? (offset => (points[offset / 8], null)), pilotIdentity);
     }
 
     private static NativeBattleEffectArena Context(uint flags) => NativeBattleEffectArena.Clear().MarkUnknown(0, 88).Write(0, BitConverter.GetBytes(0x10000000u)).Write(4, BitConverter.GetBytes(0x20000000u)).Write(8, new byte[4]).Write(12, BitConverter.GetBytes(2048)).Write(24, BitConverter.GetBytes(-128)).Write(28, BitConverter.GetBytes(flags));

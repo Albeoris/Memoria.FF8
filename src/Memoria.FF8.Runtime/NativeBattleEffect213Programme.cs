@@ -15,21 +15,21 @@ public static class NativeBattleEffect213Programme
         return frame;
     }
 
-    public static NativeBattleEffect213Step Advance(NativeBattleEffect213Frame frame, uint workspace, int length, NativeBattlePackedMatrix32 matrix, uint flagsAddress, uint morphAddress, NativeBattleEffect213Resources resources, NativeBattleEffect213Inputs inputs)
+    public static NativeBattleEffect213Step Advance(NativeBattleEffect213Frame frame, uint workspace, int length, NativeBattlePackedMatrix32 matrix, uint flagsAddress, uint morphAddress, NativeBattleEffect213Resources resources, NativeBattleEffect213Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGfAnimationWorkspace Current() => NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, length);
         NativeBattleGfAnimationSource source = resources.Act(Current().ResourceAddress);
         NativeBattleGfAnimationAdvance result = Current().Advance701970(source, 0, (cache, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
-            frame = DrawNode(frame, source, node, matrix, flagsAddress, morphAddress, resources, inputs);
+            frame = DrawNode(frame, source, node, matrix, flagsAddress, morphAddress, resources, inputs, pilotIdentity.HasValue ? pilotIdentity.Value with { Primitive = node.ResourceOffset, ResourceGeneration = ((long)source.Address << 32) | 0x64L } : null);
             return Current();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, result.Workspace);
         return new(frame, result.Remaining);
     }
 
-    public static NativeBattleEffect213Frame DrawNode(NativeBattleEffect213Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 matrix, uint flagsAddress, uint morphAddress, NativeBattleEffect213Resources resources, NativeBattleEffect213Inputs inputs)
+    public static NativeBattleEffect213Frame DrawNode(NativeBattleEffect213Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 matrix, uint flagsAddress, uint morphAddress, NativeBattleEffect213Resources resources, NativeBattleEffect213Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!NativeBattleActMeshRendering.Visible(node))
         {
@@ -72,7 +72,7 @@ public static class NativeBattleEffect213Programme
             (byte[] bytes, bool[] known) = row.ReadSnapshot(6, 2);
             short? w = known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null;
             return (Vector(row), w);
-        });
+        }, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect213DrawBatch(draw.Batch, CursorGlobal));
         return Release(frame, 88);

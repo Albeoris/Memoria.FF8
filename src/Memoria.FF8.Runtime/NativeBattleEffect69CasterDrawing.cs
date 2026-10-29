@@ -8,7 +8,7 @@ public sealed record NativeBattleEffect69CasterDrawingStep(NativeBattleEffectMem
 /// <summary>Current-bone world projection and the caster's retained eight-byte half-plane mesh stream.</summary>
 public static class NativeBattleEffect69CasterDrawing
 {
-    public static NativeBattleEffect69CasterDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary96, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> currentComposedBones, NativeBattlePackedMatrix32 view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena scratch, int scratchLength, int tableBaseBucket = 17)
+    public static NativeBattleEffect69CasterDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary96, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> currentComposedBones, NativeBattlePackedMatrix32 view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena scratch, int scratchLength, int tableBaseBucket = 17, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (scratchLength < 0 || scratchLength > NativeBattleEffectArena.Length || (scratchLength & 7) != 0 || currentComposedBones.IsDefault || currentComposedBones.IsEmpty)
         {
@@ -34,6 +34,7 @@ public static class NativeBattleEffect69CasterDrawing
                 continue;
             }
             temporary96 = Put(temporary96, 0x5C, scratchAddress);
+            System.Numerics.Vector3?[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3?[scratchLength / 8] : null;
             int destination = 0;
             int groups = Short(cursor);
             if (groups < 0)
@@ -73,6 +74,11 @@ public static class NativeBattleEffect69CasterDrawing
                 {
                     int row = destination + vertex * 8;
                     int worldY = Signed(scratch, row + 2);
+                    if (world is not null)
+                    {
+                        NativeBattleVector position = new(Signed(scratch, row), Signed(scratch, row + 2), Signed(scratch, row + 4));
+                        world[row / 8] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(view.ReadMatrix(), position), projection);
+                    }
                     (byte[] bytes, bool[] known) = scratch.ReadSnapshot(row, 8);
                     registers = registers with { Colors = registers.Colors with { NormalInput = bytes.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray() } };
                     registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
@@ -183,6 +189,12 @@ public static class NativeBattleEffect69CasterDrawing
                                 uint depth = Required(registers.Geometry.Otz);
                                 temporary96 = Put(temporary96, 0x44, depth);
                                 NativeBattleGeometryPrimitive primitive = new(unchecked(tableBaseBucket + ((int)depth >> shift)), packet.Words(), Sidecars(registers.Geometry, color));
+                                if (pilotIdentity is { } identity && world is not null)
+                                {
+                                    System.Numerics.Vector3 Corner(int corner) => world[(BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(corner * 2)) & 0xFFF)] ?? throw new NotSupportedException("Caster capture requires its reached post-skin source row.");
+                                    System.Collections.Immutable.ImmutableArray<int> payload = primitive.VertexPayload4;
+                                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 397 + item) * 65537 + (int)cursor) }, Corner(0), Corner(1), Corner(2), quad ? Corner(3) : default, quad ? (byte)4 : (byte)3) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+                                }
                                 attempts.Add(packet.Attempt(primitive));
                                 allocated += quad ? 40 : 32;
                             }

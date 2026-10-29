@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect210Lower
 {
-    public static NativeBattleEffect210Frame Draw8BF0(NativeBattleEffect210Frame frame, NativeBattleEffectArena point8, short angle, int rotation, int fade, int uvScroll, int scale, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs)
+    public static NativeBattleEffect210Frame Draw8BF0(NativeBattleEffect210Frame frame, NativeBattleEffectArena point8, short angle, int rotation, int fade, int uvScroll, int scale, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector point = Vector(point8);
         if (scale > 0)
@@ -17,7 +17,7 @@ public static partial class NativeBattleEffect210Lower
             NativeBattleEffectArena context = Windows(Context(frame, temporary, 108), 0, uvScroll & 127, 0, 128, 256, 128);
             context = Put(Put(Put(Put(Put(context, 0, 0x145E1C4), 8, 0), 12, unchecked((uint)scale)), 24, 0), 28, 0xF0);
             frame = PublishContext(frame, temporary, context, 108);
-            frame = DrawWindowed108(frame, temporary, 0x145E1C4, resources, inputs);
+            frame = DrawWindowed108(frame, temporary, 0x145E1C4, resources, inputs, pilotIdentity: pilotIdentity is { } firstOwner ? firstOwner with { Primitive = unchecked(firstOwner.Primitive * 397) } : null);
             return Release(frame, 108);
         }
         if (rotation < 4096)
@@ -41,7 +41,7 @@ public static partial class NativeBattleEffect210Lower
             context = Put(Put(Put(Put(Put(context, 0, 0x14603F4), 8, 0), 12, unchecked((uint)fade)), 24, 0), 28, 0xF0);
             frame = PublishContext(frame, temporary, context, 180);
             frame = LoadCpuMatrix(frame, matrix);
-            frame = DrawWindowed108(frame, temporary, 0x14603F4, resources, inputs);
+            frame = DrawWindowed108(frame, temporary, 0x14603F4, resources, inputs, pilotIdentity: pilotIdentity is { } secondOwner ? secondOwner with { Primitive = unchecked(secondOwner.Primitive * 397 + 1) } : null);
             frame = Release(frame, 180);
         }
         (frame, uint customTemporary) = Allocate(frame, 152);
@@ -53,14 +53,14 @@ public static partial class NativeBattleEffect210Lower
         custom = PutWord(PutWord(PutWord(PutWord(custom, 0x14, 0), 0x16, 0), 0x18, 256), 0x1A, 256);
         custom = PutWord(PutWord(PutWord(PutWord(custom, 0x1C, 0), 0x1E, 128), 0x20, 256), 0x22, 128);
         frame = PublishContext(frame, customTemporary, custom, 152);
-        NativeBattleEffect210CustomMeshStep drawn = NativeBattleEffect210CustomMesh.DrawLoaded(frame.Memory, resources.ReadMesh(0x145E1C4), inputs.ReadProjection(frame), custom, inputs.Colors);
+        NativeBattleEffect210CustomMeshStep drawn = NativeBattleEffect210CustomMesh.DrawLoaded(frame.Memory, resources.ReadMesh(0x145E1C4), inputs.ReadProjection(frame), custom, inputs.Colors, pilotIdentity: pilotIdentity is { } customOwner ? customOwner with { Primitive = unchecked(customOwner.Primitive * 397 + 2), ResourceGeneration = 0x145E1C4 } : null);
         frame = frame with { Memory = drawn.Memory };
         frame = PublishContext(frame, customTemporary, drawn.Context152, 152);
         frame = inputs.Execute(frame, new NativeBattleEffect210DrawBatch(drawn.Batch, CursorGlobal));
         return Release(frame, 152);
     }
 
-    private static NativeBattleEffect210Frame DrawWindowed108(NativeBattleEffect210Frame frame, uint temporary, uint source, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs)
+    private static NativeBattleEffect210Frame DrawWindowed108(NativeBattleEffect210Frame frame, uint temporary, uint source, NativeBattleEffect210Resources resources, NativeBattleEffect210Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleStaticMeshResource mesh = resources.ReadMesh(source);
         int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4));
@@ -68,7 +68,7 @@ public static partial class NativeBattleEffect210Lower
         {
             ReadOnlySpan<byte> row = mesh.Bytes.AsSpan().Slice(8 + index * 8, 8);
             return (new(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(row.Slice(4))), BinaryPrimitives.ReadInt16LittleEndian(row.Slice(6)));
-        });
+        }, pilotIdentity: pilotIdentity is { } identity ? identity with { ResourceGeneration = source } : null);
         frame = frame with { Memory = result.Memory };
         frame = PublishContext(frame, temporary, result.Context108, 108);
         return inputs.Execute(frame, new NativeBattleEffect210DrawBatch(result.Batch, CursorGlobal));

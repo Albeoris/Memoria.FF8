@@ -7,13 +7,13 @@ public sealed record NativeBattleWindowedMeshContext108Step(NativeBattleEffectMe
 
 public static class NativeBattleWindowedMeshContext108
 {
-    public static NativeBattleWindowedMeshContext108Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, int maximumVertices, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, Action<NativeBattleGfGeometryAttempt, int>? observeAttempt = null, Func<int, NativeBattleEffectArena>? readSelectedPackedVertex = null)
+    public static NativeBattleWindowedMeshContext108Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, int maximumVertices, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, Action<NativeBattleGfGeometryAttempt, int>? observeAttempt = null, Func<int, NativeBattleEffectArena>? readSelectedPackedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader reader = new(mesh.Bytes);
-        return DrawLoaded(memory, mesh.Address, reader, projection, context, constants, tableBaseBucket, depthShift, maximumVertices, readSelectedVertex, observeAttempt, readSelectedPackedVertex);
+        return DrawLoaded(memory, mesh.Address, reader, projection, context, constants, tableBaseBucket, depthShift, maximumVertices, readSelectedVertex, observeAttempt, readSelectedPackedVertex, pilotIdentity);
     }
 
-    internal static NativeBattleWindowedMeshContext108Step DrawLoaded(NativeBattleEffectMemory memory, uint meshAddress, NativeBattleGfSourceReader mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, int maximumVertices, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, Action<NativeBattleGfGeometryAttempt, int>? observeAttempt = null, Func<int, NativeBattleEffectArena>? readSelectedPackedVertex = null)
+    internal static NativeBattleWindowedMeshContext108Step DrawLoaded(NativeBattleEffectMemory memory, uint meshAddress, NativeBattleGfSourceReader mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, int maximumVertices, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, Action<NativeBattleGfGeometryAttempt, int>? observeAttempt = null, Func<int, NativeBattleEffectArena>? readSelectedPackedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         context.Validate();
         uint flags = Dword(context, 0x1C);
@@ -64,10 +64,15 @@ public static class NativeBattleWindowedMeshContext108
                 bool quad = (group & 1) != 0;
                 bool gouraud = group >= 4;
                 bool textured = group is 2 or 3 or 6 or 7;
+                System.Numerics.Vector3[]? world = pilotIdentity is null ? null : new System.Numerics.Vector3[quad ? 4 : 3];
                 for (int corner = 0; corner < 3; corner++)
                 {
                     (NativeBattleVector vertex, short? w) = Vertex(corner);
                     registers = LoadSelected(registers, corner, corner, vertex, w);
+                    if (world is not null)
+                    {
+                        world[corner] = World(registers, corner);
+                    }
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
                 uint firstFlags = registers.Colors.Flags!.Value;
@@ -93,6 +98,10 @@ public static class NativeBattleWindowedMeshContext108
                     {
                         (NativeBattleVector vertex, short? w) = Vertex(corner);
                         registers = LoadSelected(registers, 0, corner, vertex, w);
+                        if (world is not null)
+                        {
+                            world[3] = World(registers, 0);
+                        }
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
                         registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Windowed mesh quad requires its current ZSF4."));
@@ -144,6 +153,10 @@ public static class NativeBattleWindowedMeshContext108
                         }
                     }
                 }
+                if (pilotIdentity is { } identity && world is not null)
+                {
+                    leaf = leaf with { Attempts = leaf.Attempts.Select(attempt => attempt.Primitive is { } primitive && (primitive.Words[1] & 0xE0000000) == 0x20000000 ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, (byte)world.Length) { SourceDepths = primitive.VertexPayload4.Length == 4 ? new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]) : System.Numerics.Vector4.Zero, UseSourceDepths = true } } } : attempt).ToImmutableArray() };
+                }
                 foreach (NativeBattleGfGeometryAttempt attempt in leaf.Attempts)
                 {
                     attempts.Add(attempt);
@@ -152,6 +165,19 @@ public static class NativeBattleWindowedMeshContext108
                 allocated = checked(allocated + leaf.AllocationBytes);
                 cursor = checked(cursor + lengths[group]);
                 context = Put(context, 0x34, checked(meshAddress + (uint)cursor));
+
+                System.Numerics.Vector3 World(NativeBattleGeometryRegisterStep loaded, int slot)
+                {
+                    ImmutableArray<byte?> bytes = slot switch
+                    {
+                        0 => loaded.Colors.NormalInput!.Value.Select(value => (byte?)value).ToImmutableArray(),
+                        1 => loaded.Geometry.V1,
+                        _ => loaded.Geometry.V2
+                    };
+                    short Component(int axis) => unchecked((short)((bytes[axis * 2] ?? 0) | (bytes[axis * 2 + 1] ?? 0) << 8));
+                    NativeBattleActionMatrix matrix = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(loaded.Geometry).ReadMatrix();
+                    return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, new(Component(0), Component(1), Component(2))), projection);
+                }
 
                 NativeBattleGeometryRegisterStep LoadSelected(NativeBattleGeometryRegisterStep loaded, int slot, int corner, NativeBattleVector vertex, short? w)
                 {
