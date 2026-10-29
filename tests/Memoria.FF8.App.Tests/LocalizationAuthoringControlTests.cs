@@ -207,12 +207,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             Assert.Equal("Niveau {0}", LocalizationProjectIO.Read(package).Entries.Single(row => row.Key == systemKey).Target);
             await Request("ui-input", new(Release: true, Edit: UiEditCommand.Cancel));
             await WaitLocalization(state => Hits(state).Any(hit => hit.GetProperty("Key").GetString() == systemKey && hit.GetProperty("Text").GetString()!.StartsWith("Niveau ", StringComparison.Ordinal)));
-            string capture = Path.Combine(root, "workbench.png");
-            await Request("capture", path: capture);
-            while (!File.Exists(capture))
-            {
-                await Task.Delay(20, timeout.Token);
-            }
+            string capture = await Capture("workbench");
             Assert.True(File.Exists(capture));
             Assert.Equal(originalHash, SHA256.HashData(File.ReadAllBytes(standalone)));
             Assert.Contains("enabled=0", File.ReadAllText(Path.Combine(package, "mod.ini")));
@@ -299,18 +294,30 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
                 await Request("ui-input", new(Edit: UiEditCommand.SelectAll));
                 await Request("ui-input", new(Text: text));
             }
-            async Task Capture(string name)
+            async Task<string> Capture(string name)
             {
                 string path = Path.Combine(root, name + ".png");
                 await Request("capture", path: path);
-                while (!File.Exists(path))
+                while (true)
                 {
+                    try
+                    {
+                        using FileStream completed = new(path, FileMode.Open, FileAccess.Read, FileShare.None);
+                        if (completed.Length > 0)
+                        {
+                            break;
+                        }
+                    }
+                    catch (IOException)
+                    {
+                    }
                     await Task.Delay(20, timeout.Token);
                 }
                 if (!string.IsNullOrWhiteSpace(evidence))
                 {
                     File.Copy(path, Path.Combine(evidence, name + ".png"));
                 }
+                return path;
             }
             async Task Preview()
             {
@@ -364,7 +371,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
         {
             return;
         }
-        File.Copy(capture, Path.Combine(destination, "workbench.png"));
+        File.Copy(capture, Path.Combine(destination, "workbench.png"), overwrite: true);
         File.WriteAllText(Path.Combine(destination, "validation.json"), JsonSerializer.Serialize(summary));
     }
 }
