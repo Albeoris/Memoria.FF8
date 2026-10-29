@@ -527,7 +527,7 @@ public sealed class NativeBattleEffectTextureSourceTests
             case "registration":
                 ImmutableArray<NativeBattleTextureRegistration> registrations = state.TextureRegistrations!.Value;
                 NativeBattleTextureRegistration registration = registrations[0];
-                changed = state with { TextureRegistrations = registrations.SetItem(0, registration with { CopyFrames = [new(64, 256, 1, 1)], CurrentFrame = 0, CopyHistoryKnown = true, PaletteOwnedSpans = [] }) };
+                changed = state with { TextureRegistrations = registrations.SetItem(0, registration with { CopyFrames = [new(64, 256, 1, 1)], CurrentFrame = 0, CopyHistoryKnown = true, CopyOrder = [0], PaletteOwnedSpans = [] }) };
                 break;
             default:
                 changed = state with { VramReadTail = state.VramReadTail!.Value.SetItem(0, 1) };

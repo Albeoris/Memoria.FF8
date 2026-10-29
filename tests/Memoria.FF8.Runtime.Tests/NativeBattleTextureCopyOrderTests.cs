@@ -6,6 +6,43 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleTextureCopyOrderTests
 {
     [Fact]
+    public void ImportedCurrentFrameStillMovesToTheEndOfAnOlderCopyOrder()
+    {
+        NativeBattleTextureRegistration observed = Assert.Single(Copy(Copy(Upload(), 64, 256), 72, 256)!.Value);
+        NativeBattleTextureRegistration imported = JsonSerializer.Deserialize<NativeBattleTextureRegistration>(JsonSerializer.Serialize(observed with { CurrentFrame = 0 }))!;
+        imported.Validate();
+        string before = JsonSerializer.Serialize(imported);
+
+        NativeBattleTextureRegistration next = Assert.Single(Copy([imported], 64, 256)!.Value);
+
+        Assert.Equal(0, next.CurrentFrame);
+        Assert.Equal(new[] { 1, 0 }, next.CopyOrder!.Value);
+        Assert.Equal(imported.CopyFrames, next.CopyFrames);
+        Assert.Equal(new[] { 0, 1 }, imported.CopyOrder!.Value);
+        Assert.Equal(before, JsonSerializer.Serialize(imported));
+        next.Validate();
+    }
+
+    [Fact]
+    public void UnknownPaletteClearsImportedOrderEvenWhenHistoryWasAlreadyUnknown()
+    {
+        NativeBattleTextureRegistration observed = Assert.Single(Copy(Upload(), 64, 256)!.Value);
+        NativeBattleTextureRegistration imported = observed with { CopyHistoryKnown = false, PaletteOwnedSpans = null };
+        imported.Validate();
+        string before = JsonSerializer.Serialize(imported);
+
+        NativeBattleTextureRegistration next = Assert.Single(Copy([imported], 72, 256)!.Value);
+
+        Assert.False(next.CopyHistoryKnown);
+        Assert.Null(next.CopyOrder);
+        Assert.Equal(imported.CurrentFrame, next.CurrentFrame);
+        Assert.Equal(imported.CopyFrames, next.CopyFrames);
+        Assert.Equal(new[] { 0 }, imported.CopyOrder!.Value);
+        Assert.Equal(before, JsonSerializer.Serialize(imported));
+        next.Validate();
+    }
+
+    [Fact]
     public void RepeatedCopiesMoveStableFrameIndicesToTheirLastObservationOrder()
     {
         var owners = Upload();

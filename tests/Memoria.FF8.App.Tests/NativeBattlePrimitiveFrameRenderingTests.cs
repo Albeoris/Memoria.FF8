@@ -11,6 +11,93 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattlePrimitiveFrameRenderingTests
 {
+    [Fact]
+    public void Primitive_sample_variants_separate_final_materials_but_share_native_pixels_across_current_and_previous_frames()
+    {
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
+        NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
+        NativeBattleLogicalResolvedCommand upper = RawCacheQuad();
+        NativeBattleLogicalResolvedCommand lower = upper with { Command = upper.Command with { Words = upper.Command.Words.SetItem(2, 0x40000700u) } };
+        NativeBattlePrimitiveFrame frame = Frame([upper, lower, upper]) with { LastTextureSnapshots = [held] };
+        TextureCapture capture = new();
+        SampleVariantTextureSource source = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture, PilotDiagnosticsEnabled = true };
+
+        renderer.RenderNativePrimitiveFrame(frame, state, effectTextureSource: source);
+
+        Assert.Equal(new[] { 1, 2 }, source.AppliedKeys);
+        Assert.Equal(2, source.NativeImages.Count);
+        Assert.Same(source.NativeImages[0], source.NativeImages[1]);
+        Assert.NotEqual(source.FinalImages[0][0, 0], source.FinalImages[1][0, 0]);
+        Assert.Equal(new[] { source.FinalImages[0], source.FinalImages[0], source.FinalImages[1], source.FinalImages[1], source.FinalImages[0], source.FinalImages[0] }, capture.Textures);
+        Assert.Equal(1, renderer.TextureDecoding!.Value.DecodeCount);
+        Assert.Equal(1, renderer.TextureDecoding.Value.RawCurrentHits);
+
+        renderer.RenderNativePrimitiveFrame(frame with { LastCommands = [lower, upper, lower] }, state, effectTextureSource: source);
+
+        Assert.Equal(2, source.NativeImages.Count);
+        Assert.Equal(0, renderer.TextureDecoding!.Value.DecodeCount);
+        Assert.Equal(2, renderer.TextureDecoding.Value.FullFinalPreviousHits);
+        Assert.Equal(new[] { source.FinalImages[1], source.FinalImages[1], source.FinalImages[0], source.FinalImages[0], source.FinalImages[1], source.FinalImages[1] }, capture.Textures);
+
+        upper = upper with { Command = upper.Command with { TextureSourceOwner = "changed-material-owner" } };
+        lower = lower with { Command = lower.Command with { TextureSourceOwner = "changed-material-owner" } };
+        renderer.RenderNativePrimitiveFrame(frame with { LastCommands = [upper, lower, upper] }, state, effectTextureSource: source);
+
+        Assert.Equal(new[] { 1, 2, 1, 2 }, source.AppliedKeys);
+        Assert.All(source.NativeImages, image => Assert.Same(source.NativeImages[0], image));
+        Assert.Equal(0, renderer.TextureDecoding!.Value.DecodeCount);
+        Assert.Equal(new[] { source.FinalImages[2], source.FinalImages[2], source.FinalImages[3], source.FinalImages[3], source.FinalImages[2], source.FinalImages[2] }, capture.Textures);
+    }
+
+    [Fact]
+    public void Native_sprite_sample_uses_explicit_expanded_corner_coordinates_instead_of_window_scaled_command_UV()
+    {
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
+        NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
+        NativeBattleLogicalResolvedCommand template = RawCacheQuad();
+        NativeBattleLogicalCommand sprite = template.Command with { Opcode = 0x64, Words = [0x64808080, Point(10, 10), 0x40000700, 0x00020002] };
+        NativeBattleLogicalResolvedCommand resolved = template with { Command = sprite, DrawMode = template.DrawMode with { SpriteFilter = new(0, uint.MaxValue) } };
+        SampleVariantTextureSource source = new();
+        TextureCapture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+
+        renderer.RenderNativePrimitiveFrame(Frame([resolved]) with { LastTextureSnapshots = [held] }, state, effectTextureSource: source);
+
+        TexturePrimitiveSample sample = Assert.Single(source.Samples);
+        Assert.Equal(7f / 256, sample.FirstV);
+        Assert.Equal(new[] { 1 }, source.AppliedKeys);
+        Assert.True(7 * resolved.DrawMode.TextureSelection!.ScaleV >= 0.5f);
+        Assert.Same(Assert.Single(source.FinalImages), capture.Texture);
+    }
+
+    private sealed class SampleVariantTextureSource : INativeBattleEffectTextureSource
+    {
+        public long Generation => 0;
+        public List<int> AppliedKeys { get; } = [];
+        public List<TexturePrimitiveSample> Samples { get; } = [];
+        public List<PixelImage> NativeImages { get; } = [];
+        public List<PixelImage> FinalImages { get; } = [];
+
+        public int GetPrimitiveSampleKey(TexturePrimitiveSample sample) => sample.FirstV < 0.5f ? 1 : 2;
+
+        public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
+        {
+            throw new InvalidOperationException("The sample-aware default ApplyDecoded overload must preserve the primitive variant.");
+        }
+
+        public PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat, TexturePrimitiveSample sample)
+        {
+            int key = GetPrimitiveSampleKey(sample);
+            AppliedKeys.Add(key);
+            Samples.Add(sample);
+            NativeImages.Add(original);
+            PixelImage final = new(width, height, Enumerable.Repeat(key == 1 ? new Rgba32(255, 0, 0, 127) : new Rgba32(0, 0, 255, 127), width * height).ToArray());
+            FinalImages.Add(final);
+            return final;
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -500,7 +587,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         Assert.NotSame(initial, capture.Texture);
         ImmutableArray<NativeBattleTextureRegistration> registrations = held.TextureRegistrations!.Value;
         NativeBattleTextureRegistration registration = registrations[0];
-        NativeBattlePcTextureWindowPixels later = held with { TextureRegistrations = registrations.SetItem(0, registration with { CopyFrames = [new(0, 0, 2, 8)], CurrentFrame = 0, CopyHistoryKnown = true, PaletteOwnedSpans = [] }) };
+        NativeBattlePcTextureWindowPixels later = held with { TextureRegistrations = registrations.SetItem(0, registration with { CopyFrames = [new(0, 0, 2, 8)], CurrentFrame = 0, CopyHistoryKnown = true, CopyOrder = [0], PaletteOwnedSpans = [] }) };
         renderer.RenderNativePrimitiveFrame(frame with { LastTextureSnapshots = [later] }, palette, effectTextureSource: effectTextures);
         Assert.Equal(3, resolver.Calls);
         Assert.Equal(0, resolver.LastFrame);
@@ -790,15 +877,21 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     {
         public Albeoris.Games.FF8.Imaging.PixelImage? Texture { get; private set; }
         public System.Numerics.Vector2 Uv { get; private set; }
+        public List<PixelImage> Textures { get; } = [];
 
         public void Begin(int width, int height, System.Numerics.Vector4 clearColor, float clearDepth = 1)
         {
             Texture = null;
+            Textures.Clear();
         }
 
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
             Texture = material.Texture;
+            if (material.Texture is { } texture)
+            {
+                Textures.Add(texture);
+            }
             Uv = a.Uv;
         }
 

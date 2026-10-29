@@ -112,7 +112,7 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
             }
             int sampleKey = sample is { } primitiveSample ? GetPrimitiveSampleKey(primitiveSample) : 0;
             TextureKey atlasKey = new(new("battle/native-gf-atlas"), $"atlas/{scope}/{page}/{clut}/{u}/{v}/{width}/{height}/retained/{retainedRevision}/sample/{sampleKey}");
-            TextureBuildContext atlasContext = new(atlasKey, resources.Source, revisions.GetValue(state, _ => new()).Value, "native-battle-gf-atlas", width, height, () =>
+            TextureBuildContext atlasContext = new(atlasKey, resources.Source, Revision(state).Value, "native-battle-gf-atlas", width, height, () =>
             {
                 originalRequested = true;
                 return original ?? NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, u, v, width, height, alternatePaletteShift, directTextureFormat, retainedPixels);
@@ -137,7 +137,7 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
         if (upload is not null)
         {
             TextureKey uploadKey = new(new("battle/native-pc-texture"), $"upload/{scope}/{page}/{clut}/{u}/{v}/{width}/{height}/retained/{retainedRevision}");
-            TextureBuildContext uploadContext = new(uploadKey, resources.Source, revisions.GetValue(state, _ => new()).Value, "native-pc-texture-upload", width, height, () =>
+            TextureBuildContext uploadContext = new(uploadKey, resources.Source, Revision(state).Value, "native-pc-texture-upload", width, height, () =>
             {
                 originalRequested = true;
                 return original ?? NativeBattleEffectTextureReader.DecodePcRegion(state, page, clut, u, v, width, height, alternatePaletteShift, directTextureFormat, retainedPixels);
