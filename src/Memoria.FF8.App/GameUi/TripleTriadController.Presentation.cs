@@ -67,6 +67,7 @@ public sealed partial class TripleTriadController
         {
             return;
         }
+        OpeningControl oldOpeningControl = openingControl;
         int oldRecentDeck = RecentDeckSelection;
         int oldSelection = Selection;
         int oldHand = SelectedHand;
@@ -77,12 +78,12 @@ public sealed partial class TripleTriadController
         NavigateCore(key);
         if (key is UiKey.Up or UiKey.Down or UiKey.Left or UiKey.Right or UiKey.PageUp or UiKey.PageDown)
         {
-            if (oldRecentDeck != RecentDeckSelection || oldSelection != Selection || oldHand != SelectedHand || oldCell != SelectedCell)
+            if (oldOpeningControl != openingControl || oldRecentDeck != RecentDeckSelection || oldSelection != Selection || oldHand != SelectedHand || oldCell != SelectedCell)
             {
                 RequestSound(TripleTriadSound.Move);
             }
         }
-        else if (key == UiKey.Cancel && (oldChoosing || oldRules || oldDeck != deck.Count))
+        else if (key == UiKey.Cancel && (oldOpeningControl != openingControl || oldChoosing || oldRules || oldDeck != deck.Count))
         {
             RequestSound(TripleTriadSound.Cancel);
         }

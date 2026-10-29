@@ -46,7 +46,7 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
         {
             DrawMatch(canvas, theme, controller.Match);
         }
-        if (controller.Match is not null && controller.TradingHand is null || controller.AwaitingTradeConfirmation)
+        if (controller.Match is { } match && controller.TradingHand is null && (controller.IsAnimating || match.Outcome != TripleTriadOutcome.InProgress) || controller.AwaitingTradeConfirmation)
         {
             canvas.OutlinedText(controller.IsAnimating && controller.TradingHand is null ? controller.CaptureAnnouncement ?? "" : controller.Message, 20, new UiRect(160, 635, 640, 30), theme.Foreground, new UiColor(0, 0, 0), 1);
         }
@@ -286,7 +286,7 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
             {
                 if (hands[owner][hand] is int id)
                 {
-                    bool selected = owner == 0 && !controller.ChoosingCell && controller.SelectedHand == hand && match.Outcome == TripleTriadOutcome.InProgress && !controller.IsAnimating;
+                    bool selected = owner == 0 && !controller.ChoosingCell && !controller.OpeningControlSelected && controller.SelectedHand == hand && match.Outcome == TripleTriadOutcome.InProgress && !controller.IsAnimating;
                     DrawCard(canvas, theme, HandBounds(hand, owner), owner == 0 || match.Rules.HasFlag(TripleTriadRules.Open) ? id : null, owner, selected);
                 }
             }
@@ -504,7 +504,7 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
         }
         if (controller.AwaitingOpeningConfirmation && StartBounds.Contains(x, y))
         {
-            controller.Navigate(UiKey.Confirm);
+            controller.ConfirmOpening();
             return;
         }
         if (controller.CanRedraw && RedrawBounds.Contains(x, y))

@@ -22,7 +22,7 @@ The reward screen uses the original 3×3 presentation, with the opponent's cards 
 
 ## Random redraws
 
-The default allowance is zero. Configure up to three redraws and use the Redraw button or Page Up / Page Down before the first move. Only your hand changes; the opponent's cards, elemental cells and starting player stay fixed. Redraws are saved with the current match. If the opponent starts, confirm Begin match after deciding whether to redraw.
+The default allowance is zero. Configure up to three redraws and use the Redraw button or Page Up / Page Down before the first move. Press Up from the top card of any hand column to select Redraw, then confirm. Down or Cancel returns to the hand; Left and Right switch between Redraw and Begin match when both are available. Only your hand changes; the opponent's cards, elemental cells and starting player stay fixed. Redraws are saved with the current match. If the opponent starts, confirm Begin match after deciding whether to redraw.
 
 ## Assistance
 

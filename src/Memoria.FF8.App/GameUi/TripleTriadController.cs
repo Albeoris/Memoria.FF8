@@ -58,6 +58,28 @@ public sealed partial class TripleTriadController
     public int RedrawsRemaining { get; private set; }
     public Func<IReadOnlyList<int>>? RedrawHand { get; set; }
     private bool openingConfirmed;
+    private OpeningControl openingControl;
+    private enum OpeningControl
+    {
+        None,
+        Redraw,
+        Start
+    }
+    internal bool RedrawSelected => CanRedraw && openingControl == OpeningControl.Redraw;
+    internal bool StartSelected => AwaitingOpeningConfirmation && openingControl == OpeningControl.Start;
+    internal bool OpeningControlSelected => RedrawSelected || StartSelected;
+
+    public void ConfirmOpening()
+    {
+        if (AwaitingOpeningConfirmation)
+        {
+            openingConfirmed = true;
+            openingControl = OpeningControl.None;
+            RequestSound(TripleTriadSound.Confirm);
+            Changed?.Invoke();
+        }
+    }
+
     public bool AwaitingOpeningConfirmation => CanRedraw && !openingConfirmed && Match?.CurrentPlayer == 1;
     public bool CanRedraw => RedrawsRemaining > 0 && Rules.HasFlag(TripleTriadRules.Random) && !AwaitingRules && !AwaitingReplay && !IsAnimating && TradingHand is null && Match is { Round: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Board.All(card => card is null) && RedrawHand is not null;
 
@@ -412,10 +434,41 @@ public sealed partial class TripleTriadController
             Redraw();
             return;
         }
+        if (!OpeningControlSelected)
+        {
+            openingControl = OpeningControl.None;
+        }
+        if (OpeningControlSelected)
+        {
+            if (key == UiKey.Confirm)
+            {
+                if (RedrawSelected)
+                {
+                    Redraw();
+                }
+                else
+                {
+                    ConfirmOpening();
+                }
+            }
+            else if (key is UiKey.Down or UiKey.Cancel)
+            {
+                openingControl = OpeningControl.None;
+            }
+            else if (key is UiKey.Left or UiKey.Right && AwaitingOpeningConfirmation)
+            {
+                openingControl = RedrawSelected ? OpeningControl.Start : OpeningControl.Redraw;
+            }
+            return;
+        }
+        if (key == UiKey.Up && CanRedraw && !ChoosingCell && SelectedHand % new TripleTriadLayout(Match.Width, Match.Height, Match.HandSize).HandRows == 0)
+        {
+            openingControl = OpeningControl.Redraw;
+            return;
+        }
         if (key == UiKey.Confirm && AwaitingOpeningConfirmation)
         {
-            openingConfirmed = true;
-            Changed?.Invoke();
+            ConfirmOpening();
             return;
         }
         if (Match.CurrentPlayer != 0)
@@ -550,6 +603,7 @@ public sealed partial class TripleTriadController
     {
         if (!AwaitingReplay && !IsAnimating && (uint)index < Options.HandSize && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Hands[0][index] is not null)
         {
+            openingControl = OpeningControl.None;
             SelectedHand = index;
             ChoosingCell = true;
         }
@@ -662,6 +716,7 @@ public sealed partial class TripleTriadController
 
     private void ResetTurnSelection()
     {
+        openingControl = OpeningControl.None;
         SelectedCell = (Options.Height / 2) * Options.Width + Options.Width / 2;
         if (Match is not null)
         {

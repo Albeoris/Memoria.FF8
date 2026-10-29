@@ -38,6 +38,11 @@ internal sealed partial class TripleTriadElementView
             theme.Panel(canvas, StartBounds);
             canvas.Text(controller.SystemText("card.ui.start", "Begin match"), 19, StartBounds.Inset(4), theme.Foreground, UiAlignment.Center);
         }
+        if (controller.OpeningControlSelected)
+        {
+            UiRect selected = controller.RedrawSelected ? RedrawBounds : StartBounds;
+            theme.Pointer(canvas, selected.X + 4, selected.Bottom, 20);
+        }
     }
 
     private void DrawAssistance(IUiCanvas canvas, UiTheme theme, TripleTriadMatch match)

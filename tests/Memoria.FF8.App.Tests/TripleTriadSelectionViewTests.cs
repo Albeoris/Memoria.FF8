@@ -10,6 +10,106 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class TripleTriadSelectionViewTests
 {
+    [Theory]
+    [InlineData(0, 5, 0)]
+    [InlineData(1, 5, 0)]
+    [InlineData(0, 12, 0)]
+    [InlineData(0, 12, 1)]
+    public void UpFromTopHandRowSelectsRedrawAndConfirmReplacesOnlyPlayerHand(int startingPlayer, int handSize, int column)
+    {
+        TripleTriadController controller = CreateRedrawMatch(startingPlayer, handSize);
+        int selected = column * new TripleTriadLayout(3, 3, handSize).HandRows;
+        if (startingPlayer == 0)
+        {
+            controller.SelectHand(selected);
+            controller.Navigate(UiKey.Cancel);
+        }
+        int[] opponent = controller.Match!.InitialHands[1].ToArray();
+        controller.Navigate(UiKey.Up);
+        Assert.True(controller.RedrawSelected);
+        RecordingCanvas canvas = Draw(controller.BuildView());
+        Assert.Single(canvas.Pointers);
+        Assert.True(canvas.Pointers[0].Y < 48);
+        Assert.DoesNotContain(canvas.Texts, text => text.Bounds.Y == 635);
+        controller.Navigate(UiKey.Confirm);
+        Assert.Equal(Enumerable.Range(60, handSize), controller.Match.InitialHands[0]);
+        Assert.Equal(opponent, controller.Match.InitialHands[1]);
+        Assert.Equal(startingPlayer, controller.Match.StartingPlayer);
+        Assert.Equal(0, controller.RedrawsRemaining);
+        Assert.False(controller.OpeningControlSelected);
+        controller.Navigate(UiKey.Up);
+        Assert.False(controller.OpeningControlSelected);
+    }
+
+    [Fact]
+    public void DownAndCancelReturnFromRedrawToTheSameHandCard()
+    {
+        TripleTriadController controller = CreateRedrawMatch(0, 12);
+        int selected = new TripleTriadLayout(3, 3, 12).HandRows;
+        controller.SelectHand(selected);
+        controller.Navigate(UiKey.Cancel);
+        foreach (UiKey back in new[] { UiKey.Down, UiKey.Cancel })
+        {
+            controller.Navigate(UiKey.Up);
+            Assert.True(controller.RedrawSelected);
+            controller.Navigate(back);
+            Assert.False(controller.OpeningControlSelected);
+            Assert.Equal(selected, controller.SelectedHand);
+            Assert.False(controller.ChoosingCell);
+        }
+        controller.Navigate(UiKey.Down);
+        controller.Navigate(UiKey.Up);
+        Assert.False(controller.OpeningControlSelected);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BeginMatchCanBeSelectedWithArrowsOrClickedWhileRedrawIsSelected(bool click)
+    {
+        TripleTriadController controller = CreateRedrawMatch(1, 5);
+        controller.Navigate(UiKey.Up);
+        if (click)
+        {
+            UiView view = controller.BuildView();
+            Click(view, Assert.Single(Draw(view).Texts, text => text.Text == "Begin match").Bounds);
+        }
+        else
+        {
+            controller.Navigate(UiKey.Left);
+            Assert.True(controller.StartSelected);
+            controller.Navigate(UiKey.Right);
+            Assert.True(controller.RedrawSelected);
+            controller.Navigate(UiKey.Left);
+            controller.Navigate(UiKey.Confirm);
+        }
+        Assert.False(controller.AwaitingOpeningConfirmation);
+        Assert.False(controller.OpeningControlSelected);
+        Assert.Equal(1, controller.RedrawsRemaining);
+    }
+
+    [Fact]
+    public void MatchOmitsRoutineFooterHintsAndRetainsResultMessages()
+    {
+        TripleTriadController controller = CreateRedrawMatch(0, 5);
+        controller.Play(-1, 0);
+        Assert.NotEmpty(controller.Message);
+        Assert.DoesNotContain(Draw(controller.BuildView()).Texts, text => text.Text == controller.Message);
+        Assert.True(controller.CompleteInstantly(true));
+        Assert.NotEmpty(controller.Message);
+        Assert.Contains(Draw(controller.BuildView()).Texts, text => text.Text == controller.Message);
+    }
+
+    private static TripleTriadController CreateRedrawMatch(int startingPlayer, int handSize)
+    {
+        TripleTriadCard[] cards = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 1, 1, 1, 1, TripleTriadElement.None)).ToArray();
+        int[] opponent = Enumerable.Range(30, handSize).ToArray();
+        TripleTriadController controller = new(cards, Enumerable.Range(0, 110).ToDictionary(id => id, _ => 1), opponent, id => id.ToString(), TripleTriadRules.Random, options: new() { HandSize = handSize, RandomRedraws = 1 });
+        controller.RestoreMatch(TripleTriadMatch.Create(cards, Enumerable.Range(0, handSize).ToArray(), opponent, TripleTriadRules.Random, startingPlayer));
+        controller.RedrawHand = () => Enumerable.Range(60, handSize).ToArray();
+        return controller;
+    }
+
     [Fact]
     public void BoardTitleIsCenteredUsingItsMeasuredWidth()
     {
