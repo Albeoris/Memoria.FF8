@@ -22,6 +22,8 @@ public sealed partial class BattleSession
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeMeteor223Grid(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleCinematicResources resources, NativeBattleGraphicsState graphics)
     {
         NativeBattleActionMatrix? basis = null;
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(223, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
         NativeBattleMeteor223GridServices services = new(Resolve, (current, selector) =>
         {
             uint reference = Resolve(current, selector);
@@ -51,19 +53,22 @@ public sealed partial class BattleSession
             NativeBattleEffectMemory memory = RequireWaterMemory();
             NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Native Meteor projection requires its actual depth-cue controls.");
             byte[] position = current.ReadTemporary(0xC0, 6);
-            NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(basis ?? throw new InvalidOperationException("Native Meteor projection requires its selected parent basis."), NativeBattleScriptedMeshPreparation.Vector(position), NativeCamera?.Projection ?? throw new NotSupportedException("Native Meteor requires its current camera projection."), controls.Dqa, controls.Dqb);
+            NativeBattleActionMatrix matrix = basis ?? throw new InvalidOperationException("Native Meteor projection requires its selected parent basis.");
+            NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Meteor requires its current camera projection.");
+            NativeBattleVector source = NativeBattleScriptedMeshPreparation.Vector(position);
+            NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix, source, projection, controls.Dqa, controls.Dqb);
             NativeBattleScriptedColorRegisters registers = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Meteor projection requires its packed input registers.");
             NativeEffectMemory = memory with { ScriptedColorRegisters = registers with { NormalInput = [.. position, 0, 0], NormalInputKnown = null } };
             short x = unchecked((short)projected.Projected.Screen);
             short y = unchecked((short)(projected.Projected.Screen >> 16));
             uint screen = unchecked((ushort)(x >> 3) | ((uint)(ushort)(y >> 3) << 16));
-            return new(current, screen, projected.Projected.Depth >> 2, projected.Projected.Flags);
+            return new(current, screen, projected.Projected.Depth >> 2, projected.Projected.Flags) { World = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, source), projection) };
         }, (current, output, batch) =>
         {
             var written = AppendNativeCinematicPackets(current, output, null, batch, graphics);
             graphics = written.Graphics;
             return written.Frame;
-        }, (address, length) => resources.ReadStatic(address, length).ToArray());
+        }, (address, length) => resources.ReadStatic(address, length).ToArray()) { PilotIdentity = visualIdentity };
         return (NativeBattleMeteor223Grid.Draw(frame, services), graphics);
 
         uint Resolve(NativeBattleWaterExecutionFrame current, short selector)

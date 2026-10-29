@@ -4,7 +4,11 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleShot194Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
-public abstract record NativeBattleShot194Operation;
+public abstract record NativeBattleShot194Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleShot194Bind(byte Actor) : NativeBattleShot194Operation;
 public sealed record NativeBattleShot194Sequence(byte Actor, ushort Sequence) : NativeBattleShot194Operation;
 public sealed record NativeBattleShot194Stage(int Intensity) : NativeBattleShot194Operation;
@@ -85,6 +89,8 @@ public static class NativeBattleShot194
         NativeBattleShot194State state = frame.Memory.Shot194 ?? throw new NotSupportedException("Native Flame Shot lost its retained module globals.");
         state.Validate();
         bool paused = (inputs.GraphicsFlags & 0x201) != 0;
+        NativeBattlePilotVisualIdentity drawingIdentity = default;
+        NativeBattleModulePoolTask drawingTask = null!;
         NativeBattleEffectTaskStep rootStep = pools[0].Advance((pool, index) =>
         {
             pools[0] = pool;
@@ -138,6 +144,8 @@ public static class NativeBattleShot194
             {
                 pools[index] = pool;
                 NativeBattleModulePoolTask task = pool.Slots[slot];
+                drawingTask = task;
+                drawingIdentity = NativeBattlePilotVisualLifetimes.Identity(194, task);
                 int result = task.Callback switch
                 {
                     0x5B6C50 => Opening(ref task),
@@ -474,7 +482,7 @@ public static class NativeBattleShot194
                 }
                 ushort phase = unchecked((ushort)(2 * I16(particles, offset + 4) + 1));
                 short scale = I16(particles, offset + 6);
-                Execute(new NativeBattleShot194Sprite(0xD0D938, phase, V(particles, offset + 8), scale, -(scale >> 4), 0));
+                Execute(new NativeBattleShot194Sprite(0xD0D938, phase, V(particles, offset + 8), scale, -(scale >> 4), 0) { PilotIdentity = NativeBattleShotVisualLifetimes.Identity(194, drawingTask, drawingIdentity, offset) });
                 if (!paused)
                 {
                     W16(particles, offset + 4, I16(particles, offset + 4) + 1);
@@ -504,6 +512,7 @@ public static class NativeBattleShot194
                     {
                         break;
                     }
+                    NativeBattleShotVisualLifetimes.Allocated(194, drawingTask, offset);
                     W32(particles, offset, serial);
                     W16(particles, offset + 4, 0);
                     W16(particles, offset + 6, Roll() % 256 + 768);
@@ -548,7 +557,7 @@ public static class NativeBattleShot194
                     }
                 }
                 int beforeDraw = frame.Effect.DrawArenaOffset ?? throw new InvalidDataException("Native Flame Shot requires its actual packet cursor.");
-                Execute(new NativeBattleShot194Quad(point, I16(particles, offset + 6), resources.TrailColors[phase]));
+                Execute(new NativeBattleShot194Quad(point, I16(particles, offset + 6), resources.TrailColors[phase]) { PilotIdentity = NativeBattleShotVisualLifetimes.Identity(194, drawingTask, drawingIdentity, offset) });
                 if (frame.Effect.DrawArenaOffset != beforeDraw)
                 {
                     drawn++;
@@ -571,6 +580,7 @@ public static class NativeBattleShot194
                         {
                             break;
                         }
+                        NativeBattleShotVisualLifetimes.Allocated(194, drawingTask, offset);
                         W32(particles, offset, serial);
                         W16(particles, offset + 4, 0);
                         W16(particles, offset + 6, Roll() % 256 + 384);
@@ -615,6 +625,7 @@ public static class NativeBattleShot194
                     {
                         break;
                     }
+                    NativeBattleShotVisualLifetimes.Allocated(194, drawingTask, offset);
                     W32(particles, offset, serial);
                     W16(particles, offset + 4, 0);
                     W16(particles, offset + 6, Roll() % 2304 + 2560);
@@ -637,7 +648,7 @@ public static class NativeBattleShot194
                 }
                 ushort spritePhase = U16(particles, offset + 4);
                 short scale = I16(particles, offset + 6);
-                Execute(new NativeBattleShot194Sprite(0xD0D938, spritePhase, V(particles, offset + 8), scale, -(scale >> 4), 0));
+                Execute(new NativeBattleShot194Sprite(0xD0D938, spritePhase, V(particles, offset + 8), scale, -(scale >> 4), 0) { PilotIdentity = NativeBattleShotVisualLifetimes.Identity(194, drawingTask, drawingIdentity, offset) });
                 if (!paused)
                 {
                     W16(particles, offset + 4, spritePhase + 1);
@@ -683,7 +694,7 @@ public static class NativeBattleShot194
         void Execute(NativeBattleShot194Operation operation)
         {
             frame = frame with { Memory = frame.Memory with { Shot194 = state } };
-            frame = inputs.Execute(frame, operation);
+            frame = inputs.Execute(frame, operation with { PilotIdentity = operation.PilotIdentity ?? drawingIdentity });
             state = frame.Memory.Shot194 ?? throw new InvalidDataException("Native Shot service lost its module state.");
         }
         int Roll()

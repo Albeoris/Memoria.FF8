@@ -67,17 +67,20 @@ public sealed partial class BattleSession
             NativeBattleActionMatrix basis = matrix ?? throw new InvalidOperationException("Native Apocalypse triangle requires its prepared detached basis.");
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Apocalypse triangle requires its current camera projection.");
             ImmutableArray<uint>.Builder screens = ImmutableArray.CreateBuilder<uint>(3);
+            ImmutableArray<System.Numerics.Vector3>.Builder world = ImmutableArray.CreateBuilder<System.Numerics.Vector3>(3);
             ushort depth = 0;
             for (int index = 0; index < 3; index++)
             {
-                NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(basis, NativeBattleScriptedMeshPreparation.Vector(current.ReadTemporary(0xC0 + index * 8, 6)), projection);
+                NativeBattleVector point = NativeBattleScriptedMeshPreparation.Vector(current.ReadTemporary(0xC0 + index * 8, 6));
+                NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(basis, point, projection);
+                world.Add(NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(basis, point), projection));
                 screens.Add(projected.Screen);
                 depth = projected.Depth;
             }
             NativeBattleEffectMemory memory = RequireWaterMemory();
             NativeBattleScriptedColorRegisters registers = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Apocalypse triangle requires its retained input registers.");
             NativeEffectMemory = memory with { ScriptedColorRegisters = NativeBattleCinematicRibbonInput.Capture(current, current.TemporaryFrame.Address + 0xC0, registers) };
-            return new(current, screens.MoveToImmutable(), depth);
+            return new(current, screens.MoveToImmutable(), depth) { PilotWorld = world.MoveToImmutable() };
         }, index => BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(unchecked(0x186D510u + (uint)(4 * index)), 4)), (current, output, ordering, batch) =>
         {
             var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
@@ -114,7 +117,12 @@ public sealed partial class BattleSession
                 NativeEffectMemory = memory with { ScriptedColorRegisters = TransformRegisters(NativeBattleCinematicRibbonInput.Capture(m.Frame, address, registers), transformed) };
             }
             return m.Frame;
-        }, (current, state, vertices) => NativeBattleApocalypse221BreakupTriangles.Draw(current, state, vertices, triangles));
+        }, (current, state, vertices) =>
+        {
+            NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
+            NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, current, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), unchecked((int)state));
+            return NativeBattleApocalypse221BreakupTriangles.Draw(current, state, vertices, triangles, identity);
+        });
         return (NativeBattleApocalypse221Breakup50.Draw(frame, services), graphics);
 
         uint Resolve(NativeBattleWaterExecutionFrame current, short selector)
@@ -128,10 +136,13 @@ public sealed partial class BattleSession
         {
             NativeBattleEffectMemory memory = RequireWaterMemory();
             NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Native Apocalypse vertex projection requires its actual depth-cue controls.");
-            NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FAA0(matrix ?? throw new InvalidOperationException("Native Apocalypse vertex projection requires its prepared basis."), NativeBattleScriptedMeshPreparation.Vector(current.Arena.Read(ArenaOffset(source, 6), 6)), NativeCamera?.Projection ?? throw new NotSupportedException("Native Apocalypse requires its current camera projection."), controls.Dqa, controls.Dqb);
+            NativeBattleActionMatrix basis = matrix ?? throw new InvalidOperationException("Native Apocalypse vertex projection requires its prepared basis.");
+            NativeBattleVector point = NativeBattleScriptedMeshPreparation.Vector(current.Arena.Read(ArenaOffset(source, 6), 6));
+            NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Apocalypse requires its current camera projection.");
+            NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FAA0(basis, point, projection, controls.Dqa, controls.Dqb);
             NativeBattleScriptedColorRegisters registers = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Apocalypse vertex projection requires its actual input registers.");
             NativeEffectMemory = memory with { ScriptedColorRegisters = NativeBattleCinematicRibbonInput.Capture(current, source, registers) };
-            return new(current, projected.Screen, projected.Depth);
+            return new(current, projected.Screen, projected.Depth) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(basis, point), projection) };
         }
     }
 

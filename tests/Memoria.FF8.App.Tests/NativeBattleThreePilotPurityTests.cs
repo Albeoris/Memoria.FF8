@@ -29,6 +29,8 @@ public sealed class NativeBattleThreePilotPurityTests
     [InlineData((ushort)107, 13)]
     [InlineData((ushort)39, 44)]
     [InlineData((ushort)148, 49)]
+    [InlineData((ushort)223, 16)]
+    [InlineData((ushort)221, 20)]
     public void Original_spell_fractional_draws_preserve_full_native_state_and_the_next_callback(ushort effect, int action)
     {
         AssertPurePresentation(effect, action, false);

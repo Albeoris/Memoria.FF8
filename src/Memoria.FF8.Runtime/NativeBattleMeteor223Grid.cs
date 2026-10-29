@@ -90,9 +90,10 @@ public sealed class NativeBattleMeteor223Grid
         Put(0x8C, unchecked((memory.SignedWords[reference, 0x98] << 16) - accumulatedHeight));
         int packet = InitializeEdge(wave != 0);
         int lastLinkedAddress = Get(0x60);
+        int row = 0;
         while (Get(0x64) > 0)
         {
-            BuildBand(ref packet, ref lastLinkedAddress);
+            BuildBand(ref packet, ref lastLinkedAddress, row++);
             Put(0x64, Get(0x64) - 1);
         }
         int finalCursor = unchecked(lastLinkedAddress + 0x44);
@@ -124,7 +125,7 @@ public sealed class NativeBattleMeteor223Grid
         int packet = Get(0x60);
         int depthAddress = unchecked(memory.Dwords[memory.Manager, 0x74] + 0x200);
         StoreVertex(cursor, true, wave);
-        memory.Words[depthAddress, 0] = unchecked((ushort)memory.Project(Workspace + 0xC0, packet + 0x10));
+        memory.Words[depthAddress, 0] = unchecked((ushort)memory.Project(Workspace + 0xC0, packet + 0x10, 0, 0));
         byte u = unchecked((byte)((Get(0x20) >> 16) % Get(0x30) + Get(0x98)));
         memory.Bytes[packet, 0x2C] = u;
         memory.Bytes[packet, 0x14] = u;
@@ -142,7 +143,7 @@ public sealed class NativeBattleMeteor223Grid
             textureU = unchecked(textureU + Get(0x24));
             StoreVertex(cursor, true, wave);
             int nextScreen = unchecked(packet + 0x54);
-            memory.Words[depthAddress, 0] = unchecked((ushort)memory.Project(Workspace + 0xC0, nextScreen));
+            memory.Words[depthAddress, 0] = unchecked((ushort)memory.Project(Workspace + 0xC0, nextScreen, 0, column + 1));
             memory.Dwords[packet, 0x1C] = memory.Dwords[nextScreen, 0];
             ShadeVertex();
             memory.Dwords[packet, 0x30] = Get(0xBC);
@@ -165,7 +166,7 @@ public sealed class NativeBattleMeteor223Grid
         return packet;
     }
 
-    private void BuildBand(ref int output, ref int lastLinkedAddress)
+    private void BuildBand(ref int output, ref int lastLinkedAddress, int row)
     {
         Put(0x40, Get(0xE0));
         int previous = unchecked(output - Get(0x70) * 0x44);
@@ -176,7 +177,7 @@ public sealed class NativeBattleMeteor223Grid
         int currentDepth = (Byte(0x64) & 1) == 0 ? depthBase + 0x200 : depthBase;
         int priorDepth = (Byte(0x64) & 1) == 0 ? depthBase : depthBase + 0x200;
         StoreVertex(cursor, false, false);
-        memory.Words[currentDepth, 0] = unchecked((ushort)memory.Project(Workspace + 0xC0, output + 0x10));
+        memory.Words[currentDepth, 0] = unchecked((ushort)memory.Project(Workspace + 0xC0, output + 0x10, row + 1, 0));
         memory.Dwords[previous, 0x28] = memory.Dwords[output, 0x10];
         CopyPair(previous, 0x0C, output, 0x24, 0x0C);
         CopyPair(previous, 0x18, output, 0x30, 0x18);
@@ -203,7 +204,7 @@ public sealed class NativeBattleMeteor223Grid
             Step(ref cursor, false);
             StoreVertex(cursor, false, false);
             int screenAddress = unchecked(output + 0x54);
-            int depth = memory.Project(Workspace + 0xC0, screenAddress);
+            int depth = memory.Project(Workspace + 0xC0, screenAddress, row + 1, column + 1);
             int sum = memory.SignedWords[priorDepth, 0] + memory.SignedWords[currentDepth, 0];
             currentDepth += 2;
             priorDepth += 2;
@@ -226,7 +227,7 @@ public sealed class NativeBattleMeteor223Grid
             lastLinkedAddress = previous;
             if (bucket is > 0 and < 0xFFF)
             {
-                memory.Link(unchecked(memory.Dwords[memory.Runtime, 0x4C] + 4 * bucket), previous);
+                memory.Link(unchecked(memory.Dwords[memory.Runtime, 0x4C] + 4 * bucket), previous, row, column);
             }
             previous = following;
             output = unchecked(output + 0x44);

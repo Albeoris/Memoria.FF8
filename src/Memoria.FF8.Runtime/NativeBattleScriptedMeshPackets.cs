@@ -14,7 +14,7 @@ public static class NativeBattleScriptedMeshPackets
         }
         if (group.Type == 18 && actualHandler == 0xAAAE60)
         {
-            return NativeBattleApocalypse221DepthQuad58.Emit(frame, group, actualHandler, projectedRecords, depths, outputPointer, registers, resolveActualOtBucket, geometry, depthScale);
+            return NativeBattleApocalypse221DepthQuad58.Emit(frame, group, actualHandler, projectedRecords, depths, outputPointer, registers, resolveActualOtBucket, geometry, depthScale, pilotWorldVertices, pilotIdentity);
         }
         if (group.Type == 19 && actualHandler == 0xB117F0)
         {

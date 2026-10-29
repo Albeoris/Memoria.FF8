@@ -4,7 +4,11 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleShot195Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
-public abstract record NativeBattleShot195Operation;
+public abstract record NativeBattleShot195Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleShot195Bind(byte Actor) : NativeBattleShot195Operation;
 public sealed record NativeBattleShot195Sequence(byte Actor, ushort Sequence) : NativeBattleShot195Operation;
 public sealed record NativeBattleShot195Stage(int Intensity) : NativeBattleShot195Operation;
@@ -70,6 +74,8 @@ public static class NativeBattleShot195
         NativeBattleShot195State state = frame.Memory.Shot195 ?? throw new NotSupportedException("Native Canister Shot lost its retained module globals.");
         state.Validate();
         bool paused = (inputs.GraphicsFlags & 0x201) != 0;
+        NativeBattlePilotVisualIdentity drawingIdentity = default;
+        NativeBattleModulePoolTask drawingTask = null!;
         NativeBattleEffectTaskStep rootStep = pools[0].Advance((pool, index) =>
         {
             pools[0] = pool;
@@ -108,6 +114,8 @@ public static class NativeBattleShot195
             {
                 pools[index] = pool;
                 NativeBattleModulePoolTask task = pool.Slots[slot];
+                drawingTask = task;
+                drawingIdentity = NativeBattlePilotVisualLifetimes.Identity(195, task);
                 int result = task.Callback switch
                 {
                     0x5B4790 => Opening(ref task),
@@ -483,6 +491,7 @@ public static class NativeBattleShot195
                         for (int bone = 29; bone <= 30; bone++)
                         {
                             int physical = offset + (bone - 29) * 24;
+                            NativeBattleShotVisualLifetimes.Allocated(195, drawingTask, physical);
                             W32(particles, physical, serial);
                             W16(particles, physical + 4, 0);
                             W16(particles, physical + 6, Roll() % 640 + 800);
@@ -492,6 +501,7 @@ public static class NativeBattleShot195
                     }
                     else
                     {
+                        NativeBattleShotVisualLifetimes.Allocated(195, drawingTask, offset);
                         W32(particles, offset, serial);
                         W16(particles, offset + 4, 0);
                         W16(particles, offset + 6, Roll() % 640 + 1408);
@@ -512,7 +522,7 @@ public static class NativeBattleShot195
                 }
                 ushort phase = U16(particles, offset + 4);
                 short scale = I16(particles, offset + 6);
-                Execute(new NativeBattleShot195Sprite(address, phase, V(particles, offset + 8), scale, -(scale >> 4), pair ? (ushort)8 : (ushort)0));
+                Execute(new NativeBattleShot195Sprite(address, phase, V(particles, offset + 8), scale, -(scale >> 4), pair ? (ushort)8 : (ushort)0) { PilotIdentity = NativeBattleShotVisualLifetimes.Identity(195, drawingTask, drawingIdentity, offset) });
                 if (!paused)
                 {
                     W16(particles, offset + 4, phase + 1);
@@ -557,6 +567,7 @@ public static class NativeBattleShot195
                     {
                         break;
                     }
+                    NativeBattleShotVisualLifetimes.Allocated(195, drawingTask, offset);
                     W32(particles, offset, serial);
                     W16(particles, offset + 4, 0);
                     W16(particles, offset + 6, Roll() % 640 + 128);
@@ -590,7 +601,7 @@ public static class NativeBattleShot195
                 NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CD50(new(I16(particles, offset + 24), 0, I16(particles, offset + 28)));
                 NativeBattleVector point = V(particles, offset + 8);
                 world = NativeBattlePoseMatrices.Scale56BEF0(world, scale, scale, scale) with { X = point.X, Y = point.Y, Z = point.Z };
-                Execute(new NativeBattleShot195Mesh(0xD0AD68, world, phase >= 6 ? 195u : 12u, phase >= 6 ? (phase - 6) << 9 : null));
+                Execute(new NativeBattleShot195Mesh(0xD0AD68, world, phase >= 6 ? 195u : 12u, phase >= 6 ? (phase - 6) << 9 : null) { PilotIdentity = NativeBattleShotVisualLifetimes.Identity(195, drawingTask, drawingIdentity, offset) });
                 if (!paused)
                 {
                     W16(particles, offset + 4, phase + 1);
@@ -644,7 +655,7 @@ public static class NativeBattleShot195
         void Execute(NativeBattleShot195Operation operation)
         {
             frame = frame with { Memory = frame.Memory with { Shot195 = state } };
-            frame = inputs.Execute(frame, operation);
+            frame = inputs.Execute(frame, operation with { PilotIdentity = operation.PilotIdentity ?? drawingIdentity });
             state = frame.Memory.Shot195 ?? throw new InvalidDataException("Native Shot service lost its module state.");
         }
         int Roll()

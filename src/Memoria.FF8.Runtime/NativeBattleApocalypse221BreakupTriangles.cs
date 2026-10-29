@@ -4,14 +4,22 @@ using M = Memoria.FF8.Runtime.NativeBattleApocalypse221BreakupMemory;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleApocalypse221BreakupProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, ushort Depth);
-public sealed record NativeBattleApocalypse221BreakupTriangleProjection(NativeBattleWaterExecutionFrame Frame, ImmutableArray<uint> Screens, ushort Depth);
+public sealed record NativeBattleApocalypse221BreakupProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, ushort Depth)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Numerics.Vector3? PilotWorld { get; init; }
+}
+public sealed record NativeBattleApocalypse221BreakupTriangleProjection(NativeBattleWaterExecutionFrame Frame, ImmutableArray<uint> Screens, ushort Depth)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ImmutableArray<System.Numerics.Vector3> PilotWorld { get; init; }
+}
 public sealed record NativeBattleApocalypse221BreakupTriangleServices(Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleApocalypse221BreakupProjection> Project, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SetLighting, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicGridValue> Shade, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PrepareDetached, Func<NativeBattleWaterExecutionFrame, NativeBattleApocalypse221BreakupTriangleProjection> ProjectDetached, Func<int, uint> ReadColor, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
 /// <summary>Intact and individually transformed textured triangle submission from the current face records.</summary>
 public static class NativeBattleApocalypse221BreakupTriangles
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, uint state, uint vertices, NativeBattleApocalypse221BreakupTriangleServices services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, uint state, uint vertices, NativeBattleApocalypse221BreakupTriangleServices services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         M m = new(frame);
         uint shape = m.Dword(state + 0xC);
@@ -21,6 +29,7 @@ public static class NativeBattleApocalypse221BreakupTriangles
         m.Dword(m.Temporary + 0x78, m.Temporary + 0x40);
         uint work = m.Dword(m.Manager + 0x74);
         int vertexCount = unchecked((int)m.Dword(shape + 0x18));
+        Dictionary<uint, System.Numerics.Vector3>? pilotWorld = pilotIdentity is null ? null : [];
         uint? previousScreen = null;
         uint? lastScreen = null;
         ushort? lastDepth = null;
@@ -29,6 +38,10 @@ public static class NativeBattleApocalypse221BreakupTriangles
             NativeBattleApocalypse221BreakupProjection projected = services.Project(m.Frame, unchecked(vertices + (uint)(8 * index)));
             m.Frame = projected.Frame;
             uint destination = unchecked(work + (uint)(8 * index));
+            if (pilotWorld is not null && projected.PilotWorld is { } world)
+            {
+                pilotWorld[destination] = world;
+            }
             m.Dword(destination, projected.Screen);
             m.Word(destination + 4, projected.Depth);
             previousScreen = lastScreen;
@@ -51,9 +64,14 @@ public static class NativeBattleApocalypse221BreakupTriangles
             PutWord(0x14, m.Word(face + 6));
             PutWord(0x1C, m.Word(face + 8));
             uint ordering;
+            System.Numerics.Vector3[]? faceWorld = null;
             if (m.Word(record) == 0)
             {
                 uint[] projected = [unchecked(work + m.Word(face + 0xA)), unchecked(work + m.Word(face + 0xC)), unchecked(work + m.Word(face + 0xE))];
+                if (pilotWorld is not null && projected.All(pilotWorld.ContainsKey))
+                {
+                    faceWorld = projected.Select(address => pilotWorld[address]).ToArray();
+                }
                 PutDword(8, m.Dword(projected[0]));
                 PutDword(0x10, m.Dword(projected[1]));
                 PutDword(0x18, m.Dword(projected[2]));
@@ -79,6 +97,14 @@ public static class NativeBattleApocalypse221BreakupTriangles
                     }
                 }
                 NativeBattleApocalypse221BreakupTriangleProjection projected = services.ProjectDetached(m.Frame);
+                if (pilotIdentity is not null && !projected.PilotWorld.IsDefaultOrEmpty)
+                {
+                    if (projected.PilotWorld.Length != 3)
+                    {
+                        throw new InvalidDataException("Native Apocalypse presentation requires the three actual detached source vertices.");
+                    }
+                    faceWorld = projected.PilotWorld.ToArray();
+                }
                 m.Frame = projected.Frame;
                 if (projected.Screens.IsDefault || projected.Screens.Length != 3)
                 {
@@ -100,6 +126,10 @@ public static class NativeBattleApocalypse221BreakupTriangles
                 throw new NotSupportedException("Native Apocalypse triangle submission requires its actual retained SXY1/SXY2/SZ3 proxy payload.");
             }
             NativeBattleGeometryPrimitive primitive = new(0, words, [unchecked((int)sxy1), unchecked((int)sxy2), sz3, 0]) { PhysicalWriteMask = mask };
+            if (pilotIdentity is { } identity && faceWorld is not null)
+            {
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + index) }, faceWorld[0], faceWorld[1], faceWorld[2], default, 3) { SourceDepths = new(unchecked((int)sxy1), unchecked((int)sxy2), sz3, 0), UseSourceDepths = true } };
+            }
             m.Frame = services.Append(m.Frame, output, ordering, new([new(0, data.ToImmutableArray(), mask, primitive)], 32));
             output = unchecked(output + 32);
 

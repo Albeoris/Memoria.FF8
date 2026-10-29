@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>5B5FB0's three projected corners, synthesized fourth screen pair and SZ3 ordering bucket.</summary>
 public static class NativeBattleShot194Drawing
 {
-    public static NativeBattleGfGeometryBatch DrawQuad5B5FB0(NativeBattleVector position, short scale, uint color, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
+    public static NativeBattleGfGeometryBatch DrawQuad5B5FB0(NativeBattleVector position, short scale, uint color, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         var point = NativeBattleGfMatrices.RotateLong56C600(view, position.X, position.Y, position.Z);
         NativeBattleActionMatrix matrix = new([scale, 0, 0, 0, scale, 0, 0, 0, scale], unchecked(point.X + view.X), unchecked(point.Y + view.Y), unchecked(point.Z + view.Z), 4096);
@@ -28,7 +28,9 @@ public static class NativeBattleShot194Drawing
             Word(16, b.Screen);
             Word(24, c.Screen);
             Word(32, (b.Screen & 0xFFFF) | (c.Screen & 0xFFFF0000));
-            primitive = new(17 + (c.Depth >> 4), Enumerable.Range(0, 10).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray(), [a.Depth, b.Depth, c.Depth, c.Depth]);
+            System.Numerics.Vector3 World(short x, short y) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, new(x, y, 0)), projection);
+            NativeBattlePilotVisualGeometry? visual = pilotIdentity is { } identity ? new(identity, World(-256, -256), World(256, -256), World(-256, 256), World(256, 256), 4) : null;
+            primitive = new(17 + (c.Depth >> 4), Enumerable.Range(0, 10).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray(), [a.Depth, b.Depth, c.Depth, c.Depth]) { PilotGeometry = visual };
         }
         return new([new(0, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive)], primitive is null ? 0 : 40);
 

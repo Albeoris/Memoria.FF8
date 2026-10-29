@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The native flat textured quad with scaled depth payloads and a trailing draw-mode command.</summary>
 public static class NativeBattleApocalypse221DepthQuad58
 {
-    public static NativeBattleScriptedMeshSubmission Emit(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket, NativeBattleGeometryRegisters geometry, float depthScale)
+    public static NativeBattleScriptedMeshSubmission Emit(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket, NativeBattleGeometryRegisters geometry, float depthScale, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (group.Type != 18 || actualHandler != 0xAAAE60)
         {
@@ -88,6 +88,7 @@ public static class NativeBattleApocalypse221DepthQuad58
                 uint ordering = unchecked(table + ((sum >> 2) & 0x3FFC));
                 ImmutableArray<uint> words = Enumerable.Range(0, 11).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
                 primitive = new(resolveActualOtBucket(ordering), words, rawDepth.ToImmutableArray()) { PhysicalWriteMask = mask.ToImmutableArray() };
+                primitive = NativeBattleCinematicVisualIdentity.Capture(primitive, pilotWorldVertices, pilotIdentity, face, 12, 4, index, depthScale);
             }
             attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             if (primitive is not null)

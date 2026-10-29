@@ -1,11 +1,19 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Numerics;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleMeteor223GridPoint(NativeBattleWaterExecutionFrame Frame, uint Screen, int QuarterDepth, uint Flags);
-public sealed record NativeBattleMeteor223GridServices(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, short, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, short, NativeBattleWaterExecutionFrame> SelectTexture, Func<NativeBattleWaterExecutionFrame, NativeBattleMeteor223GridPoint> Project, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Publish, Func<uint, int, byte[]> ReadStatic);
+public sealed record NativeBattleMeteor223GridPoint(NativeBattleWaterExecutionFrame Frame, uint Screen, int QuarterDepth, uint Flags)
+{
+    public Vector3? World { get; init; }
+}
+
+public sealed record NativeBattleMeteor223GridServices(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, short, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, short, NativeBattleWaterExecutionFrame> SelectTexture, Func<NativeBattleWaterExecutionFrame, NativeBattleMeteor223GridPoint> Project, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Publish, Func<uint, int, byte[]> ReadStatic)
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 
 internal sealed class NativeBattleMeteor223GridMemory
 {
@@ -15,6 +23,7 @@ internal sealed class NativeBattleMeteor223GridMemory
     internal int Current => unchecked((int)CoreDword(Frame, 0x27973E8));
     internal int Manager => unchecked((int)CoreDword(Frame, 0x27973EC));
     internal int Runtime => unchecked((int)CoreDword(Frame, 0x27973B8));
+    private readonly Dictionary<(int Row, int Column), Vector3> worldVertices = [];
     private int packetStart;
     private int packetEnd;
     private readonly Dictionary<int, byte> packet = [];
@@ -46,7 +55,7 @@ internal sealed class NativeBattleMeteor223GridMemory
         packetEnd = checked(start + checked((rows + 2) * columns + 2) * 0x44);
     }
 
-    internal int Project(int source, int output)
+    internal int Project(int source, int output, int row, int column)
     {
         if (source != Workspace + 0xC0)
         {
@@ -54,12 +63,16 @@ internal sealed class NativeBattleMeteor223GridMemory
         }
         NativeBattleMeteor223GridPoint result = Services.Project(Frame);
         Frame = result.Frame;
+        if (Services.PilotIdentity is not null && result.World is { } world)
+        {
+            worldVertices[(row, column)] = world;
+        }
         Dwords[output, 0] = unchecked((int)result.Screen);
         Dwords[Workspace, 0xFC] = unchecked((int)result.Flags);
         return result.QuarterDepth;
     }
 
-    internal void Link(int ordering, int address)
+    internal void Link(int ordering, int address, int row, int column)
     {
         byte[] bytes = new byte[0x44];
         for (int index = 3; index < bytes.Length; index++)
@@ -74,6 +87,10 @@ internal sealed class NativeBattleMeteor223GridMemory
             throw new InvalidDataException("Native Meteor grid requires its actual alternate ordering-table address.");
         }
         NativeBattleGeometryPrimitive primitive = new(checked((int)(delta / 4)), words, []);
+        if (Services.PilotIdentity is { } identity)
+        {
+            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + (row << 16) + column) }, worldVertices[(row, column)], worldVertices[(row, column + 1)], worldVertices[(row + 1, column)], worldVertices[(row + 1, column + 1)], 4) { ScreenScale = 0.125f } };
+        }
         attempts.Add(new(checked(address - packetStart), bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, bytes.Length).ToImmutableArray(), primitive));
     }
 

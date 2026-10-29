@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>5B84E0's four textured groups with the original in-packet E1 store and zero-area rejection.</summary>
 public static class NativeBattleShot193Drawing
 {
-    public static NativeBattleGfGeometryBatch Draw5B84E0(ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, int? fade, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Draw5B84E0(ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, int? fade, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (source.IsDefault || source.Length < 8)
         {
@@ -15,6 +15,7 @@ public static class NativeBattleShot193Drawing
         int cursor = BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan());
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
+        Dictionary<ushort, System.Numerics.Vector3>? pilotWorld = pilotIdentity.HasValue ? [] : null;
         for (int group = 0; group < 8; group++)
         {
             int count = BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan().Slice(cursor, 4));
@@ -33,6 +34,12 @@ public static class NativeBattleShot193Drawing
                 ReadOnlySpan<byte> face = source.AsSpan().Slice(cursor, length);
                 ushort[] offsets = Enumerable.Range(0, (group & 1) == 0 ? 3 : 4).Select(corner => BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan().Slice(cursor + 4 + corner * 2, 2))).ToArray();
                 NativeBattleGfGeometryAttempt attempt = EmitFace5B84E0(face, new Corners(offsets, Project), group, flags, fade, colors, allocated);
+                if (pilotIdentity is { } identity && attempt.Primitive is { } primitive)
+                {
+                    int corners = offsets.Length;
+                    NativeBattlePilotVisualGeometry visual = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, pilotWorld![offsets[0]], pilotWorld[offsets[1]], pilotWorld[offsets[2]], corners == 4 ? pilotWorld[offsets[3]] : default, (byte)corners);
+                    attempt = attempt with { Primitive = primitive with { PilotGeometry = visual } };
+                }
                 attempts.Add(attempt);
                 if (attempt.Primitive is not null)
                 {
@@ -47,6 +54,10 @@ public static class NativeBattleShot193Drawing
         {
             ReadOnlySpan<byte> bytes = source.AsSpan().Slice(checked(8 + offset * 4), 6);
             NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.Slice(4)));
+            if (pilotWorld is not null)
+            {
+                pilotWorld[offset] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+            }
             return NativeBattleModuleProjection.Project45FE10(matrix, point, projection);
         }
     }

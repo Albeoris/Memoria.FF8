@@ -30,6 +30,8 @@ public sealed class NativeBattleSmoothWholeActionTests
     [InlineData((ushort)107, 13)]
     [InlineData((ushort)39, 44)]
     [InlineData((ushort)148, 49)]
+    [InlineData((ushort)223, 16)]
+    [InlineData((ushort)221, 20)]
     public void Original_elemental_action_preserves_native_duration_events_and_whole_action_contracts(ushort effect, int action)
     {
         AssertWholeAction(effect, action, false);

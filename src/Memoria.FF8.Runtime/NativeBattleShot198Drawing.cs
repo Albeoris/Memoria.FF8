@@ -6,13 +6,13 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Hyper Shot's signed scrolling5AAD60 and inline-E1 textured5AC8F0 packet paths.</summary>
 public static class NativeBattleShot198Drawing
 {
-    public static NativeBattleGfGeometryBatch Draw5AAD60(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, int? fade, int phase, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Draw5AAD60(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, int? fade, int phase, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleShivaScrollingContext scrolling = new(flags, fade, 0, -16 * phase, 17, 2, new(0, 128, 64, 128));
         return NativeBattleEffectMeshPackets.EmitBatch(mesh.Bytes, matrix, projection, 0, null, (group, face, project, offset) =>
         {
             return EmitFace5AAD60(face, project, group, scrolling, colors, offset);
-        }, projectFourth: vertex => NativeBattleModuleProjection.Project45FAA0(matrix, vertex, projection, 0, 0));
+        }, projectFourth: vertex => NativeBattleModuleProjection.Project45FAA0(matrix, vertex, projection, 0, 0), pilotIdentity: pilotIdentity);
     }
 
     public static NativeBattleGfGeometryBatch EmitFace5AAD60(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> project, int group, NativeBattleShivaScrollingContext scrolling, NativeBattleSummonColors colors, int offset = 0)
@@ -30,7 +30,7 @@ public static class NativeBattleShot198Drawing
         return new([attempt], attempt.Primitive is null ? 0 : attempt.PacketLength);
     }
 
-    public static NativeBattleGfGeometryBatch Draw5AC8F0(ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, int? fade, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Draw5AC8F0(ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, int? fade, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (source.IsDefault || source.Length < 8)
         {
@@ -39,6 +39,7 @@ public static class NativeBattleShot198Drawing
         int cursor = BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan());
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
+        Dictionary<ushort, System.Numerics.Vector3>? pilotWorld = pilotIdentity.HasValue ? [] : null;
         for (int group = 0; group < 8; group++)
         {
             int count = BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan().Slice(cursor, 4));
@@ -57,6 +58,12 @@ public static class NativeBattleShot198Drawing
                 ReadOnlySpan<byte> face = source.AsSpan().Slice(cursor, length);
                 ushort[] offsets = Enumerable.Range(0, (group & 1) == 0 ? 3 : 4).Select(corner => BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan().Slice(cursor + 4 + corner * 2, 2))).ToArray();
                 NativeBattleGfGeometryAttempt attempt = EmitFace5AC8F0(face, new Corners(offsets, Project), group, flags, fade, colors, allocated);
+                if (pilotIdentity is { } identity && attempt.Primitive is { } primitive)
+                {
+                    int corners = offsets.Length;
+                    NativeBattlePilotVisualGeometry visual = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, pilotWorld![offsets[0]], pilotWorld[offsets[1]], pilotWorld[offsets[2]], corners == 4 ? pilotWorld[offsets[3]] : default, (byte)corners);
+                    attempt = attempt with { Primitive = primitive with { PilotGeometry = visual } };
+                }
                 attempts.Add(attempt);
                 if (attempt.Primitive is not null)
                 {
@@ -71,6 +78,10 @@ public static class NativeBattleShot198Drawing
         {
             ReadOnlySpan<byte> bytes = source.AsSpan().Slice(checked(8 + offset * 4), 6);
             NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.Slice(4)));
+            if (pilotWorld is not null)
+            {
+                pilotWorld[offset] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+            }
             return NativeBattleModuleProjection.Project45FE10(matrix, point, projection);
         }
     }
