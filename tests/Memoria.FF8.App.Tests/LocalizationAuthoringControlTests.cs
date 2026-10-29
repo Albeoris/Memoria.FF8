@@ -109,6 +109,12 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
         };
         LocalizationProject project = new() { Manifest = manifest, Entries = [LocalizationProjectBuilder.CreateVerifiedRecord(fieldSource, manifest), LocalizationProjectBuilder.CreateVerifiedRecord(systemSource, manifest)] };
         string root = Path.Combine(Path.GetTempPath(), "memoria-workbench-host-" + Guid.NewGuid().ToString("N"));
+        string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOCALIZATION_WORKBENCH_OUTPUT");
+        if (!string.IsNullOrWhiteSpace(evidence))
+        {
+            evidence = Path.Combine(evidence, (native ? "native-" : "system-") + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(evidence);
+        }
         string mods = Path.Combine(root, "Mods");
         string package = Path.Combine(mods, "Memoria", "WorkbenchAcceptance");
         LocalizationProjectIO.WriteNew(project, package, "json", "single", TestContext.Current.CancellationToken);
@@ -208,7 +214,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             Assert.True(File.Exists(capture));
             Assert.Equal(originalHash, SHA256.HashData(File.ReadAllBytes(standalone)));
             Assert.Contains("enabled=0", File.ReadAllText(Path.Combine(package, "mod.ini")));
-            PreserveEvidence(capture, new { Presentation = native ? "NativeOriginal" : "SystemAdaptive", FieldKey = fieldKey, SystemKey = systemKey, OriginalSaveUnchanged = true, NativeSimulationUnchanged = true, PackageStayedDisabled = true });
+            PreserveEvidence(evidence, capture, new { Presentation = native ? "NativeOriginal" : "SystemAdaptive", FieldKey = fieldKey, SystemKey = systemKey, OriginalSaveUnchanged = true, NativeSimulationUnchanged = true, PackageStayedDisabled = true });
             await Request("quit");
             await process.WaitForExitAsync(timeout.Token);
             Assert.Equal(0, process.ExitCode);
@@ -319,22 +325,30 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             string diagnostic = await stderr;
             if (!string.IsNullOrWhiteSpace(diagnostic))
             {
-                output.WriteLine(diagnostic.Length > 4000 ? diagnostic[^4000..] : diagnostic);
+                output.WriteLine(diagnostic.Length > 8000 ? diagnostic[..4000] + "\n...\n" + diagnostic[^4000..] : diagnostic);
             }
-            await stdout;
+            string standardOutput = await stdout;
+            if (!string.IsNullOrWhiteSpace(evidence))
+            {
+                File.WriteAllText(Path.Combine(evidence, "stderr.log"), diagnostic);
+                File.WriteAllText(Path.Combine(evidence, "stdout.log"), standardOutput);
+                string? lastResponse = Directory.EnumerateFiles(Path.Combine(control, "responses"), "*.json").OrderDescending(StringComparer.Ordinal).FirstOrDefault();
+                if (lastResponse is not null)
+                {
+                    File.Copy(lastResponse, Path.Combine(evidence, "last-response.json"));
+                }
+                output.WriteLine("Retained host evidence: " + evidence);
+            }
             Directory.Delete(root, recursive: true);
         }
     }
     private static IEnumerable<JsonElement> Hits(JsonElement state) => state.GetProperty("VisibleHits").EnumerateArray();
-    private static void PreserveEvidence(string capture, object summary)
+    private static void PreserveEvidence(string? destination, string capture, object summary)
     {
-        string? configured = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOCALIZATION_WORKBENCH_OUTPUT");
-        if (string.IsNullOrWhiteSpace(configured))
+        if (string.IsNullOrWhiteSpace(destination))
         {
             return;
         }
-        string destination = Path.Combine(configured, "host-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(destination);
         File.Copy(capture, Path.Combine(destination, "workbench.png"));
         File.WriteAllText(Path.Combine(destination, "validation.json"), JsonSerializer.Serialize(summary));
     }
