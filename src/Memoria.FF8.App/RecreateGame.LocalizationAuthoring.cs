@@ -555,11 +555,12 @@ internal sealed partial class RecreateGame
             LocalizationRecord original = localizationWorkbench.Session.Base.Row;
             localizationWorkbench.CompatibilityReporter = (value, role, dataset) =>
             {
-                NativeTextContext context = (editingAuthoringHit?.NativeContext ?? NativeDialogueContext) with
+                LocalizationTextBinding binding = editingAuthoringBinding ?? new LocalizationTextBinding(localizationWorkbench.Session!.Base.Identity.Key, original.Source, value, value) { Category = original.Category, File = original.File };
+                NativeTextContext context = editingAuthoringHit?.NativeContext ?? AuthoringTextContext(binding);
+                if (original.Category == "Fields")
                 {
-                    ResourceFamily = original.Category switch { "System" => "System", "World" or "Draw points" => "World", "Battle" => "Battle", _ => "Fields" },
-                    Field = original.Category == "Fields" ? original.File : null
-                };
+                    context = context with { Field = original.File };
+                }
                 dataset = role == "Target" ? authoringSelection!.Project.Manifest.TargetLanguage : dataset;
                 NativeFontProfile? profile = nativeTextFont?.ProfileFor(context, role, dataset);
                 try
