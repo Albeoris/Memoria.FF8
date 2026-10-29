@@ -1135,6 +1135,7 @@ internal sealed partial class RecreateGame : Game
             MoviePresentation = new
             {
                 HasFrame = movie?.HasFrame == true,
+                DecodedFrame = compact ? null : movie?.InspectDecodedFrame(),
                 CanPresentCurrentField = world?.CanPresentCurrentField,
                 FieldCallbackClock = events?.Scene.FieldCallbackClock,
                 MovieMaskPlayback = events?.Scene.NativeMovieMask?.Playback,

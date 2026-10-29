@@ -31,8 +31,12 @@ public sealed class IfritCausalRecreationTests
 
     private static PlayerAction NextAutomatic(GameWorld world, GameSession session)
     {
+        if (!session.IsMoviePlaying && (world.Events.Scene.NativeTutorial is not null || world.Events.Scene.NativeMenuTutorial is not null))
+        {
+            return new PlayerAction(world.Tutorial is null ? PlayerActionKind.Cancel : PlayerActionKind.Confirm, Frames: 300);
+        }
         DialogueState? dialogue = world.Events.CurrentDialogue;
-        return session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Cecilia") : dialogue?.FirstChoice is int first ? new PlayerAction(PlayerActionKind.Choose, first) : dialogue is { CanConfirm: true } ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
+        return session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Cecilia") : dialogue is { CanConfirm: true, FirstChoice: int first } ? new PlayerAction(PlayerActionKind.Choose, first) : dialogue is { CanConfirm: true } ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
     }
 
     internal static void WalkGateway(GameWorld world, GameSession session, int destination, bool worldExit = false, int? lineObjectId = null)
@@ -272,6 +276,13 @@ public sealed class IfritCausalRecreationTests
     {
         PlayerActionResult result = world.Apply(action);
         Assert.True(result.Accepted, $"Fresh causal input refused: {action}; {result.Trigger}.");
+        if (action.Kind == PlayerActionKind.Wait && result.FramesAdvanced == 0 && world.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
+        {
+            long frame = world.Events.Frame;
+            world.AdvanceAutoPlayInputFrame();
+            Assert.Equal(frame + 1, world.Events.Frame);
+            Assert.Null(world.Events.LastFault);
+        }
     }
 
     private static void ApplyRecipe(GameWorld world, string repository, string name, params string[] properties)

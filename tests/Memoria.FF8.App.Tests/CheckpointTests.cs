@@ -28,23 +28,27 @@ public sealed class CheckpointTests
             }
             Assert.True(original.IsMoviePlaying);
             Assert.Equal(30, original.State.MovieIndex);
-            original.SetMoviePosition(8.25);
             var information = clock.Prepare();
-            original.SetMoviePlayback(new MoviePlaybackState(MovieClock.AbsoluteFrame(8.25, information), information.FrameCount - 1, true, false, false));
-            engine.MoviePlayback = () => original.State.MoviePlayback;
+            int targetFrame = MovieClock.AbsoluteFrame(8.25, information);
+            Assert.True(targetFrame > 2);
+            // The decoded clock and executed CAM/mask receipts must reach the same
+            // checkpoint through their ordinary consecutive-frame producer.
+            Assert.Equal(targetFrame - 2, clock.AdvanceFrames(targetFrame - 2));
+            Assert.True(world.AdvanceMovieFrame(new MoviePlaybackState(targetFrame, information.FrameCount - 1, true, false, false), 8.25));
             original.SetEventState(engine.Capture());
             Assert.Equal(engine.Capture().GetRawText(), original.PrepareSnapshot().EventState!.Value.GetRawText());
             original.Save(checkpoint);
             var resumed = new GameSession(GameSession.Load(checkpoint));
-            using var restoredWorld = new GameWorld(resumed, directory, new MovieClock(resumed, directory), sharedAssets: assets);
+            var resumedClock = new MovieClock(resumed, directory);
+            using var restoredWorld = new GameWorld(resumed, directory, resumedClock, sharedAssets: assets);
             restoredWorld.EnsureField();
             EventEngine restoredEngine = restoredWorld.Events;
             Assert.Equal(8.25, resumed.State.MovieSeconds);
             Assert.Equal(engine.Capture().GetRawText(), restoredEngine.Capture().GetRawText());
             long suspendedFrame = restoredEngine.Frame;
             string waitingFibers = restoredEngine.Capture().GetProperty("Fibers").GetRawText();
-            restoredEngine.Update(TimeSpan.FromSeconds(1));
-            engine.Update(TimeSpan.FromSeconds(1));
+            Assert.Equal(30, resumedClock.AdvanceFrames(30));
+            Assert.Equal(30, clock.AdvanceFrames(30));
             Assert.Equal(suspendedFrame + 30, restoredEngine.Frame);
             Assert.Equal(waitingFibers, restoredEngine.Capture().GetProperty("Fibers").GetRawText());
             Assert.Equal(original.State.MoviePlayback, resumed.State.MoviePlayback);

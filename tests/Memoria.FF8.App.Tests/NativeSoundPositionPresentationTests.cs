@@ -24,6 +24,8 @@ public sealed class NativeSoundPositionPresentationTests
             {
                 GameSession session = GameSession.CreateColdProcess();
                 session.StartNewGame();
+                using GameAssets assets = new(directory);
+                session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
                 EventEngine engine = new(session) { ResolveGlobalSoundResource = sample => GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(directory, sample)) };
                 string tools = new MovieClock(session, directory).ToolsDirectory;
                 using FieldAudioPresentation presentation = new(directory, tools);

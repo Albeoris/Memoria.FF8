@@ -73,7 +73,7 @@ public sealed class PlayerLocomotionAnimationTests
         Assert.Equal(player.WalkAnimationId, player.AnimationId);
         Assert.Equal(player.AnimationSpeed / 16f, player.AnimationFrame);
 
-        GameState source = session.State with { EventState = world.Events.Capture() };
+        GameState source = session.PrepareSnapshot();
         string output = TestResources.ArtifactDirectory;
         Directory.CreateDirectory(output);
         new GameSession(source).Save(Path.Combine(output, "squall-walk-source.json"));

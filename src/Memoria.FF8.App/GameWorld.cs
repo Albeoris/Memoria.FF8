@@ -171,7 +171,7 @@ internal sealed partial class GameWorld : IDisposable
         {
             throw new NotSupportedException("Diagnostic battle lifecycle persistence is unsupported; retain the declared recipe and restart a fresh process instead.");
         }
-        if (state.Scene == SceneKind.Field && HasCurrentFieldAllocation || state.Scene == SceneKind.WorldMap && Field is not null && worldScene is not null || battle is not null && Events.PendingMenuBattle is not null || tutorial is not null)
+        if (state.Scene is SceneKind.Field or SceneKind.Movie && HasCurrentFieldAllocation || state.Scene == SceneKind.WorldMap && Field is not null && worldScene is not null || battle is not null && Events.PendingMenuBattle is not null || tutorial is not null)
         {
             // Suspended exploration publishes its current shared owners and battle callbacks only for persistence.
             return state with { EventState = Events.Capture() };

@@ -153,10 +153,11 @@ public sealed class NativeMovieMaskRenderTests
             WritePng(Path.Combine(evidence, $"corridor-{record}-composite.png"), masked);
             if (record == 89)
             {
-                session.SetEventState(world.Events.Capture());
-                session.Save(TestResources.ArtifactFile("App.Tests.NativeMovieMaskRenderTests.1.json"));
-                GameState rebuilt = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
-                Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(rebuilt)));
+                GameState source = session.PrepareSnapshot();
+                string checkpoint = TestResources.ArtifactFile("App.Tests.NativeMovieMaskRenderTests.1.json");
+                session.Save(checkpoint);
+                GameState rebuilt = GameSession.Load(checkpoint);
+                Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source), JsonSerializer.SerializeToElement(rebuilt)));
                 using GameWorld replay = new(new GameSession(rebuilt), GameDirectory());
                 replay.EnsureField();
                 replay.SetRenderSize(320, 224);

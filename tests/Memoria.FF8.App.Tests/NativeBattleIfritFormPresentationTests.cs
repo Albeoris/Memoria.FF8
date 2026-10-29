@@ -118,7 +118,7 @@ public sealed class NativeBattleIfritFormPresentationTests
                 long previousGraphicsCallback = battle.NativeGraphics!.Callback;
                 if (skip)
                 {
-                    battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30));
+                    battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((2 * TimeSpan.TicksPerSecond + 30) / 31));
                 }
                 else
                 {

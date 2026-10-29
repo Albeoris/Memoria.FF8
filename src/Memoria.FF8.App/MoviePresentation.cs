@@ -17,6 +17,7 @@ internal sealed class MoviePresentation : IDisposable
     private readonly MovieInformation? nativeInformation;
     private bool callbackActive = true;
     private byte[] decodedPixels = [];
+    private int decodedMediaFrame = -1;
 
     public MoviePresentation(GraphicsDevice device, string toolsDirectory, string path, double startSeconds, MovieInformation? information = null, bool audioEnabled = true, MovieInformation? nativeInformation = null)
     {
@@ -35,6 +36,18 @@ internal sealed class MoviePresentation : IDisposable
     public double PositionSeconds => decoder.StartSeconds + clock.Elapsed.TotalSeconds;
     public bool Finished => started && IsComplete(PositionSeconds, decoder.Information.DurationSeconds, decoder.VideoFinished, decoder.AudioFinished, sound.PendingBufferCount);
     public bool HasFrame => started;
+    internal object InspectDecodedFrame()
+    {
+        int visiblePixels = 0;
+        for (int offset = 0; offset + 3 < decodedPixels.Length; offset += 4)
+        {
+            if (decodedPixels[offset] > 16 || decodedPixels[offset + 1] > 16 || decodedPixels[offset + 2] > 16)
+            {
+                visiblePixels++;
+            }
+        }
+        return new { MediaFrame = decodedMediaFrame, VisiblePixels = visiblePixels, ByteCount = decodedPixels.Length, decoder.Information.Width, decoder.Information.Height, decoder.Information.FramesPerSecond, SourcePath = decoder.Information.SourceVersion?.Path };
+    }
     public void Suspend()
     {
         clock.Stop();
@@ -76,6 +89,7 @@ internal sealed class MoviePresentation : IDisposable
             {
                 mediaIndex = Math.Min(decoder.Information.FrameCount - 1, mediaIndex);
             }
+            decodedMediaFrame = mediaIndex;
             mediaFrame?.Invoke(mediaIndex);
             if (!started)
             {

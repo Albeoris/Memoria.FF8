@@ -135,9 +135,12 @@ public sealed class MovieContinuationTests
             Assert.Contains("Cecilia", restored.Events.Scene.Names.Values);
             Assert.Contains(3, restored.Events.GetBackgroundModuleShades().Keys);
             Assert.Equal(320 * 240 * 4, restored.Render(TimeSpan.Zero).Length);
-            resumed.SetEventState(restored.Events.Capture());
-            resumed.Save(TestResources.ArtifactFile("App.Tests.MovieContinuationTests.3.json"));
-            using var initialized = new GameWorld(new GameSession(GameSession.Load(TestResources.ArtifactFile("App.Tests.MovieContinuationTests.3.json"))), directory);
+            GameState beforeSave = resumed.PrepareSnapshot();
+            string initializedCheckpoint = TestResources.ArtifactFile("App.Tests.MovieContinuationTests.3.json");
+            resumed.Save(initializedCheckpoint);
+            GameState initializedState = GameSession.Load(initializedCheckpoint);
+            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(beforeSave), JsonSerializer.SerializeToElement(initializedState)), "The saved initialized classroom must preserve its complete prepared native owners.");
+            using var initialized = new GameWorld(new GameSession(initializedState), directory);
             initialized.EnsureField();
             Assert.Equal(restored.Events.Capture().GetRawText(), initialized.Events.Capture().GetRawText());
             Assert.Equal(restored.Render(TimeSpan.Zero), initialized.Render(TimeSpan.Zero));

@@ -104,25 +104,31 @@ internal static partial class Program
         GameSession session = new(new GameState());
         EventEngine engine = new(session);
         engine.LoadField(102, content, messages);
-        engine.Step();
-        engine.Step();
-        Require(engine.Dialogues.Count == 0, "Original WINCLOSE did not leave the empty reused-channel boundary.");
-        var emptySnapshot = engine.Capture();
+        RejectOccupiedChannel(engine);
+        Require(engine.Dialogues.Select(dialogue => dialogue.Channel).SequenceEqual([1, 2]) && engine.Dialogues.Select(dialogue => dialogue.MessageId).SequenceEqual([2, 3]), "Occupied RAMESW changed the accepted persistent-channel reuse prefix.");
+        Require(engine.CurrentDialogue is { Channel: 2, MessageId: 3, CanConfirm: false } && engine.DialogueOutcomes.Count == 0, "Occupied RAMESW replaced or confirmed an existing persistent channel.");
+        var held = engine.Capture();
+        var heldMain = held.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 0);
+        Require(heldMain.GetProperty("Position").GetInt32() == 33 && heldMain.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([64, 32, 4, 2]), "Unsupported occupied RAMESW did not retain its original instruction and all four operands.");
         GameSession restoredSession = new(new GameState());
         EventEngine restored = new(restoredSession);
         restored.LoadField(102, content, messages);
-        restored.Restore(emptySnapshot);
-        engine.Step();
-        restored.Step();
-        Require(engine.Dialogues.Select(dialogue => dialogue.Channel).SequenceEqual([1, 2]) && engine.CurrentDialogue is { Channel: 2, MessageId: 3, CanConfirm: false }, "Reused persistent channels depend on removed dictionary slots instead of fixed channel order.");
-        Require(engine.Capture().GetRawText() == restored.Capture().GetRawText() && session.Dialog == restoredSession.Dialog, "Empty-boundary restoration changed the reopened persistent channel focus or complete VM.");
-        var persistentSnapshot = engine.Capture();
-        restored.Restore(persistentSnapshot);
-        engine.Step();
-        restored.Step();
-        Require(engine.CurrentDialogue is { Channel: 2, MessageId: 4, CanConfirm: true } && restored.CurrentDialogue == engine.CurrentDialogue, "Reverse opening order changed the canonical automatic representative.");
-        Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Reused automatic channels refused their shared confirm edge.");
-        Require(engine.DialogueOutcomes.Select(outcome => outcome.MessageId).SequenceEqual([5, 4]), "Automatic closure outcomes lost original ascending channel order.");
-        Require(engine.Capture().GetRawText() == restored.Capture().GetRawText() && engine.DialogueOutcomes.SequenceEqual(restored.DialogueOutcomes), "Restored reused-channel confirmation changed receipts or complete VM state.");
+        restored.Restore(held);
+        Require(held.GetRawText() == restored.Capture().GetRawText() && session.Dialog == restoredSession.Dialog, "Occupied-channel refusal lost its complete standalone VM or channel focus.");
+        RejectOccupiedChannel(restored);
+        var retriedMain = restored.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 0);
+        Require(retriedMain.GetProperty("Position").GetInt32() == 33 && heldMain.GetProperty("Stack").GetRawText() == retriedMain.GetProperty("Stack").GetRawText() && engine.Dialogues.SequenceEqual(restored.Dialogues), "Restored occupied-channel refusal consumed operands or changed the accepted channels.");
+
+        static void RejectOccupiedChannel(EventEngine candidate)
+        {
+            try
+            {
+                candidate.Step();
+                throw new InvalidOperationException("Occupied RAMESW silently retried an unsupported physical stack-residue path.");
+            }
+            catch (EventScriptException exception) when (candidate.LastFault?.Opcode == "RAMESW" && exception.Message.Contains("return5", StringComparison.Ordinal))
+            {
+            }
+        }
     }
 }

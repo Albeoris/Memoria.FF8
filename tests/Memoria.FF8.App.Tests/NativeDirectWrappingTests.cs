@@ -55,7 +55,9 @@ public sealed class NativeDirectWrappingTests
         Assert.False(DirectBackgroundScrollCertificate.CanSetCosine(field, scene, 0, 0, 8, 30));
         scene.BackgroundScrollLayers[1] = new BackgroundScrollSettings(0, 0, 128, 256);
         Assert.True(DirectBackgroundScrollCertificate.CanSet(field, scene, 0, 0, 8));
-        scene.BackgroundScrollLayers[1] = new BackgroundScrollSettings(0, 0, short.MaxValue, 256);
+        int minimumCenterX = field.Information!.CameraBounds[0].Left + 160;
+        Assert.NotInRange(minimumCenterX + short.MaxValue - minimumCenterX * 128 / 256, -4096, 4095);
+        scene.BackgroundScrollLayers[1] = new BackgroundScrollSettings(short.MaxValue, 0, 128, 256);
         Assert.False(DirectBackgroundScrollCertificate.CanSet(field, scene, 0, 0, 8));
     }
 
@@ -67,13 +69,24 @@ public sealed class NativeDirectWrappingTests
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(251);
         SceneEventState scene = CreateScene(field);
-        ActorState actor = JsonSerializer.Deserialize<ActorState>("{\"NativeAnimationHeader\":null,\"NativeEyes\":null,\"NativeAnimationBackup\":null,\"NativeMovementAccelerationTarget\":null,\"ObjectId\":1,\"Label\":0,\"ModelId\":1,\"CharacterId\":0,\"X\":459,\"Y\":1659,\"Z\":0}")!;
+        ActorState actor = CreatePartyActor();
         scene.NativeActorObjectIds.Add(1);
         scene.FieldPartyNativeActorIds.AddRange([0, 255, 255]);
         BackgroundScrollFrame normal = NormalCameraCertificate.Prepare(field, scene, [actor])!;
         Assert.Equal(((short)-normal.ActorOffset.X, (short)-normal.ActorOffset.Y), DirectBackgroundScrollCertificate.ResolveNormalCenter(field, scene, [actor]));
         scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 8, 0, 8, 0, 0, 0, 3, 2);
         Assert.Null(DirectBackgroundScrollCertificate.ResolveNormalCenter(field, scene, [actor]));
+    }
+
+    private static ActorState CreatePartyActor()
+    {
+        System.Text.Json.Nodes.JsonObject actor = JsonSerializer.SerializeToNode(new ActorState(1, 0))!.AsObject();
+        actor[nameof(ActorState.ModelId)] = 1;
+        actor[nameof(ActorState.CharacterId)] = 0;
+        actor[nameof(ActorState.X)] = 459;
+        actor[nameof(ActorState.Y)] = 1659;
+        actor[nameof(ActorState.Z)] = 0;
+        return actor.Deserialize<ActorState>()!;
     }
 
     private static SceneEventState CreateScene(FieldAssets field)
@@ -92,7 +105,7 @@ public sealed class NativeDirectWrappingTests
         SceneEventState scene = CreateScene(field);
         scene.NativeActorObjectIds.Add(1);
         scene.FieldPartyNativeActorIds.AddRange([0, 255, 255]);
-        ActorState actor = JsonSerializer.Deserialize<ActorState>("{\"NativeAnimationHeader\":null,\"NativeEyes\":null,\"NativeAnimationBackup\":null,\"NativeMovementAccelerationTarget\":null,\"ObjectId\":1,\"Label\":0,\"ModelId\":1,\"CharacterId\":0,\"X\":459,\"Y\":1659,\"Z\":0}")!;
+        ActorState actor = CreatePartyActor();
         scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 8, 0, 8, -32, 8, 0, 3, 2);
         Assert.True(ActorBackgroundScrollCertificate.CanSetInterpolated(field, scene, [actor], 0, 15));
         Assert.True(BackgroundScrollCertificate.CanSetPartyPosition(field, scene, [actor], 0, 0, 15));

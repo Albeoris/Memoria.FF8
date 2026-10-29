@@ -63,12 +63,13 @@ public sealed class QuistisStationaryAnimationTests
             Assert.Null(world.Events.LastFault);
         }
         Console.WriteLine($"Open corridor message{message.MessageId}, player({squall.X},{squall.Y}), Quistis({quistis.X},{quistis.Y}), idle{quistis.AnimationId}; 10 stopped callbacks.");
-        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.FieldButtons)).Accepted);
+        PlayerActionResult released = world.Apply(new PlayerAction(PlayerActionKind.FieldButtons));
+        Assert.True(released.Accepted, $"Corridor input release was refused: {released}; tutorial={world.Events.Scene.NativeTutorial}; menuTutorial={world.Events.Scene.NativeMenuTutorial}; partyMenu={world.Events.PartyMenu}; pendingName={world.PendingEntityName}.");
         session.SetEventState(world.Events.Capture());
         string checkpoint = Path.Combine(AppContext.BaseDirectory, "quistis-open-message-checkpoint.json");
         session.Save(checkpoint);
         GameState recreated = GameSession.Load(checkpoint);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(recreated)));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.PrepareSnapshot()), JsonSerializer.SerializeToElement(recreated)));
         using var rebuilt = new GameWorld(new GameSession(recreated), game);
         rebuilt.EnsureField();
         Assert.Equal(world.Render(TimeSpan.Zero), rebuilt.Render(TimeSpan.Zero));

@@ -217,9 +217,14 @@ public sealed class NativeGfMenuTests
         records[0] = records[0] with { HitPoints = new NativeHpWord((ushort)(unjunctionedMaximum + 1), (ushort)(unjunctionedMaximum + 1)) };
         vitals = vitals with { Records = records };
         controller.Open("junction-magic");
-        controller.Navigate(MenuInput.Down);
+        controller.SelectEntry("junction-magic", "Str");
+        Assert.Equal("Str", controller.SelectedEntry!.Id);
         controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("junction-stock", controller.ScreenId);
+        controller.SelectEntry("junction-stock", "magic-0-1");
+        Assert.Equal("Fire", controller.SelectedEntry!.Label);
         controller.Navigate(MenuInput.Confirm);
+        Assert.Equal(PlayerActionKind.SetJunctionMagic, inputs.Last().Kind);
         Assert.Equal(1, inputs.Last().Quantity);
         Assert.Equal(0, vitals.Records[0].Junction.MagicJunctions[0]);
         Assert.Equal(1, vitals.Records[0].Junction.MagicJunctions[1]);

@@ -79,7 +79,7 @@ public sealed class ClassroomCameraTransitionTests
                 Assert.False(FieldPresentationReadiness.HasPendingInitialization(world.Events.Scene.NativeFieldInitialization));
                 JsonElement before = world.Events.Capture();
                 byte[] pixels = world.Render(TimeSpan.Zero);
-                using GameWorld restored = new(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = before }), directory);
+                using GameWorld restored = new(new GameSession(session.PrepareSnapshot()), directory);
                 restored.EnsureField();
                 Assert.Equal(pixels, restored.Render(TimeSpan.Zero));
                 Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
@@ -88,7 +88,7 @@ public sealed class ClassroomCameraTransitionTests
         Assert.True(frontSeen);
         Assert.True(returnSeen);
         Assert.Null(world.Events.LastFault);
-        GameState source = session.State with { EventState = world.Events.Capture() };
+        GameState source = session.PrepareSnapshot();
         session.SetEventState(source.EventState!.Value);
         string savePath = Path.Combine(Path.GetTempPath(), "Memoria.FF8-compact-classroom-" + Guid.NewGuid().ToString("N") + ".json");
         GameState portable;
@@ -111,7 +111,7 @@ public sealed class ClassroomCameraTransitionTests
         Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), replay.Apply(new PlayerAction(PlayerActionKind.Wait)));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), replay.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), replay.Render(TimeSpan.Zero));
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State with { EventState = world.Events.Capture() }), JsonSerializer.SerializeToElement(replaySession.State with { EventState = replay.Events.Capture() })), "The next ordinary input must retain the complete reconstructed GameState.");
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.PrepareSnapshot()), JsonSerializer.SerializeToElement(replaySession.PrepareSnapshot())), "The next ordinary input must retain the complete reconstructed GameState.");
     }
 
     private static void AdvanceClosingDialogue(GameWorld world, PlayerAction action, PlayerActionResult result)

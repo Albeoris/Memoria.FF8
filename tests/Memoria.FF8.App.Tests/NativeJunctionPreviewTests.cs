@@ -131,6 +131,9 @@ public sealed class NativeJunctionPreviewTests
         Assert.Equal(before, JsonSerializer.Serialize(vitals));
         Assert.Equal(0, applied);
         menu.Navigate(MenuInput.Confirm);
+        Assert.Equal("junction-stock", menu.ScreenId);
+        menu.SelectEntry("junction-stock", "magic-0-1");
+        Assert.Equal("magic-0-1", menu.SelectedEntry!.Id);
         menu.Navigate(MenuInput.Confirm);
         Assert.Equal(1, applied);
         Assert.Equal("junction-magic", menu.ScreenId);

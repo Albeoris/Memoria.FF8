@@ -380,6 +380,7 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             for (int index = 0; index < action.Frames; index++)
             {
+                previousCallback = candidate;
                 salary = salary.BeginWorldEventCallback();
                 bool advanceUi = candidate.NativeScriptedRuntime?.Path.EndpointRequested != true;
                 if (advanceUi && candidate.NativeCarRuntime is NativeCarWorldRuntimeState car)
@@ -408,7 +409,6 @@ internal sealed partial class WorldMapScene : IDisposable
                     vertical = 0;
                 }
                 WorldState callbackStart = candidate;
-                previousCallback = candidate;
                 candidate = Step(candidate, horizontal, vertical, inputScriptMode != 0 ? 0 : action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, ref salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed, mapOnly: mapScriptMode == 12, motorButtons: inputScriptMode == 0 ? buttons : 0);
                 if (consumeGardenRequest)
                 {

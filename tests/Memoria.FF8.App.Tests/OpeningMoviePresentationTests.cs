@@ -11,8 +11,10 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class OpeningMoviePresentationTests
 {
-    [Fact]
-    public async Task NewGameHostPresentsVisibleOpeningMovieOnTheBackBuffer()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NewGameHostPresentsVisibleOpeningMovieOnTheBackBuffer(bool softwareRenderer)
     {
         string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original opening movie and field corpus is required.");
@@ -28,6 +30,10 @@ public sealed class OpeningMoviePresentationTests
         foreach (string argument in new[] { "--game-dir", game, "--media-tools", clock.ToolsDirectory, "--control-dir", root, "--settings-dir", settings, "--resolution", "320x240", "--exit-after", "40" })
         {
             start.ArgumentList.Add(argument);
+        }
+        if (softwareRenderer)
+        {
+            start.ArgumentList.Add("--software-renderer");
         }
         using Process process = Process.Start(start)!;
         Task<string> output = process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
@@ -50,18 +56,19 @@ public sealed class OpeningMoviePresentationTests
             while (!process.HasExited);
             Assert.Equal("Movie", state.GetProperty("Scene").GetString());
             Assert.True(state.GetProperty("MoviePlayback").GetProperty("FrameIndex").GetInt32() >= 150);
+            state = await Request("status", compact: false);
             await Request("capture", capture);
             string quit = Path.Combine(root, "requests", $"{sequence:D3}.json");
             File.WriteAllText(quit + ".tmp", JsonSerializer.Serialize(new { Id = "quit", Command = "quit" }));
             File.Move(quit + ".tmp", quit);
             await process.WaitForExitAsync(timeout.Token);
 
-            async Task<JsonElement> Request(string command, string? path = null)
+            async Task<JsonElement> Request(string command, string? path = null, bool compact = true)
             {
                 string id = $"{sequence++:D3}";
                 string request = Path.Combine(root, "requests", id + ".json");
                 string response = Path.Combine(root, "responses", id + ".json");
-                File.WriteAllText(request + ".tmp", JsonSerializer.Serialize(new { Id = id, Command = command, Compact = true, Path = path }));
+                File.WriteAllText(request + ".tmp", JsonSerializer.Serialize(new { Id = id, Command = command, Compact = compact, Path = path }));
                 File.Move(request + ".tmp", request);
                 while (!File.Exists(response) && !process.HasExited)
                 {
@@ -98,6 +105,13 @@ public sealed class OpeningMoviePresentationTests
                         visible++;
                     }
                 }
+            }
+            if (visible <= 100)
+            {
+                string evidence = TestResources.ArtifactFile("opening-host-" + (softwareRenderer ? "software-" : "gpu-") + Guid.NewGuid().ToString("N") + ".png");
+                File.Copy(capture, evidence);
+                File.WriteAllText(Path.ChangeExtension(evidence, ".json"), state.GetRawText());
+                Console.WriteLine("Opening movie failure capture: " + evidence);
             }
             Assert.True(visible > 100, $"The actual host presented a black movie: {visible} visible pixels. Status before capture: {state.GetRawText()} {stdout}");
         }

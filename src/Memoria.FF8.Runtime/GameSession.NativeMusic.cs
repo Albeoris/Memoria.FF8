@@ -26,7 +26,7 @@ public sealed partial class GameSession
         if (owners.ReloadedMemory is { } reloaded)
         {
             reloaded.Validate();
-            NativeBattleRetainedMemory allowed = memory with { FileStaging = reloaded.FileStaging, EffectMemory = reloaded.EffectMemory, ModelCpuResources = reloaded.ModelCpuResources };
+            NativeBattleRetainedMemory allowed = memory with { FileStaging = reloaded.FileStaging, EffectMemory = reloaded.EffectMemory, ModelCpuResources = reloaded.ModelCpuResources, FieldTextureAnimations = reloaded.FieldTextureAnimations };
             // These lifecycle receipts need independent ownership metadata as well as detached bytes.
             NativeBattleRetainedMemory detachedAllowed = NativeBattleStorageSnapshots.Capture(allowed);
             NativeBattleRetainedMemory detachedReloaded = NativeBattleStorageSnapshots.Capture(reloaded);
