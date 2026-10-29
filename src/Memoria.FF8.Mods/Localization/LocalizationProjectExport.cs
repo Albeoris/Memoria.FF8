@@ -21,7 +21,8 @@ public static partial class LocalizationProjectExport
         {
             Manifest = source.Manifest with { ProjectId = Guid.NewGuid().ToString("D"), BaseProjectId = source.Manifest.ProjectId, Payloads = [], ExtensionsPath = null, ExtensionData = metadata },
             Entries = source.Entries.Select(row => Snapshot(row, source.Manifest.ReferenceLanguages.Keys) with { Target = "" }).ToArray(),
-            Artwork = source.Artwork.Select(file => CopyArtwork(file, emptyTarget: true)).ToArray()
+            Artwork = source.Artwork.Select(file => CopyArtwork(file, emptyTarget: true)).ToArray(),
+            EncodingFiles = source.EncodingFiles.Select(file => file with { Content = file.Content.ToArray() }).ToArray()
         };
         LocalizationProjectIO.Validate(patch);
         return patch;
@@ -86,7 +87,8 @@ public static partial class LocalizationProjectExport
         {
             Manifest = first with { ProjectId = Guid.NewGuid().ToString("D"), BaseProjectId = null, TargetLanguage = targetLanguage, TargetColumn = "Target [" + targetLanguage + "]", Payloads = [], ExtensionsPath = null, ExtensionData = provenance, Artwork = artwork.Select(file => file.Declaration).ToArray() },
             Entries = rows.Values.OrderBy(row => row.Category, StringComparer.Ordinal).ThenBy(row => row.File, StringComparer.Ordinal).ThenBy(row => row.Key, StringComparer.Ordinal).ToArray(),
-            Artwork = artwork
+            Artwork = artwork,
+            EncodingFiles = MergeEncodingFiles(projects)
         };
         LocalizationProjectIO.Validate(result);
         return result;
@@ -163,7 +165,7 @@ public static partial class LocalizationProjectExport
                     references[label] = fresh.References.GetValueOrDefault(label);
                     presence[label] = fresh.ReferencePresence.TryGetValue(label, out bool present) ? present : fresh.References.ContainsKey(label);
                 }
-                rows.Add(Snapshot(fresh, referenceLanguages.Keys) with { Target = previous.Target, ExtensionData = metadata, References = references, ReferencePresence = presence });
+                rows.Add(Snapshot(fresh, referenceLanguages.Keys) with { Target = previous.Target, TargetPresent = previous.TargetPresent, ExtensionData = metadata, References = references, ReferencePresence = presence });
             }
             else
             {
@@ -184,11 +186,26 @@ public static partial class LocalizationProjectExport
         {
             Manifest = refreshedSource.Manifest with { ProjectId = existing.Manifest.ProjectId, BaseProjectId = existing.Manifest.BaseProjectId, TargetLanguage = existing.Manifest.TargetLanguage, TargetColumn = existing.Manifest.TargetColumn, ReferenceLanguages = referenceLanguages, Payloads = [], ExtensionsPath = null, ExtensionData = manifestMetadata },
             Entries = rows,
-            Artwork = ReconcileArtwork(existing, refreshedSource)
+            Artwork = ReconcileArtwork(existing, refreshedSource),
+            EncodingFiles = MergeEncodingFiles([refreshedSource, existing])
         };
         result = result with { Manifest = result.Manifest with { Artwork = result.Artwork.Select(file => file.Declaration).ToArray() } };
         LocalizationProjectIO.Validate(result);
         return new(result, added, changed, old.Values.Select(row => row.Key).ToArray());
+    }
+
+    private static IReadOnlyList<LocalizationDependencyFile> MergeEncodingFiles(IEnumerable<LocalizationProject> projects)
+    {
+        Dictionary<string, LocalizationDependencyFile> files = new(StringComparer.OrdinalIgnoreCase);
+        foreach (LocalizationDependencyFile file in projects.SelectMany(project => project.EncodingFiles))
+        {
+            if (files.TryGetValue(file.Path, out LocalizationDependencyFile? existing) && (existing.Path != file.Path || !existing.Content.AsSpan().SequenceEqual(file.Content)))
+            {
+                throw new InvalidDataException("Selected projects contain conflicting encoding profile dependencies: " + file.Path);
+            }
+            files[file.Path] = file with { Content = file.Content.ToArray() };
+        }
+        return files.Values.ToArray();
     }
 
     private static LocalizationRecord Snapshot(LocalizationRecord row, IEnumerable<string> referenceLabels)

@@ -72,7 +72,7 @@ public sealed class LocalizationBaseReferenceTests
         Assert.All(project.Entries, row => Assert.StartsWith("$en_", row.Key));
         Assert.Equal(2, project.Manifest.SchemaVersion);
         Assert.Equal("en", project.Manifest.SourceLanguage);
-        Assert.Equal(new[] { "jp", "it", "en" }, project.Manifest.ReferenceLanguages.Values);
+        Assert.Equal(new[] { "it", "en", "jp" }, project.Manifest.ReferenceLanguages.Values);
         LocalizationRecord row = project.Entries.Single(row => row.Key == baseline.Key);
         Assert.Equal("base", row.Source);
         Assert.False(row.ExtensionData.ContainsKey("referenceContextAlternatives"));

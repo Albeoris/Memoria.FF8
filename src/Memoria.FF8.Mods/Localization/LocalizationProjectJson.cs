@@ -26,7 +26,7 @@ internal static class LocalizationProjectJson
                     Dictionary<string, JsonElement> values = row.Value.EnumerateObject().ToDictionary(property => property.Name, property => property.Value, StringComparer.Ordinal);
                     JsonElement source = default;
                     bool present = manifest.SchemaVersion == 1 && values.Remove(manifest.SourceColumn, out source);
-                    values.Remove(manifest.TargetColumn, out JsonElement target);
+                    bool targetPresent = values.Remove(manifest.TargetColumn, out JsonElement target);
                     Dictionary<string, string?> references = new(StringComparer.Ordinal);
                     Dictionary<string, bool> referencePresence = new(StringComparer.Ordinal);
                     Dictionary<string, IReadOnlyList<string>> referenceKeys = new(StringComparer.Ordinal);
@@ -64,6 +64,7 @@ internal static class LocalizationProjectJson
                         Source = Text(source, row.Name, manifest.SourceColumn),
                         SourcePresent = present,
                         Target = Text(target, row.Name, manifest.TargetColumn),
+                        TargetPresent = targetPresent,
                         References = references,
                         ReferencePresence = referencePresence,
                         ReferenceKeys = referenceKeys,
@@ -95,7 +96,10 @@ internal static class LocalizationProjectJson
             {
                 values.Add(manifest.SourceColumn, row.Source);
             }
-            values.Add(manifest.TargetColumn, row.Target);
+            if (row.TargetPresent)
+            {
+                values.Add(manifest.TargetColumn, row.Target);
+            }
             foreach (string label in manifest.ReferenceLanguages.Keys)
             {
                 if (!string.IsNullOrEmpty(row.References.GetValueOrDefault(label)) || (row.ReferencePresence.TryGetValue(label, out bool present) ? present : row.References.ContainsKey(label)))

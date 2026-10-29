@@ -8,7 +8,10 @@ public sealed record LocalizationProject
     public LocalizationManifest Manifest { get; init; } = new();
     public IReadOnlyList<LocalizationRecord> Entries { get; init; } = [];
     public IReadOnlyList<LocalizationArtworkFile> Artwork { get; init; } = [];
+    public IReadOnlyList<LocalizationDependencyFile> EncodingFiles { get; init; } = [];
 }
+
+public sealed record LocalizationDependencyFile(string Path, byte[] Content);
 
 public sealed record LocalizationManifest
 {
@@ -17,6 +20,7 @@ public sealed record LocalizationManifest
     public string ProjectId { get; init; } = Guid.NewGuid().ToString("D");
     public string? BaseProjectId { get; init; }
     public string SourceLanguage { get; init; } = "en";
+    public string? SourceReferenceLanguage { get; init; }
     public string TargetLanguage { get; init; } = "";
     public string FieldScriptBaseLanguage { get; init; } = "en";
     public string SourceColumn { get; init; } = "Source [en]";
@@ -65,6 +69,7 @@ public sealed record LocalizationRecord
     public string? Source { get; init; }
     public bool SourcePresent { get; init; } = true;
     public string? Target { get; init; }
+    public bool TargetPresent { get; init; } = true;
     public IReadOnlyDictionary<string, string?> References { get; init; } = new Dictionary<string, string?>();
     public IReadOnlyDictionary<string, bool> ReferencePresence { get; init; } = new Dictionary<string, bool>();
     public IReadOnlyDictionary<string, IReadOnlyList<string>> ReferenceKeys { get; init; } = new Dictionary<string, IReadOnlyList<string>>();

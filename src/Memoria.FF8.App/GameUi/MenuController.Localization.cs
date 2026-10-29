@@ -10,6 +10,7 @@ public sealed partial class MenuController
 {
     private LocalizationAuthoringServices? localizationAuthoring;
     private string localizationScriptBase = "";
+    private string localizationSourceReference = "";
     private string localizationTarget = "";
     private string localizationPackage = "My localization";
     private string localizationFormat = "json";
@@ -69,6 +70,7 @@ public sealed partial class MenuController
         else
         {
             entries.Add(new("base", SystemText("ui.localizationoptions.entry.label.base.game.language", "Base game language: ") + localizationScriptBase, SystemText("ui.localizationoptions.entry.help.base.determines.rows", "Determines exported rows and keys; does not switch the running installation."), Action: new("localization-language", "base")));
+            entries.Add(new("source-reference", SystemText("ui.localizationoptions.entry.label.source.reference", "Source Reference: ") + localizationSourceReference, SystemText("ui.localizationoptions.entry.help.source.reference", "Designated translation source. Reordering reference columns does not change it."), Action: new("localization-language", "source-reference")));
             entries.Add(new("target", SystemText("ui.localizationoptions.entry.label.target", "Target: ") + localizationTarget, SystemText("ui.localizationoptions.entry.help.use.a.distinct.custom.identifier.for.an.independent", "Use a distinct custom identifier for an independent translation."), Action: new("localization-text", "target")));
             entries.Add(new("package", SystemText("ui.localizationoptions.entry.label.package.name", "Package name: ") + localizationPackage, SystemText("ui.localizationoptions.entry.help.a.friendly.package.name.independent.of.target", "A friendly package name, independent of Target."), Action: new("localization-text", "package")));
             entries.Add(new("references", SystemText("ui.localizationoptions.entry.label.references", "References: ") + string.Join(", ", localizationReferences), SystemText("ui.localizationoptions.entry.help.ordered.references", "Choose reference columns in reading order; the base language is retained. References do not add rows."), Action: new("localization-language", "references")));
@@ -167,6 +169,7 @@ public sealed partial class MenuController
                     IReadOnlyList<LocalizationDatasetOption> datasets = localizationAuthoring!.ReadDatasets();
                     localizationScriptBase = datasets.FirstOrDefault(dataset => dataset.Available && dataset.ScriptBaseAvailable)?.Id ?? "";
                     localizationReferences.AddRange(datasets.Where(dataset => dataset.Available && (dataset.Id == "jp" || dataset.Id == localizationScriptBase)).OrderBy(dataset => dataset.Id == "jp" ? 0 : 1).Select(dataset => dataset.Id));
+                    localizationSourceReference = localizationReferences.FirstOrDefault() ?? localizationScriptBase;
                 }
                 Push(action.Kind);
                 break;
@@ -178,7 +181,7 @@ public sealed partial class MenuController
             case "localization-select-language":
                 if (localizationTextField == "references")
                 {
-                    if (string.Equals(action.SubjectId, localizationScriptBase, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(action.SubjectId, localizationScriptBase, StringComparison.OrdinalIgnoreCase) || string.Equals(action.SubjectId, localizationSourceReference, StringComparison.OrdinalIgnoreCase))
                     {
                         break;
                     }
@@ -190,6 +193,15 @@ public sealed partial class MenuController
                     {
                         localizationReferences.Add(action.SubjectId);
                     }
+                }
+                else if (localizationTextField == "source-reference")
+                {
+                    localizationSourceReference = action.SubjectId;
+                    if (!localizationReferences.Contains(localizationSourceReference, StringComparer.OrdinalIgnoreCase))
+                    {
+                        localizationReferences.Add(localizationSourceReference);
+                    }
+                    Back();
                 }
                 else
                 {
@@ -307,7 +319,7 @@ public sealed partial class MenuController
         {
             throw new InvalidDataException("An independent translation needs a Target ID distinct from existing languages and translations.");
         }
-        LocalizationAuthoringRequest request = new(localizationReferences.FirstOrDefault() ?? localizationScriptBase, localizationScriptBase, localizationTarget, localizationReferences.ToArray(), localizationPackage);
+        LocalizationAuthoringRequest request = new(localizationScriptBase, localizationScriptBase, localizationTarget, localizationReferences.ToArray(), localizationPackage) { SourceReferenceLanguage = localizationSourceReference };
         string input = localizationInput;
         bool convert = localizationConverting;
         bool patch = localizationPatching;
@@ -382,6 +394,8 @@ public sealed partial class MenuController
         if (localizationPreview is { } project)
         {
             details.Add(SystemText("ui.localizationoptions.entry.label.base.game.language", "Base game language: ") + project.Manifest.FieldScriptBaseLanguage);
+            LocalizationSourceRole sourceRole = LocalizationSourceRoles.Resolve(project.Manifest);
+            details.Add(SystemText("ui.localizationoptions.entry.label.source.reference", "Source Reference: ") + sourceRole.Language + (sourceRole.Inferred ? " (inferred: " + sourceRole.Explanation + ")" : ""));
             details.Add(SystemText("ui.localizationreviewdetails.details.target", "Target: ") + project.Manifest.TargetLanguage);
             if (project.Manifest.BaseProjectId is string baseProject)
             {

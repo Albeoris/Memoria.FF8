@@ -5,14 +5,15 @@ namespace Memoria.FF8.App.Tests;
 public sealed class LocalizationReferenceOrderTests
 {
     [Fact]
-    public void NewProjectUsesBaseRowsAndOrderedReferencesWithoutSourcePicker()
+    public void NewProjectKeepsSourceReferenceIndependentOfColumnOrder()
     {
         MenuController menus = CreateMenus();
         menus.Open("mods-create");
         menus.Execute(new("localization-new"));
 
-        Assert.DoesNotContain(menus.Entries, entry => entry.Id == "source");
+        Assert.Contains(menus.Entries, entry => entry.Id == "source-reference" && entry.Label == "Source Reference: jp");
         Assert.Contains(menus.Entries, entry => entry.Id == "base" && entry.Label == "Base game language: en");
+        Assert.Contains(menus.Entries, entry => entry.Id == "source-reference" && entry.Label == "Source Reference: jp");
         Assert.Contains(menus.Entries, entry => entry.Id == "references" && entry.Label == "References: jp, en");
 
         menus.Execute(new("localization-language", "references"));
@@ -32,6 +33,8 @@ public sealed class LocalizationReferenceOrderTests
         MenuController menus = CreateMenus();
         menus.Open("mods-create");
         menus.Execute(new("localization-new"));
+        menus.Execute(new("localization-language", "source-reference"));
+        menus.Execute(new("localization-select-language", "fr"));
         menus.Execute(new("localization-language", "references"));
         menus.Execute(new("localization-select-language", "jp"));
         menus.Execute(new("localization-select-language", "en"));
@@ -39,7 +42,8 @@ public sealed class LocalizationReferenceOrderTests
         Assert.Contains(menus.Entries, entry => entry.Id == "en" && entry.Label == "[x] 1. English");
         Assert.Contains(menus.Entries, entry => entry.Id == "earlier-en" && !entry.Enabled);
         menus.Back();
-        Assert.Contains(menus.Entries, entry => entry.Id == "references" && entry.Label == "References: en");
+        Assert.Contains(menus.Entries, entry => entry.Id == "references" && entry.Label == "References: en, fr");
+        Assert.Contains(menus.Entries, entry => entry.Id == "source-reference" && entry.Label == "Source Reference: fr");
     }
 
     private static MenuController CreateMenus()

@@ -16,6 +16,28 @@ public static partial class LocalizationProjectIO
 
     public static LocalizationProject Read(string packageDirectory, bool allowMissingPayloads = false, LocalizationProjectReadCache? cache = null)
     {
+        using FileStream coordination = AcquireReadCoordination(packageDirectory);
+        LocalizationAuthoringTransaction.Recover(System.IO.Path.GetFullPath(packageDirectory));
+        return ReadForAuthoring(packageDirectory, allowMissingPayloads, cache);
+    }
+
+    private static FileStream AcquireReadCoordination(string packageDirectory)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return LocalizationAuthoringTransaction.Acquire(packageDirectory);
+            }
+            catch (IOException) when (attempt < 20)
+            {
+                Thread.Sleep(50);
+            }
+        }
+    }
+
+    internal static LocalizationProject ReadForAuthoring(string packageDirectory, bool allowMissingPayloads = false, LocalizationProjectReadCache? cache = null)
+    {
         for (int attempt = 0; ; attempt++)
         {
             try
@@ -66,6 +88,7 @@ public static partial class LocalizationProjectIO
         }
         LocalizationManifest manifest = document.RootElement.Deserialize<LocalizationManifest>(JsonOptions) ?? throw new InvalidDataException("The localization manifest is empty.");
         ValidateManifest(manifest);
+        LocalizationSourceRoles.Resolve(manifest);
         if (manifest.SchemaVersion >= 2 && manifest.ExtensionsPath is null)
         {
             throw new InvalidDataException("Reference-layout projects require their native binding metadata sidecar.");
@@ -159,7 +182,7 @@ public static partial class LocalizationProjectIO
         {
             stamps.Remove(missing);
         }
-        LocalizationProject result = new() { Manifest = manifest, Entries = rows, Artwork = artwork };
+        LocalizationProject result = new() { Manifest = manifest, Entries = rows, Artwork = artwork, EncodingFiles = ReadEncodingFiles(root, ReadBytes) };
         Validate(result, cache);
         foreach (var (path, stamp) in stamps)
         {
@@ -271,6 +294,17 @@ public static partial class LocalizationProjectIO
                 System.IO.File.WriteAllBytes(Resolve(staging, extensionsPath), JsonBytes(extensions));
             }
             WriteArtwork(project, staging, cancellation);
+            foreach (LocalizationDependencyFile dependency in project.EncodingFiles)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                if (!dependency.Path.StartsWith("Encoding/", StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException("Encoding dependencies must remain inside their declared Encoding profile directories.");
+                }
+                string dependencyPath = Resolve(staging, dependency.Path);
+                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dependencyPath)!);
+                System.IO.File.WriteAllBytes(dependencyPath, dependency.Content);
+            }
             manifest = manifest with { Payloads = payloads, ExtensionsPath = extensionsPath };
             System.IO.File.WriteAllBytes(Resolve(staging, ManifestRelativePath), JsonBytes(manifest));
             Read(staging);

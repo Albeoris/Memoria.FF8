@@ -13,7 +13,7 @@ public static partial class LocalizationProjectBuilder
             throw new InvalidDataException("The field script base must identify an installed native script language, not a translation contribution.");
         }
         Dictionary<string, LocalizationSourceCatalog> catalogs = new(StringComparer.OrdinalIgnoreCase);
-        string[] languages = new[] { request.FieldScriptBaseLanguage, request.SourceLanguage }.Concat(request.ReferenceLanguages).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        string[] languages = new[] { request.FieldScriptBaseLanguage, request.SourceReferenceLanguage }.Concat(request.ReferenceLanguages).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (languages.Any(language => !BuiltInLanguages.Contains(language, StringComparer.OrdinalIgnoreCase)))
         {
             throw new InvalidDataException("New localization projects require original game languages; mod contributions and active profiles cannot be exported as native references.");
@@ -39,7 +39,7 @@ public static partial class LocalizationProjectBuilder
         manifestExtensions["sourceDatasets"] = JsonSerializer.SerializeToElement(catalogs.Keys.Select(dataset => new
         {
             Id = dataset,
-            PrimaryReference = dataset == request.SourceLanguage,
+            PrimaryReference = dataset == request.SourceReferenceLanguage,
             FieldScriptBase = dataset == request.FieldScriptBaseLanguage,
             Reference = project.Manifest.ReferenceLanguages.Values.Contains(dataset, StringComparer.OrdinalIgnoreCase),
             OriginalResources = true
@@ -66,7 +66,7 @@ public static partial class LocalizationProjectBuilder
             throw new InvalidDataException("The selected base dataset is missing: " + baseLanguage);
         }
         Dictionary<string, ReferenceDatasetIndex> indexes = catalogs.ToDictionary(pair => pair.Key, pair => new ReferenceDatasetIndex(pair.Value), StringComparer.OrdinalIgnoreCase);
-        string[] referenceOrder = new[] { request.SourceLanguage }.Concat(request.ReferenceLanguages).Append(baseLanguage).Where(language => !string.IsNullOrWhiteSpace(language)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        string[] referenceOrder = request.ReferenceLanguages.Append(request.SourceReferenceLanguage).Append(baseLanguage).Where(language => !string.IsNullOrWhiteSpace(language)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         Dictionary<string, string> referenceLanguages = referenceOrder.ToDictionary(language => "Reference [" + language + "]", language => language, StringComparer.Ordinal);
         IReadOnlyList<LocalizationSourceEntry> originals = includeSystem ? SystemTextCatalog.SourceEntries() : [];
         Dictionary<string, LocalizationSourceEntry> authored = originals.ToDictionary(row => row.Metadata["Authored ID"]!, StringComparer.Ordinal);
@@ -154,6 +154,7 @@ public static partial class LocalizationProjectBuilder
             {
                 SchemaVersion = 2,
                 SourceLanguage = baseLanguage,
+                SourceReferenceLanguage = request.SourceReferenceLanguage,
                 FieldScriptBaseLanguage = baseLanguage,
                 TargetLanguage = request.TargetLanguage,
                 SourceColumn = "Source [" + baseLanguage + "]",

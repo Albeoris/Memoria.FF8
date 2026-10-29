@@ -143,7 +143,11 @@ internal static class LocalizationProjectWorkbook
         foreach (Sheet sheet in workbook.Workbook?.Sheets?.Elements<Sheet>() ?? [])
         {
             string name = sheet.Name?.Value ?? "";
-            if (!categories.TryGetValue(name, out string? category) || !seenSheets.Add(name))
+            if (!categories.TryGetValue(name, out string? category))
+            {
+                continue;
+            }
+            if (!seenSheets.Add(name))
             {
                 throw new InvalidDataException($"Unknown or duplicate localization worksheet: {name}.");
             }
@@ -171,10 +175,6 @@ internal static class LocalizationProjectWorkbook
             }
             bool referenceLayout = manifest.SchemaVersion >= 2;
             string[] required = RequiredHeaders(manifest);
-            if (referenceLayout && headers.Keys.Any(label => !required.Contains(label, StringComparer.Ordinal) && label != "Field Name"))
-            {
-                throw new InvalidDataException($"Worksheet {name} contains an unsupported translator column.");
-            }
             foreach (string label in required)
             {
                 if (!headers.ContainsKey(label))
@@ -220,6 +220,10 @@ internal static class LocalizationProjectWorkbook
                 Dictionary<string, JsonElement> extra = new(StringComparer.Ordinal);
                 foreach ((string label, int index) in headers.Where(pair => !required.Contains(pair.Key, StringComparer.Ordinal)))
                 {
+                    if (referenceLayout && label != "Field Name")
+                    {
+                        continue;
+                    }
                     if (cells.TryGetValue(index, out Cell? cell))
                     {
                         if (cell.CellFormula is not null)
@@ -229,6 +233,7 @@ internal static class LocalizationProjectWorkbook
                         extra[label] = ExtensionValue(cell, shared);
                     }
                 }
+                string targetValue = Value(manifest.TargetColumn);
                 result.Add(new LocalizationRecord
                 {
                     Category = category,
@@ -236,7 +241,8 @@ internal static class LocalizationProjectWorkbook
                     Key = key,
                     Source = referenceLayout ? null : Value(manifest.SourceColumn),
                     SourcePresent = !referenceLayout && !string.IsNullOrEmpty(Value(manifest.SourceColumn)),
-                    Target = Value(manifest.TargetColumn),
+                    Target = cells.TryGetValue(headers[manifest.TargetColumn], out Cell? targetCell) && (targetCell.CellValue is not null || targetCell.InlineString is not null) ? targetValue : null,
+                    TargetPresent = cells.ContainsKey(headers[manifest.TargetColumn]),
                     References = manifest.ReferenceLanguages.Keys.ToDictionary(label => label, label => (string?)Value(label)),
                     ReferencePresence = manifest.ReferenceLanguages.Keys.ToDictionary(label => label, label => !string.IsNullOrEmpty(Value(label))),
                     ReferenceKeys = referenceLayout ? manifest.ReferenceLanguages.Keys.ToDictionary(label => label, label => ParseReferenceKeys(Value(ReferenceKeyColumn(label)))) : new Dictionary<string, IReadOnlyList<string>>(),

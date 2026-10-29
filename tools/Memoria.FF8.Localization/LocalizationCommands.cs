@@ -28,7 +28,7 @@ internal static class LocalizationCommands
             string command = arguments[0];
             string[] allowed = command switch
             {
-                "export" => ["game-dir", "source", "script-base", "target", "references", "name", "format", "layout", "output"],
+                "export" => ["game-dir", "source", "source-reference", "script-base", "target", "references", "name", "format", "layout", "output"],
                 "convert" => ["input", "output", "format", "layout"],
                 "patch" => ["input", "output", "name", "format", "layout"],
                 "validate" => ["input"],
@@ -73,8 +73,13 @@ internal static class LocalizationCommands
                 throw new ArgumentException("An independent translation needs a Target identifier distinct from built-in languages.");
             }
             string scriptBase = Required("script-base");
-            string[] references = (options.TryGetValue("source", out string? legacyReference) ? new[] { legacyReference } : Array.Empty<string>()).Concat(options.GetValueOrDefault("references", scriptBase).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            LocalizationAuthoringRequest request = new(references.FirstOrDefault() ?? scriptBase, scriptBase, target, references, options.GetValueOrDefault("name", target));
+            if (options.TryGetValue("source", out string? legacyReference) && options.TryGetValue("source-reference", out string? explicitReference) && !legacyReference.Equals(explicitReference, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("--source and --source-reference designate different translation sources; use --source-reference.");
+            }
+            string sourceReference = options.GetValueOrDefault("source-reference", legacyReference ?? scriptBase);
+            string[] references = options.GetValueOrDefault("references", scriptBase).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Append(sourceReference).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            LocalizationAuthoringRequest request = new(scriptBase, scriptBase, target, references, options.GetValueOrDefault("name", target)) { SourceReferenceLanguage = sourceReference };
             LocalizationProject created = LocalizationProjectBuilder.Prepare(Required("game-dir"), request, cancellation.Token, new Progress<string>(Console.WriteLine));
             LocalizationProjectIO.WriteNew(created, Required("output"), options.GetValueOrDefault("format", "json"), options.GetValueOrDefault("layout", "split"), cancellation.Token);
             int missingBaseText = created.Entries.Count(row => !row.SourcePresent);
