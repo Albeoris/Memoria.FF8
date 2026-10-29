@@ -277,8 +277,8 @@ public sealed class NativeBattleIfritFormPresentationTests
             NativeBattleEffectInitializerAsset common = definition.NativeCommonEffectTexture!;
             NativeBattleEffectTextureState expected = NativeBattleEffectTextureState.FromColdProcess();
             (expected, _) = expected.EnqueueTim505E30(new(common.Name, common.Data));
-            NativeBattleEffectArena baseline = new(expected.Drain505D20().State.VramRegions);
-            NativeBattleEffectArena actual = new(battle.NativeEffectMemory!.Textures!.VramRegions);
+            NativeBattleEffectArena baseline = new(NativeBattleStorageSnapshots.Capture(expected.Drain505D20().State).VramRegions);
+            NativeBattleEffectArena actual = new(NativeBattleStorageSnapshots.Capture(battle.NativeEffectMemory!.Textures!).VramRegions);
             for (int y = 256; y < 512; y++)
             {
                 Assert.Equal(baseline.Read(2 * (y * 1024 + 704), 192 * 2), actual.Read(2 * (y * 1024 + 704), 192 * 2));
@@ -292,7 +292,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         void AssertFinisherTextures()
         {
             NativeBattleCinematicResources resources = battle.NativeGraphics!.OriginalEffect!.Binding.CinematicResources!;
-            NativeBattleEffectArena actual = new(battle.NativeEffectMemory!.Textures!.VramRegions);
+            NativeBattleEffectArena actual = new(NativeBattleStorageSnapshots.Capture(battle.NativeEffectMemory!.Textures!).VramRegions);
             foreach ((int fileIndex, int textureIndex) in new[] { (2, 21), (3, 13), (4, 12) })
             {
                 NativeBattleArchiveFile file = resources.Files.Single(file => file.FileId == NativeBattleCinematicProfile.ForEffect(201).SourceBase + fileIndex);
@@ -360,7 +360,12 @@ public sealed class NativeBattleIfritFormPresentationTests
                 BattleSession emergingRestored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(emerging))!);
                 battle.Tick();
                 emergingRestored.Tick();
-                Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(emergingRestored.Capture()));
+                BattleSnapshot originalNext = battle.Capture();
+                BattleSnapshot restoredNext = emergingRestored.Capture();
+                string? emergenceOutput = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_FORM_EVIDENCE");
+                NativeBattleRestorationPresentationTests.Publish(emergenceOutput, "emergence-original-next", originalNext, null);
+                NativeBattleRestorationPresentationTests.Publish(emergenceOutput, "emergence-restored-next", restoredNext, null);
+                Assert.Equal(JsonSerializer.Serialize(originalNext), JsonSerializer.Serialize(restoredNext));
                 restoredEmergence = true;
             }
         }

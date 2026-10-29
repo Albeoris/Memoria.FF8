@@ -16,10 +16,21 @@ public sealed class NativeJunctionPreviewTests
         using GameAssets assets = new(TestResources.GameDirectory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).AcquireGuardianForce(1);
-        NativeGuardianForceVital[] forces = vitals.GuardianForces.ToArray();
-        forces[0] = forces[0] with { LearnedBank = forces[0].LearnedBank with { Low = 6UL, High = 0 } };
-        forces[1] = forces[1] with { LearnedBank = forces[1].LearnedBank with { Low = 8UL, High = 0 } };
-        vitals = vitals with { GuardianForces = forces };
+        int junctionAbilityCount = assets.ReadNativeTutorialCatalog().ReadStatusKernel().JunctionAbilities.Count;
+        Assert.True(junctionAbilityCount > 3);
+        for (int id = 0; id < 2; id++)
+        {
+            int[] retained = vitals.GuardianForceAbilities(id).Where(entry => entry.Learned && entry.Ability >= junctionAbilityCount).Select(entry => entry.Ability).ToArray();
+            int[] junctions = vitals.GuardianForceAbilities(id).Where(entry => entry.Learned && entry.Ability > 0 && entry.Ability < junctionAbilityCount).Select(entry => entry.Ability).ToArray();
+            foreach (int ability in junctions)
+            {
+                vitals = vitals.ForgetGuardianForceAbility(id, ability);
+            }
+            Assert.Equal(retained, vitals.GuardianForceAbilities(id).Where(entry => entry.Learned && entry.Ability >= junctionAbilityCount).Select(entry => entry.Ability));
+        }
+        vitals = vitals.TeachGuardianForceAbility(0, 1).TeachGuardianForceAbility(0, 2).TeachGuardianForceAbility(1, 3);
+        Assert.Equal(new[] { 1, 2 }, vitals.GuardianForceAbilities(0).Where(entry => entry.Learned && entry.Ability < junctionAbilityCount).Select(entry => entry.Ability));
+        Assert.Equal(new[] { 3 }, vitals.GuardianForceAbilities(1).Where(entry => entry.Learned && entry.Ability < junctionAbilityCount).Select(entry => entry.Ability));
         MenuController menu = new(() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = vitals }, catalog: catalog), action =>
         {
             vitals = NativeJunctionMenuInput.Apply(vitals, NativeJunctionMenuProjection.PlayerAction(action));
@@ -77,14 +88,12 @@ public sealed class NativeJunctionPreviewTests
         Assert.SkipUnless(Directory.Exists(TestResources.GameDirectory), "Installed resources are required.");
         using GameAssets assets = new(TestResources.GameDirectory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
-        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0);
-        NativeGuardianForceVital[] forces = vitals.GuardianForces.ToArray();
-        forces[0] = forces[0] with { LearnedBank = forces[0].LearnedBank with { Low = forces[0].LearnedBank.Low | 6UL } };
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).TeachGuardianForceAbility(0, 1).TeachGuardianForceAbility(0, 2);
         NativeCharacterVital[] records = vitals.Records.ToArray();
         NativeMagicStock[] stocks = records[0].MagicInventory.ToArray();
         stocks[0] = new NativeMagicStock(1, 100);
         records[0] = records[0] with { MagicInventory = stocks };
-        vitals = (vitals with { GuardianForces = forces, Records = records }).SetJunctionMagic(0, 0, 1);
+        vitals = (vitals with { Records = records }).SetJunctionMagic(0, 0, 1);
         string before = JsonSerializer.Serialize(vitals);
         int applied = 0;
         MenuController menu = new(() => LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = vitals }, catalog: catalog), action =>

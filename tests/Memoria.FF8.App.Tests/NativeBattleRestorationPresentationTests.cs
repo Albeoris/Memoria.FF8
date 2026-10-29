@@ -95,6 +95,7 @@ public sealed class NativeBattleRestorationPresentationTests
         NativeMusicProcessState sourceBuffers = new(1, null, null, null, 0, null);
         NativeBattleMusicEntryResources musicResources = new NativeMusicCatalog(game.GameDirectory).ReadBattleEntryResources();
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicEntry.Prepare52CE30(94, 0x80, sourceBuffers, 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), musicResources);
+        NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -114,7 +115,9 @@ public sealed class NativeBattleRestorationPresentationTests
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([effect]),
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
-            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeSavedOptions = input.Options,
+            NativeInputButtonMap = input.ButtonMap,
+            LimitProgress = game.ReadNewGameLimitProgress(),
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
@@ -177,7 +180,7 @@ public sealed class NativeBattleRestorationPresentationTests
         graphics = graphics with { Models = graphics.Models.SetItem(1, targetModel with { Flags8 = priorFlags, StatusTimers = priorTimers }) };
         if (effect == 24)
         {
-            BattleSession idle = BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics });
+            BattleSession idle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before with { NativeActionPackets = packets, NativeGraphics = graphics }));
             BattleScenePresentation idleScene = new(assets, definition, true);
             string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE");
             string id = "restoration-poison-idle-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
@@ -193,13 +196,13 @@ public sealed class NativeBattleRestorationPresentationTests
             NativeBattlePrimitiveFrame iconFrame = graphics.PrimitiveFrame!;
             Assert.Contains(iconFrame.LastCommands, command => command.Command.ModuleDraw == iconIndex);
             NativeBattlePrimitiveFrame plainFrame = iconFrame with { LastCommands = iconFrame.LastCommands.Where(command => command.Command.ModuleDraw != iconIndex).ToImmutableArray() };
-            BattleSession plain = BattleSession.Restore(before with { NativeGraphics = graphics with { PrimitiveFrame = plainFrame } });
+            BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before with { NativeGraphics = graphics with { PrimitiveFrame = plainFrame } }));
             int iconRgb = DifferentRgb(withIcons, idleScene.Render(plain, 320, 224));
             PublishJson(evidence, id + "-details", new { before.Frame, graphics.Callback, PoisonIconRgbPixels = iconRgb });
             Assert.True(iconRgb > 0, "Original poison icon packets changed no RGB pixels in the ordinary callback before104.");
         }
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
-        return BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
+        return BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } }));
     }
 
     private static void RunCurrentCast(BattleSnapshot initial, BattleAssets assets, ushort effect, bool requireCasting)
@@ -298,7 +301,7 @@ public sealed class NativeBattleRestorationPresentationTests
                 }
                 byte[] visible = scene.Render(battle, 320, 224).ToArray();
                 NativeBattlePrimitiveFrame plainFrame = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                BattleSession plain = BattleSession.Restore(after with { NativeGraphics = graphics with { PrimitiveFrame = plainFrame } });
+                BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(after with { NativeGraphics = graphics with { PrimitiveFrame = plainFrame } }));
                 int rgb = DifferentRgb(visible, scene.Render(plain, 320, 224));
                 if (rgb > peakRgb)
                 {

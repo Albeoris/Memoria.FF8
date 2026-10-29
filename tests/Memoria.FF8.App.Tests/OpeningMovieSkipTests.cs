@@ -25,7 +25,7 @@ public sealed class OpeningMovieSkipTests(ITestOutputHelper output)
         Assert.Equal(2925, information.FrameCount);
         StorySafeMovieSkipTests.DecodeThrough(referenceSession, reference, referenceClock, game, startFrame);
         referenceSession.SetEventState(reference.Events.Capture());
-        GameSession session = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(referenceSession.State))!);
+        GameSession session = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(referenceSession.PrepareSnapshot()))!);
         string temporary = Path.Combine(Path.GetTempPath(), "memoria-opening-skip-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temporary);
         try
@@ -61,7 +61,7 @@ public sealed class OpeningMovieSkipTests(ITestOutputHelper output)
             Assert.Equal(referenceSession.State.MoviePlayback, session.State.MoviePlayback);
             referenceSession.SetEventState(reference.Events.Capture());
             session.SetEventState(world.Events.Capture());
-            AssertSameState(referenceSession.State, session.State);
+            AssertSameState(referenceSession.PrepareSnapshot(), session.PrepareSnapshot());
             Assert.Equal(reference.Apply(new PlayerAction(PlayerActionKind.Wait)), world.Apply(new PlayerAction(PlayerActionKind.Wait)));
             for (int callback = 0; callback < 60; callback++)
             {
@@ -77,13 +77,13 @@ public sealed class OpeningMovieSkipTests(ITestOutputHelper output)
             Assert.True(world.CanPresentCurrentField);
             referenceSession.SetEventState(reference.Events.Capture());
             session.SetEventState(world.Events.Capture());
-            AssertSameState(referenceSession.State, session.State);
+            AssertSameState(referenceSession.PrepareSnapshot(), session.PrepareSnapshot());
             Assert.Equal(reference.Render(TimeSpan.Zero), world.Render(TimeSpan.Zero));
 
             string source = Path.Combine(temporary, "source.json");
             session.Save(source);
             GameState recreated = GameSession.Load(source);
-            AssertSameState(session.State, recreated);
+            AssertSameState(session.PrepareSnapshot(), recreated);
         }
         finally
         {

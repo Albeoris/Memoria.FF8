@@ -45,7 +45,7 @@ public sealed class NativeGfMenuTests
     }
 
     [Fact]
-    public void LearningPrerequisiteExclusionForgottenMaskAndTwentyTwoEntryCapFollowTheNativePasses()
+    public void LearningPrerequisiteExclusionForgottenMaskAndExpandedLearnedListPreserveTheNativePasses()
     {
         using GameAssets assets = InstalledAssets();
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0);
@@ -55,19 +55,25 @@ public sealed class NativeGfMenuTests
         rules[1] = new NativeGuardianForceLearningRule(101, 2, 39);
         rules[2] = new NativeGuardianForceLearningRule(1, 255, 40);
         rules[3] = new NativeGuardianForceLearningRule(100, 255, 41);
-        vitals = vitals with { MenuDefinitions = vitals.MenuDefinitions with { Learning = vitals.MenuDefinitions.Learning.SetItem(0, rules.ToImmutableArray()) } };
+        vitals = vitals with { MenuDefinitions = vitals.MenuDefinitions with { Learning = vitals.MenuDefinitions.Learning.SetItem(0, rules.ToImmutableArray()), Templates = default, SourceTemplates = default } };
         NativeGuardianForceVital[] gfs = vitals.GuardianForces.ToArray();
-        gfs[0] = gfs[0] with { Experience = 0, LearnedBank = new NativeGuardianForceLearnedBank(1UL << 20, 0), ForgottenAbilities = 0 };
+        // Exercise an imported native record before a managed progression ledger is created.
+        gfs[0] = gfs[0] with { Experience = 0, LearnedBank = new NativeGuardianForceLearnedBank(1UL << 20, 0), ForgottenAbilities = 0, Progression = null, LastProjection = null };
         vitals = vitals with { GuardianForces = gfs };
+        ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> templates = vitals.ResolveGuardianForceTemplates();
+        vitals = vitals with { MenuDefinitions = vitals.MenuDefinitions with { Templates = templates, SourceTemplates = templates } };
         Assert.Contains(vitals.GuardianForceAbilities(0), entry => entry.Ability == 39 && !entry.Learned);
         Assert.DoesNotContain(vitals.GuardianForceAbilities(0), entry => entry.Ability == 41);
         gfs[0] = gfs[0] with { ForgottenAbilities = 1u << 1 };
         Assert.DoesNotContain(vitals.GuardianForceAbilities(0), entry => entry.Ability == 39);
         gfs[0] = gfs[0] with { ForgottenAbilities = 0, LearnedBank = new NativeGuardianForceLearnedBank((1UL << 20) | (1UL << 40), 0) };
         Assert.DoesNotContain(vitals.GuardianForceAbilities(0), entry => entry.Ability == 39);
-        gfs[0] = gfs[0] with { LearnedBank = new NativeGuardianForceLearnedBank((1UL << 23) - 1, 0) };
-        Assert.Equal(22, vitals.GuardianForceAbilities(0).Count);
-        Assert.All(vitals.GuardianForceAbilities(0), entry => Assert.True(entry.Learned));
+        gfs[0] = gfs[0] with { LearnedBank = new NativeGuardianForceLearnedBank((1UL << 24) - 1, 0) };
+        IReadOnlyList<NativeGuardianForceAbility> expanded = vitals.GuardianForceAbilities(0);
+        Assert.Equal(23, expanded.Count(entry => entry.Learned));
+        Assert.Contains(expanded, entry => entry.Ability == 39 && !entry.Learned);
+        Assert.Contains(expanded, entry => entry.Ability == 40 && !entry.Learned);
+        Assert.Equal(25, expanded.Count);
     }
 
     [Fact]
@@ -174,16 +180,14 @@ public sealed class NativeGfMenuTests
     public void MagicJunctionMenuRequiresStockAndLearnedSlotsMovesOneSpellAndClampsHpAfterRemoval()
     {
         using GameAssets assets = InstalledAssets();
-        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).TeachGuardianForceAbility(0, 1).TeachGuardianForceAbility(0, 2);
         LiveMenuCatalog names = LiveMenuCatalog.ReadInstalled(assets);
         // Explicit isolated component inputs; no session journal or research snapshot is fabricated.
-        NativeGuardianForceVital[] gfs = vitals.GuardianForces.ToArray();
-        gfs[0] = gfs[0] with { LearnedBank = gfs[0].LearnedBank with { Low = gfs[0].LearnedBank.Low | (1UL << 1) | (1UL << 2) } };
         NativeCharacterVital[] records = vitals.Records.ToArray();
         NativeMagicStock[] stock = records[0].MagicInventory.ToArray();
         stock[0] = new NativeMagicStock(1, 40);
         records[0] = records[0] with { MagicInventory = stock };
-        vitals = vitals with { GuardianForces = gfs, Records = records };
+        vitals = vitals with { Records = records };
         ushort unjunctionedMaximum = vitals.Definitions.CharacterMaximum(vitals.Records[0]);
         Assert.Throws<InvalidOperationException>(() => vitals.SetJunctionMagic(0, 2, 1));
         Assert.Throws<InvalidOperationException>(() => vitals.SetJunctionMagic(0, 0, 2));

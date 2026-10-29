@@ -194,8 +194,8 @@ public sealed class PartyCharacterSelectionTests
         view.Resize(width, height);
         UiButton choice = Descendants(view.Root).OfType<UiButton>().Single(button => button.Id == characterId);
         float scale = Math.Min(width / view.DesignWidth, height / view.DesignHeight);
-        float offsetX = (width - view.DesignWidth * scale) / 2;
-        float offsetY = (height - view.DesignHeight * scale) / 2;
+        float offsetX = view.ViewportMode == UiViewportMode.Fit ? (width - view.DesignWidth * scale) / 2 : 0;
+        float offsetY = view.ViewportMode == UiViewportMode.Fit ? (height - view.DesignHeight * scale) / 2 : 0;
         view.Pointer(offsetX + (choice.Bounds.X + choice.Bounds.Width / 2) * scale, offsetY + (choice.Bounds.Y + choice.Bounds.Height / 2) * scale, true);
         Assert.Equal("junction", controller.ScreenId);
         Assert.Equal(characterId, controller.Character!.Id);

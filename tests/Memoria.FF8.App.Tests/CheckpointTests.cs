@@ -16,11 +16,12 @@ public sealed class CheckpointTests
         try
         {
             using var assets = new GameAssets(directory);
-            FieldAssets field = assets.LoadField(74);
             var original = GameSession.CreateColdProcess();
             original.StartNewGame();
-            var engine = new EventEngine(original) { AnimationFrameCount = field.GetAnimationFrameCount };
-            engine.LoadField(field.Id, field.Jsm, field.Messages);
+            var clock = new MovieClock(original, directory);
+            using var world = new GameWorld(original, directory, clock, sharedAssets: assets);
+            world.EnsureLoaded();
+            EventEngine engine = world.Events;
             for (int frame = 0; frame < 200 && !original.IsMoviePlaying; frame++)
             {
                 engine.Update(TimeSpan.FromSeconds(1d / 30));
@@ -28,17 +29,15 @@ public sealed class CheckpointTests
             Assert.True(original.IsMoviePlaying);
             Assert.Equal(30, original.State.MovieIndex);
             original.SetMoviePosition(8.25);
-            var clock = new MovieClock(original, directory);
             var information = clock.Prepare();
             original.SetMoviePlayback(new MoviePlaybackState(MovieClock.AbsoluteFrame(8.25, information), information.FrameCount - 1, true, false, false));
             engine.MoviePlayback = () => original.State.MoviePlayback;
-            original.SetEventState(engine.Capture());
+            Assert.Equal(engine.Capture().GetRawText(), original.PrepareSnapshot().EventState!.Value.GetRawText());
             original.Save(checkpoint);
             var resumed = new GameSession(GameSession.Load(checkpoint));
-            var restoredEngine = new EventEngine(resumed) { AnimationFrameCount = field.GetAnimationFrameCount };
-            restoredEngine.LoadField(field.Id, field.Jsm, field.Messages);
-            restoredEngine.Restore(resumed.State.EventState!.Value);
-            restoredEngine.MoviePlayback = () => resumed.State.MoviePlayback;
+            using var restoredWorld = new GameWorld(resumed, directory, new MovieClock(resumed, directory), sharedAssets: assets);
+            restoredWorld.EnsureLoaded();
+            EventEngine restoredEngine = restoredWorld.Events;
             Assert.Equal(8.25, resumed.State.MovieSeconds);
             Assert.Equal(engine.Capture().GetRawText(), restoredEngine.Capture().GetRawText());
             long suspendedFrame = restoredEngine.Frame;

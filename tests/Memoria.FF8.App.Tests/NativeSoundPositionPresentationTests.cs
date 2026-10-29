@@ -23,11 +23,14 @@ public sealed class NativeSoundPositionPresentationTests
             try
             {
                 GameSession session = GameSession.CreateColdProcess();
+                session.StartNewGame();
                 EventEngine engine = new(session) { ResolveGlobalSoundResource = sample => GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(directory, sample)) };
                 string tools = new MovieClock(session, directory).ToolsDirectory;
                 using FieldAudioPresentation presentation = new(directory, tools);
+                presentation.SetOutputPreferences(0, 0);
                 presentation.Attach(engine);
                 engine.LoadField(100, Program((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 69), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.EFFECTPLAY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SEPOSTRANS, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.SEPOS, 0), (Jsm.Opcode.RET, 8)), []);
+                engine.Step();
                 engine.Step();
                 Assert.Null(presentation.Error);
                 IDictionary voices = (IDictionary)typeof(FieldAudioPresentation).GetField("voices", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(presentation)!;
@@ -74,14 +77,17 @@ public sealed class NativeSoundPositionPresentationTests
 
     private static byte[] Program(params (Jsm.Opcode Opcode, int Parameter)[] operations)
     {
-        byte[] bytes = new byte[16 + operations.Length * 4];
+        (Jsm.Opcode Opcode, int Parameter)[] callbacks = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8), (Jsm.Opcode.LBL, 1), .. operations.Skip(1)];
+        byte[] bytes = new byte[16 + callbacks.Length * 4];
         bytes[3] = 1;
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), 10);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6), 16);
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(12), checked((ushort)operations.Length));
-        for (int index = 0; index < operations.Length; index++)
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(12), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), checked((ushort)callbacks.Length));
+        for (int index = 0; index < callbacks.Length; index++)
         {
-            (Jsm.Opcode opcode, int parameter) = operations[index];
+            (Jsm.Opcode opcode, int parameter) = callbacks[index];
             int encoded = parameter != 0 || opcode == Jsm.Opcode.PSHN_L ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
             BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16 + index * 4), encoded);
         }

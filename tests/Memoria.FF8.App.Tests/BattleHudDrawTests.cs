@@ -317,7 +317,7 @@ public sealed class BattleHudDrawTests
             definition.Combatants[3] = definition.Combatants[3] with { NativeDrawSlots = [new(2, 0), new(3, 0), new(0, 0), new(0, 0)] };
             definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false)] };
         }
-        return new(definition, BattleAtbMode.TurnBased);
+        return new(definition with { DrawOncePerSpell = true }, BattleAtbMode.TurnBased);
     }
 
     private static BattleSession CreateWithMagicPool(int stock, bool infinite, bool shared)

@@ -58,7 +58,7 @@ public sealed class BattleSkinLayoutTests
         LayoutCanvas canvas = new();
         view.Draw(canvas, vector ? new VectorUiTheme() : new UiTheme());
 
-        UiRect caption = Assert.Single(canvas.TextDraws, draw => draw.Text == "TARGET").Bounds;
+        UiRect caption = Assert.Single(canvas.TextDraws, draw => draw.Text == "TARGET  < ENEMIES >").Bounds;
         UiRect first = Assert.Single(canvas.TextDraws, draw => draw.Text == "Enemy A").Bounds;
         Assert.True(first.Y + 0.01f >= caption.Bottom, $"First target {first} overlaps caption {caption}.");
         UiRect second = Assert.Single(canvas.TextDraws, draw => draw.Text == "Enemy B").Bounds;

@@ -105,7 +105,7 @@ public sealed class NativeBattleGuardianPresentationTests
         NativeBattleAtbState[] animationGauges = sourceFromFile.Combatants.Select(actor => actor.NativeAtb!).ToArray();
         uint initialUiCounter = sourceFromFile.NativeGraphics!.UiServices!.Counter;
         long initialGraphicsCallback = sourceFromFile.NativeGraphics.Callback;
-        TimeSpan frame = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
+        TimeSpan frame = TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / NativeBattleGraphicsPresentationClock.CallbacksPerSecond));
         bool selected = false;
         bool restoredBeforeEntry = false;
         bool sawEntry = false;

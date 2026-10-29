@@ -76,7 +76,9 @@ public sealed class OpeningMusicTests
             {
                 next = new PlayerAction(PlayerActionKind.Wait);
             }
-            Assert.True(world.Apply(next).Accepted);
+            PlayerActionResult result = world.Apply(next);
+            Assert.True(result.Accepted);
+            AdvanceClosingDialogue(world, next, result);
             audio?.Update();
             if (audio is not null && !playingBeforeClassroom && requests.Any(request => request is { FieldId: 229, Music: 26, ConsumedPending: true }))
             {
@@ -98,6 +100,17 @@ public sealed class OpeningMusicTests
             Assert.True(playingBeforeClassroom);
             Assert.Null(audio.Error);
             Assert.True(audio.IsMidiPlaying, "Original Garden segment must be playing before classroom input is enabled.");
+        }
+    }
+
+    private static void AdvanceClosingDialogue(GameWorld world, PlayerAction action, PlayerActionResult result)
+    {
+        if (action.Kind == PlayerActionKind.Wait && result.FramesAdvanced == 0 && world.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
+        {
+            long frame = world.Events.Frame;
+            world.AdvanceAutoPlayInputFrame();
+            Assert.Equal(frame + 1, world.Events.Frame);
+            Assert.Null(world.Events.LastFault);
         }
     }
 

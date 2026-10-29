@@ -111,10 +111,23 @@ public sealed class StorySafeMovieSkipTests
             }
             DialogueState? dialogue = world.Events.CurrentDialogue;
             PlayerAction action = session.IsMoviePlaying ? new(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new(PlayerActionKind.EnterName, Text: playerName) : dialogue?.FirstChoice is int choice ? new(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new(PlayerActionKind.Confirm) : world.Events.FieldId == 229 && world.Events.CanAcceptMovementInput ? centering++ < 2 ? new(PlayerActionKind.Move, Horizontal: -1) : new(PlayerActionKind.Move, Vertical: 1) : new(PlayerActionKind.Wait);
-            Assert.True(world.Apply(action).Accepted);
+            PlayerActionResult result = world.Apply(action);
+            Assert.True(result.Accepted);
+            AdvanceClosingDialogue(world, action, result);
             Assert.Null(world.Events.LastFault);
         }
         Assert.Fail("The genuine opening route did not reach the corridor movie.");
+    }
+
+    private static void AdvanceClosingDialogue(GameWorld world, PlayerAction action, PlayerActionResult result)
+    {
+        if (action.Kind == PlayerActionKind.Wait && result.FramesAdvanced == 0 && world.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
+        {
+            long frame = world.Events.Frame;
+            world.AdvanceAutoPlayInputFrame();
+            Assert.Equal(frame + 1, world.Events.Frame);
+            Assert.Null(world.Events.LastFault);
+        }
     }
 
     internal static void DecodeThrough(GameSession session, GameWorld world, MovieClock clock, string game, int target)

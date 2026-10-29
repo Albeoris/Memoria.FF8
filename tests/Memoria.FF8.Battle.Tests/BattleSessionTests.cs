@@ -213,11 +213,23 @@ public sealed class BattleSessionTests
     [Fact]
     public void InvalidAttackNeverConsumesGaugeOrAddsCommands()
     {
-        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), Enemy()), BattleAtbMode.TurnBased);
+        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), Enemy(), Enemy() with { Id = "fallen", CurrentHp = 0, NativeStatus0 = 1 }), BattleAtbMode.TurnBased);
         string before = JsonSerializer.Serialize(session.Capture());
-        Assert.Throws<InvalidOperationException>(() => session.QueueAttack("player", "player"));
+        Assert.Throws<InvalidOperationException>(() => session.QueueAttack("player", "fallen"));
         Assert.Throws<ArgumentException>(() => session.QueueAttack("player", "missing"));
         Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
+    }
+
+    [Fact]
+    public void AttackRetainsAnExplicitSameSideTarget()
+    {
+        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), Enemy()), BattleAtbMode.TurnBased);
+        session.QueueAttack("player", "player");
+        BattleAttackCommand command = Assert.Single(session.QueuedActions);
+        Assert.Equal("player", command.TargetId);
+        Assert.Equal(BattleAbility.Attack, command.Ability);
+        Assert.Equal(0, session.Combatants[0].Atb);
+        Assert.True(session.Combatants[0].IsBusy);
     }
 
     [Fact]

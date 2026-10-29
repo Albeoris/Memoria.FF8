@@ -107,7 +107,7 @@ public sealed class BattleComponentGuardianBoostTests
         Assert.Empty(hud.Commands);
         Assert.True(hud.CommandMenuHidden);
         Assert.Contains("GF Boost 0%", hud.Message);
-        Assert.Contains("T: PRESS", hud.Message);
+        Assert.Contains(ButtonPromptText.Mark("T") + ": PRESS", hud.Message);
         Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
         Assert.True(battle.PressNativeGuardianBoost());
         Assert.False(battle.PressNativeGuardianBoost());

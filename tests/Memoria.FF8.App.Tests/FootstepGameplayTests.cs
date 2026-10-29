@@ -158,7 +158,19 @@ public sealed class FootstepGameplayTests
     {
         PlayerActionResult result = world.Apply(action);
         Assert.True(result.Accepted, $"{action} at field{world.Events.FieldId}/frame{world.Events.Frame}: {result.Detail}");
+        AdvanceClosingDialogue(world, action, result);
         Assert.Null(world.Events.LastFault);
+    }
+
+    private static void AdvanceClosingDialogue(GameWorld world, PlayerAction action, PlayerActionResult result)
+    {
+        if (action.Kind == PlayerActionKind.Wait && result.FramesAdvanced == 0 && world.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
+        {
+            long frame = world.Events.Frame;
+            world.AdvanceAutoPlayInputFrame();
+            Assert.Equal(frame + 1, world.Events.Frame);
+            Assert.Null(world.Events.LastFault);
+        }
     }
 
     private static void AssertSameState(GameState first, GameState second, string context)

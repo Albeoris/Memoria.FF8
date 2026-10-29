@@ -93,7 +93,7 @@ public sealed class BattleTurnBasedTimeTests
     }
 
     [Fact]
-    public void LogicalSkipDispatchesPoisonRegenAndNativeDoomBeforeNextReadiness()
+    public void LogicalSkipWaitsForQueuedRegenThenDispatchesPoisonAndNativeDoomBeforeNextReadiness()
     {
         BattleCombatantDefinition doomed = Actor("doomed", true, 1000) with { NativeStatus1 = 0x400, NativeDeathCount = 0 };
         BattleCombatantDefinition ally = Actor("ally", true, 500) with
@@ -117,7 +117,20 @@ public sealed class BattleTurnBasedTimeTests
         battle.Tick();
         restored.Tick();
 
-        Assert.Equal(20, battle.Frame);
+        Assert.Equal(1, battle.Frame);
+        Assert.Equal(500, battle.Combatants[1].CurrentHp);
+        Assert.Equal(58, battle.Capture().Combatants[1].NativeStatus!.Timers[4]);
+        Assert.False(battle.Combatants[1].IsReady);
+        Assert.Contains(battle.QueuedActions, command => command.NativeAction is { Command: 0, ActionId: 4 });
+        Assert.DoesNotContain(battle.Events, item => item.Kind == "Healing" && item.Message.StartsWith("Regen:"));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        for (int callback = 0; callback < 100 && !battle.Combatants[1].IsReady; callback++)
+        {
+            battle.Tick();
+            restored.Tick();
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Assert.True(battle.Frame > 20);
         Assert.False(battle.Combatants[0].IsAlive);
         Assert.True(battle.Combatants[1].IsReady);
         Assert.Equal(540, battle.Combatants[1].CurrentHp);

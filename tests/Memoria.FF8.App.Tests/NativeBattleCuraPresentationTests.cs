@@ -32,6 +32,7 @@ public sealed class NativeBattleCuraPresentationTests
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
+        NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -50,7 +51,9 @@ public sealed class NativeBattleCuraPresentationTests
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([25]),
-            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeSavedOptions = input.Options,
+            NativeInputButtonMap = input.ButtonMap,
+            LimitProgress = game.ReadNewGameLimitProgress(),
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
@@ -80,7 +83,7 @@ public sealed class NativeBattleCuraPresentationTests
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
-        battle = BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
+        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } }));
         BattleScenePresentation scene = new(assets, definition, true);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
@@ -140,7 +143,7 @@ public sealed class NativeBattleCuraPresentationTests
                     exportedFirstEffectFrame = true;
                 }
                 NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                BattleSession plain = BattleSession.Restore(snapshot with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutEffect } });
+                BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutEffect } }));
                 byte[] background = scene.Render(plain, 320, 224);
                 int changedPixels = DifferentRgbPixels(visible, background);
                 if (changedPixels <= peakChangedPixels)

@@ -275,7 +275,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
     {
         for (int callback = 0; callback < 4096; callback++)
         {
-            if (NativeBattleTargetGuardianCastTests.Released(battle.Capture()))
+            if (battle.ActiveAction is null && battle.GuardianForceCasts.Count == 0 && battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 } && NativeBattleTargetGuardianCastTests.Released(battle.Capture()))
             {
                 return;
             }

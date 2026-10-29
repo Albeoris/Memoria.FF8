@@ -22,6 +22,7 @@ public sealed class RemasteredStartupMenuTests
         Set(host, "session", session);
         Set(host, "options", new LaunchOptions { GameDirectory = directory! });
         Set(host, "uiPreferences", new UiPreferences());
+        Set(host, "newGameMagicPreferences", new GameplayPreferences());
         Set(host, "keyboard", new KeyboardInput());
         MethodInfo read = typeof(RecreateGame).GetMethod("ReadLiveMenuData", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Func<MenuData> provider = read.CreateDelegate<Func<MenuData>>(host);

@@ -41,7 +41,7 @@ public sealed class NativeBattleLineRenderingTests
         Assert.InRange(midpoint[0], (byte)127, (byte)128);
         Assert.InRange(midpoint[2], (byte)127, (byte)128);
         Assert.Equal(new byte[] { 0, 0, 0, 255 }, Pixel(pixels, 20, 19));
-        NativeBattlePrimitiveFrame restored = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattlePrimitiveFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         Assert.Equal(pixels, new BattleRenderer(320, 216).RenderNativePrimitiveFrame(restored, null));
     }
 
@@ -103,7 +103,7 @@ public sealed class NativeBattleLineRenderingTests
         NativeBattlePrimitiveFrame frame = Frame(Triangle(0x00000040), line);
         byte[] pixels = new BattleRenderer(320, 216).RenderNativePrimitiveFrame(frame, null).ToArray();
         Assert.Equal(192, Pixel(pixels, 18, 18)[0]);
-        NativeBattlePrimitiveFrame restored = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattlePrimitiveFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         Assert.Equal(pixels, new BattleRenderer(320, 216).RenderNativePrimitiveFrame(restored, null));
     }
 

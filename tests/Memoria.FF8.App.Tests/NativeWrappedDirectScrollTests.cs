@@ -114,6 +114,6 @@ public sealed class NativeWrappedDirectScrollTests
     private static SceneEventState ComponentScene(FieldAssets field)
     {
         NativeFieldInitializationProof proof = new(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm)), 20, NativeFieldInitializationStage.Completed);
-        return JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(new { ModelParts = (NativeFieldModelPartsState?)null, AudioLoadEpoch = 1, NativeSalaryMovementUnits = (byte?)null, BackgroundScrollLayers = Enumerable.Range(0, 8).ToDictionary(layer => layer, _ => new BackgroundScrollSettings(0, 0, 256, 256)), NativeFieldInitialization = proof, NativeFieldLoadVersion = 1, NativeActorLayoutVersion = 1, Party = new[] { 0, 255, 255 } }))!;
+        return JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(new { NativeMovieMask = (NativeMovieMaskState?)null, ModelParts = (NativeFieldModelPartsState?)null, AudioLoadEpoch = 1, NativeLayerZeroScrollCurrent = (NativeLayerZeroScrollCurrent?)null, NativeSalaryMovementUnits = (byte?)null, NativeLadderSpeed490E = (byte?)null, NativeDrawPointDisplayMask = (ushort?)null, DrawPointInteraction = (NativeDrawPointInteraction?)null, BackgroundScrollLayers = Enumerable.Range(0, 8).ToDictionary(layer => layer, _ => new BackgroundScrollSettings(0, 0, 256, 256)), NativeFieldInitialization = proof, NativeFieldLoadVersion = 1, NativeActorLayoutVersion = 1, Party = new[] { 0, 255, 255 } }))!;
     }
 }

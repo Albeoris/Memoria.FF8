@@ -17,7 +17,7 @@ public sealed class MenuViewTests
     public void MainMenuDisplaysSavedNativePlaytime(uint seconds, string expected)
     {
         GameState state = new() { Playtime = new NativePlaytimeState(seconds, 1234, 0) };
-        MenuController menus = new(() => LiveMenuData.Build(state));
+        MenuController menus = new(() => LiveMenuData.Build(state)) { Presentation = MenuPresentation.Classic };
         menus.Open();
 
         Assert.Equal(TimeSpan.FromSeconds(seconds), menus.Data.PlayTime);
@@ -29,7 +29,7 @@ public sealed class MenuViewTests
     public void MainMenuRefreshesPlaytimeFromAdvancedNativeClock()
     {
         GameState state = new() { Playtime = new NativePlaytimeState(3599, 0, 0) };
-        MenuController menus = new(() => LiveMenuData.Build(state));
+        MenuController menus = new(() => LiveMenuData.Build(state)) { Presentation = MenuPresentation.Classic };
         menus.Open();
         Assert.Contains(Descendants(menus.BuildView().Root).OfType<UiLabel>(), label => label.Text.Split('\n').Contains("PLAY  00:59"));
 
@@ -49,7 +49,7 @@ public sealed class MenuViewTests
         {
             foreach (string screen in new[] { "junction-options", "junction-off", "junction-auto" })
             {
-                MenuController menus = new();
+                MenuController menus = new() { Presentation = MenuPresentation.Classic };
                 menus.Open(screen, true);
                 menus.Data.Settings["Text scale"] = textScale;
                 UiView view = menus.BuildView();
@@ -77,7 +77,7 @@ public sealed class MenuViewTests
         string[] entities = ["junction-gf"];
         foreach (string screen in categories.Concat(entities))
         {
-            MenuController menus = new();
+            MenuController menus = new() { Presentation = MenuPresentation.Classic };
             menus.Open(screen, true);
             UiView view = menus.BuildView();
             view.Resize(width, height);
@@ -438,6 +438,7 @@ public sealed class MenuViewTests
         menus.Register(new MenuScreenDefinition
         {
             Id = "mod-settings",
+            GalleryEligible = true,
             Title = "Mod settings",
             Help = "Custom controls",
             MainCommand = true,
@@ -481,6 +482,12 @@ public sealed class MenuViewTests
         public int ClipDepth { get; private set; }
         public int TextCount { get; private set; }
         public List<UiImageSource> Images { get; } = [];
+
+        public UiSize MeasureText(string text, float fontSize, float maximumWidth)
+        {
+            System.Numerics.Vector2 measured = SystemTextLayout.MeasureWrapped(text, fontSize, maximumWidth);
+            return new UiSize(measured.X, measured.Y);
+        }
 
         public void Fill(UiRect bounds, UiColor color)
         {

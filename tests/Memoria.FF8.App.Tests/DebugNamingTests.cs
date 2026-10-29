@@ -95,7 +95,10 @@ public sealed class DebugNamingTests
         for (int input = 0; input < 6000 && world.Events.CurrentDialogue?.IsNamePrompt != true; input++)
         {
             world.EnsureField();
-            Assert.True(world.Apply(OpeningAction(session, world)).Accepted);
+            PlayerAction next = OpeningAction(session, world);
+            PlayerActionResult result = world.Apply(next);
+            Assert.True(result.Accepted);
+            AdvanceClosingDialogue(world, next, result);
         }
         DialogueState prompt = Assert.IsType<DialogueState>(world.Events.CurrentDialogue);
         Assert.True(prompt.IsNamePrompt);
@@ -126,7 +129,10 @@ public sealed class DebugNamingTests
         for (int input = 0; input < 6000 && session.State.FieldId == 74; input++)
         {
             world.EnsureField();
-            Assert.True(world.Apply(OpeningAction(session, world)).Accepted);
+            PlayerAction next = OpeningAction(session, world);
+            PlayerActionResult result = world.Apply(next);
+            Assert.True(result.Accepted);
+            AdvanceClosingDialogue(world, next, result);
         }
         world.EnsureField();
         Assert.NotEqual(74, session.State.FieldId);
@@ -205,6 +211,17 @@ public sealed class DebugNamingTests
                 RenameDoesNotAdvanceFrame = true,
                 LoadedVmAndNextWaitAgree = true
             }, new JsonSerializerOptions { WriteIndented = true }));
+        }
+    }
+
+    private static void AdvanceClosingDialogue(GameWorld world, PlayerAction action, PlayerActionResult result)
+    {
+        if (action.Kind == PlayerActionKind.Wait && result.FramesAdvanced == 0 && world.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
+        {
+            long frame = world.Events.Frame;
+            world.AdvanceAutoPlayInputFrame();
+            Assert.Equal(frame + 1, world.Events.Frame);
+            Assert.Null(world.Events.LastFault);
         }
     }
 

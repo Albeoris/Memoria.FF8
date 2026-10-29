@@ -30,6 +30,20 @@ public sealed class WorldCloudPresentationTests
         Assert.Empty(WorldCloudPresentation.Create(yaw, gradient, 12));
     }
 
+    [Theory]
+    [InlineData(-53, 373)]
+    [InlineData(-352, 672)]
+    public void ExpandedCloudStripKeepsNativeTilesAndCoversBothViewportEdges(float left, float right)
+    {
+        WorldSkyGradient gradient = new(960, default, default, new Rgba32(81, 123, 255));
+        WorldMapLayer native = Assert.Single(WorldCloudPresentation.Create(123, gradient));
+        WorldMapLayer expanded = Assert.Single(WorldCloudPresentation.Create(123, gradient, left: left, right: right));
+        Assert.All(native.Triangles, triangle => Assert.Contains(triangle, expanded.Triangles));
+        Assert.True(expanded.Triangles.Min(triangle => triangle.A.Position.X) <= left);
+        Assert.True(expanded.Triangles.Max(triangle => triangle.C.Position.X) >= right);
+        Assert.True(expanded.Triangles.Count >= native.Triangles.Count);
+    }
+
     [Fact]
     public void InstalledCloudTextureReachesTheBackgroundGpuAndCpuConsumers()
     {

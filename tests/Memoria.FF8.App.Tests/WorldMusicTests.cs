@@ -35,7 +35,7 @@ public sealed class WorldMusicTests
             {
                 break;
             }
-            Assert.True(fixtureWorld.Apply(Automatic(fixtureWorld, session)).Accepted);
+            ApplyAutomatic(fixtureWorld, session);
         }
         Assert.Equal(180, fixtureWorld.Events.FieldId);
         EventEngine engine = fixtureWorld.Events;
@@ -188,6 +188,7 @@ public sealed class WorldMusicTests
             PlayerAction next = world.Events.FieldId == 229 && world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable ? centering++ < 2 ? new PlayerAction(PlayerActionKind.Move, Horizontal: -1) : new PlayerAction(PlayerActionKind.Move, Vertical: 1) : Automatic(world, session);
             PlayerActionResult result = world.Apply(next);
             Assert.True(result.Accepted, $"Fresh world-music route {next} at{world.Events.FieldId}/{world.Events.Frame}: {result.Detail}, trigger{world.Events.NextTrigger}.");
+            AdvanceClosingDialogue(world, next, result);
         }
         Assert.Equal(232, world.Field!.Id);
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Move, Vertical: -1, Frames: 90)).Accepted);
@@ -195,7 +196,7 @@ public sealed class WorldMusicTests
         FinishAutomatic(world, session);
         for (int input = 0; input < 3000 && world.Events.Actors.Where(actor => actor.ObjectId is 14 or 15 or 16).Any(actor => actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null); input++)
         {
-            Assert.True(world.Apply(Automatic(world, session)).Accepted);
+            ApplyAutomatic(world, session);
         }
         IfritCausalRecreationTests.WalkAdvisoryPoint(world, session, new Vector2(500, world.Events.PlayerActor!.Y));
         IfritCausalRecreationTests.WalkAdvisoryPoint(world, session, new Vector2(650, -2850));
@@ -218,9 +219,28 @@ public sealed class WorldMusicTests
             {
                 return;
             }
-            Assert.True(world.Apply(Automatic(world, session)).Accepted);
+            ApplyAutomatic(world, session);
         }
         Assert.Fail("Ordinary automatic dialogue/field callbacks exceeded the bounded route.");
+    }
+
+    private static void ApplyAutomatic(GameWorld world, GameSession session)
+    {
+        PlayerAction action = Automatic(world, session);
+        PlayerActionResult result = world.Apply(action);
+        Assert.True(result.Accepted);
+        AdvanceClosingDialogue(world, action, result);
+    }
+
+    private static void AdvanceClosingDialogue(GameWorld world, PlayerAction action, PlayerActionResult result)
+    {
+        if (action.Kind == PlayerActionKind.Wait && result.FramesAdvanced == 0 && world.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
+        {
+            long frame = world.Events.Frame;
+            world.AdvanceAutoPlayInputFrame();
+            Assert.Equal(frame + 1, world.Events.Frame);
+            Assert.Null(world.Events.LastFault);
+        }
     }
 
     private static PlayerAction Automatic(GameWorld world, GameSession session)

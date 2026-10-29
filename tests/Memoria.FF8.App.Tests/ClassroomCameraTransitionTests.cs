@@ -44,7 +44,9 @@ public sealed class ClassroomCameraTransitionTests
             {
                 next = new(PlayerActionKind.Wait);
             }
-            Assert.True(world.Apply(next).Accepted);
+            PlayerActionResult result = world.Apply(next);
+            Assert.True(result.Accepted);
+            AdvanceClosingDialogue(world, next, result);
         }
         world.EnsureField();
         Assert.Equal(232, world.Field!.Id);
@@ -56,7 +58,10 @@ public sealed class ClassroomCameraTransitionTests
         for (int callback = 0; callback < 1000 && !returnSeen; callback++)
         {
             int previousCamera = world.Events.Scene.CameraIndex;
-            Assert.True(world.Apply(new PlayerAction(world.Events.CanConfirmDialogue ? PlayerActionKind.Confirm : PlayerActionKind.Wait)).Accepted);
+            PlayerAction next = new(world.Events.CanConfirmDialogue ? PlayerActionKind.Confirm : PlayerActionKind.Wait);
+            PlayerActionResult result = world.Apply(next);
+            Assert.True(result.Accepted);
+            AdvanceClosingDialogue(world, next, result);
             int camera = world.Events.Scene.CameraIndex;
             if (previousCamera == 1 && camera == 0)
             {
@@ -107,5 +112,16 @@ public sealed class ClassroomCameraTransitionTests
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), replay.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), replay.Render(TimeSpan.Zero));
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State with { EventState = world.Events.Capture() }), JsonSerializer.SerializeToElement(replaySession.State with { EventState = replay.Events.Capture() })), "The next ordinary input must retain the complete reconstructed GameState.");
+    }
+
+    private static void AdvanceClosingDialogue(GameWorld world, PlayerAction action, PlayerActionResult result)
+    {
+        if (action.Kind == PlayerActionKind.Wait && result.FramesAdvanced == 0 && world.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
+        {
+            long frame = world.Events.Frame;
+            world.AdvanceAutoPlayInputFrame();
+            Assert.Equal(frame + 1, world.Events.Frame);
+            Assert.Null(world.Events.LastFault);
+        }
     }
 }

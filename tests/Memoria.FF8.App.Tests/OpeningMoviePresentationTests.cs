@@ -25,7 +25,7 @@ public sealed class OpeningMoviePresentationTests
         File.WriteAllText(Path.Combine(root, "requests", "001.json"), "{\"Id\":\"new-game\",\"Command\":\"new-game\"}");
         MovieClock clock = new(GameSession.CreateColdProcess(), game, Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS"));
         ProcessStartInfo start = new(Path.Combine(AppContext.BaseDirectory, "Memoria.FF8.exe")) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (string argument in new[] { "--game-dir", game, "--media-tools", clock.ToolsDirectory, "--control-dir", root, "--settings-dir", settings, "--resolution", "320x240", "--capture-frame", capture, "--capture-after", "10", "--exit-after", "12" })
+        foreach (string argument in new[] { "--game-dir", game, "--media-tools", clock.ToolsDirectory, "--control-dir", root, "--settings-dir", settings, "--resolution", "320x240", "--exit-after", "40" })
         {
             start.ArgumentList.Add(argument);
         }
@@ -36,30 +36,55 @@ public sealed class OpeningMoviePresentationTests
         {
             using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(45));
-            while (!File.Exists(capture) && !process.HasExited)
+            int sequence = 2;
+            JsonElement state;
+            do
             {
+                state = await Request("status");
+                if (state.GetProperty("Scene").GetString() == "Movie" && state.GetProperty("MoviePlayback") is { ValueKind: JsonValueKind.Object } playback && playback.GetProperty("FrameIndex").GetInt32() >= 150)
+                {
+                    break;
+                }
                 await Task.Delay(20, timeout.Token);
             }
-            string request = Path.Combine(root, "requests", "002.json");
-            File.WriteAllText(request + ".tmp", "{\"Id\":\"status\",\"Command\":\"status\",\"Compact\":true}");
-            File.Move(request + ".tmp", request);
+            while (!process.HasExited);
+            Assert.Equal("Movie", state.GetProperty("Scene").GetString());
+            Assert.True(state.GetProperty("MoviePlayback").GetProperty("FrameIndex").GetInt32() >= 150);
+            await Request("capture", capture);
+            string quit = Path.Combine(root, "requests", $"{sequence:D3}.json");
+            File.WriteAllText(quit + ".tmp", JsonSerializer.Serialize(new { Id = "quit", Command = "quit" }));
+            File.Move(quit + ".tmp", quit);
             await process.WaitForExitAsync(timeout.Token);
+
+            async Task<JsonElement> Request(string command, string? path = null)
+            {
+                string id = $"{sequence++:D3}";
+                string request = Path.Combine(root, "requests", id + ".json");
+                string response = Path.Combine(root, "responses", id + ".json");
+                File.WriteAllText(request + ".tmp", JsonSerializer.Serialize(new { Id = id, Command = command, Compact = true, Path = path }));
+                File.Move(request + ".tmp", request);
+                while (!File.Exists(response) && !process.HasExited)
+                {
+                    await Task.Delay(20, timeout.Token);
+                }
+                Assert.True(File.Exists(response), $"Host exited before {command} receipt {id}.");
+                using JsonDocument receipt = JsonDocument.Parse(File.ReadAllText(response));
+                Assert.True(receipt.RootElement.GetProperty("Ok").GetBoolean(), receipt.RootElement.GetRawText());
+                return receipt.RootElement.GetProperty("Result").Clone();
+            }
+
             string stdout = await output;
             string stderr = await errors;
             Assert.True(process.ExitCode == 0, stdout + Environment.NewLine + stderr);
             Assert.True(string.IsNullOrWhiteSpace(stderr), stderr);
             Assert.Contains("movie-frame=0", stdout);
             Assert.True(File.Exists(capture), stdout);
-            string response = Path.Combine(root, "responses", "002.json");
-            Assert.True(File.Exists(response), stdout);
-            using JsonDocument status = JsonDocument.Parse(File.ReadAllText(response));
-            Assert.True(status.RootElement.GetProperty("Ok").GetBoolean());
-            JsonElement state = status.RootElement.GetProperty("Result");
+
             Assert.False(state.GetProperty("FieldFaulted").GetBoolean());
             Assert.False(state.GetProperty("FieldRenderFaulted").GetBoolean());
             Assert.Equal(JsonValueKind.Null, state.GetProperty("Error").ValueKind);
             Assert.Equal("Movie", state.GetProperty("Scene").GetString());
-            Assert.True(state.GetProperty("MoviePlayback").GetProperty("FrameIndex").GetInt32() >= 100);
+            Assert.True(state.GetProperty("MoviePlayback").GetProperty("FrameIndex").GetInt32() >= 150);
             using SkiaSharp.SKBitmap image = SkiaSharp.SKBitmap.Decode(capture);
             int visible = 0;
             //Exclude letterboxing and the host's skip hint: only actual movie pixels count.

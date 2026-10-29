@@ -457,7 +457,7 @@ internal sealed partial class AutoPlayController
                 session.SetDepartingFieldState(world.Events.Capture());
             }
         }
-        return session.State;
+        return session.PrepareSnapshot();
     }
 
     private void Tick()
@@ -589,6 +589,12 @@ internal sealed partial class AutoPlayController
             run.ObserveContactInput = false;
             HandleDialogue(dialogue);
             run.SettleFrames = 0;
+            return;
+        }
+        if (session.State.Scene == SceneKind.Field && world.Events.PartyMenu is null && world.Events.PendingHostedBattle is null && world.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
+        {
+            run.SettleFrames = 0;
+            AdvanceInputFrame(world);
             return;
         }
         if (world.Events.PartyMenu is not null)

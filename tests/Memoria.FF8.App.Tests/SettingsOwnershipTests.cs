@@ -9,9 +9,9 @@ public sealed class SettingsOwnershipTests
     [Fact]
     public void Every_registry_entry_has_an_explicit_disposition_and_supported_owner()
     {
-        Assert.Equal(54, MenuSettings.Definitions.Count);
+        Assert.Equal(55, MenuSettings.Definitions.Count);
         Assert.Equal(MenuSettings.Definitions.Select(setting => setting.Id).Order(), SettingsPlacement.All.Select(placement => placement.LegacyKey).Order());
-        Assert.Equal(54, SettingsPlacement.All.Select(placement => placement.Identity).Distinct().Count());
+        Assert.Equal(55, SettingsPlacement.All.Select(placement => placement.Identity).Distinct().Count());
         Assert.Equal(new[] { "Controller", "Sound" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Excluded).Select(placement => placement.LegacyKey).Order());
         Assert.Equal(new[] { "ATB", "Battle control", "Battle message", "Battle speed", "Camera movement", "Scan" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Fixture).Select(placement => placement.LegacyKey).Order());
         Assert.Equal(new[] { "Battle policy", "Random encounters" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Developer).Select(placement => placement.LegacyKey).Order());
@@ -22,6 +22,11 @@ public sealed class SettingsOwnershipTests
             Assert.NotEmpty(placement.Scope);
         });
         Assert.Equal("config-controller-settings", SettingsPlacement.All.Single(placement => placement.LegacyKey == "Vibration").Page);
+        SettingPlacement guardianForms = Assert.Single(SettingsPlacement.All, placement => placement.LegacyKey == "GF Transformations");
+        Assert.Equal(SettingsAudience.Player, guardianForms.Audience);
+        Assert.Equal("config-magic", guardianForms.Page);
+        Assert.Equal("GameplayPreferences.GuardianFormsEnabled", guardianForms.Target);
+        Assert.Equal("Game / Title default", guardianForms.Scope);
         SettingPlacement slots = Assert.Single(SettingsPlacement.All, placement => placement.LegacyKey == "Selphie card Slots");
         Assert.Equal(SettingsAudience.Player, slots.Audience);
         Assert.Equal("config-combat", slots.Page);
@@ -53,7 +58,7 @@ public sealed class SettingsOwnershipTests
             }
         }
         Assert.Equal(player.Count, player.Distinct().Count());
-        Assert.Equal(44, player.Count);
+        Assert.Equal(45, player.Count);
         menus.Open("debug-battle", true);
         List<string> developer = menus.Entries.Where(entry => SettingsPlacement.All.Any(placement => placement.LegacyKey == entry.Id)).Select(entry => SettingsPlacement.All.Single(placement => placement.LegacyKey == entry.Id)).Select(placement => placement.Target + "/" + placement.Scope).ToList();
         Assert.Equal(2, developer.Count);

@@ -73,8 +73,20 @@ public sealed class BattleActionTests
         BattleSession session = Create();
         string before = JsonSerializer.Serialize(session.Capture());
         Assert.Throws<NotSupportedException>(() => session.QueueAction("party", "enemy", BattleAbility.Magic, 99));
-        Assert.Throws<InvalidOperationException>(() => session.QueueAction("party", "enemy", BattleAbility.Item, 1));
+        Assert.Throws<InvalidOperationException>(() => session.QueueAction("party", "fallen", BattleAbility.Item, 1));
         Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
+    }
+
+    [Fact]
+    public void SingleTargetItemRetainsTheSelectedLivingOpponent()
+    {
+        BattleSession session = Create();
+        session.QueueAction("party", "enemy", BattleAbility.Item, 1);
+        BattleAttackCommand command = Assert.Single(session.QueuedActions);
+        Assert.Equal("enemy", command.TargetId);
+        Assert.Equal(BattleAbility.Item, command.Ability);
+        Assert.Equal(0, session.Combatants[0].Atb);
+        Assert.True(session.Combatants[0].IsBusy);
     }
 
     [Fact]

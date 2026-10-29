@@ -22,8 +22,10 @@ public sealed class PlayerLocomotionAnimationTests
                 break;
             }
             DialogueState? dialogue = world.Events.CurrentDialogue;
-            PlayerAction next = session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Squall") : dialogue?.FirstChoice is int choice ? new PlayerAction(PlayerActionKind.Choose, choice) : dialogue is not null ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
-            Assert.True(world.Apply(next).Accepted);
+            PlayerAction next = session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Squall") : dialogue?.FirstChoice is int choice ? new PlayerAction(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
+            PlayerActionResult result = world.Apply(next);
+            Assert.True(result.Accepted);
+            AdvanceClosingDialogue(world, next, result);
         }
         Assert.Equal(229, world.Field!.Id);
         Assert.Equal(PlayerTriggerKind.Playable, world.Events.NextTrigger.Kind);
@@ -87,4 +89,15 @@ public sealed class PlayerLocomotionAnimationTests
         Assert.Equal(world.Render(TimeSpan.Zero), independent.Render(TimeSpan.Zero));
         Console.WriteLine("Authentic New Game snapshot continuation matches complete GameState, CPU pixels and the next ordinary moving callback; both implementations are current Memoria.");
     }
+    private static void AdvanceClosingDialogue(GameWorld world, PlayerAction action, PlayerActionResult result)
+    {
+        if (action.Kind == PlayerActionKind.Wait && result.FramesAdvanced == 0 && world.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
+        {
+            long frame = world.Events.Frame;
+            world.AdvanceAutoPlayInputFrame();
+            Assert.Equal(frame + 1, world.Events.Frame);
+            Assert.Null(world.Events.LastFault);
+        }
+    }
+
 }

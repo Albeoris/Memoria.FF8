@@ -39,7 +39,7 @@ public sealed class NativeBattleGuardianSkipPresentationTests
         Assert.False(synchronous.GuardianAnimationSkipPending);
 
         long initial = sliced.NativeGraphics!.Callback;
-        sliced.AdvanceNativeGraphicsPresentation(TimeSpan.FromSeconds(1), TimeSpan.Zero);
+        sliced.AdvanceNativeGraphicsPresentation(TimeSpan.Zero, TimeSpan.Zero);
         Assert.Equal(initial + 1, sliced.NativeGraphics!.Callback);
         Assert.True(sliced.GuardianAnimationSkipPending);
         Assert.Equal(visible, scene.Render(sliced, 320, 224).ToArray());
@@ -55,7 +55,7 @@ public sealed class NativeBattleGuardianSkipPresentationTests
         while (slices < 4096 && sliced.GuardianAnimationSkipPending)
         {
             long before = sliced.NativeGraphics!.Callback;
-            sliced.AdvanceNativeGraphicsPresentation(TimeSpan.FromSeconds(1), TimeSpan.Zero);
+            sliced.AdvanceNativeGraphicsPresentation(TimeSpan.Zero, TimeSpan.Zero);
             Assert.Equal(before + 1, sliced.NativeGraphics!.Callback);
             slices++;
         }
@@ -68,7 +68,7 @@ public sealed class NativeBattleGuardianSkipPresentationTests
         Assert.Equal(finale, restoredScene.Render(sliced, 320, 224).ToArray());
 
         long firstFinale = sliced.NativeGraphics!.Callback;
-        sliced.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30), TimeSpan.Zero);
+        sliced.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / NativeBattleGraphicsPresentationClock.CallbacksPerSecond)), TimeSpan.Zero);
         Assert.Equal(firstFinale + 1, sliced.NativeGraphics!.Callback);
     }
 }

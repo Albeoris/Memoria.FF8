@@ -34,7 +34,7 @@ public sealed class DialogueWindowTests
         string source = field.Messages[0];
         DialogueState dialogue = new(1, 0, source, 30, 15);
         using var measure = SystemTextLayout.CreateMeasurer(8, "Arial");
-        DialogueDocument document = DialogueTextFormatter.Parse(source);
+        DialogueDocument document = DialogueTextFormatter.Parse(source, terms: assets.ReadNativeTextTerms());
         Assert.Single(document.Pages);
         DialogueVisualPage page = Assert.Single(DialogueLayout.Create(document, dialogue, null, measure.LineHeight, measure.Measure));
         Assert.Equal(document.Pages[0].Lines.Count, page.Lines.Count);

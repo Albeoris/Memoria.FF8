@@ -78,12 +78,13 @@ public sealed class NativeActorCameraOneScrollTests
         FieldCamera camera0 = new(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, new(90, -10, 3896), Vector2.Zero, 640);
         FieldCamera camera1 = camera0 with { Translation = new(300, -10, 3896) };
         FieldInformation information = new(0, 200, Enumerable.Repeat(new FieldBounds(-512, 512, 512, -512), 8).ToArray(), [new(0, 224, 320, 0)], [], []);
-        FieldAssets field = new(600, "synthetic-independent-camera-records", script, [], [], camera0, new([]), [new FieldModel("synthetic", [], [], [], [], [])]) { Cameras = [camera0, camera1], Information = information };
+        FieldAssets field = new(600, "synthetic-independent-camera-records", script, [], [], camera0, new([]), [new FieldModel("synthetic", [], [], [], [], [])]) { Cameras = [camera0, camera1], Information = information, NativeExecutableHash = NativeFieldRuntimeProfile.FF8EnExecutableHash };
         NativeFieldInitializationProof proof = new(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, field.Id, Convert.ToHexString(SHA256.HashData(script)), 20, NativeFieldInitializationStage.Completed);
         SceneEventState scene = Scene(new { AudioLoadEpoch = 1, NativeLayerZeroScrollCurrent = new NativeLayerZeroScrollCurrent(1, 0, 0), CameraIndex = 1, NativeFieldInitialization = proof, NativeFieldLoadVersion = 1, NativeActorLayoutVersion = 1, NativeActorObjectIds = new[] { 0, 1 }, FieldPartyNativeActorIds = new[] { 0, 255, 255 }, ActorBackgroundScroll = new NativeActorBackgroundScroll(1, 1, 1, 1, 1, 0, 0, 7, -28) });
         ActorState leader = Actor(0, -45, -170);
         ActorState target = Actor(1, -80, 110);
         ActorState[] actors = [leader, target];
+        Assert.Null(ActorBackgroundScrollCertificate.Resolve(field with { NativeExecutableHash = null }, scene, actors, 1));
         Assert.Equal(((short)0, (short)0), ActorBackgroundScrollCertificate.Resolve(field, scene, actors, 1));
         Assert.Null(ActorBackgroundScrollCertificate.Prepare(field, scene));
         Assert.True(ActorBackgroundScrollCertificate.CanRestore(field, scene, actors));

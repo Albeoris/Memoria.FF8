@@ -11,7 +11,7 @@ public sealed class NativeColdProcessSessionTests
         byte[] bytes = new byte[NativeBattleQuezacotlExecutableMemory.Length];
         bytes[17] = 0xA5;
         NativeBattleRetainedMemory memory = NativeBattleRetainedMemory.FromColdProcess();
-        memory = memory with { EffectMemory = memory.EffectMemory! with { QuezacotlExecutableMemory = new(bytes.ToImmutableArray()) } };
+        memory = NativeBattleStorageSnapshots.Capture(memory with { EffectMemory = memory.EffectMemory! with { QuezacotlExecutableMemory = new(bytes.ToImmutableArray()) } });
         GameSession session = GameSession.CreateColdProcess();
         int creations = 0;
         GameSession CreateColdProcess()
@@ -30,7 +30,7 @@ public sealed class NativeColdProcessSessionTests
 
         byte[] changed = (byte[])bytes.Clone();
         changed[17] = 0x5A;
-        GameState modified = saved with { NativeBattleMemory = memory with { EffectMemory = memory.EffectMemory! with { QuezacotlExecutableMemory = new(changed.ToImmutableArray()) } } };
+        GameState modified = saved with { NativeBattleMemory = NativeBattleStorageSnapshots.Capture(memory with { EffectMemory = memory.EffectMemory! with { QuezacotlExecutableMemory = new(changed.ToImmutableArray()) } }) };
         session.Restore(modified);
         string roundTrip = Path.Combine(directory, "modified.json");
         session.Save(roundTrip, compact: true);

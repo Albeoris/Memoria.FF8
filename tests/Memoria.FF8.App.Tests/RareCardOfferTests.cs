@@ -33,7 +33,7 @@ public sealed class RareCardOfferTests
         Assert.Empty(Create(Challenge(122, 50)).Engine.GetRareCardOffers());
         Assert.Empty(Create(Challenge(121, 50), quantity: 4).Engine.GetRareCardOffers());
         var busy = Create(Challenge(121, 50));
-        typeof(EventEngine).GetMethod("Queue", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(busy.Engine, [0, 2, 7, false]);
+        typeof(EventEngine).GetMethod("Queue", BindingFlags.Instance | BindingFlags.NonPublic, [typeof(int), typeof(int), typeof(int), typeof(bool)])!.Invoke(busy.Engine, [0, 2, 7, false]);
         Assert.Empty(busy.Engine.GetRareCardOffers());
     }
 

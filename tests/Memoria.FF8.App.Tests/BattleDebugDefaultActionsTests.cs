@@ -42,6 +42,11 @@ public sealed class BattleDebugDefaultActionsTests
         hud.Navigate(MenuInput.Confirm);
         hud.Navigate(MenuInput.Confirm);
         Assert.Equal(BattleAbility.Magic, Assert.Single(battle.QueuedActions).Ability);
+        Assert.Equal(4, Assert.Single(battle.Combatants[0].MagicStocks).Count);
+        for (int frame = 0; frame < 40 && battle.Combatants[0].MagicStocks[0].Count == 4; frame++)
+        {
+            battle.Tick();
+        }
         Assert.Equal(3, Assert.Single(battle.Combatants[0].MagicStocks).Count);
         actions[0] = actions[0] with { Power = 255 };
         items[0] = items[0] with { Count = 1 };
@@ -72,6 +77,12 @@ public sealed class BattleDebugDefaultActionsTests
         BattleDefinition definition = new() { Combatants = [actor, BattleDebugDefaults.Dummy], ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 18, false)], Items = [new(1, 2)] };
         BattleSession active = new(definition, BattleAtbMode.TurnBased);
         active.QueueAction("party-0", "enemy-0", BattleAbility.Magic, 1);
+        Assert.Equal(2, Assert.Single(active.Combatants[0].MagicStocks).Count);
+        for (int frame = 0; frame < 40 && active.Combatants[0].MagicStocks[0].Count == 2; frame++)
+        {
+            active.Tick();
+        }
+        Assert.Equal(1, Assert.Single(active.Combatants[0].MagicStocks).Count);
         BattleDefinition defaults = BattleDebugDefaults.Create([actor], null, 0, active, definition.ActionDefinitions, [new(1, 99)]);
         Assert.Equal(new BattleStock(1, 1), Assert.Single(defaults.Combatants[0].MagicStocks));
         Assert.Equal(new BattleStock(1, 2), Assert.Single(defaults.Items));

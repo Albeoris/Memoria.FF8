@@ -13,10 +13,11 @@ public sealed class NativeBattlePosePresentationTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
+        NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
         BattleEncounter encounter = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(encounter.StageId);
         BattleCombatantDefinition[] actors = [new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum }, new() { Id = "ifrit", Name = "Ifrit", ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot }];
-        BattleDefinition definition = new() { EncounterId = 94, StageId = encounter.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCrtRandom = new(0), NativeModuleResources = game.ReadNativeBattleModuleResources(), NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter), NativeStageSource = stage.NativeSource, NativeStageCameraBank = stage.NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = stage.NativeCameraControl, Combatants = actors };
+        BattleDefinition definition = new() { EncounterId = 94, StageId = encounter.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeSavedOptions = input.Options, NativeInputButtonMap = input.ButtonMap, LimitProgress = game.ReadNewGameLimitProgress(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCrtRandom = new(0), NativeModuleResources = game.ReadNativeBattleModuleResources(), NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter), NativeStageSource = stage.NativeSource, NativeStageCameraBank = stage.NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = stage.NativeCameraControl, Combatants = actors };
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         for (int frame = 0; frame < 100 && !session.NativeGraphics!.EntryReady; frame++)
@@ -27,7 +28,7 @@ public sealed class NativeBattlePosePresentationTests
         Assert.True(session.Combatants[0].IsReady);
         AssertEntrySoundAllocation(session);
         BattleSnapshot saved = session.Capture();
-        session = BattleSession.Restore(saved with { NativeGraphics = saved.NativeGraphics! with { ModuleEffects = saved.NativeGraphics.ModuleEffects.AppendModelResource(0, definition.NativeModuleResources[39], 0x100027) } });
+        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved with { NativeGraphics = saved.NativeGraphics! with { ModuleEffects = NativeBattleStorageSnapshots.Restore(saved.NativeGraphics.ModuleEffects).AppendModelResource(0, definition.NativeModuleResources[39], 0x100027) } }));
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
         audio.Update(session);
@@ -63,10 +64,11 @@ public sealed class NativeBattlePosePresentationTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
+        NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
         BattleEncounter encounter = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(encounter.StageId);
         BattleCombatantDefinition[] actors = [new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum }, new() { Id = "ifrit", Name = "Ifrit", ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot }];
-        BattleDefinition definition = new() { EncounterId = 94, StageId = encounter.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCrtRandom = new(0), NativeModuleResources = game.ReadNativeBattleModuleResources(), NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter), NativeStageSource = stage.NativeSource, NativeStageCameraBank = stage.NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = stage.NativeCameraControl, Combatants = actors };
+        BattleDefinition definition = new() { EncounterId = 94, StageId = encounter.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeSavedOptions = input.Options, NativeInputButtonMap = input.ButtonMap, LimitProgress = game.ReadNewGameLimitProgress(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCrtRandom = new(0), NativeModuleResources = game.ReadNativeBattleModuleResources(), NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter), NativeStageSource = stage.NativeSource, NativeStageCameraBank = stage.NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = stage.NativeCameraControl, Combatants = actors };
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         for (int frame = 0; frame < 100 && !session.NativeGraphics!.EntryReady; frame++)
@@ -80,7 +82,7 @@ public sealed class NativeBattlePosePresentationTests
         NativeBattleVector position = saved.NativeGraphics.Models[index].Transform!.Position28;
         byte pan = saved.NativeCamera!.Projection!.ReadPan(position);
         NativeBattleContactPacket contact = new(new(checked((byte)index), 5, 0x40, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0));
-        session = BattleSession.Restore(saved with { NativeGraphics = saved.NativeGraphics with { PendingContacts = [contact] } });
+        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved with { NativeGraphics = saved.NativeGraphics with { PendingContacts = [contact] } }));
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
         audio.Update(session);
@@ -152,10 +154,11 @@ public sealed class NativeBattlePosePresentationTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
+        NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
         BattleEncounter encounter = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(encounter.StageId);
         BattleCombatantDefinition[] actors = new[] { 0, 3, 4 }.Select(character => new BattleCombatantDefinition { Id = $"party-{character}", Name = $"Character{character}", IsPlayer = true, ModelId = character, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == character).Id, InitialAtb = BattleSession.AtbMaximum }).Append(new() { Id = "ifrit", Name = "Ifrit", ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot }).ToArray();
-        BattleDefinition definition = new() { EncounterId = 94, StageId = encounter.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter), NativeStageSource = stage.NativeSource, NativeStageCameraBank = stage.NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = stage.NativeCameraControl, Combatants = actors };
+        BattleDefinition definition = new() { EncounterId = 94, StageId = encounter.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeSavedOptions = input.Options, NativeInputButtonMap = input.ButtonMap, LimitProgress = game.ReadNewGameLimitProgress(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter), NativeStageSource = stage.NativeSource, NativeStageCameraBank = stage.NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = stage.NativeCameraControl, Combatants = actors };
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         BattleScenePresentation scene = new(assets, definition, true);

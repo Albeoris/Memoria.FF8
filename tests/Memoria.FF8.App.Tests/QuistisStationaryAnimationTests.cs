@@ -23,7 +23,9 @@ public sealed class QuistisStationaryAnimationTests
             }
             DialogueState? dialogue = world.Events.CurrentDialogue;
             PlayerAction next = session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Squall") : dialogue?.FirstChoice is int choice ? new PlayerAction(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
-            Assert.True(world.Apply(next).Accepted);
+            PlayerActionResult result = world.Apply(next);
+            Assert.True(result.Accepted);
+            AdvanceClosingDialogue(world, next, result);
         }
         Assert.Equal(229, world.Events.FieldId);
         // Keep the original corridor lane: lateral input reduces the peer distance and hides the reversed-radius defect.
@@ -109,7 +111,9 @@ public sealed class QuistisStationaryAnimationTests
             }
             DialogueState? dialogue = world.Events.CurrentDialogue;
             PlayerAction next = session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Squall") : dialogue?.FirstChoice is int choice ? new PlayerAction(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new PlayerAction(PlayerActionKind.Confirm) : world.Events.FieldId == 229 && world.Events.CanAcceptMovementInput ? new PlayerAction(PlayerActionKind.Move, Vertical: 1) : new PlayerAction(PlayerActionKind.Wait);
-            Assert.True(world.Apply(next).Accepted);
+            PlayerActionResult result = world.Apply(next);
+            Assert.True(result.Accepted);
+            AdvanceClosingDialogue(world, next, result);
         }
         Assert.Equal(229, world.Events.FieldId);
         DialogueState message = Assert.IsType<DialogueState>(world.Events.CurrentDialogue);
@@ -132,4 +136,15 @@ public sealed class QuistisStationaryAnimationTests
         }
         Console.WriteLine($"Final Quistis message10 stays open for 180 genuine callbacks at player({world.Events.PlayerActor!.X},{world.Events.PlayerActor.Y}); script-selected animation{animation} is preserved.");
     }
+    private static void AdvanceClosingDialogue(GameWorld world, PlayerAction action, PlayerActionResult result)
+    {
+        if (action.Kind == PlayerActionKind.Wait && result.FramesAdvanced == 0 && world.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
+        {
+            long frame = world.Events.Frame;
+            world.AdvanceAutoPlayInputFrame();
+            Assert.Equal(frame + 1, world.Events.Frame);
+            Assert.Null(world.Events.LastFault);
+        }
+    }
+
 }

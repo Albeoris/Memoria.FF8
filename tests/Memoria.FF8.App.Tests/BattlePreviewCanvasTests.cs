@@ -179,9 +179,9 @@ public sealed class BattlePreviewCanvasTests
         }
         Assert.True(hud.SelectingTarget);
         Assert.Equal(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(20, 20).ToArgb());
-        Assert.Equal(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(300, 550).ToArgb());
+        Assert.Equal(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(450, 550).ToArgb());
         Assert.Equal(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(940, 620).ToArgb());
-        Assert.NotEqual(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(32, 520).ToArgb());
+        Assert.NotEqual(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(300, 550).ToArgb());
         Assert.Equal(0, session.Frame);
         Assert.Empty(session.QueuedActions);
     }

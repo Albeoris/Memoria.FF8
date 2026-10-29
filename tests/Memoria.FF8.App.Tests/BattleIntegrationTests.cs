@@ -65,6 +65,7 @@ public sealed class BattleIntegrationTests
         engine.Step();
         Assert.Equal(PlayerTriggerKind.Battle, engine.NextTrigger.Kind);
         Assert.NotNull(engine.PendingInteractiveBattle);
+        Assert.Contains(engine.Scene.NativeBattleFlagWrites!, write => write.Writer == NativeBattleFlagWriter.BattleMode && write.RawOperand == 0 && write.PersistentFlags == 0);
         JsonElement before = engine.Capture();
         engine.Step();
         PlayerActionResult input = engine.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 20));
@@ -73,7 +74,7 @@ public sealed class BattleIntegrationTests
         Assert.True(JsonElement.DeepEquals(before, engine.Capture()));
         Assert.False(session.State.Variables.ContainsKey(800));
 
-        GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State with { EventState = before }))!;
+        GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.PrepareSnapshot() with { EventState = before }))!;
         GameSession restoredSession = new(saved);
         EventEngine restored = CreateEngine(restoredSession);
         restored.LoadField(FixtureField, source, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -161,7 +162,7 @@ public sealed class BattleIntegrationTests
         engine.Step();
         Assert.Equal(fieldFrame, engine.Frame);
 
-        GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State with { EventState = pending }))!;
+        GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.PrepareSnapshot() with { EventState = pending }))!;
         GameSession restoredSession = new(saved);
         EventEngine restored = CreateEngine(restoredSession);
         restored.LoadField(FixtureField, source, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -218,8 +219,7 @@ public sealed class BattleIntegrationTests
     {
         // Script0 is the native synchronous initializer; yielding BATTLE/MOVIEREADY belongs to
         // script1 on an ordinary callback, exactly as in HostedAutomaticBattleTests.
-        operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0), .. operations];
-        operations[2] = (Jsm.Opcode.LBL, 1);
+        operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0), (Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLEMODE, 0), .. operations.Skip(1)];
         const int operationsOffset = 16;
         byte[] bytes = new byte[operationsOffset + operations.Length * 4];
         bytes[3] = 1;

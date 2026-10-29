@@ -10,10 +10,12 @@ internal static partial class Program
 {
     private static void NativeScalarMemoryContract()
     {
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
+        byte[] content = BattleModeCallbackProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
         GameSession session = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0), WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame() });
         EventEngine engine = new(session);
         engine.LoadField(999, content, []);
+        engine.Step();
+        Require(engine.Frame == 1 && session.ExamTimer!.ClockCalls == 0, "Scalar fixture initialization advanced its timer clock.");
         engine.Step();
         try
         {
@@ -24,14 +26,15 @@ internal static partial class Program
         {
         }
         JsonElement held = engine.Capture();
-        Require(held.GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 8 && held.GetProperty("Fibers")[0].GetProperty("Stack")[1].GetProperty("Values").GetArrayLength() == 2, "Uncertain command refusal did not preserve its PC and typed stack.");
+        JsonElement heldMain = held.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
+        Require(heldMain.GetProperty("Position").GetInt32() == 10 && heldMain.GetProperty("Stack")[1].GetProperty("Values").GetArrayLength() == 2, "Uncertain command refusal did not preserve its PC and typed stack.");
         GameSession resumedSession = new(new GameState());
         EventEngine resumed = new(resumedSession);
         resumed.LoadField(999, content, []);
         resumed.Restore(held);
         Require(JsonElement.DeepEquals(held, resumed.Capture()), "Typed stack/result restore changed its native alternatives.");
 
-        byte[] storeContent = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
+        byte[] storeContent = BattleModeCallbackProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
         GameSession storeSession = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0), WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame() });
         EventEngine stored = new(storeSession);
         ScriptCommand? write = null;
@@ -43,6 +46,8 @@ internal static partial class Program
             }
         };
         stored.LoadField(999, storeContent, []);
+        stored.Step();
+        Require(stored.Frame == 1 && storeSession.ExamTimer!.ClockCalls == 0, "Scalar store fixture initialization advanced its timer clock.");
         stored.Step();
         stored.Step();
         NativeMemoryValue entry = storeSession.State.NativeVariableValues![432];

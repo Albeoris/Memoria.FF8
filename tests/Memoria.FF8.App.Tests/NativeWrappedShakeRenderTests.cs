@@ -21,7 +21,7 @@ public sealed class NativeWrappedShakeRenderTests
         settings[1] = new BackgroundScrollSettings(0, 0, 0, 0);
         NativeFieldInitializationProof proof = new(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm)), 20, NativeFieldInitializationStage.Completed);
         // Declared current component words isolate the reached geometry and draw-origin composition, without a seeded checkpoint.
-        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(new { ModelParts = (NativeFieldModelPartsState?)null, AudioLoadEpoch = 1, NativeSalaryMovementUnits = (byte?)null, BackgroundScrollLayers = settings, BackgroundScrollPositions = new Dictionary<int, BackgroundScrollPosition> { [0] = new(160, -8, 160, -8, 90, -8, 30, 4, 2, 30, NativeLinearVersion: 1), [1] = new(-64, 0, -320, 0, 0, 0, 3, 4, 1, 10, NativeLinearVersion: 1) }, NativeFieldInitialization = proof, NativeFieldLoadVersion = 1, NativeActorLayoutVersion = 1, Party = new[] { 0, 255, 255 } }))!;
+        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(new { NativeMovieMask = (NativeMovieMaskState?)null, NativeLayerZeroScrollCurrent = (NativeLayerZeroScrollCurrent?)null, NativeLadderSpeed490E = (byte?)null, NativeDrawPointDisplayMask = (ushort?)null, DrawPointInteraction = (NativeDrawPointInteraction?)null, ModelParts = (NativeFieldModelPartsState?)null, AudioLoadEpoch = 1, NativeSalaryMovementUnits = (byte?)null, BackgroundScrollLayers = settings, BackgroundScrollPositions = new Dictionary<int, BackgroundScrollPosition> { [0] = new(160, -8, 160, -8, 90, -8, 30, 4, 2, 30, NativeLinearVersion: 1), [1] = new(-64, 0, -320, 0, 0, 0, 3, 4, 1, 10, NativeLinearVersion: 1) }, NativeFieldInitialization = proof, NativeFieldLoadVersion = 1, NativeActorLayoutVersion = 1, Party = new[] { 0, 255, 255 } }))!;
         BackgroundScrollFrame prepared = DirectBackgroundScrollCertificate.Prepare(field, scene)!;
         FieldNativeBackgroundWrapFrame frame = prepared.NativeWrap!;
         FieldRenderer renderer = new(field, 640, 448);
@@ -58,7 +58,7 @@ public sealed class NativeWrappedShakeRenderTests
     public void ModelsReceiveTheSameDrawingShiftAndUnprovedE5LeavesPixelsUntouched()
     {
         PixelImage texture = new(1, 1, [new Rgba32(100, 140, 200, 255)]);
-        FieldModel model = new("drawing-origin-component", [new ModelBone(-1, 0)], [new ModelVertex(new Vector3(0, -16, -16), 0), new ModelVertex(new Vector3(0, 16, -16), 0), new ModelVertex(new Vector3(0, 0, 16), 0)], [new ModelFace([0, 1, 2], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, false)], [texture], [new ModelAnimation([new AnimationFrame(Vector3.Zero, [Vector3.Zero])])]);
+        FieldModel model = new("drawing-origin-component", [new ModelBone(-1, 0)], [new ModelVertex(new Vector3(-16, -16, 0), 0), new ModelVertex(new Vector3(16, -16, 0), 0), new ModelVertex(new Vector3(0, 16, 0), 0)], [new ModelFace([0, 1, 2], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, false)], [texture], [new ModelAnimation([new AnimationFrame(Vector3.Zero, [Vector3.Zero])])]);
         FieldAssets field = new(600, "drawing-origin-component", [], [], [], new FieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, new Vector3(0, 0, 256), Vector2.Zero, 256), new FieldWalkmesh([]), [model]);
         FieldRenderer renderer = new(field, modelTextureSampling: ModelTextureSampling.Nearest);
         ActorVisual actor = new(0, 0, 0, 0, 0, 0, 0, 0, true, PolygonColor: new Vector3(128));

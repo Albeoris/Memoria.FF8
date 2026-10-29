@@ -22,10 +22,10 @@ public sealed partial class WorldTerrainRenderer
         }
     }
 
-    private void DrawWorldScreenLayer(WorldMapLayer layer, Matrix3x2? viewport = null)
+    private void DrawWorldScreenLayer(WorldMapLayer layer, Matrix3x2 viewport)
     {
         PixelImage texture = assets.ReadNativeSectionTexture(38, layer.TextureMember, layer.Palette);
-        Matrix3x2 transform = viewport ?? Matrix3x2.CreateScale(Width / 320f, Height / 224f);
+        Matrix3x2 transform = viewport;
         foreach (WorldMapTriangle triangle in layer.Triangles)
         {
             WorldMapVertex a = triangle.A with { Position = Vector2.Transform(triangle.A.Position, transform) };

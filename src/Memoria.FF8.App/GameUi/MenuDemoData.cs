@@ -77,7 +77,7 @@ public static class MenuDemoData
                 data.Magic.Add(new MenuMagic { Id = i.ToString(), Icon = character.Junctions.ContainsValue(magicNames[i]) ? new UiImageSource(UiImageKind.Icon, 192) : null, Name = magicNames[i], CharacterId = character.Id, Quantity = 40 + i * 2, DemoHealing = i is >= 3 and <= 5 ? 350 + i * 75 : 0, Description = "Synthetic stock. Junction strength and battle effects require native contracts." });
             }
         }
-        string[] cardNames = ["Geezard", "Funguar", "Bite Bug", "Red Bat", "Blobra", "Gayla", "Gesper", "Fastitocalon-F", "Blood Soul", "Caterchipillar", "Cockatris", "Grat", "Buel", "Mesmerize", "Glacial Eye", "Belhelmel", "Thrustaevis", "Anacondaur", "Creeps", "Grendel", "Jelleye", "Grand Mantis", "Ifrit", "Shiva", "Quezacotl", "Diablos", "Laguna", "Rinoa", "Squall"];
+        string[] cardNames = ["Geezard", "Funguar", "Bite Bug", "Red Bat", "Blobra", "Gayla", "Gesper", "Fastitocalon-F", "Blood Soul", "Caterchipillar", "Cockatrice", "Grat", "Buel", "Mesmerize", "Glacial Eye", "Belhelmel", "Thrustaevis", "Anacondaur", "Creeps", "Grendel", "Jelleye", "Grand Mantis", "Ifrit", "Shiva", "Quezacotl", "Diablos", "Laguna", "Rinoa", "Squall"];
         int[] cardIdentities = [.. Enumerable.Range(0, 22), 84, 83, 82, 89, 101, 106, 109];
         for (var i = 0; i < cardNames.Length; i++)
         {

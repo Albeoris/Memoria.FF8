@@ -165,7 +165,7 @@ public sealed partial class NativeBattleDuel112CastTests
                 Assert.True(battle.CanChoosePlayerCommand("party"));
                 if (duelCommandRoute)
                 {
-                    battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("party", 1)] });
+                    battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture() with { NativeLimits = [new("party", 1)] }));
                     battle.AttachNativeEffectResourceResolver(requestedEffect => game.ReadNativeEffectCatalogForEffects([requestedEffect])[requestedEffect - 1]);
                 }
                 Publish("before-command");
@@ -222,7 +222,7 @@ public sealed partial class NativeBattleDuel112CastTests
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame withoutEffect = graphics.PrimitiveFrame with { LastCommands = graphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                        BattleSession background = BattleSession.Restore(battle.Capture() with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } });
+                        BattleSession background = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture() with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }

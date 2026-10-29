@@ -93,7 +93,7 @@ public sealed class BattleSelectHudTests
         Assert.Empty(Draw(hud).Texts);
         hud.SetNativeCommandButtons(0);
         RecordingCanvas released = Draw(hud);
-        Assert.Contains("TARGET", released.Texts);
+        Assert.Contains("TARGET  < ENEMIES >", released.Texts);
         Assert.Contains("Bite Bug B", released.Texts);
         view.Key(UiKey.Confirm);
         Assert.Equal(new BattleAttackCommand("party-0", "enemy-1"), Assert.Single(commands));
@@ -113,7 +113,7 @@ public sealed class BattleSelectHudTests
         Assert.Equal(BattleAbility.Magic, hud.SelectedCommand);
         Assert.Equal(1, hud.SelectedAction!.Id);
         RecordingCanvas visible = Draw(hud);
-        Assert.Contains("MAGIC", visible.Texts);
+        Assert.Contains("Magic", visible.Texts);
 
         hud.SetNativeCommandButtons(0x100);
         Assert.Empty(Draw(hud).Texts);

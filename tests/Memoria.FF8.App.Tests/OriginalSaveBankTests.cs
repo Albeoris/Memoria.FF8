@@ -124,9 +124,12 @@ public sealed class OriginalSaveBankTests : IDisposable
         PlayerSaveStore store = CreateStore();
         GameState state = Defaults();
         NativeCharacterVitals source = state.CharacterVitals!;
-        var templates = source.ResolveGuardianForceTemplates().SetItem(0, Enumerable.Range(1, 50).Select(ability => new GuardianForceAbilityTemplate(ability, true, 10)).ToImmutableArray());
+        var templates = source.ResolveGuardianForceTemplates().SetItem(0, Enumerable.Range(1, 50).Where(ability => !ChocoboRewardCatalog.Entries.Any(reward => reward.TaughtAbilityId == ability)).Select(ability => new GuardianForceAbilityTemplate(ability, true, 10)).ToImmutableArray());
         GameState expanded = state with { CharacterVitals = source.ApplyGuardianForceTemplates(templates) };
         GameSession session = new(expanded);
+        // Unique reward abilities would independently require a Memoria slot after acquisition reconciliation.
+        Assert.False(session.State.ChocoboRewards.HasState);
+        Assert.False(PlayerSaveStore.RequiresMemoriaFormat(session.State, allowGuardianForceProjection: true));
         store.Save(101, new GameSession(state));
         byte[] previous = File.ReadAllBytes(store.GetPath(101));
         Assert.True(PlayerSaveStore.RequiresMemoriaFormat(expanded));

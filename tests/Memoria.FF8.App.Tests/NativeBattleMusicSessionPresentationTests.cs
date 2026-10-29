@@ -6,7 +6,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleMusicSessionPresentationTests
 {
-    private static readonly TimeSpan Callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
+    private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
 
     [Fact]
     public void Fresh_original_entry_executes_501C60_but_restore_preserves_the_live_pending_command()

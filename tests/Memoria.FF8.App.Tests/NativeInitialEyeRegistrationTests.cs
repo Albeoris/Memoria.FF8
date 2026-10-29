@@ -84,7 +84,7 @@ public sealed class NativeInitialEyeRegistrationTests
         NativeFieldRegistrationState registration = Assert.IsType<NativeFieldRegistrationState>(world.Events.Scene.NativeFieldRegistration);
         Assert.Equal(74, registration.FieldId);
         process.Validate(registration);
-        Assert.Same(process.Memory, session.State.NativeBattleMemory);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(process.Memory)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.State.NativeBattleMemory)));
         Assert.Equal(process.CrtRandom, session.State.CrtRandom);
         session.SetEventState(world.Events.Capture());
         GameState snapshot = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;

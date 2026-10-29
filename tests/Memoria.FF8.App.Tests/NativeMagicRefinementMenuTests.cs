@@ -65,7 +65,7 @@ public sealed class NativeMagicRefinementMenuTests
     [Theory]
     [InlineData("97:0", "8", "1")]
     [InlineData("96:0", "0", "1")]
-    [InlineData("97:143", "0", "1")]
+    [InlineData("97:256", "0", "1")]
     [InlineData("97:0", "0", "0")]
     [InlineData("97:0", "0", "101")]
     public void InvalidRefinementInputCannotReachAnOwner(string recipe, string character, string batches)
