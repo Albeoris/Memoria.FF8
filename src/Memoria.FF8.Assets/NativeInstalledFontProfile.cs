@@ -45,14 +45,17 @@ public static class NativeInstalledFontProfile
         List<NativeGlyphMapping> mappings = [];
         List<NativeCodecMapping> codec = [];
         HashSet<string> assigned = new(StringComparer.Ordinal);
-        for (int value = 0x20; value <= 0xFF; value++)
+        // Bytes E8..FF are native text services, not ordinary printable glyphs.
+        for (int value = 0x20; value < 0xE8; value++)
         {
             int glyph = value - 0x20;
             int x = glyph % 21 * 12;
             int y = glyph / 21 * 12;
             if (glyph >= widths.Length || x + 12 > atlas.Width || y + 12 > atlas.Height)
             {
-                throw new InvalidDataException($"Installed font cannot resolve native image {glyph} and its TDW width.");
+                // A source can declare fewer metrics/cells than the encoding namespace.
+                // Keep valid glyphs; layout and the strict codec diagnose unsupported requests.
+                continue;
             }
             string text = encoding.GetString([(byte)value]);
             if (text.Length == 0 || text.Contains('\0'))
@@ -67,6 +70,10 @@ public static class NativeInstalledFontProfile
             {
                 mappings.Add(new(text, glyph));
             }
+        }
+        if (images.Count == 0)
+        {
+            throw new InvalidDataException("Installed font has no usable glyph with both a declared TDW width and a complete atlas rectangle.");
         }
         codec.Add(new("00", "{End}", Control: true));
         codec.Add(new("01", "{Next}", Control: true));
