@@ -5,6 +5,7 @@ using Memoria.FF8.Resources.Text;
 
 namespace Memoria.FF8.App.Tests;
 
+[Collection("Localization tracing")]
 public sealed class LocalizationButtonFragmentTests
 {
     [Fact]
@@ -46,10 +47,17 @@ public sealed class LocalizationButtonFragmentTests
             string text = LocalizationTextComposition.Concat(Bound("first", "Same"), " ", ButtonPromptText.Mark(Bound("key", "K")), " ", Bound("last", "Same"));
             Canvas canvas = new();
             ButtonPromptText.Draw(canvas, text, 20, new(10, 10, 95, 120), new(255, 255, 255), "Arial", UiAlignment.Start, new UiTextOverflow(), UiTextFlow.Wrap);
-            Assert.Equal(new[] { "first", "last" }, canvas.Texts.Where(item => item.Text == "Same").SelectMany(item => item.Keys).Distinct().Order());
+            Drawn first = Assert.Single(canvas.Texts, item => item.Keys.Contains("first"));
+            Drawn last = Assert.Single(canvas.Texts, item => item.Keys.Contains("last"));
+            Assert.Equal("Same ", first.Text);
+            Assert.Equal("Same", last.Text);
+            Assert.Equal("Same", OwnedText(first, "first"));
+            Assert.Equal("Same", OwnedText(last, "last"));
+            Assert.DoesNotContain("last", first.Keys);
+            Assert.DoesNotContain("first", last.Keys);
             Assert.Contains(canvas.Texts, item => item.Text == "K" && item.Keys.Contains("key"));
             Assert.Equal(new[] { "key" }, Assert.Single(canvas.Buttons).Keys);
-            Assert.True(canvas.Texts.Where(item => item.Text == "Same").Select(item => item.Bounds.Y).Distinct().Count() > 1);
+            Assert.True(last.Bounds.Y > first.Bounds.Y);
         });
     }
 
@@ -90,6 +98,7 @@ public sealed class LocalizationButtonFragmentTests
 
     private static object[] Shape(IEnumerable<DialogueVisualLine> lines) => lines.SelectMany(line => line.Runs.Select(run => (object)(line.SourceLineIndex, line.Width, run.X, run.Run.Text, run.Run.IsButton))).ToArray();
     private static string Bound(string key, string text) => LocalizationTextTrace.Attach(text, new(key, text, text, text));
+    private static string OwnedText(Drawn draw, string key) => string.Concat(draw.Binding!.Fragments.Where(fragment => fragment.Binding.Key == key).OrderBy(fragment => fragment.Start).Select(fragment => draw.Text.Substring(fragment.Start, fragment.Length)));
     private static string[] Keys(string text)
     {
         LocalizationTextBinding? binding = LocalizationTextTrace.Find(text);
@@ -110,14 +119,14 @@ public sealed class LocalizationButtonFragmentTests
         }
     }
 
-    private sealed record Drawn(string Text, string[] Keys, UiRect Bounds);
+    private sealed record Drawn(string Text, string[] Keys, UiRect Bounds, LocalizationTextBinding? Binding);
     private class Canvas : IUiCanvas, IUiTextFragmentInspector
     {
         public List<Drawn> Texts { get; } = [];
         public List<Drawn> Buttons { get; } = [];
         private readonly Stack<UiRect> clips = new();
-        public void InspectTextFragment(string value, UiRect bounds) => Buttons.Add(new(value, Keys(value), bounds.Intersect(clips.Peek())));
-        public void Text(string text, float fontSize, UiRect bounds, UiColor color) => Texts.Add(new(text, Keys(text), bounds.Intersect(clips.Peek())));
+        public void InspectTextFragment(string value, UiRect bounds) => Buttons.Add(new(value, Keys(value), bounds.Intersect(clips.Peek()), LocalizationTextTrace.Find(value)));
+        public void Text(string text, float fontSize, UiRect bounds, UiColor color) => Texts.Add(new(text, Keys(text), bounds.Intersect(clips.Peek()), LocalizationTextTrace.Find(text)));
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment alignment) => Text(text, fontSize, bounds, color);
         public void Fill(UiRect bounds, UiColor color)
         {
