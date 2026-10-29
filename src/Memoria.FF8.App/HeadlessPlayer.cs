@@ -14,6 +14,13 @@ internal static class HeadlessPlayer
 
     internal static PlayerAction[] ReadActions(string json) => JsonSerializer.Deserialize<PlayerAction[]>(json, JsonOptions) ?? throw new InvalidDataException("Missing ordinary action array.");
 
+    internal static PlayerAction FieldGuideAction(float dx, float dy, int inputDirection)
+    {
+        float distance = MathF.Sqrt(dx * dx + dy * dy);
+        float angle = (inputDirection & 255) * MathF.Tau / 256;
+        return new PlayerAction(PlayerActionKind.Move, Horizontal: (MathF.Cos(angle) * dx + MathF.Sin(angle) * dy) / distance, Vertical: (-MathF.Sin(angle) * dx + MathF.Cos(angle) * dy) / distance);
+    }
+
     public static int Run(string[] args)
     {
         string? actionsPath = null;
@@ -148,9 +155,7 @@ internal static class HeadlessPlayer
                 }
                 float dx = fieldPath[pathIndex][0] - player.X;
                 float dy = fieldPath[pathIndex][1] - player.Y;
-                float distance = MathF.Sqrt(dx * dx + dy * dy);
-                float angle = world.Events.InputAxisDirection * MathF.Tau / 256;
-                action = new PlayerAction(PlayerActionKind.Move, Horizontal: (MathF.Cos(angle) * dx + MathF.Sin(angle) * dy) / distance, Vertical: (-MathF.Sin(angle) * dx + MathF.Cos(angle) * dy) / distance);
+                action = FieldGuideAction(dx, dy, world.Events.InputAxisDirection + world.Events.PlayerInputDirectionOffset);
             }
             else
             {

@@ -16,12 +16,72 @@ public sealed class FieldSceneModsTests
         Assert.Empty(diagnostics);
         Assert.Equal(new[] { "Memoria/first", "Memoria/second" }, result.Patches.Select(patch => patch.PackageId));
         FieldScenePatch patch = result.Patches[0].Patch;
+        Assert.Null(patch.Movement);
         Assert.False(Assert.Single(patch.Backgrounds).Visible);
         FieldActorPatch actor = Assert.Single(patch.Actors);
         Assert.Equal(8, actor.ObjectId);
         Assert.Equal(9, actor.Model.ModelId);
         Assert.Equal(1, actor.AnimationId);
         Assert.Equal(5, actor.When!.ModuleId);
+    }
+
+    [Theory]
+    [InlineData(-180f)]
+    [InlineData(-12.5f)]
+    [InlineData(0f)]
+    [InlineData(180f)]
+    public void ReadsMovementOnlyPatchesIncludingInclusiveBounds(float rotationDegrees)
+    {
+        string angle = rotationDegrees.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string json = $"{{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"movement\":{{\"rotationDegrees\":{angle}}}}}";
+        Assert.True(FieldSceneMods.TryPrepare(Catalog(File("Memoria/example", json)), out FieldSceneMods result, out var diagnostics));
+        Assert.Empty(diagnostics);
+        FieldScenePatch patch = Assert.Single(result.Patches).Patch;
+        Assert.Empty(patch.Backgrounds);
+        Assert.Empty(patch.Actors);
+        Assert.Equal(rotationDegrees, Assert.IsType<FieldMovementPatch>(patch.Movement).RotationDegrees);
+    }
+
+    [Theory]
+    [InlineData("{\"rotationDegrees\":45}")]
+    [InlineData("null")]
+    public void MovementCanAccompanyExistingBackgroundAndActorChanges(string movement)
+    {
+        string json = Valid.Replace("\"schemaVersion\":1", "\"schemaVersion\":1,\"movement\":" + movement, StringComparison.Ordinal);
+        Assert.True(FieldSceneMods.TryPrepare(Catalog(File("Memoria/example", json)), out FieldSceneMods result, out var diagnostics));
+        Assert.Empty(diagnostics);
+        FieldScenePatch patch = Assert.Single(result.Patches).Patch;
+        Assert.Single(patch.Backgrounds);
+        Assert.Single(patch.Actors);
+        if (movement == "null")
+        {
+            Assert.Null(patch.Movement);
+        }
+        else
+        {
+            Assert.Equal(45f, Assert.IsType<FieldMovementPatch>(patch.Movement).RotationDegrees);
+        }
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"rotationDegrees\":null}")]
+    [InlineData("{\"rotationDegrees\":-180.01}")]
+    [InlineData("{\"rotationDegrees\":180.01}")]
+    [InlineData("{\"rotationDegrees\":1e100}")]
+    [InlineData("{\"rotationDegrees\":-1e100}")]
+    [InlineData("{\"rotationDegrees\":\"NaN\"}")]
+    [InlineData("{\"rotationDegrees\":\"Infinity\"}")]
+    [InlineData("{\"rotationDegrees\":true}")]
+    [InlineData("{\"rotationDegrees\":0,\"unknown\":1}")]
+    public void InvalidOrMissingMovementAnglesRejectEntirePublication(string movement)
+    {
+        string json = Valid.Replace("\"schemaVersion\":1", "\"schemaVersion\":1,\"movement\":" + movement, StringComparison.Ordinal);
+        Assert.False(FieldSceneMods.TryPrepare(Catalog(File("Memoria/good", Valid), File("Memoria/bad", json)), out FieldSceneMods result, out var diagnostics));
+        Assert.Empty(result.Patches);
+        ModDiagnostic error = Assert.Single(diagnostics);
+        Assert.Equal("Memoria.InvalidFieldPatch", error.Code);
+        Assert.Equal("Memoria/bad", error.PackageId);
     }
 
     [Theory]
@@ -50,6 +110,8 @@ public sealed class FieldSceneModsTests
 
     [Theory]
     [InlineData("{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\"}")]
+    [InlineData("{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"movement\":null}")]
+    [InlineData("{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"backgrounds\":[],\"actors\":[],\"movement\":null}")]
     [InlineData("{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"backgrounds\":[null]}")]
     [InlineData("{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"actors\":[null]}")]
     [InlineData("{\"schemaVersion\":1,\"fieldId\":175,\"fieldName\":\"bghall_6\",\"actors\":null}")]

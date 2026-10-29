@@ -43,6 +43,12 @@ public sealed record FieldActorPatch
     public FieldBackgroundCondition? When { get; init; }
 }
 
+/// <summary>Player input rotation kept separate from the original INF/AXIS angle.</summary>
+public sealed record FieldMovementPatch
+{
+    public required float RotationDegrees { get; init; }
+}
+
 public sealed record FieldScenePatch
 {
     public required int SchemaVersion { get; init; }
@@ -50,6 +56,7 @@ public sealed record FieldScenePatch
     public required string FieldName { get; init; }
     public IReadOnlyList<FieldBackgroundPatch> Backgrounds { get; init; } = [];
     public IReadOnlyList<FieldActorPatch> Actors { get; init; } = [];
+    public FieldMovementPatch? Movement { get; init; }
 }
 
 public sealed record OwnedFieldScenePatch(string PackageId, string RelativePath, FieldScenePatch Patch);
@@ -105,9 +112,13 @@ public sealed class FieldSceneMods
         {
             throw new InvalidDataException("A field patch requires a valid fieldId and fieldName matching fields/<fieldName>.json.");
         }
-        if (patch.Backgrounds is null || patch.Actors is null || patch.Backgrounds.Count + patch.Actors.Count == 0 || patch.Backgrounds.Count + patch.Actors.Count > 4096)
+        if (patch.Backgrounds is null || patch.Actors is null || patch.Backgrounds.Count + patch.Actors.Count == 0 && patch.Movement is null || patch.Backgrounds.Count + patch.Actors.Count > 4096)
         {
-            throw new InvalidDataException("A field patch requires between 1 and 4096 background or actor changes.");
+            throw new InvalidDataException("A field patch requires movement or background/actor changes, with at most 4096 background or actor changes.");
+        }
+        if (patch.Movement is { } movement && (!float.IsFinite(movement.RotationDegrees) || movement.RotationDegrees is < -180 or > 180))
+        {
+            throw new InvalidDataException("Movement rotationDegrees must be finite and within -180..180.");
         }
         HashSet<(int Layer, int Module, int State, FieldBackgroundRegion? Region)> backgrounds = [];
         foreach (FieldBackgroundPatch background in patch.Backgrounds)

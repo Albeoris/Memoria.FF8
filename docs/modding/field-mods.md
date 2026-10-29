@@ -1,6 +1,6 @@
 # Native field mods
 
-Native Memoria packages change field presentation using resources from the selected game installation. The currently supported edition is Classic. Remastered packages remain visible in the Mods menu as incompatible until their field contract is supported.
+Native Memoria packages change field presentation and player movement projection using resources from the selected game installation. The currently supported edition is Classic. Remastered packages remain visible in the Mods menu as incompatible until their field contract is supported.
 
 ## Install and configure
 
@@ -38,6 +38,27 @@ Background selectors identify an exact layer (0–3), module (0–255) and state
 Choose an animation that matches the object's role. Cid's model uses animation `0` for its stationary idle pose; animation `1` is a walking cycle. A presentation animation does not move the script object's position.
 
 Reload prepares a complete new generation before publication. Malformed changes retain the last committed generation and report package/file ownership in the Mods menu. Use Refresh after correcting a file.
+
+## Movement projection
+
+A scene file can contain `movement` on its own or alongside background and actor changes:
+
+```json
+{
+  "schemaVersion": 1,
+  "fieldId": 687,
+  "fieldName": "ggkodo1",
+  "movement": { "rotationDegrees": -47.8125 }
+}
+```
+
+`rotationDegrees` is required when `movement` is present. It accepts finite numbers from -180 through 180, including fractions. The engine adds this rotation to ordinary player input after the original field's INF/AXIS angle. Positive values increase the native heading clockwise in the field's X/Y plane; negative values decrease it. Camera perspective and ground slope determine the resulting screen direction. The value is rounded to the nearest of the original 256 headings (1.40625 degrees per step; exact half steps round to the even step). Zero explicitly selects the original input projection.
+
+The first matching movement contribution in package priority order wins, including zero. Background-only or actor-only patches do not override movement. A file must contain at least one background change, actor change or movement object. Field ID and name must identify the same installed field.
+
+The rotation applies to keyboard and stick player movement, including field movie callbacks. It leaves stationary facing, scripted movement, original INF/AXIS values, saved positions and world controls unchanged. Disabling the package restores original projection for the next movement without migrating a save. Reloading a saved game uses the currently enabled mod configuration. Target-based field guidance accounts for the active rotation.
+
+The bundled `Memoria/Movement` package corrects the diagonal keyboard projection in the Galbadia Garden lobby (`ggkodo1`). Toggle it in the Mods menu to compare its screen directions with the original behavior. Each corrected field has its own JSON file, as in the bundled `Depixelation` package.
 
 ## Inspect a field
 

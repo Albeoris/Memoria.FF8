@@ -19,6 +19,8 @@ public sealed partial class EventEngine
     public Func<ActorState, bool>? CanDisableAdditionalControl { get; set; }
     public Func<int, SoundResourceStatus>? LoadSoundResource { get; set; }
     public byte InitInputAxisDirection { get; set; }
+    /// <summary>Host-configured input projection offset; native INF/AXIS and saved actor state retain their original values.</summary>
+    public byte PlayerInputDirectionOffset { get; set; }
     public int InputAxisDirection { get; private set; }
     public MoviePlaybackState? CurrentMoviePlayback { get; private set; }
     public EventFault? LastFault { get; private set; }

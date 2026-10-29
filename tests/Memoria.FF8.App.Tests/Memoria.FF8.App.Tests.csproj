@@ -10,6 +10,7 @@
   <ItemGroup>
     <Compile Remove="WindowModeControllerTests.cs" Condition="'$(MemoriaNativeGraphics)' == 'true'" />
     <Content Include="../../Mods/Memoria/Depixelation/fields/*.json" Link="BundledMods/Memoria/Depixelation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../Mods/Memoria/Movement/fields/*.json" Link="BundledMods/Memoria/Movement/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Shared/NativeBattleCommandSequenceFixture.cs" Link="NativeBattleCommandSequenceFixture.cs" />
     <Using Include="Memoria.FF8.Tests" />
     <Using Include="Xunit" />

@@ -202,6 +202,7 @@ internal sealed partial class GameWorld : IDisposable
         bool alreadyExecuted = Events.Scene.NativeMovieMask?.Playback?.AppliedRecord == playback.FrameIndex;
         if (playback.FrameIndex >= 2 && !alreadyExecuted)
         {
+            RefreshSceneMods();
             Events.StepMovieFrame(horizontal, vertical);
         }
         return session.IsMoviePlaying && session.State.MovieIndex == movie && session.State.FieldId == field && session.State.MovieSource == source;
@@ -255,6 +256,7 @@ internal sealed partial class GameWorld : IDisposable
         // A world arrival starts a new visit even when its packet names the frozen departing field.
         if (!returningFromWorld && Field?.Id == session.State.FieldId && HasCurrentFieldAllocation)
         {
+            RefreshSceneMods();
             return false;
         }
         if (Field is null && session.State.DepartingFieldState is System.Text.Json.JsonElement departing)
