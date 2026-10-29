@@ -16,6 +16,9 @@ internal sealed partial class RecreateGame
     private BattleDebugCatalog? presentationBattleCatalog;
     private BattleSession? debugBattle;
     private BattleHudController? battleHud;
+    private object? authoringScanOwner;
+    private long authoringScanLifetime;
+    private readonly Dictionary<int, (uint Source, string Key, int Model)> authoringScanWindows = [];
     private readonly Dictionary<int, int> battleGuardianForceLearning = [];
     private BattleDebugController? battleDebug;
     private BattleScenePresentation? battleScene;
@@ -132,6 +135,7 @@ internal sealed partial class RecreateGame
         active.AdvanceComponentGuardianBoostPresentation(elapsed, slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
         battleScene!.AdvancePresentation(elapsed);
         battleHud!.AdvancePresentation(elapsed);
+        ObserveScanAuthoringDialogues(active);
         if (ActiveBattle is null || battleHud is null)
         {
             return true;
@@ -260,6 +264,8 @@ internal sealed partial class RecreateGame
             if (resourceHost is not null)
             {
                 battleHud.ConfigureLocalization(new LocalizationBattlePresentation(resourceHost.Resources));
+                string occurrenceScope = Guid.NewGuid().ToString("N");
+                battleHud.DialoguePresented += (binding, channel, id, rendered) => ObserveBoundAuthoringDialogue(binding, channel, occurrenceScope + ":" + id, rendered);
             }
             battleHud.ConfigureGuardianForceLearning(CreateBattleGuardianForceLearningMenu);
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
@@ -268,12 +274,53 @@ internal sealed partial class RecreateGame
             battleSeconds = 0;
             slotsInputReleasePending = false;
         }
+        battleHud!.OriginalCompatibleLayout = OriginalTextLayout;
         battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
         battleHud.CursorMemory = uiPreferences.CursorMemory;
         battleHud.SlotsNavigationHint = string.Join(" / ", new[] { ControlAction.MoveUp, ControlAction.MoveDown, ControlAction.MoveLeft, ControlAction.MoveRight }.Select(keyboard.BindingPrompt));
         battleHud.SlotsConfirmHint = keyboard.BindingPrompt(ControlAction.Confirm);
         battleHud.GunbladeBindingHint = keyboard.BindingPrompt(ControlAction.RotateRight);
         battleHud.PhysicalOverrideBindingHint = keyboard.BindingPrompt(ControlAction.CameraLeft);
+    }
+
+    private void ObserveScanAuthoringDialogues(BattleSession active)
+    {
+        object? owner = active.NativeGraphics?.OriginalEffect?.Pools.FirstOrDefault();
+        if (!ReferenceEquals(authoringScanOwner, owner))
+        {
+            authoringScanOwner = owner;
+            authoringScanLifetime++;
+            authoringScanWindows.Clear();
+        }
+        if (resourceHost is null || active.PreparedPresentation?.Scan is not { Actor: { } actor } scan || SlotsModalBlocksGameplay)
+        {
+            authoringScanWindows.Clear();
+            return;
+        }
+        var resources = resourceHost.Resources;
+        IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(scan.Text, scan.CreateExpansionServices(), new(0, 0, 320, 224), resources.Source.Language);
+        windows = new LocalizationBattlePresentation(resources).Scan(scan, windows);
+        HashSet<int> visible = [];
+        foreach (NativeScanWindowText window in windows)
+        {
+            if (window.Binding is not { } binding || window.Lines.Count == 0 || window.Document.Text.Length == 0)
+            {
+                continue;
+            }
+            visible.Add(window.Index);
+            var identity = (scan.Text.Windows.Row(window.Index).ReadDword(8), binding.Key, actor.ModelId);
+            if (authoringScanWindows.TryGetValue(window.Index, out var previous) && previous == identity)
+            {
+                continue;
+            }
+            authoringScanWindows[window.Index] = identity;
+            string occurrence = authoringScanLifetime.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + window.Index.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + Guid.NewGuid().ToString("N");
+            ObserveBoundAuthoringDialogue(binding, "Battle/Scan/" + window.Index.ToString(System.Globalization.CultureInfo.InvariantCulture), occurrence, window.Document.Text);
+        }
+        foreach (int index in authoringScanWindows.Keys.Where(index => !visible.Contains(index)).ToArray())
+        {
+            authoringScanWindows.Remove(index);
+        }
     }
 
     private MenuController CreateBattleGuardianForceLearningMenu(BattleRewardSummary rewards)
