@@ -7,6 +7,7 @@ public static partial class NativeBattleCinematicGrid59
 {
     private static NativeBattleWaterExecutionFrame DrawCylinder(NativeBattleWaterExecutionFrame frame, uint payload, NativeBattleCinematicGrid59Services services)
     {
+        Dictionary<uint, System.Numerics.Vector3>? pilotWorld = services.PilotIdentity is null ? null : [];
         uint work = ManagerDword(frame, 0x74);
         int radius = Word(frame, payload + 4);
         int spacing = Word(frame, payload + 6);
@@ -146,7 +147,12 @@ public static partial class NativeBattleCinematicGrid59
                             secondColor = Shade(frame.ReadTemporaryDword(0x64), second << 4);
                         }
                     }
-                    var packet = AppendLine(frame, output, vertices, vertices + 8, firstColor, secondColor, services.Append);
+                    NativeBattlePilotVisualGeometry? metadata = null;
+                    if (services.PilotIdentity is { } identity && pilotWorld is not null && pilotWorld.TryGetValue(vertices, out System.Numerics.Vector3 a) && pilotWorld.TryGetValue(vertices + 8, out System.Numerics.Vector3 b))
+                    {
+                        metadata = new(identity with { Primitive = unchecked((flat ? 0x20000000 : 0x21000000) + row * 65537 + column) }, a, b, default, default, 2) { DepthDivisor = 4 };
+                    }
+                    var packet = AppendLine(frame, output, vertices, vertices + 8, firstColor, secondColor, services.Append, pilotGeometry: metadata);
                     frame = packet.Frame;
                     output = packet.Output;
                     vertices = unchecked(vertices + 8);
@@ -159,6 +165,10 @@ public static partial class NativeBattleCinematicGrid59
         {
             NativeBattleCinematicGridProjection projected = services.Project(frame, address);
             frame = StoreWord(projected.Frame, address + 4, unchecked((ushort)projected.QuarterDepth));
+            if (pilotWorld is not null && projected.PilotWorld is { } world)
+            {
+                pilotWorld[address] = world;
+            }
         }
 
         uint Shade(uint command, int factor)

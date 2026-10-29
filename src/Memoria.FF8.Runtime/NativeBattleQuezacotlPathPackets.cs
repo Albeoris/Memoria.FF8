@@ -11,7 +11,7 @@ public sealed record NativeBattleQuezacotlPathBatch(ImmutableArray<NativeBattleQ
 /// <summary>6C79A0/6C7B30's actual linked path projection, sparse row stores and effect-heap GT4s.</summary>
 public static class NativeBattleQuezacotlPathPackets
 {
-    public static NativeBattleQuezacotlPathBatch Emit6C79A0(uint head, int count, Func<uint, int, int, ImmutableArray<byte>> readRow, Func<short, NativeBattleVector> readCurrentVertex, NativeBattleActionMatrix capturedMatrix, NativeBattleCameraProjection projection, ImmutableArray<byte> distanceBytes16384, ImmutableArray<int?> incomingDepthFifo4 = default, uint? incomingOutlineDirectionDword = null)
+    public static NativeBattleQuezacotlPathBatch Emit6C79A0(uint head, int count, Func<uint, int, int, ImmutableArray<byte>> readRow, Func<short, NativeBattleVector> readCurrentVertex, NativeBattleActionMatrix capturedMatrix, NativeBattleCameraProjection projection, ImmutableArray<byte> distanceBytes16384, ImmutableArray<int?> incomingDepthFifo4 = default, uint? incomingOutlineDirectionDword = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<uint, uint, NativeBattlePilotVisualIdentity>? identifySegment = null)
     {
         if (count is < 2 or > short.MaxValue)
         {
@@ -24,6 +24,7 @@ public static class NativeBattleQuezacotlPathPackets
         int?[] fifo = incomingDepthFifo4.IsDefault ? new int?[4] : incomingDepthFifo4.ToArray();
         List<uint> addresses = [];
         List<NativeBattleModuleProjectedVertex> projected = [];
+        List<System.Numerics.Vector3>? centers = pilotIdentity.HasValue ? [] : null;
         HashSet<uint> visited = [];
         ImmutableArray<NativeBattleQuezacotlTrailRowWrite>.Builder writes = ImmutableArray.CreateBuilder<NativeBattleQuezacotlTrailRowWrite>();
         uint address = head;
@@ -35,7 +36,9 @@ public static class NativeBattleQuezacotlPathPackets
                 throw new NotSupportedException("Native6C79A0 requires its actual acyclic projected row chain.");
             }
             short selector = Read16(address, 0);
-            NativeBattleModuleProjectedVertex vertex = NativeBattleModuleProjection.Project45FE10(capturedMatrix, readCurrentVertex(selector), projection);
+            NativeBattleVector point = readCurrentVertex(selector);
+            NativeBattleModuleProjectedVertex vertex = NativeBattleModuleProjection.Project45FE10(capturedMatrix, point, projection);
+            centers?.Add(NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(capturedMatrix, point), projection));
             addresses.Add(address);
             projected.Add(vertex);
             SkinWrites stores = new(28, 0);
@@ -97,7 +100,13 @@ public static class NativeBattleQuezacotlPathPackets
             short colorA = (short)(Read16(addresses[index], 0x14) >> 4);
             short colorB = (short)(Read16(addresses[index + 1], 0x14) >> 4);
             int bucket = 17 + ((first.QuarterDepth + second.QuarterDepth) >> 3);
-            packets.Add(NativeBattleTrailOutline.Packet(allocated, first.Left, rightA, second.Left, rightB, colorA, colorB, bucket, fifo.Select(depth => depth!.Value).ToImmutableArray()));
+            ImmutableArray<int> sourceDepths = fifo.Select(depth => depth!.Value).ToImmutableArray();
+            NativeBattleGfGeometryAttempt attempt = NativeBattleTrailOutline.Packet(allocated, first.Left, rightA, second.Left, rightB, colorA, colorB, bucket, sourceDepths);
+            if (pilotIdentity is { } identity && centers is not null)
+            {
+                attempt = NativeBattleQuezacotlVisualGeometry.CaptureOutline(attempt, (identifySegment?.Invoke(addresses[index], addresses[index + 1]) ?? identity with { Primitive = unchecked(identity.Primitive * 397 + (int)addresses[index] * 65537 + (int)addresses[index + 1]) }), centers[index], centers[index + 1], projected[index].Screen, projected[index + 1].Screen, first.Left, rightA, second.Left, rightB, sourceDepths);
+            }
+            packets.Add(attempt);
             allocated = checked(allocated + 52);
         }
         return new(writes.ToImmutable(), new(packets.ToImmutable(), allocated), fifo.ToImmutableArray()) { FinalOutlineDirectionDword = direction };

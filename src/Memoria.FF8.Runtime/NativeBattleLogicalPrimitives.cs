@@ -202,11 +202,11 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         return builder.ToImmutable();
     }
 
-    public (NativeBattleLogicalOrdering Ordering, uint? ProxyAddress) PrependAddressed(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null)
+    public (NativeBattleLogicalOrdering Ordering, uint? ProxyAddress) PrependAddressed(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, NativeBattlePilotVisualGeometry? pilotGeometry = null)
     {
         using Builder builder = new(this);
         int index = builder.ProxyCount;
-        builder.PrependAddressed(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw);
+        builder.PrependAddressed(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw, pilotGeometry);
         return (builder.ToImmutable(), index < NativeBattlePrimitiveOrdering.ProxyCapacity ? 0x1C48828u + (uint)(24 * index) : null);
     }
 
@@ -269,10 +269,10 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             RequireActive();
             storage.Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner, pilotGeometry);
         }
-        public void PrependAddressed(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null)
+        public void PrependAddressed(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, NativeBattlePilotVisualGeometry? pilotGeometry = null)
         {
             RequireActive();
-            storage.PrependAddressed(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw);
+            storage.PrependAddressed(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw, pilotGeometry);
         }
         public NativeBattleLogicalOrdering ToImmutable()
         {
@@ -535,9 +535,9 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         {
             Run(() => PrependCore(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner, pilotGeometry), () => Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner, pilotGeometry));
         }
-        internal void PrependAddressed(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw)
+        internal void PrependAddressed(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, NativeBattlePilotVisualGeometry? pilotGeometry)
         {
-            Run(() => PrependAddressedCore(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw), () => PrependAddressed(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw));
+            Run(() => PrependAddressedCore(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw, pilotGeometry), () => PrependAddressed(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw, pilotGeometry));
         }
         private bool InvalidatePacketRangeCore(NativeBattlePrimitiveReference reference, int length)
         {
@@ -554,7 +554,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 int index = node.Key.Index;
                 NativeBattleLogicalPacket packet = packets[index];
                 NativeBattlePrimitiveReference physical = NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference);
-                if ((!packet.RequiresPhysicalRead || packet.ProjectedCoordinates is not null || packet.TextureSourceOwner is not null) && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)
+                if ((!packet.RequiresPhysicalRead || packet.ProjectedCoordinates is not null || packet.TextureSourceOwner is not null || packet.PilotGeometry is not null) && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)
                 {
                     if (HasMarks)
                     {
@@ -569,7 +569,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
 
         private void RegisterPacketRange(NativeBattleLogicalPacket packet, int index)
         {
-            if (packet.RequiresPhysicalRead && packet.ProjectedCoordinates is null && packet.TextureSourceOwner is null)
+            if (packet.RequiresPhysicalRead && packet.ProjectedCoordinates is null && packet.TextureSourceOwner is null && packet.PilotGeometry is null)
             {
                 return;
             }
@@ -622,14 +622,14 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             return (target == active ? table : otherTable, index, target);
         }
 
-        private void PrependAddressedCore(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null)
+        private void PrependAddressedCore(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, NativeBattlePilotVisualGeometry? pilotGeometry = null)
         {
             ValidateInsertion(1, 0, reference, words, vertexPayload4);
             if (ProxyCount >= NativeBattlePrimitiveOrdering.ProxyCapacity)
             {
                 return;
             }
-            AppendProxy(reference, words, flags20, vertexPayload4, moduleDraw, new(false, -1), 0, previousAddress, true);
+            AppendProxy(reference, words, flags20, vertexPayload4, moduleDraw, new(false, -1), 0, previousAddress, true, pilotGeometry: pilotGeometry);
         }
 
         private void AppendProxy(NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, NativeBattlePrimitiveLink next, byte nextBuffer, uint previousAddress, bool physicalRead, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null, NativeBattlePilotVisualGeometry? pilotGeometry = null)

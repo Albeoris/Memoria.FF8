@@ -696,16 +696,33 @@ public sealed partial class BattleRenderer
         int y = unchecked((short)(command.Words[1] >> 16));
         int width = point ? (command.Flags20 & 1) != 0 ? 1 : 8 : (ushort)command.Words[2];
         int height = point ? width : (ushort)(command.Words[2] >> 16);
-        PrimitiveVertex At(int px, int py)
+        PrimitiveVertex At(int px, int py, int corner)
         {
             Vector2 position = NativePrimitivePosition(px, py, command.Flags20, resolved.DrawMode);
-            return new(position.X, position.Y, vertices[0].Depth, vertices[0].ReciprocalW, Vector2.Zero, diffuse.Rgb, diffuse.Alpha);
+            NativeBattlePrimitiveDepthVertex depth = vertices[0];
+            if (TrySamplePilotVertex(command, corner, resolved.DrawMode, frame.LastDepthState!, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
+            {
+                position = sampled;
+                depth = sampledDepth;
+            }
+            return new(position.X, position.Y, depth.Depth, depth.ReciprocalW, Vector2.Zero, diffuse.Rgb, diffuse.Alpha);
         }
-        PrimitiveVertex a = At(x, y);
-        PrimitiveVertex b = At(x + width, y);
-        PrimitiveVertex c = At(x, y + height);
+        PrimitiveVertex a = At(x, y, 0);
+        PrimitiveVertex b = At(x + width, y, 1);
+        PrimitiveVertex c = At(x, y + height, 2);
+        PrimitiveVertex d = At(x + width, y + height, 3);
+        int submitted = DrawnTriangles;
         QueueNativePrimitive(a, b, c, null, semi ? blend : -1, resolved.Pass);
-        QueueNativePrimitive(b, At(x + width, y + height), c, null, semi ? blend : -1, resolved.Pass);
+        if (PilotDiagnosticsEnabled && DrawnTriangles > submitted)
+        {
+            ObservePilotSubmittedTriangle(resolved, a, b, c, 0, 1, 2);
+        }
+        submitted = DrawnTriangles;
+        QueueNativePrimitive(b, d, c, null, semi ? blend : -1, resolved.Pass);
+        if (PilotDiagnosticsEnabled && DrawnTriangles > submitted)
+        {
+            ObservePilotSubmittedTriangle(resolved, b, d, c, 1, 3, 2);
+        }
     }
 
     private void QueueNativePrimitive(PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, PixelImage? texture, int blend, byte pass, bool centroidTextureSampling = false)

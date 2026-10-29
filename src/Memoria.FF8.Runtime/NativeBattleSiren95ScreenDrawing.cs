@@ -103,7 +103,13 @@ public static class NativeBattleSiren95ScreenDrawing
                 uint uv = unchecked(row + (uint)((line & 1) != 0 ? 0x60 : 0x6C) + (uint)(column * 4));
                 uint[] words = [Word(row), Word(color), points[0].Screen, Word(uv), Word(color + 4), points[1].Screen, Word(uv + 24), Word(color + 16), points[2].Screen, Word(uv + 48), Word(color + 20), points[3].Screen, Word(uv + 72)];
                 attempts.Add(Packet(allocated + 52, bucket, [0x02000000, Window(row + 0x50), 0], []));
-                attempts.Add(Packet(allocated, bucket, words, points.Select(point => (int)point.Depth).ToImmutableArray()));
+                System.Numerics.Vector3 World(uint pointer)
+                {
+                    NativeBattleVector position = Point(pointer);
+                    return new(position.X, position.Y, position.Z);
+                }
+                NativeBattlePilotVisualGeometry visual = new(NativeBattlePilotVisualLifetimes.Identity(95, task, line * 3 + column), World(source), World(source + 8), World(source + 32), World(source + 40), 4);
+                attempts.Add(Packet(allocated, bucket, words, points.Select(point => (int)point.Depth).ToImmutableArray(), visual));
                 attempts.Add(Packet(allocated + 64, bucket, [0x02000000, Window(row + 0x58), 0], []));
                 allocated = checked(allocated + 76);
             }
@@ -170,7 +176,7 @@ public static class NativeBattleSiren95ScreenDrawing
         }
     }
 
-    private static NativeBattleGfGeometryAttempt Packet(int offset, int bucket, uint[] words, ImmutableArray<int> depths)
+    private static NativeBattleGfGeometryAttempt Packet(int offset, int bucket, uint[] words, ImmutableArray<int> depths, NativeBattlePilotVisualGeometry? visual = null)
     {
         byte[] data = new byte[words.Length * 4];
         for (int index = 0; index < words.Length; index++)
@@ -178,7 +184,7 @@ public static class NativeBattleSiren95ScreenDrawing
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(index * 4), words[index]);
         }
         ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, data.Length).ToImmutableArray();
-        NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutableArray(), depths) { PhysicalWriteMask = mask };
+        NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutableArray(), depths) { PhysicalWriteMask = mask, PilotGeometry = visual };
         return new(offset, data.ToImmutableArray(), mask, primitive);
     }
     private static int Offset(uint pointer, int length)

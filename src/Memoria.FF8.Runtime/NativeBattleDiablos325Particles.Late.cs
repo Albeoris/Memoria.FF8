@@ -58,7 +58,7 @@ public static partial class NativeBattleDiablos325Particles
         NativeBattleVector position = new(unchecked((short)task.ReadWord(0xC)), unchecked((short)task.ReadWord(0xE)), unchecked((short)task.ReadWord(0x10)));
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, unchecked((int)state.Pause5180), (current, node) =>
         {
-            NativeBattleDiablos325NodeDraw draw = NativeBattleDiablos325Programme.Emit656B70(frame.Memory, source, node, projection, colors, position, unchecked((short)task.ReadWord(0x12)), 0, selector, selector, effectCamera: billboard, contextScale: new(scale, scale, scale));
+            NativeBattleDiablos325NodeDraw draw = NativeBattleDiablos325Programme.Emit656B70(frame.Memory, source, node, projection, colors, position, unchecked((short)task.ReadWord(0x12)), 0, selector, selector, effectCamera: billboard, contextScale: new(scale, scale, scale), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(325, task, node.ResourceOffset));
             frame = submit(frame with { Memory = draw.Memory }, draw.Packets);
             return current;
         });

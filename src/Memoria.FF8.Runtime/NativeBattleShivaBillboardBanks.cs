@@ -24,7 +24,8 @@ public static class NativeBattleShivaBillboardBanks
     {
         NativeBattleActionMatrix cameraOrigin = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], draw.Matrix.X, draw.Matrix.Y, draw.Matrix.Z, 4096);
         NativeBattleModuleDraw sprite = draw.Sprite with { Anchor = new(0, 0, 0, 0), DepthOffset = 0, SpriteWorldRotation = draw.Matrix.Rotation };
-        return NativeBattleModulePackets.EmitSprite571DC0(sprite, projection with { View = cameraOrigin }, cameraRoll, 17, 2);
+        NativeBattleActionMatrix main = NativeBattlePoseMatrices.ModuleSpriteCamera(sprite, cameraOrigin, cameraRoll);
+        return NativeBattleModulePackets.EmitSprite571DC0(sprite, projection, cameraRoll, 17, 2, main);
     }
 
     private static NativeBattleShivaEarlyTaskStep Advance(NativeBattleShivaEarlyTaskFrame frame, int slot, uint graphicsFlags, NativeBattleActionMatrix viewWorld, NativeBattleModuleResource sprite, Func<NativeBattleShivaEarlyTaskFrame, NativeBattleShivaLateSpriteDraw, NativeBattleShivaEarlyTaskFrame> drawSprite, int kind)
@@ -86,7 +87,7 @@ public static class NativeBattleShivaBillboardBanks
             NativeBattleModuleSpriteFrame selected = sprite.ProjectedFrame571C80(selectedPhase);
             NativeBattleActionMatrix matrix;
             (frame, matrix) = Billboard(frame, light, point, size, kind != 3);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = sprite, SpriteFrame = selected, Phase = unchecked((ushort)selectedPhase), Anchor = new(0, 0, 0, 0), Scale = size, DepthOffset = 0, SpriteWorldRotation = matrix.Rotation, SpriteFlags = spriteFlags };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = NativeBattleShivaVisualIdentity.Particle(frame, slot, record, unchecked((int)sprite.Address)), Resource = sprite, SpriteFrame = selected, Phase = unchecked((ushort)selectedPhase), Anchor = new(0, 0, 0, 0), Scale = size, DepthOffset = 0, SpriteWorldRotation = matrix.Rotation, SpriteFlags = spriteFlags };
             frame = drawSprite(frame with { Memory = frame.Memory with { Arena = bank.Arena } }, new(draw, matrix));
             bank.Arena = frame.Memory.Arena ?? throw new InvalidDataException("Native Shiva billboard drawing lost its current arena.");
             if (paused)
@@ -147,6 +148,7 @@ public static class NativeBattleShivaBillboardBanks
                     break;
                 }
                 bank.PutDword(record, flag);
+                NativeBattleShivaVisualIdentity.Allocated(frame, slot, record);
                 bank.PutWord(record + 4, 0);
                 if (kind == 0)
                 {

@@ -7,15 +7,15 @@ public sealed record NativeBattleModuleMeshContext(uint Flags, uint? FarColor, i
 
 public static partial class NativeBattleModulePackets
 {
-    public static NativeBattleGfGeometryBatch EmitBatch572200(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null)
+    public static NativeBattleGfGeometryBatch EmitBatch572200(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader reader = new(source);
-        return EmitBatch572200(reader, geometryOffset, selectedVertices, matrix, projection, context, colors, readSelectedVertex, observeDepth, observeSourceCursor);
+        return EmitBatch572200(reader, geometryOffset, selectedVertices, matrix, projection, context, colors, readSelectedVertex, observeDepth, observeSourceCursor, pilotIdentity);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch572200(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null)
+    internal static NativeBattleGfGeometryBatch EmitBatch572200(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return NativeBattleGfGeometryPackets.EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize572200(context), colors, readSelectedVertex, observeDepth, observeSourceCursor);
+        return NativeBattleGfGeometryPackets.EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize572200(context), colors, readSelectedVertex, observeDepth, observeSourceCursor, pilotIdentity: pilotIdentity);
     }
 
     public static NativeBattleGfGeometryAttempt EmitFace572200(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleModuleMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0, Action<ushort>? observeDepth = null)
@@ -45,7 +45,7 @@ public static partial class NativeBattleModulePackets
             throw new NotSupportedException("Native572200 draw receipt requires its actual retained UV/TPAGE context; use the explicit mesh context.");
         }
         NativeBattleModuleMeshContext context = new(draw.MeshFlags | 0x2000, depthColor, draw.MeshFade, null, draw.MeshClut, null, tableBaseBucket, depthShift);
-        NativeBattleGfGeometryBatch batch = EmitBatch572200(resource.Bytes, 0, vertexBytes, matrix, projection, context, colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattleGfGeometryBatch batch = EmitBatch572200(resource.Bytes, 0, vertexBytes, matrix, projection, context, colors ?? NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: draw.PilotIdentity);
         ImmutableArray<NativeBattleAllocatedPrimitive> primitives = batch.Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => new NativeBattleAllocatedPrimitive(attempt.Primitive!, attempt.ByteOffsetRelative, 0)).ToImmutableArray();
         return new(primitives, batch.AllocationBytes) { CapturedWrites = batch };
     }

@@ -6,13 +6,13 @@ namespace Memoria.FF8.Runtime;
 public static partial class NativeBattleModulePackets
 {
     /// <summary>572200's flags0/group0 stores and insertion match7043B0's shared F3 core, with no depth bias or color/material overrides.</summary>
-    public static NativeBattleGfGeometryBatch EmitFlatTriangles572200(ImmutableArray<byte> source, int geometryOffset, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int tableBaseBucket, byte depthShift, Action<ushort>? observeDepth = null)
+    public static NativeBattleGfGeometryBatch EmitFlatTriangles572200(ImmutableArray<byte> source, int geometryOffset, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int tableBaseBucket, byte depthShift, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader reader = new(source);
-        return EmitFlatTriangles572200(reader, geometryOffset, matrix, projection, tableBaseBucket, depthShift, observeDepth);
+        return EmitFlatTriangles572200(reader, geometryOffset, matrix, projection, tableBaseBucket, depthShift, observeDepth, pilotIdentity);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitFlatTriangles572200(NativeBattleGfSourceReader source, int geometryOffset, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int tableBaseBucket, byte depthShift, Action<ushort>? observeDepth = null)
+    internal static NativeBattleGfGeometryBatch EmitFlatTriangles572200(NativeBattleGfSourceReader source, int geometryOffset, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int tableBaseBucket, byte depthShift, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (source.IsDefault || geometryOffset < 0 || geometryOffset > source.Length - 8)
         {
@@ -30,7 +30,7 @@ public static partial class NativeBattleModulePackets
             cursor = checked(cursor + 4);
         }
         //Flags0 never consumes the context's far RGB, cue, CLUT or TPAGE scratch values.
-        return NativeBattleGfGeometryPackets.EmitBatch7043B0(source, geometryOffset, default, matrix, projection, new(0, 0, 0, null, null, 0, tableBaseBucket, depthShift), observeDepth: observeDepth);
+        return NativeBattleGfGeometryPackets.EmitBatch7043B0(source, geometryOffset, default, matrix, projection, new(0, 0, 0, null, null, 0, tableBaseBucket, depthShift), observeDepth: observeDepth, pilotIdentity: pilotIdentity);
 
         int Read32(int offset)
         {

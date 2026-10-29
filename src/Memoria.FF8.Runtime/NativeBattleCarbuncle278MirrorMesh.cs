@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The mirror's textured quad group with two ordered draw-mode commands around each accepted packet.</summary>
 public static class NativeBattleCarbuncle278MirrorMesh
 {
-    public static NativeBattleCommonPacketWrite Append6839B0(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, byte intensity, Func<int, NativeBattleVector>? readVertices = null)
+    public static NativeBattleCommonPacketWrite Append6839B0(NativeBattlePrimitiveProcess process, NativeBattleLogicalOrdering ordering, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, byte intensity, Func<int, NativeBattleVector>? readVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ReadOnlySpan<byte> source = mesh.Bytes.AsSpan();
         int group = checked(BinaryPrimitives.ReadInt32LittleEndian(source) + 12);
@@ -19,7 +19,13 @@ public static class NativeBattleCarbuncle278MirrorMesh
             byte[] face = source.Slice(faceOffset, 24).ToArray();
             BinaryPrimitives.WriteUInt32LittleEndian(face, 0x2C000000u | intensity | (uint)intensity << 8 | (uint)intensity << 16);
             ushort[] offsets = Enumerable.Range(0, 4).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + index * 2))).ToArray();
-            NativeBattleGfGeometryAttempt attempt = NativeBattleGfGeometryPackets.EmitAttempt(face, new Corners(offsets, mesh.Bytes, matrix, projection, readVertices), 3, context, null, 0);
+            Corners corners = new(offsets, mesh.Bytes, matrix, projection, readVertices, pilotIdentity.HasValue);
+            NativeBattleGfGeometryAttempt attempt = NativeBattleGfGeometryPackets.EmitAttempt(face, corners, 3, context, null, 0);
+            if (pilotIdentity is { } identity && attempt.Primitive is { } captured)
+            {
+                System.Numerics.Vector3[] world = corners.World!;
+                attempt = attempt with { Primitive = captured with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + faceIndex) }, world[0], world[1], world[2], world[3], 4) } };
+            }
             NativeBattleGfGeometryBatch batch;
             if (attempt.Primitive is { } primitive)
             {
@@ -47,9 +53,11 @@ public static class NativeBattleCarbuncle278MirrorMesh
         return new(offset, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 8).ToImmutableArray(), new(bucket, [0x01000000, command], [0, 0, 0, 0]));
     }
 
-    private sealed class Corners(ushort[] offsets, ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, Func<int, NativeBattleVector>? readVertices) : IReadOnlyList<NativeBattleModuleProjectedVertex>
+    private sealed class Corners(ushort[] offsets, ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, Func<int, NativeBattleVector>? readVertices, bool capture) : IReadOnlyList<NativeBattleModuleProjectedVertex>
     {
         private readonly NativeBattleModuleProjectedVertex?[] projected = new NativeBattleModuleProjectedVertex?[4];
+
+        internal System.Numerics.Vector3[]? World { get; } = capture ? new System.Numerics.Vector3[4] : null;
 
         public int Count => 4;
 
@@ -71,6 +79,10 @@ public static class NativeBattleCarbuncle278MirrorMesh
                     }
                     value = NativeBattleModuleProjection.Project45FE10(matrix, position, projection);
                     projected[index] = value;
+                    if (World is not null)
+                    {
+                        World[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, position), projection);
+                    }
                 }
                 return value;
             }

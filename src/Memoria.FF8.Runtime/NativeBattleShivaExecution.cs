@@ -44,10 +44,12 @@ public static class NativeBattleShivaExecution
         private NativeBattleShivaProcess Shared => Frame.Memory.Shiva ?? throw new NotSupportedException("Native Shiva requires its retained process state.");
         private NativeBattleActionMatrix World => Shared.Entry?.World ?? throw new NotSupportedException("Native Shiva requires its actual entry world matrix.");
         private NativeBattleEffectTaskPool Children => Frame.Effect.Pools[1];
+        private NativeBattlePilotVisualIdentity drawingIdentity;
 
         public int Advance(uint address)
         {
             NativeBattleModulePoolTask task = Read(address);
+            drawingIdentity = NativeBattlePilotVisualLifetimes.Identity(185, task);
             switch (task.Callback)
             {
                 case 0x5C0F30:
@@ -99,7 +101,7 @@ public static class NativeBattleShivaExecution
                         Frame = Frame with { Memory = current.Memory, Random = current.Random };
                         SetChildren(current.Pool);
                         SetShared(Shared with { Geometry = current.Geometry });
-                        Emit(new NativeBattleShivaPackets(NativeBattleShivaBurstTask.Emit572200(draw, inputs.Projection, inputs.Colors), false));
+                        Emit(new NativeBattleShivaPackets(NativeBattleShivaBurstTask.Emit572200(draw, inputs.Projection, inputs.Colors, drawingIdentity), false));
                         return new(Frame.Memory, Children, Frame.Random, Shared.Geometry);
                     });
                     Frame = Frame with { Memory = burst.Frame.Memory, Random = burst.Frame.Random };
@@ -199,7 +201,7 @@ public static class NativeBattleShivaExecution
         private NativeBattleShivaEarlyTaskFrame DrawModelMesh(NativeBattleShivaEarlyTaskFrame current, NativeBattleShivaModelMeshDraw draw)
         {
             AcceptEarly(current);
-            Emit(new NativeBattleShivaPackets(NativeBattleModulePackets.EmitBatch572200(draw.Resource.Bytes, 0, draw.Resource.Bytes.AsSpan().Slice(8).ToArray().ToImmutableArray(), draw.Matrix, inputs.Projection, draw.Context, inputs.Colors), false));
+            Emit(new NativeBattleShivaPackets(NativeBattleModulePackets.EmitBatch572200(draw.Resource.Bytes, 0, draw.Resource.Bytes.AsSpan().Slice(8).ToArray().ToImmutableArray(), draw.Matrix, inputs.Projection, draw.Context, inputs.Colors, pilotIdentity: draw.PilotIdentity ?? drawingIdentity with { Primitive = unchecked((int)draw.Resource.Address) }), false));
             return EarlyFrame();
         }
 
@@ -213,7 +215,7 @@ public static class NativeBattleShivaExecution
         private NativeBattleShivaEarlyTaskFrame DrawScrollingMesh(NativeBattleShivaEarlyTaskFrame current, NativeBattleShivaScrollingDraw draw)
         {
             AcceptEarly(current);
-            Emit(new NativeBattleShivaPackets(NativeBattleShivaScrollingPackets.Emit64E080(draw.Resource, draw.Matrix, inputs.Projection, draw.Context, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors), false));
+            Emit(new NativeBattleShivaPackets(NativeBattleShivaScrollingPackets.Emit64E080(draw.Resource, draw.Matrix, inputs.Projection, draw.Context, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors, drawingIdentity with { Primitive = unchecked((int)draw.Resource.Address) }), false));
             return EarlyFrame();
         }
 
@@ -256,7 +258,7 @@ public static class NativeBattleShivaExecution
             {
                 throw new NotSupportedException("Native Shiva standard mesh uses its actual zero depth bias.");
             }
-            return NativeBattleModulePackets.EmitBatch572200(draw.Resource.Bytes, 0, draw.Resource.Bytes.AsSpan().Slice(8).ToArray().ToImmutableArray(), draw.Matrix, inputs.Projection, new(source.Flags, source.FarColor, source.DepthCue, source.TexturePage, source.Clut, 0, source.TableBaseBucket, source.DepthShift), inputs.Colors);
+            return NativeBattleModulePackets.EmitBatch572200(draw.Resource.Bytes, 0, draw.Resource.Bytes.AsSpan().Slice(8).ToArray().ToImmutableArray(), draw.Matrix, inputs.Projection, new(source.Flags, source.FarColor, source.DepthCue, source.TexturePage, source.Clut, 0, source.TableBaseBucket, source.DepthShift), inputs.Colors, pilotIdentity: drawingIdentity with { Primitive = unchecked((int)draw.Resource.Address) });
         }
 
         private NativeBattleShivaFinalFrame DrawCommonFinalMesh(NativeBattleShivaFinalFrame current, NativeBattleShivaFinalMeshDraw draw)
@@ -268,13 +270,13 @@ public static class NativeBattleShivaExecution
 
         private NativeBattleShivaFinalFrame DrawFinalScroll(NativeBattleShivaFinalFrame current, NativeBattleShivaScrollingDraw draw)
         {
-            return SubmitFinalPackets(current, NativeBattleShivaScrollingPackets.Emit64E080(draw.Resource, draw.Matrix, inputs.Projection, draw.Context, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors));
+            return SubmitFinalPackets(current, NativeBattleShivaScrollingPackets.Emit64E080(draw.Resource, draw.Matrix, inputs.Projection, draw.Context, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors, drawingIdentity with { Primitive = unchecked((int)draw.Resource.Address) }));
         }
 
         private NativeBattleShivaFinalFrame DrawCommonFinalScroll(NativeBattleShivaFinalFrame current, NativeBattleShivaScrollingDraw draw)
         {
             AcceptFinal(current);
-            Emit(new NativeBattleShivaPackets(NativeBattleShivaScrollingPackets.Emit64E080(draw.Resource, draw.Matrix, inputs.Projection, draw.Context, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors), false));
+            Emit(new NativeBattleShivaPackets(NativeBattleShivaScrollingPackets.Emit64E080(draw.Resource, draw.Matrix, inputs.Projection, draw.Context, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors, drawingIdentity with { Primitive = unchecked((int)draw.Resource.Address) }), false));
             return FinalFrame();
         }
 
@@ -306,7 +308,7 @@ public static class NativeBattleShivaExecution
                 throw new NotSupportedException("Native Shiva plane drawing requires its constructed plane and actual shared XYZ pointer.");
             }
             NativeBattleShivaPlane plane = new(Word(0xB8), Word(0xBA), Word(0xBC), Word(0xBE));
-            NativeBattleShivaPlaneDraw draw = NativeBattleShivaPlaneClipping.Draw5C5060(Frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva plane drawing requires its current mutable XYZ arena."), current.RawModel, resources.Model544, Shared.WorldView ?? throw new NotSupportedException("Native Shiva plane drawing requires its published world/view matrix."), inputs.Projection, plane, resources.ClippingVertexSelectorsD32524, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb);
+            NativeBattleShivaPlaneDraw draw = NativeBattleShivaPlaneClipping.Draw5C5060(Frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva plane drawing requires its current mutable XYZ arena."), current.RawModel, resources.Model544, Shared.WorldView ?? throw new NotSupportedException("Native Shiva plane drawing requires its published world/view matrix."), inputs.Projection, plane, resources.ClippingVertexSelectorsD32524, inputs.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, pilotIdentity: drawingIdentity);
             Frame = Frame with { Memory = Frame.Memory with { Arena = draw.Arena } };
             Emit(new NativeBattleShivaPackets(draw.Batch, false));
             return ModelFrame();
@@ -340,7 +342,7 @@ public static class NativeBattleShivaExecution
             NativeBattleEffectArena arena = Frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva model drawing requires its mutable shared vertex arena.");
             NativeBattleEffectOwnedModelResource resource = resources.Model544;
             ImmutableArray<byte> scratch = arena.Read(0x33000, checked(resource.Geometry[0].Vertices.Length * 8)).ToImmutableArray();
-            NativeBattleCactuarRawModelDraw draw = NativeBattleCactuarRawModel.Draw5A9010(current.RawModel, resource, Shared.WorldView ?? throw new NotSupportedException("Native Shiva model drawing requires its published world/view matrix."), inputs.Projection, inputs.Colors, NativeBattleShivaModelTask.Binding, scratch);
+            NativeBattleCactuarRawModelDraw draw = NativeBattleCactuarRawModel.Draw5A9010(current.RawModel, resource, Shared.WorldView ?? throw new NotSupportedException("Native Shiva model drawing requires its published world/view matrix."), inputs.Projection, inputs.Colors, NativeBattleShivaModelTask.Binding, scratch, drawingIdentity);
             if (draw.ProjectedBytesWritten > 0)
             {
                 arena = arena.Write(0x33000, draw.State.ProjectedScratch!.Value.AsSpan().Slice(0, draw.ProjectedBytesWritten));
@@ -389,7 +391,7 @@ public static class NativeBattleShivaExecution
             AcceptEarly(current);
             NativeBattleModuleMeshContext source = draw.Context;
             NativeBattleGfGeometryContext context = new(source.Flags, source.FarColor ?? 0, source.Fade ?? 0, source.TexturePage, source.Clut, 0, source.TableBaseBucket, source.DepthShift);
-            NativeBattleShivaMeshPacketResult packets = NativeBattleShivaMeshPackets.Emit5C1B50(draw.Resource, default, draw.Matrix, inputs.Projection, context, draw.MaximumCount, draw.WindowCount, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors, readSelectedVertex: ReadVertex);
+            NativeBattleShivaMeshPacketResult packets = NativeBattleShivaMeshPackets.Emit5C1B50(draw.Resource, default, draw.Matrix, inputs.Projection, context, draw.MaximumCount, draw.WindowCount, inputs.Zsf4, inputs.Dqa, inputs.Dqb, inputs.Colors, readSelectedVertex: ReadVertex, pilotIdentity: drawingIdentity);
             Emit(new NativeBattleShivaPackets(packets.Batch, false));
             return EarlyFrame();
 

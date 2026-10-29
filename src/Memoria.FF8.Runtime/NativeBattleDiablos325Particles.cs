@@ -70,7 +70,7 @@ public static partial class NativeBattleDiablos325Particles
             NativeBattleGfAnimationSource source = ReadSource(frame, workspace.ResourceAddress);
             NativeBattleGfAnimationAdvance programme = workspace.Advance701970(source, unchecked((int)pause), (cache, node) =>
             {
-                NativeBattleDiablos325NodeDraw drawn = NativeBattleDiablos325Programme.Emit656B70(frame.Memory, source, node, projection, colors, position, unchecked((short)task.ReadWord(0x12)), 0, primitives, textures, billboard);
+                NativeBattleDiablos325NodeDraw drawn = NativeBattleDiablos325Programme.Emit656B70(frame.Memory, source, node, projection, colors, position, unchecked((short)task.ReadWord(0x12)), 0, primitives, textures, billboard, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(325, task, node.ResourceOffset));
                 frame = submit(frame with { Memory = drawn.Memory }, drawn.Packets);
                 return cache;
             });

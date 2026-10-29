@@ -301,15 +301,26 @@ internal static class NativeBattleEffectMeshPackets
         return vertices.Length == 4 ? [vertices[1].Depth, vertices[2].Depth, vertices[3].Depth, 0] : [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, 0];
     }
 
-    internal delegate NativeBattleGfGeometryBatch EmitFace(int group, ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, int byteOffset);
-
-    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, Func<int, NativeBattleVector>? readSelectedVertex, EmitFace emit, Action<uint>? observeFirstThreeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null)
+    private static int PilotPolygonCommand(NativeBattleGeometryPrimitive primitive)
     {
-        using NativeBattleGfSourceReader reader = new(mesh);
-        return EmitBatch(reader, matrix, projection, flags, readSelectedVertex, emit, observeFirstThreeFlags, projectFourth);
+        int commandIndex = primitive.Words.Length > 2 && primitive.Words[1] >> 24 == 0xE2 ? 2 : 1;
+        if (primitive.Words.Length <= commandIndex)
+        {
+            return -1;
+        }
+        int command = unchecked((int)(primitive.Words[commandIndex] >> 24));
+        return (command & 0xE0) == 0x20 ? command & 0x3C : -1;
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch(NativeBattleGfSourceReader mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, Func<int, NativeBattleVector>? readSelectedVertex, EmitFace emit, Action<uint>? observeFirstThreeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null)
+    internal delegate NativeBattleGfGeometryBatch EmitFace(int group, ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, int byteOffset);
+
+    internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, Func<int, NativeBattleVector>? readSelectedVertex, EmitFace emit, Action<uint>? observeFirstThreeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        using NativeBattleGfSourceReader reader = new(mesh);
+        return EmitBatch(reader, matrix, projection, flags, readSelectedVertex, emit, observeFirstThreeFlags, projectFourth, pilotIdentity);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitBatch(NativeBattleGfSourceReader mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, Func<int, NativeBattleVector>? readSelectedVertex, EmitFace emit, Action<uint>? observeFirstThreeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         matrix.Validate();
         if (mesh.IsDefault || mesh.Length < 8)
@@ -336,6 +347,7 @@ internal static class NativeBattleEffectMeshPackets
                 {
                     offsets[corner] = BinaryPrimitives.ReadUInt16LittleEndian(face[(4 + 2 * corner)..]);
                 }
+                System.Numerics.Vector3[]? pilotWorld = pilotIdentity is null ? null : new System.Numerics.Vector3[offsets.Length];
                 uint firstThreeFlags = 0;
                 NativeBattleModuleProjectedVertex Project(int corner)
                 {
@@ -350,6 +362,10 @@ internal static class NativeBattleEffectMeshPackets
                         ReadOnlySpan<byte> xyz = Read(checked(8 + offset), 6);
                         vertex = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
                     }
+                    if (pilotWorld is not null)
+                    {
+                        pilotWorld[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex), projection);
+                    }
                     NativeBattleModuleProjectedVertex projected = corner == 3 && projectFourth is not null ? projectFourth(vertex) : NativeBattleModuleProjection.Project45FE10(matrix, vertex, projection);
                     if (corner < 3)
                     {
@@ -362,6 +378,11 @@ internal static class NativeBattleEffectMeshPackets
                     return projected;
                 }
                 NativeBattleGfGeometryBatch batch = emit(group, face, Project, allocated);
+                if (pilotIdentity is { } identity && batch.Attempts.Any(attempt => attempt.Primitive is { } candidate && PilotPolygonCommand(candidate) >= 0))
+                {
+                    NativeBattlePilotVisualGeometry geometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, pilotWorld![0], pilotWorld[1], pilotWorld[2], offsets.Length == 4 ? pilotWorld[3] : default, (byte)offsets.Length);
+                    batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive && PilotPolygonCommand(primitive) >= 0 ? attempt with { Primitive = primitive with { PilotGeometry = geometry with { Identity = geometry.Identity with { Primitive = unchecked(geometry.Identity.Primitive * 397 + PilotPolygonCommand(primitive)) } } } } : attempt).ToImmutableArray() };
+                }
                 attempts.AddRange(batch.Attempts);
                 allocated = checked(allocated + batch.AllocationBytes);
                 cursor = checked(cursor + stride);

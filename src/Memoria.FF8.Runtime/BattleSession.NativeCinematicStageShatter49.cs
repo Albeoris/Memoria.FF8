@@ -35,7 +35,9 @@ public sealed partial class BattleSession
             graphics = written.Graphics;
             return written.Frame;
         });
-        NativeBattleCinematicStageShatter49Result result = NativeBattleCinematicStageShatter49.Draw(frame, NativeStage ?? throw new NotSupportedException("Native stage shatter requires its retained stage descriptors."), RequireNativeStageGeometry(), services);
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
+        NativeBattleCinematicStageShatter49Result result = NativeBattleCinematicStageShatter49.Draw(frame, NativeStage ?? throw new NotSupportedException("Native stage shatter requires its retained stage descriptors."), RequireNativeStageGeometry(), services, identity);
         NativeStage = result.Stage;
         if (result.BackColor is uint color)
         {

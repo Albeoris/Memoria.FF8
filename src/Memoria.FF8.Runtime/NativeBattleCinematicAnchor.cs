@@ -18,7 +18,7 @@ public static class NativeBattleCinematicAnchor
         return matrix;
     }
 
-    public static NativeBattleCinematicSpriteProjection Project(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, NativeBattleCameraProjection projection, short dqa, int dqb)
+    public static NativeBattleCinematicSpriteProjection Project(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, NativeBattleCameraProjection projection, short dqa, int dqb, bool capturePresentation = false)
     {
         NativeBattleActionMatrix matrix = Prepare(frame, bank);
         byte[] point = frame.Core.Read(0x27971E4, 6);
@@ -26,6 +26,6 @@ public static class NativeBattleCinematicAnchor
         short x = unchecked((short)(unchecked((short)projected.Projected.Screen) >> 3));
         short y = unchecked((short)(unchecked((short)(projected.Projected.Screen >> 16)) >> 3));
         frame = frame.WriteTemporaryWord(0xD0, unchecked((ushort)x)).WriteTemporaryWord(0xD2, unchecked((ushort)y)).WriteTemporaryDword(0xFC, projected.Projected.Flags);
-        return new(frame, projected.Projected.Depth >> 2);
+        return new(frame, projected.Projected.Depth >> 2) { PilotAnchor = capturePresentation ? NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, NativeBattleScriptedMeshPreparation.Vector(point)), projection) : null };
     }
 }

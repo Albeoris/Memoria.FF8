@@ -44,7 +44,7 @@ public sealed partial class BattleSession
             NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix ?? throw new InvalidOperationException("Native angular grid row basis has not been prepared."), point, projection, controls.Dqa, controls.Dqb);
             current = StoreNativeGridDword(current, output, projected.Projected.Screen).WriteTemporaryDword(0xFC, projected.Projected.Flags);
             NativeEffectMemory = memory with { ScriptedColorRegisters = registers };
-            return new(current, projected.Projected.Depth >> 2);
+            return new(current, projected.Projected.Depth >> 2) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix!, point), projection) };
         }, (current, color, factor) =>
         {
             NativeBattleEffectMemory memory = RequireWaterMemory();
@@ -58,6 +58,8 @@ public sealed partial class BattleSession
             graphics = written.Graphics;
             return written.Frame;
         });
-        return (NativeBattleCinematicWireGrid38.Draw(frame, services), graphics);
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
+        return (NativeBattleCinematicWireGrid38.Draw(frame, services, identity), graphics);
     }
 }

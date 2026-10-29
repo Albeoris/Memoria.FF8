@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>B36F40's flat textured quad uses its material table and truncates the four separate depth payloads.</summary>
 public static class NativeBattleCinematicFlatFt4Depth14
 {
-    public static NativeBattleScriptedMeshSubmission Emit(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket, float depthScale)
+    public static NativeBattleScriptedMeshSubmission Emit(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket, float depthScale, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (group.Type != 14 || actualHandler != 0xB36F40)
         {
@@ -77,6 +77,7 @@ public static class NativeBattleCinematicFlatFt4Depth14
                 uint ordering = unchecked(table + ((sum >> 2) & 0x3FFC));
                 ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
                 primitive = new(resolveActualOtBucket(ordering), words, payloads.ToImmutableArray()) { PhysicalWriteMask = mask.ToImmutableArray() };
+                primitive = NativeBattleCinematicVisualIdentity.Capture(primitive, pilotWorldVertices, pilotIdentity, face, 12, 4, index, depthScale);
             }
             attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             if (primitive is not null)

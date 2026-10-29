@@ -90,13 +90,13 @@ public sealed partial class BattleSession
                         return new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..]));
                     };
                 }
-                NativeBattleCommonPacketWrite written = NativeBattleCarbuncle278MirrorMesh.Append6839B0(process, primitive.Pending, mesh, matrix, projection, intensity, readVertices);
+                NativeBattleCommonPacketWrite written = NativeBattleCarbuncle278MirrorMesh.Append6839B0(process, primitive.Pending, mesh, matrix, projection, intensity, readVertices, NativeBattlePilotVisualLifetimes.Identity(278, current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0], 1));
                 if (counter >= 16)
                 {
                     NativeBattleStaticMeshResource secondary = current.Effect.Binding.Carbuncle278Resources?.SecondaryMesh ?? throw new NotSupportedException("Native Carbuncle mirror requires its original secondary mesh.");
                     short scale = unchecked((short)ratio);
                     NativeBattleActionMatrix scaled = NativeBattleGfMatrices.Compose56C2F0(view, local with { Rotation = [scale, 0, 0, 0, scale, 0, 0, 0, scale] });
-                    NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(secondary.Bytes, 0, secondary.Bytes.Slice(8, secondary.Bytes.Length - 8), scaled, projection, new(0x2000, null, null, null, null, null, 17, 2));
+                    NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(secondary.Bytes, 0, secondary.Bytes.Slice(8, secondary.Bytes.Length - 8), scaled, projection, new(0x2000, null, null, null, null, null, 17, 2), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(278, current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0], 2));
                     written = NativeBattleCommonPacketArena.Append(written.Process, written.Ordering, batch);
                 }
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
@@ -198,7 +198,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleCarbuncle278RangePhase phase = NativeBattleCarbuncle278RangeSetup.Read6825A5(current.Memory, unchecked((short)task.ReadWord(0xC)));
                 NativeBattleStaticMeshResource mesh = current.Effect.Binding.Carbuncle278Resources?.CreatureBoundsMesh ?? throw new NotSupportedException("Native Carbuncle range requires its original source mesh.");
-                NativeBattleCarbuncle278RangeDraw draw = NativeBattleCarbuncle278RangeMesh.Emit682760(mesh, NativeBattleCarbuncle278ChildDrawing.ReadCached(current.Memory, address), CurrentProjection(), phase.Minimum, phase.Maximum, phase.Fade, phase.VOffset, CurrentColors());
+                NativeBattleCarbuncle278RangeDraw draw = NativeBattleCarbuncle278RangeMesh.Emit682760(mesh, NativeBattleCarbuncle278ChildDrawing.ReadCached(current.Memory, address), CurrentProjection(), phase.Minimum, phase.Maximum, phase.Fade, phase.VOffset, CurrentColors(), NativeBattlePilotVisualLifetimes.Identity(278, task));
                 if (draw.FarColorWritten)
                 {
                     NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Carbuncle range requires its current far-color controls.");
@@ -276,6 +276,7 @@ public sealed partial class BattleSession
                 NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Carbuncle sparkles require their current camera.");
                 NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Carbuncle sparkles require their current projection.");
                 NativeBattleModuleDraw sprite = task.Callback == 0x683DC0 ? NativeBattleCarbuncle278ReturnParticles.Draw683DC0(task, resources.ReturnSprites) : NativeBattleCarbuncle278Sparkles.Draw683E80(task, resources.SparkleSprite ?? throw new NotSupportedException("Native Carbuncle requires its original sparkle sprite."));
+                sprite = sprite with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(278, task) };
                 NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(sprite, projection, camera.Roll, 17, 2);
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Carbuncle sparkles require their current ordering table.");
                 int cursor = checked((int)(state.PacketCursor81BC - state.ModelBuffer81F8));

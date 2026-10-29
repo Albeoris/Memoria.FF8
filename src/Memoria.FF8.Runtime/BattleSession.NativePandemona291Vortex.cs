@@ -52,9 +52,9 @@ public sealed partial class BattleSession
         NativeBattleTextureWindow full = new(0, 0, 256, 256);
         NativeBattleEsunaMeshContext context = new(0x2030, null, null, 256, 0, 0, full, full, 17, 2);
         NativeBattleActionMatrix first = NativeBattlePandemona291Layers.Build6F29D0(resources.TrailTrigonometry, unchecked(elapsed << 6), 8192, 4096) with { Y = -8192, Z = center };
-        var primary = DrawNativePandemona291PreparedMesh(frame, floor, NativeBattleGfMatrices.Compose56C2F0(view, first), context, scratch, graphics, ir0);
+        var primary = DrawNativePandemona291PreparedMesh(frame, floor, NativeBattleGfMatrices.Compose56C2F0(view, first), context, scratch, graphics, ir0, pilotIdentity: NativePandemona291VisualIdentity(frame, 210));
         NativeBattleActionMatrix second = NativeBattlePandemona291Layers.Build6F29D0(resources.TrailTrigonometry, unchecked(elapsed * 100), 5000, 4096) with { Y = -8192, Z = center };
-        var secondary = DrawNativePandemona291PreparedMesh(primary.Frame, floor, NativeBattleGfMatrices.Compose56C2F0(view, second), context with { DepthBias = 128 }, scratch, primary.Graphics, primary.Ir0);
+        var secondary = DrawNativePandemona291PreparedMesh(primary.Frame, floor, NativeBattleGfMatrices.Compose56C2F0(view, second), context with { DepthBias = 128 }, scratch, primary.Graphics, primary.Ir0, pilotIdentity: NativePandemona291VisualIdentity(frame, 211));
         if (elapsed < 44)
         {
             return (secondary.Frame, secondary.Graphics);
@@ -63,7 +63,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix translated = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, -8192, center, 4096);
         NativeBattleActionMatrix overlayMatrix = NativeBattleGfMatrices.Compose56C2F0(view, translated);
         NativeBattleEsunaMeshContext overlayContext = context with { Flags = 0xF0, FarColor = 0, Fade = unchecked((60 - elapsed) << 8), DepthBias = 0 };
-        var late = DrawNativePandemona291PreparedMesh(secondary.Frame, overlay, overlayMatrix, overlayContext, null, secondary.Graphics, secondary.Ir0);
+        var late = DrawNativePandemona291PreparedMesh(secondary.Frame, overlay, overlayMatrix, overlayContext, null, secondary.Graphics, secondary.Ir0, pilotIdentity: NativePandemona291VisualIdentity(frame, 212));
         return (late.Frame, late.Graphics);
     }
 }

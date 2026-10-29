@@ -41,17 +41,17 @@ public static class NativeBattleFullscreenOverlay
     public const string PacketBank = "2795110";
     public const uint Callback = 0x8DDEC0;
 
-    public static NativeBattleFullscreenOverlayStep Advance8DDEC0(NativeBattleFullscreenOverlayFrame frame, uint address, uint pause2795914, NativeBattleFullscreenOverlayProgram program)
+    public static NativeBattleFullscreenOverlayStep Advance8DDEC0(NativeBattleFullscreenOverlayFrame frame, uint address, uint pause2795914, NativeBattleFullscreenOverlayProgram program, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return AdvanceProfiled(frame, address, pause2795914, program, false);
+        return AdvanceProfiled(frame, address, pause2795914, program, false, pilotIdentity);
     }
 
-    public static NativeBattleFullscreenOverlayStep Advance8DDC30(NativeBattleFullscreenOverlayFrame frame, uint address, uint pause2795914, NativeBattleFullscreenOverlayProgram program)
+    public static NativeBattleFullscreenOverlayStep Advance8DDC30(NativeBattleFullscreenOverlayFrame frame, uint address, uint pause2795914, NativeBattleFullscreenOverlayProgram program, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return AdvanceProfiled(frame, address, pause2795914, program, true);
+        return AdvanceProfiled(frame, address, pause2795914, program, true, pilotIdentity);
     }
 
-    private static NativeBattleFullscreenOverlayStep AdvanceProfiled(NativeBattleFullscreenOverlayFrame frame, uint address, uint pause2795914, NativeBattleFullscreenOverlayProgram program, bool delayedCaller)
+    private static NativeBattleFullscreenOverlayStep AdvanceProfiled(NativeBattleFullscreenOverlayFrame frame, uint address, uint pause2795914, NativeBattleFullscreenOverlayProgram program, bool delayedCaller, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
@@ -166,7 +166,15 @@ public static class NativeBattleFullscreenOverlay
                 }
                 ImmutableArray<int> depth = links.ProxyCount < frame.Ordering.Proxies.Length ? frame.Ordering.Proxies[links.ProxyCount].VertexPayload4 : [];
                 bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-                links.Prepend(7, new(PacketBank, 0, offset), words, 0, depth);
+                NativeBattlePilotVisualGeometry? visual = null;
+                if (offset < 96 && pilotIdentity is { } identity)
+                {
+                    int quadrant = offset / 24;
+                    int x = (quadrant & 1) * 160;
+                    int y = (quadrant >> 1) * 120;
+                    visual = new(identity with { Primitive = quadrant }, new(x, y, 0), new(x + 160, y, 0), new(x, y + 120, 0), new(x + 160, y + 120, 0), 4, false) { ScreenSpace = true, ScreenScale = 1, SourceDepths = depth.Length == 4 ? new(depth[0], depth[1], depth[2], depth[3]) : null, UseSourceDepths = depth.Length == 4 };
+                }
+                links.Prepend(7, new(PacketBank, 0, offset), words, 0, depth, pilotGeometry: visual);
                 if (linked)
                 {
                     bytes = bytes.Write(offset, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));

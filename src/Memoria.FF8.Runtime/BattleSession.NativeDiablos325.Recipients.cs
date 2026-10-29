@@ -16,13 +16,15 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = rules.Rules.SummonColors ?? throw new NotSupportedException("Native Diablos sink requires its original interpolation constants.");
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Diablos sink requires its current COMMON packet owner.");
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Diablos sink requires its current ordering table.");
+        NativeBattlePilotVisualIdentity? recipientIdentity = NativeBattleDiablos325VisualGeometry.Identity(frame, index);
+        int bodyPart = 0;
         if ((actor.Flags0 & 0x20) == 0)
         {
             NativeBattleEffectLocalBounds bounds = actor.GeometryBounds52 ?? throw new NotSupportedException("Native Diablos shadow requires its current model bounds.");
             NativeBattleShadowSource shadowSource = rules.Rules.ShadowSource ?? throw new NotSupportedException("Native Diablos shadow requires its original template.");
             NativeBattleShadowGeometry shadow = NativeBattlePoseMatrices.ShadowGeometry5088A0(actor, bounds, view, shadowSource, capabilities.GouraudAlpha);
             NativeBattleModuleProjectedVertex[] projected = shadow.Vertices.Select(point => NativeBattleModuleProjection.Project45FE10(shadow.CameraMatrix, point, projection)).ToArray();
-            NativeBattleGfGeometryBatch shadowPackets = NativeBattleShadowPackets.EmitBatch5088A0(projected, actor.Color44 ?? throw new NotSupportedException("Native Diablos shadow requires its current packed model color."), capabilities.GouraudAlpha, 0x1010, 16);
+            NativeBattleGfGeometryBatch shadowPackets = NativeBattleShadowPackets.EmitBatch5088A0(projected, actor.Color44 ?? throw new NotSupportedException("Native Diablos shadow requires its current packed model color."), capabilities.GouraudAlpha, 0x1010, 16, shadow.Vertices.Select(point => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shadow.CameraMatrix, point), projection)).ToArray(), recipientIdentity);
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, shadowPackets);
             process = written.Process;
             primitive = primitive with { Pending = written.Ordering };
@@ -61,7 +63,7 @@ public sealed partial class BattleSession
             ushort maximum = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Diablos actor projection requires its actually loaded scratch maximum.");
             int capacity = checked(maximum * 8);
             uint address = checked(0x196B018u - (uint)capacity);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, new byte[capacity].ToImmutableArray(), colors, 4);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, bones, projection, color, mask, new byte[capacity].ToImmutableArray(), colors, 4, pilotIdentity: recipientIdentity is { } identity ? identity with { Primitive = unchecked(0x657CB0 + identity.Primitive * 31 + bodyPart++) } : null);
             if (drawn.ProjectedBytesWritten != 0)
             {
                 NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native Diablos actor projection requires its canonical shared byte owner.")).Write(address, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));

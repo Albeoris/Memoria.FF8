@@ -9,7 +9,7 @@ public sealed record NativeBattleCinematicSpark53Services(Func<NativeBattleWater
 /// <summary>A retained ring of accelerated particles with Cartesian or cylindrical projection.</summary>
 public static class NativeBattleCinematicSpark53
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicSpark53Services services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicSpark53Services services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint payload = SlotDword(0xB8);
         uint state = SlotDword(0xBC);
@@ -42,6 +42,10 @@ public static class NativeBattleCinematicSpark53
         for (int index = 0; index < spawn; index++)
         {
             uint record = unchecked(records + (uint)(cursor % count * 28));
+            if (pilotIdentity is not null)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.Arena, records, cursor % count);
+            }
             for (int lane = 0; lane < 3; lane++)
             {
                 int value = unchecked(Random(unchecked((short)SlotWord(frame, 0x8C + lane * 2))) + unchecked((short)SlotWord(frame, 0x94 + lane * 2)));
@@ -107,6 +111,11 @@ public static class NativeBattleCinematicSpark53
             }
             ImmutableArray<NativeBattleGfPacketByteState> mask = [NativeBattleGfPacketByteState.Untouched, NativeBattleGfPacketByteState.Untouched, NativeBattleGfPacketByteState.Untouched, .. Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 9)];
             NativeBattleGeometryPrimitive primitive = new(0, [BinaryPrimitives.ReadUInt32LittleEndian(packet), color, projected.Screen], []) { PhysicalWriteMask = mask };
+            if (pilotIdentity is { } identity && projected.PilotWorld is { } anchor)
+            {
+                NativeBattlePilotVisualIdentity particleIdentity = NativeBattlePilotVisualLifetimes.Identity(identity.Effect, frame.Arena, records, index);
+                primitive = primitive with { PilotGeometry = new(particleIdentity, anchor, anchor, anchor, anchor, 4) { ScreenOffsets = [new(0, 0), new(8, 0), new(0, 8), new(8, 8)] } };
+            }
             frame = services.Append(frame, output, ordering, new([new(0, packet.ToImmutableArray(), mask, primitive)], 12));
             StoreByte(record + 24, unchecked((byte)(Byte(record + 24) - 1)));
             output = unchecked(output + 12);

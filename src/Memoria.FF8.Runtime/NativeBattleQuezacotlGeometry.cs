@@ -89,17 +89,19 @@ public static class NativeBattleQuezacotlGeometry
             };
             memory = memory with { Arena = arena };
         }
+        NativeBattleModulePoolTask? owner = effect.Pools.SingleOrDefault(pool => pool.DescriptorAddress == 0x2521738)?.Slots[0];
+        NativeBattlePilotVisualIdentity? identity = owner is null ? null : NativeBattlePilotVisualLifetimes.Identity(116, owner, unchecked((int)sourceAddress * 397 + node.ResourceOffset));
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native6C6060 requires its prior published view matrix.");
         NativeBattleActionMatrix matrix = contextMatrix is null ? NativeBattleGfMatrices.Compose6C6060(node, view, effect.Quezacotl?.Billboard17B0, basePosition) : NativeBattleGfMatrices.Compose6C53A0(node, contextMatrix, effect.Quezacotl?.Billboard17B0);
         if (capturePrimary && node.GeometryIndex == 0)
         {
             memory = memory with { QuezacotlCapturedMatrix1780 = matrix };
             NativeBattleQuezacotlGeometryContext capturedContext = new(node.Color32, node.Scalar36, (ushort)((control & 7) << 4), new(0, 0, 256, 256), new(128, 128, 256, 128), 17, 2);
-            return new(memory, NativeBattleQuezacotlGeometryPackets.EmitBatch6C5710(source, geometry, vertices, matrix, projection, capturedContext, colors, readMorphedVertex, observeDepth)) { CapturedPackets = true };
+            return new(memory, NativeBattleQuezacotlGeometryPackets.EmitBatch6C5710(source, geometry, vertices, matrix, projection, capturedContext, colors, readMorphedVertex, observeDepth, identity)) { CapturedPackets = true };
         }
         bool cue = node.Scalar36 != 0;
         NativeBattleGfGeometryContext context = new(cue ? 0x20F0u : 0x2030u, cue ? node.Color32 : 0, node.Scalar36, null, null, depthBias, 17, 2);
-        return new(memory, NativeBattleGfGeometryPackets.EmitBatch7043B0(source, geometry, vertices, matrix, projection, context, colors, readMorphedVertex, observeDepth));
+        return new(memory, NativeBattleGfGeometryPackets.EmitBatch7043B0(source, geometry, vertices, matrix, projection, context, colors, readMorphedVertex, observeDepth, identity));
     }
 
     private static ReadOnlySpan<byte> Read(NativeBattleGfSourceReader bytes, int offset, int length)

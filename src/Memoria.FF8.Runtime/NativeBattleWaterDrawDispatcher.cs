@@ -41,7 +41,7 @@ public static class NativeBattleWaterDrawDispatcher
                 uint shape = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xD8, 4));
                 int extent = services.ResolveShapeExtent(frame, shape);
                 NativeBattleEffectHeapAllocation map = new("shape-resource-map", input.Resources.Profile.Tables.Data.AsSpan().Slice(0x60, 0x10).ToArray().ToImmutableArray());
-                NativeBattleWaterMeshProjected projected = NativeBattleWaterMeshPreparation.MorphProject(prepared, bank, currentIndex, input.Resources, map, extent, projection, input.Dqa, input.Dqb, services.ReadDepthOwner(frame));
+                NativeBattleWaterMeshProjected projected = NativeBattleWaterMeshPreparation.MorphProject(prepared, bank, currentIndex, input.Resources, map, extent, projection, input.Dqa, input.Dqb, services.ReadDepthOwner(frame), NativeBattleCinematicVisualIdentity.Identity(222, frame, bank, currentIndex));
                 frame = services.PublishDepthOwner(projected.Frame, projected.DepthOwner);
                 projected = projected with { Frame = frame };
                 NativeBattleWaterMeshSubmission mesh = services.SubmitMesh is { } submitMesh ? submitMesh(projected, extent) : NativeBattleWaterMeshPreparation.Submit(projected, extent, services.ResolveActualOtBucket);
@@ -70,7 +70,7 @@ public static class NativeBattleWaterDrawDispatcher
                 });
                 return frame;
             case 0x26:
-                NativeBattleWaterActorDrawResult actor = NativeBattleWaterActorDraw.Draw26A9C340(frame, services.ReadModels(frame), services.ActorPose, services.ReadProjection(frame), input.Dqa, input.Dqb, input.OrderingTablePointer, services.ResolveActualOtBucket);
+                NativeBattleWaterActorDrawResult actor = NativeBattleWaterActorDraw.Draw26A9C340(frame, services.ReadModels(frame), services.ActorPose, services.ReadProjection(frame), input.Dqa, input.Dqb, input.OrderingTablePointer, services.ResolveActualOtBucket, NativeBattleCinematicVisualIdentity.Identity(222, frame, bank, currentIndex));
                 frame = services.PublishModels(actor.Frame, actor.Models);
                 return Submit(frame, actor.Packets);
             default:
@@ -81,7 +81,19 @@ public static class NativeBattleWaterDrawDispatcher
 
         NativeBattleWaterExecutionFrame DrawRectangles(NativeBattleWaterExecutionFrame current, NativeBattleActionMatrix matrix)
         {
-            NativeBattleWaterParticleRectangleResult rectangles = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, ReadRegisters(current), services.ReadProjection(current), input.Zsf3, input.Dqa, input.Dqb, services.ResolveActualOtBucket);
+            NativeBattlePilotVisualIdentity identity;
+            if (kind == 6)
+            {
+                uint particleBank = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(current, 0xB8, 4));
+                uint particle = current.ReadTemporaryDword(0x44);
+                int particleIndex = checked((int)((particle - particleBank - 0x10) / 0x50));
+                identity = NativeBattlePilotVisualLifetimes.Identity(222, current.Arena, particleBank, particleIndex);
+            }
+            else
+            {
+                identity = NativeBattleCinematicVisualIdentity.Identity(222, current, bank, currentIndex);
+            }
+            NativeBattleWaterParticleRectangleResult rectangles = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, ReadRegisters(current), services.ReadProjection(current), input.Zsf3, input.Dqa, input.Dqb, services.ResolveActualOtBucket, matrix, identity);
             return Submit(PublishRegisters(rectangles.Frame, rectangles.Registers), rectangles.Packets);
         }
 

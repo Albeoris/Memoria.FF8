@@ -61,6 +61,14 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         }
     }
 
+    internal void AllocatedPilotGeometry(int node) => NativeBattlePilotVisualLifetimes.Allocated(memory.Arena!, Pointer(node), 0);
+
+    internal NativeBattlePilotVisualIdentity PilotGeometryIdentity(NativeBattlePilotVisualIdentity task, int node, int instance)
+    {
+        NativeBattlePilotVisualIdentity row = NativeBattlePilotVisualLifetimes.Identity(task.Effect, memory.Arena!, Pointer(node), 0);
+        return task with { Primitive = unchecked(node * 65537 + instance), ResourceGeneration = row.Generation };
+    }
+
     internal byte Byte(int offset) => unchecked((byte)ReadScalar(offset, 1));
     internal NativeBattleEffectMemory CaptureProcessMemory() => memory with { NodeScratch2793E30 = scratch };
 
@@ -178,12 +186,13 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         return new ProjectedSpriteRegisters(this, resourceAddress, resource, phase, projection, padding);
     }
 
-    private sealed class ProjectedSpriteRegisters(NativeBattleEffectNodeMemory owner, uint resourceAddress, NativeBattleGfSourceReader resource, ushort phase, NativeBattleCameraProjection projection, short? sourcePadding) : INativeBattleCuragaSpriteGeometry
+    private sealed class ProjectedSpriteRegisters(NativeBattleEffectNodeMemory owner, uint resourceAddress, NativeBattleGfSourceReader resource, ushort phase, NativeBattleCameraProjection projection, short? sourcePadding) : INativeBattleCuragaSpriteGeometry, INativeBattleCuragaSpriteSourceGeometry
     {
         private NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 180);
         private NativeBattleGeometryRegisterStep registers = null!;
         private NativeBattleScriptedGraphicsMemory controls = null!;
         private NativeBattleActionMatrix main = null!;
+        public NativeBattleActionMatrix PilotMatrix { get; private set; } = null!;
 
         public void Begin(NativeBattleActionMatrix source, NativeBattleActionMatrix rolled)
         {
@@ -258,6 +267,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
                 context = Dword(context, 0x78 + axis * 4, unchecked((uint)registers.Colors.Mac[axis]!.Value));
             }
             NativeBattleActionMatrix current = new(Enumerable.Range(0, 9).Select(index => unchecked((short)ReadWord(0x64 + index * 2))).ToImmutableArray(), unchecked((int)ReadDword(0x78)), unchecked((int)ReadDword(0x7C)), unchecked((int)ReadDword(0x80)), 4096);
+            PilotMatrix = current;
             registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, current, true, true, Padding(0x76)) };
             for (int index = 0; index < 3; index++)
             {

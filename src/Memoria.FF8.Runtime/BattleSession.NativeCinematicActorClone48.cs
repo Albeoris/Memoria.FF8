@@ -76,7 +76,9 @@ public sealed partial class BattleSession
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native actor clone requires its actual projection controls.");
             NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native actor clone requires its original color arithmetic tables.");
             NativeBattleGeometryViewport viewport = new(CloneWord(0x54), CloneWord(0x56), CloneWord(0x58), CloneWord(0x5A));
-            NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, NativeBattleBodyBoneMatrices.Require(actor, source), projection, color, mask, new byte[length].ToImmutableArray(), colors, 4, viewport, OtBucket(current.ReadTemporaryDword(0x14C)), CloneWord(0x64));
+            NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
+            NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, current, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, visualBank), index);
+            NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, NativeBattleBodyBoneMatrices.Require(actor, source), projection, color, mask, new byte[length].ToImmutableArray(), colors, 4, viewport, OtBucket(current.ReadTemporaryDword(0x14C)), CloneWord(0x64), visualIdentity);
             uint work = CloneDword(0x44);
             if (draw.ProjectedBytesWritten != 0)
             {

@@ -30,7 +30,7 @@ public sealed partial class BattleSession
             NativeBattleStaticMeshResource mesh = resources.TrailModels[selector];
             NativeBattleActionMatrix matrix = NativeBattlePandemona291TrailDrawing.Prepare6F1650(record, resources.TrailTrigonometry, view);
             NativeBattleScriptedColorRegisters registers = frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Pandemona trails require their retained GTE input registers.");
-            NativeBattleGfGeometryBatch batch = NativeBattlePandemona291TrailDrawing.Draw6F17C0(mesh, matrix, projection, zsf3, input => registers = registers with { NormalInput = input, NormalInputKnown = null }, flags => registers = registers with { Flags = flags });
+            NativeBattleGfGeometryBatch batch = NativeBattlePandemona291TrailDrawing.Draw6F17C0(mesh, matrix, projection, zsf3, input => registers = registers with { NormalInput = input, NormalInputKnown = null }, flags => registers = registers with { Flags = flags }, NativeBattlePilotVisualLifetimes.Identity(291, arena, unchecked(taskAddress + 0x42C), index));
             registers = registers with { Mac = [null, null, null], Ir = [null, null, null] };
             frame = frame with { Memory = frame.Memory with { ScriptedColorRegisters = registers } };
             NativeBattlePandemona291State state = frame.Memory.Pandemona291 ?? throw new NotSupportedException("Native Pandemona requires its current module state.");

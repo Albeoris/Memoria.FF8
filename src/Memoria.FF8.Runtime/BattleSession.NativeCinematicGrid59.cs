@@ -29,6 +29,8 @@ public sealed partial class BattleSession
             graphics = result.Graphics;
             return result.Frame;
         });
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        services = services with { PilotIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank)) };
         return (NativeBattleCinematicGrid59.Draw(frame, services), graphics);
     }
 

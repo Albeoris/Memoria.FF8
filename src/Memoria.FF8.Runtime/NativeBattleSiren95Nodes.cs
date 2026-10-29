@@ -56,7 +56,7 @@ public static class NativeBattleSiren95Nodes
             state = (current.Memory.Siren95 ?? throw new NotSupportedException("Native Siren node state is missing.")).WriteDword(0x258FB78, unchecked(address + 0x34));
             current = current with { Memory = current.Memory with { Siren95 = state } };
             uint? far = null;
-            NativeBattleRecover93NodeStep step = NativeBattleEffectNodeCaller.Advance74F6E0(policy, current, address, services.ReadModel, services.Projection, services.CameraRoll, ordering, services.Colors, prepareMeshOverride: PrepareMesh);
+            NativeBattleRecover93NodeStep step = NativeBattleEffectNodeCaller.Advance74F6E0(policy, current, address, services.ReadModel, services.Projection, services.CameraRoll, ordering, services.Colors, prepareMeshOverride: PrepareMesh, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(95, task));
             ordering = step.Ordering;
             current = step.Frame;
             state = current.Memory.Siren95 ?? throw new NotSupportedException("Native Siren node state is missing.");

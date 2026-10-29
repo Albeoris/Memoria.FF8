@@ -73,7 +73,7 @@ public static class NativeBattlePandemona291BodyDrawing
         return prepared.Frame with { Memory = prepared.Frame.Memory with { Arena = arena } };
     }
 
-    public static NativeBattlePandemona291BodyDraw Render5099D0(NativeBattlePandemona291Frame frame, uint taskAddress, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattlePandemona291BodyDraw Render5099D0(NativeBattlePandemona291Frame frame, uint taskAddress, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona body drawing requires its current arena.");
         uint model = unchecked(taskAddress + 0x154);
@@ -102,7 +102,7 @@ public static class NativeBattlePandemona291BodyDrawing
         {
             bones.Add(NativeBattleArenaPose.ReadMatrix(arena, skeleton + 0x20 + index * 48));
         }
-        NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones.MoveToImmutable(), projection, Dword(unchecked(model + 0x28)), mask, arena.ReadSnapshot(work, length).Data.ToImmutableArray(), colors, 4, new(0, 0, 320, 216), 17, 0);
+        NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones.MoveToImmutable(), projection, Dword(unchecked(model + 0x28)), mask, arena.ReadSnapshot(work, length).Data.ToImmutableArray(), colors, 4, new(0, 0, 320, 216), 17, 0, pilotIdentity: pilotIdentity);
         if (drawn.ProjectedBytesWritten != 0)
         {
             arena = arena.Write(work, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));

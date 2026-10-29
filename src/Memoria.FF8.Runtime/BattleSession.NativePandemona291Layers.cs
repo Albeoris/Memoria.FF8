@@ -46,7 +46,7 @@ public sealed partial class BattleSession
             BinaryPrimitives.WriteUInt16LittleEndian(input.AsSpan(6), last.Padding);
             registers = registers with { NormalInput = input.ToImmutableArray(), NormalInputKnown = null };
             frame = frame with { Memory = frame.Memory with { Arena = arena, ScriptedColorRegisters = registers } };
-            var drawn = DrawNativePandemona291PreparedMesh(frame, geometry, prepared.Matrix, prepared.Context, scratch, graphics, unchecked((short)request.Morph));
+            var drawn = DrawNativePandemona291PreparedMesh(frame, geometry, prepared.Matrix, prepared.Context, scratch, graphics, unchecked((short)request.Morph), pilotIdentity: NativePandemona291VisualIdentity(frame, 100 + resources.LayerGeometry.IndexOf(geometry)));
             frame = drawn.Frame;
             graphics = drawn.Graphics;
             ir0 = drawn.Ir0;
@@ -54,7 +54,7 @@ public sealed partial class BattleSession
         return (frame, graphics, ir0);
     }
 
-    private (NativeBattlePandemona291Frame Frame, NativeBattleGraphicsState Graphics, short? Ir0) DrawNativePandemona291PreparedMesh(NativeBattlePandemona291Frame frame, NativeBattleStaticMeshResource geometry, NativeBattleActionMatrix matrix, NativeBattleEsunaMeshContext context, int? selectedOffset, NativeBattleGraphicsState graphics, short? ir0, ImmutableArray<byte>? selectedSource = null)
+    private (NativeBattlePandemona291Frame Frame, NativeBattleGraphicsState Graphics, short? Ir0) DrawNativePandemona291PreparedMesh(NativeBattlePandemona291Frame frame, NativeBattleStaticMeshResource geometry, NativeBattleActionMatrix matrix, NativeBattleEsunaMeshContext context, int? selectedOffset, NativeBattleGraphicsState graphics, short? ir0, ImmutableArray<byte>? selectedSource = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Pandemona requires its current mesh arena.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Pandemona requires its current projection.");
@@ -87,7 +87,7 @@ public sealed partial class BattleSession
             ir0 = unchecked((short)fourth.Cue);
             registers = registers with { Flags = fourth.Projected.Flags };
             return fourth.Projected;
-        }, zsf3);
+        }, zsf3, pilotIdentity: pilotIdentity);
         registers = registers with { Mac = [null, null, null], Ir = [null, null, null] };
         if ((context.Flags & 0xC0) != 0)
         {
@@ -102,6 +102,18 @@ public sealed partial class BattleSession
         frame = frame with { Memory = written.Memory with { Pandemona291 = live with { PacketCursor25562DC = unchecked(output + (uint)batch.AllocationBytes) } } };
         graphics = graphics with { PrimitiveFrame = primitiveFrame with { Pending = written.Ordering } };
         return (frame, graphics, ir0);
+    }
+
+    private static NativeBattlePilotVisualIdentity NativePandemona291VisualIdentity(NativeBattlePandemona291Frame frame, int primitive)
+    {
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattlePandemona291Entry.MainDescriptor);
+        return NativeBattlePilotVisualLifetimes.Identity(291, pool.Slots[pool.Head ?? throw new NotSupportedException("Native Pandemona presentation requires its live master task.")], primitive);
+    }
+
+    private static NativeBattlePilotVisualIdentity NativePandemona291TaskVisualIdentity(NativeBattlePandemona291Frame frame, uint address, int primitive = 0)
+    {
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(pool => address >= pool.BankAddress && (ulong)address < (ulong)pool.BankAddress + (ulong)pool.Stride * (ulong)pool.Slots.Length && (address - pool.BankAddress) % pool.Stride == 0);
+        return NativeBattlePilotVisualLifetimes.Identity(291, pool.Slots[checked((int)((address - pool.BankAddress) / pool.Stride))], primitive);
     }
 
 }

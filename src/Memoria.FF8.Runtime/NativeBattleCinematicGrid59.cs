@@ -4,7 +4,10 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicGrid59Services(Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicGridProjection> Project, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, uint, uint, NativeBattleWaterExecutionFrame> TransformCurve, Func<NativeBattleWaterExecutionFrame, uint, short, NativeBattleCinematicGridValue> ScaleColor, Func<uint, byte> ReadStaticByte, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
+public sealed record NativeBattleCinematicGrid59Services(Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicGridProjection> Project, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, uint, uint, NativeBattleWaterExecutionFrame> TransformCurve, Func<NativeBattleWaterExecutionFrame, uint, short, NativeBattleCinematicGridValue> ScaleColor, Func<uint, byte> ReadStaticByte, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append)
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 
 /// <summary>Retained activation ages and the native planar lattice of the cinematic grid.</summary>
 public static partial class NativeBattleCinematicGrid59
@@ -39,6 +42,8 @@ public static partial class NativeBattleCinematicGrid59
 
     private static NativeBattleWaterExecutionFrame DrawPlane(NativeBattleWaterExecutionFrame frame, uint state, uint payload, NativeBattleCinematicGrid59Services services)
     {
+        Dictionary<uint, System.Numerics.Vector3>? pilotWorld = services.PilotIdentity is null ? null : [];
+        int pilotLayer = 0;
         uint ages = Dword(frame, state + 4);
         Activate(0x10, Math.Min((int)unchecked((short)SlotWord(frame, 0x98)), 16));
         Activate(0x60, Math.Min((int)unchecked((short)SlotWord(frame, 0x94)), 32));
@@ -87,6 +92,7 @@ public static partial class NativeBattleCinematicGrid59
                 vertices = unchecked(vertices + 0x68);
             }
         }
+        pilotLayer = 1;
         frame = frame.WriteTemporaryDword(0xF0, unchecked((uint)(-firstSpacing << 5)));
         frame = frame.WriteTemporaryWord(0xC4, unchecked((ushort)(-16 * secondSpacing))).WriteTemporaryWord(0xC2, 0);
         cursor = work;
@@ -171,6 +177,10 @@ public static partial class NativeBattleCinematicGrid59
         {
             NativeBattleCinematicGridProjection result = services.Project(frame, address);
             frame = result.Frame;
+            if (pilotWorld is not null && result.PilotWorld is { } world)
+            {
+                pilotWorld[address] = world;
+            }
             frame = frame with { Arena = frame.Arena.Write(ArenaOffset(address + 4, 2), BitConverter.GetBytes(unchecked((ushort)result.QuarterDepth))) };
         }
 
@@ -183,14 +193,19 @@ public static partial class NativeBattleCinematicGrid59
 
         uint Emit(uint first, uint second, uint firstColor, uint? secondColor)
         {
-            var result = AppendLine(frame, output, first, second, firstColor, secondColor, services.Append);
+            NativeBattlePilotVisualGeometry? metadata = null;
+            if (services.PilotIdentity is { } identity && pilotWorld is not null && pilotWorld.TryGetValue(first, out System.Numerics.Vector3 a) && pilotWorld.TryGetValue(second, out System.Numerics.Vector3 b))
+            {
+                metadata = new(identity with { Primitive = unchecked((pilotLayer << 24) + (int)((first - work) / 8)) }, a, b, default, default, 2) { DepthDivisor = 4 };
+            }
+            var result = AppendLine(frame, output, first, second, firstColor, secondColor, services.Append, pilotGeometry: metadata);
             frame = result.Frame;
             output = result.Output;
             return result.Offset;
         }
     }
 
-    internal static (NativeBattleWaterExecutionFrame Frame, uint Output, uint Offset) AppendLine(NativeBattleWaterExecutionFrame frame, uint output, uint first, uint second, uint firstColor, uint? secondColor, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> append, uint fixedOrdering = 0)
+    internal static (NativeBattleWaterExecutionFrame Frame, uint Output, uint Offset) AppendLine(NativeBattleWaterExecutionFrame frame, uint output, uint first, uint second, uint firstColor, uint? secondColor, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> append, uint fixedOrdering = 0, NativeBattlePilotVisualGeometry? pilotGeometry = null)
     {
         uint firstDepth = Word(frame, first + 4);
         uint secondDepth = Word(frame, second + 4);
@@ -209,7 +224,7 @@ public static partial class NativeBattleCinematicGrid59
         }
         ImmutableArray<NativeBattleGfPacketByteState> known = Enumerable.Range(0, data.Length).Select(index => index < 3 ? NativeBattleGfPacketByteState.Untouched : NativeBattleGfPacketByteState.Known).ToImmutableArray();
         ImmutableArray<uint> words = Enumerable.Range(0, data.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
-        NativeBattleGeometryPrimitive primitive = new(0, words, [(int)firstDepth, (int)secondDepth, 0, 0]) { PhysicalWriteMask = known };
+        NativeBattleGeometryPrimitive primitive = new(0, words, [(int)firstDepth, (int)secondDepth, 0, 0]) { PhysicalWriteMask = known, PilotGeometry = pilotGeometry };
         uint average = unchecked((firstDepth + secondDepth) / 2) >> 2;
         uint offset = average & 0xFFFFFFFC;
         uint ordering = fixedOrdering != 0 ? fixedOrdering : unchecked(frame.ReadTemporaryDword(0x14C) + offset);

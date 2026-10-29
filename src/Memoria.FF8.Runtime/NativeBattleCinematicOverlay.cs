@@ -50,6 +50,10 @@ public static class NativeBattleCinematicOverlay
             }
             ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, bytes.Length).Select(index => index < 3 ? NativeBattleGfPacketByteState.Untouched : NativeBattleGfPacketByteState.Known).ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(bucket, words, []) { PhysicalWriteMask = mask };
+            if (offset == 0)
+            {
+                primitive = primitive with { PilotGeometry = new(new(0, 0, 0, 0, 0x2A), new(0, 0, 0), new(320, 0, 0), new(0, 256, 0), new(320, 256, 0), 4, false) { ScreenSpace = true } };
+            }
             attempts.Add(new(offset, bytes.ToImmutableArray(), mask, primitive));
         }
     }

@@ -7,7 +7,7 @@ public sealed record NativeBattleDiablos325NodeDraw(NativeBattleEffectMemory Mem
 
 public static partial class NativeBattleDiablos325Programme
 {
-    public static NativeBattleDiablos325NodeDraw Emit656B70(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleVector position, int depthBias, int fade, ImmutableArray<byte>? primitiveKinds, ImmutableArray<byte>? textureKinds, NativeBattleActionMatrix? effectCamera = null, NativeBattleVector? contextScale = null, byte texturePhase = 0)
+    public static NativeBattleDiablos325NodeDraw Emit656B70(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleVector position, int depthBias, int fade, ImmutableArray<byte>? primitiveKinds, ImmutableArray<byte>? textureKinds, NativeBattleActionMatrix? effectCamera = null, NativeBattleVector? contextScale = null, byte texturePhase = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
         {
@@ -73,13 +73,13 @@ public static partial class NativeBattleDiablos325Programme
             NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Native Diablos windowed geometry requires its current depth averaging controls.");
             NativeBattleEsunaMeshContext windowed = new(flags, far, cue, depthBias, 0, (ushort)(texturePhase & 127), new(0, 0, 256, 256), new(0, 128, 256, 128), 17, 2);
             using NativeBattleGfSourceReader geometryReader = reader.Slice(geometry);
-            batch = NativeBattlePandemona291Surface.EmitGeometry701DD0(geometryReader, matrix, windowed, projection, colors, controls.Zsf4 ?? throw new NotSupportedException("Native Diablos windowed geometry requires its current ZSF4 control."), Vertex, zsf3: controls.Zsf3);
+            batch = NativeBattlePandemona291Surface.EmitGeometry701DD0(geometryReader, matrix, windowed, projection, colors, controls.Zsf4 ?? throw new NotSupportedException("Native Diablos windowed geometry requires its current ZSF4 control."), Vertex, zsf3: controls.Zsf3, pilotIdentity: pilotIdentity);
         }
         else
         {
             batch = kindBytes[index] == 0x30
-                ? NativeBattleGfGeometryPackets.EmitBatch7043B0(reader, geometry, default, matrix, projection, context, colors, Vertex)
-                : Alternate(reader, geometry, matrix, projection, context, colors, Vertex);
+                ? NativeBattleGfGeometryPackets.EmitBatch7043B0(reader, geometry, default, matrix, projection, context, colors, Vertex, pilotIdentity: pilotIdentity)
+                : Alternate(reader, geometry, matrix, projection, context, colors, Vertex, pilotIdentity);
         }
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native Diablos programme requires its current far-color controls.");
         NativeBattleModelRendererRegisters registers = process.ModelRendererRegisters ?? new(null, null, null, null, null);

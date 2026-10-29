@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleWaterActorDraw
 {
-    public static NativeBattleWaterActorShadowResult FloorShadowA9C670(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsModel actor, NativeBattleActionMatrix basis, NativeBattleVector position, NativeBattleWaterActorPoseServices services, NativeBattleCameraProjection projection, short dqa, int dqb, uint orderingTablePointer, Func<uint, int> resolveActualOtBucket)
+    public static NativeBattleWaterActorShadowResult FloorShadowA9C670(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsModel actor, NativeBattleActionMatrix basis, NativeBattleVector position, NativeBattleWaterActorPoseServices services, NativeBattleCameraProjection projection, short dqa, int dqb, uint orderingTablePointer, Func<uint, int> resolveActualOtBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         actor = actor with { Flags0 = (ushort)(actor.Flags0 | 0x20) };
         NativeBattleWaterActorPoseResult local = services.ReadLocal508C90(frame, actor);
@@ -87,7 +87,17 @@ public static partial class NativeBattleWaterActorDraw
                 }
                 NativeBattleGfPacketByteState[] mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 36).ToArray();
                 Array.Fill(mask, NativeBattleGfPacketByteState.Untouched, 0, 3);
-                attempts.Add(new(allocated, bytes.ToImmutableArray(), mask.ToImmutableArray(), new(bucket, words.ToImmutableArray(), [0, 0, 0, 0])));
+                NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutableArray(), [0, 0, 0, 0]);
+                if (pilotIdentity is { } identity)
+                {
+                    System.Numerics.Vector3 World(int corner)
+                    {
+                        NativeBattleVector point = new(unchecked((short)points[corner].X), 0, unchecked((short)points[corner].Z));
+                        return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(projectedMatrix, point), projection);
+                    }
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, World(8), World(index), World((index + 1) & 7), default, 3) { SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };
+                }
+                attempts.Add(new(allocated, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive));
                 allocated += 36;
             }
         }

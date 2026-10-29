@@ -228,7 +228,7 @@ public static class NativeBattleSiren95ProgramDrawing
                 }
                 byte[] xyz = Selected(offset, 6);
                 return new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
-            });
+            }, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(95, task, node.NodeIndex));
             frame = services.Submit(frame, batch, far);
             if (mode == 1 || mode == 0 && node.NodeIndex == 0)
             {

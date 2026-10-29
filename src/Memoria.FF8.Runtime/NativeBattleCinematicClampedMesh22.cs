@@ -46,7 +46,7 @@ public static class NativeBattleCinematicClampedMesh22
         }
     }
 
-    public static NativeBattleScriptedMeshProjected Project(NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, short, uint> resolveSlot, Func<NativeBattleWaterExecutionFrame, short, uint> resolveShape, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleScriptedLightingMemory lighting, NativeBattleGeometryRegisterStep step)
+    public static NativeBattleScriptedMeshProjected Project(NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, short, uint> resolveSlot, Func<NativeBattleWaterExecutionFrame, short, uint> resolveShape, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleScriptedLightingMemory lighting, NativeBattleGeometryRegisterStep step, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint descriptor = SlotDword(0xB8);
         if (SlotDword(0xBC) == 0)
@@ -115,15 +115,20 @@ public static class NativeBattleCinematicClampedMesh22
         NativeBattleActionMatrix view = new NativeBattlePackedMatrix32(viewBytes.ToImmutableArray(), viewKnown.ToImmutableArray()).ReadMatrix();
         short? viewPadding = viewKnown[18] && viewKnown[19] ? BinaryPrimitives.ReadInt16LittleEndian(viewBytes.AsSpan(18)) : null;
         step = step with { Geometry = NativeBattleGeometry.LoadMatrix(step.Geometry, view, true, true, viewPadding) };
+        System.Numerics.Vector3[]? pilotWorld = pilotIdentity is null ? null : new System.Numerics.Vector3[count];
         for (int index = 0; index < count; index++)
         {
             uint current = unchecked(work + (uint)(index * 8));
+            if (pilotWorld is not null)
+            {
+                pilotWorld[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(view, Vector(current)), projection);
+            }
             step = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(step, 0, Vector(current), SignedWord(current + 6)), projection, controls.Dqa, controls.Dqb);
             frame = StoreDword(frame, current, step.Geometry.Sxy[2] ?? throw new NotSupportedException("Native clamped mesh projection requires its current SXY output."));
             frame = StoreDword(frame, current + 4, (step.Geometry.Sz[3] ?? throw new NotSupportedException("Native clamped mesh projection requires its current SZ output.")) >> 2);
             frame = frame.WriteTemporaryDword(0xFC, step.Colors.Flags ?? throw new NotSupportedException("Native clamped mesh projection requires its current FLAG output."));
         }
-        return new(frame, controls.Depths, lighting, step.Colors) { Geometry = step.Geometry, DepthScaleBits1877DA8 = controls.DepthScaleBits1877DA8 ?? throw new NotSupportedException("Native clamped mesh requires its retained depth scale.") };
+        return new(frame, controls.Depths, lighting, step.Colors) { Geometry = step.Geometry, PilotVertices = pilotWorld?.ToImmutableArray() ?? default, PilotIdentity = pilotIdentity, DepthScaleBits1877DA8 = controls.DepthScaleBits1877DA8 ?? throw new NotSupportedException("Native clamped mesh requires its retained depth scale.") };
 
         uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
         short SignedWord(uint address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(address, 2), 2));
@@ -167,7 +172,7 @@ public static class NativeBattleCinematicClampedMesh22
             NativeBattleScriptedMeshPreparation.RequireShape(shape, shapeExtent, cursor, length);
             frame = frame.WriteTemporaryDword(0x70, unchecked((uint)(int)count)).WriteTemporaryDword(0x6C, cursor).WriteTemporaryDword(0x58, next);
             NativeBattleWaterMeshGroup group = new(type, count, frame.Arena.Read(ArenaOffset(cursor, length), length).ToImmutableArray());
-            NativeBattleScriptedMeshSubmission submitted = NativeBattleScriptedMeshPackets.EmitSelected(frame, group, handler, shapeExtent, screens, depths, frame.ReadTemporaryDword(0x60), lighting, registers, resolveOrderingBucket, geometry, BitConverter.UInt32BitsToSingle(projected.DepthScaleBits1877DA8));
+            NativeBattleScriptedMeshSubmission submitted = NativeBattleScriptedMeshPackets.EmitSelected(frame, group, handler, shapeExtent, screens, depths, frame.ReadTemporaryDword(0x60), lighting, registers, resolveOrderingBucket, geometry, BitConverter.UInt32BitsToSingle(projected.DepthScaleBits1877DA8), projected.PilotVertices.IsDefault ? null : projected.PilotVertices, projected.PilotIdentity is { } identity ? identity with { Primitive = unchecked((int)cursor) } : null);
             foreach (NativeBattleGfGeometryAttempt attempt in submitted.Packets.Attempts)
             {
                 attempts.Add(attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) });

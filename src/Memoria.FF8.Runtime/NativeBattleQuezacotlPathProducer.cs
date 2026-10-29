@@ -128,7 +128,9 @@ public static class NativeBattleQuezacotlPathProducer
         NativeBattleQuezacotlParticleProducer.Word(writer, row + 0x14, intensity);
         NativeBattleQuezacotlParticleProducer.Word(writer, row + 0x16, decay);
         NativeBattleQuezacotlParticleProducer.Dword(writer, row + 0x18, 0);
-        return new(memory with { Arena = writer.Freeze() }, row);
+        arena = writer.Freeze();
+        NativeBattlePilotVisualLifetimes.Allocated(arena, ArenaAddress + Rows, (row - Rows) / RowSize);
+        return new(memory with { Arena = arena }, row);
     }
 
     public static int RowOffset(uint pointer)

@@ -80,7 +80,7 @@ public static partial class NativeBattleCinematicStageShatter49
         return frame;
     }
 
-    public static NativeBattleCinematicStageShatter49Emission RenderFace(NativeBattleWaterExecutionFrame frame, uint recordAddress, NativeBattleRawPolygon polygon, ImmutableArray<NativeBattleModuleProjectedVertex> originalVertices, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, uint materialTable)
+    public static NativeBattleCinematicStageShatter49Emission RenderFace(NativeBattleWaterExecutionFrame frame, uint recordAddress, NativeBattleRawPolygon polygon, ImmutableArray<NativeBattleModuleProjectedVertex> originalVertices, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, uint materialTable, ImmutableArray<System.Numerics.Vector3> pilotWorld = default, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int corners = polygon.Quad ? 4 : 3;
         int length = polygon.Quad ? 40 : 32;
@@ -129,13 +129,27 @@ public static partial class NativeBattleCinematicStageShatter49
             NativeBattleVector center = Vector(frame, recordAddress);
             NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CD50(angles) with { X = center.X, Y = center.Y, Z = center.Z };
             NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(camera, local);
+            System.Numerics.Vector3[]? activeWorld = pilotIdentity is null ? null : new System.Numerics.Vector3[corners];
             if (polygon.Quad)
             {
+                if (activeWorld is not null)
+                {
+                    activeWorld[3] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, Vector(frame, recordAddress + 36)), projection);
+                }
                 projected[3] = NativeBattleModuleProjection.Project45FAA0(matrix, Vector(frame, recordAddress + 36), projection, 0, 0);
             }
             for (int corner = 0; corner < 3; corner++)
             {
-                projected[corner] = NativeBattleModuleProjection.Project45FE10(matrix, Vector(frame, recordAddress + (uint)(12 + corner * 8)), projection);
+                NativeBattleVector input = Vector(frame, recordAddress + (uint)(12 + corner * 8));
+                if (activeWorld is not null)
+                {
+                    activeWorld[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, input), projection);
+                }
+                projected[corner] = NativeBattleModuleProjection.Project45FE10(matrix, input, projection);
+            }
+            if (activeWorld is not null)
+            {
+                pilotWorld = activeWorld.ToImmutableArray();
             }
             ushort depth = projected[2].Depth;
             frame = frame.WriteTemporaryWord(0xFC, depth);
@@ -152,6 +166,10 @@ public static partial class NativeBattleCinematicStageShatter49
         ImmutableArray<NativeBattleGfPacketByteState> physicalMask = mask.ToImmutableArray();
         ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
         NativeBattleGeometryPrimitive? primitive = emitted ? new(0, words, []) { PhysicalWriteMask = physicalMask } : null;
+        if (primitive is not null && pilotIdentity is { } identity && !pilotWorld.IsDefault)
+        {
+            primitive = primitive with { PilotGeometry = new(identity, pilotWorld[0], pilotWorld[1], pilotWorld[2], polygon.Quad ? pilotWorld[3] : default, checked((byte)corners)) };
+        }
         NativeBattleGfGeometryAttempt attempt = new(0, data.ToImmutableArray(), physicalMask, primitive);
         return new(frame, new([attempt], emitted ? length : 0), ordering);
 

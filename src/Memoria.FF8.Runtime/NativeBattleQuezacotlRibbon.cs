@@ -26,12 +26,12 @@ public static class NativeBattleQuezacotlRibbon
         return frame.EnterCdecl(0, 4, 4); //508420→6C8850 with the ribbon task argument.
     }
 
-    public static NativeBattleQuezacotlRibbonStep Advance6C8850(ImmutableArray<byte> task128, NativeBattleQuezacotlRibbonResources resources, int pairIndex, Func<int, NativeBattleActionMatrix> readBoneMatrix, ImmutableArray<short> currentEnvelope16, ushort random17A0, bool paused, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null, uint? incomingDirectionDword = null)
+    public static NativeBattleQuezacotlRibbonStep Advance6C8850(ImmutableArray<byte> task128, NativeBattleQuezacotlRibbonResources resources, int pairIndex, Func<int, NativeBattleActionMatrix> readBoneMatrix, ImmutableArray<short> currentEnvelope16, ushort random17A0, bool paused, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null, uint? incomingDirectionDword = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return Advance6C8850(task128, resources, resources.PrimaryBank, pairIndex, readBoneMatrix, currentEnvelope16, random17A0, paused, view, projection, observeDepth, incomingDirectionDword);
+        return Advance6C8850(task128, resources, resources.PrimaryBank, pairIndex, readBoneMatrix, currentEnvelope16, random17A0, paused, view, projection, observeDepth, incomingDirectionDword, pilotIdentity);
     }
 
-    public static NativeBattleQuezacotlRibbonStep Advance6C8850(ImmutableArray<byte> task128, NativeBattleQuezacotlRibbonResources resources, NativeBattleQuezacotlRibbonBank bank, int pairIndex, Func<int, NativeBattleActionMatrix> readBoneMatrix, ImmutableArray<short> currentEnvelope16, ushort random17A0, bool paused, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null, uint? incomingDirectionDword = null)
+    public static NativeBattleQuezacotlRibbonStep Advance6C8850(ImmutableArray<byte> task128, NativeBattleQuezacotlRibbonResources resources, NativeBattleQuezacotlRibbonBank bank, int pairIndex, Func<int, NativeBattleActionMatrix> readBoneMatrix, ImmutableArray<short> currentEnvelope16, ushort random17A0, bool paused, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null, uint? incomingDirectionDword = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (task128.IsDefault || task128.Length != 128 || bank.Pairs.IsDefault || bank.Pairs.Length % 8 != 0 || (uint)pairIndex >= bank.Pairs.Length / 8 || currentEnvelope16.IsDefault || currentEnvelope16.Length != 16 || random17A0 >= 0x8000)
         {
@@ -72,7 +72,7 @@ public static class NativeBattleQuezacotlRibbon
             }
             points[index] = points[index] with { Position = new(Noise(position.X), Noise(position.Y), Noise(position.Z)) };
         }
-        NativeBattleGfGeometryBatch packets = NativeBattleQuezacotlRibbonPackets.Emit6C8C50(points.ToImmutable(), view, projection, resources.DistanceBytes16384, observeDepth, incomingDirectionDword);
+        NativeBattleGfGeometryBatch packets = NativeBattleQuezacotlRibbonPackets.Emit6C8C50(points.ToImmutable(), view, projection, resources.DistanceBytes16384, observeDepth, incomingDirectionDword, pilotIdentity);
         SkinWrites writes = new(128, 0);
         byte[] task = task128.ToArray();
         int returned = 0;

@@ -99,6 +99,7 @@ public static class NativeBattleShivaShardTask
                 }
                 NativeBattleGfGeometryContext context = new(0x33, 0, cue, null, null, 0, 17, 2);
                 NativeBattleGfGeometryAttempt attempt = NativeBattleShivaShardPackets.EmitTriangle5C2410(mesh.Bytes.AsSpan().Slice(faceOffset, length), corner => NativeBattleModuleProjection.Project45FE10(matrix, vertices[corner], inputs.Projection), group == 6, animated, context, inputs.Zsf3, inputs.Colors, allocated, inputs.ObserveDepth, inputs.ObserveDepthCue);
+                attempt = NativeBattleShivaVisualIdentity.Capture(attempt, NativeBattlePilotVisualLifetimes.Identity(185, task, faceOffset), vertices, matrix, inputs.Projection);
                 attempts.Add(attempt);
                 if (attempt.Primitive is not null)
                 {

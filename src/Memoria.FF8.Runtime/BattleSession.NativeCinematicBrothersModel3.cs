@@ -39,13 +39,15 @@ public sealed partial class BattleSession
             int offset = checked((int)(address - current.TemporaryFrame.Address));
             NativeBattleVector point = NativeBattleScriptedMeshPreparation.Vector(current.ReadTemporary(offset, 6));
             NativeBattleModuleDepthCueVertex result = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix, point, projection, controls.Dqa, controls.Dqb);
-            return new(current, result.Projected.Screen, result.Cue, result.Projected.Flags);
+            return new(current, result.Projected.Screen, result.Cue, result.Projected.Flags) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection) };
         }, () => 0, (current, output, ordering, batch) =>
         {
             var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
             graphics = written.Graphics;
             return written.Frame;
         });
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        services = services with { PilotIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank)) };
         return (NativeBattleCinematicBrothersModel3.Draw(frame, services), graphics);
     }
 }

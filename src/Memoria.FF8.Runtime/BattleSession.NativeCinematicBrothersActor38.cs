@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicBrothersActor38(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsState graphics, bool scaledActor = false)
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicBrothersActor38(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleGraphicsState graphics, bool scaledActor = false)
     {
         NativeBattleCinematicBrothersModelServices ringServices = new(_ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, address) =>
         {
@@ -21,13 +21,15 @@ public sealed partial class BattleSession
             int offset = checked((int)(address - current.TemporaryFrame.Address));
             NativeBattleVector point = NativeBattleScriptedMeshPreparation.Vector(current.ReadTemporary(offset, 6));
             NativeBattleModuleDepthCueVertex result = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix, point, projection, controls.Dqa, controls.Dqb);
-            return new(current, result.Projected.Screen, result.Cue, result.Projected.Flags);
+            return new(current, result.Projected.Screen, result.Cue, result.Projected.Flags) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection) };
         }, () => 0, (current, output, ordering, batch) =>
         {
             var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
             graphics = written.Graphics;
             return written.Frame;
         });
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        ringServices = ringServices with { PilotIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank)) };
         NativeBattleCinematicBrothersActor38Services services = new((_, address) => graphics.Models[ActorIndex(address)], (current, address, actor) =>
         {
             graphics = graphics with { Models = graphics.Models.SetItem(ActorIndex(address), actor) };

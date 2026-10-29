@@ -109,7 +109,7 @@ internal static class NativeBattleEffectNodeCaller
         return initialized;
     }
 
-    public static NativeBattleRecover93NodeStep Advance74F6E0(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, Action<NativeBattleEffectNodeBank, uint, int, byte>? resourceUpdate = null, Func<NativeBattleEffectNodeMemory, int, byte[], NativeBattleEffectNodeMeshInstance>? prepareMeshOverride = null, NativeBattleEffectNodeSpawnOrigin? spawnOrigin = null)
+    public static NativeBattleRecover93NodeStep Advance74F6E0(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, Action<NativeBattleEffectNodeBank, uint, int, byte>? resourceUpdate = null, Func<NativeBattleEffectNodeMemory, int, byte[], NativeBattleEffectNodeMeshInstance>? prepareMeshOverride = null, NativeBattleEffectNodeSpawnOrigin? spawnOrigin = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         frame.State.Validate(profile.SourceLength, profile.EmitterBytes, profile.GeometryBytes);
@@ -136,7 +136,7 @@ internal static class NativeBattleEffectNodeCaller
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
             List<(bool Mesh, NativeBattleGfGeometryBatch Batch)> deliveries = [];
             NativeCrtRandomState random = frame.Random;
-            _ = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh, (mesh, batch) => deliveries.Add((mesh, batch)));
+            _ = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh, (mesh, batch) => deliveries.Add((mesh, batch)), pilotIdentity);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
             bank.Publish();
             frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { Data = bankSource, EmitterScanCursor = emitterCursor, GeometryScanCursor = geometryCursor } };

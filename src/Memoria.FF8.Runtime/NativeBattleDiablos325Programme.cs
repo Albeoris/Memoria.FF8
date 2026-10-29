@@ -31,7 +31,7 @@ public static partial class NativeBattleDiablos325Programme
         int allocated = 0;
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.OpeningProgramme, unchecked((int)state.Pause5180), (current, node) =>
         {
-            NativeBattleDiablos325NodeDraw drawn = Emit656B70(memory, resources.OpeningProgramme, node, projection, colors, new(0, 0, unchecked((short)state.MidZ51E0)), 512, fade, resources.PrimitiveKinds, resources.TextureKinds);
+            NativeBattleDiablos325NodeDraw drawn = Emit656B70(memory, resources.OpeningProgramme, node, projection, colors, new(0, 0, unchecked((short)state.MidZ51E0)), 512, fade, resources.PrimitiveKinds, resources.TextureKinds, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(325, task, node.ResourceOffset));
             memory = drawn.Memory;
             attempts.AddRange(drawn.Packets.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
             allocated = checked(allocated + drawn.Packets.AllocationBytes);
@@ -85,7 +85,7 @@ public static partial class NativeBattleDiablos325Programme
         return rotation with { X = unchecked(view.X + translated.X), Y = unchecked(view.Y + translated.Y), Z = unchecked(view.Z + translated.Z) };
     }
 
-    private static NativeBattleGfGeometryBatch Alternate(NativeBattleGfSourceReader source, int geometry, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector> vertex)
+    private static NativeBattleGfGeometryBatch Alternate(NativeBattleGfSourceReader source, int geometry, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector> vertex, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         int cursor = checked(geometry + Int(source, geometry));
         int allocated = 0;
@@ -108,6 +108,16 @@ public static partial class NativeBattleDiablos325Programme
                     return result;
                 });
                 NativeBattleGfGeometryBatch batch = NativeBattleDiablos325AlternatePackets.Emit657030(face, corners, group, context, colors);
+                if (pilotIdentity is { } identity && batch.Attempts.Any(attempt => attempt.Primitive is { } primitive && (primitive.Words[1] >> 24 & 0xE0) == 0x20))
+                {
+                    System.Numerics.Vector3 World(int corner)
+                    {
+                        ushort offset = BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2));
+                        return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex(offset * 4)), projection);
+                    }
+                    NativeBattlePilotVisualGeometry visual = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, World(0), World(1), World(2), World(3), 4);
+                    batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive && (primitive.Words[1] >> 24 & 0xE0) == 0x20 ? attempt with { Primitive = primitive with { PilotGeometry = visual } } : attempt).ToImmutableArray() };
+                }
                 attempts.AddRange(batch.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
                 allocated = checked(allocated + batch.AllocationBytes);
                 cursor = checked(cursor + Lengths[group]);

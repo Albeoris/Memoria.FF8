@@ -43,9 +43,11 @@ public sealed partial class BattleRenderer
             };
             TriangleMaterial material = new(null, equation, TriangleDepthComparison.LessEqual, resolved.Pass == 1, 0, TriangleSampler.PointWrap);
             lines.DrawLine(Convert(a), Convert(b), material);
+            ObserveLine();
             return;
         }
         nativeTriangles.Add(new(a, b, default, null, blend, resolved.Pass, 0, 0, Width - 1, 0, Height - 1, true));
+        ObserveLine();
 
         PrimitiveVertex Vertex(int corner)
         {
@@ -53,7 +55,24 @@ public sealed partial class BattleRenderer
             int coordinateIndex = gouraud ? corner * 2 + 1 : corner + 1;
             NativeBattlePrimitiveColor diffuse = colorState.Untextured(command.Words[colorIndex], semi, blendMode);
             Vector2 position = NativePrimitivePosition(command.Words[coordinateIndex], command.Flags20, resolved.DrawMode);
-            return new(position.X, position.Y, projected[corner].Depth, projected[corner].ReciprocalW, Vector2.Zero, diffuse.Rgb, diffuse.Alpha);
+            NativeBattlePrimitiveDepthVertex depth = projected[corner];
+            if (TrySamplePilotVertex(command, corner, resolved.DrawMode, depthState, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
+            {
+                position = sampled;
+                depth = sampledDepth;
+            }
+            return new(position.X, position.Y, depth.Depth, depth.ReciprocalW, Vector2.Zero, diffuse.Rgb, diffuse.Alpha);
+        }
+
+        void ObserveLine()
+        {
+            if (!PilotDiagnosticsEnabled || command.PilotGeometry is not { } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
+            {
+                return;
+            }
+            pilotSubmission = pilotSubmission with { MaterialSignature = PilotHash(PilotHash(pilotSubmission.MaterialSignature, command.Opcode), resolved.Pass) };
+            ObservePilotSubmittedCorner(command, 0, new(a.X, a.Y), new(a.Z, a.ReciprocalW), a.Uv, a.Color, a.Alpha);
+            ObservePilotSubmittedCorner(command, 1, new(b.X, b.Y), new(b.Z, b.ReciprocalW), b.Uv, b.Color, b.Alpha);
         }
 
         static TriangleVertex Convert(PrimitiveVertex vertex) => new(new(vertex.X, vertex.Y), vertex.Z, vertex.ReciprocalW, vertex.Uv, new(vertex.Color / 255f, vertex.Alpha / 255f));

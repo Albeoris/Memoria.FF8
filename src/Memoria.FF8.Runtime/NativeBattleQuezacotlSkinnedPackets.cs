@@ -41,6 +41,7 @@ public static class NativeBattleQuezacotlSkinnedPackets
         ushort sourceUv2 = BinaryPrimitives.ReadUInt16LittleEndian(face[(quad ? 16 : 6)..]);
         ushort sourceUv3 = quad ? BinaryPrimitives.ReadUInt16LittleEndian(face[18..]) : (ushort)0;
         int effect = effectOffset;
+        int packetLayer = 0;
         int commonLength = quad ? 40 : 32;
         Window(context.WindowBefore3);
         SkinWrites overlay = new(commonLength, commonOffset);
@@ -146,7 +147,12 @@ public static class NativeBattleQuezacotlSkinnedPackets
             {
                 vertexPayload = [0, 0, 0, 0];
             }
-            writes.Add(new(bank, packet.Attempt(new(bucket, command, vertexPayload))));
+            NativeBattleGeometryPrimitive primitive = new(bucket, command, vertexPayload);
+            if ((command[1] >> 24 & 0xE0) == 0x20 && context.PilotIdentity is { } identity && vertices.All(vertex => vertex.World.HasValue) && (((command[1] >> 24 & 8) != 0) == quad))
+            {
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + (int)bank * 31 + packetLayer++) }, vertices[0].World!.Value, vertices[1].World!.Value, vertices[2].World!.Value, quad ? vertices[3].World!.Value : default, (byte)count) { DepthQuantum = 4, DepthDivisor = 4 } };
+            }
+            writes.Add(new(bank, packet.Attempt(primitive)));
         }
 
         void Body(SkinWrites packet, bool gouraud)

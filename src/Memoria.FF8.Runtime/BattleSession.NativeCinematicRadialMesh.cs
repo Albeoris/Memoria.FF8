@@ -8,6 +8,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicRadialMesh(NativeBattleWaterExecutionFrame frame, bool intensity, int resourceLength, NativeBattleCinematicResources resources, NativeBattleGraphicsState graphics)
     {
+        Dictionary<uint, System.Numerics.Vector3> pilotWorld = [];
         NativeBattleActionMatrix? basis = null;
         NativeBattleCinematicRadialMeshServices services = new((current, shape) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, shape).Selected, (current, selector) =>
         {
@@ -27,6 +28,10 @@ public sealed partial class BattleSession
         }, (current, source, output) =>
         {
             NativeBattleCinematicGridProjection projected = ProjectNativeCinematicLatticeVertex(current, basis ?? throw new InvalidOperationException("Native radial mesh basis has not been prepared."), source, output);
+            if (projected.PilotWorld is { } world)
+            {
+                pilotWorld[output] = world;
+            }
             return projected.Frame with { Arena = projected.Frame.Arena.Write(ArenaOffset(output + 4, 2), BitConverter.GetBytes(unchecked((ushort)projected.QuarterDepth))) };
         }, (current, color, factor) =>
         {
@@ -40,6 +45,8 @@ public sealed partial class BattleSession
             graphics = written.Graphics;
             return written.Frame;
         });
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        services = services with { PilotWorld = pilotWorld, PilotIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank)) };
         return (NativeBattleCinematicRadialMesh.Draw(frame, intensity, services), graphics);
     }
 }

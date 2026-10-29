@@ -7,7 +7,7 @@ public sealed record NativeBattleModuleMeshTemporaryResult(NativeBattleFileStagi
 
 public static partial class NativeBattleModulePackets
 {
-    public static NativeBattleModuleMeshTemporaryResult EmitRetainedBatch7043B0(NativeBattleFileStaging staging, uint temporary, uint meshAddress, ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector> readSelectedVertex)
+    public static NativeBattleModuleMeshTemporaryResult EmitRetainedBatch7043B0(NativeBattleFileStaging staging, uint temporary, uint meshAddress, ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector> readSelectedVertex, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         staging = staging.Write(temporary + 32, BitConverter.GetBytes(checked(meshAddress + BinaryPrimitives.ReadUInt32LittleEndian(source.AsSpan()))));
         NativeBattleMeshPacketVariant observations = new(null, null, false, false)
@@ -17,11 +17,11 @@ public static partial class NativeBattleModulePackets
             ObserveAverageDepth = depth => staging = staging.Write(temporary + 44, BitConverter.GetBytes(Math.Max(unchecked((int)depth + context.DepthBias), 0)))
         };
         NativeBattleMeshPacketContext operands = new(context.Flags, context.FarColor, context.DepthCue, context.TexturePage, context.Clut, 0, context.DepthBias, context.TableBaseBucket, context.DepthShift);
-        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch(source, 0, default, matrix, projection, operands, colors, readSelectedVertex, null, cursor => staging = staging.Write(temporary + 32, BitConverter.GetBytes(checked(meshAddress + (uint)cursor))), observations);
+        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch(source, 0, default, matrix, projection, operands, colors, readSelectedVertex, null, cursor => staging = staging.Write(temporary + 32, BitConverter.GetBytes(checked(meshAddress + (uint)cursor))), observations, pilotIdentity);
         return new(staging, batch);
     }
 
-    public static NativeBattleModuleMeshTemporaryResult EmitRetainedBatch572200(NativeBattleFileStaging staging, uint temporary, uint meshAddress, ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors colors, ImmutableArray<byte> selectedVertices = default, uint? selectedVertexAddress = null)
+    public static NativeBattleModuleMeshTemporaryResult EmitRetainedBatch572200(NativeBattleFileStaging staging, uint temporary, uint meshAddress, ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors colors, ImmutableArray<byte> selectedVertices = default, uint? selectedVertexAddress = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (Read(0) != meshAddress || Read(28) != context.Flags)
         {
@@ -49,7 +49,7 @@ public static partial class NativeBattleModulePackets
             ObserveArea = area => staging = Write(36, unchecked((uint)area)),
             ObserveAverageDepth = depth => staging = Write(44, depth)
         };
-        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch(source, 0, selectedVertices, matrix, projection, Normalize572200(context), colors, null, null, cursor => staging = Write(32, checked(meshAddress + (uint)cursor)), observations);
+        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch(source, 0, selectedVertices, matrix, projection, Normalize572200(context), colors, null, null, cursor => staging = Write(32, checked(meshAddress + (uint)cursor)), observations, pilotIdentity);
         return new(staging, batch);
 
         uint Read(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(checked(temporary + (uint)offset), 4));

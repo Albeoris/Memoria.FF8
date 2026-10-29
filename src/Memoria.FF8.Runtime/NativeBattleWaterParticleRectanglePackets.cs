@@ -9,7 +9,7 @@ public sealed record NativeBattleWaterParticleRectangleResult(NativeBattleWaterE
 /// <summary>Rectangle packet stores using the caller's current GTE state and current particle records.</summary>
 public static class NativeBattleWaterParticleRectanglePackets
 {
-    public static NativeBattleWaterParticleRectangleResult DrawA9EE90(NativeBattleWaterExecutionFrame frame, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, short zsf3, short dqa, int dqb, Func<uint, int> resolveActualOtBucket)
+    public static NativeBattleWaterParticleRectangleResult DrawA9EE90(NativeBattleWaterExecutionFrame frame, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, short zsf3, short dqa, int dqb, Func<uint, int> resolveActualOtBucket, NativeBattleActionMatrix? pilotMatrix = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint manager = CoreDword(frame, 0x27973EC);
         uint cursor = CoreDword(frame, checked(manager + 0x7C));
@@ -106,6 +106,11 @@ public static class NativeBattleWaterParticleRectanglePackets
             }
             ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(i => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(i * 4))).ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(bucket, words, projected.Select(value => (int)value.Depth).ToImmutableArray());
+            if (pilotIdentity is { } identity && pilotMatrix is { } matrix)
+            {
+                System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, points[corner]), projection);
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, World(0), World(1), World(2), World(3), 4) };
+            }
             attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             allocated = checked(allocated + length);
 

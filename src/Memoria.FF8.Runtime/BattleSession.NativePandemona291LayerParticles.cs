@@ -9,6 +9,7 @@ public sealed partial class BattleSession
     {
         NativeBattlePandemona291Resources resources = frame.Effect.Binding.Pandemona291Resources ?? throw new NotSupportedException("Native Pandemona particles require their original resources.");
         NativeBattleModuleDraw sprite = selectedDraw ?? NativeBattlePandemona291LayerParticles.Draw6F0ED0(task, resources.LayerSprite ?? throw new NotSupportedException("Native Pandemona particles require their original sprite."), resources.TrailTrigonometry);
+        sprite = sprite with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(291, task) };
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Pandemona particles require their current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Pandemona particles require their current GTE projection.");
         NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(sprite, projection, camera.Roll, 17, 2);

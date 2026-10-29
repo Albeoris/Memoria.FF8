@@ -49,6 +49,7 @@ public static partial class NativeBattleDiablos325Puffs
                     bytes[14] = unchecked((byte)((point.Z - centerZ) >> 4));
                     bytes[15] = unchecked((byte)(64 + phase % 3));
                     writer.Write(BaseOffset + particles * 16, bytes);
+                    NativeBattlePilotVisualLifetimes.Allocated(source, checked(state.ModelBuffer5208 + BaseOffset), particles);
                     particles++;
                     if (particles == 128)
                     {

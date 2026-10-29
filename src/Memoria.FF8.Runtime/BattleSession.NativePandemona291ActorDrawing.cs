@@ -42,12 +42,12 @@ public sealed partial class BattleSession
                     }
                     NativeBattleRawMesh selected = mesh == 1 ? linked[0] : body[mesh];
                     NativeBattleModelTextureBinding textures = mesh == 1 ? actor.LinkedTextureSlots ?? throw new NotSupportedException("Native Pandemona target draw requires its executed shared linked texture relocation.") : binding;
-                    primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([selected], matrices, projection, color, 1, 0, 17, 4, textures, definition.NativeGraphics!.Rules.SummonColors));
+                    primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0([selected], matrices, projection, color, 1, 0, 17, 4, textures, definition.NativeGraphics!.Rules.SummonColors, pilotIdentity: NativePilotSceneIdentity(0x502D40, actor.Index, mesh)));
                 }
             }
             else
             {
-                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(body, matrices, projection, color, mask, 0, 17, 4, resource.GeometryRelocated507550 ? null : binding, definition.NativeGraphics!.Rules.SummonColors));
+                primitives.AddRange(NativeBattleRawGeometryPackets.Emit5099D0(body, matrices, projection, color, mask, 0, 17, 4, resource.GeometryRelocated507550 ? null : binding, definition.NativeGraphics!.Rules.SummonColors, pilotIdentity: NativePilotSceneIdentity(0x502D40, actor.Index)));
             }
             graphics = AppendNativeModelRendererPackets(graphics, primitives.ToImmutable(), Enumerable.Range(0, body.Length).Any(mesh => (mask & (1u << (mesh & 31))) != 0));
         }
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
             ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.ComposeStageCamera(NativeBattlePoseMatrices.StageBoneMatrices(linkedSource, linkedPose), basis, 0);
             if (Enter(color))
             {
-                ImmutableArray<NativeBattleGeometryPrimitive> primitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, 0, 17, 4, actor.LinkedTextureSlots ?? throw new NotSupportedException("Native Pandemona target draw requires its executed linked material relocation."), definition.NativeGraphics!.Rules.SummonColors);
+                ImmutableArray<NativeBattleGeometryPrimitive> primitives = NativeBattleRawGeometryPackets.Emit5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, 0, 17, 4, actor.LinkedTextureSlots ?? throw new NotSupportedException("Native Pandemona target draw requires its executed linked material relocation."), definition.NativeGraphics!.Rules.SummonColors, pilotIdentity: NativePilotSceneIdentity(0x507BF0, actor.Index));
                 graphics = AppendNativeModelRendererPackets(graphics, primitives, true);
             }
         }

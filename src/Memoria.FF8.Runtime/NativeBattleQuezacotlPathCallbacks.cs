@@ -111,7 +111,7 @@ public static class NativeBattleQuezacotlPathCallbacks
             NativeBattleQuezacotlPathBatch drawn;
             try
             {
-                drawn = NativeBattleQuezacotlPathPackets.Emit6C79A0(T32(0x18), count, (pointer, offset, length) => arena.Read(checked(NativeBattleQuezacotlPathProducer.RowOffset(pointer) + offset), length).ToImmutableArray(), ReadVertex, captured, projection, distance, incomingDepthFifo4, outlineDirection);
+                drawn = NativeBattleQuezacotlPathPackets.Emit6C79A0(T32(0x18), count, (pointer, offset, length) => arena.Read(checked(NativeBattleQuezacotlPathProducer.RowOffset(pointer) + offset), length).ToImmutableArray(), ReadVertex, captured, projection, distance, incomingDepthFifo4, outlineDirection, NativeBattlePilotVisualLifetimes.Identity(116, pool.Slots[index]), (first, second) => NativeBattleQuezacotlVisualGeometry.RowIdentity(arena, NativeBattleQuezacotlPathProducer.ArenaAddress + NativeBattleQuezacotlPathProducer.Rows, (NativeBattleQuezacotlPathProducer.RowOffset(first) - NativeBattleQuezacotlPathProducer.Rows) / NativeBattleQuezacotlPathProducer.RowSize, (NativeBattleQuezacotlPathProducer.RowOffset(second) - NativeBattleQuezacotlPathProducer.Rows) / NativeBattleQuezacotlPathProducer.RowSize));
             }
             catch (NotSupportedException error)
             {

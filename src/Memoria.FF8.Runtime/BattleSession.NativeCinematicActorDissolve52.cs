@@ -8,6 +8,8 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicActorDissolve52(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleGraphicsState graphics)
     {
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
         uint manager = CoreDword(frame, 0x27973EC);
         uint payload = Slot32(0xB8);
         byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
@@ -108,6 +110,7 @@ public sealed partial class BattleSession
         {
             NativeBattleRawMesh mesh = meshes[meshIndex];
             ImmutableArray<NativeBattleRawVertexGroup> groups = mesh.PackedVertexGroups ?? throw new NotSupportedException("Native actor dissolve requires its original packed vertex groups.");
+            System.Numerics.Vector3[] worldVertices = new System.Numerics.Vector3[mesh.Vertices.Length];
             int vertexIndex = 0;
             foreach (NativeBattleRawVertexGroup group in groups)
             {
@@ -141,6 +144,7 @@ public sealed partial class BattleSession
                     NativeBattleEffectMemory memory = RequireWaterMemory();
                     NativeBattleScriptedColorRegisters registers = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native actor dissolve lost its packed GTE input owner.");
                     NativeEffectMemory = memory with { ScriptedColorRegisters = registers with { Ir = registers.Ir.SetItem(1, point.Ir2), Flags = point.Projected.Flags } };
+                    worldVertices[vertexIndex + local] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(projectionMatrix, changed.Vertex), projection);
                     Put32(address, point.Projected.Screen);
                     Put16(address + 4, point.Projected.Depth);
                 }
@@ -167,7 +171,10 @@ public sealed partial class BattleSession
                 {
                     Put(counters + (uint)faceIndex, [emitted.Counter]);
                 }
-                var appended = AppendNativeCinematicPackets(frame, output, emitted.OrderingAddress, emitted.Packets, graphics);
+                int[] indices = Enumerable.Range(0, face.Quad ? 4 : 3).Select(corner => BinaryPrimitives.ReadUInt16LittleEndian(face.Bytes.AsSpan().Slice(corner * 2)) & 4095).ToArray();
+                NativeBattlePilotVisualGeometry pilotGeometry = new(visualIdentity with { Primitive = unchecked(meshIndex * 65537 + faceIndex) }, worldVertices[indices[0]], worldVertices[indices[1]], worldVertices[indices[2]], face.Quad ? worldVertices[indices[3]] : default, checked((byte)indices.Length));
+                NativeBattleGfGeometryBatch captured = emitted.Packets with { Attempts = emitted.Packets.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = pilotGeometry } } : attempt).ToImmutableArray() };
+                var appended = AppendNativeCinematicPackets(frame, output, emitted.OrderingAddress, captured, graphics);
                 frame = appended.Frame;
                 graphics = appended.Graphics;
                 output = unchecked(output + (uint)emitted.Packets.AllocationBytes);
@@ -195,7 +202,7 @@ public sealed partial class BattleSession
                 NativeBattleScriptedGraphicsMemory currentControls = RequireWaterMemory().ScriptedGraphics ?? throw new NotSupportedException("Native actor dissolve ring requires its depth-cue controls.");
                 NativeBattleVector input = NativeBattleScriptedMeshPreparation.Vector(active.ReadTemporary(checked((int)(address - active.TemporaryFrame.Address)), 6));
                 NativeBattleModuleDepthCueVertex point = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix, input, NativeCamera?.Projection ?? throw new NotSupportedException("Native actor dissolve ring requires its actual projection owner."), currentControls.Dqa, currentControls.Dqb);
-                return new(active, point.Projected.Screen, point.Cue, point.Projected.Flags);
+                return new(active, point.Projected.Screen, point.Cue, point.Projected.Flags) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, input), projection) };
             }, () =>
             {
                 _ = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native actor dissolve ring requires its current main ordering-table owner.");
@@ -206,6 +213,7 @@ public sealed partial class BattleSession
                 graphics = appended.Graphics;
                 return appended.Frame;
             });
+            services = services with { PilotIdentity = visualIdentity };
             ImmutableArray<NativeBattleActionMatrix> currentBones = NativeBattleBodyBoneMatrices.Require(graphics.Models[actorIndex], pose);
             return NativeBattleCinematicBrothersModel3.DrawPreparedRing(current, currentBones.Length, currentBones[0].X, currentBones[0].Z, (_, bone) => NativeBattleBodyBoneMatrices.Require(graphics.Models[actorIndex], pose)[bone], (_, bone) => BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(0x12 + bone * 48, 2)), new(0, 0, 0), -1, 0, unchecked((short)SlotWord(current, 0x8C)), NativeBattleCameraMath.Sine(512), null, services);
         }

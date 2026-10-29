@@ -29,13 +29,15 @@ public sealed partial class BattleSession
             NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(basis ?? throw new InvalidOperationException("Native particle basis has not been prepared."), NativeBattleScriptedMeshPreparation.Vector(current.ReadTemporary(0xF0, 6)), NativeCamera?.Projection ?? throw new NotSupportedException("Native accelerated particles require the current camera projection."), controls.Dqa, controls.Dqb);
             current = current.WriteTemporaryDword(0xFC, projected.Projected.Flags);
             NativeEffectMemory = memory with { ScriptedColorRegisters = registers };
-            return new(current, projected.Projected.Screen, projected.Projected.Depth >> 2);
+            return new(current, projected.Projected.Screen, projected.Projected.Depth >> 2) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(basis!, NativeBattleScriptedMeshPreparation.Vector(current.ReadTemporary(0xF0, 6))), NativeCamera!.Projection!) };
         }, (current, output, ordering, batch) =>
         {
             var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
             graphics = written.Graphics;
             return written.Frame;
         });
-        return (NativeBattleCinematicSpark53.Draw(frame, services), graphics);
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
+        return (NativeBattleCinematicSpark53.Draw(frame, services, identity), graphics);
     }
 }

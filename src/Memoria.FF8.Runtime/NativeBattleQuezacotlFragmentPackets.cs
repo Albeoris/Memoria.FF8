@@ -8,7 +8,7 @@ public static class NativeBattleQuezacotlFragmentPackets
 {
     public const uint MeshAddress = 0x12AC8B8;
 
-    public static NativeBattleGfGeometryBatch Emit6C6660(NativeBattleEffectMemory memory, ImmutableArray<byte> task44, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null)
+    public static NativeBattleGfGeometryBatch Emit6C6660(NativeBattleEffectMemory memory, ImmutableArray<byte> task44, NativeBattleCameraProjection projection, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleQuezacotlExecutableMemory executable = memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native6C6660 requires its retained current executable mesh bytes.");
         executable.Validate();
@@ -16,7 +16,7 @@ public static class NativeBattleQuezacotlFragmentPackets
         NativeBattleActionMatrix matrix = Compose6C6660(task44, view);
         int offset = checked((int)(MeshAddress - NativeBattleQuezacotlExecutableMemory.Address));
         using NativeBattleGfSourceReader source = NativeBattleGfAnimationSource.Borrow(NativeBattleQuezacotlExecutableMemory.Address, executable.Arena, 0, NativeBattleQuezacotlExecutableMemory.Length).OpenReader();
-        return NativeBattleModulePackets.EmitFlatTriangles572200(source, offset, matrix, projection, 17, 2, observeDepth);
+        return NativeBattleModulePackets.EmitFlatTriangles572200(source, offset, matrix, projection, 17, 2, observeDepth, pilotIdentity);
     }
 
     public static NativeBattleActionMatrix Compose6C6660(ImmutableArray<byte> task44, NativeBattleActionMatrix view)

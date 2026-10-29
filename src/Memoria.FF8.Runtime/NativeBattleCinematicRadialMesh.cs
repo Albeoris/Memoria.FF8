@@ -3,7 +3,11 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicRadialMeshServices(Func<NativeBattleWaterExecutionFrame, int, uint> ResolveShape, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, int, NativeBattleCinematicGridValue> ResolvePalette, Func<NativeBattleWaterExecutionFrame, int, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleWaterExecutionFrame> Project, Func<NativeBattleWaterExecutionFrame, uint, short, NativeBattleCinematicGridValue> Shade, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
+public sealed record NativeBattleCinematicRadialMeshServices(Func<NativeBattleWaterExecutionFrame, int, uint> ResolveShape, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, int, NativeBattleCinematicGridValue> ResolvePalette, Func<NativeBattleWaterExecutionFrame, int, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleWaterExecutionFrame> Project, Func<NativeBattleWaterExecutionFrame, uint, short, NativeBattleCinematicGridValue> Shade, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append)
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+    public IReadOnlyDictionary<uint, System.Numerics.Vector3>? PilotWorld { get; init; }
+}
 
 /// <summary>Distance-controlled vertex colors and inverse intensity over one retained native mesh.</summary>
 public static class NativeBattleCinematicRadialMesh
@@ -125,7 +129,7 @@ public static class NativeBattleCinematicRadialMesh
             {
                 return frame;
             }
-            var result = NativeBattleCinematicVertexColorPackets.Emit(frame, group, frame.ReadTemporaryDword(0x84), frame.ReadTemporaryDword(0x80), intensity, services.Shade, services.Append);
+            var result = NativeBattleCinematicVertexColorPackets.Emit(frame, group, frame.ReadTemporaryDword(0x84), frame.ReadTemporaryDword(0x80), intensity, services.Shade, services.Append, services.PilotWorld, services.PilotIdentity);
             frame = result.Frame;
             group = result.Next;
         }

@@ -36,6 +36,7 @@ public static class NativeBattlePandemona291Trails
         arena = arena.Write(target + 0x14, [(byte)spinX]);
         random = random.Draw(out ushort spinZ);
         arena = arena.Write(target + 0x15, [(byte)spinZ]);
+        NativeBattlePilotVisualLifetimes.Allocated(arena, unchecked(taskAddress + 0x42C), checked((int)((selected - taskAddress - 0x42C) / 24)));
         return new(arena, random, selected);
     }
 

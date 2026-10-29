@@ -42,7 +42,7 @@ public static class NativeBattleDiablos325Wings
         NativeBattleActionMatrix local = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, -8192, unchecked((short)state.FarZ51DC), 4096);
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(view, local);
         NativeBattleMeshPacketContext context = new(0x2000, null, null, null, null, null, 0, 17, 2);
-        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch(data, 0, default, matrix, projection, context, null, Vertex);
+        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch(data, 0, default, matrix, projection, context, null, Vertex, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(325, task, 0x6590E0));
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Diablos paired wings require their current renderer controls.");
         NativeBattleModelRendererRegisters registers = process.ModelRendererRegisters ?? new(null, null, null, null, null);
         process = process with { ModelRendererRegisters = registers with { FarRed = null, FarGreen = null, FarBlue = null } };

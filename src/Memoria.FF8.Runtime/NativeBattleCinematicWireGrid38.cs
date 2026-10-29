@@ -9,8 +9,9 @@ public sealed record NativeBattleCinematicWireGrid38Services(Func<NativeBattleWa
 /// <summary>A closed angular grid with independent axial and circumferential gradient lines.</summary>
 public static class NativeBattleCinematicWireGrid38
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicWireGrid38Services services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicWireGrid38Services services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        Dictionary<uint, System.Numerics.Vector3>? pilotWorld = pilotIdentity is null ? null : [];
         uint payload = SlotDword(0xB8);
         uint state = SlotDword(0xBC);
         if (state == 0)
@@ -83,6 +84,10 @@ public static class NativeBattleCinematicWireGrid38
                 frame = frame.WriteTemporaryWord(0xD0, Word(state + 8 + (uint)(column * 2))).WriteTemporaryWord(0xD4, Word(state + 0x2A + (uint)(column * 2)));
                 NativeBattleCinematicGridProjection projected = services.Project(frame, work);
                 frame = projected.Frame;
+                if (pilotWorld is not null && projected.PilotWorld is { } world)
+                {
+                    pilotWorld[work] = world;
+                }
                 StoreWord(work + 4, unchecked((ushort)projected.QuarterDepth));
                 work = unchecked(work + 8);
             }
@@ -143,6 +148,10 @@ public static class NativeBattleCinematicWireGrid38
                     ImmutableArray<NativeBattleGfPacketByteState> known = Enumerable.Range(0, 28).Select(index => index >= 3 ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
                     ImmutableArray<uint> words = Enumerable.Range(0, 7).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
                     NativeBattleGeometryPrimitive primitive = new(0, words, [(int)depth1, (int)depth2, 0, 0]) { PhysicalWriteMask = known };
+                    if (pilotIdentity is { } identity && pilotWorld is not null && pilotWorld.TryGetValue(first, out System.Numerics.Vector3 a) && pilotWorld.TryGetValue(second, out System.Numerics.Vector3 b))
+                    {
+                        primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((vertical ? 1 << 24 : 0) + row * 65537 + column) }, a, b, default, default, 2) { UseSourceDepths = true, SourceDepths = new(depth1, depth2, 0, 0) } };
+                    }
                     uint ordering = unchecked(frame.ReadTemporaryDword(0x14C) + ((depth1 + depth2) / 2 & 0xFFFFFFFC));
                     frame = services.Append(frame, output, ordering, new([new(0, data.ToImmutableArray(), known, primitive)], 28));
                     output = unchecked(output + 28);

@@ -9,7 +9,7 @@ public sealed record NativeBattleShivaMeshPacketResult(NativeBattleGfGeometryBat
 /// <summary>5C1B50/5C1BB0's FT4 prefix UV stream and independently selected suffix geometry.</summary>
 public static class NativeBattleShivaMeshPackets
 {
-    public static NativeBattleShivaMeshPacketResult Emit5C1B50(NativeBattleStaticMeshResource source, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, int maximumCount, int windowCount, short zsf4, short dqa, int dqb, NativeBattleSummonColors? colors = null, Action<ushort>? observeDepth = null, Func<int, NativeBattleVector>? readSelectedVertex = null)
+    public static NativeBattleShivaMeshPacketResult Emit5C1B50(NativeBattleStaticMeshResource source, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, int maximumCount, int windowCount, short zsf4, short dqa, int dqb, NativeBattleSummonColors? colors = null, Action<ushort>? observeDepth = null, Func<int, NativeBattleVector>? readSelectedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (source.Address != 0xD215C4 || source.Bytes.IsDefault || source.Bytes.Length != 0x5D8 || maximumCount is < 0 or > 36 || windowCount is < 0 or > 36)
         {
@@ -37,7 +37,12 @@ public static class NativeBattleShivaMeshPackets
             source.Bytes.AsSpan().Slice(geometryRecord + 4, 8).CopyTo(face.AsSpan(4));
             BinaryPrimitives.WriteUInt32LittleEndian(face, shade);
             shade = unchecked(shade - packedStep);
-            NativeBattleGfGeometryAttempt attempt = EmitFace5C1BB0(face, corner => Project(corner, face), context, zsf4, colors, allocation, observeDepth);
+            System.Numerics.Vector3[]? pilotWorld = pilotIdentity is null ? null : new System.Numerics.Vector3[4];
+            NativeBattleGfGeometryAttempt attempt = EmitFace5C1BB0(face, corner => Project(corner, face, pilotWorld), context, zsf4, colors, allocation, observeDepth);
+            if (pilotIdentity is { } identity && attempt.Primitive is { } primitive)
+            {
+                attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = geometryRecord }, pilotWorld![0], pilotWorld[1], pilotWorld[2], pilotWorld[3], 4) } };
+            }
             attempts.Add(attempt);
             if (attempt.Primitive is not null)
             {
@@ -46,12 +51,16 @@ public static class NativeBattleShivaMeshPackets
         }
         return new(new(attempts.MoveToImmutable(), allocation), count, checked(first + count * 24));
 
-        NativeBattleModuleProjectedVertex Project(int corner, byte[] face)
+        NativeBattleModuleProjectedVertex Project(int corner, byte[] face, System.Numerics.Vector3[]? pilotWorld)
         {
             int offset = checked(BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)) * 4);
             if ((context.Flags & 0x2000) != 0 && readSelectedVertex is not null)
             {
                 NativeBattleVector selected = readSelectedVertex(offset);
+                if (pilotWorld is not null)
+                {
+                    pilotWorld[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, selected), projection);
+                }
                 return corner == 3 ? NativeBattleModuleProjection.Project45FAA0(matrix, selected, projection, dqa, dqb) : NativeBattleModuleProjection.Project45FE10(matrix, selected, projection);
             }
             ReadOnlySpan<byte> bytes = (context.Flags & 0x2000) != 0
@@ -63,6 +72,10 @@ public static class NativeBattleShivaMeshPackets
             }
             ReadOnlySpan<byte> xyz = bytes.Slice(offset, 6);
             NativeBattleVector vertex = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.Slice(4)));
+            if (pilotWorld is not null)
+            {
+                pilotWorld[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex), projection);
+            }
             return corner == 3 ? NativeBattleModuleProjection.Project45FAA0(matrix, vertex, projection, dqa, dqb) : NativeBattleModuleProjection.Project45FE10(matrix, vertex, projection);
         }
     }

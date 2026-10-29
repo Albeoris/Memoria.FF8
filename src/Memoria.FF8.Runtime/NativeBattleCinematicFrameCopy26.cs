@@ -47,7 +47,9 @@ public static class NativeBattleCinematicFrameCopy26
             packet.Word(12, Screen(right, top));
             packet.Word(16, Screen(left, bottom));
             packet.Word(20, Screen(right, bottom));
-            frame = services.Append(frame, output, ordering, new([packet.Attempt(new(0, packet.Words(), []))], 24));
+            NativeBattlePilotVisualGeometry geometry = new(new(0, 0, 0, 0, strip), new(left, top, 0), new(right, top, 0), new(left, bottom, 0), new(right, bottom, 0), 4, false) { ScreenSpace = true, ScreenScale = 8 };
+            NativeBattleGeometryPrimitive primitive = new(0, packet.Words(), []) { PilotGeometry = geometry };
+            frame = services.Append(frame, output, ordering, new([packet.Attempt(primitive)], 24));
             output = unchecked(output + 24);
         }
         SkinWrites mode = new(12, 0);

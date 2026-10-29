@@ -8,7 +8,7 @@ public sealed record NativeBattleCinematicLeviathanPacketsResult(NativeBattleWat
 
 public static class NativeBattleCinematicLeviathanPackets
 {
-    public static NativeBattleCinematicLeviathanPacketsResult Emit(NativeBattleWaterExecutionFrame frame, Func<uint, int> resolveBucket)
+    public static NativeBattleCinematicLeviathanPacketsResult Emit(NativeBattleWaterExecutionFrame frame, Func<uint, int> resolveBucket, IReadOnlyDictionary<uint, System.Numerics.Vector3>? pilotWorld = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint model = frame.ReadTemporaryDword(0x84);
         uint manager = CoreDword(frame, 0x27973EC);
@@ -90,8 +90,17 @@ public static class NativeBattleCinematicLeviathanPackets
                     first.Word16(22, unchecked((ushort)frame.ReadTemporaryDword(0x7C)));
                     first.Word(12, frame.ReadTemporaryDword(0x80) | (quad ? 0x2C000000u : 0x24000000u));
                     first.Word(4, frame.ReadTemporaryDword(0x88));
-                    attempts.Add(first.Attempt(new(bucket, first.Words(), metadata)));
-                    attempts.Add(second.Attempt(new(bucket, second.Words(), metadata)));
+                    NativeBattleGeometryPrimitive firstPrimitive = new(bucket, first.Words(), metadata);
+                    NativeBattleGeometryPrimitive secondPrimitive = new(bucket, second.Words(), metadata);
+                    if (pilotIdentity is { } identity && pilotWorld is not null && offsets.All(offset => pilotWorld.ContainsKey(unchecked(work + (uint)offset))))
+                    {
+                        System.Numerics.Vector3[] world = offsets.Select(offset => pilotWorld[unchecked(work + (uint)offset)]).ToArray();
+                        NativeBattlePilotVisualGeometry geometry = new(identity with { Primitive = unchecked((int)face * 2) }, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)corners));
+                        firstPrimitive = firstPrimitive with { PilotGeometry = geometry };
+                        secondPrimitive = secondPrimitive with { PilotGeometry = geometry with { Identity = geometry.Identity with { Primitive = unchecked(geometry.Identity.Primitive + 1) } } };
+                    }
+                    attempts.Add(first.Attempt(firstPrimitive));
+                    attempts.Add(second.Attempt(secondPrimitive));
                     allocated = checked(allocated + firstLength + secondLength);
                 }
                 face = unchecked(face + (quad ? 20u : 16u));

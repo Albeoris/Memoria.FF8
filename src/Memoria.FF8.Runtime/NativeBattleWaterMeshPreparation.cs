@@ -7,9 +7,17 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleMeshLocalClip(NativeBattleVector Position, ushort Flags);
 public sealed record NativeBattleWaterMeshPrepared(NativeBattleWaterExecutionFrame Frame, NativeBattleActionMatrix Matrix, short Focal)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ushort? PilotFocalOverride { get; init; }
     public NativeBattleMeshLocalClip? LocalClip { get; init; }
 }
-public sealed record NativeBattleWaterMeshProjected(NativeBattleWaterExecutionFrame Frame, NativeBattleEffectArena DepthOwner, double ProxyScale);
+public sealed record NativeBattleWaterMeshProjected(NativeBattleWaterExecutionFrame Frame, NativeBattleEffectArena DepthOwner, double ProxyScale)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ImmutableArray<System.Numerics.Vector3> PilotVertices { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleWaterMeshSubmission(NativeBattleWaterExecutionFrame Frame, NativeBattleGfGeometryBatch Packets);
 
 /// <summary>The selected ordinary mesh wrappers over actual resource, work and separate depth owners.</summary>
@@ -97,7 +105,7 @@ public static class NativeBattleWaterMeshPreparation
             }
             frame.TemporaryFrame.SetKnownness(0xE0 + 18, sourceKnown.AsSpan(18, 14));
         }
-        return new(frame, matrix, focal);
+        return new(frame, matrix, focal) { PilotFocalOverride = focalOverride == 0 ? null : unchecked((ushort)focalOverride) };
     }
 
     private static NativeBattleWaterMeshPrepared PrepareClipped(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, short globalFocal)
@@ -154,7 +162,7 @@ public static class NativeBattleWaterMeshPreparation
         return new(frame, matrix, globalFocal);
     }
 
-    public static NativeBattleWaterMeshProjected MorphProject(NativeBattleWaterMeshPrepared prepared, NativeBattleWaterSlotBank bank, int index, NativeBattleWater222Resources resources, NativeBattleEffectHeapAllocation shapeResourceMap, int actualShapeExtent, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleEffectArena depthOwner)
+    public static NativeBattleWaterMeshProjected MorphProject(NativeBattleWaterMeshPrepared prepared, NativeBattleWaterSlotBank bank, int index, NativeBattleWater222Resources resources, NativeBattleEffectHeapAllocation shapeResourceMap, int actualShapeExtent, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleEffectArena depthOwner, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleWaterExecutionFrame frame = prepared.Frame;
         resources.Validate();
@@ -207,10 +215,15 @@ public static class NativeBattleWaterMeshPreparation
         projection = projection with { FocalLength = unchecked((ushort)prepared.Focal) };
         uint source = frame.ReadTemporaryDword(0x74);
         int workOffset = ArenaOffset(work, checked(count * 8));
+        System.Numerics.Vector3[]? pilotVertices = pilotIdentity is null ? null : new System.Numerics.Vector3[count];
         for (int vertex = 0; vertex < count; vertex++)
         {
             int sourceOffset = ArenaOffset(unchecked(source + (uint)(vertex * 8)), 6);
             NativeBattleVector point = new(SignedWord(frame.Arena, sourceOffset), SignedWord(frame.Arena, sourceOffset + 2), SignedWord(frame.Arena, sourceOffset + 4));
+            if (pilotVertices is not null)
+            {
+                pilotVertices[vertex] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(prepared.Matrix, point), projection);
+            }
             NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FAA0(prepared.Matrix, point, projection, dqa, dqb);
             uint mode = frame.ReadTemporaryDword(0x90) & 0x60;
             int bias = unchecked((int)frame.ReadTemporaryDword(0x94));
@@ -224,7 +237,7 @@ public static class NativeBattleWaterMeshPreparation
             BinaryPrimitives.WriteUInt32LittleEndian(depth, projected.Depth);
             depthOwner = depthOwner.Write(vertex * 4, depth);
         }
-        return new(frame, depthOwner, 1d);
+        return new(frame, depthOwner, 1d) { PilotVertices = pilotVertices?.ToImmutableArray() ?? default, PilotIdentity = pilotIdentity };
     }
 
     public static NativeBattleWaterExecutionFrame MorphSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, NativeBattleWater222Resources resources, NativeBattleEffectHeapAllocation shapeResourceMap, int currentVertexCount)
@@ -286,7 +299,7 @@ public static class NativeBattleWaterMeshPreparation
             }
             RequireShape(shape, actualShapeExtent, cursor, checked(faces * stride));
             NativeBattleWaterMeshGroup group = new(type, faces, frame.Arena.Read(ArenaOffset(cursor, faces * stride), faces * stride).ToImmutableArray());
-            NativeBattleWaterMeshResult drawn = NativeBattleWaterMeshPackets.EmitSelected(frame, group, records, depths, frame.ReadTemporaryDword(0x60), resolveActualOtBucket, shadeMaterial);
+            NativeBattleWaterMeshResult drawn = NativeBattleWaterMeshPackets.EmitSelected(frame, group, records, depths, frame.ReadTemporaryDword(0x60), resolveActualOtBucket, shadeMaterial, pilotWorldVertices: projected.PilotVertices.IsDefault ? null : projected.PilotVertices, pilotIdentity: projected.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 65537 + (int)cursor) } : null);
             foreach (NativeBattleGfGeometryAttempt attempt in drawn.Packets.Attempts)
             {
                 attempts.Add(attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) });

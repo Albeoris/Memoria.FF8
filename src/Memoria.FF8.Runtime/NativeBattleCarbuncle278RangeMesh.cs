@@ -8,7 +8,7 @@ public sealed record NativeBattleCarbuncle278RangeDraw(NativeBattleGfGeometryBat
 /// <summary>The recipient's signed source-Z band and three ordered textured face groups.</summary>
 public static class NativeBattleCarbuncle278RangeMesh
 {
-    public static NativeBattleCarbuncle278RangeDraw Emit682760(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short minimum, short maximum, int fade, ushort vOffset, NativeBattleSummonColors colors)
+    public static NativeBattleCarbuncle278RangeDraw Emit682760(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short minimum, short maximum, int fade, ushort vOffset, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
@@ -26,6 +26,7 @@ public static class NativeBattleCarbuncle278RangeMesh
             cursor = checked(cursor + 4);
             for (int index = 0; index < count; index++)
             {
+                int sourceFace = cursor;
                 byte[] face = Read(cursor, stride).ToArray();
                 cursor = checked(cursor + stride);
                 int corners = (group & 1) != 0 ? 4 : 3;
@@ -73,6 +74,11 @@ public static class NativeBattleCarbuncle278RangeMesh
                 }
                 ImmutableArray<uint> words = Enumerable.Range(0, data.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4, 4))).ToImmutableArray();
                 polygon = polygon with { Words = words };
+                if (pilotIdentity is { } identity)
+                {
+                    System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, positions[corner]), projection);
+                    polygon = polygon with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + sourceFace) }, World(0), World(1), World(2), corners == 4 ? World(3) : default, (byte)corners) };
+                }
                 attempt = attempt with { Data = data.ToImmutableArray(), Primitive = polygon };
                 NativeBattleGfGeometryBatch bracket = NativeBattleEffectTextureWindows.Bracket(attempt, polygon, new(0, 0, 256, 256), new(0, 0, 64, 128));
                 attempts.AddRange(bracket.Attempts);

@@ -51,7 +51,7 @@ public static class NativeBattleShivaSecondShatter
         if (counter < 5)
         {
             NativeBattleShivaPlane plane = NativeBattleShivaPlaneClipping.CreatePlane5C3130(new(0, unchecked((short)(532 * counter - 2660)), 0), new(0, -4096, 0));
-            packets = EmitStatic3170(geometry.MeshA, matrix, geometry.Projection, plane, inputs.ClippingSelectors, geometry.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, geometry.ObserveDepth);
+            packets = EmitStatic3170(geometry.MeshA, matrix, geometry.Projection, plane, inputs.ClippingSelectors, geometry.Zsf3, inputs.Zsf4, inputs.Dqa, inputs.Dqb, geometry.ObserveDepth, NativeBattlePilotVisualLifetimes.Identity(185, task));
         }
         else if (counter < 64)
         {
@@ -63,7 +63,7 @@ public static class NativeBattleShivaSecondShatter
             {
                 frame = Initialize3B10(frame, geometry.MeshA);
             }
-            NativeBattleShivaFinalStep drawn = NativeBattleShivaFinalShatter.RenderAnimated3D10(frame, geometry.MeshA, 0x2E000, 287, counter + 14, matrix, paused, 3, 51, 6, geometry);
+            NativeBattleShivaFinalStep drawn = NativeBattleShivaFinalShatter.RenderAnimated3D10(frame, geometry.MeshA, 0x2E000, 287, counter + 14, matrix, paused, 3, 51, 6, geometry, NativeBattlePilotVisualLifetimes.Identity(185, task));
             frame = drawn.Frame;
             packets = drawn.CommonPackets;
         }
@@ -123,7 +123,7 @@ public static class NativeBattleShivaSecondShatter
         return frame with { Memory = frame.Memory with { Arena = arena }, Random = random };
     }
 
-    public static NativeBattleGfGeometryBatch EmitStatic3170(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleShivaPlane plane, ImmutableArray<int> selectors, short zsf3, short zsf4, short dqa, int dqb, Action<ushort>? observeDepth = null)
+    public static NativeBattleGfGeometryBatch EmitStatic3170(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleShivaPlane plane, ImmutableArray<int> selectors, short zsf3, short zsf4, short dqa, int dqb, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         RequireMesh(mesh, 0xD2BA3C);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
@@ -148,6 +148,11 @@ public static class NativeBattleShivaSecondShatter
                 continue;
             }
             NativeBattleGfGeometryAttempt attempt = NativeBattleShivaPlaneClipping.Emit5C3410(clipped, matrix, projection, BinaryPrimitives.ReadUInt32LittleEndian(face) & 0x02FFFFFFu, BinaryPrimitives.ReadUInt32LittleEndian(face[12..]), BinaryPrimitives.ReadUInt32LittleEndian(face[16..]), zsf3, zsf4, dqa, dqb, allocated, observeDepth);
+            if (pilotIdentity is { } identity)
+            {
+                int topology = NativeBattleShivaVisualIdentity.ClipTopology(vertices, plane);
+                attempt = NativeBattleShivaVisualIdentity.Capture(attempt, identity with { Primitive = unchecked((index * 31 + topology) * 397 + (int)mesh.Address) }, clipped.Select(vertex => vertex.Position).ToArray(), matrix, projection);
+            }
             attempts.Add(attempt);
             allocated += clipped.Length == 3 ? 32 : 40;
         }

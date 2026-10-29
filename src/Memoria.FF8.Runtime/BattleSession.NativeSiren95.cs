@@ -63,7 +63,7 @@ public sealed partial class BattleSession
                         return new(nodes.Frame, nodes.Complete);
                     case 0x8DDC30:
                         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Siren overlay requires its current ordering table.");
-                        NativeBattleFullscreenOverlayStep overlay = NativeBattleFullscreenOverlay.Advance8DDC30(new(current.Memory, current.Effect.Pools, primitive.Pending), address, current.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("Native Siren overlay pause owner is unknown."), resources.OverlayProgram ?? throw new NotSupportedException("Native Siren overlay requires its original programme; migrate the named resource binding explicitly."));
+                        NativeBattleFullscreenOverlayStep overlay = NativeBattleFullscreenOverlay.Advance8DDC30(new(current.Memory, current.Effect.Pools, primitive.Pending), address, current.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("Native Siren overlay pause owner is unknown."), resources.OverlayProgram ?? throw new NotSupportedException("Native Siren overlay requires its original programme; migrate the named resource binding explicitly."), NativeBattlePilotVisualLifetimes.Identity(95, task));
                         graphics = graphics with { PrimitiveFrame = primitive with { Pending = overlay.Frame.Ordering } };
                         return new(current with { Memory = overlay.Frame.Memory, Effect = current.Effect with { Pools = overlay.Frame.Pools } }, overlay.Result == 2);
                     case 0x746B60:
@@ -97,7 +97,8 @@ public sealed partial class BattleSession
                     case 0x747220:
                     case 0x7466A0:
                     case 0x7433C0:
-                        return NativeBattleSiren95Contacts.AdvanceParticle(current, address, DrawContactParticle);
+                        int particleCorner = 0;
+                        return NativeBattleSiren95Contacts.AdvanceParticle(current, address, (active, pointer, scale) => DrawSprite(active, pointer, scale, particleCorner++));
                     case 0x73C1A0:
                         NativeBattleGfAnimationSource surface = resources.PhaseOneSource ?? throw new NotSupportedException("Native Siren surface requires its original programme source; migrate the named binding explicitly.");
                         return NativeBattleSiren95Actors.Advance73C1A0(current, address, surface, DrawSurface);
@@ -150,7 +151,7 @@ public sealed partial class BattleSession
                 NativeBattleEffectNodeScratch scratch = current.Memory.NodeScratch2793E30 ?? NativeBattleEffectNodeScratch.Unknown();
                 scratch = scratch.WritePrefix(0, BitConverter.GetBytes(task.ReadDword(0x40))).WritePrefix(4, BitConverter.GetBytes((int)unchecked((short)task.ReadWord(0x50)))).WritePrefix(16, BitConverter.GetBytes(0u)).WritePrefix(20, BitConverter.GetBytes(0xF0u));
                 using NativeBattleGfSourceReader sourceBytes = source.OpenReader();
-                NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(sourceBytes, 0, default, NativeBattleChoco99Secondary.ComposeMatrix(task, camera.CapturePackedView1D97778().ReadMatrix()), camera.Projection ?? throw new NotSupportedException("Native Siren target mesh requires its actual projection."), new(0xF0, task.ReadDword(0x40), unchecked((short)task.ReadWord(0x50)), null, null, null, 17, 2), definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Siren target mesh requires its color constants."), observeSourceCursor: cursor => scratch = scratch.WritePrefix(24, BitConverter.GetBytes(unchecked(sourceAddress + (uint)cursor))));
+                NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(sourceBytes, 0, default, NativeBattleChoco99Secondary.ComposeMatrix(task, camera.CapturePackedView1D97778().ReadMatrix()), camera.Projection ?? throw new NotSupportedException("Native Siren target mesh requires its actual projection."), new(0xF0, task.ReadDword(0x40), unchecked((short)task.ReadWord(0x50)), null, null, null, 17, 2), definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Siren target mesh requires its color constants."), observeSourceCursor: cursor => scratch = scratch.WritePrefix(24, BitConverter.GetBytes(unchecked(sourceAddress + (uint)cursor))), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(95, task));
                 NativeBattlePrimitiveProcess process = (current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Siren target mesh requires its actual COMMON packet owner.")).PublishModelColor(task.ReadDword(0x40));
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Siren target mesh requires its actual ordering table.");
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
@@ -186,7 +187,7 @@ public sealed partial class BattleSession
                 NativeBattleEsunaMeshContext operands = new(0xF0, task.ReadDword(0x40), unchecked((short)task.ReadWord(0x50)), unchecked((short)task.ReadWord(0x52)), 0, 0, full, full, 17, 2);
                 NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Siren wave requires its current projection.");
                 using NativeBattleGfSourceReader sourceBytes = source.OpenReader();
-                NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitBatch88E240(sourceBytes, NativeBattleSiren95Waves.Matrix745380(task), camera.Projection ?? throw new NotSupportedException("Native Siren wave requires its actual projection."), operands, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Siren wave requires its color constants."));
+                NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitBatch88E240(sourceBytes, NativeBattleSiren95Waves.Matrix745380(task), camera.Projection ?? throw new NotSupportedException("Native Siren wave requires its actual projection."), operands, definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Siren wave requires its color constants."), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(95, task));
                 NativeBattlePrimitiveProcess process = (current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Siren wave requires its actual COMMON packet owner.")).PublishModelColor(task.ReadDword(0x40));
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Siren wave requires its actual ordering table.");
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
@@ -194,11 +195,9 @@ public sealed partial class BattleSession
                 return current with { Memory = current.Memory with { PrimitiveProcess = written.Process, NodeScratch2793E30 = NativeBattleSiren95Scratch.Programme(current.Memory.NodeScratch2793E30, 0, full) } };
             }
 
-            NativeBattleSiren95Frame DrawContactParticle(NativeBattleSiren95Frame current, uint address, short scale) => DrawSprite(current, address, scale);
-
             NativeBattleSiren95Frame DrawDecoration(NativeBattleSiren95Frame current, uint address) => DrawSprite(current, address, 4096);
 
-            NativeBattleSiren95Frame DrawSprite(NativeBattleSiren95Frame current, uint address, short scale)
+            NativeBattleSiren95Frame DrawSprite(NativeBattleSiren95Frame current, uint address, short scale, int pilotPrimitive = 0)
             {
                 NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address);
                 if ((task.ReadByte(0x26) & 4) != 0)
@@ -217,7 +216,7 @@ public sealed partial class BattleSession
                 };
                 NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Siren decorations require their current camera owner.");
                 current = current with { Memory = current.Memory with { NodeScratch2793E30 = NativeBattleSiren95Scratch.Sprite(current.Memory.NodeScratch2793E30, task, camera.CapturePackedView1D97778().ReadMatrix(), scale) } };
-                NativeBattleGfGeometryBatch batch = NativeBattleSearchSprites.Draw7582A0(task, sprites.Data, camera.CapturePackedView1D97778().ReadMatrix(), camera.Projection ?? throw new NotSupportedException("Native Siren decorations require their current GTE projection."), camera.Roll, scale);
+                NativeBattleGfGeometryBatch batch = NativeBattleSearchSprites.Draw7582A0(task, sprites.Data, camera.CapturePackedView1D97778().ReadMatrix(), camera.Projection ?? throw new NotSupportedException("Native Siren decorations require their current GTE projection."), camera.Roll, scale, NativeBattlePilotVisualLifetimes.Identity(95, task, pilotPrimitive));
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Siren decorations require their current ordering table.");
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Siren decorations require their actual COMMON packet owner."), primitive.Pending, batch);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
@@ -325,7 +324,7 @@ public sealed partial class BattleSession
                 int start = process.ByteCursor ?? throw new NotSupportedException("Native Siren model requires its actual COMMON packet cursor.");
                 bool renderedBody = false;
                 int size = checked(resource.Geometry.Select(mesh => mesh.Vertices.Length).DefaultIfEmpty(0).Max() * 8);
-                NativeBattleEffectOwnedModelDraw draw = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resource, camera.CapturePackedView1D97778().ReadMatrix(), camera.Projection ?? throw new NotSupportedException("Native Siren model requires its actual projection."), profile.Rules.ShadowSource ?? throw new NotSupportedException("Native Siren model requires its original shadow source."), capabilities, profile.Rules.SummonColors ?? throw new NotSupportedException("Native Siren model requires its color constants."), new byte[size].ToImmutableArray(), EnterRenderer);
+                NativeBattleEffectOwnedModelDraw draw = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resource, camera.CapturePackedView1D97778().ReadMatrix(), camera.Projection ?? throw new NotSupportedException("Native Siren model requires its actual projection."), profile.Rules.ShadowSource ?? throw new NotSupportedException("Native Siren model requires its original shadow source."), capabilities, profile.Rules.SummonColors ?? throw new NotSupportedException("Native Siren model requires its color constants."), new byte[size].ToImmutableArray(), EnterRenderer, NativeBattlePilotVisualLifetimes.Identity(95, task));
                 current = NativeBattleSiren95Model.PublishProjected746C10(current, draw.ProjectedScratch, draw.ProjectedBytesWritten);
                 NativeBattleEffectNodeScratch scratch = NativeBattleSiren95Scratch.Model(current.Memory.NodeScratch2793E30, draw.Task, camera.CapturePackedView1D97778().ReadMatrix(), resource, renderedBody, draw.Bounds, camera.Projection ?? throw new NotSupportedException("Native Siren shadow requires its actual projection."), profile.Rules.ShadowSource ?? throw new NotSupportedException("Native Siren shadow requires its original source."), capabilities.GouraudAlpha, current.Memory.ScriptedGraphics, out uint? sourceCursor);
                 current = current with { Memory = current.Memory with { NodeScratch2793E30 = scratch } };

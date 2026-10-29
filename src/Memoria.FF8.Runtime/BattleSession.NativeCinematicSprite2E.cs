@@ -9,9 +9,12 @@ public sealed partial class BattleSession
             NativeBattleScriptedGraphicsMemory registers = RequireWaterMemory().ScriptedGraphics ?? throw new NotSupportedException("Native cinematic anchor requires its retained depth-cue controls.");
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic anchor requires its actual projection controls.");
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
-            return NativeBattleCinematicAnchor.Project(current, bank, projection, registers.Dqa, registers.Dqb);
+            return NativeBattleCinematicAnchor.Project(current, bank, projection, registers.Dqa, registers.Dqb, true);
         }, Append);
-        return (NativeBattleCinematicSprite2E.Draw(frame, services), graphics);
+        NativeBattleWaterSlotBank selectedBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        int selectedIndex = NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, selectedBank);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, selectedBank, selectedIndex);
+        return (NativeBattleCinematicSprite2E.Draw(frame, services, identity), graphics);
 
         NativeBattleWaterExecutionFrame Append(NativeBattleWaterExecutionFrame current, uint output, uint ordering, NativeBattleGfGeometryBatch batch)
         {

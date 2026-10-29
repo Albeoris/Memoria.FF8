@@ -13,7 +13,7 @@ public static partial class NativeBattleQuezacotlRig86
         uint mask = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(Model + 0x7C, 4));
         uint rgb = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(Model + 0x28, 4));
         int counter = BinaryPrimitives.ReadInt32LittleEndian(arena.Read(0x14, 4));
-        NativeBattleQuezacotlSkinContext context = new(mask, rgb, 0x808080, 0, 0, 320, 216, 0x3F54, 0xB7, (counter >> 6) & 127, (counter >> 5) & 127, 128, 128, fadeOriginY, [0x02000000, 0xE2000000, 0], [0x02000000, 0xE2080210, 0], 17, 2);
+        NativeBattleQuezacotlSkinContext context = new(mask, rgb, 0x808080, 0, 0, 320, 216, 0x3F54, 0xB7, (counter >> 6) & 127, (counter >> 5) & 127, 128, 128, fadeOriginY, [0x02000000, 0xE2000000, 0], [0x02000000, 0xE2080210, 0], 17, 2) { PilotIdentity = effect.Pools.SingleOrDefault(pool => pool.DescriptorAddress == 0x2521738) is { } child ? NativeBattlePilotVisualLifetimes.Identity(116, child.Slots[0], geometry) : null };
         return NativeBattleQuezacotlSkinning.Emit6C68F0(arena.Read(geometry, animations - geometry).ToImmutableArray(), selector => ReadBoneMatrix(memory, selector), projection.View ?? throw new NotSupportedException("Native6C6770 requires its prior view matrix."), projection, context, colors);
     }
 

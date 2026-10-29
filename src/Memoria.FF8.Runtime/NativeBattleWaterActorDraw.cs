@@ -12,7 +12,7 @@ public sealed record NativeBattleWaterActorShadowResult(NativeBattleWaterExecuti
 /// <summary>Current physical actor placement and its custom floor shadow, without advancing its sequence.</summary>
 public static partial class NativeBattleWaterActorDraw
 {
-    public static NativeBattleWaterActorDrawResult Draw26A9C340(NativeBattleWaterExecutionFrame frame, ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleWaterActorPoseServices services, NativeBattleCameraProjection projection, short dqa, int dqb, uint orderingTablePointer, Func<uint, int> resolveActualOtBucket)
+    public static NativeBattleWaterActorDrawResult Draw26A9C340(NativeBattleWaterExecutionFrame frame, ImmutableArray<NativeBattleGraphicsModel> models, NativeBattleWaterActorPoseServices services, NativeBattleCameraProjection projection, short dqa, int dqb, uint orderingTablePointer, Func<uint, int> resolveActualOtBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (models.IsDefault || models.Length != 7 || models.Where((model, index) => model is null || model.Index != index).Any())
         {
@@ -65,7 +65,7 @@ public static partial class NativeBattleWaterActorDraw
         NativeBattleVector position = new(unchecked((short)(SlotWord(frame, 0x94) + cachedPosition.X + old.Anchor.X - current.Anchor.X)), unchecked((short)(SlotWord(frame, 0x96) + cachedPosition.Y + old.Anchor.Y - current.Anchor.Y)), unchecked((short)(SlotWord(frame, 0x98) + cachedPosition.Z + old.Anchor.Z - current.Anchor.Z)));
         frame = TemporaryVector(frame, 0x50, position);
         actor = actor with { Transform = transform with { Position28 = position } };
-        NativeBattleWaterActorShadowResult shadow = FloorShadowA9C670(frame, actor, basis, position, services, projection, dqa, dqb, orderingTablePointer, resolveActualOtBucket);
+        NativeBattleWaterActorShadowResult shadow = FloorShadowA9C670(frame, actor, basis, position, services, projection, dqa, dqb, orderingTablePointer, resolveActualOtBucket, pilotIdentity);
         return new(shadow.Frame, models.SetItem(index, shadow.Actor), shadow.Packets);
     }
 

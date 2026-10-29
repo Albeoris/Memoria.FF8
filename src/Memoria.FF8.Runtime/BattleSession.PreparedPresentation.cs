@@ -30,7 +30,7 @@ public sealed partial class BattleSession
             }
         }
         NativeBattlePreparedScan? scan = PrepareScanPresentation(graphics);
-        ushort? pilotEffect = graphics.OriginalEffect?.Binding.Effect is ushort effect && effect is 2 or 3 or 144 ? effect : null;
+        ushort? pilotEffect = graphics.OriginalEffect?.Binding.Effect is ushort effect && NativeBattleSmoothPresentation.Supports(effect) ? effect : null;
         PreparedPresentation = new(++preparedPresentationVersion, graphics.Callback, Frame, GuardianAnimationSkipPending, primitives, NativeEffectMemory?.Textures, NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache, NativeEffectMemory?.UiImmediateFrame, NativeCamera?.CurrentPose, graphics.Effects.TextDraws, NativeStage?.ResourceStageId, NativeStage?.TextureAnimationStartCallback, actors.ToImmutable(), scan) { PilotEffect = pilotEffect, PilotGeneration = pilotEffect.HasValue && graphics.OriginalEffect?.Pools is { Length: > 0 } pilotPools ? NativeBattlePilotVisualLifetimes.EpochFor(pilotPools[0].RequireOwner()) : 0, PilotCamera = nativePilotSourceCamera, PilotProjection = nativePilotSourceProjection };
     }
 

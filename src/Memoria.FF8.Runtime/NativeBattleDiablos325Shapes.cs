@@ -57,7 +57,7 @@ public static class NativeBattleDiablos325Shapes
         NativeBattleActionMatrix local = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], position.X, position.Y, position.Z, 4096);
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(view, local);
         NativeBattleMeshPacketContext context = new(0, null, null, null, null, null, 0, 17, 2);
-        NativeBattleGfGeometryBatch packets = NativeBattleGfGeometryPackets.EmitBatch(data, 0, default, matrix, projection, context, null);
+        NativeBattleGfGeometryBatch packets = NativeBattleGfGeometryPackets.EmitBatch(data, 0, default, matrix, projection, context, null, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(325, task, unchecked((int)source)));
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native Diablos shape drawing requires its current renderer controls.");
         NativeBattleModelRendererRegisters registers = process.ModelRendererRegisters ?? new(null, null, null, null, null);
         process = process.PublishTemporary5082B0Matrix(matrix);

@@ -38,7 +38,27 @@ public static class NativeBattleFlashPackets
 
     private static NativeBattleModulePacketBatch Packet(ImmutableArray<uint> words, int bucket)
     {
-        NativeBattleGeometryPrimitive primitive = new(bucket, words, [0, 0, 0, 0]) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, words.Length * 4).ToImmutableArray() };
+        System.Numerics.Vector3 Point(uint xy) => new(unchecked((short)xy), unchecked((short)(xy >> 16)), 0);
+        System.Numerics.Vector3 a = Point(words[2]);
+        System.Numerics.Vector3 b;
+        System.Numerics.Vector3 c;
+        System.Numerics.Vector3 d;
+        if (words.Length == 4)
+        {
+            int width = unchecked((ushort)words[3]);
+            int height = unchecked((ushort)(words[3] >> 16));
+            b = a + new System.Numerics.Vector3(width, 0, 0);
+            c = a + new System.Numerics.Vector3(0, height, 0);
+            d = a + new System.Numerics.Vector3(width, height, 0);
+        }
+        else
+        {
+            b = Point(words[3]);
+            c = Point(words[4]);
+            d = Point(words[5]);
+        }
+        NativeBattlePilotVisualGeometry overlay = new(new(0, 0, 0, 0, unchecked((int)(words[1] >> 24))), a, b, c, d, 4, false) { ScreenSpace = true, ScreenScale = 8 };
+        NativeBattleGeometryPrimitive primitive = new(bucket, words, [0, 0, 0, 0]) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, words.Length * 4).ToImmutableArray(), PilotGeometry = overlay };
         return new([new(primitive, 0, 1)], words.Length * 4);
     }
 }

@@ -4,7 +4,11 @@ using Memory = Memoria.FF8.Runtime.NativeBattleApocalypse221BreakupMemory;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicBreakupAuxiliaryProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, int QuarterDepth, uint Flags);
+public sealed record NativeBattleCinematicBreakupAuxiliaryProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, int QuarterDepth, uint Flags)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Numerics.Vector3? PilotWorld { get; init; }
+}
 public sealed record NativeBattleCinematicBreakupAuxiliaryServices(Func<NativeBattleWaterExecutionFrame, NativeBattleVector, NativeBattleCinematicBreakupAuxiliaryProjection> Project, Func<NativeBattleWaterExecutionFrame, ImmutableArray<int>, NativeBattleWaterExecutionFrame> PublishPayload4, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
 public static class NativeBattleCinematicBreakupAuxiliary
@@ -48,6 +52,7 @@ public static class NativeBattleCinematicBreakupAuxiliary
         int index = Memory.Divide(old, memory.Word(payload + 0x2E));
         int remainder = old - index * memory.Word(payload + 0x2E);
         uint row = checked(pool + (uint)(remainder * RecordSize));
+        NativeBattlePilotVisualLifetimes.Allocated(memory.Frame.Arena, pool, remainder);
         memory.Byte(row + 24, 1);
         memory.Byte(row + 25, memory.Byte(payload + 0x32));
         memory.Dword(row, unchecked((uint)fixedX));
@@ -62,7 +67,7 @@ public static class NativeBattleCinematicBreakupAuxiliary
         return memory.Frame;
     }
 
-    public static NativeBattleWaterExecutionFrame AdvanceDraw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicBreakupAuxiliaryServices services)
+    public static NativeBattleWaterExecutionFrame AdvanceDraw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicBreakupAuxiliaryServices services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         Memory memory = new(frame);
         uint state = frame.ReadTemporaryDword(0x84);
@@ -117,6 +122,11 @@ public static class NativeBattleCinematicBreakupAuxiliary
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8), projected.Screen);
             ImmutableArray<NativeBattleGfPacketByteState> mask = [NativeBattleGfPacketByteState.Untouched, NativeBattleGfPacketByteState.Untouched, NativeBattleGfPacketByteState.Untouched, .. Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 9)];
             NativeBattleGeometryPrimitive? primitive = bucket < 0xFFF ? new(0, [0x02000000, color, projected.Screen], [depth, depth, depth, depth]) { PhysicalWriteMask = mask } : null;
+            if (primitive is not null && pilotIdentity is { } identity && projected.PilotWorld is { } anchor)
+            {
+                NativeBattlePilotVisualIdentity particleIdentity = NativeBattlePilotVisualLifetimes.Identity(identity.Effect, memory.Frame.Arena, pool, index);
+                primitive = primitive with { PilotGeometry = new(particleIdentity, anchor, anchor, anchor, anchor, 4) { ScreenOffsets = [new(0, 0), new(8, 0), new(0, 8), new(8, 8)], DepthQuantum = 4 } };
+            }
             NativeBattleGfGeometryAttempt attempt = new(0, bytes.ToImmutableArray(), mask, primitive);
             NativeBattleGfGeometryBatch batch = new([attempt], 12) { NativeUnlinkedAllocation = primitive is null };
             uint ordering = unchecked(memory.Frame.ReadTemporaryDword(0x14C) + (uint)(bucket * 4));

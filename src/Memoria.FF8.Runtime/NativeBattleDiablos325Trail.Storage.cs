@@ -15,7 +15,7 @@ public sealed partial record NativeBattleDiablos325Trail
         NativeBattleEffectArena source = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos trails require their retained arena.");
         using NativeBattleEffectArenaTransaction? owned = source.Transaction is null ? new(source) : null;
         using NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
-        Storage storage = new(writer, NativeBattleDiablos325Entry.RequireState(frame.Memory));
+        Storage storage = new(writer, NativeBattleDiablos325Entry.RequireState(frame.Memory), owned?.View ?? source);
         uint? point = storage.Spawn(context);
         return new(frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? writer.Freeze(), Diablos325 = storage.Freeze() } }, point);
     }
@@ -29,7 +29,7 @@ public sealed partial record NativeBattleDiablos325Trail
         NativeBattleEffectArena source = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos trails require their retained arena.");
         using NativeBattleEffectArenaTransaction? owned = source.Transaction is null ? new(source) : null;
         using NativeBattleEffectArenaWriter writer = new(owned?.View ?? source);
-        Storage storage = new(writer, NativeBattleDiablos325Entry.RequireState(frame.Memory));
+        Storage storage = new(writer, NativeBattleDiablos325Entry.RequireState(frame.Memory), owned?.View ?? source);
         storage.Advance(widths);
         return frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? writer.Freeze(), Diablos325 = storage.Freeze() } };
     }
@@ -37,6 +37,7 @@ public sealed partial record NativeBattleDiablos325Trail
     private sealed class Storage
     {
         private readonly NativeBattleEffectArenaWriter writer;
+        private readonly NativeBattleEffectArena generationArena;
         private readonly NativeBattleDiablos325State original;
         private readonly NativeBattleDiablos325Trail parameters;
         private readonly uint origin;
@@ -45,9 +46,10 @@ public sealed partial record NativeBattleDiablos325Trail
         private uint random;
         private byte mode;
 
-        public Storage(NativeBattleEffectArenaWriter writer, NativeBattleDiablos325State state)
+        public Storage(NativeBattleEffectArenaWriter writer, NativeBattleDiablos325State state, NativeBattleEffectArena generationArena)
         {
             this.writer = writer;
+            this.generationArena = generationArena;
             original = state;
             parameters = state.Trail ?? throw new NotSupportedException("Native Diablos trails require their executed module initialization.");
             origin = state.ModelBuffer5208;
@@ -279,6 +281,7 @@ public sealed partial record NativeBattleDiablos325Trail
                 }
             }
             pointCursor = selected >= origin + 0x7C44 ? origin + 0x4C5C : selected + 24;
+            NativeBattlePilotVisualLifetimes.Allocated(generationArena, origin + 0x4C5C, checked((int)(selected - origin - 0x4C5C) / 24));
             return selected;
         }
 

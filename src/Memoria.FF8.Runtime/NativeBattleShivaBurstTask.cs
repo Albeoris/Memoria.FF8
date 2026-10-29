@@ -48,9 +48,9 @@ public static class NativeBattleShivaBurstTask
         return new(frame, Word(task, 0x0C) >= 14 ? 2 : 0);
     }
 
-    public static NativeBattleGfGeometryBatch Emit572200(NativeBattleShivaBurstDraw draw, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Emit572200(NativeBattleShivaBurstDraw draw, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return NativeBattleModulePackets.EmitBatch572200(draw.Resource.Bytes, 0, default, draw.Matrix, projection, draw.Context, colors);
+        return NativeBattleModulePackets.EmitBatch572200(draw.Resource.Bytes, 0, default, draw.Matrix, projection, draw.Context, colors, pilotIdentity: pilotIdentity);
     }
 
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

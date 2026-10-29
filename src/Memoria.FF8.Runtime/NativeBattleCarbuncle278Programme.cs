@@ -54,7 +54,7 @@ public static class NativeBattleCarbuncle278Programme
         NativeBattleCarbuncle278State state = NativeBattleCarbuncle278Entry.RequireState(memory);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, unchecked((int)state.Pause8114), (current, node) =>
         {
-            NativeBattleCarbuncle278ProgrammeNode drawn = Node681FD0(memory, source, node, context, projection, colors, depthBias);
+            NativeBattleCarbuncle278ProgrammeNode drawn = Node681FD0(memory, source, node, context, projection, colors, depthBias, NativeBattlePilotVisualLifetimes.Identity(278, task, unchecked(offset * 397 + node.NodeIndex)));
             memory = drawn.Memory;
             if (drawn.Active)
             {
@@ -79,7 +79,7 @@ public static class NativeBattleCarbuncle278Programme
         return NativeBattleGfMatrices.Compose56C2F0(view, local);
     }
 
-    public static NativeBattleCarbuncle278ProgrammeNode Node681FD0(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, int depthBias = -256)
+    public static NativeBattleCarbuncle278ProgrammeNode Node681FD0(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, int depthBias = -256, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Data.IsDefault || node.Data.Length != 44)
         {
@@ -135,7 +135,7 @@ public static class NativeBattleCarbuncle278Programme
             }
             ReadOnlySpan<byte> vertex = Read(checked(selected + offset), 6);
             return new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(vertex.Slice(4)));
-        });
+        }, pilotIdentity: pilotIdentity);
         return new(memory, batch, true, cue ? node.Color32 : null);
 
         int Int(int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(offset, 4));

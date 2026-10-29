@@ -8,12 +8,12 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleRenderPhaseClockTests
 {
     [Theory]
-    [InlineData(2, true)]
-    [InlineData(3, true)]
-    [InlineData(144, true)]
-    [InlineData(202, false)]
-    [InlineData(319, false)]
-    public void Completion_clock_is_enabled_only_for_the_three_pilot_spells(ushort effect, bool supported)
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(144)]
+    [InlineData(202)]
+    [InlineData(319)]
+    public void Completion_clock_follows_the_recognized_effect_registry(ushort effect)
     {
         PresentationTiming timing = new();
         ManualTimeProvider clock = new();
@@ -22,7 +22,7 @@ public sealed class BattleRenderPhaseClockTests
         timing.BeginPresentationFrame(owner, true, clock);
         timing.ObservePresentationSource(owner, source);
         clock.Advance(TimeSpan.FromMilliseconds(10));
-        Assert.Equal(supported ? 0.155f : 0, timing.SamplePresentationPhase(owner, source, true), 6);
+        Assert.Equal(NativeBattleSmoothPresentation.Supports(effect) ? 0.155f : 0, timing.SamplePresentationPhase(owner, source, true), 6);
     }
 
     [Fact]

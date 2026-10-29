@@ -190,7 +190,7 @@ public static class MenuSettings
         new("Field FPS", "Field and movie presentation at 30 or 60 FPS. At 60, field movement and animation interpolate between original simulation frames. Gameplay timing is unchanged. V-Sync may limit output further.", ["30", "60"]),
         new("World FPS", "World travel presentation limit. Simulation remains at its original rate; 60 FPS interpolates movement and camera between updates. V-Sync may limit output further.", ["30", "60"]),
         new("Battle FPS", "Battle presentation limit. Higher limits can show more animation frames when game speed is increased. Applies to this installation.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
-        new("Battle motion", "Smooth compatible adds intermediate motion for Fire, Thunder and Blizzard at higher presentation rates. Gameplay speed is unchanged. Other effects retain their original motion.", ["Native", "Smooth compatible"]),
+        new("Battle motion", "Smooth compatible adds intermediate movement for supported battle effects at higher presentation rates. Action duration and hit timing stay unchanged. Authored sprite frames retain their original cadence.", ["Native", "Smooth compatible"]),
         new("Menu FPS", "Title and menu presentation limit. Applies to this installation. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
         new("Sound", "Original stereo / mono output setting.", ["Stereo", "Mono"]),
         new("Controller", "Original normal / custom control mapping.", ["Normal", "Customize"]),

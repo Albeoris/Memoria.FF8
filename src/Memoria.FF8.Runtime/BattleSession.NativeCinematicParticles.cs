@@ -63,7 +63,19 @@ public sealed partial class BattleSession
             }
             NativeBattleScriptedGraphicsMemory registers = RequireWaterMemory().ScriptedGraphics ?? throw new NotSupportedException("Native cinematic particles require their retained depth-cue controls.");
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic particles require their current camera projection.");
-            NativeBattleWaterParticleRectangleResult drawn = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, ReadRegisters(current), projection, registers.Zsf3 ?? throw new NotSupportedException("Native cinematic particles require their current ZSF3."), registers.Dqa, registers.Dqb, OtBucket);
+            NativeBattlePilotVisualIdentity identity;
+            if (kind == 6)
+            {
+                uint particleBank = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(current, 0xB8, 4));
+                uint particle = current.ReadTemporaryDword(0x44);
+                int particleIndex = checked((int)((particle - particleBank - 0x10) / 0x50));
+                identity = NativeBattlePilotVisualLifetimes.Identity(checked((ushort)profile.Effect), current.Arena, particleBank, particleIndex);
+            }
+            else
+            {
+                identity = NativeBattleCinematicVisualIdentity.Identity(checked((ushort)profile.Effect), current, bank, index);
+            }
+            NativeBattleWaterParticleRectangleResult drawn = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, ReadRegisters(current), projection, registers.Zsf3 ?? throw new NotSupportedException("Native cinematic particles require their current ZSF3."), registers.Dqa, registers.Dqb, OtBucket, matrix, identity);
             current = PublishRegisters(drawn.Frame, drawn.Registers);
             if (drawn.Packets.Attempts.IsEmpty)
             {

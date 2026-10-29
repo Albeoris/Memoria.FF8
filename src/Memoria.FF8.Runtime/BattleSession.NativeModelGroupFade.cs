@@ -47,7 +47,7 @@ public sealed partial class BattleSession
                 mesh = linked[0];
                 binding = model.LinkedTextureSlots ?? throw new NotSupportedException("Native50F190 requires its executed weapon material relocation.");
             }
-            graphics = AppendNativeModelRendererPackets(graphics, NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, binding), true);
+            graphics = AppendNativeModelRendererPackets(graphics, NativeBattleRawGeometryPackets.Emit5099D0([mesh], matrices, projection, color, 1, null, 17, 4, binding, pilotIdentity: NativePilotSceneIdentity(0x50F190, index, meshIndex)), true);
         }
         if (deformed is null)
         {

@@ -44,14 +44,16 @@ public sealed partial class BattleSession
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic ribbon requires its actual projection controls.");
             NativeBattleVector point = NativeBattleScriptedMeshPreparation.Vector(current.Arena.Read(ArenaOffset(address, 6), 6));
             NativeBattleModuleDepthCueVertex result = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix, point, projection, controls.Dqa, controls.Dqb);
-            return new(current, result.Projected.Screen, result.Projected.Depth, result.Projected.Flags);
+            return new(current, result.Projected.Screen, result.Projected.Depth, result.Projected.Flags) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection) };
         }, (current, output, ordering, batch) =>
         {
             var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
             graphics = written.Graphics;
             return written.Frame;
         });
-        frame = NativeBattleCinematicRibbon37.Draw(frame, services);
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
+        frame = NativeBattleCinematicRibbon37.Draw(frame, services, identity);
         if (orderingTransaction is not null)
         {
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = orderingTransaction.Freeze() } };

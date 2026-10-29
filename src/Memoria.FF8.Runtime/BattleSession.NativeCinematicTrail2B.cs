@@ -8,6 +8,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicTrail2B(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleCinematicResources resources, NativeBattleGraphicsState graphics)
     {
+        Dictionary<uint, NativeBattleCinematicTrail2BSample> pilotSamples = [];
         NativeBattleActionMatrix? matrix = null;
         NativeBattleCinematicTrail2BServices services = new((current, texture) => NativeBattleWaterTextureMetadata.SelectTPageB665C0(current, resources, texture), (current, texture) => NativeBattleWaterTextureMetadata.ReadClutB66640(current, resources, texture), (current, selector) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, selector).Selected, current =>
         {
@@ -26,6 +27,7 @@ public sealed partial class BattleSession
             NativeBattleVector point = NativeBattleScriptedMeshPreparation.Vector(raw);
             NativeBattleActionMatrix basis = matrix ?? throw new InvalidOperationException("Native cinematic trail basis has not been prepared.");
             NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(basis, point, projection, controls.Dqa, controls.Dqb);
+            pilotSamples[output] = new(NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(basis, point), projection), address);
             current = StoreNativeGridDword(current, output, projected.Projected.Screen);
             current = current.WriteTemporaryDword(0x98, projected.Cue).WriteTemporaryDword(0x9C, projected.Projected.Flags);
             current = current with { Arena = current.Arena.Write(ArenaOffset(unchecked(output + 4), 2), BitConverter.GetBytes(unchecked((ushort)(projected.Projected.Depth >> 2)))) };
@@ -55,6 +57,8 @@ public sealed partial class BattleSession
             graphics = written.Graphics;
             return written.Frame;
         });
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        services = services with { PilotSamples = pilotSamples, PilotIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank)) };
         return (NativeBattleCinematicTrail2B.Draw(frame, services), graphics);
     }
 }

@@ -379,6 +379,8 @@ public sealed partial class BattleSession
         // The committed owners are reused by the render tail; its resets are outside the producer journals.
         common?.Dispose();
         ordering?.Dispose();
+        nativePilotSourceProjection = NativeCamera?.Projection;
+        nativePilotSourceCamera = NativeCamera?.CurrentPose;
         NativeGraphics = graphics with { Callback = checked(graphics.Callback + 1) };
         AdvanceNativeCamera(flags);
         if (NativeCamera is not null)

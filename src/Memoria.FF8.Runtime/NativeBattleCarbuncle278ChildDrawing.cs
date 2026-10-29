@@ -37,7 +37,7 @@ public static class NativeBattleCarbuncle278ChildDrawing
         NativeBattleActionMatrix matrix = Prepare683760(task, parent, ReadCached(memory, task.ReadDword(0x18)), resources.RecipientPolarTable);
         short age = unchecked((short)task.ReadWord(0xC));
         int fade = age <= 10 ? 2048 : 2048 + (((age - 10) * 4096 / 6) >> 1);
-        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, mesh.Bytes.Slice(8, mesh.Bytes.Length - 8), matrix, projection, new(0xF3, 0, fade, null, null, null, 17, 2), colors);
+        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, mesh.Bytes.Slice(8, mesh.Bytes.Length - 8), matrix, projection, new(0xF3, 0, fade, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(278, task));
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native Carbuncle rays require the current far-color controls.");
         NativeBattleModelRendererRegisters registers = process.ModelRendererRegisters ?? new(null, null, null, null, null);
         memory = memory with { PrimitiveProcess = process with { ModelRendererRegisters = registers.PublishModelColor(0) } };
@@ -76,7 +76,7 @@ public static class NativeBattleCarbuncle278ChildDrawing
         {
             throw new InvalidDataException("Native Carbuncle shard sprite changed its original address.");
         }
-        NativeBattleGfGeometryBatch packets = NativeBattleCarbuncle278ShardPackets.Emit683490(sprite.Bytes, task.ReadWord(0xC), main, projection, 17);
+        NativeBattleGfGeometryBatch packets = NativeBattleCarbuncle278ShardPackets.Emit683490(sprite.Bytes, task.ReadWord(0xC), main, projection, 17, NativeBattlePilotVisualLifetimes.Identity(278, task));
         return new(memory, task, packets);
     }
 
@@ -93,7 +93,7 @@ public static class NativeBattleCarbuncle278ChildDrawing
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Multiply56C090(cached, new([scale, 0, 0, 0, scale, 0, 0, 0, scale], 0, 0, 0, 4096)) with { X = point.X, Y = point.Y, Z = point.Z };
         int angle = (unchecked((short)task.ReadWord(0xC)) << 10) / 20;
         int fade = NativeBattleCameraMath.Sine(angle);
-        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, mesh.Bytes.Slice(8, mesh.Bytes.Length - 8), matrix, projection, new(0xF3, 0, fade, null, null, null, 17, 2), colors);
+        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, mesh.Bytes.Slice(8, mesh.Bytes.Length - 8), matrix, projection, new(0xF3, 0, fade, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(278, task));
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native Carbuncle rings require the current far-color controls.");
         NativeBattleModelRendererRegisters registers = process.ModelRendererRegisters ?? new(null, null, null, null, null);
         memory = memory with { PrimitiveProcess = process with { ModelRendererRegisters = registers.PublishModelColor(0) } };

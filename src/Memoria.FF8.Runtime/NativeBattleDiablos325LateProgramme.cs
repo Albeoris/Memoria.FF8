@@ -81,7 +81,7 @@ public static class NativeBattleDiablos325LateProgramme
         int allocated = 0;
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, unchecked((int)state.Pause5180), (current, node) =>
         {
-            NativeBattleDiablos325NodeDraw drawn = NativeBattleDiablos325Programme.Emit656B70(memory, source, node, projection, colors, position, bias, fade, primitiveKinds, textureKinds, texturePhase: phase);
+            NativeBattleDiablos325NodeDraw drawn = NativeBattleDiablos325Programme.Emit656B70(memory, source, node, projection, colors, position, bias, fade, primitiveKinds, textureKinds, texturePhase: phase, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(325, task, unchecked(workspaceOffset * 65537 + node.ResourceOffset)));
             memory = drawn.Memory;
             attempts.AddRange(drawn.Packets.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
             allocated = checked(allocated + drawn.Packets.AllocationBytes);

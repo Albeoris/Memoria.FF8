@@ -1,11 +1,15 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Presentation identity comes from an allocated task and its authored primitive, never its output packet address.</summary>
-public readonly record struct NativeBattlePilotVisualIdentity(ushort Effect, uint Bank, int Slot, long Generation, int Primitive);
+public readonly record struct NativeBattlePilotVisualIdentity(ushort Effect, uint Bank, int Slot, long Generation, int Primitive)
+{
+    public long ResourceGeneration { get; init; }
+}
 
 /// <summary>The authored rectangle stays discrete while its particle transform moves continuously.</summary>
 public sealed record NativeBattlePilotSpriteGeometry(Vector3 LocalA, Vector3 LocalB, Vector3 LocalC, Vector3 LocalD, Vector3 Origin, Vector3 AxisX, Vector3 AxisY, Vector3 AxisZ)
@@ -53,16 +57,23 @@ public sealed record NativeBattlePilotVisualGeometry(NativeBattlePilotVisualIden
     public NativeBattlePilotSpriteGeometry? Sprite { get; init; }
     public int DepthOffset { get; init; }
     public int DepthQuantum { get; init; } = 1;
+    public int DepthDivisor { get; init; } = 1;
+    public float DepthScale { get; init; } = 1;
     public Vector4? SourceDepths { get; init; }
+    public bool UseSourceDepths { get; init; }
+    public ImmutableArray<Vector2> ScreenOffsets { get; init; } = [];
+    public float ScreenScale { get; init; } = 1;
+    public ushort? FocalLengthOverride { get; init; }
+    public bool ScreenSpace { get; init; }
 
     public float SampleDepth(float cameraDepth)
     {
         if (DepthQuantum == 1)
         {
-            return cameraDepth + DepthOffset;
+            return (cameraDepth + DepthOffset) / DepthDivisor * DepthScale;
         }
         int sourceDepth = Math.Clamp(NativeBattlePoseMatrices.RoundNative(cameraDepth), 0, ushort.MaxValue);
-        return sourceDepth / DepthQuantum * DepthQuantum + DepthOffset;
+        return (sourceDepth / DepthQuantum * DepthQuantum + DepthOffset) / (float)DepthDivisor * DepthScale;
     }
     public Vector3 Corner(int index) => index switch
     {
@@ -97,7 +108,7 @@ public sealed record NativeBattlePilotVisualGeometry(NativeBattlePilotVisualIden
         {
             return later.Corner(corner);
         }
-        if (alpha <= 0 || earlier.Identity != later.Identity || earlier.CornerCount != later.CornerCount || !earlier.Continuous || !later.Continuous)
+        if (alpha <= 0 || earlier.Identity != later.Identity || earlier.CornerCount != later.CornerCount || earlier.ScreenSpace != later.ScreenSpace || !earlier.Continuous || !later.Continuous)
         {
             return earlier.Corner(corner);
         }
@@ -183,8 +194,26 @@ public sealed record NativeBattlePilotVisualGeometry(NativeBattlePilotVisualIden
         NativeBattleActionMatrix actualA = earlier.View!;
         NativeBattleActionMatrix actualB = later.View!;
         int Offset(int a, int b) => (int)MathF.Round(a + (b - a) * alpha);
-        view = view with { X = view.X + Offset(actualA.X - baseA.X, actualB.X - baseB.X), Y = view.Y + Offset(actualA.Y - baseA.Y, actualB.Y - baseB.Y), Z = view.Z + Offset(actualA.Z - baseA.Z, actualB.Z - baseB.Z) };
+        Matrix4x4 basis = RotationOnly(view) * Matrix4x4.Lerp(Residual(baseA, actualA), Residual(baseB, actualB), alpha);
+        short Word(float value) => unchecked((short)NativeBattlePoseMatrices.RoundNative(value * 4096));
+        view = view with { Rotation = [Word(basis.M11), Word(basis.M21), Word(basis.M31), Word(basis.M12), Word(basis.M22), Word(basis.M32), Word(basis.M13), Word(basis.M23), Word(basis.M33)], X = view.X + Offset(actualA.X - baseA.X, actualB.X - baseB.X), Y = view.Y + Offset(actualA.Y - baseA.Y, actualB.Y - baseB.Y), Z = view.Z + Offset(actualA.Z - baseA.Z, actualB.Z - baseB.Z) };
         return new(view, (ushort)Offset(earlier.FocalLength!.Value, later.FocalLength!.Value), Lerp(earlier.OffsetX!.Value, later.OffsetX!.Value), Lerp(earlier.OffsetY!.Value, later.OffsetY!.Value));
+
+        static Matrix4x4 RotationOnly(NativeBattleActionMatrix matrix)
+        {
+            Matrix4x4 result = ViewMatrix(matrix);
+            result.Translation = Vector3.Zero;
+            return result;
+        }
+
+        static Matrix4x4 Residual(NativeBattleActionMatrix baseline, NativeBattleActionMatrix actual)
+        {
+            if (!Matrix4x4.Invert(RotationOnly(baseline), out Matrix4x4 inverse))
+            {
+                throw new InvalidOperationException("Compatible camera motion requires an invertible pose basis.");
+            }
+            return inverse * RotationOnly(actual);
+        }
     }
 
     private static Matrix4x4 ViewMatrix(NativeBattleActionMatrix matrix)
@@ -194,21 +223,40 @@ public sealed record NativeBattlePilotVisualGeometry(NativeBattlePilotVisualIden
     }
 }
 
-internal static class NativeBattlePilotVisualLifetimes
+public static class NativeBattlePilotVisualLifetimes
 {
     private static readonly ConditionalWeakTable<NativeBattleTaskBankOwner, long[]> generations = new();
+    private static readonly ConditionalWeakTable<object, Dictionary<(uint Bank, int Slot), long>> arenaGenerations = new();
     private static readonly ConditionalWeakTable<object, Epoch> epochs = new();
     private sealed record Epoch(long Value);
 
     internal static long EpochFor(object owner) => epochs.GetValue(owner, _ => new(Interlocked.Increment(ref nextGeneration))).Value;
     private static long nextGeneration;
 
+    public static NativeBattlePilotVisualIdentity Identity(ushort effect, NativeBattleModulePoolTask task, int primitive = 0)
+    {
+        return new(effect, task.RequireOwner().Descriptor, task.PilotSlot, Generation(task, task.PilotSlot), primitive);
+    }
+
+    public static void Allocated(NativeBattleEffectArena arena, uint bank, int slot)
+    {
+        Dictionary<(uint Bank, int Slot), long> slots = arenaGenerations.GetValue(arena.PresentationStorageIdentity, _ => []);
+        slots[(bank, slot)] = Interlocked.Increment(ref nextGeneration);
+    }
+
+    public static NativeBattlePilotVisualIdentity Identity(ushort effect, NativeBattleEffectArena arena, uint bank, int slot, int primitive = 0)
+    {
+        Dictionary<(uint Bank, int Slot), long> slots = arenaGenerations.GetValue(arena.PresentationStorageIdentity, _ => []);
+        if (!slots.TryGetValue((bank, slot), out long generation))
+        {
+            generation = Interlocked.Increment(ref nextGeneration);
+            slots.Add((bank, slot), generation);
+        }
+        return new(effect, bank, slot, generation, primitive);
+    }
+
     internal static void Allocated(NativeBattleEffectTaskPool pool, int slot)
     {
-        if (pool.DescriptorAddress is not (0x24CA838 or 0x24BD788 or 0x2557088))
-        {
-            return;
-        }
         long[] slots = generations.GetValue(pool.RequireOwner(), current => new long[current.Tasks.Length]);
         slots[slot] = Interlocked.Increment(ref nextGeneration);
     }
@@ -223,4 +271,9 @@ internal static class NativeBattlePilotVisualLifetimes
         }
         return slots[slot];
     }
+}
+
+public partial record NativeBattleEffectArena
+{
+    internal object PresentationStorageIdentity => Working.BackingIdentity;
 }

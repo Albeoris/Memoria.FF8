@@ -3,7 +3,11 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicWireMorphServices(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveShape, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleWaterExecutionFrame> Project, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
+public sealed record NativeBattleCinematicWireMorphServices(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveShape, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleWaterExecutionFrame> Project, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append)
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+    public IReadOnlyDictionary<uint, System.Numerics.Vector3>? PilotWorld { get; init; }
+}
 
 /// <summary>Interpolated mesh vertices with original directional edge flags and unconditional cross edges.</summary>
 public static class NativeBattleCinematicWireMorph3F
@@ -67,31 +71,36 @@ public static class NativeBattleCinematicWireMorph3F
                 {
                     Flag(a, 2);
                     Flag(b, 1);
-                    Emit(a, b);
+                    Emit(a, b, unchecked((int)face * 4));
                 }
                 if (((firstC & 8) | (firstD & 4)) != 12)
                 {
                     Flag(c, 8);
                     Flag(d, 4);
-                    Emit(c, d);
+                    Emit(c, d, unchecked((int)face * 4 + 1));
                 }
                 Flag(a, 4);
                 Flag(c, 1);
-                Emit(a, c);
+                Emit(a, c, unchecked((int)face * 4 + 2));
                 if (((firstB & 8) | (firstD & 2)) != 10)
                 {
                     Flag(b, 8);
                     Flag(d, 2);
-                    Emit(b, d);
+                    Emit(b, d, unchecked((int)face * 4 + 3));
                 }
                 frame = WriteCoreDword(frame, unchecked(CoreDword(frame, 0x27973EC) + 0x7C), output);
             }
             group = face;
         }
 
-        void Emit(uint firstVertex, uint secondVertex)
+        void Emit(uint firstVertex, uint secondVertex, int authoredEdge)
         {
-            var written = NativeBattleCinematicGrid59.AppendLine(frame, output, firstVertex, secondVertex, command, null, services.Append, fixedOrdering);
+            NativeBattlePilotVisualGeometry? metadata = null;
+            if (services.PilotIdentity is { } identity && services.PilotWorld is { } world && world.TryGetValue(firstVertex, out System.Numerics.Vector3 a) && world.TryGetValue(secondVertex, out System.Numerics.Vector3 b))
+            {
+                metadata = new(identity with { Primitive = authoredEdge }, a, b, default, default, 2) { DepthDivisor = 4 };
+            }
+            var written = NativeBattleCinematicGrid59.AppendLine(frame, output, firstVertex, secondVertex, command, null, services.Append, fixedOrdering, metadata);
             frame = written.Frame;
             output = written.Output;
         }

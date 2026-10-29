@@ -83,7 +83,7 @@ public sealed partial class BattleSession
             registers = NativeBattleScriptedNormalDepthColor.Transform45EE80(lighting, NativeBattleScriptedMeshPreparation.Vector(rawNormal), command, unchecked((short)projected.Cue), distant, registers);
             NativeEffectMemory = memory with { ScriptedColorRegisters = registers };
             current = StoreNativeGridDword(current, color, registers.Rgb[2] ?? throw new NotSupportedException("Native cinematic grid projection did not publish its normal color."));
-            return new(current, projected.Projected.Depth >> 2);
+            return new(current, projected.Projected.Depth >> 2) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix!, NativeBattleScriptedMeshPreparation.Vector(position)), projection) };
         }, (current, output, ordering, batch) =>
         {
             NativeBattleEffectMemory previousMemory = RequireWaterMemory();
@@ -140,6 +140,8 @@ public sealed partial class BattleSession
             NativeEffectMemory = acceptedMemory;
             return written.Frame;
         });
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        services = services with { PilotIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank)) };
         NativeBattleEffectArena? publishedArena = null;
         try
         {

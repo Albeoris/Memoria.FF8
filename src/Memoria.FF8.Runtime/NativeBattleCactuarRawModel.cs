@@ -94,7 +94,7 @@ public static class NativeBattleCactuarRawModel
         return new(state with { Model = model.ToImmutableArray(), DecodedPose = next.Pose }, false);
     }
 
-    public static NativeBattleCactuarRawModelDraw Draw5A9010(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix parent, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleRawModelBinding? binding = null, ImmutableArray<byte>? projectedScratch = null)
+    public static NativeBattleCactuarRawModelDraw Draw5A9010(NativeBattleCactuarRawModelState state, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix parent, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleRawModelBinding? binding = null, ImmutableArray<byte>? projectedScratch = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         Validate(state, resource, binding);
         NativeBattleDecodedPose pose = state.DecodedPose ?? throw new NotSupportedException("Native raw model body requires its current decoded skeleton.");
@@ -120,7 +120,7 @@ public static class NativeBattleCactuarRawModel
         {
             throw new InvalidDataException("Native raw model projected scratch contradicts its complete vertex owner.");
         }
-        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(resource.Geometry[0], bones, projection, ReadDword(state.Model.AsSpan(), 0x28), mask, scratch, colors, ResolveBinding(binding).DepthShift);
+        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(resource.Geometry[0], bones, projection, ReadDword(state.Model.AsSpan(), 0x28), mask, scratch, colors, ResolveBinding(binding).DepthShift, pilotIdentity: pilotIdentity);
         if (draw.ProjectedBytesWritten != length)
         {
             throw new InvalidDataException("Native raw model body did not establish its complete projected scratch.");

@@ -60,7 +60,7 @@ public static class NativeBattleRegionalPacketArena
                     throw new InvalidDataException("Native module linked primitive exceeds its actual allocation.");
                 }
                 bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-                links.Prepend(primitive.Bucket, new(bank, 0, address), primitive.Words, 0, primitive.VertexPayload4);
+                links.Prepend(primitive.Bucket, new(bank, 0, address), primitive.Words, 0, primitive.VertexPayload4, pilotGeometry: primitive.PilotGeometry);
                 if (linked)
                 {
                     arena.Write(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));

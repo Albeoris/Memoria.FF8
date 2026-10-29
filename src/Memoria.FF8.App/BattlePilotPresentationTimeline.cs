@@ -2,7 +2,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-/// <summary>One completed native interval, retained only while the three compatible spells are presenting.</summary>
+/// <summary>One completed native interval, retained only while a compatible effect is presenting.</summary>
 internal sealed class BattlePilotPresentationTimeline
 {
     private NativeBattlePreparedPresentation? earlier;
@@ -19,7 +19,7 @@ internal sealed class BattlePilotPresentationTimeline
             sampledAlpha = 0;
             presentationOwner = owner;
         }
-        if (!smooth || current.PilotEffect is not (2 or 3 or 144))
+        if (!smooth || !NativeBattleSmoothPresentation.Supports(current.PilotEffect))
         {
             earlier = null;
             later = null;

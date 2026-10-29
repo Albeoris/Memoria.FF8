@@ -8,7 +8,7 @@ public sealed record NativeBattleCinematicLeviathanProjection(NativeBattleWaterE
 
 public static class NativeBattleCinematicLeviathanProjector
 {
-    public static NativeBattleCinematicLeviathanProjection Project(NativeBattleWaterExecutionFrame frame, uint source, uint output, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory graphics, NativeBattleScriptedColorRegisters registers)
+    public static NativeBattleCinematicLeviathanProjection Project(NativeBattleWaterExecutionFrame frame, uint source, uint output, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory graphics, NativeBattleScriptedColorRegisters registers, Action<uint, System.Numerics.Vector3>? observeWorld = null)
     {
         int count = BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(ArenaOffset(source, 2), 2));
         source = unchecked(source + 2);
@@ -22,6 +22,7 @@ public static class NativeBattleCinematicLeviathanProjector
             NativeBattleVector point = new(x, y, z);
             NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix, point, projection, graphics.Dqa, graphics.Dqb);
             NativeBattleFullMacVertex mac = NativeBattleGfMatrices.TransformMac460840(matrix, point);
+            observeWorld?.Invoke(output, NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection));
             frame = frame with { Arena = frame.Arena.Write(ArenaOffset(output, 4), BitConverter.GetBytes(projected.Projected.Screen)) };
             source = unchecked(source + 6);
             output = unchecked(output + 8);

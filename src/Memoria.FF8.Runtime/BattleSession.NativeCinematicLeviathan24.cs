@@ -7,6 +7,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicLeviathan24(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleCinematicResources resources, NativeBattleCinematicModelServices modelServices, NativeBattleGraphicsState graphics)
     {
+        Dictionary<uint, System.Numerics.Vector3> pilotWorld = [];
         NativeBattleCinematicLeviathanServices services = new(modelServices, (current, shape) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, shape).Selected, (current, selector) =>
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
@@ -22,7 +23,7 @@ public sealed partial class BattleSession
             NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Native cinematic model projection requires its current depth-cue controls and depth workspace.");
             NativeBattleScriptedColorRegisters registers = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native cinematic model projection requires its current packed vector and arithmetic registers.");
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic model projection requires its current camera controls.");
-            NativeBattleCinematicLeviathanProjection drawn = NativeBattleCinematicLeviathanProjector.Project(current, source, output, matrix, projection, controls, registers);
+            NativeBattleCinematicLeviathanProjection drawn = NativeBattleCinematicLeviathanProjector.Project(current, source, output, matrix, projection, controls, registers, (address, world) => pilotWorld[address] = world);
             NativeEffectMemory = memory with { ScriptedGraphics = drawn.Graphics, ScriptedColorRegisters = drawn.Registers };
             return drawn.Frame;
         }, OtBucket, (current, output, batch) =>
@@ -31,6 +32,8 @@ public sealed partial class BattleSession
             graphics = written.Graphics;
             return written.Frame;
         });
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        services = services with { PilotWorld = pilotWorld, PilotIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank)) };
         return (NativeBattleCinematicLeviathan24.Draw(frame, services), graphics);
     }
 }

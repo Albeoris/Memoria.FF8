@@ -15,8 +15,12 @@ public sealed record NativeBattleQuezacotlSkinBatch(ImmutableArray<NativeBattleQ
 public sealed record NativeBattleQuezacotlSkinContext(uint ModelMask, uint ModelRgb, uint OverlayRgb, short ClipLeft, short ClipTop, short ClipRight, short ClipBottom, ushort Clut, ushort TexturePage, int UOffset, int VOffset, byte UPeriod, byte VPeriod, int FadeOriginY, ImmutableArray<uint> WindowBefore3, ImmutableArray<uint> WindowAfter3, int TableBaseBucket, byte DepthShift)
 {
     public ushort? PriorDepthFifo { get; init; }
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
-public sealed record NativeBattleQuezacotlSkinnedVertex(byte Flags, uint? Screen, ushort? QuarterDepth, byte? U, byte? V, short? Fade);
+public sealed record NativeBattleQuezacotlSkinnedVertex(byte Flags, uint? Screen, ushort? QuarterDepth, byte? U, byte? V, short? Fade)
+{
+    public System.Numerics.Vector3? World { get; init; }
+}
 public sealed record NativeBattleQuezacotlSkinProjection(NativeBattleQuezacotlSkinnedVertex Vertex, ImmutableArray<NativeBattleQuezacotlSkinWrite> Writes);
 
 /// <summary>6C68F0 mesh/bone parsing and 6C74D0's model-space skinning followed by the prior camera projection.</summary>
@@ -89,7 +93,7 @@ public static class NativeBattleQuezacotlSkinning
                         }
                         corners[corner] = vertices[vertex];
                     }
-                    NativeBattleQuezacotlSkinBatch emitted = NativeBattleQuezacotlSkinnedPackets.Emit6C6A00(face, corners, context, colors, common, effect);
+                    NativeBattleQuezacotlSkinBatch emitted = NativeBattleQuezacotlSkinnedPackets.Emit6C6A00(face, corners, context with { PilotIdentity = context.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) } : null }, colors, common, effect);
                     writes.AddRange(emitted.Writes);
                     common = checked(common + emitted.CommonAllocationBytes);
                     effect = checked(effect + emitted.EffectAllocationBytes);
@@ -148,7 +152,7 @@ public static class NativeBattleQuezacotlSkinning
         //6C74D0 copies contextBYTE25, never initialized by6C6770 and never consumed as vertex padding.
         result.Unknown(9, 1);
         result.Word16(10, unchecked((ushort)fade));
-        return new(new(flags, projected.Screen, quarter, u, v, fade), [new(NativeBattleQuezacotlSkinBank.VertexScratch, initial.Attempt(null)), new(NativeBattleQuezacotlSkinBank.VertexScratch, result.Attempt(null))]);
+        return new(new(flags, projected.Screen, quarter, u, v, fade) { World = context.PilotIdentity.HasValue ? NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(view, skinned), projection) : null }, [new(NativeBattleQuezacotlSkinBank.VertexScratch, initial.Attempt(null)), new(NativeBattleQuezacotlSkinBank.VertexScratch, result.Attempt(null))]);
     }
 
     private static ReadOnlySpan<byte> Read(ImmutableArray<byte> source, int offset, int length)

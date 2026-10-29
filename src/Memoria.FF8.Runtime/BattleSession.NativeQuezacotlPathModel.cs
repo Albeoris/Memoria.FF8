@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         int animation = checked((int)(BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(NativeBattleQuezacotlRig86.Directory + 8, 4)) - arenaAddress));
         uint rgb = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(NativeBattleQuezacotlRig86.Model + 0x28, 4));
         uint mask = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(NativeBattleQuezacotlRig86.Model + 0x7C, 4));
-        NativeBattleQuezacotlPathModelBatch batch = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(ImmutableCollectionsMarshal.AsImmutableArray(arena.Read(geometry, checked(animation - geometry))), selector => NativeBattleQuezacotlRig86.ReadBoneMatrix(memory, selector), projection, rgb, mask);
+        NativeBattleQuezacotlPathModelBatch batch = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(ImmutableCollectionsMarshal.AsImmutableArray(arena.Read(geometry, checked(animation - geometry))), selector => NativeBattleQuezacotlRig86.ReadBoneMatrix(memory, selector), projection, rgb, mask, NativeBattlePilotVisualLifetimes.Identity(116, effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0], geometry));
         using NativeBattleEffectArenaWriter scratch = new(arena);
         foreach (NativeBattleGfGeometryAttempt write in batch.VertexScratchWrites)
         {

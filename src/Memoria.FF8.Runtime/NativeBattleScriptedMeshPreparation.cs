@@ -6,6 +6,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScriptedMeshProjected(NativeBattleWaterExecutionFrame Frame, NativeBattleEffectArena DepthOwner, NativeBattleScriptedLightingMemory Lighting, NativeBattleScriptedColorRegisters Registers)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ImmutableArray<System.Numerics.Vector3> PilotVertices { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ushort? PilotFocalOverride { get; init; }
     public uint DepthScaleBits1877DA8 { get; init; }
     public NativeBattleGeometryRegisters? Geometry { get; init; }
 }
@@ -17,7 +23,7 @@ public sealed record NativeBattleScriptedMeshSubmission(NativeBattleWaterExecuti
 /// <summary>The ordinary cinematic mesh path over actual current shape, work, depth and lighting owners.</summary>
 public static class NativeBattleScriptedMeshPreparation
 {
-    public static NativeBattleScriptedMeshProjected Project(NativeBattleWaterMeshPrepared prepared, int shapeExtent, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleEffectArena depthOwner, NativeBattleScriptedLightingMemory lighting, NativeBattleGeometryRegisterStep step, NativeBattleScriptedMeshMorphServices? morphServices = null, uint? retainedDepthScaleBits = null)
+    public static NativeBattleScriptedMeshProjected Project(NativeBattleWaterMeshPrepared prepared, int shapeExtent, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleEffectArena depthOwner, NativeBattleScriptedLightingMemory lighting, NativeBattleGeometryRegisterStep step, NativeBattleScriptedMeshMorphServices? morphServices = null, uint? retainedDepthScaleBits = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleWaterExecutionFrame frame = prepared.Frame;
         NativeBattleScriptedColorRegisters registers = step.Colors;
@@ -85,6 +91,7 @@ public static class NativeBattleScriptedMeshPreparation
             source = frame.ReadTemporaryDword(0x74);
         }
         projection = projection with { FocalLength = unchecked((ushort)prepared.Focal) };
+        System.Numerics.Vector3[]? pilotVertices = pilotIdentity is null ? null : new System.Numerics.Vector3[vertices];
         for (int index = 0; index < vertices; index++)
         {
             byte[] raw = frame.Arena.Read(ArenaOffset(unchecked(source + (uint)(index * 8)), 6), 6);
@@ -92,6 +99,10 @@ public static class NativeBattleScriptedMeshPreparation
             if (scaled)
             {
                 point = new(unchecked((short)(unchecked(point.X * scaleX) >> 12)), unchecked((short)(unchecked(point.Y * scaleY) >> 12)), unchecked((short)(unchecked(point.Z * scaleZ) >> 12)));
+            }
+            if (pilotVertices is not null)
+            {
+                pilotVertices[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(prepared.Matrix, point), projection);
             }
             step = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(step with { Colors = registers }, 0, point, 0), projection, dqa, dqb);
             registers = step.Colors;
@@ -153,7 +164,7 @@ public static class NativeBattleScriptedMeshPreparation
         {
             depthOwner = depthTransaction.Freeze();
         }
-        return new(frame, depthOwner, lighting, registers) { DepthScaleBits1877DA8 = depthScaleBits, Geometry = step.Geometry };
+        return new(frame, depthOwner, lighting, registers) { DepthScaleBits1877DA8 = depthScaleBits, Geometry = step.Geometry, PilotVertices = pilotVertices?.ToImmutableArray() ?? default, PilotIdentity = pilotIdentity, PilotFocalOverride = prepared.PilotFocalOverride };
 
         uint Dword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
     }
@@ -241,10 +252,15 @@ public static class NativeBattleScriptedMeshPreparation
             RequireShape(shape, shapeExtent, cursor, checked(faces * stride));
             frame = frame.WriteTemporaryDword(0x70, unchecked((uint)(int)faces)).WriteTemporaryDword(0x6C, cursor).WriteTemporaryDword(0x58, next);
             NativeBattleWaterMeshGroup group = new(type, faces, frame.Arena.Read(ArenaOffset(cursor, faces * stride), faces * stride).ToImmutableArray());
-            NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, group, handler, shapeExtent, records, depths, frame.ReadTemporaryDword(0x60), lighting, registers, resolveActualOtBucket, geometry, BitConverter.UInt32BitsToSingle(projected.DepthScaleBits1877DA8));
+            NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, group, handler, shapeExtent, records, depths, frame.ReadTemporaryDword(0x60), lighting, registers, resolveActualOtBucket, geometry, BitConverter.UInt32BitsToSingle(projected.DepthScaleBits1877DA8), projected.PilotVertices.IsDefault ? null : projected.PilotVertices, projected.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 65537 + (int)cursor) } : null);
             foreach (NativeBattleGfGeometryAttempt attempt in result.Packets.Attempts)
             {
-                attempts.Add(attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) });
+                NativeBattleGfGeometryAttempt captured = attempt;
+                if (projected.PilotFocalOverride is ushort focal && attempt.Primitive?.PilotGeometry is { } geometryMetadata)
+                {
+                    captured = attempt with { Primitive = attempt.Primitive with { PilotGeometry = geometryMetadata with { FocalLengthOverride = focal } } };
+                }
+                attempts.Add(captured with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) });
             }
             allocated = checked(allocated + result.Packets.AllocationBytes);
             frame = result.Frame;

@@ -61,7 +61,7 @@ public static class NativeBattleCarbuncle278Model
             process = process.PublishModelColor(rgb);
             int geometryStart = resource.Section(1);
             ImmutableArray<byte> geometry = resource.Bytes.Slice(geometryStart, resource.Section(2) - geometryStart);
-            NativeBattleQuezacotlPathModelBatch batch = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(geometry, selector => NativeBattleArenaPose.ReadMatrix(skeleton, checked(32 + selector * 48)), projection, rgb, mask);
+            NativeBattleQuezacotlPathModelBatch batch = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(geometry, selector => NativeBattleArenaPose.ReadMatrix(skeleton, checked(32 + selector * 48)), projection, rgb, mask, NativeBattlePilotVisualLifetimes.Identity(278, task));
             foreach (NativeBattleGfGeometryAttempt write in batch.VertexScratchWrites)
             {
                 arena = arena.Write(checked(0x2E84 + write.ByteOffsetRelative), write.Data.AsSpan());

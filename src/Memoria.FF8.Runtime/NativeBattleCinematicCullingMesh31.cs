@@ -5,7 +5,11 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCinematicCullingColor(NativeBattleWaterExecutionFrame Frame, uint Color);
-public sealed record NativeBattleCinematicCullingMesh31Services(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveShape, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleWaterExecutionFrame> Project, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PrepareMaterial, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicCullingColor> Shade, Func<int, byte> PrimitiveSize, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
+public sealed record NativeBattleCinematicCullingMesh31Services(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveShape, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleWaterExecutionFrame> Project, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PrepareMaterial, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicCullingColor> Shade, Func<int, byte> PrimitiveSize, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append)
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+    public IReadOnlyDictionary<uint, System.Numerics.Vector3>? PilotWorld { get; init; }
+}
 
 /// <summary>A mesh revealed by its local depth, with independently linked Gouraud quadrilaterals.</summary>
 public static class NativeBattleCinematicCullingMesh31
@@ -95,7 +99,13 @@ public static class NativeBattleCinematicCullingMesh31
                 uint relative = unchecked(control - frame.TemporaryFrame.Address);
                 uint orderingBase = relative <= 0x17C ? frame.ReadTemporaryDword((int)relative) : CoreDword(frame, control);
                 uint ordering = unchecked(orderingBase + (uint)((depth / 4) & ~3));
-                frame = services.Append(frame, output, ordering, Batch(packet));
+                NativeBattleGfGeometryBatch batch = Batch(packet);
+                if (services.PilotIdentity is { } identity && services.PilotWorld is { } world && offsets.All(offset => world.ContainsKey(unchecked(work + offset))))
+                {
+                    NativeBattlePilotVisualGeometry geometry = new(identity with { Primitive = unchecked((int)face) }, world[work + offsets[0]], world[work + offsets[1]], world[work + offsets[2]], world[work + offsets[3]], 4);
+                    batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt with { Primitive = attempt.Primitive! with { PilotGeometry = geometry } }).ToImmutableArray() };
+                }
+                frame = services.Append(frame, output, ordering, batch);
                 output = unchecked(output + 36);
                 byte[] mode = new byte[12];
                 mode[3] = 2;

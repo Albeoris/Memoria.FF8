@@ -14,6 +14,6 @@ public sealed partial class BattleSession
         NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(basis, NativeBattleScriptedMeshPreparation.Vector(raw), NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic projection requires its current camera projection."), controls.Dqa, controls.Dqb);
         frame = StoreNativeGridDword(frame, output, projected.Projected.Screen);
         NativeEffectMemory = memory with { ScriptedColorRegisters = registers };
-        return new(frame, projected.Projected.Depth >> 2);
+        return new(frame, projected.Projected.Depth >> 2) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(basis, NativeBattleScriptedMeshPreparation.Vector(raw)), NativeCamera!.Projection!) };
     }
 }

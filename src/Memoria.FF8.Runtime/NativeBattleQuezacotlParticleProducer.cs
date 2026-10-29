@@ -63,7 +63,9 @@ public static class NativeBattleQuezacotlParticleProducer
         Word(writer, row + 0x20, 512);
         Word(writer, row + 0x22, 768);
         writer.Write(row + 0x24, [0, 0, 0, 0]);
-        return new(memory with { Arena = writer.Freeze() }, row);
+        arena = writer.Freeze();
+        NativeBattlePilotVisualLifetimes.Allocated(arena, ArenaAddress + Rows, (row - Rows) / RowSize);
+        return new(memory with { Arena = arena }, row);
     }
 
     public static NativeBattleQuezacotlParticleSpawn Spawn6C7D10(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleQuezacotlParticleArguments arguments)

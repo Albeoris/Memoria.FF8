@@ -5,8 +5,15 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCinematicGridValue(NativeBattleWaterExecutionFrame Frame, uint Value);
-public sealed record NativeBattleCinematicGridProjection(NativeBattleWaterExecutionFrame Frame, int QuarterDepth);
-public sealed record NativeBattleCinematicGrid28Services(Func<NativeBattleWaterExecutionFrame, short, NativeBattleWaterExecutionFrame> TexturePage, Func<NativeBattleWaterExecutionFrame, short, NativeBattleCinematicGridValue> TextureClut, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SetLighting, Func<NativeBattleWaterExecutionFrame, short, short, int, NativeBattleWaterExecutionFrame> SetDepthCue, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SetFarColor, Func<NativeBattleWaterExecutionFrame, uint, uint, uint, uint, uint, uint, NativeBattleCinematicGridProjection> ProjectNormal, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
+public sealed record NativeBattleCinematicGridProjection(NativeBattleWaterExecutionFrame Frame, int QuarterDepth)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Numerics.Vector3? PilotWorld { get; init; }
+}
+public sealed record NativeBattleCinematicGrid28Services(Func<NativeBattleWaterExecutionFrame, short, NativeBattleWaterExecutionFrame> TexturePage, Func<NativeBattleWaterExecutionFrame, short, NativeBattleCinematicGridValue> TextureClut, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SetLighting, Func<NativeBattleWaterExecutionFrame, short, short, int, NativeBattleWaterExecutionFrame> SetDepthCue, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SetFarColor, Func<NativeBattleWaterExecutionFrame, uint, uint, uint, uint, uint, uint, NativeBattleCinematicGridProjection> ProjectNormal, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append)
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 
 /// <summary>A textured grid with projected normals, interpolated colors and per-cell ordering.</summary>
 public static class NativeBattleCinematicGrid28
@@ -51,6 +58,7 @@ public static class NativeBattleCinematicGrid28
         short near = SignedWord(unchecked(payload + 8));
         frame = services.SetDepthCue(frame, near, far, 512);
         frame = services.SetFarColor(frame, ReferenceColor(unchecked(reference + 0xCC)));
+        Dictionary<uint, System.Numerics.Vector3>? pilotVertices = services.PilotIdentity is null ? null : [];
         uint work = ManagerDword(0x74);
         rows = unchecked((int)frame.ReadTemporaryDword(0x64));
         int positionX = positionMask == 255 ? ReadSlot(frame, 0x94, 1)[0] : SlotWord(frame, 0x94) & positionMask;
@@ -72,6 +80,10 @@ public static class NativeBattleCinematicGrid28
                 uint temporary = CoreDword(frame, 0x2797624);
                 NativeBattleCinematicGridProjection projection = services.ProjectNormal(frame, unchecked(temporary + 0xC0), unchecked(temporary + 0xC8), unchecked(temporary + 0xE0), work, unchecked(work + 8), unchecked(temporary + 0xFC));
                 frame = projection.Frame;
+                if (pilotVertices is not null && projection.PilotWorld is { } world)
+                {
+                    pilotVertices[work] = world;
+                }
                 uint color = Dword(unchecked(work + 8));
                 StoreWord(unchecked(work + 4), unchecked((ushort)projection.QuarterDepth));
                 StoreDword(unchecked(work + 8), color | command);
@@ -125,6 +137,10 @@ public static class NativeBattleCinematicGrid28
                 ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, 52).Select(index => index >= 3 && index is not (0x26 or 0x27 or 0x32 or 0x33) ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
                 ImmutableArray<uint> words = Enumerable.Range(0, 13).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
                 NativeBattleGeometryPrimitive primitive = new(0, words, []) { PhysicalWriteMask = mask };
+                if (services.PilotIdentity is { } identity && pilotVertices is not null && pilotVertices.TryGetValue(top, out System.Numerics.Vector3 a) && pilotVertices.TryGetValue(top + 12, out System.Numerics.Vector3 b) && pilotVertices.TryGetValue(bottom, out System.Numerics.Vector3 c) && pilotVertices.TryGetValue(bottom + 12, out System.Numerics.Vector3 d))
+                {
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(row * 65537 + column) }, a, b, c, d, 4) };
+                }
                 frame = services.Append(frame, output, ordering, new([new(0, data.ToImmutableArray(), mask, primitive)], 52));
                 top = unchecked(top + 12);
                 bottom = unchecked(bottom + 12);

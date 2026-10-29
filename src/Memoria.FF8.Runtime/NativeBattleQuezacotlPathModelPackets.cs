@@ -11,7 +11,7 @@ public sealed record NativeBattleQuezacotlPathModelBatch(ImmutableArray<NativeBa
 /// <summary>6A79B0's ordinary5099D0 bone groups and all four raw polygon groups, sharing50F900/50FDF0.</summary>
 public static class NativeBattleQuezacotlPathModelPackets
 {
-    public static NativeBattleQuezacotlPathModelBatch Emit6A79B0(ImmutableArray<byte> geometry, Func<short, NativeBattleActionMatrix> readComposedBone, NativeBattleCameraProjection projection, uint modelRgb, uint objectMask)
+    public static NativeBattleQuezacotlPathModelBatch Emit6A79B0(ImmutableArray<byte> geometry, Func<short, NativeBattleActionMatrix> readComposedBone, NativeBattleCameraProjection projection, uint modelRgb, uint objectMask, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int meshes = I32(0);
         if (meshes < 0 || meshes > (geometry.Length - 4) / 4)
@@ -32,6 +32,7 @@ public static class NativeBattleQuezacotlPathModelPackets
             int groups = I16(cursor);
             cursor = checked(cursor + 2);
             List<NativeBattleProjectedVertex> projected = [];
+            List<System.Numerics.Vector3>? world = pilotIdentity.HasValue ? [] : null;
             for (int group = 0; group < groups; group++)
             {
                 short selector = I16(cursor);
@@ -52,6 +53,7 @@ public static class NativeBattleQuezacotlPathModelPackets
                     scratch.Word(4, result.DepthAndClip);
                     writes.Add(scratch.Attempt(null));
                     projected.Add(result);
+                    world?.Add(NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(bone, point), projection));
                 }
             }
             cursor = checked((cursor + 3) & ~3);
@@ -70,7 +72,7 @@ public static class NativeBattleQuezacotlPathModelPackets
             }
             sourceEnd = cursor;
             //6A79B0 explicitly writes cueWORD0. No507550 relocation applies to this resource.
-            primitives.AddRange(NativeBattleRawGeometryPackets.EmitProjected5099D0(polygons.ToImmutable(), projected, modelRgb, 17, 4, 0));
+            primitives.AddRange(NativeBattleRawGeometryPackets.EmitProjected5099D0(polygons.ToImmutable(), projected, modelRgb, 17, 4, 0, pilotWorldVertices: world, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + mesh) } : null));
         }
         return new(writes.ToImmutable(), primitives.ToImmutable()) { SourceEnd = sourceEnd };
 

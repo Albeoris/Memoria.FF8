@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Textured Gouraud packets over native per-vertex colors or per-vertex intensity factors.</summary>
 public static class NativeBattleCinematicVertexColorPackets
 {
-    public static (NativeBattleWaterExecutionFrame Frame, uint Next) Emit(NativeBattleWaterExecutionFrame frame, uint group, uint projected, uint colors, bool intensity, Func<NativeBattleWaterExecutionFrame, uint, short, NativeBattleCinematicGridValue> shade, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> append)
+    public static (NativeBattleWaterExecutionFrame Frame, uint Next) Emit(NativeBattleWaterExecutionFrame frame, uint group, uint projected, uint colors, bool intensity, Func<NativeBattleWaterExecutionFrame, uint, short, NativeBattleCinematicGridValue> shade, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> append, IReadOnlyDictionary<uint, System.Numerics.Vector3>? pilotWorld = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         short type = unchecked((short)Word(group));
         bool quad = type is 18 or 19;
@@ -98,6 +98,10 @@ public static class NativeBattleCinematicVertexColorPackets
             ImmutableArray<uint> words = Enumerable.Range(0, data.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
             ImmutableArray<NativeBattleGfPacketByteState> mask = known.ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(0, words, depths.ToImmutableArray()) { PhysicalWriteMask = mask };
+            if (pilotIdentity is { } identity && pilotWorld is not null && offsets.All(offset => pilotWorld.ContainsKey(projected + offset)))
+            {
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((int)face) }, pilotWorld[projected + offsets[0]], pilotWorld[projected + offsets[1]], pilotWorld[projected + offsets[2]], quad ? pilotWorld[projected + offsets[3]] : default, checked((byte)corners)) { DepthDivisor = 4 } };
+            }
             frame = append(frame, output, ordering, new([new(0, data.ToImmutableArray(), mask, primitive)], packetLength));
             output = unchecked(output + (uint)packetLength);
 

@@ -12,6 +12,9 @@ public sealed partial record NativeBattleDiablos325Trail
         public short Depth = depth;
         public short Width = width;
         public readonly uint Color = color;
+        public System.Numerics.Vector3 World;
+        public uint SourceScreen;
+        public uint Address;
         public short? RightX;
         public short? RightY;
     }
@@ -74,7 +77,7 @@ public sealed partial record NativeBattleDiablos325Trail
                     throw new InvalidDataException("Native Diablos trail color leaves its original prepared color ramp.");
                 }
                 uint color = Mix(colors[segment], colors[segment + 1], 4096 - fraction, fraction);
-                points.Add(new(unchecked((short)(unchecked((short)projected.Screen) / 8)), unchecked((short)(unchecked((short)(projected.Screen >> 16)) / 8)), (short)(projected.Depth >> 2), width, color));
+                points.Add(new(unchecked((short)(unchecked((short)projected.Screen) / 8)), unchecked((short)(unchecked((short)(projected.Screen >> 16)) / 8)), (short)(projected.Depth >> 2), width, color) { World = new(position.X, position.Y, position.Z), SourceScreen = projected.Screen, Address = pointer });
                 pointer = Dword(pointer + 20);
             }
             while (pointer != 0);
@@ -115,6 +118,17 @@ public sealed partial record NativeBattleDiablos325Trail
                     mask[untouched] = NativeBattleGfPacketByteState.Untouched;
                 }
                 NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutableArray(), Enumerable.Repeat(checked(bucket * 4), 4).ToImmutableArray());
+                int firstSlot = checked((int)(first.Address - state.ModelBuffer5208 - 0x4C5C) / 24);
+                int secondSlot = checked((int)(second.Address - state.ModelBuffer5208 - 0x4C5C) / 24);
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(325, arena, state.ModelBuffer5208 + 0x4C5C, firstSlot, secondSlot) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(325, arena, state.ModelBuffer5208 + 0x4C5C, secondSlot).Generation };
+                System.Numerics.Vector2 Offset(short x, short y, uint center) => new(unchecked((short)(x << 3)) - unchecked((short)center), unchecked((short)(y << 3)) - unchecked((short)(center >> 16)));
+                primitive = primitive with { PilotGeometry = new(identity, first.World, second.World, first.World, second.World, 4)
+                {
+                    ScreenOffsets = [Offset(first.X, first.Y, first.SourceScreen), Offset(second.X, second.Y, second.SourceScreen), Offset(firstRightX, firstRightY, first.SourceScreen), Offset(secondRightX, secondRightY, second.SourceScreen)],
+                    SourceDepths = new System.Numerics.Vector4(checked(bucket * 4)),
+                    UseSourceDepths = true
+                } };
+
                 attempts.Add(new(allocated, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive));
                 allocated = checked(allocated + bytes.Length);
             }

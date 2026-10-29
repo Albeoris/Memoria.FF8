@@ -4,7 +4,11 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicGroundProjection18(NativeBattleWaterExecutionFrame Frame, uint Screen, int Depth, uint Flags);
+public sealed record NativeBattleCinematicGroundProjection18(NativeBattleWaterExecutionFrame Frame, uint Screen, int Depth, uint Flags)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Numerics.Vector3? PilotWorld { get; init; }
+}
 
 public sealed record NativeBattleCinematicGroundProfile18Services(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveReference, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, NativeBattleCinematicGroundProjection18> Project, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
@@ -15,8 +19,9 @@ public static class NativeBattleCinematicGroundProfile18
     public const int PhysicalWriteEnd = 0x6E5A;
     private static readonly byte[] Sectors = [1, 2, 3, 4, 0x43, 0x42, 0x41, 0x40, 0xC1, 0xC2, 0xC3, 0x84, 0x83, 0x82, 0x81, 0];
 
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicGroundProfile18Services services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicGroundProfile18Services services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        Dictionary<int, System.Numerics.Vector3>? pilotWorld = pilotIdentity is null ? null : [];
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(services.ResolveReference);
         ArgumentNullException.ThrowIfNull(services.PrepareBasis);
@@ -99,6 +104,14 @@ public static class NativeBattleCinematicGroundProfile18
         {
             NativeBattleCinematicGroundProjection18 projection = Project(0, SignedWord(work + (uint)(0xA00 + 4 * index)), SignedWord(work + (uint)(4 * index)), false);
             packets.Dword(52 * index + 8, projection.Screen);
+            if (pilotWorld is not null && projection.PilotWorld is { } world)
+            {
+                pilotWorld[52 * index + 8] = world;
+                if (index != 0)
+                {
+                    pilotWorld[52 * index - 32] = world;
+                }
+            }
             if (index != 0)
             {
                 packets.Dword(52 * index - 32, projection.Screen);
@@ -126,6 +139,11 @@ public static class NativeBattleCinematicGroundProfile18
             ushort firstUv = packets.ReadWord(cursor - 0x674);
             packets.Dword(cursor + 8, firstScreen);
             packets.Dword(cursor - 0x660, firstScreen);
+            if (pilotWorld is not null && pilotWorld.TryGetValue(cursor - 0x678, out System.Numerics.Vector3 sourceWorld))
+            {
+                pilotWorld[cursor + 8] = sourceWorld;
+                pilotWorld[cursor - 0x660] = sourceWorld;
+            }
             packets.Word(cursor + 12, firstUv);
             packets.Word(cursor - 0x65C, firstUv);
             StoreWord(work + (uint)depthOffset, Word(work + (uint)(depthOffset - 0x20)));
@@ -142,6 +160,13 @@ public static class NativeBattleCinematicGroundProfile18
                 packets.Dword(cursor - 0x660, projection.Screen);
                 packets.Dword(cursor - 0x20, projection.Screen);
                 packets.Dword(cursor + 8, projection.Screen);
+                if (pilotWorld is not null && projection.PilotWorld is { } world)
+                {
+                    foreach (int xyOffset in new[] { -0x688, -0x660, -0x20, 8 })
+                    {
+                        pilotWorld[cursor + xyOffset] = world;
+                    }
+                }
                 int u = SignedWord(work + (uint)(array + 0x500 + 4 * index));
                 int v = SignedWord(work + (uint)(array + 0x580 + 4 * index));
                 u = unchecked(baseU + ((orientation & 1) != 0 ? -u : u));
@@ -162,7 +187,12 @@ public static class NativeBattleCinematicGroundProfile18
                 packets.Dword(packet + 0x28, color);
                 int sum = unchecked(SignedWord(work + (uint)(depthOffset - 0x22)) + SignedWord(work + (uint)(depthOffset - 0x20)) + SignedWord(work + (uint)(depthOffset - 2)) + projection.Depth);
                 int offset = (sum / 4) & ~3;
-                packets.Insert(packet, offset / 4);
+                NativeBattlePilotVisualGeometry? geometryMetadata = null;
+                if (pilotIdentity is { } identity && pilotWorld is not null && pilotWorld.TryGetValue(packet + 8, out System.Numerics.Vector3 first) && pilotWorld.TryGetValue(packet + 20, out System.Numerics.Vector3 second) && pilotWorld.TryGetValue(packet + 32, out System.Numerics.Vector3 third) && pilotWorld.TryGetValue(packet + 44, out System.Numerics.Vector3 fourth))
+                {
+                    geometryMetadata = new(identity with { Primitive = sector * 32 + index }, first, second, third, fourth, 4) { ScreenScale = 0.125f };
+                }
+                packets.Insert(packet, offset / 4, geometryMetadata);
                 cursor += 52;
                 depthOffset += 2;
             }
@@ -227,14 +257,14 @@ public static class NativeBattleCinematicGroundProfile18
             Store(offset, bytes);
         }
 
-        public void Insert(int offset, int bucket)
+        public void Insert(int offset, int bucket, NativeBattlePilotVisualGeometry? pilotGeometry = null)
         {
             uint[] words = new uint[13];
             for (int index = 0; index < words.Length; index++)
             {
                 words[index] = ReadDword(offset + 4 * index);
             }
-            NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutableArray(), []) { PhysicalWriteMask = known.AsSpan(offset, 52).ToArray().ToImmutableArray() };
+            NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutableArray(), []) { PhysicalWriteMask = known.AsSpan(offset, 52).ToArray().ToImmutableArray(), PilotGeometry = pilotGeometry };
             Attempts.Add(new(offset, data.AsSpan(offset, 52).ToArray().ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, 52).ToImmutableArray(), primitive));
         }
 

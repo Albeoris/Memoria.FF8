@@ -428,7 +428,7 @@ public sealed partial class BattleSession
                 case 0x70:
                     return NativeBattleCinematicProfileHeight70.Execute(current, program, new(ResolveCurrentNode, (frame, address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(address, 2), 2)), UpdateSlot));
                 case 0x71:
-                    var explicitShadow = ExecuteNativeCinematicShadow71(current, graphics);
+                    var explicitShadow = ExecuteNativeCinematicShadow71(current, graphics, bank);
                     graphics = explicitShadow.Graphics;
                     return explicitShadow.Frame;
                 case 0x6F:
@@ -1022,7 +1022,7 @@ public sealed partial class BattleSession
                 }
                 if (selectedDrawHandler == 0xAE44E0)
                 {
-                    var actor = DrawNativeCinematicBrothersActor38(frame, graphics, true);
+                    var actor = DrawNativeCinematicBrothersActor38(frame, assets[1].Data.Length, graphics, true);
                     graphics = actor.Graphics;
                     return actor.Frame;
                 }
@@ -1062,7 +1062,7 @@ public sealed partial class BattleSession
                 }
                 if (selectedDrawHandler is 0xAF59D0 or 0x95ACB0)
                 {
-                    var actor = DrawNativeCinematicBrothersActor38(frame, graphics);
+                    var actor = DrawNativeCinematicBrothersActor38(frame, assets[1].Data.Length, graphics);
                     graphics = actor.Graphics;
                     return actor.Frame;
                 }
@@ -1080,7 +1080,7 @@ public sealed partial class BattleSession
                 }
                 if (selectedDrawHandler == 0xAE4C70)
                 {
-                    var scanlines = DrawNativeCinematicScanlines37(frame, graphics);
+                    var scanlines = DrawNativeCinematicScanlines37(frame, assets[1].Data.Length, graphics);
                     graphics = scanlines.Graphics;
                     return scanlines.Frame;
                 }
@@ -1116,7 +1116,7 @@ public sealed partial class BattleSession
                 }
                 if (selectedDrawHandler == 0xB11C30)
                 {
-                    var columns = DrawNativeCinematicColumns2D(frame, graphics);
+                    var columns = DrawNativeCinematicColumns2D(frame, assets[1].Data.Length, graphics);
                     graphics = columns.Graphics;
                     return columns.Frame;
                 }

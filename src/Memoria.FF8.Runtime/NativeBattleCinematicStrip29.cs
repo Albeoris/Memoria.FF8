@@ -4,13 +4,17 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicStripProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, int QuarterDepth);
+public sealed record NativeBattleCinematicStripProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, int QuarterDepth)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Numerics.Vector3? PilotWorld { get; init; }
+}
 public sealed record NativeBattleCinematicStrip29Services(Func<NativeBattleWaterExecutionFrame, short, NativeBattleWaterExecutionFrame> TexturePage, Func<NativeBattleWaterExecutionFrame, short, uint> TextureClut, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, NativeBattleVector, NativeBattleCinematicStripProjection> Project, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
 /// <summary>Three projected columns form two textured quads per sine strip band.</summary>
 public static class NativeBattleCinematicStrip29
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicStrip29Services services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicStrip29Services services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint payload = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xB8, 4));
         short texture = BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(payload, 2), 2));
@@ -19,6 +23,7 @@ public static class NativeBattleCinematicStrip29
         frame = frame.WriteTemporaryDword(0x6C, services.TextureClut(frame, texture));
         frame = frame.WriteTemporaryDword(0x64, (ReadSlot(frame, 0xDE, 1)[0] & 0x20) != 0 ? SlotDword(0xC0) : uint.MaxValue);
         frame = services.PrepareBasis(frame);
+        Dictionary<uint, System.Numerics.Vector3>? pilotVertices = pilotIdentity is null ? null : [];
         uint work = Manager(0x74);
         frame = frame.WriteTemporaryWord(0xC4, 0x800);
         int angle = unchecked((short)SlotWord(frame, 0x96)) << 4;
@@ -33,6 +38,10 @@ public static class NativeBattleCinematicStrip29
                 frame = frame.WriteTemporaryWord(0xC0, unchecked((ushort)x));
                 NativeBattleCinematicStripProjection projected = services.Project(frame, new(x, unchecked((short)frame.ReadTemporaryWord(0xC2)), unchecked((short)frame.ReadTemporaryWord(0xC4))));
                 frame = projected.Frame;
+                if (pilotVertices is not null && projected.PilotWorld is { } world)
+                {
+                    pilotVertices[work] = world;
+                }
                 Store(work, projected.Screen);
                 StoreWord(unchecked(work + 4), unchecked((ushort)projected.QuarterDepth));
                 work = unchecked(work + 8);
@@ -75,6 +84,10 @@ public static class NativeBattleCinematicStrip29
                 ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, 40).Select(index => index >= 3 && index is not (30 or 31 or 38 or 39) ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
                 ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
                 NativeBattleGeometryPrimitive primitive = new(0, words, []) { PhysicalWriteMask = mask };
+                if (pilotIdentity is { } identity && pilotVertices is not null && pilotVertices.TryGetValue(first, out System.Numerics.Vector3 a) && pilotVertices.TryGetValue(second, out System.Numerics.Vector3 b) && pilotVertices.TryGetValue(third, out System.Numerics.Vector3 c) && pilotVertices.TryGetValue(fourth, out System.Numerics.Vector3 d))
+                {
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = band * 2 + half }, a, b, c, d, 4) };
+                }
                 frame = services.Append(frame, output, ordering, new([new(0, data.ToImmutableArray(), mask, primitive)], 40));
                 output = unchecked(output + 40);
 

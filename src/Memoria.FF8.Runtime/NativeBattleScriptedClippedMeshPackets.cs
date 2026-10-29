@@ -5,43 +5,43 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleScriptedClippedMeshPackets
 {
-    public static NativeBattleScriptedMeshSubmission EmitGt3(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
+    public static NativeBattleScriptedMeshSubmission EmitGt3(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (group.Type != 9 || handler is not (0xB053E0 or 0xB11340))
         {
             throw new NotSupportedException("Native clipped GT3 requires its selected cinematic handler.");
         }
-        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
+        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale, pilotWorldVertices, pilotIdentity);
     }
 
-    public static NativeBattleScriptedMeshSubmission EmitFt3(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
+    public static NativeBattleScriptedMeshSubmission EmitFt3(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (group.Type != 8 || handler != 0xB11100)
         {
             throw new NotSupportedException("Native clipped FT3 requires its selected cinematic handler.");
         }
-        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
+        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale, pilotWorldVertices, pilotIdentity);
     }
 
-    public static NativeBattleScriptedMeshSubmission EmitFt4(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
+    public static NativeBattleScriptedMeshSubmission EmitFt4(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (group.Type != 18 || handler != 0xB11580)
         {
             throw new NotSupportedException("Native clipped FT4 requires its selected cinematic handler.");
         }
-        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
+        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale, pilotWorldVertices, pilotIdentity);
     }
 
-    public static NativeBattleScriptedMeshSubmission EmitGt4(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
+    public static NativeBattleScriptedMeshSubmission EmitGt4(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint handler, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (group.Type != 19 || handler != 0xB117F0)
         {
             throw new NotSupportedException("Native clipped GT4 requires its selected cinematic handler.");
         }
-        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale);
+        return EmitPolygon(frame, group, records, depths, output, lighting, registers, resolveBucket, depthScale, pilotWorldVertices, pilotIdentity);
     }
 
-    private static NativeBattleScriptedMeshSubmission EmitPolygon(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale)
+    private static NativeBattleScriptedMeshSubmission EmitPolygon(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> records, ImmutableArray<uint> depths, uint output, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveBucket, float depthScale, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         bool gouraud = group.Type is 9 or 19;
         bool quad = group.Type is 18 or 19;
@@ -105,6 +105,7 @@ public static class NativeBattleScriptedClippedMeshPackets
                     int bucket = resolveBucket(unchecked(frame.ReadTemporaryDword(0x5C) + ((sum / (uint)corners) & 0x3FFCu)));
                     ImmutableArray<uint> words = Enumerable.Range(0, packetLength / 4).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
                     primitive = new(bucket, words, rawDepth.ToImmutableArray());
+                    primitive = NativeBattleCinematicVisualIdentity.Capture(primitive, pilotWorldVertices, pilotIdentity, face, indexOffset, corners, index, depthScale);
                 }
             }
             attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));

@@ -7,7 +7,7 @@ public sealed record NativeBattleQuezacotlRibbonPoint(NativeBattleVector Positio
 /// <summary>6C8C50/6C8DE0's sixteen projected ribbon points and fifteen common-heap GT4 candidates.</summary>
 public static class NativeBattleQuezacotlRibbonPackets
 {
-    public static NativeBattleGfGeometryBatch Emit6C8C50(ImmutableArray<NativeBattleQuezacotlRibbonPoint> points, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, ImmutableArray<byte> distanceBytes16384, Action<ushort>? observeDepth = null, uint? incomingDirectionDword = null)
+    public static NativeBattleGfGeometryBatch Emit6C8C50(ImmutableArray<NativeBattleQuezacotlRibbonPoint> points, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, ImmutableArray<byte> distanceBytes16384, Action<ushort>? observeDepth = null, uint? incomingDirectionDword = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (points.IsDefault || points.Length != 16 || distanceBytes16384.IsDefault || distanceBytes16384.Length != 16384)
         {
@@ -35,7 +35,13 @@ public static class NativeBattleQuezacotlRibbonPackets
             uint rightA = first.Right ?? throw new NotSupportedException("Native ribbon requires the executed6C8DE0 right endpoint.");
             uint rightB = second.Right ?? throw new NotSupportedException("Native ribbon requires the executed6C8DE0 right endpoint.");
             int bucket = 17 + ((first.QuarterDepth + second.QuarterDepth) >> 5);
-            attempts.Add(NativeBattleTrailOutline.Packet(allocated, first.Left, rightA, second.Left, rightB, points[index].Color, points[index + 1].Color, bucket, depthFifo));
+            NativeBattleGfGeometryAttempt attempt = NativeBattleTrailOutline.Packet(allocated, first.Left, rightA, second.Left, rightB, points[index].Color, points[index + 1].Color, bucket, depthFifo);
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 World(int point) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(view, points[point].Position), projection);
+                attempt = NativeBattleQuezacotlVisualGeometry.CaptureOutline(attempt, identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, World(index), World(index + 1), projected[index].Screen, projected[index + 1].Screen, first.Left, rightA, second.Left, rightB, depthFifo);
+            }
+            attempts.Add(attempt);
             allocated = checked(allocated + 52);
         }
         return new(attempts.ToImmutable(), allocated);

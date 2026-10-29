@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDiablos325PuffPackets
 {
-    public static NativeBattleGfGeometryBatch Emit6FC9E0(ImmutableArray<byte> resource, byte life, NativeBattleActionMatrix basis, NativeBattleCameraProjection projection, int bucket)
+    public static NativeBattleGfGeometryBatch Emit6FC9E0(ImmutableArray<byte> resource, byte life, NativeBattleActionMatrix basis, NativeBattleCameraProjection projection, int bucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (life == 0 || life > 127)
         {
@@ -68,6 +68,14 @@ public static class NativeBattleDiablos325PuffPackets
             uint opcode = quad[3] & 0xFCu;
             ImmutableArray<int> payload = opcode is < 0x20 or > 0x3C ? [0, 0, 0, 0] : (opcode & 8) != 0 ? [a.Depth, b.Depth, c.Depth, d.Depth] : [b.Depth, c.Depth, d.Depth, 0];
             NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), payload);
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 World(short x, short y) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(current, new(x, y, 0)), projection);
+                // Frame-local dimensions and offsets stay authored while the captured particle basis moves.
+                System.Numerics.Vector3 Axis(int column) => NativeBattlePilotVisualGeometry.CameraToWorldDirection(new(current.Rotation[column] / 4096f, current.Rotation[3 + column] / 4096f, current.Rotation[6 + column] / 4096f), projection);
+                NativeBattlePilotSpriteGeometry sprite = new(new(-width, -height, 0), new(width, -height, 0), new(-width, height, 0), new(width, height, 0), NativeBattlePilotVisualGeometry.CameraToWorld(new(current.X, current.Y, current.Z), projection), Axis(0), Axis(1), Axis(2));
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, World(unchecked((short)-width), unchecked((short)-height)), World(width, unchecked((short)-height)), World(unchecked((short)-width), height), World(width, height), 4) { Sprite = sprite } };
+            }
             attempts.Add(packet.Attempt(null));
             SkinWrites mode = new(8, checked(allocated + 40));
             mode.Word(0, 0x01000000);

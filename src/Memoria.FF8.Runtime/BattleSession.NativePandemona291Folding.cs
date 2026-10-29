@@ -68,7 +68,7 @@ public sealed partial class BattleSession
                 NativeBattleStaticMeshResource backdrop = resources.LateBackdrop ?? throw new NotSupportedException("Native Pandemona requires its original backdrop.");
                 basis = NativeBattlePandemona291Layers.Build6F29D0(resources.TrailTrigonometry, 2048, 4096, 4096) with { X = -500, Y = 0, Z = ground };
                 NativeBattleEsunaMeshContext context = new(begin == 254 ? 0x2030u : 0x20F0u, begin == 254 ? null : 0u, begin == 254 ? null : fade, 0, 0, unchecked((ushort)((elapsed << 5) & 127)), new(0, 0, 256, 256), new(0, 128, 256, 128), 17, 2);
-                var background = DrawNativePandemona291PreparedMesh(frame, backdrop, NativeBattleGfMatrices.Compose56C2F0(view, basis), context, null, graphics, null);
+                var background = DrawNativePandemona291PreparedMesh(frame, backdrop, NativeBattleGfMatrices.Compose56C2F0(view, basis), context, null, graphics, null, pilotIdentity: NativePandemona291TaskVisualIdentity(frame, address, 1));
                 frame = background.Frame;
                 graphics = background.Graphics;
             }

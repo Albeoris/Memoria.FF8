@@ -49,9 +49,9 @@ public static class NativeBattleGfGeometryPackets
         return EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize(context), colors, readSelectedVertex, observeDepth, pilotIdentity: pilotIdentity);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch7043B0(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
+    internal static NativeBattleGfGeometryBatch EmitBatch7043B0(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize(context), colors, readSelectedVertex, observeDepth);
+        return EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize(context), colors, readSelectedVertex, observeDepth, pilotIdentity: pilotIdentity);
     }
 
     internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null, NativeBattleMeshPacketVariant? variant = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
@@ -80,6 +80,7 @@ public static class NativeBattleGfGeometryPackets
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         Dictionary<ushort, NativeBattleModuleProjectedVertex> projected = [];
+        Dictionary<ushort, System.Numerics.Vector3>? worldVertices = pilotIdentity.HasValue ? [] : null;
         for (int group = 0; group < GroupLengths.Length; group++)
         {
             int count = Int32(source, cursor);
@@ -98,14 +99,12 @@ public static class NativeBattleGfGeometryPackets
                 }
                 ProjectedCorners corners = new(offsets, Project);
                 NativeBattleGfGeometryAttempt attempt = EmitAttempt(face, corners, group, context, colors, allocated, observeDepth, variant);
-                if (pilotIdentity is { } identity && attempt.Primitive is { } primitive && (context.Flags & 0x2000) == 0)
+                if (pilotIdentity is { } identity && attempt.Primitive is { } primitive)
                 {
                     System.Numerics.Vector3 World(ushort offset)
                     {
-                        Span<byte> xyz = stackalloc byte[6];
-                        source.ReadInto(checked(geometryOffset + 8 + offset * 4), xyz);
-                        NativeBattleVector local = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
-                        return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, local), projection);
+                        _ = Project(offset);
+                        return worldVertices![offset];
                     }
                     attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, World(offsets[0]), World(offsets[1]), World(offsets[2]), offsets.Length == 4 ? World(offsets[3]) : default, (byte)offsets.Length) } };
                 }
@@ -141,6 +140,10 @@ public static class NativeBattleGfGeometryPackets
                     position = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
                 }
                 vertex = NativeBattleModuleProjection.Project45FE10(matrix, position, projection);
+                if (worldVertices is not null)
+                {
+                    worldVertices.Add(offset, NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, position), projection));
+                }
                 projected.Add(offset, vertex);
             }
             return vertex;

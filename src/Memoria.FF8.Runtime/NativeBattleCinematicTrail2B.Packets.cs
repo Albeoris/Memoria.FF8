@@ -94,6 +94,11 @@ public static partial class NativeBattleCinematicTrail2B
             ImmutableArray<NativeBattleGfPacketByteState> mask = written.Select(value => value ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
             ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(0, words, [0, 0, 0, 0]) { PhysicalWriteMask = mask };
+            if (services.PilotIdentity is { } identity && services.PilotSamples is { } samples && samples.TryGetValue(current, out NativeBattleCinematicTrail2BSample? first) && samples.TryGetValue(next, out NativeBattleCinematicTrail2BSample? second))
+            {
+                System.Numerics.Vector2 Offset(uint endpoint, uint center) => new(Word(endpoint) - Word(center), Word(endpoint + 2) - Word(center + 2));
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((int)first.Source) }, first.World, first.World, second.World, second.World, 4) { ScreenOffsets = [Offset(current + 8, current), Offset(current + 12, current), Offset(next + 8, next), Offset(next + 12, next)], DepthDivisor = 4 } };
+            }
             frame = services.Append(frame, output, ordering, new([new(0, data.ToImmutableArray(), mask, primitive)], length));
             output = unchecked(output + (uint)length);
             current = unchecked(current + 32);

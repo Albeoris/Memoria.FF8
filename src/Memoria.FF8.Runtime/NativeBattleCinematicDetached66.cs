@@ -8,7 +8,11 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleCinematicDetached66Geometry(NativeBattleWaterExecutionFrame Frame, uint Address, int Length);
 public sealed record NativeBattleCinematicDetached66Basis(NativeBattleWaterExecutionFrame Frame, uint Address, NativeBattleActionMatrix BasisMatrix, NativeBattleActionMatrix BaselineMatrix);
 public enum NativeBattleCinematicDetached66ProjectionKind { Baseline, Triangle, Quad }
-public sealed record NativeBattleCinematicDetached66Projection(NativeBattleWaterExecutionFrame Frame, ImmutableArray<NativeBattleModuleProjectedVertex> Vertices, int ReturnDepth, uint Flags);
+public sealed record NativeBattleCinematicDetached66Projection(NativeBattleWaterExecutionFrame Frame, ImmutableArray<NativeBattleModuleProjectedVertex> Vertices, int ReturnDepth, uint Flags)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ImmutableArray<System.Numerics.Vector3> PilotWorld { get; init; }
+}
 public sealed record NativeBattleCinematicDetached66Services(Func<NativeBattleWaterExecutionFrame, short, NativeBattleCinematicDetached66Geometry> ResolveGeometry, Func<NativeBattleWaterExecutionFrame, ushort, NativeBattleCinematicDetached66Basis> PrepareBasis, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, ImmutableArray<NativeBattleVector>, NativeBattleCinematicDetached66ProjectionKind, NativeBattleCinematicDetached66Projection> Project, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
 public static partial class NativeBattleCinematicDetached66
@@ -17,7 +21,7 @@ public static partial class NativeBattleCinematicDetached66
     private sealed record Face(uint Address, bool Quad, ImmutableArray<NativeBattleVector> Vertices, ImmutableArray<ushort> Offsets);
     private sealed record Group(uint Next, bool Quad, ImmutableArray<Face> Faces);
 
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicDetached66Services services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicDetached66Services services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         Memory memory = new(frame);
         uint payload = memory.Dword(memory.Slot + 0xB8);
@@ -103,12 +107,17 @@ public static partial class NativeBattleCinematicDetached66
                 sbyte lifetime = unchecked((sbyte)memory.Byte(record + 0x2C));
                 if (lifetime != 0)
                 {
+                    ImmutableArray<System.Numerics.Vector3> pilotWorld = default;
                     ImmutableArray<NativeBattleModuleProjectedVertex> projected;
                     int sum;
                     uint color;
                     if (lifetime < 0)
                     {
                         projected = face.Offsets.Select(offset => new NativeBattleModuleProjectedVertex(memory.Dword(scratch + offset), memory.Word(scratch + offset + 4), 0)).ToImmutableArray();
+                        if (!baseline.PilotWorld.IsDefault)
+                        {
+                            pilotWorld = face.Offsets.Select(offset => baseline.PilotWorld[offset / 8]).ToImmutableArray();
+                        }
                         sum = projected.Sum(vertex => (int)vertex.Depth);
                         color = memory.Dword(face.Address);
                     }
@@ -120,12 +129,18 @@ public static partial class NativeBattleCinematicDetached66
                         NativeBattleCinematicDetached66Projection active = services.Project(memory.Frame, matrix, local, face.Quad ? NativeBattleCinematicDetached66ProjectionKind.Quad : NativeBattleCinematicDetached66ProjectionKind.Triangle);
                         memory.Frame = active.Frame.WriteTemporaryDword(0xFC, active.Flags);
                         projected = active.Vertices;
+                        pilotWorld = active.PilotWorld;
                         sum = face.Quad ? unchecked(active.ReturnDepth << 4) : unchecked(active.ReturnDepth * 3);
                         color = memory.Dword(unchecked(memory.Dword(state) + (uint)(lifetime * 4)));
                         memory.Byte(record + 0x2C, unchecked((byte)(lifetime - 1)));
                     }
                     color |= (memory.Dword(memory.Slot + 0xCC) & 0x02000000) | (face.Quad ? 0x2C000000u : 0x24000000u);
                     NativeBattleGfGeometryBatch packet = Packet(memory, face, projected, color);
+                    if (pilotIdentity is { } identity && !pilotWorld.IsDefault && pilotWorld.Length == projected.Length)
+                    {
+                        NativeBattlePilotVisualGeometry metadata = new(identity with { Primitive = unchecked((int)face.Address) }, pilotWorld[0], pilotWorld[1], pilotWorld[2], face.Quad ? pilotWorld[3] : default, checked((byte)pilotWorld.Length));
+                        packet = packet with { Attempts = packet.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = metadata } } : attempt).ToImmutableArray() };
+                    }
                     int offset = (sum / projected.Length >> 2) & ~3;
                     uint ordering = unchecked(memory.Frame.ReadTemporaryDword(0x14C) + (uint)offset);
                     memory.Frame = services.Append(memory.Frame, output, ordering, packet);

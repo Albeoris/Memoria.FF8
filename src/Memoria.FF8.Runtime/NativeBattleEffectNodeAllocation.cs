@@ -51,6 +51,7 @@ internal static class NativeBattleEffectNodeAllocation
             if (memory.Byte(node + 0x1D7) == 0)
             {
                 memory.Clear(node, 672);
+                memory.AllocatedPilotGeometry(node);
                 memory.Dword(node + 0x1BC, memory.Pointer(emitter));
                 memory.Byte(node + 0x1D7, 1);
                 memory.Byte(node + 0x1D6, unchecked((byte)sourceIndex));

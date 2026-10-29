@@ -57,6 +57,7 @@ public static partial class NativeBattleDiablos325Puffs
             bytes[14] = unchecked((byte)(-4096 / (life * 4)));
             bytes[15] = (byte)life;
             writer.Write(offset, bytes);
+            NativeBattlePilotVisualLifetimes.Allocated(owned?.View ?? source, checked(state.ModelBuffer5208 + BaseOffset), (offset - BaseOffset) / 16);
         }
         return frame with { Memory = frame.Memory with { Arena = owned?.Freeze() ?? writer.Freeze(), Diablos325 = state }, Random = random };
     }

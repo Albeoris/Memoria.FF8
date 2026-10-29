@@ -29,7 +29,7 @@ public static class NativeBattleDiablos325Well
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Diablos well requires its current view.");
         NativeBattleActionMatrix matrix = Matrix65473A(counter, state.CenterZ51D4, view);
         NativeBattleMeshPacketContext context = new(0, null, null, null, null, null, 0, 17, 2);
-        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch(geometry, 0, default, matrix, projection, context, null);
+        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch(geometry, 0, default, matrix, projection, context, null, pilotIdentity: NativeBattleDiablos325VisualGeometry.Identity(frame, 0x65473A));
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Diablos well requires its retained renderer controls.");
         NativeBattleModelRendererRegisters registers = process.ModelRendererRegisters ?? new(null, null, null, null, null);
         process = process with { ModelRendererRegisters = registers with { FarRed = null, FarGreen = null, FarBlue = null } };

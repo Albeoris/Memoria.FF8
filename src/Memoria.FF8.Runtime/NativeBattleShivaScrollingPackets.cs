@@ -8,13 +8,13 @@ public sealed record NativeBattleShivaScrollingContext(uint Flags, int? Fade, in
 /// <summary>64E080's reached textured polygon groups with inline E2 window/reset words and signed scrolling.</summary>
 public static class NativeBattleShivaScrollingPackets
 {
-    public static NativeBattleGfGeometryBatch Emit64E080(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleShivaScrollingContext context, short zsf3, short zsf4, short dqa, int dqb, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Emit64E080(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleShivaScrollingContext context, short zsf3, short zsf4, short dqa, int dqb, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         return NativeBattleEffectMeshPackets.EmitBatch(mesh.Bytes, matrix, projection, 0, null, (group, face, project, offset) => group switch
         {
             2 or 3 or 6 or 7 => EmitFace(face, project, (group & 1) != 0, group >= 6, context, zsf3, zsf4, colors, offset),
             _ => throw new NotSupportedException("Native Shiva scrolling requires its reached original textured polygon groups.")
-        }, projectFourth: vertex => NativeBattleModuleProjection.Project45FAA0(matrix, vertex, projection, dqa, dqb));
+        }, projectFourth: vertex => NativeBattleModuleProjection.Project45FAA0(matrix, vertex, projection, dqa, dqb), pilotIdentity: pilotIdentity);
     }
 
     public static NativeBattleGfGeometryBatch EmitFace(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool quad, bool gouraud, NativeBattleShivaScrollingContext context, short zsf3, short zsf4, NativeBattleSummonColors colors, int byteOffset = 0)

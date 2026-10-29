@@ -4,8 +4,15 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicBrothersProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, uint Cue, uint Flags);
-public sealed record NativeBattleCinematicBrothersModelServices(Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> DrawPrimary, Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveReference, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, uint, NativeBattleCinematicBrothersProjection> Project, Func<uint> ReadFallbackOrdering, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
+public sealed record NativeBattleCinematicBrothersProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, uint Cue, uint Flags)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Numerics.Vector3? PilotWorld { get; init; }
+}
+public sealed record NativeBattleCinematicBrothersModelServices(Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> DrawPrimary, Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveReference, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, uint, NativeBattleCinematicBrothersProjection> Project, Func<uint> ReadFallbackOrdering, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append)
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 
 public static class NativeBattleCinematicBrothersModel3
 {
@@ -132,11 +139,13 @@ public static class NativeBattleCinematicBrothersModel3
         {
             StoreVector(0xB0 + index * 8, new(unchecked((short)points[index].X), height, unchecked((short)points[index].Z)));
         }
+        System.Numerics.Vector3?[] pilotWorld = new System.Numerics.Vector3?[9];
         for (int index = 0; index < 9; index++)
         {
             uint address = unchecked(frame.TemporaryFrame.Address + 0xB0u + (uint)index * 8);
             frame = services.PublishInput(frame, address);
             NativeBattleCinematicBrothersProjection projected = services.Project(frame, camera, address);
+            pilotWorld[index] = projected.PilotWorld;
             frame = projected.Frame.WriteTemporaryDword(0xB0 + index * 8, projected.Screen).WriteTemporaryDword(0xFC, projected.Flags);
             if (storeCue)
             {
@@ -160,6 +169,10 @@ public static class NativeBattleCinematicBrothersModel3
                 }
                 ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, 36).Select(offset => offset >= 3 ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
                 NativeBattleGeometryPrimitive primitive = new(0, words, [0, 0, 0, 0]) { PhysicalWriteMask = mask };
+                if (services.PilotIdentity is { } identity && pilotWorld[8] is { } a && pilotWorld[index] is { } b && pilotWorld[(index + 1) & 7] is { } c)
+                {
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((int)0x70000000 + index) }, a, b, c, default, 3) { SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };
+                }
                 attempts.Add(new(index * 36, bytes.ToImmutableArray(), mask, primitive));
             }
             frame = services.Append(frame, output, ordering, new(attempts.MoveToImmutable(), 288));

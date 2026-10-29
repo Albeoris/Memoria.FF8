@@ -36,7 +36,7 @@ public static class NativeBattleDiablos325RawBodyDrawing
             uint geometry = task.ReadDword(directoryBase + 4);
             int length = checked((int)(task.ReadDword(directoryBase + 8) - geometry));
             ImmutableArray<byte> bytes = arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(geometry, length), length).ToImmutableArray();
-            NativeBattleQuezacotlPathModelBatch batch = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(bytes, selector => NativeBattleArenaPose.ReadMatrix(arena, checked(skeleton + 32 + selector * 48)), projection, rgb, mask);
+            NativeBattleQuezacotlPathModelBatch batch = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(bytes, selector => NativeBattleArenaPose.ReadMatrix(arena, checked(skeleton + 32 + selector * 48)), projection, rgb, mask, NativeBattlePilotVisualLifetimes.Identity(325, task, modelBase));
             int scratch = NativeBattleWaterExecutionFields.ArenaOffset(checked(NativeBattleDiablos325Entry.RequireState(memory).ModelBuffer5208 + 0xD94), 0);
             foreach (NativeBattleGfGeometryAttempt write in batch.VertexScratchWrites)
             {

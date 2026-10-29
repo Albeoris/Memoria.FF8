@@ -4,13 +4,17 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicPointProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, int QuarterDepth);
+public sealed record NativeBattleCinematicPointProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, int QuarterDepth)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Numerics.Vector3? PilotWorld { get; init; }
+}
 public sealed record NativeBattleCinematicPointCloud27Services(Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareAnchor, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicPointProjection> ProjectPoint, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
 /// <summary>The retained cinematic point cloud and its independent blink counters.</summary>
 public static class NativeBattleCinematicPointCloud27
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicPointCloud27Services services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicPointCloud27Services services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         if (BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4)) == 0)
@@ -67,10 +71,15 @@ public static class NativeBattleCinematicPointCloud27
         frame = services.PrepareAnchor(frame);
         int projectionCount = SignedWord(unchecked(state + 2));
         uint scratch = CoreDword(frame, unchecked(CoreDword(frame, 0x27973EC) + 0x74));
+        Dictionary<int, System.Numerics.Vector3>? pilotWorld = pilotIdentity is null ? null : [];
         for (int index = 0; index < projectionCount; index++)
         {
             NativeBattleCinematicPointProjection projected = services.ProjectPoint(frame, unchecked(points + (uint)(index * 16)));
             frame = projected.Frame;
+            if (pilotWorld is not null && projected.PilotWorld is { } world)
+            {
+                pilotWorld[index] = world;
+            }
             StoreDword(unchecked(scratch + (uint)(index * 8)), projected.Screen);
             StoreDword(unchecked(scratch + (uint)(index * 8 + 4)), unchecked((uint)projected.QuarterDepth));
         }
@@ -128,6 +137,10 @@ public static class NativeBattleCinematicPointCloud27
             ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, 12).Select(offset => offset >= 3 ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
             ImmutableArray<uint> words = [BinaryPrimitives.ReadUInt32LittleEndian(data), BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(4)), BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(8))];
             NativeBattleGeometryPrimitive primitive = new(0, words, []) { PhysicalWriteMask = mask };
+            if (pilotIdentity is { } identity && pilotWorld is not null && pilotWorld.TryGetValue(index, out System.Numerics.Vector3 anchor))
+            {
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = index }, anchor, anchor, anchor, anchor, 4) { ScreenOffsets = [new(0, 0), new(8, 0), new(0, 8), new(8, 8)] } };
+            }
             frame = services.Append(frame, output, ordering, new([new(0, data.ToImmutableArray(), mask, primitive)], 12));
             output = unchecked(output + 12);
         }

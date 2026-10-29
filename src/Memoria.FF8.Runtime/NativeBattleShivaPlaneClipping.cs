@@ -127,7 +127,7 @@ public static class NativeBattleShivaPlaneClipping
         return writer.Freeze();
     }
 
-    public static NativeBattleShivaPlaneDraw Draw5C5060(NativeBattleEffectArena arena, NativeBattleCactuarRawModelState model, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix viewWorld, NativeBattleCameraProjection projection, NativeBattleShivaPlane plane, ImmutableArray<int> selectors, short zsf3, short zsf4, short dqa, int dqb, Action<ushort>? observeDepth = null)
+    public static NativeBattleShivaPlaneDraw Draw5C5060(NativeBattleEffectArena arena, NativeBattleCactuarRawModelState model, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix viewWorld, NativeBattleCameraProjection projection, NativeBattleShivaPlane plane, ImmutableArray<int> selectors, short zsf3, short zsf4, short dqa, int dqb, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleCactuarRawModel.Validate(model, resource, NativeBattleShivaModelTask.Binding);
         NativeBattleDecodedPose pose = model.DecodedPose ?? throw new NotSupportedException("Native5C5060 requires its current decoded model pose.");
@@ -148,8 +148,10 @@ public static class NativeBattleShivaPlaneClipping
         uint color = BinaryPrimitives.ReadUInt32LittleEndian(model.Model.AsSpan().Slice(0x28));
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
+        int polygonIndex = -1;
         foreach (NativeBattleRawPolygon polygon in mesh.Polygons)
         {
+            polygonIndex++;
             ReadOnlySpan<byte> bytes = polygon.Bytes.AsSpan();
             if (bytes.Length != (polygon.Quad ? 20 : 16))
             {
@@ -165,14 +167,14 @@ public static class NativeBattleShivaPlaneClipping
             {
                 continue;
             }
-            Emit(Clip5C34B0([first, second, third], plane, selectors), firstMaterial, secondMaterial);
+            Emit(Clip5C34B0([first, second, third], plane, selectors), firstMaterial, secondMaterial, 0, NativeBattleShivaVisualIdentity.ClipTopology([first.Position, second.Position, third.Position], plane));
             if (polygon.Quad)
             {
                 NativeBattleShivaClipVertex fourth = ReadVertex(bytes, 6, 18);
                 _ = Project(fourth);
                 _ = Project(second);
                 _ = Project(third);
-                Emit(Clip5C34B0([fourth, second, third], plane, selectors), firstMaterial, secondMaterial);
+                Emit(Clip5C34B0([fourth, second, third], plane, selectors), firstMaterial, secondMaterial, 1, NativeBattleShivaVisualIdentity.ClipTopology([fourth.Position, second.Position, third.Position], plane));
             }
         }
         return new(arena, new(attempts.ToImmutable(), allocation), mesh.Vertices.Length);
@@ -193,13 +195,17 @@ public static class NativeBattleShivaPlaneClipping
             return projected;
         }
 
-        void Emit(ImmutableArray<NativeBattleShivaClipVertex> vertices, uint firstMaterial, uint secondMaterial)
+        void Emit(ImmutableArray<NativeBattleShivaClipVertex> vertices, uint firstMaterial, uint secondMaterial, int half, int topology)
         {
             if (vertices.IsEmpty)
             {
                 return;
             }
             NativeBattleGfGeometryAttempt attempt = Emit5C3410(vertices, viewWorld, projection, color, firstMaterial, secondMaterial, zsf3, zsf4, dqa, dqb, allocation, observeDepth);
+            if (pilotIdentity is { } identity)
+            {
+                attempt = NativeBattleShivaVisualIdentity.Capture(attempt, identity with { Primitive = unchecked((polygonIndex * 2 + half) * 31 + topology) }, vertices.Select(vertex => vertex.Position).ToArray(), viewWorld, projection);
+            }
             attempts.Add(attempt);
             allocation = checked(allocation + attempt.PacketLength);
         }

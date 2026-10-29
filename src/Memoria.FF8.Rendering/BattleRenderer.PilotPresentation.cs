@@ -32,7 +32,7 @@ public sealed partial class BattleRenderer
     private void ObservePilotSubmittedTriangle(NativeBattleLogicalResolvedCommand resolved, PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, int cornerA, int cornerB, int cornerC)
     {
         NativeBattleLogicalCommand command = resolved.Command;
-        if (command.PilotGeometry is not { Identity.Effect: 2 or 3 or 144 })
+        if (command.PilotGeometry is not { } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
         {
             return;
         }
@@ -52,7 +52,7 @@ public sealed partial class BattleRenderer
 
     private void ObservePilotSubmittedCorner(NativeBattleLogicalCommand command, int corner, Vector2 position, NativeBattlePrimitiveDepthVertex depth, Vector2 uv, Vector3 color, float alpha)
     {
-        if (!PilotDiagnosticsEnabled || command.PilotGeometry is not { Identity.Effect: 2 or 3 or 144 } geometry)
+        if (!PilotDiagnosticsEnabled || command.PilotGeometry is not { } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
         {
             return;
         }
@@ -105,8 +105,10 @@ public sealed partial class BattleRenderer
                     continue;
                 }
                 bool polygon = (command.Opcode & 0xE0) == 0x20;
-                int corners = (command.Opcode & 8) != 0 ? 4 : 3;
-                if (polygon && command.PilotGeometry is { } geometry && geometry.CornerCount == corners)
+                bool tile = (command.Opcode & 0xFC) is 0x60 or 0x68;
+                bool line = (command.Opcode & 0xF8) is 0x40 or 0x50;
+                int corners = line ? 2 : tile || (command.Opcode & 8) != 0 ? 4 : 3;
+                if ((polygon || tile || line) && command.PilotGeometry is { } geometry && geometry.CornerCount == corners)
                 {
                     continue;
                 }
@@ -121,7 +123,7 @@ public sealed partial class BattleRenderer
 
     public byte[] RenderNativePilotPrimitiveFrame(NativeBattlePreparedPresentation earlier, NativeBattlePreparedPresentation later, float alpha, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, Func<int, int, bool, PixelImage>? uiTexture = null, INativeBattleEffectTextureSource? effectTextureSource = null)
     {
-        if (earlier.PilotEffect is not (2 or 3 or 144) || earlier.PilotEffect != later.PilotEffect || earlier.PilotGeneration != later.PilotGeneration || later.Callback != earlier.Callback + 1 || !float.IsFinite(alpha))
+        if (!NativeBattleSmoothPresentation.Supports(earlier.PilotEffect) || earlier.PilotEffect != later.PilotEffect || earlier.PilotGeneration != later.PilotGeneration || later.Callback != earlier.Callback + 1 || !float.IsFinite(alpha))
         {
             throw new ArgumentException("Compatible battle motion requires consecutive endpoints from the same supported spell.");
         }
@@ -168,7 +170,20 @@ public sealed partial class BattleRenderer
         {
             world = NativeBattlePilotVisualGeometry.SampleCorner(earlier, later, corner, pilotAlpha);
         }
-        Vector3 projected = NativeBattlePilotVisualGeometry.Project(world, pilotProjection);
+        NativeBattleCameraProjection projection = earlier.FocalLengthOverride is ushort focal ? pilotProjection with { FocalLength = focal } : pilotProjection;
+        Vector3 projected = earlier.ScreenSpace ? world : NativeBattlePilotVisualGeometry.Project(world, projection);
+        projected.X *= earlier.ScreenScale;
+        projected.Y *= earlier.ScreenScale;
+        if (!earlier.ScreenOffsets.IsDefaultOrEmpty)
+        {
+            if (earlier.ScreenOffsets.Length != earlier.CornerCount)
+            {
+                throw new InvalidDataException("Compatible outline motion requires one authored screen offset per corner.");
+            }
+            Vector2 offset = earlier.ScreenOffsets[corner];
+            projected.X += offset.X;
+            projected.Y += offset.Y;
+        }
         float coordinateScale = (command.Flags20 & 1) != 0 ? 0.125f : 1;
         position = SampledNativePrimitivePosition(projected.X * coordinateScale, projected.Y * coordinateScale, command.Flags20, mode);
         int bucket = command.OrderingBucket ?? throw new InvalidDataException("Compatible battle motion requires the authored ordering bucket.");
@@ -176,7 +191,7 @@ public sealed partial class BattleRenderer
         float bucketDepth = bucket * step;
         float depth;
         float reciprocalW = 1;
-        float vertexDepth = earlier.SampleDepth(projected.Z);
+        float vertexDepth = earlier.UseSourceDepths ? (earlier.SourceDepths ?? throw new InvalidDataException("Compatible outline motion requires its retained native depth FIFO."))[corner] : earlier.SampleDepth(projected.Z);
         if (perspective)
         {
             float vertexWeight = (float)((depthState.RemainingWeight < 0.99999999 ? depthState.RemainingWeight : (double)depthState.RemainingWeight - NativeBattlePrimitiveDepthState.DepthBias) / 65536);

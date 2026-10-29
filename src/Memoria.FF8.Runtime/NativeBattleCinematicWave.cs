@@ -4,14 +4,19 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicWaveProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, int QuarterDepth);
+public sealed record NativeBattleCinematicWaveProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, int QuarterDepth)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Numerics.Vector3? PilotWorld { get; init; }
+}
 public sealed record NativeBattleCinematicWaveServices(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareAnchor, Func<NativeBattleWaterExecutionFrame, NativeBattleVector, NativeBattleCinematicWaveProjection> Project, Func<int, byte> ReadSector, Func<uint, int> ResolveBucket, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
 /// <summary>The radial wave's current workspace, overlapping packet rows and ordered quad links.</summary>
 public static class NativeBattleCinematicWave
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicWaveServices services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicWaveServices services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        Dictionary<int, System.Numerics.Vector3>? pilotWorld = pilotIdentity is null ? null : [];
         uint state = SlotDword(0xBC);
         if (state == 0)
         {
@@ -105,6 +110,14 @@ public static class NativeBattleCinematicWave
             NativeBattleCinematicWaveProjection projected = Project(0, Scratch(0xA00 + index * 4), Scratch(index * 4));
             int point = index * 52;
             PacketDword(point + 8, projected.Screen);
+            if (pilotWorld is not null && projected.PilotWorld is { } world)
+            {
+                pilotWorld[point + 8] = world;
+                if (index != 0)
+                {
+                    pilotWorld[point - 32] = world;
+                }
+            }
             byte u = unchecked((byte)(Scratch(0x500 + index * 4) + firstU));
             byte v = unchecked((byte)(Scratch(0x580 + index * 4) + firstV));
             PacketByte(point + 12, u);
@@ -128,6 +141,11 @@ public static class NativeBattleCinematicWave
             uint screen = ReadPacketDword(cursor - 0x678);
             PacketDword(cursor + 8, screen);
             PacketDword(cursor - 0x660, screen);
+            if (pilotWorld is not null && pilotWorld.TryGetValue(cursor - 0x678, out System.Numerics.Vector3 sourceWorld))
+            {
+                pilotWorld[cursor + 8] = sourceWorld;
+                pilotWorld[cursor - 0x660] = sourceWorld;
+            }
             ushort uv = ReadPacketWord(cursor - 0x674);
             PacketWord(cursor + 12, uv);
             PacketWord(cursor - 0x65C, uv);
@@ -143,6 +161,10 @@ public static class NativeBattleCinematicWave
                 foreach (int offset in new[] { -0x688, -0x660, -0x20, 8 })
                 {
                     PacketDword(cursor + offset, projected.Screen);
+                    if (pilotWorld is not null && projected.PilotWorld is { } world)
+                    {
+                        pilotWorld[cursor + offset] = world;
+                    }
                 }
                 int u = SignedScratch(angular + 0x500 + index * 4);
                 int v = SignedScratch(angular + 0x580 + index * 4);
@@ -176,6 +198,10 @@ public static class NativeBattleCinematicWave
                 }
                 ImmutableArray<uint> words = Enumerable.Range(0, 13).Select(offset => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset * 4))).ToImmutableArray();
                 NativeBattleGeometryPrimitive primitive = new(services.ResolveBucket(ordering), words, [0, 0, 0, 0]);
+                if (pilotIdentity is { } identity && pilotWorld is not null && pilotWorld.TryGetValue(packet + 8, out System.Numerics.Vector3 a) && pilotWorld.TryGetValue(packet + 20, out System.Numerics.Vector3 b) && pilotWorld.TryGetValue(packet + 32, out System.Numerics.Vector3 c) && pilotWorld.TryGetValue(packet + 44, out System.Numerics.Vector3 d))
+                {
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = sector * 32 + index }, a, b, c, d, 4) };
+                }
                 attempts.Add(new(packet, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
                 cursor += 52;
                 depth = unchecked(depth + 2);

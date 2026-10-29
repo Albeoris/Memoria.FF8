@@ -21,7 +21,7 @@ public static partial class NativeBattleCinematicModel
         return frame with { Arena = frame.Arena.Write(ArenaOffset(unchecked(model + 0x44), 4), BitConverter.GetBytes(work)) };
     }
 
-    public static NativeBattleCinematicModelDraw Render(NativeBattleWaterExecutionFrame frame, uint model, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int> resolveOrderingTable)
+    public static NativeBattleCinematicModelDraw Render(NativeBattleWaterExecutionFrame frame, uint model, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int> resolveOrderingTable, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint table = Dword(unchecked(model + 0x14));
         uint skeleton = Dword(table);
@@ -67,7 +67,7 @@ public static partial class NativeBattleCinematicModel
         uint color = Dword(unchecked(model + 0x5C));
         short cue = Word(unchecked(model + 0x64));
         uint orderingTable = frame.ReadTemporaryDword(0x14C);
-        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones.MoveToImmutable(), projection, color, 1, new byte[length].ToImmutableArray(), colors, 4, viewport, resolveOrderingTable(orderingTable), cue);
+        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones.MoveToImmutable(), projection, color, 1, new byte[length].ToImmutableArray(), colors, 4, viewport, resolveOrderingTable(orderingTable), cue, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + (int)geometry) } : null);
         if (draw.ProjectedBytesWritten != length)
         {
             throw new InvalidDataException("Native cinematic embedded projection did not publish its complete output records.");

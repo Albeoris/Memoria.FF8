@@ -5,13 +5,15 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicMonsterPackets
 {
-    public static NativeBattleGfGeometryBatch Glow(NativeBattleRawMesh mesh, IReadOnlyList<NativeBattleProjectedVertex> projected, IReadOnlyList<uint> colors, int tableBaseBucket, IReadOnlyList<bool>? colorHighKnown = null)
+    public static NativeBattleGfGeometryBatch Glow(NativeBattleRawMesh mesh, IReadOnlyList<NativeBattleProjectedVertex> projected, IReadOnlyList<uint> colors, int tableBaseBucket, IReadOnlyList<bool>? colorHighKnown = null, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         mesh.Validate();
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
+        int faceIndex = -1;
         foreach (NativeBattleRawPolygon face in mesh.Polygons)
         {
+            faceIndex++;
             int plain = face.Quad ? 20 : 16;
             if (face.Bytes.Length != plain)
             {
@@ -67,6 +69,10 @@ public static class NativeBattleCinematicMonsterPackets
             ImmutableArray<uint> words = Enumerable.Range(0, bytes.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
             ImmutableArray<NativeBattleGfPacketByteState> mask = known.Select((value, index) => unknown[index] ? NativeBattleGfPacketByteState.Unknown : value ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(checked(tableBaseBucket + ((sum / count >> 2) & ~3) / 4), words, depths.ToImmutableArray()) { PhysicalWriteMask = mask };
+            if (pilotIdentity is { } identity && pilotWorldVertices is not null)
+            {
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + faceIndex) }, pilotWorldVertices[indices[0]], pilotWorldVertices[indices[1]], pilotWorldVertices[indices[2]], face.Quad ? pilotWorldVertices[indices[3]] : default, checked((byte)count)) };
+            }
             attempts.Add(new(allocated, bytes.ToImmutableArray(), mask, primitive));
             allocated += bytes.Length;
         }

@@ -9,7 +9,7 @@ public sealed record NativeBattleWaterMeshResult(NativeBattleWaterExecutionFrame
 /// <summary>Selected mesh packet stores over already projected native records and their separate depth owner.</summary>
 public static class NativeBattleWaterMeshPackets
 {
-    public static NativeBattleWaterMeshResult EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> separateDepths, uint outputPointer, Func<uint, int> resolveActualOtBucket, Func<uint, uint>? shadeMaterial = null, float depthScale = 1f, Func<uint, uint, uint, int>? clipScreens = null)
+    public static NativeBattleWaterMeshResult EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> separateDepths, uint outputPointer, Func<uint, int> resolveActualOtBucket, Func<uint, uint>? shadeMaterial = null, float depthScale = 1f, Func<uint, uint, uint, int>? clipScreens = null, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         (int stride, int length, int corners, int indexOffset, int sxyOffset) = group.Type switch
         {
@@ -91,6 +91,7 @@ public static class NativeBattleWaterMeshPackets
                 int bucket = resolveActualOtBucket(unchecked(table + otOffset));
                 ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
                 primitive = new(bucket, words, rawDepth.ToImmutableArray());
+                primitive = NativeBattleCinematicVisualIdentity.Capture(primitive, pilotWorldVertices, pilotIdentity, face, indexOffset, corners, faceIndex, depthScale);
             }
             attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             if (primitive is not null)

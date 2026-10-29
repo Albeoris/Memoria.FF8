@@ -30,7 +30,7 @@ public sealed partial class BattleSession
             NativeBattleActionMatrix local = NativeBattlePandemona291Layers.Build6F29D0(resources.TrailTrigonometry, elapsed << 6, horizontal, Word(start + 4)) with { X = 0, Y = height, Z = ground };
             NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(projection.View ?? throw new NotSupportedException("Native Pandemona requires its actual current view."), local);
             NativeBattleEsunaMeshContext context = new(fade is null ? 0x30u : 0xF0u, 0, fade, 0, 0, 0, new(0, 0, 256, 256), new(0, 0, 256, 256), 17, 2);
-            var drawn = DrawNativePandemona291PreparedMesh(frame, geometry, matrix, context, null, graphics, null);
+            var drawn = DrawNativePandemona291PreparedMesh(frame, geometry, matrix, context, null, graphics, null, pilotIdentity: NativePandemona291VisualIdentity(frame, 220 + row));
             frame = drawn.Frame;
             graphics = drawn.Graphics;
         }

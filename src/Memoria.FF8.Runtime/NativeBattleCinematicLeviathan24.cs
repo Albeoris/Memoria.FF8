@@ -4,7 +4,11 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicLeviathanServices(NativeBattleCinematicModelServices Model, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveShape, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, int, NativeBattleCinematicTextureSelection> ResolveTexture, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleActionMatrix, NativeBattleWaterExecutionFrame> Project, Func<uint, int> ResolveBucket, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
+public sealed record NativeBattleCinematicLeviathanServices(NativeBattleCinematicModelServices Model, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveShape, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, int, NativeBattleCinematicTextureSelection> ResolveTexture, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleActionMatrix, NativeBattleWaterExecutionFrame> Project, Func<uint, int> ResolveBucket, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append)
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+    public IReadOnlyDictionary<uint, System.Numerics.Vector3>? PilotWorld { get; init; }
+}
 
 public static class NativeBattleCinematicLeviathan24
 {
@@ -98,7 +102,7 @@ public static class NativeBattleCinematicLeviathan24
             }
             Store(model + 0x40, unchecked(faces + 12));
             uint output = CoreDword(frame, unchecked(manager + 0x7C));
-            var drawn = NativeBattleCinematicLeviathanPackets.Emit(frame, services.ResolveBucket);
+            var drawn = NativeBattleCinematicLeviathanPackets.Emit(frame, services.ResolveBucket, services.PilotWorld, services.PilotIdentity);
             frame = services.Append(drawn.Frame, output, drawn.Packets);
         }
         return frame;

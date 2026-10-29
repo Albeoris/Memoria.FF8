@@ -9,7 +9,7 @@ public sealed record NativeBattleCinematicScanlines37Services(Func<NativeBattleW
 
 public static class NativeBattleCinematicScanlines37
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicScanlines37Services services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicScanlines37Services services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         if (SlotDword(0xBC) == 0)
@@ -66,10 +66,15 @@ public static class NativeBattleCinematicScanlines37
             }
             StoreByte(unchecked(work + 0x26C), 0);
         }
+        bool[] laneContinuous = new bool[3];
         for (int lane = 0; lane < 3; lane++)
         {
             uint address = unchecked(state + (uint)(lane * 2));
-            StoreWord(address, unchecked((ushort)(Word(address) + Word(unchecked(payload + 6 + (uint)(lane * 2))))));
+            ushort previous = Word(address);
+            ushort increment = Word(unchecked(payload + 6 + (uint)(lane * 2)));
+            ushort updated = unchecked((ushort)(previous + increment));
+            laneContinuous[lane] = unchecked((short)increment) >= 0 ? updated >= previous : updated <= previous;
+            StoreWord(address, updated);
             frame = frame.WriteTemporaryDword(0x80 + lane * 4, (uint)(Word(address) >> 8));
         }
         uint page = (((uint)(Word(payload) & 0xFC0) | 0x4000) >> 2 | (uint)(Word(unchecked(payload + 2)) & 0x100)) >> 4;
@@ -89,9 +94,9 @@ public static class NativeBattleCinematicScanlines37
                 margin = 160;
             }
             uint output = Cursor();
-            Emit(output, [0x05000000, 0x28000000, 0, unchecked((uint)margin), 0x00D00000, unchecked(0x00D00000u + (uint)margin)]);
+            Emit(output, [0x05000000, 0x28000000, 0, unchecked((uint)margin), 0x00D00000, unchecked(0x00D00000u + (uint)margin)], null, 0);
             output = unchecked(output + 24);
-            Emit(output, [0x05000000, 0x28000000, 320, unchecked((uint)(320 - margin)), 0x00D00140, unchecked(0x00D00140u - (uint)margin)]);
+            Emit(output, [0x05000000, 0x28000000, 320, unchecked((uint)(320 - margin)), 0x00D00140, unchecked(0x00D00140u - (uint)margin)], null, 1);
             SetCursor(unchecked(output + 24));
         }
         int stripWidth = unchecked((short)SlotWord(frame, 0x8C));
@@ -109,10 +114,10 @@ public static class NativeBattleCinematicScanlines37
             }
             StoreByte(visited, 1);
             int offset = SignedWord(unchecked(work + (uint)(index * 2)));
-            Triangle(cursor, frame.ReadTemporaryDword(0x70), (offset >> 8) + center, row, index);
+            Triangle(cursor, frame.ReadTemporaryDword(0x70), (offset >> 8) + center, row, index, 0);
             cursor = unchecked(cursor + 32);
             offset = SignedWord(unchecked(work + (uint)(index * 2)));
-            Triangle(cursor, frame.ReadTemporaryDword(0x74), (offset >> 9) + center, row, index);
+            Triangle(cursor, frame.ReadTemporaryDword(0x74), (offset >> 9) + center, row, index, 1);
             cursor = unchecked(cursor + 32);
         }
         SetCursor(cursor);
@@ -130,7 +135,7 @@ public static class NativeBattleCinematicScanlines37
             }
             uint color = frame.ReadTemporaryDword(0x6C) | (lane == 0 ? 0x2C70B0B0u : lane == 1 ? 0x2E70C070u : 0x2EF0F0F0u);
             uint output = Cursor();
-            Quad(output, color, center - 16, unchecked((int)row));
+            Quad(output, color, center - 16, unchecked((int)row), lane);
             SetCursor(unchecked(output + 40));
         }
         return frame;
@@ -167,7 +172,7 @@ public static class NativeBattleCinematicScanlines37
             return (value & 1) != 0 ? unchecked(-magnitude) : magnitude;
         }
 
-        void Emit(uint output, ImmutableArray<uint> words, NativeBattleGfPacketByteState[]? retainedMask = null)
+        void Emit(uint output, ImmutableArray<uint> words, NativeBattleGfPacketByteState[]? retainedMask, int authoredPrimitive, bool continuous = true)
         {
             byte[] bytes = new byte[words.Length * 4];
             for (int index = 0; index < words.Length; index++)
@@ -176,27 +181,38 @@ public static class NativeBattleCinematicScanlines37
             }
             ImmutableArray<NativeBattleGfPacketByteState> mask = retainedMask?.ToImmutableArray() ?? Enumerable.Range(0, bytes.Length).Select(index => index >= 3 ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(0, words, []) { PhysicalWriteMask = mask };
+            if (pilotIdentity is { } identity)
+            {
+                bool textured = (words[1] & 0x04000000) != 0;
+                int corners = (words[1] & 0x08000000) != 0 ? 4 : 3;
+                System.Numerics.Vector3 Corner(int index)
+                {
+                    uint screen = words[2 + index * (textured ? 2 : 1)];
+                    return new(unchecked((short)screen), unchecked((short)(screen >> 16)), 0);
+                }
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + authoredPrimitive) }, Corner(0), Corner(1), Corner(2), corners == 4 ? Corner(3) : default, checked((byte)corners), continuous) { ScreenSpace = true, UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero } };
+            }
             frame = services.Append(frame, output, frame.ReadTemporaryDword(0x14C), new([new(0, bytes.ToImmutableArray(), mask, primitive)], bytes.Length));
         }
 
-        void Triangle(uint output, uint color, int left, int row, int sourceRow)
+        void Triangle(uint output, uint color, int left, int row, int sourceRow, int layer)
         {
             ushort right = unchecked((ushort)(left + frame.ReadTemporaryWord(0x60)));
             uint pageWord = (uint)frame.ReadTemporaryWord(0x64) << 16;
             ImmutableArray<uint> words = [0x07000000, color, Pack(left, row), (uint)(sourceRow & 255) << 8, Pack(right, row), 255u | ((uint)(sourceRow & 255) << 8) | pageWord, Pack(right, row + 1), 255u | ((uint)((sourceRow + 1) & 255) << 8)];
             NativeBattleGfPacketByteState[] mask = Enumerable.Range(0, 32).Select(index => index >= 3 ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToArray();
             mask[14] = mask[15] = mask[30] = mask[31] = NativeBattleGfPacketByteState.Untouched;
-            Emit(output, words, mask);
+            Emit(output, words, mask, 0x10000 + sourceRow * 2 + layer);
         }
 
-        void Quad(uint output, uint color, int left, int row)
+        void Quad(uint output, uint color, int left, int row, int lane)
         {
             int right = unchecked(left + (short)frame.ReadTemporaryWord(0x60));
             uint pageWord = (uint)frame.ReadTemporaryWord(0x64) << 16;
             ImmutableArray<uint> words = [0x09000000, color, Pack(left, row), (uint)(row & 255) << 8, Pack(right, row), 255u | ((uint)(row & 255) << 8) | pageWord, Pack(left, row + 1), (uint)((row + 1) & 255) << 8, Pack(right, row + 1), 255u | ((uint)((row + 1) & 255) << 8)];
             NativeBattleGfPacketByteState[] mask = Enumerable.Range(0, 40).Select(index => index >= 3 ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToArray();
             mask[14] = mask[15] = mask[30] = mask[31] = mask[38] = mask[39] = NativeBattleGfPacketByteState.Untouched;
-            Emit(output, words, mask);
+            Emit(output, words, mask, 0x20000 + lane, laneContinuous[lane]);
         }
     }
 

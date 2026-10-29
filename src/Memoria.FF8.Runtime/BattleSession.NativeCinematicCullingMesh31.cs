@@ -8,6 +8,8 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicCullingMesh31(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleCinematicResources resources, NativeBattleCinematicProfile profile, NativeBattleGraphicsState graphics)
     {
+        Dictionary<uint, System.Numerics.Vector3> pilotWorld = [];
+        NativeBattleActionMatrix? pilotMatrix = null;
         NativeBattleEffectMemory memory = RequireWaterMemory();
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Native culled mesh requires its retained geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native culled mesh requires its retained color registers."));
         NativeBattleCinematicCullingMesh31Services services = new((current, selector) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, selector).Selected, current =>
@@ -23,6 +25,7 @@ public sealed partial class BattleSession
             registers = registers with { Colors = NativeBattleCinematicRibbonInput.Capture(current, 0x27971E4, registers.Colors) };
             registers = NativeBattleGeometry.Transform(registers);
             NativeBattleCinematicScaledBasisResult prepared = NativeBattleCinematicScaledBasis.Prepare(current, resourceLength);
+            pilotMatrix = prepared.Matrix;
             geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, prepared.Matrix, true, true, null);
             geometry = geometry with { Rotation20 = geometry.Rotation20.SetItem(18, known[0] ? padding[0] : null).SetItem(19, known[1] ? padding[1] : null) };
             registers = registers with { Geometry = geometry };
@@ -32,7 +35,10 @@ public sealed partial class BattleSession
         {
             registers = registers with { Colors = NativeBattleCinematicRibbonInput.Capture(current, source, registers.Colors) };
             NativeBattleScriptedGraphicsMemory controls = RequireWaterMemory().ScriptedGraphics ?? throw new NotSupportedException("Native culled mesh requires its retained depth controls.");
-            registers = NativeBattleGeometry.ProjectSingle(registers, NativeCamera?.Projection ?? throw new NotSupportedException("Native culled mesh requires its current camera."), controls.Dqa, controls.Dqb);
+            NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native culled mesh requires its current camera.");
+            NativeBattleVector input = NativeBattleScriptedMeshPreparation.Vector(registers.Colors.NormalInput!.Value.AsSpan());
+            pilotWorld[output] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix ?? throw new InvalidOperationException("Native culled mesh basis has not been prepared."), input), projection);
+            registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
             byte[] screen = new byte[4];
             BinaryPrimitives.WriteUInt32LittleEndian(screen, registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Native culled mesh did not publish its screen position."));
             byte[] depth = new byte[2];
@@ -60,6 +66,8 @@ public sealed partial class BattleSession
             graphics = written.Graphics;
             return written.Frame;
         });
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        services = services with { PilotWorld = pilotWorld, PilotIdentity = NativeBattleCinematicVisualIdentity.Identity(profile.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank)) };
         frame = NativeBattleCinematicCullingMesh31.Draw(frame, services);
         Publish();
         return (frame, graphics);

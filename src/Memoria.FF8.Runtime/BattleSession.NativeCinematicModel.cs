@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         uint color = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(model + 0x5C), 4), 4));
         NativeBattleModelRendererRegisters renderer = (common.ModelRendererRegisters ?? new(null, null, null, null, null)).PublishModelColor(color);
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native cinematic model requires its original color arithmetic tables.");
-        NativeBattleCinematicModelDraw drawn = NativeBattleCinematicModel.Render(frame, model, projection, colors, OtBucket);
+        NativeBattleCinematicModelDraw drawn = NativeBattleCinematicModel.Render(frame, model, projection, colors, OtBucket, NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, bank, index));
         frame = drawn.Frame;
         uint manager = CoreDword(frame, 0x27973EC);
         uint start = CoreDword(frame, unchecked(manager + 0x7C));

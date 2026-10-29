@@ -42,7 +42,7 @@ public static class NativeBattleShivaParticleBanks
             ushort phase = Uword(address + 4);
             NativeBattleModuleSpriteFrame selected = sprite.ProjectedFrame571C80(unchecked((short)phase));
             short size = Word(address + 6);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = sprite, SpriteFrame = selected, Phase = phase, Anchor = new(Word(address + 8), Word(address + 10), Word(address + 12), 0), Scale = size, DepthOffset = -(size >> 4), SpriteFlags = 8 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = NativeBattleShivaVisualIdentity.Particle(frame, slot, address, unchecked((int)sprite.Address)), Resource = sprite, SpriteFrame = selected, Phase = phase, Anchor = new(Word(address + 8), Word(address + 10), Word(address + 12), 0), Scale = size, DepthOffset = -(size >> 4), SpriteFlags = 8 };
             frame = draw571C80(frame with { Memory = frame.Memory with { Arena = arena.Publish() } }, draw);
             arena.Replace(frame.Memory.Arena ?? throw new InvalidDataException("Native Shiva sprite drawing lost its current arena."));
             if (paused)
@@ -89,6 +89,7 @@ public static class NativeBattleShivaParticleBanks
                 }
                 int address = bank + free * 24;
                 PutDword(address, flag);
+                NativeBattleShivaVisualIdentity.Allocated(frame, slot, address);
                 PutWord(address + 4, 0);
                 int angle;
                 int speed;

@@ -5,13 +5,13 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Search's flags-zero projected sprite adapter, preserving its rounded view/transposed-view basis and signed depth bias.</summary>
 public static class NativeBattleSearchSprites
 {
-    public static NativeBattleGfGeometryBatch Draw7582A0(NativeBattleModulePoolTask task, ImmutableArray<byte> resource, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, short scale = 4096)
+    public static NativeBattleGfGeometryBatch Draw7582A0(NativeBattleModulePoolTask task, ImmutableArray<byte> resource, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, short scale = 4096, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if ((task.ReadByte(0x26) & 4) != 0)
         {
             return new([], 0);
         }
-        return NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, task.ReadWord(0x50), Matrix(task, view, scale), projection, cameraRoll, 17, 2, unchecked((short)task.ReadWord(0x56)));
+        return NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, task.ReadWord(0x50), Matrix(task, view, scale), projection, cameraRoll, 17, 2, unchecked((short)task.ReadWord(0x56)), pilotIdentity: pilotIdentity);
     }
 
     internal static NativeBattleActionMatrix Matrix(NativeBattleModulePoolTask task, NativeBattleActionMatrix view, short scale = 4096)

@@ -54,13 +54,15 @@ public sealed partial class BattleSession
                 uint early = (result[0].Flags | result[1].Flags) & 0x66000;
                 flags |= early | (early != 0 ? 0x80000000u : 0);
             }
-            return new(current, result, result.IsEmpty ? 0 : result[^1].Depth >> 2, flags);
+            return new(current, result, result.IsEmpty ? 0 : result[^1].Depth >> 2, flags) { PilotWorld = vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex), projection)).ToImmutableArray() };
         }, (current, output, ordering, batch) =>
         {
             var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
             graphics = written.Graphics;
             return written.Frame;
         });
-        return (NativeBattleCinematicDetached66.Draw(frame, services), graphics);
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
+        return (NativeBattleCinematicDetached66.Draw(frame, services, identity), graphics);
     }
 }

@@ -37,6 +37,7 @@ public sealed partial class BattleSession
             ushort nextAngle = unchecked((ushort)(task.ReadWord(0x12) + task.ReadWord(0x14)));
             task = task.WriteWord(0x12, nextAngle);
             arena = arena.Write(start + 0x12, BitConverter.GetBytes(nextAngle));
+            NativeBattleBlizzagaRibbon.RecordInsertion(task, 0x24, count);
             NativeBattleBlizzagaRibbonNodes inserted = NativeBattleBlizzagaRibbon.Insert6D99D0(count, nodes.ToImmutableArray(), lowerPoint.ToImmutableArray(), upperPoint.ToImmutableArray(), 16, 88, unchecked((byte)((3 - (age & 3)) * 32)));
             if (count < 30)
             {
@@ -83,7 +84,7 @@ public sealed partial class BattleSession
         {
             RequireKnown(offset, 6);
             registers = registers with { NormalInput = nodes.AsSpan(offset, 8).ToArray().ToImmutableArray(), NormalInputKnown = known.AsSpan(offset, 8).ToArray().ToImmutableArray() };
-        });
+        }, projection, NativeBattlePilotVisualLifetimes.Identity(291, task), NativeBattleBlizzagaRibbon.NodeBirths(task, 0x24, count));
         if (!paused)
         {
             for (int index = 0; index < count; index++)

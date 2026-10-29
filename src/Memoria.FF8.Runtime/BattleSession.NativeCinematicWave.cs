@@ -26,13 +26,15 @@ public sealed partial class BattleSession
             NativeBattleScriptedColorRegisters registers = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native cinematic wave requires its retained packed vector input.");
             NativeEffectMemory = memory with { ScriptedColorRegisters = NativeBattleCinematicRibbonInput.Capture(current, current.TemporaryFrame.Address + 0xD0, registers) };
             NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix ?? throw new InvalidOperationException("Native cinematic wave basis has not been prepared."), point, projection, controls.Dqa, controls.Dqb);
-            return new(current.WriteTemporaryDword(0xFC, projected.Projected.Flags), projected.Projected.Screen, projected.Projected.Depth >> 2);
+            return new(current.WriteTemporaryDword(0xFC, projected.Projected.Flags), projected.Projected.Screen, projected.Projected.Depth >> 2) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix!, point), projection) };
         }, sector => resources.ReadStatic(unchecked(0x1877508u + (uint)sector), 1)[0], OtBucket, (current, output, batch) =>
         {
             var written = AppendNativeCinematicPackets(current, output, null, batch, graphics, 1);
             graphics = written.Graphics;
             return written.Frame;
         });
-        return (NativeBattleCinematicWave.Draw(frame, services), graphics);
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
+        return (NativeBattleCinematicWave.Draw(frame, services, identity), graphics);
     }
 }

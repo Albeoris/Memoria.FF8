@@ -54,7 +54,7 @@ public static class NativeBattleShivaOpeningParticles
             }
             ushort phase = Uword(address + 4);
             int size = Word(address + 6);
-            short next = DrawSprite(inputs.ParticleSprite, 0xD20C7C, phase, new(Word(address + 8), Word(address + 10), Word(address + 12), 0), size, -(size >> 4));
+            short next = DrawSprite(inputs.ParticleSprite, 0xD20C7C, phase, new(Word(address + 8), Word(address + 10), Word(address + 12), 0), size, -(size >> 4), address);
             if (paused)
             {
                 continue;
@@ -98,6 +98,7 @@ public static class NativeBattleShivaOpeningParticles
                 }
                 int address = 0x2C000 + free * 24;
                 PutDword(address, mask);
+                NativeBattleShivaVisualIdentity.Allocated(frame, slot, address);
                 PutWord(address + 4, 0);
                 PutWord(address + 6, Draw() % 768 + 1024);
                 int vertex = Draw() % (74 - start) + start;
@@ -125,7 +126,7 @@ public static class NativeBattleShivaOpeningParticles
         short Word(int address) => unchecked((short)Uword(address));
         uint Dword(int address) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(address, 4));
 
-        short DrawSprite(NativeBattleModuleResource resource, uint expectedAddress, ushort phase, NativeBattleModuleAnchor anchor, int size, int depth)
+        short DrawSprite(NativeBattleModuleResource resource, uint expectedAddress, ushort phase, NativeBattleModuleAnchor anchor, int size, int depth, int record = -1)
         {
             ArgumentNullException.ThrowIfNull(inputs.DrawSprite);
             if (resource.Address != expectedAddress)
@@ -133,7 +134,7 @@ public static class NativeBattleShivaOpeningParticles
                 throw new InvalidDataException("Native Shiva opening particle sprite differs from its original resource.");
             }
             NativeBattleModuleSpriteFrame selected = resource.ProjectedFrame571C80(unchecked((short)phase));
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = selected, Phase = phase, Anchor = anchor, Scale = size, DepthOffset = depth, SpriteFlags = 0 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = record < 0 ? NativeBattlePilotVisualLifetimes.Identity(185, frame.Pool.Slots[slot], unchecked((int)resource.Address)) : NativeBattleShivaVisualIdentity.Particle(frame, slot, record, unchecked((int)resource.Address)), Resource = resource, SpriteFrame = selected, Phase = phase, Anchor = anchor, Scale = size, DepthOffset = depth, SpriteFlags = 0 };
             frame = inputs.DrawSprite(frame with { Memory = frame.Memory with { Arena = arena } }, draw);
             arena = frame.Memory.Arena ?? throw new InvalidDataException("Native Shiva sprite drawing lost its retained arena.");
             return selected.NextOffset;

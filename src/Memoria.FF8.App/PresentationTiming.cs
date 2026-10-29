@@ -57,7 +57,7 @@ internal sealed class PresentationTiming
             FreezePresentationFrame();
             return;
         }
-        if (source is null || source.PilotEffect is not (2 or 3 or 144))
+        if (source is null || !NativeBattleSmoothPresentation.Supports(source.PilotEffect))
         {
             ResetPresentationSource();
             return;

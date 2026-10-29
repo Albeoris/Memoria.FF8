@@ -58,7 +58,7 @@ public static class NativeBattlePandemona291LateLayers
         short Trig(int angle, bool cosine) => BinaryPrimitives.ReadInt16LittleEndian(trigonometry.AsSpan().Slice((angle & 0xFFF) * 4 + (cosine ? 2 : 0), 2));
     }
 
-    internal static NativeBattleGfGeometryBatch Emit6F1E10(ImmutableArray<byte> geometry, NativeBattlePandemona291LateLayer prepared, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf4, Func<int, NativeBattleVector> readSelected, Func<int, short> readFactor, Action<int>? observeInput = null, Action<uint>? observeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null)
+    internal static NativeBattleGfGeometryBatch Emit6F1E10(ImmutableArray<byte> geometry, NativeBattlePandemona291LateLayer prepared, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf4, Func<int, NativeBattleVector> readSelected, Func<int, short> readFactor, Action<int>? observeInput = null, Action<uint>? observeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int corner = -1;
         return NativeBattleEffectMeshPackets.EmitBatch(geometry, prepared.Matrix, projection, 0x2000, offset =>
@@ -89,6 +89,6 @@ public static class NativeBattlePandemona291LateLayers
             int average = unchecked((int)(unchecked((uint)polygon.VertexPayload4.Sum() * (uint)(int)zsf4) >> 12));
             int bucket = unchecked(17 + (average >> 2));
             return batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { Bucket = bucket } } : attempt).ToImmutableArray() };
-        }, observeFlags, projectFourth);
+        }, observeFlags, projectFourth, pilotIdentity);
     }
 }

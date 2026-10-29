@@ -12,13 +12,13 @@ public sealed record NativeBattleQuezacotlGeometryContext(uint FarColor, int Dep
 /// <summary>6C5710/6C5750/6C5B50's original captured-geometry GT3/GT4 and ordered texture-window packets.</summary>
 public static class NativeBattleQuezacotlGeometryPackets
 {
-    public static NativeBattleGfGeometryBatch EmitBatch6C5710(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
+    public static NativeBattleGfGeometryBatch EmitBatch6C5710(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader reader = new(source);
-        return EmitBatch6C5710(reader, geometryOffset, selectedVertices, matrix, projection, context, colors, readSelectedVertex, observeDepth);
+        return EmitBatch6C5710(reader, geometryOffset, selectedVertices, matrix, projection, context, colors, readSelectedVertex, observeDepth, pilotIdentity);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch6C5710(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
+    internal static NativeBattleGfGeometryBatch EmitBatch6C5710(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (source.IsDefault || selectedVertices.IsDefault && readSelectedVertex is null || context.DepthShift > 31)
         {
@@ -43,6 +43,25 @@ public static class NativeBattleQuezacotlGeometryPackets
                     offsets[corner] = BinaryPrimitives.ReadUInt16LittleEndian(face[(4 + corner * 2)..]);
                 }
                 NativeBattleGfGeometryBatch batch = EmitPolygon(face, new ProjectedCorners(offsets, Project), group != 0, context, colors, allocated, observeDepth);
+                if (pilotIdentity is { } identity && batch.Attempts.Any(attempt => attempt.Primitive is { } primitive && (primitive.Words[1] >> 24 & 0xE0) == 0x20))
+                {
+                    System.Numerics.Vector3 World(ushort offset)
+                    {
+                        NativeBattleVector point;
+                        if (readSelectedVertex is not null)
+                        {
+                            point = readSelectedVertex(offset * 4);
+                        }
+                        else
+                        {
+                            ReadOnlySpan<byte> xyz = Read(selectedVertices, offset * 4, 6);
+                            point = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
+                        }
+                        return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+                    }
+                    NativeBattlePilotVisualGeometry visual = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, World(offsets[0]), World(offsets[1]), World(offsets[2]), offsets.Length == 4 ? World(offsets[3]) : default, (byte)offsets.Length);
+                    batch = batch with { Attempts = batch.Attempts.Select((attempt, layer) => attempt.Primitive is { } primitive && (primitive.Words[1] >> 24 & 0xE0) == 0x20 ? attempt with { Primitive = primitive with { PilotGeometry = visual with { Identity = visual.Identity with { Primitive = unchecked(visual.Identity.Primitive * 397 + layer) } } } } : attempt).ToImmutableArray() };
+                }
                 attempts.AddRange(batch.Attempts);
                 allocated = checked(allocated + batch.AllocationBytes);
                 cursor = checked(cursor + recordLength);

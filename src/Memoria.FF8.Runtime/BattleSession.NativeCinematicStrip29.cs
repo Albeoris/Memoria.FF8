@@ -21,13 +21,15 @@ public sealed partial class BattleSession
             NativeEffectMemory = memory with { ScriptedColorRegisters = NativeBattleCinematicRibbonInput.Capture(current, current.TemporaryFrame.Address + 0xC0, registers) };
             NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix ?? throw new InvalidOperationException("Native cinematic strip basis has not been prepared."), point, projection, controls.Dqa, controls.Dqb);
             current = current.WriteTemporaryDword(0xF8, projected.Cue).WriteTemporaryDword(0xFC, projected.Projected.Flags);
-            return new(current, projected.Projected.Screen, projected.Projected.Depth >> 2);
+            return new(current, projected.Projected.Screen, projected.Projected.Depth >> 2) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix!, point), projection) };
         }, (current, output, ordering, batch) =>
         {
             var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
             graphics = written.Graphics;
             return written.Frame;
         });
-        return (NativeBattleCinematicStrip29.Draw(frame, services), graphics);
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
+        return (NativeBattleCinematicStrip29.Draw(frame, services, identity), graphics);
     }
 }

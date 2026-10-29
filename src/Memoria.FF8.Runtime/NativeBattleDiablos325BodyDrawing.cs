@@ -44,15 +44,28 @@ public static class NativeBattleDiablos325BodyDrawing
             }
             NativeBattleRawMesh mesh = meshes[index];
             arena = NativeBattleDiablos325BodyProjection.Project657B50(arena, scratch, mesh.Vertices.Length, vertex => NativeBattleGfMatrices.Transform460840(bones[mesh.Vertices[vertex].Bone], mesh.Vertices[vertex].Position), projection, height, flags, distance);
+            int polygonIndex = 0;
             foreach (NativeBattleRawPolygon polygon in mesh.Polygons)
             {
                 short zsf = (polygon.Quad ? registers.Zsf4 : registers.Zsf3) ?? throw new NotSupportedException("Native Diablos body requires its actual selected average-depth scale.");
                 NativeBattleGfGeometryAttempt? packet = NativeBattleDiablos325BodyPackets.Emit6576A0(polygon.Bytes.AsSpan(), polygon.Quad, ReadVertex, color, zsf, allocated);
                 if (packet is not null)
                 {
+                    if (packet.Primitive is { } primitive)
+                    {
+                        System.Numerics.Vector3 World(int corner)
+                        {
+                            int vertex = BinaryPrimitives.ReadUInt16LittleEndian(polygon.Bytes.AsSpan().Slice(corner * 2)) & 0xFFF;
+                            NativeBattleVector point = NativeBattleGfMatrices.Transform460840(bones[mesh.Vertices[vertex].Bone], mesh.Vertices[vertex].Position);
+                            return new(point.X, point.Y, point.Z);
+                        }
+                        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(325, task, unchecked(0x6574F0 + index * 65537 + polygonIndex));
+                        packet = packet with { Primitive = primitive with { PilotGeometry = new(identity, World(0), World(1), World(2), polygon.Quad ? World(3) : default, (byte)(polygon.Quad ? 4 : 3)) { SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } } };
+                    }
                     attempts.Add(packet);
                     allocated = checked(allocated + packet.Data.Length);
                 }
+                polygonIndex++;
             }
         }
         NativeBattleDecodedPose pose = NativeBattleArenaPose.ReadCurrentPose(arena, skeleton, count);

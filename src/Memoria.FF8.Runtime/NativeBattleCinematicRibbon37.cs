@@ -5,12 +5,16 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleCinematicRibbonParent(NativeBattleWaterExecutionFrame Frame, NativeBattleActionMatrix Matrix);
-public sealed record NativeBattleCinematicRibbonProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, uint Depth, uint Flags);
+public sealed record NativeBattleCinematicRibbonProjection(NativeBattleWaterExecutionFrame Frame, uint Screen, uint Depth, uint Flags)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Numerics.Vector3? PilotWorld { get; init; }
+}
 public sealed record NativeBattleCinematicRibbon37Services(Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, Func<NativeBattleWaterExecutionFrame, uint, uint, uint, NativeBattleWaterExecutionFrame> BuildColorRamp, Func<NativeBattleWaterExecutionFrame, NativeBattleCinematicRibbonParent> PrepareParent, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, uint, NativeBattleCinematicRibbonProjection> Project, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
 public static class NativeBattleCinematicRibbon37
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicRibbon37Services services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicRibbon37Services services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         uint state = SlotDword(0xBC);
@@ -155,6 +159,7 @@ public static class NativeBattleCinematicRibbon37
             frame = services.BuildColorRamp(frame, firstColor, secondColor, colors);
             NativeBattleCinematicRibbonParent parent = services.PrepareParent(frame);
             frame = parent.Frame;
+            Dictionary<uint, System.Numerics.Vector3>? pilotVertices = pilotIdentity is null ? null : [];
             uint output = ManagerDword(0x7C);
             uint current = Segment(Word(state));
             frame = frame.WriteTemporaryDword(0x6C, current);
@@ -163,6 +168,10 @@ public static class NativeBattleCinematicRibbon37
             {
                 NativeBattleCinematicRibbonProjection projected = services.Project(frame, parent.Matrix, unchecked(current + (uint)(index * 8)));
                 frame = projected.Frame.WriteTemporaryDword(0xFC, projected.Flags);
+                if (pilotVertices is not null && projected.PilotWorld is { } world)
+                {
+                    pilotVertices[unchecked(work + (uint)(index * 8))] = world;
+                }
                 StoreDword(unchecked(work + (uint)(index * 8)), projected.Screen);
                 StoreDword(unchecked(work + (uint)(index * 8 + 4)), projected.Depth >> 2);
             }
@@ -187,6 +196,10 @@ public static class NativeBattleCinematicRibbon37
                 {
                     NativeBattleCinematicRibbonProjection projected = services.Project(frame, parent.Matrix, unchecked(segment + (uint)(index * 8)));
                     frame = projected.Frame;
+                    if (pilotVertices is not null && projected.PilotWorld is { } world)
+                    {
+                        pilotVertices[unchecked(destination + (uint)(index * 8))] = world;
+                    }
                     StoreDword(unchecked(destination + (uint)(index * 8)), projected.Screen);
                     StoreWord(unchecked(destination + (uint)(index * 8 + 4)), unchecked((ushort)projected.Depth));
                 }
@@ -211,6 +224,12 @@ public static class NativeBattleCinematicRibbon37
                     ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, 44).Select(index => index >= 3 ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
                     ImmutableArray<uint> words = Enumerable.Range(0, 11).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
                     NativeBattleGeometryPrimitive primitive = new(0, words, [0, 0, 0, 0]) { PhysicalWriteMask = mask };
+                    if (pilotIdentity is { } identity && pilotVertices is not null && addresses.All(pilotVertices.ContainsKey))
+                    {
+                        int newerSegment = checked((int)((Segment(Word(state) - strip + 1) - state - 32) / 72));
+                        NativeBattlePilotVisualIdentity segmentIdentity = NativeBattlePilotVisualLifetimes.Identity(identity.Effect, frame.Arena, state + 32, newerSegment, face);
+                        primitive = primitive with { PilotGeometry = new(segmentIdentity, pilotVertices[addresses[0]], pilotVertices[addresses[1]], pilotVertices[addresses[2]], pilotVertices[addresses[3]], 4) };
+                    }
                     frame = services.Append(frame, output, ordering, new([new(0, data.ToImmutableArray(), mask, primitive)], 44));
                     output = unchecked(output + 44);
                 }
@@ -240,6 +259,10 @@ public static class NativeBattleCinematicRibbon37
         void CrossSection(NativeBattleActionMatrix matrix, int width, int distance, uint output, bool flip)
         {
             frame = NativeBattleCinematicRibbonWork.BuildCrossSection(frame, matrix, width, distance, output, flip);
+            if (pilotIdentity is not null)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.Arena, state + 32, checked((int)((output - state - 32) / 72)));
+            }
             frame = services.PublishInput(frame, unchecked(frame.TemporaryFrame.Address + 0xF0));
         }
 

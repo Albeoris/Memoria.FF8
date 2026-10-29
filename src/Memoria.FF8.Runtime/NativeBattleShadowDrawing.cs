@@ -6,12 +6,12 @@ public sealed record NativeBattleShadowDrawStep(NativeBattleFileStaging Staging,
 
 public static class NativeBattleShadowDrawing
 {
-    public static NativeBattleShadowDrawStep Prepare5088A0(NativeBattleFileStaging staging, NativeBattleGeometryRegisterStep registers, NativeBattleGraphicsModel actor, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleShadowSource shadowSource, bool gouraud, int tableBaseBucket, byte depthShift)
+    public static NativeBattleShadowDrawStep Prepare5088A0(NativeBattleFileStaging staging, NativeBattleGeometryRegisterStep registers, NativeBattleGraphicsModel actor, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleShadowSource shadowSource, bool gouraud, int tableBaseBucket, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return Prepare5088A0(staging, registers, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native shadow requires its retained model world matrix."), actor.Transform?.Angle36 ?? throw new NotSupportedException("Native shadow requires its actual ground-height WORD."), actor.GeometryBounds52 ?? throw new NotSupportedException("Native shadow requires its current model bounds."), actor.Color44 ?? throw new NotSupportedException("Native shadow requires its current model shadow color."), projection, controls, shadowSource, gouraud, tableBaseBucket, depthShift);
+        return Prepare5088A0(staging, registers, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native shadow requires its retained model world matrix."), actor.Transform?.Angle36 ?? throw new NotSupportedException("Native shadow requires its actual ground-height WORD."), actor.GeometryBounds52 ?? throw new NotSupportedException("Native shadow requires its current model bounds."), actor.Color44 ?? throw new NotSupportedException("Native shadow requires its current model shadow color."), projection, controls, shadowSource, gouraud, tableBaseBucket, depthShift, pilotIdentity);
     }
 
-    public static NativeBattleShadowDrawStep Prepare5088A0(NativeBattleFileStaging staging, NativeBattleGeometryRegisterStep registers, NativeBattleActionMatrix world, short groundY, NativeBattleEffectLocalBounds bounds, uint color44, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleShadowSource shadowSource, bool gouraud, int tableBaseBucket, byte depthShift)
+    public static NativeBattleShadowDrawStep Prepare5088A0(NativeBattleFileStaging staging, NativeBattleGeometryRegisterStep registers, NativeBattleActionMatrix world, short groundY, NativeBattleEffectLocalBounds bounds, uint color44, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleShadowSource shadowSource, bool gouraud, int tableBaseBucket, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native shadow requires its actual camera view.");
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 0x78);
@@ -44,7 +44,7 @@ public static class NativeBattleShadowDrawing
             temporary = temporary.Write(0x70, DwordBytes(flags)).Write(0x74, DwordBytes(registers.Colors.Ir0!.Value));
             projected[vertex] = new(screen, unchecked((ushort)depth), flags);
         }
-        NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(projected, color44, gouraud, tableBaseBucket, depthShift);
+        NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(projected, color44, gouraud, tableBaseBucket, depthShift, pilotIdentity is null ? null : shape.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shape.CameraMatrix, vertex), projection)).ToArray(), pilotIdentity);
         return new(staging, registers, temporary, allocation.Address, batch);
     }
 

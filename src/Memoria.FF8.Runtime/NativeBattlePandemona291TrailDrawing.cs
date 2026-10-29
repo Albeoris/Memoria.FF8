@@ -27,7 +27,7 @@ public static class NativeBattlePandemona291TrailDrawing
         return camera with { X = translation.X, Y = translation.Y, Z = translation.Z };
     }
 
-    public static NativeBattleGfGeometryBatch Draw6F17C0(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short zsf3, Action<ImmutableArray<byte>>? observeInput = null, Action<uint>? observeFlags = null)
+    public static NativeBattleGfGeometryBatch Draw6F17C0(NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short zsf3, Action<ImmutableArray<byte>>? observeInput = null, Action<uint>? observeFlags = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (mesh.Bytes.IsDefault || mesh.Bytes.Length < 8)
         {
@@ -42,6 +42,7 @@ public static class NativeBattlePandemona291TrailDrawing
         {
             byte[] face = mesh.Bytes.AsSpan().Slice(cursor, 28).ToArray();
             NativeBattleModuleProjectedVertex[] vertices = new NativeBattleModuleProjectedVertex[3];
+            System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[3] : null;
             for (int corner = 0; corner < 3; corner++)
             {
                 int offset = checked(8 + BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)) * 4);
@@ -52,6 +53,10 @@ public static class NativeBattlePandemona291TrailDrawing
                     observeInput?.Invoke(mesh.Bytes.AsSpan().Slice(offset, 8).ToArray().ToImmutableArray());
                 }
                 vertices[corner] = NativeBattleModuleProjection.Project45FE10(matrix, point, projection);
+                if (world is not null)
+                {
+                    world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+                }
             }
             uint flags = vertices[0].Flags | vertices[1].Flags | vertices[2].Flags;
             observeFlags?.Invoke(flags);
@@ -81,6 +86,10 @@ public static class NativeBattlePandemona291TrailDrawing
                     {
                         ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
                         primitive = new(checked(17 + (int)(average >> 2)), words, [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, 0]);
+                        if (pilotIdentity is { } identity && world is not null)
+                        {
+                            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, world[0], world[1], world[2], default, 3) };
+                        }
                     }
                 }
             }

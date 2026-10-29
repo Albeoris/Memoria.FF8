@@ -8,6 +8,7 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicGroundProfile18(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleGraphicsState graphics)
     {
+        NativeBattleActionMatrix? pilotMatrix = null;
         NativeBattleEffectMemory memory = RequireWaterMemory();
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Native ground profile requires its current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native ground profile requires its current arithmetic registers."));
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native ground profile requires its current camera projection.");
@@ -24,12 +25,13 @@ public sealed partial class BattleSession
             current =>
             {
                 registers = registers with { Colors = NativeBattleCinematicRibbonInput.Capture(current, unchecked(current.TemporaryFrame.Address + 0xD0), registers.Colors) };
+                NativeBattleVector input = NativeBattleScriptedMeshPreparation.Vector(registers.Colors.NormalInput!.Value.AsSpan());
                 registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                 uint screen = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Native ground profile projection did not publish SXY.");
                 short x = unchecked((short)(unchecked((short)screen) >> 3));
                 short y = unchecked((short)(unchecked((short)(screen >> 16)) >> 3));
                 PublishRegisters();
-                return new(current, unchecked((uint)(ushort)x | ((uint)(ushort)y << 16)), checked((int)((registers.Geometry.Sz[3] ?? throw new NotSupportedException("Native ground profile projection did not publish depth.")) >> 2)), registers.Colors.Flags ?? throw new NotSupportedException("Native ground profile projection did not publish flags."));
+                return new(current, unchecked((uint)(ushort)x | ((uint)(ushort)y << 16)), checked((int)((registers.Geometry.Sz[3] ?? throw new NotSupportedException("Native ground profile projection did not publish depth.")) >> 2)), registers.Colors.Flags ?? throw new NotSupportedException("Native ground profile projection did not publish flags.")) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix ?? throw new InvalidOperationException("Native ground profile basis has not been prepared."), input), projection) };
             },
             (current, output, ordering, batch) =>
             {
@@ -42,7 +44,9 @@ public sealed partial class BattleSession
                 graphics = written.Graphics;
                 return written.Frame;
             });
-        frame = NativeBattleCinematicGroundProfile18.Draw(frame, services);
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
+        frame = NativeBattleCinematicGroundProfile18.Draw(frame, services, identity);
         PublishRegisters();
         return (frame, graphics);
 
@@ -62,6 +66,7 @@ public sealed partial class BattleSession
             {
                 Geometry = registers.Geometry with { Translation = [registers.Colors.Mac[0] ?? throw new NotSupportedException("Native ground profile requires its transformed X."), registers.Colors.Mac[1] ?? throw new NotSupportedException("Native ground profile requires its transformed Y."), registers.Colors.Mac[2] ?? throw new NotSupportedException("Native ground profile requires its transformed Z.")] }
             };
+            pilotMatrix = matrix with { X = registers.Geometry.Translation[0]!.Value, Y = registers.Geometry.Translation[1]!.Value, Z = registers.Geometry.Translation[2]!.Value };
             PublishRegisters();
             return current;
         }

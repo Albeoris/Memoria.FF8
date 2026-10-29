@@ -82,7 +82,7 @@ public sealed partial class BattleSession
                 NativeBattleModuleDepthCueVertex fourth = NativeBattleModuleProjection.ProjectWithCue45FAA0(prepared.Matrix, point, projection, controls.Dqa, controls.Dqb);
                 registers = registers with { Flags = fourth.Projected.Flags };
                 return fourth.Projected;
-            }, controls.Zsf3);
+            }, controls.Zsf3, NativePandemona291TaskVisualIdentity(frame, taskAddress, unchecked((inputs?.WorkspaceOffset ?? 0x1F0) * 397 + node.NodeIndex)));
             registers = registers with { Mac = [null, null, null], Ir = [null, null, null] };
             if ((prepared.Context.Flags & 0xC0) != 0)
             {

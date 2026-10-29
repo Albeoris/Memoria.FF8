@@ -47,7 +47,7 @@ public sealed partial class BattleSession
                 }
                 ImmutableArray<byte> raw = NativeBattleQuezacotlFragmentPool.ReadTask(memory, index);
                 NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6C6660 requires its prior projection registers.");
-                NativeBattleGfGeometryBatch batch = NativeBattleQuezacotlFragmentPackets.Emit6C6660(memory, raw, projection, depthTrace.Push);
+                NativeBattleGfGeometryBatch batch = NativeBattleQuezacotlFragmentPackets.Emit6C6660(memory, raw, projection, depthTrace.Push, NativeBattlePilotVisualLifetimes.Identity(116, current.Slots[index]));
                 NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C6660 requires its current ordering table.");
                 NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlPacketArena.Append(memory, effect, frame.Pending, batch);
                 memory = written.Memory;

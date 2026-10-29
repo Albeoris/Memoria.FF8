@@ -56,11 +56,11 @@ public sealed partial class BattleSession
         NativeBattleTextureWindow full = new(0, 0, 256, 256);
         NativeBattleEsunaMeshContext context = new(fade == 0 ? 0x2030u : 0x20F0u, fade == 0 ? null : 0u, fade, 256, 0, 0, full, full, 17, 2);
         NativeBattleActionMatrix first = NativeBattlePandemona291Layers.Build6F29D0(resources.TrailTrigonometry, unchecked(elapsed << 6), 8192, 4096) with { Y = -8192, Z = center };
-        var primary = DrawNativePandemona291PreparedMesh(frame, floor, NativeBattleGfMatrices.Compose56C2F0(view, first), context, null, graphics, layers.Ir0, resources.VortexFloorTarget);
+        var primary = DrawNativePandemona291PreparedMesh(frame, floor, NativeBattleGfMatrices.Compose56C2F0(view, first), context, null, graphics, layers.Ir0, resources.VortexFloorTarget, pilotIdentity: NativePandemona291VisualIdentity(frame, 200));
         NativeBattleActionMatrix second = NativeBattlePandemona291Layers.Build6F29D0(resources.TrailTrigonometry, unchecked(elapsed * 100), 5000, 4096) with { Y = -8192, Z = center };
-        var secondary = DrawNativePandemona291PreparedMesh(primary.Frame, floor, NativeBattleGfMatrices.Compose56C2F0(view, second), context with { DepthBias = 128 }, null, primary.Graphics, primary.Ir0, resources.VortexFloorTarget);
+        var secondary = DrawNativePandemona291PreparedMesh(primary.Frame, floor, NativeBattleGfMatrices.Compose56C2F0(view, second), context with { DepthBias = 128 }, null, primary.Graphics, primary.Ir0, resources.VortexFloorTarget, pilotIdentity: NativePandemona291VisualIdentity(frame, 201));
         NativeBattleActionMatrix translated = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, -8192, center, 4096);
-        var late = DrawNativePandemona291PreparedMesh(secondary.Frame, overlay, NativeBattleGfMatrices.Compose56C2F0(view, translated), context with { Flags = fade == 0 ? 0x30u : 0xF0u, DepthBias = 0 }, null, secondary.Graphics, secondary.Ir0);
+        var late = DrawNativePandemona291PreparedMesh(secondary.Frame, overlay, NativeBattleGfMatrices.Compose56C2F0(view, translated), context with { Flags = fade == 0 ? 0x30u : 0xF0u, DepthBias = 0 }, null, secondary.Graphics, secondary.Ir0, pilotIdentity: NativePandemona291VisualIdentity(frame, 202));
         return (late.Frame, late.Graphics);
     }
 
@@ -80,7 +80,7 @@ public sealed partial class BattleSession
             NativeBattleShadowSource source = rules.Rules.ShadowSource ?? throw new NotSupportedException("Native Pandemona body requires its original shadow source.");
             NativeBattleShadowGeometry shadow = NativeBattlePoseMatrices.ShadowGeometry5088A0(prepared.World, prepared.GroundY, prepared.Bounds, view, source, capabilities.GouraudAlpha);
             NativeBattleModuleProjectedVertex[] points = shadow.Vertices.Select(point => NativeBattleModuleProjection.Project45FE10(shadow.CameraMatrix, point, projection)).ToArray();
-            NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(points, prepared.ShadowColor, capabilities.GouraudAlpha, 0x1010, 16);
+            NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(points, prepared.ShadowColor, capabilities.GouraudAlpha, 0x1010, 16, shadow.Vertices.Select(point => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shadow.CameraMatrix, point), projection)).ToArray(), NativePandemona291TaskVisualIdentity(frame, address, -1));
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
             process = written.Process;
             primitive = primitive with { Pending = written.Ordering };
@@ -101,7 +101,7 @@ public sealed partial class BattleSession
         {
             uint color = BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena!.Read(NativeBattleWaterExecutionFields.ArenaOffset(unchecked(prepared.ModelAddress + 0x28), 4), 4));
             process = process.PublishModelColor(color);
-            NativeBattlePandemona291BodyDraw drawn = NativeBattlePandemona291BodyDrawing.Render5099D0(frame, address, projection, rules.Rules.SummonColors ?? throw new NotSupportedException("Native Pandemona body requires its original color arithmetic."));
+            NativeBattlePandemona291BodyDraw drawn = NativeBattlePandemona291BodyDrawing.Render5099D0(frame, address, projection, rules.Rules.SummonColors ?? throw new NotSupportedException("Native Pandemona body requires its original color arithmetic."), NativePandemona291TaskVisualIdentity(frame, address));
             frame = drawn.Frame;
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, drawn.Packets);
             process = written.Process;

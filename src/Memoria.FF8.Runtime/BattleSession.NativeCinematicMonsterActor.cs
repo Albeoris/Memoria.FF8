@@ -11,6 +11,8 @@ public sealed partial class BattleSession
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicMonsterActor(NativeBattleWaterExecutionFrame frame, bool glow, int resourceLength, NativeBattleCinematicResources resources, NativeBattleCinematicModelServices modelServices, NativeBattleGraphicsState graphics)
     {
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic monster drawing requires its current projection owner.");
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
         uint manager = CoreDword(frame, 0x27973EC);
         uint clone = SlotDword(0xBC);
         uint payload = SlotDword(0xB8);
@@ -158,6 +160,8 @@ public sealed partial class BattleSession
             {
                 continue;
             }
+            System.Numerics.Vector3[] worldVertices = new System.Numerics.Vector3[item.Mesh.Vertices.Length];
+            NativeBattlePilotVisualIdentity meshIdentity = visualIdentity with { Primitive = unchecked((int)clone * 397 + item.ObjectIndex) };
             NativeBattleProjectedVertex[] projected = new NativeBattleProjectedVertex[item.Mesh.Vertices.Length];
             for (int index = 0; index < projected.Length; index++)
             {
@@ -166,12 +170,15 @@ public sealed partial class BattleSession
                 if (glow)
                 {
                     projected[index] = NativeBattleGeometryProjection.Project50F900(basis, vertex.Position, projection, new(0, 0, 320, 208));
+                    worldVertices[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(basis, vertex.Position), projection);
                 }
                 else
                 {
                     NativeBattleVector transformed = NativeBattleGfMatrices.Transform460840(basis, vertex.Position);
                     NativeBattleVector changed = NativeBattleCinematicMonsterVertices.Wobble(transformed, wobble);
-                    NativeBattleModuleProjectedVertex point = NativeBattleModuleProjection.Project45FE10(MonsterBillboardMatrix(frame), changed, projection);
+                    NativeBattleActionMatrix billboard = MonsterBillboardMatrix(frame);
+                    NativeBattleModuleProjectedVertex point = NativeBattleModuleProjection.Project45FE10(billboard, changed, projection);
+                    worldVertices[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(billboard, changed), projection);
                     projected[index] = new(point.Screen, (uint)(point.Depth >> 2 << 2));
                 }
                 StoreDword(projectedWork + 8u * (uint)index, projected[index].Screen);
@@ -189,11 +196,11 @@ public sealed partial class BattleSession
                     throw new NotSupportedException("Native cinematic glow reached an unknown RGB source lane.");
                 }
                 uint[] colors = snapshots.Select(value => BinaryPrimitives.ReadUInt32LittleEndian(value.Data)).ToArray();
-                batch = NativeBattleCinematicMonsterPackets.Glow(item.Mesh, projected, colors, OtBucket(frame.ReadTemporaryDword(0x14C)), snapshots.Select(value => value.Known[3]).ToArray());
+                batch = NativeBattleCinematicMonsterPackets.Glow(item.Mesh, projected, colors, OtBucket(frame.ReadTemporaryDword(0x14C)), snapshots.Select(value => value.Known[3]).ToArray(), worldVertices, meshIdentity);
             }
             else
             {
-                batch = NativeBattleCinematicMonsterPackets.Pack(NativeBattleRawGeometryPackets.EmitProjected5099D0(item.Mesh.Polygons, projected, Dword(clone + 0x5C), OtBucket(frame.ReadTemporaryDword(0x14C)), 4, unchecked((short)Word(clone + 0x64)), null, definition.NativeGraphics!.Rules.SummonColors));
+                batch = NativeBattleCinematicMonsterPackets.Pack(NativeBattleRawGeometryPackets.EmitProjected5099D0(item.Mesh.Polygons, projected, Dword(clone + 0x5C), OtBucket(frame.ReadTemporaryDword(0x14C)), 4, unchecked((short)Word(clone + 0x64)), null, definition.NativeGraphics!.Rules.SummonColors, pilotWorldVertices: worldVertices, pilotIdentity: meshIdentity));
             }
             uint output = CoreDword(frame, manager + 0x7C);
             var written = AppendNativeCinematicPackets(frame, output, null, batch, graphics);
@@ -257,7 +264,7 @@ public sealed partial class BattleSession
             NativeBattleShadowSource source = native.Rules.ShadowSource ?? throw new NotSupportedException("Native cinematic monster shadow requires its original seed matrix/vector.");
             NativeBattleShadowGeometry shape = NativeBattlePoseMatrices.ShadowGeometry5088A0(actor, actor.GeometryBounds52 ?? throw new NotSupportedException("Native cinematic monster shadow requires its current model bounds."), projection.View ?? throw new NotSupportedException("Native cinematic monster shadow requires its current camera matrix."), source, gouraud);
             NativeBattleModuleProjectedVertex[] vertices = shape.Vertices.Select(vertex => NativeBattleModuleProjection.Project45FE10(shape.CameraMatrix, vertex, projection)).ToArray();
-            NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, actor.Color44 ?? throw new NotSupportedException("Native cinematic monster shadow requires its current shadow color."), gouraud, 4121, 31);
+            NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, actor.Color44 ?? throw new NotSupportedException("Native cinematic monster shadow requires its current shadow color."), gouraud, 4121, 31, shape.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shape.CameraMatrix, vertex), projection)).ToArray(), visualIdentity with { Primitive = unchecked((int)0x80000000) });
             uint output = CoreDword(frame, manager + 0x7C);
             var written = AppendNativeCinematicPackets(frame, output, null, batch, graphics);
             frame = WriteCoreDword(written.Frame, manager + 0x7C, unchecked(output + (uint)batch.AllocationBytes));

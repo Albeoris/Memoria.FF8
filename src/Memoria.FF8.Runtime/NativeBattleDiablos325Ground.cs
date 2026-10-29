@@ -13,7 +13,7 @@ public static class NativeBattleDiablos325Ground
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(view, local);
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Diablos sink geometry requires its current renderer controls.");
         process = process.PublishTemporary5082B0Matrix(matrix);
-        NativeBattleGfGeometryBatch first = NativeBattleGfGeometryPackets.EmitBatch(NativeBattleDiablos325Wings.ReadGeometry(arena, checked(state.ModelBuffer5208 + 0x397CC)), 0, default, matrix, projection, new(0, null, null, null, null, null, 0, 17, 2), colors);
+        NativeBattleGfGeometryBatch first = NativeBattleGfGeometryPackets.EmitBatch(NativeBattleDiablos325Wings.ReadGeometry(arena, checked(state.ModelBuffer5208 + 0x397CC)), 0, default, matrix, projection, new(0, null, null, null, null, null, 0, 17, 2), colors, pilotIdentity: NativeBattleDiablos325VisualGeometry.Identity(frame, 0x397CC));
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Diablos sink geometry requires its current depth averaging controls.");
         NativeBattleEsunaMeshContext context = new(0x30, null, null, -128, 0, (ushort)(((counter - 368) << 4) & 127), new(0, 0, 256, 256), new(0, 128, 256, 128), 17, 2);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = first.Attempts.ToBuilder();
@@ -25,7 +25,7 @@ public static class NativeBattleDiablos325Ground
             {
                 ReadOnlySpan<byte> vertex = geometry.AsSpan().Slice(checked(8 + address), 6);
                 return new(System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(vertex), System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(vertex[4..]));
-            }, zsf3: controls.Zsf3);
+            }, zsf3: controls.Zsf3, pilotIdentity: NativeBattleDiablos325VisualGeometry.Identity(frame, unchecked((int)offset)));
             attempts.AddRange(batch.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
             allocated = checked(allocated + batch.AllocationBytes);
         }

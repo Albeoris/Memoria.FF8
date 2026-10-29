@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         {
             int found = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, found));
-        }, (current, selector) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, selector).Selected, projection, controls, lighting, step);
+        }, (current, selector) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, selector).Selected, projection, controls, lighting, step, NativeBattleCinematicVisualIdentity.Identity(profile.Effect, frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank)));
         frame = projected.Frame;
         uint shape = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xD8, 4));
         int extent = NativeBattleCinematicClampedMesh22.MeasureExtent(frame, shape, ReadStride);

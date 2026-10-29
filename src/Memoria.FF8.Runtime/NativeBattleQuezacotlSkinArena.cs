@@ -38,7 +38,7 @@ public static class NativeBattleQuezacotlSkinArena
                         throw new InvalidDataException("Native6C6770 linked common packet leaves its accepted allocation.");
                     }
                     bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-                    links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, 0, primitive.VertexPayload4);
+                    links.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, address), primitive.Words, 0, primitive.VertexPayload4, pilotGeometry: primitive.PilotGeometry);
                     if (linked)
                     {
                         commonStores.Add(new(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known]));

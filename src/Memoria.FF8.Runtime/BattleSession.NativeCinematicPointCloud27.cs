@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicScanlines37(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsState graphics)
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicScanlines37(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleGraphicsState graphics)
     {
         NativeBattleCinematicScanlines37Services services = new((current, command, factor) =>
         {
@@ -20,7 +20,9 @@ public sealed partial class BattleSession
             graphics = written.Graphics;
             return written.Frame;
         });
-        return (NativeBattleCinematicScanlines37.Draw(frame, services), graphics);
+        NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank));
+        return (NativeBattleCinematicScanlines37.Draw(frame, services, identity), graphics);
     }
 
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicPointCloud27(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleGraphicsState graphics)
@@ -45,7 +47,7 @@ public sealed partial class BattleSession
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic points require their actual projection controls.");
             byte[] point = current.Arena.Read(ArenaOffset(address, 6), 6);
             NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(matrix ?? throw new InvalidOperationException("Native cinematic point basis has not been prepared."), NativeBattleScriptedMeshPreparation.Vector(point), projection, registers.Dqa, registers.Dqb);
-            return new(current, projected.Projected.Screen, projected.Projected.Depth >> 2);
+            return new(current, projected.Projected.Screen, projected.Projected.Depth >> 2) { PilotWorld = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix!, NativeBattleScriptedMeshPreparation.Vector(point)), projection) };
         }, (current, output, ordering, batch) =>
         {
             if (arenaTransaction is not null && ReferenceEquals(current.Arena.Transaction, arenaTransaction))
@@ -100,7 +102,7 @@ public sealed partial class BattleSession
         });
         try
         {
-            NativeBattleWaterExecutionFrame drawn = NativeBattleCinematicPointCloud27.Draw(frame, services);
+            NativeBattleWaterExecutionFrame drawn = NativeBattleCinematicPointCloud27.Draw(frame, services, NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength), NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength))));
             if (arenaTransaction is not null && ReferenceEquals(drawn.Arena.Transaction, arenaTransaction))
             {
                 drawn = drawn with { Arena = arenaTransaction.Freeze() };
@@ -127,14 +129,16 @@ public sealed partial class BattleSession
         }
     }
 
-    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicColumns2D(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsState graphics)
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicColumns2D(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleGraphicsState graphics)
     {
+        NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity identity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank));
         frame = NativeBattleCinematicColumns2D.Draw(frame, (current, output, ordering, batch) =>
         {
             var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
             graphics = written.Graphics;
             return written.Frame;
-        });
+        }, identity);
         return (frame, graphics);
     }
 

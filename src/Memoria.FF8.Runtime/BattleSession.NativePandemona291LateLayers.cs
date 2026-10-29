@@ -32,7 +32,7 @@ public sealed partial class BattleSession
                 NativeBattleModuleDepthCueVertex projected = NativeBattleModuleProjection.ProjectWithCue45FAA0(prepared.Matrix, point, projection, controls.Dqa, controls.Dqb);
                 registers = registers with { Flags = projected.Projected.Flags };
                 return projected.Projected;
-            });
+            }, NativePandemona291VisualIdentity(frame, 300 + resources.LateLayerGeometry.IndexOf(geometry)));
             NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Pandemona late layers require their canonical far-color owner.");
             NativeBattleModelRendererRegisters renderer = process.ModelRendererRegisters ?? new(null, null, null, null, null);
             renderer = renderer.PublishModelColor(0);

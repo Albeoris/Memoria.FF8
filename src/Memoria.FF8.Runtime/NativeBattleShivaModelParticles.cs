@@ -2,7 +2,11 @@ using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleShivaModelMeshDraw(NativeBattleStaticMeshResource Resource, NativeBattleActionMatrix Matrix, NativeBattleModuleMeshContext Context);
+public sealed record NativeBattleShivaModelMeshDraw(NativeBattleStaticMeshResource Resource, NativeBattleActionMatrix Matrix, NativeBattleModuleMeshContext Context)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleShivaModelBillboardDraw(NativeBattleStaticMeshResource Resource, NativeBattleModuleAnchor Anchor, int Scale, int DepthOffset, NativeBattleModuleMeshContext Context);
 
 public static class NativeBattleShivaModelParticles
@@ -28,7 +32,7 @@ public static class NativeBattleShivaModelParticles
             ushort phase = bank.Uword(record + 4);
             NativeBattleModuleSpriteFrame selected = sprite.ProjectedFrame571C80(unchecked((short)phase));
             int size = bank.Word(record + 6);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = sprite, SpriteFrame = selected, Phase = phase, Anchor = new(bank.Word(record + 8), bank.Word(record + 10), bank.Word(record + 12), 0), Scale = size, DepthOffset = -(size >> 4), Direction = 4096, SpriteFlags = 0 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = NativeBattleShivaVisualIdentity.Particle(frame, slot, record, unchecked((int)sprite.Address)), Resource = sprite, SpriteFrame = selected, Phase = phase, Anchor = new(bank.Word(record + 8), bank.Word(record + 10), bank.Word(record + 12), 0), Scale = size, DepthOffset = -(size >> 4), Direction = 4096, SpriteFlags = 0 };
             frame = drawSprite(frame with { Memory = frame.Memory with { Arena = bank.Arena } }, draw);
             bank.Arena = frame.Memory.Arena ?? throw new InvalidDataException("Native Shiva model sprite drawing lost its arena.");
             if (paused)
@@ -66,6 +70,7 @@ public static class NativeBattleShivaModelParticles
                 }
                 ArgumentNullException.ThrowIfNull(sampleBone502170);
                 bank.PutDword(record, 1);
+                NativeBattleShivaVisualIdentity.Allocated(frame, slot, record);
                 bank.PutWord(record + 4, 0);
                 bank.PutWord(record + 6, Draw(ref frame) % 1536 + 384);
                 int fraction = Draw(ref frame) % 4096;
@@ -181,7 +186,7 @@ public static class NativeBattleShivaModelParticles
             uint flags = forward && phase >= 6 ? 0x33u : 0xF3u;
             int? cue = forward && phase >= 6 ? null : phase < 6 ? 4096 - phase * 682 : (phase - 6) * 682;
             NativeBattleModuleMeshContext context = new(flags, 0, cue, null, null, null, 17, 2);
-            frame = drawMesh(frame with { Memory = frame.Memory with { Arena = bank.Arena } }, new(mesh, matrix, context));
+            frame = drawMesh(frame with { Memory = frame.Memory with { Arena = bank.Arena } }, new(mesh, matrix, context) { PilotIdentity = NativeBattleShivaVisualIdentity.Particle(frame, slot, record, unchecked((int)mesh.Address)) });
             bank.Arena = frame.Memory.Arena ?? throw new InvalidDataException("Native Shiva ring drawing lost its arena.");
             if (paused)
             {
@@ -216,6 +221,7 @@ public static class NativeBattleShivaModelParticles
         if (free >= 0)
         {
             bank.PutDword(free, flag);
+            NativeBattleShivaVisualIdentity.Allocated(frame, slot, free);
             bank.PutWord(free + 4, 0);
             int scale = Draw(ref frame) % (forward ? 2560 : 304) + (forward ? 6144 : 320);
             bank.PutWord(free + 6, scale);

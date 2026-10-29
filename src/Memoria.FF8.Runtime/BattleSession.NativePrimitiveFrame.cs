@@ -165,12 +165,10 @@ public sealed partial class BattleSession
 
     private NativeBattlePilotVisualIdentity? NativePilotSceneIdentity(uint bank, int slot, int primitive = 0)
     {
-        if (NativeGraphics?.OriginalEffect?.Binding.Effect is not (2 or 3 or 144))
+        if (!NativeBattleSmoothPresentation.Supports(NativeGraphics?.OriginalEffect?.Binding.Effect))
         {
             return null;
         }
-        nativePilotSourceProjection = NativeCamera?.Projection;
-        nativePilotSourceCamera = NativeCamera?.CurrentPose;
         return new(0, bank, slot, 0, primitive);
     }
 

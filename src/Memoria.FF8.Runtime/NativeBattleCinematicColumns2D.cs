@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleCinematicColumns2D
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> append)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> append, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ArgumentNullException.ThrowIfNull(append);
         if (BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4)) == 0)
@@ -116,7 +116,7 @@ public static class NativeBattleCinematicColumns2D
                     Byte(0xD, 0);
                     Byte(0x31, 224);
                     Byte(0x25, 224);
-                    Emit(data, mask);
+                    Emit(data, mask, group * 64 + column, 0);
                     if ((Read(currentRecord, 1)[0] & 1) != 0)
                     {
                         data = new byte[28];
@@ -131,7 +131,7 @@ public static class NativeBattleCinematicColumns2D
                         top = unchecked((int)Dword(unchecked(currentRecord + 16))) >> 8;
                         PacketWord(0x1A, unchecked((ushort)top));
                         PacketWord(0x12, unchecked((ushort)(top - 128)));
-                        Emit(data, mask);
+                        Emit(data, mask, group * 64 + column, 1);
                     }
 
                     void Byte(int offset, byte value)
@@ -189,11 +189,17 @@ public static class NativeBattleCinematicColumns2D
             return (value & 1) != 0 ? unchecked(-magnitude) : magnitude;
         }
 
-        void Emit(byte[] data, NativeBattleGfPacketByteState[] mask)
+        void Emit(byte[] data, NativeBattleGfPacketByteState[] mask, int column, int layer)
         {
             ImmutableArray<uint> words = Enumerable.Range(0, data.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
             ImmutableArray<NativeBattleGfPacketByteState> physicalMask = mask.ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(0, words, []) { PhysicalWriteMask = physicalMask };
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 Screen(int offset) => new(BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(offset)), BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(offset + 2)), 0);
+                NativeBattlePilotVisualIdentity authored = identity with { Primitive = unchecked(identity.Primitive * 397 + column * 2 + layer) };
+                primitive = primitive with { PilotGeometry = layer == 0 ? new(authored, Screen(8), Screen(20), Screen(32), Screen(44), 4) { ScreenSpace = true } : new(authored, Screen(16), Screen(24), default, default, 2) { ScreenSpace = true } };
+            }
             frame = append(frame, output, frame.ReadTemporaryDword(0x14C), new([new(0, data.ToImmutableArray(), physicalMask, primitive)], data.Length));
             output = unchecked(output + (uint)data.Length);
         }

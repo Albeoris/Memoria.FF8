@@ -92,7 +92,7 @@ public static class NativeBattleShivaFinalShatter
         else
         {
             frame = frame with { Phase22BD010 = frame.Phase22BD010 | 2 };
-            NativeBattleShivaFinalStep drawn = RenderAnimated3D10(frame, inputs.MeshA, 0x20000, 400, counter - 32, basis, paused, 5, 24, 8, inputs);
+            NativeBattleShivaFinalStep drawn = RenderAnimated3D10(frame, inputs.MeshA, 0x20000, 400, counter - 32, basis, paused, 5, 24, 8, inputs, NativeBattlePilotVisualLifetimes.Identity(185, task));
             frame = drawn.Frame;
             common = drawn.CommonPackets;
         }
@@ -129,6 +129,7 @@ public static class NativeBattleShivaFinalShatter
                 uint color = brightness < 97 ? unchecked(0x26000000u | (uint)(brightness << 16) | (uint)(brightness << 8) | (uint)brightness) : 0x24808080u;
                 BinaryPrimitives.WriteUInt32LittleEndian(face, color | ((flags & 1) != 0 ? 0x02000000u : 0));
                 NativeBattleGfGeometryAttempt attempt = NativeBattleShivaShardPackets.EmitTriangle5C2410(face, corner => NativeBattleModuleProjection.Project45FE10(basis, vertices[corner], inputs.Projection), false, false, new(flags, 0, 0, null, null, 0, 17, checked((byte)shift)), inputs.Zsf3, inputs.Colors, allocated, inputs.ObserveDepth, inputs.ObserveDepthCue);
+                attempt = NativeBattleShivaVisualIdentity.Capture(attempt, NativeBattlePilotVisualLifetimes.Identity(185, task, unchecked((int)mesh.Address * 397 + faceOffset)), vertices, basis, inputs.Projection);
                 attempts.Add(attempt);
                 if (attempt.Primitive is not null)
                 {
@@ -142,7 +143,7 @@ public static class NativeBattleShivaFinalShatter
         }
     }
 
-    public static NativeBattleShivaFinalStep RenderAnimated3D10(NativeBattleShivaFinalFrame frame, NativeBattleStaticMeshResource mesh, int start, int count, int phase, NativeBattleActionMatrix basis, bool paused, int dampingShift, int maximumLifetime, int scaleShift, NativeBattleShivaFinalInputs inputs)
+    public static NativeBattleShivaFinalStep RenderAnimated3D10(NativeBattleShivaFinalFrame frame, NativeBattleStaticMeshResource mesh, int start, int count, int phase, NativeBattleActionMatrix basis, bool paused, int dampingShift, int maximumLifetime, int scaleShift, NativeBattleShivaFinalInputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if ((dampingShift, maximumLifetime, scaleShift) is not ((5, 24, 8) or (3, 51, 6)) || count is not (400 or 287))
         {
@@ -199,6 +200,10 @@ public static class NativeBattleShivaFinalShatter
             }
             inputs.ObserveGte?.Invoke(new(matrix, null));
             NativeBattleGfGeometryAttempt attempt = NativeBattleShivaShardPackets.EmitTriangle5C2410(face, corner => NativeBattleModuleProjection.Project45FE10(matrix, vertices[corner], inputs.Projection), false, true, new(0x33, 0, cue, null, null, 0, 17, 2), inputs.Zsf3, inputs.Colors, allocated, inputs.ObserveDepth, inputs.ObserveDepthCue);
+            if (pilotIdentity is { } identity)
+            {
+                attempt = NativeBattleShivaVisualIdentity.Capture(attempt, identity with { Primitive = unchecked((int)mesh.Address * 397 + faceOffset) }, vertices, matrix, inputs.Projection);
+            }
             attempts.Add(attempt);
             if (attempt.Primitive is not null)
             {

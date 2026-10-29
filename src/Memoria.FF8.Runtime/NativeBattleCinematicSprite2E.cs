@@ -4,13 +4,17 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicSpriteProjection(NativeBattleWaterExecutionFrame Frame, int QuarterDepth);
+public sealed record NativeBattleCinematicSpriteProjection(NativeBattleWaterExecutionFrame Frame, int QuarterDepth)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Numerics.Vector3? PilotAnchor { get; init; }
+}
 public sealed record NativeBattleCinematicSprite2EServices(Func<NativeBattleWaterExecutionFrame, NativeBattleCinematicSpriteProjection> ProjectAnchor, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append);
 
 /// <summary>The cinematic textured quad centered on the projected anchor.</summary>
 public static class NativeBattleCinematicSprite2E
 {
-    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicSprite2EServices services)
+    public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicSprite2EServices services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         uint manager = CoreDword(frame, 0x27973EC);
@@ -56,6 +60,10 @@ public static class NativeBattleCinematicSprite2E
         ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
         ImmutableArray<NativeBattleGfPacketByteState> physicalMask = mask.ToImmutableArray();
         NativeBattleGeometryPrimitive primitive = new(0, words, []) { PhysicalWriteMask = physicalMask };
+        if (pilotIdentity is { } identity && projected.PilotAnchor is { } anchor)
+        {
+            primitive = primitive with { PilotGeometry = new(identity, anchor, anchor, anchor, anchor, 4) { ScreenScale = 0.125f, ScreenOffsets = [new(-halfWidth, -halfHeight), new(halfWidth, -halfHeight), new(-halfWidth, halfHeight), new(halfWidth, halfHeight)] } };
+        }
         NativeBattleGfGeometryBatch batch = new([new(0, data.ToImmutableArray(), physicalMask, primitive)], 40);
         frame = services.Append(frame, output, ordering, batch);
         manager = CoreDword(frame, 0x27973EC);

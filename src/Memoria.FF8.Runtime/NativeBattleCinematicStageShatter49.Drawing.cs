@@ -10,7 +10,7 @@ public sealed record NativeBattleCinematicStageShatter49Services(Func<NativeBatt
 
 public static partial class NativeBattleCinematicStageShatter49
 {
-    public static NativeBattleCinematicStageShatter49Result Draw(NativeBattleWaterExecutionFrame frame, NativeBattleStageState stage, ImmutableArray<NativeBattleRawMesh> geometry, NativeBattleCinematicStageShatter49Services services)
+    public static NativeBattleCinematicStageShatter49Result Draw(NativeBattleWaterExecutionFrame frame, NativeBattleStageState stage, ImmutableArray<NativeBattleRawMesh> geometry, NativeBattleCinematicStageShatter49Services services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (stage.Groups.IsDefault || stage.Groups.Length != 4 || geometry.IsDefault)
         {
@@ -87,7 +87,7 @@ public static partial class NativeBattleCinematicStageShatter49
                 {
                     RequireRecord(records, cursor);
                     int[] indices = VertexIndices(polygon, projected.Length);
-                    NativeBattleCinematicStageShatter49Emission emitted = RenderFace(frame, cursor, polygon, indices.Select(index => projected[index]).ToImmutableArray(), camera.Matrix, camera.Projection, frame.ReadTemporaryDword(0x98));
+                    NativeBattleCinematicStageShatter49Emission emitted = RenderFace(frame, cursor, polygon, indices.Select(index => projected[index]).ToImmutableArray(), camera.Matrix, camera.Projection, frame.ReadTemporaryDword(0x98), pilotIdentity is null ? default : indices.Select(index => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(RequireBone(group, mesh.Vertices[index].Bone), mesh.Vertices[index].Position), camera.Projection)).ToImmutableArray(), pilotIdentity is { } identity ? identity with { Primitive = unchecked((int)cursor) } : null);
                     frame = services.Append(emitted.Frame, output, emitted.OrderingAddress, emitted.Packets);
                     output = unchecked(output + (uint)emitted.Packets.AllocationBytes);
                     cursor += RecordSize;

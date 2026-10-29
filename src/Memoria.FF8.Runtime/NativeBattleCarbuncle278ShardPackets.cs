@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The recipient shard leaf's raw quad stores and reverse-count ordering buckets.</summary>
 public static class NativeBattleCarbuncle278ShardPackets
 {
-    public static NativeBattleGfGeometryBatch Emit683490(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix main, NativeBattleCameraProjection projection, int tableBaseBucket)
+    public static NativeBattleGfGeometryBatch Emit683490(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix main, NativeBattleCameraProjection projection, int tableBaseBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int frame = BinaryPrimitives.ReadUInt16LittleEndian(Read(checked(10 + phase * 2), 2));
         int count = BinaryPrimitives.ReadInt32LittleEndian(Read(frame, 4));
@@ -61,6 +61,11 @@ public static class NativeBattleCarbuncle278ShardPackets
             uint opcode = quad[3] & 0xFCu;
             ImmutableArray<int> depths = opcode is < 0x20 or > 0x3C ? [0, 0, 0, 0] : (opcode & 8) != 0 ? [a.Depth, b.Depth, c.Depth, d.Depth] : [b.Depth, c.Depth, d.Depth, 0];
             NativeBattleGeometryPrimitive primitive = new(checked(tableBaseBucket + count - index), packet.Words(), depths);
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 World(int x, int y) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(current, new(unchecked((short)x), unchecked((short)y), 0)), projection);
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, World(-width, -height), World(width, -height), World(-width, height), World(width, height), 4) };
+            }
             attempts.Add(packet.Attempt(primitive));
             allocated = checked(allocated + 40);
 
