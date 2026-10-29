@@ -18,7 +18,12 @@ public sealed partial class LiveMenuCatalog
             return original;
         }
         string key = LocalizationSourceExporter.IndexedKey(resources.Source.Language, table, ordinal);
-        return resources.Localize(key, original);
+        if (!LocalizationTextTrace.Enabled)
+        {
+            return resources.Localize(key, original);
+        }
+        BoundLocalizationText resolved = resources.ResolveText(key, original);
+        return LocalizationTextTrace.Attach(resolved.Text, resolved.Binding with { Category = resolved.Binding.Category ?? "Menus", File = resolved.Binding.File ?? table });
     }
 
     private string? LocalizedKernel(string collection, string role, int ordinal, string? original) => LocalizedTable(LocalizationSourceExporter.KernelTable(collection, role), ordinal, original);

@@ -30,10 +30,6 @@ public static class LocalizationCompositeFormatValidation
         }
         try
         {
-            if (target.Length > MaximumProbeCharacters)
-            {
-                throw new FormatException("The System format exceeds the supported validation length.");
-            }
             format = CompositeFormat.Parse(source);
             return true;
         }
@@ -48,6 +44,10 @@ public static class LocalizationCompositeFormatValidation
     {
         try
         {
+            if (target.Length > MaximumProbeCharacters)
+            {
+                throw new FormatException("The System format exceeds the supported validation length.");
+            }
             Dictionary<(int Index, string Format), int> required = Read(source);
             Dictionary<(int Index, string Format), int> translated = Read(CompositeFormat.Parse(target));
             if (required.Count != translated.Count || required.Any(pair => translated.GetValueOrDefault(pair.Key) != pair.Value))

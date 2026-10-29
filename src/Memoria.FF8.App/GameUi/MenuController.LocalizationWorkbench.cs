@@ -4,6 +4,7 @@ public sealed partial class MenuController
 {
     public Func<IReadOnlyList<string>>? ReadNativeFontProfiles { get; set; }
     private Action<string>? localizationWorkbenchAction;
+    public bool LocalizationWorkbenchAvailable => localizationWorkbenchAction is not null;
     public void ConnectLocalizationWorkbench(Func<IReadOnlyList<MenuEntry>> entries, Action<string> action)
     {
         localizationWorkbenchAction = action;

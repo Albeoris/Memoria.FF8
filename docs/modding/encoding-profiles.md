@@ -24,7 +24,7 @@ The **Sample** tab uses the same `NativeFontLayout` glyph runs and metrics as th
   "lineHeight": 12,
   "logicalWidth": 320,
   "logicalHeight": 240,
-  "domains": [{ "edition": "my-edition", "resourceFamily": "field", "dictionaryLanguage": "en" }],
+  "domains": [{ "edition": "Classic", "resourceFamily": "Fields", "dictionaryLanguage": "en" }],
   "atlases": [
     { "id": "latin", "path": "fonts/latin.png", "width": 256, "height": 256 },
     { "id": "cyrillic", "path": "fonts/cyrillic.png", "width": 256, "height": 256 },
@@ -49,7 +49,7 @@ The **Sample** tab uses the same `NativeFontLayout` glyph runs and metrics as th
   "reservedPrefixes": ["01"],
   "dependencies": [],
   "assignments": [
-    { "role": "Target", "dataset": "ru", "profileId": "my-stable-profile-id", "context": { "edition": "my-edition", "resourceFamily": "field", "dictionaryLanguage": "en" } }
+    { "role": "Target", "dataset": "ru", "profileId": "my-stable-profile-id", "context": { "edition": "Classic", "resourceFamily": "Fields", "dictionaryLanguage": "en" } }
   ]
 }
 ```
@@ -78,7 +78,7 @@ Run from a built localization CLI:
 
 ```text
 Memoria.FF8.Localization encoding validate --input profile.json
-Memoria.FF8.Localization encoding validate --input profile.json --text "AЯ日" --edition my-edition --resource field --dictionary en
+Memoria.FF8.Localization encoding validate --input profile.json --text "AЯ日" --edition Classic --resource Fields --dictionary en
 Memoria.FF8.Localization encoding export --input profile.json --output MyMod --name Mixed
 ```
 

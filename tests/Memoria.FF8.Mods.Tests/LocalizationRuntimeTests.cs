@@ -102,9 +102,14 @@ public sealed class LocalizationRuntimeTests : IDisposable
     {
         LocalizationRecord original = Row("$en_sample_0000", "Перевод");
         ModPackage first = Package("first", original);
-        ModPackage second = Package("second", original with { Source = "changed reference" });
         LocalizationPreparation a = LocalizationRuntime.Prepare(new(1, [first], []), [first.Id], Source, TestContext.Current.CancellationToken);
-        LocalizationPreparation b = LocalizationRuntime.Prepare(new(1, [second], []), [second.Id], Source, TestContext.Current.CancellationToken);
+        LocalizationManifest manifest = LocalizationProjectIO.Read(first.RootDirectory).Manifest;
+        string payload = Path.Combine(first.RootDirectory, manifest.Payloads.Single().Path);
+        var document = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(payload))!;
+        string sourceColumn = manifest.SchemaVersion == 1 ? manifest.SourceColumn : manifest.ReferenceLanguages.Single(pair => pair.Value == manifest.SourceLanguage).Key;
+        document[original.Category]![original.File]![original.Key]![sourceColumn] = "changed reference";
+        File.WriteAllText(payload, document.ToJsonString());
+        LocalizationPreparation b = LocalizationRuntime.Prepare(new(2, [first], []), [first.Id], Source, TestContext.Current.CancellationToken);
         Assert.Equal(a.Catalog.Fingerprint, b.Catalog.Fingerprint);
     }
 

@@ -6,6 +6,7 @@ using Microsoft.Xna.Framework;
 
 namespace Memoria.FF8.App.Tests;
 
+[Collection("Localization tracing")]
 public sealed class LocalizationControlExpansionSpanTests
 {
     [Theory]
@@ -21,7 +22,7 @@ public sealed class LocalizationControlExpansionSpanTests
             string rendered = document.Text;
             Assert.Equal(expandedPrefix + "Same", rendered);
             LocalizationTextBinding binding = LocalizationTextTrace.Find(rendered)!;
-            LocalizationTextFragment child = Assert.Single(binding.Fragments.Where(fragment => fragment.Binding.Key == "child"));
+            LocalizationTextFragment child = Assert.Single(binding.Fragments, fragment => fragment.Binding.Key == "child");
             Assert.Equal(expandedPrefix.Length, child.Start);
             Assert.Equal(4, child.Length);
             Assert.Equal("Same", rendered.Substring(child.Start, child.Length));
@@ -59,9 +60,9 @@ public sealed class LocalizationControlExpansionSpanTests
             string encoded = LocalizationTextComposition.Concat(Bound("prefix", "{Key Cross} "), Bound("child", "Same"));
             string expanded = DialogueTextFormatter.ExpandButtonBindings(encoded, _ => "Long Key");
             Assert.Equal("Long Key Same", expanded);
-            Assert.Equal(9, Assert.Single(LocalizationTextTrace.Find(expanded)!.Fragments.Where(fragment => fragment.Binding.Key == "child")).Start);
+            Assert.Equal(9, Assert.Single(LocalizationTextTrace.Find(expanded)!.Fragments, fragment => fragment.Binding.Key == "child").Start);
             string prompts = DialogueTextFormatter.FormatWithPrompts(encoded, buttonBindingHint: _ => "Long Key");
-            LocalizationTextFragment child = Assert.Single(LocalizationTextTrace.Find(prompts)!.Fragments.Where(fragment => fragment.Binding.Key == "child"));
+            LocalizationTextFragment child = Assert.Single(LocalizationTextTrace.Find(prompts)!.Fragments, fragment => fragment.Binding.Key == "child");
             Assert.Equal("Same", prompts.Substring(child.Start, child.Length));
             Assert.Equal("Long Key Same", ButtonPromptText.PlainText(prompts));
         });

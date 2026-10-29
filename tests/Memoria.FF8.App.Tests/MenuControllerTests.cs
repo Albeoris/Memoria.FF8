@@ -20,7 +20,7 @@ public sealed class MenuControllerTests
             Assert.NotNull(controller.BuildView());
             foreach (var entry in controller.Entries)
             {
-                if (entry.Destination != null)
+                if (entry.Enabled && entry.Destination != null)
                 {
                     Assert.Contains(entry.Destination, ids);
                 }
@@ -173,7 +173,7 @@ public sealed class MenuControllerTests
     public void NewScreensAppearInMainAndGalleryWithoutControllerChanges()
     {
         var controller = new MenuController();
-        controller.Register(new MenuScreenDefinition { Id = "extension", Title = "Extension", Help = "Test extension", MainCommand = true, Entries = _ => [] });
+        controller.Register(new MenuScreenDefinition { Id = "extension", Title = "Extension", Help = "Test extension", MainCommand = true, GalleryEligible = true, Entries = _ => [] });
         controller.Open("main", demo: true);
         Assert.Contains(controller.Entries, e => e.Id == "extension");
         controller.Open("debug-gallery", demo: true);

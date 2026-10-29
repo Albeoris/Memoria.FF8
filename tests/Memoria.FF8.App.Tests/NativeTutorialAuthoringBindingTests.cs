@@ -5,6 +5,7 @@ using Memoria.FF8.Ui;
 namespace Memoria.FF8.App.Tests;
 
 [CollectionDefinition("Tutorial authoring bindings", DisableParallelization = true)]
+[Collection("Localization tracing")]
 public sealed class NativeTutorialAuthoringBindingCollection
 {
 }

@@ -5,6 +5,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
+[Collection("Localization tracing")]
 public sealed class LocalizationSpecialTextBindingTests
 {
     [Fact]

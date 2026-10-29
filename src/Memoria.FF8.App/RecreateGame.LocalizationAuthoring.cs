@@ -270,11 +270,11 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private void StartAuthoringSelection(ModPackage package, bool enableWhenReady = true)
+    private void StartAuthoringSelection(ModPackage package, bool? enableWhenReady = null)
     {
         authoringOperation++;
         authoringSelectionOperation = authoringOperation;
-        authoringSelectionEnableWhenReady = enableWhenReady;
+        authoringSelectionEnableWhenReady = enableWhenReady ?? localizationWorkbench.Enabled;
         authoringRowTask = null;
         var descriptor = resourceHost!.Resources.Source;
         ModCatalogSnapshot candidate = resourceHost.Mods.Catalog;
@@ -321,7 +321,7 @@ internal sealed partial class RecreateGame
         {
             authoringSelection = selected with { Inputs = null };
         }
-        LocalizationTextTrace.Enabled = false;
+        LocalizationTextTrace.Enabled = NativeGameFonts;
         authoringHits.Clear();
         authoringCandidates = null;
         PublishAuthoringPreview();

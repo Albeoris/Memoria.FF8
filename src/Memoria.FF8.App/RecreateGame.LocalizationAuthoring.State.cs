@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Localization.Authoring;
-using Memoria.FF8.Localization.Authoring;
 using Microsoft.Xna.Framework;
 
 namespace Memoria.FF8;

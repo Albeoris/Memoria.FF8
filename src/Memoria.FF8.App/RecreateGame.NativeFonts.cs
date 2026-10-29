@@ -21,6 +21,7 @@ internal sealed partial class RecreateGame
         {
             return;
         }
+        Memoria.FF8.Resources.Localization.LocalizationTextTrace.Enabled = NativeGameFonts || localizationWorkbench.Enabled;
         if (NativeGameFonts || localizationWorkbench.Enabled)
         {
             nativeTextFont ??= new(GraphicsDevice);
