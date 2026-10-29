@@ -83,7 +83,7 @@ public static class NativeFontLayout
             x += image.Advance;
             width = Math.Max(width, Math.Max(x, x - image.Advance + image.BearingX + image.Width));
             height = Math.Max(height, y + image.BearingY + image.Height);
-            if (x - image.Advance + image.BearingX < 0 || y + image.BearingY < 0 || x > maximumWidth || x - image.Advance + image.BearingX + image.Width > maximumWidth || y + Math.Max(profile.LineHeight, image.BearingY + image.Height) > maximumHeight)
+            if (x - image.Advance + image.BearingX < 0 || y + image.BearingY < 0 || x > maximumWidth || x - image.Advance + image.BearingX + image.Width > maximumWidth || y + image.BearingY + image.Height > maximumHeight)
             {
                 diagnostics.Add(new("overflow", "Native text exceeds the selected logical window; it was not shrunk, wrapped or substituted.", position, length));
             }

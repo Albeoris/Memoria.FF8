@@ -10,6 +10,24 @@ public sealed class NativeInstalledFontProfileTests(ITestOutputHelper output)
     private static readonly NativeTextContext Context = new("Classic", "Fields", DictionaryLanguage: "en");
 
     [Fact]
+    public void OverflowUsesPaintedRectanglesWhileLineLeadingStillAdvancesTheNextLine()
+    {
+        NativeFontProfile profile = Create(Enumerable.Repeat((byte)7, 200).ToArray(), 256, 128);
+        NativeFontLayoutResult single = NativeFontLayout.Layout(profile, "A", Context, maximumHeight: 12);
+        Assert.True(single.Success);
+        Assert.Equal(16, single.Height);
+        Assert.Contains(NativeFontLayout.Layout(profile, "A", Context, maximumHeight: 11).Diagnostics, issue => issue.Code == "overflow" && issue.Position == 0);
+        NativeFontLayoutResult multiple = NativeFontLayout.Layout(profile, "A{Line}A", Context, maximumHeight: 28);
+        Assert.True(multiple.Success);
+        Assert.Equal(16, multiple.Glyphs[1].Y);
+        Assert.Equal(32, multiple.Height);
+        Assert.Contains(NativeFontLayout.Layout(profile, "A{Line}A", Context, maximumHeight: 27).Diagnostics, issue => issue.Code == "overflow" && issue.Position == 7);
+        NativeFontProfile bearing = profile with { Images = profile.Images.Select(image => image with { BearingY = 2 }).ToArray() };
+        Assert.True(NativeFontLayout.Layout(bearing, "A", Context, maximumHeight: 14).Success);
+        Assert.Contains(NativeFontLayout.Layout(bearing, "A", Context, maximumHeight: 13).Diagnostics, issue => issue.Code == "overflow");
+    }
+
+    [Fact]
     public void DeclaredMetricsBoundTheUsableFontWithoutRejectingItsSupportedGlyphs()
     {
         byte[] widths = Enumerable.Range(0, 200).Select(index => (byte)(index % 11)).ToArray();
@@ -56,6 +74,10 @@ public sealed class NativeInstalledFontProfileTests(ITestOutputHelper output)
         Assert.Empty(NativeFontProfileValidation.Validate(profile));
         Assert.NotEmpty(profile.Images);
         Assert.True(NativeFontLayout.Layout(profile, "Final Fantasy VIII", context).Success);
+        Assert.True(NativeFontLayout.Layout(profile, "Squall", context, maximumHeight: 12).Success);
+        Assert.True(NativeFontLayout.Layout(profile, "Lv 7", context, maximumHeight: 12).Success);
+        Assert.True(NativeFontLayout.Layout(profile, "PLAY 00:42", context, maximumHeight: 12).Success);
+        Assert.Contains(NativeFontLayout.Layout(profile, "Squall", context, maximumHeight: 11).Diagnostics, issue => issue.Code == "overflow");
         Assert.All(profile.Images, image => Assert.True(image.Index < TdwFile.Read(tdw).Widths.Length && image.X + image.Width <= atlas.Width && image.Y + image.Height <= atlas.Height));
     }
 
