@@ -139,7 +139,7 @@ public static partial class NativeBattleEffect68Lower
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleCuragaMatrices.Identity8DD770(), 1024, 1024, 1024) with { X = S(task, 0x1C), Y = S(task, 0x1E), Z = S(task, 0x20) };
         frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(matrix, 0));
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(task.ReadDword(0x4C))).Write(4, BitConverter.GetBytes(task.ReadWord(0x50))).Write(0x24, BitConverter.GetBytes((ushort)0));
-        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), 0, 17, 2);
+        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), 0, 17, 2, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(68, task) with { ResourceGeneration = task.ReadDword(0x4C) });
         frame = frame with { Memory = drawn.Memory };
         frame = PublishContext(frame, temporary, drawn.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect68DrawBatch(drawn.Batch, Cursor));

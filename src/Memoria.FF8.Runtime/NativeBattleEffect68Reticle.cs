@@ -24,16 +24,16 @@ public static partial class NativeBattleEffect68Lower
 
     internal static (NativeBattleEffect68Frame Frame, NativeBattleScanReticlePoint? Point) Ring(NativeBattleEffect68Frame frame, NativeBattleModulePoolTask task, short radius, short angle, short count, NativeBattleEffect68Inputs inputs)
     {
-        NativeBattleScanReticleRing ring = NativeBattleScanReticleLines.Ring84D6D0(S(task, 0x1C), S(task, 0x1E), radius, angle, count);
+        NativeBattleScanReticleRing ring = NativeBattleScanReticleLines.Ring84D6D0(S(task, 0x1C), S(task, 0x1E), radius, angle, count, NativeBattlePilotVisualLifetimes.Identity(68, task));
         return (DrawLines(frame, ring.Packets, inputs), ring.FinalPoint);
     }
 
-    internal static NativeBattleEffect68Frame Line(NativeBattleEffect68Frame frame, NativeBattleScanReticlePoint first, NativeBattleScanReticlePoint second, NativeBattleEffect68Inputs inputs)
+    internal static NativeBattleEffect68Frame Line(NativeBattleEffect68Frame frame, NativeBattleScanReticlePoint first, NativeBattleScanReticlePoint second, NativeBattleEffect68Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return DrawLines(frame, new([new(NativeBattleScanReticleLines.Line84E290(first, second), 0, 0)], 16), inputs);
+        return DrawLines(frame, new([new(NativeBattleScanReticleLines.Line84E290(first, second, pilotIdentity), 0, 0)], 16), inputs);
     }
 
-    public static NativeBattleModulePacketBatch RecordLines(NativeBattleModulePoolTask task, ReadOnlySpan<byte> records)
+    public static NativeBattleModulePacketBatch RecordLines(NativeBattleModulePoolTask task, ReadOnlySpan<byte> records, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<NativeBattleAllocatedPrimitive>.Builder lines = ImmutableArray.CreateBuilder<NativeBattleAllocatedPrimitive>();
         for (int offset = 0; offset <= records.Length - 2; offset += 16)
@@ -54,6 +54,10 @@ public static partial class NativeBattleEffect68Lower
             short y2 = unchecked((short)(S(task, 0x1E) + BinaryPrimitives.ReadInt16LittleEndian(record.Slice(10)) * scale / 4096 + 108));
             uint color = 0x40000000u | record[12] | (uint)record[13] << 8 | (uint)record[14] << 16;
             NativeBattleGeometryPrimitive primitive = new(5, [0x03000000, color, (uint)(ushort)x1 | (uint)(ushort)y1 << 16, (uint)(ushort)x2 | (uint)(ushort)y2 << 16], [0, 0, 0, 0]);
+            if (pilotIdentity is { } identity)
+            {
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + offset / 16) }, new(x1, y1, 0), new(x2, y2, 0), default, default, 2) { ScreenSpace = true } };
+            }
             lines.Add(new(primitive, lines.Count * 16, 0));
         }
         throw new NotSupportedException("Effect68 line records require their actual terminating WORD.");
@@ -93,7 +97,7 @@ public static partial class NativeBattleEffect68Lower
             }
             frame = Ring(frame, Read(frame, address), 8, 0, 32, inputs).Frame;
             task = Read(frame, address);
-            frame = DrawLines(frame, NativeBattleScanReticleLines.FourLines84E1F0(S(task, 0x1C), S(task, 0x1E)), inputs);
+            frame = DrawLines(frame, NativeBattleScanReticleLines.FourLines84E1F0(S(task, 0x1C), S(task, 0x1E), NativeBattlePilotVisualLifetimes.Identity(68, task, 100)), inputs);
             task = Read(frame, address);
             task = phase == 0 ? Next(task) : task.WriteWord(0x66, 8);
         }
@@ -105,7 +109,7 @@ public static partial class NativeBattleEffect68Lower
             {
                 frame = Ring(frame, task, S(task, 0x66), 0, 32, inputs).Frame;
                 task = Read(frame, address);
-                frame = DrawLines(frame, NativeBattleScanReticleLines.FourLines84E1F0(S(task, 0x1C), S(task, 0x1E)), inputs);
+                frame = DrawLines(frame, NativeBattleScanReticleLines.FourLines84E1F0(S(task, 0x1C), S(task, 0x1E), NativeBattlePilotVisualLifetimes.Identity(68, task, 100)), inputs);
                 task = Read(frame, address);
             }
             else
@@ -168,7 +172,7 @@ public static partial class NativeBattleEffect68Lower
                 }
             }
             frame = Write(frame, address, task);
-            frame = DrawLines(frame, RecordLines(task, resources.ReadStatic(task.ReadDword(0x50), 34)), inputs);
+            frame = DrawLines(frame, RecordLines(task, resources.ReadStatic(task.ReadDword(0x50), 34), NativeBattlePilotVisualLifetimes.Identity(68, task) with { ResourceGeneration = task.ReadDword(0x50) }), inputs);
             task = Read(frame, address);
             if (bracket && phase == 1)
             {
@@ -212,7 +216,7 @@ public static partial class NativeBattleEffect68Lower
         {
             NativeBattleScanReticlePoint first = output ?? throw new NotSupportedException("Effect68 annotation requires its reached ring endpoint.");
             NativeBattleScanReticlePoint second = new(unchecked((short)(first.X + 24)), unchecked((short)(first.Y + 24)));
-            frame = Line(frame, first, second, inputs);
+            frame = Line(frame, first, second, inputs, NativeBattlePilotVisualLifetimes.Identity(68, task, 100));
             if (phase == 2)
             {
                 (frame, _) = Child(frame, 0x25FFA90, 0x7DD650, 0x58, address, inputs);
@@ -220,7 +224,7 @@ public static partial class NativeBattleEffect68Lower
             }
             else
             {
-                frame = Line(frame, second, new(unchecked((short)(second.X + 88)), second.Y), inputs);
+                frame = Line(frame, second, new(unchecked((short)(second.X + 88)), second.Y), inputs, NativeBattlePilotVisualLifetimes.Identity(68, Read(frame, address), 101));
                 if (W(frame, Highlight) == 0)
                 {
                     frame = Write(frame, address, Done(Read(frame, address)));

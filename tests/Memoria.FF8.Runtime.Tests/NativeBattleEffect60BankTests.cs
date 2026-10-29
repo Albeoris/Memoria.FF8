@@ -49,6 +49,31 @@ public sealed class NativeBattleEffect60BankTests
         Assert.Equal(0x7F1A30u, secondary.Callback(0x87E1A0));
     }
 
+    [Fact]
+    public void Generic_presentation_task_owners_keep_both_native_source_banks_and_callbacks_distinct()
+    {
+        NativeBattleCureFamilyPool descriptor = NativeBattleEffect60Profile.Pools[3];
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor.Descriptor, descriptor.Bank, descriptor.Stride, descriptor.Capacity);
+        (pool, int firstSlot) = pool.Append(NativeBattleEffect60Profile.GenericPrimaryCallback);
+        (pool, int secondSlot) = pool.Append(NativeBattleEffect60Profile.GenericSecondaryCallback);
+        pool = pool.WriteSlot(firstSlot, pool.Slots[firstSlot].WriteDword(0x30, 0x1797CC0));
+        pool = pool.WriteSlot(secondSlot, pool.Slots[secondSlot].WriteDword(0x30, 0x179C998));
+        NativeBattleOriginalEffectState effect = new(60, 59, new(60, NativeBattleEffect60Profile.Entry, NativeBattleEffect60Profile.Initializer), null, null) { Pools = [pool] };
+        NativeBattleCuragaFrame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(0, 0, 0, 0, null));
+        NativeBattleEffectHierarchy hierarchy = new(effect.Pools);
+        NativeBattleCuragaFamilyProfile primary = NativeBattleCuragaFamilyProfile.ForGenericTask(frame, hierarchy.Address(0, firstSlot));
+        NativeBattleCuragaFamilyProfile secondary = NativeBattleCuragaFamilyProfile.ForGenericTask(frame, hierarchy.Address(0, secondSlot));
+        Assert.Equal(0x1797CC0u, primary.ExecutableAddress);
+        Assert.Equal(0x179C998u, secondary.ExecutableAddress);
+        Assert.Equal(pool.Slots[firstSlot].Callback, primary.Callback(0x87E1A0));
+        Assert.Equal(pool.Slots[secondSlot].Callback, secondary.Callback(0x87E1A0));
+        NativeBattlePilotVisualIdentity first = NativeBattlePilotVisualLifetimes.Identity(60, pool.Slots[firstSlot]);
+        NativeBattlePilotVisualIdentity second = NativeBattlePilotVisualLifetimes.Identity(60, pool.Slots[secondSlot]);
+        Assert.Equal(first.Bank, second.Bank);
+        Assert.NotEqual(first.Slot, second.Slot);
+        Assert.NotEqual(first.Generation, second.Generation);
+    }
+
     private static NativeBattleCuragaExecutableSource Source(NativeBattleCuragaFamilyProfile profile, int node)
     {
         byte[] bytes = new byte[profile.ExecutableLength];

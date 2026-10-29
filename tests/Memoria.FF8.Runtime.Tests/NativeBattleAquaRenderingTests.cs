@@ -130,10 +130,16 @@ public sealed class NativeBattleAquaRenderingTests
 
     private static NativeBattleActionMatrix Identity => NativeBattleCuragaMatrices.Identity8DD770();
     private static NativeBattleCameraProjection Projection => new(Identity, 256, 160, 108);
-    private static NativeBattleModulePoolTask Task() => new(1, 0, null, 1, new byte[328].ToImmutableArray());
-    private static NativeBattleModulePoolTask SpriteTask(short depth) => Task().WriteDword(0x4C, 0x15A38DC).WriteWord(0x20, unchecked((ushort)depth)).WriteWord(0x56, 0xFFF0);
+    internal static NativeBattleModulePoolTask Task()
+    {
+        NativeBattleCureFamilyPool descriptor = NativeBattleAquaProfile.ForEffect(55).Pools[3];
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor.Descriptor, descriptor.Bank, descriptor.Stride, descriptor.Capacity);
+        (pool, int slot) = pool.Append(0x809250);
+        return pool.Slots[slot];
+    }
+    internal static NativeBattleModulePoolTask SpriteTask(short depth) => Task().WriteDword(0x4C, 0x15A38DC).WriteWord(0x20, unchecked((ushort)depth)).WriteWord(0x56, 0xFFF0);
 
-    private static NativeBattleAquaResources Resources()
+    internal static NativeBattleAquaResources Resources()
     {
         byte[] bytes = new byte[40];
         bytes[4] = 1;

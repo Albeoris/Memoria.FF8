@@ -42,14 +42,15 @@ public static partial class NativeBattleEffect68Lower
         (frame, uint temporary) = Allocate(frame, 88);
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(task.ReadDword(0x4C))).Write(8, BitConverter.GetBytes(task.ReadDword(0x40))).Write(12, BitConverter.GetBytes((int)S(task, 0x50))).Write(0x1C, BitConverter.GetBytes(0xF0u));
         NativeBattleStaticMeshResource mesh = resources.ReadCurrentMesh(frame.Memory, task.ReadDword(0x4C));
-        NativeBattleStaticMeshContext88Step drawn = spinner ? DrawSpinner(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors) : NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors);
+        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(68, task) with { ResourceGeneration = mesh.Address };
+        NativeBattleStaticMeshContext88Step drawn = spinner ? DrawSpinner(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, identity) : NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, pilotIdentity: identity);
         frame = frame with { Memory = drawn.Memory };
         frame = PublishContext(frame, temporary, drawn.Context, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect68DrawBatch(drawn.Batch, Cursor));
         return Release(frame, 88);
     }
 
-    public static NativeBattleStaticMeshContext88Step DrawSpinner(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants)
+    public static NativeBattleStaticMeshContext88Step DrawSpinner(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (mesh.Address != 0x15934CC || mesh.Bytes.Length != 136 || BinaryPrimitives.ReadInt32LittleEndian(context.Read(0x1C, 4)) != 0xF0)
         {
@@ -77,6 +78,8 @@ public static partial class NativeBattleEffect68Lower
             }
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
+                NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
                 byte[] face = mesh.Bytes.AsSpan().Slice(cursor, 24).ToArray();
                 for (int corner = 0; corner < 3; corner++)
                 {
@@ -113,6 +116,10 @@ public static partial class NativeBattleEffect68Lower
                     context = CWord(context, 0x2C, registers.Geometry.Otz!.Value);
                     registers = registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, BinaryPrimitives.ReadUInt32LittleEndian(face), unchecked((uint)fade), far, constants).Registers };
                     attempt = attempt with { Primitive = primitive with { Bucket = unchecked(17 + ((int)registers.Geometry.Otz.Value >> 2)) } };
+                    if (pilotIdentity is { } identity && world is not null)
+                    {
+                        attempt = attempt with { Primitive = attempt.Primitive! with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + faceIndex) }, world[0], world[1], world[2], world[3], 4) } };
+                    }
                     allocated += 44;
                 }
                 attempts.Add(attempt);
@@ -122,7 +129,12 @@ public static partial class NativeBattleEffect68Lower
                 (NativeBattleVector Vertex, short W) Vertex(int corner)
                 {
                     int offset = 8 + BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)) * 4;
-                    return (new(BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(offset)), BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(offset + 2)), BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(offset + 4))), BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(offset + 6)));
+                    NativeBattleVector vertex = new(BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(offset)), BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(offset + 2)), BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(offset + 4)));
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, vertex), projection);
+                    }
+                    return (vertex, BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(offset + 6)));
                 }
             }
         }

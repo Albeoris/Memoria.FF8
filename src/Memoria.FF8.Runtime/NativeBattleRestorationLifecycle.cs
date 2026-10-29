@@ -20,7 +20,7 @@ public static class NativeBattleRestorationLifecycle
         using NativeBattleEffectNodeBank bank = new(memory.Profile.ExecutableAddress, nodeSource);
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, readModel, AllocateEmitter, AllocateGeometry);
         NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
-        NativeBattlePilotVisualIdentity? identity = memory.Profile.Effect == 24 ? NativeBattlePilotVisualLifetimes.Identity(24, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)) : null;
+        NativeBattlePilotVisualIdentity? identity = memory.Profile.Effect is 24 or 67 ? NativeBattlePilotVisualLifetimes.Identity(memory.Profile.Effect, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)) : null;
         NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh, pilotIdentity: identity, preparePilotMesh: identity.HasValue ? PreparePilotMesh : null);
         NativeBattleRestorationFrame result = memory.Flush();
         bank.Publish();

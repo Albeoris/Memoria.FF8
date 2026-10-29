@@ -86,7 +86,7 @@ public static class NativeBattleDrain39Nodes
                 ushort geometryCursor = frame.State.GeometryCursor ?? throw new NotSupportedException("Native Drain geometry scan WORD is unknown.");
                 NativeBattleEffectNodeInputs callbacks = new((frame.Memory.SharedEffectView2793E58 ?? throw new NotSupportedException("The siphon nodes require their actual packed shared view.")).ReadMatrix(), inputs.ReadModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, first, 40, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, second, 140, ref geometryCursor, emitter, source));
                 NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, callbacks);
-                NativeBattlePilotVisualIdentity? pilotIdentity = profile.Effect == 39 ? NativeBattlePilotVisualLifetimes.Identity(39, task) : null;
+                NativeBattlePilotVisualIdentity? pilotIdentity = profile.Effect is 39 or 56 ? NativeBattlePilotVisualLifetimes.Identity(profile.Effect, task) : null;
                 NativeBattleEffectNodePreparePilotMesh? preparePilotMesh = pilotIdentity.HasValue ? (node, source) => NativeBattleEffect88MeshPreparation.PreparePilot(memory, node, source, projection, colors) : null;
                 _ = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, (node, source) => NativeBattleEffect88MeshPreparation.Prepare(memory, node, source, projection, colors), (_, batch) =>
                 {

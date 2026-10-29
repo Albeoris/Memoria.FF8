@@ -24,7 +24,7 @@ public static class NativeBattleActMeshRendering
 
     public static bool Visible(NativeBattleGfAnimationNode node) => node.Vector24 is not { X: 0, Y: 0, Z: 0 } && (node.Scalar36 < 4096 || node.Color32 != 0);
 
-    public static NativeBattleActMeshDraw DrawNode(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActMeshContext root, NativeBattleEffectArena temporary, NativeBattleEffectArena morph, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, NativeBattleCameraProjection projection, short dqa, int dqb, short? zsf3, short? zsf4, NativeBattleSummonColors constants, NativeBattleActMeshRules rules)
+    public static NativeBattleActMeshDraw DrawNode(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActMeshContext root, NativeBattleEffectArena temporary, NativeBattleEffectArena morph, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, NativeBattleCameraProjection projection, short dqa, int dqb, short? zsf3, short? zsf4, NativeBattleSummonColors constants, NativeBattleActMeshRules rules, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!Visible(node))
         {
@@ -130,7 +130,7 @@ public static class NativeBattleActMeshRendering
         // The packet decoder owns this bounded geometry record, independently of the live ACT source.
         ImmutableArray<byte> mesh = ImmutableCollectionsMarshal.AsImmutableArray(resource.ReadBytes(geometry, checked(end - geometry)));
         NativeBattleEffectArena currentMorph = morph;
-        NativeBattleActorWaveMeshStep drawn = NativeBattleActorWaveMesh.EmitBatch(mesh, shapeAddress, matrix, projection, temporary, registers, farControls, dqa, dqb, zsf4, constants, null, zsf3, selectedVerticesAddress: selectedAddress, readSelectedVertex: ReadVertex);
+        NativeBattleActorWaveMeshStep drawn = NativeBattleActorWaveMesh.EmitBatch(mesh, shapeAddress, matrix, projection, temporary, registers, farControls, dqa, dqb, zsf4, constants, null, zsf3, selectedVerticesAddress: selectedAddress, readSelectedVertex: ReadVertex, pilotIdentity: pilotIdentity);
         return new(drawn.Batch, drawn.Context104, morph, drawn.Registers, drawn.FarControls);
 
         (NativeBattleVector Vertex, short? W) ReadVertex(int offset)

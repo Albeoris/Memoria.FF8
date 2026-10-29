@@ -7,8 +7,8 @@ public static class NativeBattleEffect60Rendering
     public static NativeBattleActMeshContext PrepareAct(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera) => NativeBattleActMeshRendering.PrepareAct(task, camera);
     public static bool Visible(NativeBattleGfAnimationNode node) => NativeBattleActMeshRendering.Visible(node);
 
-    public static NativeBattleActMeshDraw DrawNode(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActMeshContext root, NativeBattleEffectArena temporary, NativeBattleEffectArena morph, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, NativeBattleCameraProjection projection, short dqa, int dqb, short? zsf3, short? zsf4, NativeBattleSummonColors constants)
+    public static NativeBattleActMeshDraw DrawNode(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActMeshContext root, NativeBattleEffectArena temporary, NativeBattleEffectArena morph, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, NativeBattleCameraProjection projection, short dqa, int dqb, short? zsf3, short? zsf4, NativeBattleSummonColors constants, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return NativeBattleActMeshRendering.DrawNode(source, node, root, temporary, morph, registers, farControls, projection, dqa, dqb, zsf3, zsf4, constants, Rules);
+        return NativeBattleActMeshRendering.DrawNode(source, node, root, temporary, morph, registers, farControls, projection, dqa, dqb, zsf3, zsf4, constants, Rules, pilotIdentity);
     }
 }
