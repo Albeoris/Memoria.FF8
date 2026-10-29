@@ -26,6 +26,7 @@ public static class NativeBattleWaterSlots
     public static NativeBattleEffectArena InitializeB65160(NativeBattleEffectArena arena, NativeBattleWaterSlotBank bank, int index, ushort commandTickC, ushort commandTickE, ushort headerWord1C)
     {
         SlotAccess slot = new(arena, bank, index);
+        NativeBattleCinematicVisualIdentity.Allocated(arena, bank, index);
         slot.Arena = slot.Arena.Write(slot.Offset + 4, new byte[0xFC]);
         slot.Byte(0x92, 0x20);
         slot.Dword(0x18, 0x03000000);

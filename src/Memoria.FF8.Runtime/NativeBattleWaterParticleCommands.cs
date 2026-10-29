@@ -91,6 +91,7 @@ public static class NativeBattleWaterParticleCommands
                     throw new NotSupportedException("Native particle ring division requires its actual nonzero record count.");
                 }
                 uint target = unchecked(ownerBank + 0x10 + (uint)(0x50 * (cursor % capacity)));
+                NativeBattlePilotVisualLifetimes.Allocated(frame.Arena, ownerBank, cursor % capacity);
                 frame = WriteWord(frame, unchecked(ownerBank + 8), frame.Arena.Read(ArenaOffset(owner + 0x18, 1), 1)[0]);
                 frame = WriteWord(frame, target, 1);
                 frame = WriteWord(frame, unchecked(target + 2), 0);
