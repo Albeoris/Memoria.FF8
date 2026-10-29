@@ -57,7 +57,6 @@ internal sealed class PlayerSaveMenu
     public bool IsTransferring => transferSource is not null;
     public int? TransferSource => transferSource?.Slot;
     public Func<int, bool>? BeforeBankChange { get; set; }
-    public Func<bool>? RequiresMemoriaFormat { get; set; }
     private string? message;
     private Func<string?>? systemMessage;
     public string? Message
@@ -135,11 +134,6 @@ internal sealed class PlayerSaveMenu
         confirmRequested = false;
         cancelRequested = false;
         Bank = IsQuick ? 0 : rememberedBanks.GetValueOrDefault(mode);
-        if (IsSaving && RequiresMemoriaFormat?.Invoke() == true)
-        {
-            Bank = 0;
-            SetSystemMessage(() => MagicUiText.Get(SystemText("save.open.memoriadestination", "MemoriaDestination")));
-        }
         Page = 0;
         RefreshEntries();
         if (IsQuick)
@@ -177,12 +171,6 @@ internal sealed class PlayerSaveMenu
         if (bank < 0 || bank >= PlayerSaveStore.BankCount)
         {
             throw new ArgumentOutOfRangeException(nameof(bank));
-        }
-        if (IsSaving && !IsTransferring && bank != 0 && RequiresMemoriaFormat?.Invoke() == true)
-        {
-            SetSystemMessage(() => MagicUiText.Get(SystemText("save.selectbank.memoriadestination", "MemoriaDestination")));
-            SoundRequested?.Invoke(MenuSound.Cancel);
-            return false;
         }
         if (IsTransferring && (bank == 0) == (PlayerSaveStore.GetBank(TransferSource!.Value) == 0))
         {
@@ -345,13 +333,6 @@ internal sealed class PlayerSaveMenu
         {
             SetSystemMessage(() => SystemText("save.update.no.quick.saves", "No quick saves."));
             SoundRequested?.Invoke(MenuSound.Cancel);
-            return;
-        }
-        if (IsSaving && !IsTransferring && Bank != 0 && RequiresMemoriaFormat?.Invoke() == true)
-        {
-            ChangeBank(0);
-            ConfirmOverwrite = false;
-            SetSystemMessage(() => MagicUiText.Get(SystemText("save.update.memoriadestination", "MemoriaDestination")));
             return;
         }
         PlayerSaveEntry entry = Entries[Selection];

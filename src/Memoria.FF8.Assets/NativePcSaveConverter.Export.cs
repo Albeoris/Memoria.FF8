@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Runtime;
@@ -38,18 +39,11 @@ public static partial class NativePcSaveConverter
         {
             throw new NotSupportedException("Original FF8 export requires a reviewed GF conversion to discard disabled passive ability preferences.");
         }
-        if (state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState)
-        {
-            throw new NotSupportedException("Chocobo World provider choices and acquisition history require a Memoria save; native FFVIII exports cannot retain them.");
-        }
         if (state.Scene == SceneKind.Title || state.CharacterVitals is null || state.Economy is null)
         {
             throw new NotSupportedException("Original PC export requires an active game with initialized characters and inventory.");
         }
-        if (state.CharacterVitals.MagicSystem.RequiresMemoriaFormat || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.PendingGameplayPreferences is not null)
-        {
-            throw new NotSupportedException("This game contains gameplay rules or usage history that original FF8 saves cannot preserve. Choose a Memoria save slot.");
-        }
+        state = ProjectNativeGameplay(state);
         byte[] block = state.OriginalSave?.Block.ToArray() ?? CreateDefaultBlock();
         void W(int offset, ushort value) => WriteWord(block, Main + offset, value);
         void D(int offset, uint value) => WriteDWord(block, Main + offset, value);
@@ -59,9 +53,13 @@ public static partial class NativePcSaveConverter
         void EventCopy(int address, IEnumerable<byte> bytes) => bytes.ToArray().CopyTo(block, Event + address);
         foreach ((int address, NativeMemoryValue cell) in state.EventMemory.Cells)
         {
-            if (address >= 1536 || address + cell.Width > 1536 || !cell.Value.IsExact)
+            if (address >= 1536 || address + cell.Width > 1536 || address is >= 1024 and < 1408)
             {
                 continue;
+            }
+            if (!cell.Value.IsExact)
+            {
+                throw new NotSupportedException("Original FF8 export requires exact persistent event memory values.");
             }
             for (int index = 0; index < cell.Width; index++)
             {
@@ -309,6 +307,20 @@ public static partial class NativePcSaveConverter
         return block;
     }
 
+    private static bool HasUnallocatedOriginalField(GameState state)
+    {
+        if (state.Scene != SceneKind.Field || state.EventState is not null || state.NativeFieldLocation is not null || state.FieldLoadContext is not { Origin: NativeFieldLoadOrigin.OriginalSave } context || context.FieldId != state.FieldId)
+        {
+            return false;
+        }
+        if (state.OriginalSave is not { } original || BinaryPrimitives.ReadUInt16LittleEndian(original.Block.AsSpan(Main + 3314)) != state.FieldId)
+        {
+            return false;
+        }
+        FieldTransition savedArrival = new(state.FieldId, BinaryPrimitives.ReadInt16LittleEndian(original.Block.AsSpan(Main + 3318)), BinaryPrimitives.ReadInt16LittleEndian(original.Block.AsSpan(Main + 3324)), BinaryPrimitives.ReadUInt16LittleEndian(original.Block.AsSpan(Main + 3330)), original.Block[Main + 3336]);
+        return state.FieldArrival == savedArrival;
+    }
+
     private static void ExportLocation(byte[] block, GameState state)
     {
         JsonElement? scene = state.EventState is { } snapshot && snapshot.TryGetProperty("Scene", out JsonElement savedScene) ? savedScene : null;
@@ -328,19 +340,20 @@ public static partial class NativePcSaveConverter
                 block[Main + 3283 + id / 8] |= (byte)(1 << (id & 7));
             }
         }
-        byte[] party = scene is { } current && current.TryGetProperty("Party", out JsonElement values) && values.GetArrayLength() >= 3 ? values.EnumerateArray().Take(3).Select(value => unchecked((byte)value.GetInt32())).ToArray() : state.OriginalSave?.FieldParty ?? state.CharacterVitals?.CombatParty.Select(row => row == 255 ? (byte)255 : state.CharacterVitals.Records[row].CharacterId).ToArray() ?? [0, 255, 255];
+        bool originalAllocation = HasUnallocatedOriginalField(state);
+        byte[] party = scene is { } current && current.TryGetProperty("Party", out JsonElement values) && values.GetArrayLength() >= 3 ? values.EnumerateArray().Take(3).Select(value => unchecked((byte)value.GetInt32())).ToArray() : originalAllocation ? state.OriginalSave!.FieldParty : state.CharacterVitals?.CombatParty.Select(row => row == 255 ? (byte)255 : state.CharacterVitals.Records[row].CharacterId).ToArray() ?? state.OriginalSave?.FieldParty ?? [0, 255, 255];
         party.CopyTo(block, Main + 3304);
         block[Main + 3307] = 255;
         int fieldId = state.Scene == SceneKind.Field ? state.FieldId : state.NativeFieldLocation?.FieldId ?? state.FieldArrival?.FieldId ?? state.FieldId;
         if (fieldId < 72 || fieldId > ushort.MaxValue)
         {
-            fieldId = 74;
+            throw new NotSupportedException("Original FF8 export requires a valid saved field location.");
         }
         WriteWord(block, Main + 3312, state.Scene == SceneKind.WorldMap ? (ushort)2 : (ushort)1);
         WriteWord(block, Main + 3314, (ushort)fieldId);
         WriteWord(block, Main + 3316, unchecked((ushort)(state.PreviousFieldId ?? fieldId)));
         WriteWord(block, Event + 84, unchecked((ushort)(state.PreviousFieldId ?? fieldId)));
-        bool anyPose = false;
+        bool leaderPose = false;
         for (int slot = 0; slot < 3; slot++)
         {
             NativeFieldLocationPose? pose = null;
@@ -354,25 +367,36 @@ public static partial class NativePcSaveConverter
                 }
             }
             pose ??= state.NativeFieldLocation?.FieldId == fieldId ? state.NativeFieldLocation.Slots[slot].Pose : null;
+            if (pose is null && originalAllocation)
+            {
+                byte[] savedBlock = state.OriginalSave!.Block;
+                pose = new NativeFieldLocationPose(BinaryPrimitives.ReadInt16LittleEndian(savedBlock.AsSpan(Main + 3318 + 2 * slot)), BinaryPrimitives.ReadInt16LittleEndian(savedBlock.AsSpan(Main + 3324 + 2 * slot)), BinaryPrimitives.ReadUInt16LittleEndian(savedBlock.AsSpan(Main + 3330 + 2 * slot)), savedBlock[Main + 3336 + slot]);
+            }
             if (pose is null && slot == 0 && state.FieldArrival is { } arrival && arrival.FieldId == fieldId)
             {
                 pose = new NativeFieldLocationPose(unchecked((short)(int)Math.Floor(arrival.X)), unchecked((short)(int)Math.Floor(arrival.Y)), unchecked((ushort)arrival.Triangle), unchecked((byte)arrival.Direction));
             }
             if (pose is null)
             {
+                if (state.Scene != SceneKind.WorldMap && party[slot] != 255)
+                {
+                    throw new NotSupportedException("Original FF8 export requires a current field pose for every present party member.");
+                }
+                block.AsSpan(Main + 3318 + 2 * slot, 2).Clear();
+                block.AsSpan(Main + 3324 + 2 * slot, 2).Clear();
+                block.AsSpan(Main + 3330 + 2 * slot, 2).Clear();
+                block[Main + 3336 + slot] = 0;
                 continue;
             }
-            anyPose = true;
+            leaderPose |= slot == 0;
             WriteWord(block, Main + 3318 + 2 * slot, unchecked((ushort)pose.X));
             WriteWord(block, Main + 3324 + 2 * slot, unchecked((ushort)pose.Y));
             WriteWord(block, Main + 3330 + 2 * slot, pose.Triangle);
             block[Main + 3336 + slot] = pose.Direction;
         }
-        if (!anyPose && state.OriginalSave is null && state.Scene != SceneKind.WorldMap)
+        if (!leaderPose && state.Scene != SceneKind.WorldMap)
         {
-            WriteWord(block, Main + 3314, 74);
-            WriteWord(block, Main + 3316, 74);
-            WriteWord(block, Event + 84, 74);
+            throw new NotSupportedException("Original FF8 export requires a current field leader pose.");
         }
         if (scene is { } source)
         {
@@ -402,6 +426,10 @@ public static partial class NativePcSaveConverter
                     block[Event + offset] = number;
                 }
             }
+            if (source.TryGetProperty("WorldMusicSelection", out JsonElement selection) && selection.ValueKind == JsonValueKind.Object && selection.TryGetProperty("Music", out JsonElement music) && music.TryGetByte(out byte musicId))
+            {
+                block[Event + 268] = musicId;
+            }
             if (source.TryGetProperty("PlaceId", out JsonElement place) && place.TryGetUInt16(out ushort placeId))
             {
                 WriteWord(block, 388, placeId);
@@ -417,6 +445,13 @@ public static partial class NativePcSaveConverter
             WriteDWord(block, World + offset + 4, unchecked((uint)pose.RawZ));
             WriteWord(block, World + offset + 8, unchecked((ushort)pose.Height));
             WriteWord(block, World + offset + 10, pose.Yaw);
+        }
+        void Auxiliary(ushort camera, byte entity, byte animation, byte map)
+        {
+            WriteWord(block, World + 96, camera);
+            block[World + 105] = entity;
+            block[World + 108] = animation;
+            block[World + 110] = map == 3 ? (byte)0 : map;
         }
         if (state.SavedWorld is { } saved)
         {
@@ -440,6 +475,32 @@ public static partial class NativePcSaveConverter
                 block[World + 108] = foot.AnimationVariant108 ?? 0;
                 block[World + 110] = foot.MapDisplayMode110 ?? 0;
             }
+            if (saved.GardenReturn is { } gardenReturn)
+            {
+                Pose(36, gardenReturn.Pose3);
+                WriteWord(block, World + 96, gardenReturn.CameraYaw96);
+                block[World + 105] = gardenReturn.EntityType105;
+                block[World + 108] = gardenReturn.AnimationVariant108;
+                block[World + 110] = gardenReturn.MapDisplayMode110;
+            }
+            if (saved.RagnarokReturn is { } ragnarokReturn)
+            {
+                Pose(24, ragnarokReturn.Pose2);
+                WriteWord(block, World + 96, ragnarokReturn.CameraYaw96);
+                block[World + 105] = 50;
+                block[World + 108] = ragnarokReturn.AnimationVariant108;
+                block[World + 110] = ragnarokReturn.MapDisplayMode110;
+            }
+            if (saved.CarReturn is { } carReturn)
+            {
+                Pose(48, carReturn.Pose);
+                Auxiliary(carReturn.CameraYaw96, carReturn.EntityType105, carReturn.AnimationVariant108, carReturn.MapDisplayMode110);
+            }
+            if (saved.ScriptedReturn is { } scriptedReturn)
+            {
+                Pose(0, scriptedReturn.Pose0);
+                Auxiliary(scriptedReturn.CameraYaw96, scriptedReturn.EntityType105, scriptedReturn.AnimationVariant108, scriptedReturn.MapDisplayMode110);
+            }
             WriteDWord(block, World + 112, saved.FuelDistance112 ?? 0);
             System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(block.AsSpan(World + 116), saved.WorldEventFlags116?.Value ?? 0);
             block[World + 124] = saved.WorldEventVariable124 ?? 0;
@@ -447,13 +508,27 @@ public static partial class NativePcSaveConverter
         }
         if (state.Scene == SceneKind.WorldMap && state.World is { } world)
         {
-            byte entity = world.NativeGardenRuntime is not null ? (byte)48 : world.NativeRagnarokRuntime is not null ? (byte)50 : world.NativeFootRuntime?.EntityType ?? 0;
-            int offset = entity == 48 ? 36 : entity == 50 ? 24 : 0;
-            Pose(offset, new NativeSavedWorldPose(world.X, world.Z, unchecked((short)world.NativeHeight), unchecked((ushort)world.BodyYaw)));
-            WriteWord(block, World + 96, unchecked((ushort)world.CameraYaw));
-            block[World + 105] = entity;
-            block[World + 108] = world.NativeFootRuntime?.AnimationVariant ?? world.NativeGardenRuntime?.AnimationVariant ?? 0;
-            block[World + 110] = world.NativeFootRuntime?.MapDisplayMode ?? world.NativeGardenRuntime?.MapDisplayMode ?? 0;
+            if (world.NativeTrainRuntime is not null)
+            {
+                throw new NotSupportedException("Original FF8 export requires a stable field or supported world transport save boundary.");
+            }
+            if (world.NativeScriptedRuntime is { } scripted)
+            {
+                NativeSavedWorldScriptedReturn endpoint = scripted.Return ?? throw new NotSupportedException("Original FF8 export requires the scripted world's completed native save boundary.");
+                Pose(0, endpoint.Pose0);
+                Auxiliary(endpoint.CameraYaw96, endpoint.EntityType105, endpoint.AnimationVariant108, endpoint.MapDisplayMode110);
+            }
+            else
+            {
+                byte entity = world.NativeGardenRuntime is not null ? (byte)48 : world.NativeRagnarokRuntime is not null ? (byte)50 : world.NativeCarRuntime?.EntityType ?? world.NativeFootRuntime?.EntityType ?? 0;
+                int offset = entity == 48 ? 36 : entity == 50 ? 24 : world.NativeCarRuntime is not null ? 48 : 0;
+                Pose(offset, new NativeSavedWorldPose(world.X, world.Z, checked((short)world.NativeHeight), checked((ushort)world.BodyYaw)));
+                if (world.NativeCarRuntime is not null)
+                {
+                    block[World + 98] = NativeCarWorldRuntimeState.ShapeForEntity(entity);
+                }
+                Auxiliary(checked((ushort)world.CameraYaw), entity, world.NativeFootRuntime?.AnimationVariant ?? world.NativeGardenRuntime?.AnimationVariant ?? world.NativeRagnarokRuntime?.AnimationVariant ?? world.NativeCarRuntime?.AnimationVariant ?? 0, world.NativeFootRuntime?.MapDisplayMode ?? world.NativeGardenRuntime?.MapDisplayMode ?? world.NativeRagnarokRuntime?.MapDisplayMode ?? world.NativeCarRuntime?.MapDisplayMode ?? 0);
+            }
         }
         block[World + 106] = 255;
         block[World + 107] = 255;

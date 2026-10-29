@@ -14,10 +14,6 @@ internal sealed partial class RecreateGame
 
     private async Task<NativeCharacterVitals> ReviewOriginalGuardianForceExportAsync(GameState snapshot)
     {
-        if (PlayerSaveStore.RequiresMemoriaFormat(snapshot, allowGuardianForceProjection: true))
-        {
-            throw new NotSupportedException("This game's gameplay rules require a Memoria save slot.");
-        }
         using GameAssets assets = new(options.GameDirectory, resources: resourceHost?.Resources);
         NativeCharacterVitals targetSource = assets.ReadNewGameCharacterVitals();
         NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(snapshot, targetSource);

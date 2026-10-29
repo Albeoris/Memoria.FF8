@@ -84,7 +84,6 @@ internal sealed partial class RecreateGame : Game
         }, originalDirectory: ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState);
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.BeforeBankChange = EnsurePlayerSaveBank;
-        saveMenu.RequiresMemoriaFormat = () => PlayerSaveStore.RequiresMemoriaFormat(this.session.State, allowGuardianForceProjection: true);
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
         if (options.SettingsDirectory is null)
         {

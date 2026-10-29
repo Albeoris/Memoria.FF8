@@ -196,16 +196,15 @@ public sealed class MagicSystemInterfaceTests
     }
 
     [Fact]
-    public void FeatureBearingSavesOfferMemoriaSlotsAndPreserveOriginalBankSelectionForLoads()
+    public void FeatureBearingSavesOfferOriginalBanksForLossyExport()
     {
         string directory = Path.Combine(Path.GetTempPath(), "magic-save-routing-" + Guid.NewGuid().ToString("N"));
         PlayerSaveStore store = new(Path.Combine(directory, "checkpoint.json"), directory);
-        PlayerSaveMenu menu = new(store) { RequiresMemoriaFormat = () => true };
+        PlayerSaveMenu menu = new(store);
         menu.Open(PlayerSaveMenuMode.Save);
         Assert.Equal(0, menu.Bank);
-        Assert.Contains("Memoria", menu.Message!);
-        Assert.False(menu.SelectBank(1));
-        Assert.Equal(0, menu.Bank);
+        Assert.True(menu.SelectBank(1));
+        Assert.Equal(1, menu.Bank);
         Assert.False(Directory.Exists(directory));
         menu.Open(PlayerSaveMenuMode.Load);
         Assert.True(menu.SelectBank(1));

@@ -49,10 +49,6 @@ internal static class SaveTransferCommand
         else
         {
             GameState state = GameSession.Load(options.SourcePath);
-            if (PlayerSaveStore.RequiresMemoriaFormat(state))
-            {
-                throw new NotSupportedException("This game contains gameplay rules or acquisition history that require a Memoria save.");
-            }
             byte[] original = NativePcSaveConverter.Export(state);
             WriteNewOutput(options.OutputPath, temporary => File.WriteAllBytes(temporary, original));
             Console.WriteLine($"Exported original PC save to {options.OutputPath}");

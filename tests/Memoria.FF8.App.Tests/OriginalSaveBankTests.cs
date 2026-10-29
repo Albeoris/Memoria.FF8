@@ -119,7 +119,7 @@ public sealed class OriginalSaveBankTests : IDisposable
     }
 
     [Fact]
-    public void ReviewedGuardianForceExportPreservesActiveStateAndCannotBypassOtherBlockers()
+    public void ReviewedGuardianForceExportPreservesActiveStateAndDiscardsGameplayRules()
     {
         PlayerSaveStore store = CreateStore();
         GameState state = Defaults();
@@ -146,11 +146,19 @@ public sealed class OriginalSaveBankTests : IDisposable
         Assert.Equal(fullSave, File.ReadAllBytes(store.GetPath(1)));
         Assert.True(store.Load(102).CharacterVitals!.GuardianForces[0].LearnedBank.Has(22));
         Assert.False(store.Load(102).CharacterVitals!.GuardianForces[0].LearnedBank.Has(23));
-        byte[] reviewed = File.ReadAllBytes(store.GetPath(101));
-        GameState unsupported = expanded with { GameplayPreferences = new() { GuardianFormsEnabled = true } };
-        Assert.True(PlayerSaveStore.RequiresMemoriaFormat(unsupported, allowGuardianForceProjection: true));
-        Assert.Throws<NotSupportedException>(() => store.Save(101, new GameSession(unsupported), targetSource: source, allowGuardianForceLoss: true));
-        Assert.Equal(reviewed, File.ReadAllBytes(store.GetPath(101)));
+        GameState configured = expanded with { CharacterVitals = expanded.CharacterVitals! with { MagicSystem = new MagicSystemState { SmartAttack = true } }, GameplayPreferences = new() { GuardianFormsEnabled = true, SmartAttack = true, CardModOnce = true, Difficulty = BattleDifficulty.Hard }, RefinedCardIds = [82] };
+        GameSession configuredSession = new(configured);
+        Assert.True(PlayerSaveStore.RequiresMemoriaFormat(configured, allowGuardianForceProjection: true));
+        store.Save(1, configuredSession);
+        byte[] configuredBytes = File.ReadAllBytes(store.GetPath(1));
+        store.Transfer(1, 101, targetSource: source, allowGuardianForceLoss: true);
+        GameState native = store.Load(101);
+        Assert.False(native.GameplayPreferences.GuardianFormsEnabled);
+        Assert.False(native.GameplayPreferences.SmartAttack);
+        Assert.Empty(native.RefinedCardIds);
+        Assert.Equal(BattleDifficulty.Normal, native.GameplayPreferences.Difficulty);
+        Assert.Equal(configuredBytes, File.ReadAllBytes(store.GetPath(1)));
+        Assert.True(configuredSession.State.GameplayPreferences.GuardianFormsEnabled);
         Assert.False(File.Exists(store.GetPath(101) + ".tmp"));
     }
 

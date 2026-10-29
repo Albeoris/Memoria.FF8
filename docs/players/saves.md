@@ -4,7 +4,7 @@ Memoria saves its current state as a standalone snapshot. Player saves use a com
 
 Older snapshot schemas are migrated automatically in memory before loading; the source file stays unchanged. Saving afterward writes the current schema. Migration runs only forward. A save from a newer application requires an application update. If historical data is insufficient to recover a required running state, loading reports the migration boundary instead of resetting that state.
 
-Difficulty is stored in each Memoria save and standalone battle snapshot. Saves without a difficulty setting load as **Normal**. **Hard** and **Hardcore** require a Memoria destination because original FF8 save files cannot retain this choice.
+Difficulty is stored in each Memoria save and standalone battle snapshot. Saves without a difficulty setting load as **Normal**. **Hard** and **Hardcore** are retained by Memoria saves. Exporting to an original bank discards the difficulty choice; the exported copy uses the original game's rules.
 
 ## Player saves
 
@@ -31,7 +31,7 @@ The original banks read and write `slot1_save01.ff8` through `slot1_save30.ff8` 
 
 In either the Load or Save menu, select an occupied slot and click **Copy to original** or **Copy to Memoria**, or press **Card / detail** (default **S**, Xbox **X**, PlayStation **Square**). The menu switches to the other save format. Select the destination bank and slot, then Confirm. An occupied destination requires a second confirmation. Cancel backs out of overwrite confirmation, then cancels the transfer and returns to the source. The source is preserved. Saving a running game directly into an original bank and loading from either format also use these bank tabs.
 
-Original saves initialize unsupported or absent Memoria state with defaults. Export retains supported persistent progress and uses defaults for properties the original format cannot represent. Exact movie, battle or event processing cannot transfer. Original banks operate on local files; Steam cloud synchronization is managed by Steam and the original game.
+Original saves initialize unsupported or absent Memoria state with defaults. Export retains supported persistent progress and discards Memoria gameplay rules, tuning, pending settings and feature usage histories. Shared magic is moved into native personal banks, preserving Junction ownership and stock quantities within the original limit of 32 spells per character. Export fails if the stock cannot fit or casts are still reserved. GF configuration changes require review of their conversion losses. The source snapshot and running session retain their full configuration. Exact movie, battle or event processing cannot transfer. Original banks operate on local files; Steam cloud synchronization is managed by Steam and the original game.
 
 The command-line converters remain available. Run these commands from an extracted release directory:
 

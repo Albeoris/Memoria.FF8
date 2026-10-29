@@ -5,13 +5,13 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
 
-public sealed class NativePcSaveConverterTests
+public sealed partial class NativePcSaveConverterTests
 {
     [Theory]
     [InlineData(true, false, 0u)]
     [InlineData(false, true, 0u)]
     [InlineData(false, false, 1u)]
-    public void Original_export_rejects_weapon_rules_and_retained_history(bool magazine, bool order, uint history)
+    public void Original_export_discards_weapon_rules_and_retained_history(bool magazine, bool order, uint history)
     {
         GameState source = Defaults();
         source = source with
@@ -19,15 +19,15 @@ public sealed class NativePcSaveConverterTests
             GameplayPreferences = new() { WeaponMagazineRequired = magazine, WeaponUpgradeOrder = order },
             WeaponRecipes = new NativeWeaponRecipes(source.CharacterVitals!.InitOutSha256, 0) { ObtainedWeaponsBits = history }
         };
-        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
+        Assert.NotEmpty(NativePcSaveConverter.Export(source));
     }
 
     [Fact]
-    public void Original_export_rejects_magazine_history_when_rule_is_disabled()
+    public void Original_export_discards_magazine_history_when_rule_is_disabled()
     {
         GameState source = Defaults();
         source = source with { WeaponRecipes = new(source.CharacterVitals!.InitOutSha256, 2) { MagazineRecipeBits = 2 } };
-        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
+        Assert.NotEmpty(NativePcSaveConverter.Export(source));
     }
 
     [Fact]
@@ -52,18 +52,17 @@ public sealed class NativePcSaveConverterTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Original_export_rejects_card_history_even_when_mode_is_off(bool enabled)
+    public void Original_export_discards_card_history_even_when_mode_is_off(bool enabled)
     {
         GameState source = Defaults() with { GameplayPreferences = new() { CardModOnce = enabled }, RefinedCardIds = [82] };
-        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
-        Assert.Contains("Choose a Memoria save slot", exception.Message);
+        Assert.NotEmpty(NativePcSaveConverter.Export(source));
     }
 
     [Fact]
-    public void Original_export_rejects_enabled_card_mode_without_history()
+    public void Original_export_discards_enabled_card_mode_without_history()
     {
         GameState source = Defaults() with { GameplayPreferences = new() { CardModOnce = true } };
-        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
+        Assert.NotEmpty(NativePcSaveConverter.Export(source));
     }
 
     [Fact]
@@ -77,10 +76,10 @@ public sealed class NativePcSaveConverterTests
     }
 
     [Fact]
-    public void Original_export_rejects_draw_rule_instead_of_losing_it()
+    public void Original_export_discards_draw_rule()
     {
         GameState source = Defaults() with { GameplayPreferences = new GameplayPreferences { DrawOncePerSpell = true } };
-        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
+        Assert.NotEmpty(NativePcSaveConverter.Export(source));
     }
 
     [Fact]
@@ -93,11 +92,10 @@ public sealed class NativePcSaveConverterTests
     }
 
     [Fact]
-    public void Original_export_rejects_guardian_forms_preference_instead_of_losing_it()
+    public void Original_export_discards_guardian_forms_preference()
     {
         GameState source = Defaults() with { GameplayPreferences = new GameplayPreferences { GuardianFormsEnabled = true } };
-        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
-        Assert.Contains("Choose a Memoria save slot", exception.Message);
+        Assert.NotEmpty(NativePcSaveConverter.Export(source));
     }
 
     [Fact]
@@ -376,7 +374,7 @@ public sealed class NativePcSaveConverterTests
     }
 
     [Fact]
-    public void LegacyGuardianForceProjectionReviewsDefaultOnlyEditAndKeepsOtherFeatureBlockers()
+    public void LegacyGuardianForceProjectionReviewsDefaultOnlyEditAlongsideGameplayPreferences()
     {
         GameState state = Defaults();
         NativeCharacterVitals source = state.CharacterVitals!;
@@ -386,7 +384,7 @@ public sealed class NativePcSaveConverterTests
         GameState active = state with { CharacterVitals = edited, GameplayPreferences = new() { GuardianFormsEnabled = true } };
         NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(active, source);
         Assert.Contains(plan.Losses, loss => loss.Kind == "Configuration");
-        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active, source, true));
+        Assert.NotEmpty(NativePcSaveConverter.Export(active, source, true));
         Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active with { GameplayPreferences = new() }));
     }
 
@@ -405,6 +403,83 @@ public sealed class NativePcSaveConverterTests
         Assert.True(gf.LearnedBank.Has(2));
         Assert.False(gf.LearnedBank.Has(3));
         Assert.Equal((byte)1, gf.Learning);
+    }
+
+    [Fact]
+    public void Original_export_distributes_extended_shared_stock_without_mutating_the_session()
+    {
+        GameState source = Defaults();
+        NativeCharacterVitals vitals = source.CharacterVitals!.DeepCopy();
+        vitals.Records[0] = vitals.Records[0] with { MagicInventory = Enumerable.Range(1, 32).Select(spell => new NativeMagicStock((byte)spell, 77)).ToArray() };
+        vitals = vitals with { MagicSystem = new() { SharedMagicStock = true, RecordZeroExtension = Enumerable.Range(33, 24).Select(spell => new NativeMagicStock((byte)spell, 61)).ToArray() } };
+        source = source with { CharacterVitals = vitals, GameplayPreferences = new() { SharedMagicStock = true, InfiniteMagic = true, SmartAttack = true }, PendingGameplayPreferences = new() { DrawOncePerSpell = true } };
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), _ => "fixture", "en");
+        NativeMagicStock[] stocks = imported.CharacterVitals!.Records.SelectMany(record => record.MagicInventory).Where(stock => stock.SpellId != 0).OrderBy(stock => stock.SpellId).ToArray();
+        Assert.Equal(56, stocks.Length);
+        Assert.Equal(Enumerable.Range(1, 56).Select(spell => new NativeMagicStock((byte)spell, spell <= 32 ? (byte)77 : (byte)61)), stocks);
+        Assert.False(imported.CharacterVitals.MagicSystem.RequiresMemoriaFormat);
+        Assert.True(source.CharacterVitals.MagicSystem.SharedMagicStock);
+        Assert.Equal(24, source.CharacterVitals.MagicSystem.RecordZeroExtension.Length);
+        Assert.Equal((byte)77, source.CharacterVitals.Records[0].MagicInventory[31].Count);
+        Assert.NotNull(source.PendingGameplayPreferences);
+    }
+
+    [Fact]
+    public void Original_export_moves_shared_junction_stock_to_its_native_owner()
+    {
+        GameState source = Defaults();
+        NativeCharacterVitals vitals = source.CharacterVitals!.DeepCopy();
+        vitals.GuardianForces[0] = vitals.GuardianForces[0] with { LearnedBank = new(2, 0) };
+        byte[] junctions = new byte[20];
+        junctions[0] = 1;
+        vitals.Records[1] = vitals.Records[1] with { Junction = new(1, 0, 0, junctions) };
+        vitals.Records[0].MagicInventory[0] = new(1, 83);
+        vitals = vitals with { MagicSystem = new() { SharedMagicStock = true } };
+        source = source with { CharacterVitals = vitals };
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), _ => "fixture", "en");
+        Assert.Equal(83, imported.CharacterVitals!.GetMagicCount(1, 1));
+        Assert.Equal(0, imported.CharacterVitals.GetMagicCount(0, 1));
+        Assert.Equal((byte)1, imported.CharacterVitals.Records[1].Junction.MagicJunctions[0]);
+        Assert.Equal(83, source.CharacterVitals!.GetMagicCount(0, 1));
+    }
+
+    [Fact]
+    public void Original_export_discards_chocobo_history_and_preserves_awarded_items()
+    {
+        GameState source = Defaults();
+        source.Economy!.Items[0] = new(100, 1);
+        source = source with { GameplayPreferences = new() { ChocoboWorldMode = ChocoboWorldMode.Memoria }, ChocoboRewards = new() { AcquiredUniqueRewardIds = ["ribbon"] } };
+        GameState imported = NativePcSaveConverter.Import(NativePcSaveConverter.Export(source), Defaults(), _ => "fixture", "en");
+        Assert.Equal(new NativeItemStock(100, 1), imported.Economy!.Items[0]);
+        Assert.False(imported.ChocoboRewards.HasState);
+        Assert.True(source.ChocoboRewards.HasState);
+    }
+
+    [Fact]
+    public void Original_export_rejects_extended_stock_that_exceeds_native_capacity()
+    {
+        GameState source = Defaults();
+        NativeCharacterVitals vitals = source.CharacterVitals!.DeepCopy();
+        for (int row = 0; row < 8; row++)
+        {
+            vitals.Records[row] = vitals.Records[row] with { MagicInventory = Enumerable.Range(1, 32).Select(spell => new NativeMagicStock((byte)spell, 100)).ToArray() };
+        }
+        vitals = vitals with { MagicSystem = new() { RecordZeroExtension = [new(33, 1)] } };
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source with { CharacterVitals = vitals }));
+        Assert.Single(vitals.MagicSystem.RecordZeroExtension);
+    }
+
+    [Fact]
+    public void Original_export_rejects_pending_casts_and_invalid_positive_stock()
+    {
+        GameState source = Defaults();
+        NativeCharacterVitals vitals = source.CharacterVitals!.DeepCopy();
+        vitals.Records[0].MagicInventory[0] = new(1, 101);
+        vitals = vitals with { MagicSystem = new() { SmartAttack = true } };
+        Assert.Throws<InvalidDataException>(() => NativePcSaveConverter.Export(source with { CharacterVitals = vitals }));
+        vitals.Records[0].MagicInventory[0] = new(1, 100);
+        vitals = vitals with { MagicSystem = vitals.MagicSystem with { Reservations = [new("cast", 0, 0, 1, MagicCastContext.Field, 1, 0)] } };
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source with { CharacterVitals = vitals }));
     }
 
     private static GameState Defaults()

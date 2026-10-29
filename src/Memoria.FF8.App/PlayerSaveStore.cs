@@ -163,10 +163,6 @@ internal sealed partial class PlayerSaveStore
             if (slot > MemoriaSlotCount)
             {
                 GameState snapshot = session.PrepareSnapshot();
-                if (RequiresMemoriaFormat(snapshot, allowGuardianForceProjection: true))
-                {
-                    throw new NotSupportedException("This game's gameplay rules require a Memoria save slot.");
-                }
                 if (allowGuardianForceLoss && targetSource is null)
                 {
                     throw new InvalidOperationException("Reviewed GF conversion requires the target game's source definitions.");

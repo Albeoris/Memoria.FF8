@@ -85,6 +85,54 @@ public sealed class OriginalSaveBankIntegrationTests
         }
     }
 
+    [Fact]
+    public void Memoria_fixture_exports_native_progress_and_continues_without_modifying_source()
+    {
+        string? fixture = Environment.GetEnvironmentVariable("MEMORIA_FF8_MEMORIA_SAVE_FIXTURE");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(fixture) && File.Exists(fixture), "Set MEMORIA_FF8_MEMORIA_SAVE_FIXTURE to test a Memoria save conversion.");
+        string gameDirectory = TestResources.GameDirectory;
+        string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-memoria-export-" + Guid.NewGuid().ToString("N"));
+        byte[] originalSource = File.ReadAllBytes(fixture!);
+        try
+        {
+            GameState source = GameSession.Load(fixture!);
+            using GameAssets assets = new(gameDirectory);
+            NativeCharacterVitals target = assets.ReadNewGameCharacterVitals();
+            string originals = Path.Combine(directory, "originals");
+            Directory.CreateDirectory(originals);
+            PlayerSaveStore store = new(Path.Combine(directory, "checkpoint.json"), Path.Combine(directory, "memoria"), originalDirectory: originals, loadOriginal: path => OriginalPlayerSaveLoader.Load(path, gameDirectory, assets));
+            store.Save(1, new GameSession(source));
+            store.Transfer(1, 101, targetSource: target, allowGuardianForceLoss: true);
+            GameState imported = store.Load(101);
+            Assert.Equal(source.Scene, imported.Scene);
+            Assert.Equal(source.Economy!.Gil, imported.Economy!.Gil);
+            Assert.Equal(source.Playtime!.Seconds, imported.Playtime!.Seconds);
+            Assert.Equal(source.CharacterVitals!.CombatParty, imported.CharacterVitals!.CombatParty);
+            Assert.False(imported.CharacterVitals.MagicSystem.RequiresMemoriaFormat);
+            Assert.Equal(BattleDifficulty.Normal, imported.GameplayPreferences.Difficulty);
+            GameSession resumed = new(imported);
+            using MovieClock clock = new(resumed, gameDirectory);
+            using GameWorld world = new(resumed, gameDirectory, clock, sharedAssets: assets);
+            world.EnsureField();
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1)).Accepted);
+            Assert.Null(world.Events.LastFault);
+            Assert.Equal(originalSource, File.ReadAllBytes(fixture!));
+            string? proofDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_EXPORT_PROOF_DIRECTORY");
+            if (!string.IsNullOrWhiteSpace(proofDirectory))
+            {
+                Directory.CreateDirectory(proofDirectory);
+                File.Copy(store.GetPath(101), Path.Combine(proofDirectory, "exported.ff8"), overwrite: false);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
     private static void UnexpectedAction(int slot)
     {
         Assert.Fail("Copy must use the selected saved snapshot.");
