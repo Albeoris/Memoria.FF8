@@ -7,6 +7,7 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private bool authoringControlPointerPressed;
+    private bool authoringControlPointerOwned;
     private bool authoringControlConfirmHeld;
     private bool authoringControlCancelHeld;
 
@@ -105,6 +106,7 @@ internal sealed partial class RecreateGame
             }
             bool clicked = command.Pressed && !authoringControlPointerPressed;
             bool released = !command.Pressed && authoringControlPointerPressed;
+            bool gestureOwned = authoringControlPointerOwned;
             bool owned = PointerAuthoringCandidates(x, y, clicked);
             if (!owned && (localizationWorkbench.OwnsPointer(x, y) || localizationWorkbench.IsEditing || authoringControlPointerPressed))
             {
@@ -115,8 +117,17 @@ internal sealed partial class RecreateGame
                 localizationWorkbench.BlurJournal();
                 owned = PickAuthoringText(x, y);
             }
+            if (clicked)
+            {
+                authoringControlPointerOwned = owned;
+                gestureOwned |= owned;
+            }
+            if (released)
+            {
+                authoringControlPointerOwned = false;
+            }
             authoringControlPointerPressed = command.Pressed;
-            if (owned || explicitAuthoring || localizationWorkbench.IsEditing)
+            if (owned || gestureOwned || explicitAuthoring || localizationWorkbench.IsEditing)
             {
                 return true;
             }
