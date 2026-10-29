@@ -13,6 +13,7 @@ public sealed partial class BattleSession
         public int Magnitude { get; set; }
         public bool Finalized { get; set; }
         public bool PrimaryCommitted { get; set; }
+        public bool DiagnosticPreliminary { get; init; }
         public (int Before, int After)? DiagnosticHp { get; set; }
         public BattleDiagnosticCounterPrimary? DiagnosticPrimary { get; set; }
         public (ushort Saved, uint Battle)? PrimaryStatusSnapshot { get; set; }
@@ -59,7 +60,7 @@ public sealed partial class BattleSession
         };
         nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = deferred };
         NativeContactWorking? previous = nativeContactWorking;
-        NativeContactWorking contact = new(actor, recipient, preliminary ? native with { AttackFlags = 3, DamagePresentation = 0 } : native, specialSource);
+        NativeContactWorking contact = new(actor, recipient, preliminary ? native with { AttackFlags = 3, DamagePresentation = 0 } : native, specialSource) { DiagnosticPreliminary = preliminary };
         byte attackClass = preliminary || native.Command is 0 or 14 or 238 or 246 or 252 || native.Command == 241 && native.ActionId is 65530 or 65532 ? (byte)3 : native.Command is 1 or 12 or 28 or 243 or 248 or 251 or 253 ? (byte)0 : (byte)(native.AttackFlags & 3);
         if (native.Command == 6 && command.NativeDraw is not null && !command.DrawCast)
         {

@@ -28,7 +28,7 @@ public sealed class CounterCycleValidationTests
             return packets.WritePlayerRepeatMode(0, 1).ActivateHeader(0);
         }
         BattleDiagnosticCounterActor recipient = new("enemy0", 3, 84, 100 - execution * 10, true, 0, new(0, 0, 1, 0, 0, 0), new(2, 0), [4, 0, 0, 0, 0, 0, 0, 0]);
-        BattleDiagnosticCounterPrimary primary = new(primarySerial, start + 1, "party0", 0, "enemy0", 3, 1, 0, 1, 110 - execution * 10, 100 - execution * 10, 0, generation, recipient);
+        BattleDiagnosticCounterPrimary primary = new(primarySerial, start + 1, "party0", 0, "enemy0", 3, 1, 0, 1, 110 - execution * 10, 100 - execution * 10, 0, generation, recipient, false);
         BattleDiagnosticCounterContact contact = new(primary, 0, false, Packets(0, 1, 0, 0, 4, 3));
         byte[] bytes = new byte[12];
         bytes[0] = 3;
@@ -240,6 +240,131 @@ public sealed class CounterCycleValidationTests
         DiagnosticCounterCycleValidation.Validate(cycle with { Attempts = [attempt], CompletedCallback = null }, Input, false);
         var rejected = attempt with { Callbacks = callbacks.SetItem(3, callbacks[3] with { Actor = callbacks[3].Actor with { Variables = callbacks[3].Actor.Variables.SetItem(1, 0) } }) };
         Assert.Throws<InvalidDataException>(() => DiagnosticCounterCycleValidation.Validate(cycle with { Attempts = [rejected], CompletedCallback = null }, Input, false));
+    }
+
+    internal static DiagnosticCounterCycleReceipt TwoPhaseControl(bool miss = false)
+    {
+        // Source-shaped component fixture: both real publications are retained; it is not an original-resource run.
+        var cycle = Cycle();
+        var basis = cycle.Attempts[0];
+        int finalHp = miss ? 51000 : 50944;
+        BattleDiagnosticCounterActor InitialActor(byte attackClass, int hp, byte pendingOrder) => new("enemy0", 3, 84, hp, true, 98353, new(attackClass, 0, 1, 0, 0, 0), new(2, pendingOrder), [0, 0, 0, 0, 0, 0, 0, 0]);
+        var preliminary = basis.Contacts[0] with
+        {
+            Primary = new(1, 95, "party0", 0, "enemy0", 3, 1, 0, 253, 51000, 51000, 0, 1, InitialActor(3, 51000, 0), true),
+            Packets = basis.Contacts[0].Packets with { Contacts = basis.Contacts[0].Packets.Contacts.SetItem(0, new(new(3, 5, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))) }
+        };
+        var actual = basis.Contacts[0] with
+        {
+            Primary = new(2, 123, "party0", 0, "enemy0", 3, 1, 0, 253, 51000, finalHp, 0, 1, InitialActor(0, finalHp, 1), false),
+            TriggerRecomputed = true,
+            Packets = basis.Contacts[0].Packets with { Contacts = basis.Contacts[0].Packets.Contacts.SetItem(0, new(new(3, 6, 0, 2, 0, (ushort)(51000 - finalHp), 0), new(255, 0, 0, 0, 0, 0, 0))) }
+        };
+        var callbacks = basis.Callbacks.Select(observation => observation with
+        {
+            Callback = observation.Phase == BattleDiagnosticCounterCallbackPhase.Queued ? 127 : 128,
+            Queue = observation.Queue with { Callback = 127, PendingOrder = 1, PrimarySerial = 2, UnknownByteMask = 8 },
+            Actor = InitialActor(0, finalHp, 0) with { PendingReaction = new(0, 0), Variables = [observation.Phase is BattleDiagnosticCounterCallbackPhase.AiExited or BattleDiagnosticCounterCallbackPhase.Completed ? 1u : 0u, 0, 0, 0, 0, 0, 0, 0] }
+        }).ToImmutableArray();
+        return cycle with { StartedCallback = 94, CompletedCallback = null, Attempts = [basis with { SubmittedCallback = 94, DrainedCallback = 209, Contacts = [preliminary, actual], Callbacks = callbacks, Commands = [], Dispatch = null, DispatchPackets = null }] };
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Explicit_source_preliminary_survives_but_only_actual_contact_owns_the_coalesced_callback(bool miss)
+    {
+        var cycle = TwoPhaseControl(miss);
+        DiagnosticCounterCycleValidation.Validate(cycle, Input, false);
+        Assert.Equal(2, cycle.Attempts[0].Contacts.Length);
+        Assert.True(cycle.Attempts[0].Contacts[0].Primary.Preliminary);
+        Assert.False(cycle.Attempts[0].Contacts[1].Primary.Preliminary);
+        Assert.Equal(2L, cycle.Attempts[0].Callbacks[0].Queue.PrimarySerial);
+        if (miss)
+        {
+            Assert.All(cycle.Attempts[0].Contacts, contact => Assert.Equal(contact.Primary.BeforeHp, contact.Primary.AfterHp));
+        }
+    }
+
+    [Fact]
+    public void A_nonpreliminary_immediate_miss_remains_an_eligible_actual_primary()
+    {
+        var cycle = Cycle();
+        var attempt = cycle.Attempts[0];
+        var contact = attempt.Contacts[0];
+        contact = contact with
+        {
+            Primary = contact.Primary with { BeforeHp = contact.Primary.AfterHp },
+            Packets = contact.Packets with { Contacts = contact.Packets.Contacts.SetItem(0, contact.Packets.ReadContact(0) with { Primary = contact.Packets.ReadContact(0).Primary with { Amount6 = 0, HitFlags3 = 4 } }) }
+        };
+        DiagnosticCounterCycleValidation.Validate(cycle with { Attempts = [attempt with { Contacts = [contact] }] }, Input);
+        Assert.False(contact.Primary.Preliminary);
+        Assert.Equal(contact.Primary.BeforeHp, contact.Primary.AfterHp);
+    }
+
+    [Theory]
+    [InlineData("preliminary_owns_callback")]
+    [InlineData("missing_prior")]
+    [InlineData("stale_generation")]
+    [InlineData("future_prior")]
+    [InlineData("prior_not_classified")]
+    [InlineData("recomputed_is_preliminary")]
+    [InlineData("missing_actual")]
+    [InlineData("false_zero_eligibility")]
+    [InlineData("preliminary_damage")]
+    [InlineData("hidden_preliminary_amount")]
+    public void Preliminary_and_actual_phases_cannot_be_forged_or_coalesced_into_the_wrong_source(string change)
+    {
+        var cycle = TwoPhaseControl(true);
+        var attempt = cycle.Attempts[0];
+        var prior = attempt.Contacts[0];
+        var actual = attempt.Contacts[1];
+        switch (change)
+        {
+            case "preliminary_owns_callback":
+                attempt = attempt with { Callbacks = attempt.Callbacks.Select(observation => observation with { Queue = observation.Queue with { PendingOrder = 0, PrimarySerial = 1 } }).ToImmutableArray() };
+                break;
+            case "missing_prior":
+                attempt = attempt with { Contacts = [actual] };
+                break;
+            case "stale_generation":
+                prior = prior with { Primary = prior.Primary with { HeaderGeneration = 2 } };
+                break;
+            case "future_prior":
+                prior = prior with { Primary = prior.Primary with { Callback = 124 } };
+                break;
+            case "prior_not_classified":
+                prior = prior with { Primary = prior.Primary with { Preliminary = false } };
+                break;
+            case "recomputed_is_preliminary":
+                actual = actual with { Primary = actual.Primary with { Preliminary = true } };
+                break;
+            case "missing_actual":
+                attempt = attempt with { Contacts = [prior], Callbacks = [] };
+                break;
+            case "false_zero_eligibility":
+                actual = actual with { Primary = actual.Primary with { Recipient = actual.Primary.Recipient with { LastAction = actual.Primary.Recipient.LastAction! with { AttackType = 3 } } } };
+                break;
+            case "hidden_preliminary_amount":
+                prior = prior with { Packets = prior.Packets with { Contacts = prior.Packets.Contacts.SetItem(0, prior.Packets.ReadContact(0) with { Primary = prior.Packets.ReadContact(0).Primary with { Amount6 = 1, ExtendedDamageAmount = 0 } }) } };
+                break;
+            case "preliminary_damage":
+                prior = prior with { Primary = prior.Primary with { BeforeHp = 51001 } };
+                break;
+        }
+        if (change is not ("missing_prior" or "missing_actual"))
+        {
+            attempt = attempt with { Contacts = [prior, actual] };
+        }
+        Assert.Throws<InvalidDataException>(() => DiagnosticCounterCycleValidation.Validate(cycle with { Attempts = [attempt] }, Input, false));
+    }
+
+    [Fact]
+    public void Prior_reports_without_the_source_preliminary_field_are_not_silently_upgraded()
+    {
+        JsonObject source = JsonSerializer.SerializeToNode(TwoPhaseControl(), Json)!.AsObject();
+        source["attempts"]![0]!["contacts"]![0]!["primary"]!.AsObject().Remove("preliminary");
+        Assert.Throws<JsonException>(() => source.Deserialize<DiagnosticCounterCycleReceipt>(Json));
     }
 
     private static BattleDiagnosticRepairReceipt Repair()

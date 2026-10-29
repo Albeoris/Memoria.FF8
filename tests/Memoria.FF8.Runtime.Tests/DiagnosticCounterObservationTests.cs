@@ -101,7 +101,7 @@ public sealed class DiagnosticCounterObservationTests
         (packets, int contactIndex) = packets.AppendContact(packet);
         Set(battle, "nativeActionPackets", packets);
         BattleDiagnosticCounterActor recipient = new("enemy", 3, 84, 90, true, 0, new(0, 0, 1, 0, 0, 0), new(2, 0), [4, 0, 0, 0, 0, 0, 0, 0]);
-        BattleDiagnosticCounterPrimary primary = new(1, 10, "party", 0, "enemy", 3, 1, 0, 253, 100, 90, 0, 1, recipient);
+        BattleDiagnosticCounterPrimary primary = new(1, 10, "party", 0, "enemy", 3, 1, 0, 1, 100, 90, 0, 1, recipient, false);
         object sidecar = typeof(BattleSession).GetField("diagnosticCounterContacts", Instance)!.GetValue(battle)!;
         sidecar.GetType().GetMethod("Add")!.Invoke(sidecar, [packet, primary]);
         Invoke(battle, "ObserveDiagnosticCounterAppend", packet, contactIndex, false);
@@ -115,6 +115,7 @@ public sealed class DiagnosticCounterObservationTests
         BattleDiagnosticCounterContact receipt = Assert.Single(receipts);
         Assert.Equal((byte)0, receipt.Packets.Headers[0].ReadByte(17));
         Assert.Equal(contactIndex, receipt.ContactIndex);
+        Assert.False(receipt.Primary.Preliminary);
         Assert.Equal(packet, receipt.Packets.ReadContact(contactIndex));
         Assert.NotSame(packets.Headers[0], receipt.Packets.Headers[0]);
         Assert.NotSame(packet, receipt.Packets.ReadContact(contactIndex));
@@ -122,6 +123,59 @@ public sealed class DiagnosticCounterObservationTests
         Assert.Equal(packets.Headers[0].Payload.ToArray(), receipt.Packets.Headers[0].Payload.ToArray());
         Invoke(battle, "ObserveDiagnosticCounterPublishedHeaders", 0);
         Assert.Single(receipts);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Actual_resolver_parameter_classifies_identical_zero_damage_internal253_without_native_changes(bool preliminary)
+    {
+        // Declared component contacts exercise the actual resolver; no original-resource admission is claimed.
+        BattleSession Resolve(bool observed, out NativeBattleContactPacket packet, out BattleDiagnosticCounterPrimary? primary)
+        {
+            BattleSession battle = new(new BattleDefinition
+            {
+                NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
+                Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 0, WeaponId = 0, Attack = 20 }, new() { Id = "enemy", Name = "Enemy", ModelId = 84, MaximumHp = 1000, CurrentHp = 1000, Defense = 5, NativeStatus0 = 4, NativeAi = new(Enumerable.Range(0, 5).Select(_ => new byte[] { 0 }).ToArray(), Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []) }]
+            }, BattleAtbMode.TurnBased);
+            if (observed)
+            {
+                battle.DiagnosticCounterContactPublished += _ => { };
+            }
+            BattleCombatant actor = battle.Combatants[0];
+            BattleCombatant target = battle.Combatants[1];
+            // The single-contact component declares the same BD9 count that its native hit plan initializes.
+            typeof(BattleCombatant).GetProperty("NativeRemainingHits", Instance)!.SetValue(target, (byte)1);
+            BattleNativeAction native = new(253, 0, -1, -1) { MagicId = 0, AttackType = 10, Power = 20, HitCount = 1, AttackFlags = 0, TargetFlags = 0, PowerModifier = 0, LevelModifier = 0, DamagePresentation = 4, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, RawRecord = [], SupplementalRecord = [] };
+            BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = 1, NativeHeaderIndex = 0, GunbladeTriggerTiming = 1 };
+            BattleActionDefinition action = new(BattleAbility.Attack, 0, "Component contact", BattleActionEffect.Native, 20, false) { NativeAction = native };
+            (NativeBattleActionPacketsState prepared, _) = battle.NativeActionPackets.Prepare(new(0, 1, 13, -1, 0, 0, null));
+            Set(battle, "nativeActionPackets", prepared);
+            Invoke(battle, "ObserveDiagnosticPreparedHeader", 0);
+            Invoke(battle, "SetNativeActionEvent", actor, (byte)2);
+            NativeBattleActionScratch scratch = (NativeBattleActionScratch)typeof(BattleSession).GetField("nativeActionScratch", Instance)!.GetValue(battle)!;
+            Set(battle, "nativeActionScratch", scratch with { ActorIndex = 0, Command = 253, Action = 0, DeferredEffectsE00 = false });
+            Set(battle, "resolvingNativeAction", presentation);
+            Set(battle, "diagnosticCounterProducingHeader", 0);
+            Set(battle, "nativeReactionOrder", (byte)0);
+            Set(battle, "nativeActionCommitDepth", 1);
+            packet = (NativeBattleContactPacket)Invoke(battle, "ResolveInstalledNativeHitWithContact", actor, target, presentation, action, native, (byte)255, preliminary)!;
+            var table = (System.Runtime.CompilerServices.ConditionalWeakTable<NativeBattleContactPacket, BattleDiagnosticCounterPrimary>)typeof(BattleSession).GetField("diagnosticCounterContacts", Instance)!.GetValue(battle)!;
+            table.TryGetValue(packet, out primary);
+            Set(battle, "nativeActionCommitDepth", 0);
+            typeof(BattleSession).GetField("resolvingNativeAction", Instance)!.SetValue(battle, null);
+            return battle;
+        }
+        BattleSession control = Resolve(false, out NativeBattleContactPacket original, out _);
+        BattleSession observed = Resolve(true, out NativeBattleContactPacket packet, out BattleDiagnosticCounterPrimary? primary);
+        Assert.NotNull(primary);
+        Assert.Equal(preliminary, primary.Preliminary);
+        Assert.Equal((byte)253, primary.InternalCommand);
+        Assert.Equal(primary.BeforeHp, primary.AfterHp);
+        Assert.Equal((ushort)0, packet.Primary.Amount6);
+        Assert.Equal(preliminary ? (byte)3 : (byte)0, primary.Recipient.LastAction!.AttackType);
+        Assert.Equal(original, packet);
+        Assert.Equal(State(control), State(observed));
     }
 
     [Fact]

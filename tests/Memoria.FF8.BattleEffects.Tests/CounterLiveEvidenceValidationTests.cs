@@ -78,6 +78,7 @@ public sealed class CounterLiveEvidenceValidationTests
     [InlineData("owner")]
     [InlineData("unbound_repair")]
     [InlineData("prelude")]
+    [InlineData("missing_preliminary")]
     public void Missing_or_forged_counter_evidence_is_rejected(string change)
     {
         JsonObject report = Report();
@@ -97,6 +98,9 @@ public sealed class CounterLiveEvidenceValidationTests
                 break;
             case "owner":
                 report["executions"]![0]!["before"]![1]!["model_id"] = 85;
+                break;
+            case "missing_preliminary":
+                report["counter_cycles"]![0]!["attempts"]![0]!["contacts"]![0]!["primary"]!.AsObject().Remove("preliminary");
                 break;
             case "prelude":
                 report["initialization"]!["preparation"]!["prelude"] = new JsonObject();

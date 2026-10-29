@@ -89,7 +89,7 @@ public static class DiagnosticCounterCycleValidation
             {
                 throw new InvalidDataException("Counter attempt did not follow an ordinary bounded submission/full-drain boundary.");
             }
-            if (attempt.DrainedCallback is not null && attempt.Contacts.IsEmpty)
+            if (attempt.DrainedCallback is not null && !attempt.Contacts.Any(contact => !contact.Primary.Preliminary))
             {
                 throw new InvalidDataException("A drained trigger attempt requires its actual committed ordinary primary contact.");
             }
@@ -111,6 +111,14 @@ public static class DiagnosticCounterCycleValidation
                 }
                 previousPrimary = primary.Serial;
                 ValidateContact(receipt, contact);
+                if (contact.TriggerRecomputed)
+                {
+                    var prior = attempt.Contacts.Where(before => before.Primary.Preliminary && !before.TriggerRecomputed && before.Primary.Serial < primary.Serial && before.Primary.Callback <= primary.Callback && before.Primary.HeaderIndex == primary.HeaderIndex && before.Primary.HeaderGeneration == primary.HeaderGeneration && before.Primary.ActorId == primary.ActorId && before.Primary.ActorIndex == primary.ActorIndex && before.Primary.RecipientId == primary.RecipientId && before.Primary.RecipientIndex == primary.RecipientIndex && before.ContactIndex == contact.ContactIndex).ToArray();
+                    if (prior.Length != 1 || primary.HeaderIndex != 0 || contact.ContactIndex != 0)
+                    {
+                        throw new InvalidDataException("Counter gunblade recomputation lacks its actual prior preliminary header/generation/contact owner.");
+                    }
+                }
             }
             foreach (var observation in attempt.Callbacks)
             {
@@ -133,7 +141,7 @@ public static class DiagnosticCounterCycleValidation
                     if (observation.Queue.ActorIndex == receipt.TargetIndex && observation.Queue.Stage == 2)
                     {
                         var sources = attempt.Contacts.Where(contact => contact.Primary.Serial == observation.Queue.PrimarySerial).ToArray();
-                        if (sources.Length != 1 || observation.Queue.PendingOrder != sources[0].Primary.Recipient.PendingReaction.Order || observation.Queue.Callback < sources[0].Primary.Callback)
+                        if (sources.Length != 1 || sources[0].Primary.Preliminary || observation.Queue.PendingOrder != sources[0].Primary.Recipient.PendingReaction.Order || observation.Queue.Callback < sources[0].Primary.Callback)
                         {
                             throw new InvalidDataException("Counter queued callback lacks its exact actual primary/pending-order source.");
                         }
@@ -188,9 +196,13 @@ public static class DiagnosticCounterCycleValidation
         BattleDiagnosticCounterActor recipient = primary.Recipient;
         NativeBattleActionHeaderSlot header = Header(contact.Packets, primary.HeaderIndex);
         int count = header.ReadByte(16) * (header.ReadByte(17) + 1);
-        if (primary.HeaderGeneration <= 0 || primary.ActorId != cycle.ActorId || primary.ActorIndex != cycle.ActorIndex || primary.RecipientId != cycle.TargetId || primary.RecipientIndex != cycle.TargetIndex || primary.QueuedCommand != 1 || primary.ActionId != 0 || primary.InternalCommand is not (1 or 253) || contact.TriggerRecomputed != (primary.InternalCommand == 253) || recipient.Id != cycle.TargetId || recipient.Index != cycle.TargetIndex || recipient.ModelId != 84 || !recipient.Active || recipient.Hp != primary.AfterHp || recipient.Hp <= 0 || recipient.Variables.IsDefault || recipient.Variables.Length != 8 || recipient.LastAction is not { Command: 1, ActionId: 0 } memory || memory.AttackerIndex != cycle.ActorIndex || recipient.PendingReaction is not { Stage: 2, Order: not null } || header.ReadByte(0) != cycle.ActorIndex || header.ReadByte(1) != 1 || Word(header, 4) != 0 || Word(header, 6) != 0 || header.FirstContactIndex is not int first || contact.ContactIndex < first || contact.ContactIndex >= first + count || contact.Packets.ReadContact(contact.ContactIndex).Primary.ActorIndex != cycle.TargetIndex)
+        if (primary.HeaderGeneration <= 0 || primary.ActorId != cycle.ActorId || primary.ActorIndex != cycle.ActorIndex || primary.RecipientId != cycle.TargetId || primary.RecipientIndex != cycle.TargetIndex || primary.QueuedCommand != 1 || primary.ActionId != 0 || primary.InternalCommand is not (1 or 253) || (!primary.Preliminary && contact.TriggerRecomputed != (primary.InternalCommand == 253)) || recipient.Id != cycle.TargetId || recipient.Index != cycle.TargetIndex || recipient.ModelId != 84 || !recipient.Active || recipient.Hp != primary.AfterHp || recipient.Hp <= 0 || recipient.Variables.IsDefault || recipient.Variables.Length != 8 || recipient.LastAction is not { Command: 1, ActionId: 0 } memory || memory.AttackerIndex != cycle.ActorIndex || recipient.PendingReaction is not { Stage: 2, Order: not null } || header.ReadByte(0) != cycle.ActorIndex || header.ReadByte(1) != 1 || Word(header, 4) != 0 || Word(header, 6) != 0 || header.FirstContactIndex is not int first || contact.ContactIndex < first || contact.ContactIndex >= first + count || contact.Packets.ReadContact(contact.ContactIndex).Primary.ActorIndex != cycle.TargetIndex)
         {
             throw new InvalidDataException("Counter trigger is not the actually committed ordinary primary/header/B98/pending2 source chain.");
+        }
+        if (primary.Preliminary ? primary.InternalCommand != 253 || contact.TriggerRecomputed || primary.BeforeHp != primary.AfterHp || memory.AttackType != 3 || contact.Packets.ReadContact(contact.ContactIndex).Primary.Amount6 != 0 || contact.Packets.ReadContact(contact.ContactIndex).Primary.ExtendedDamageAmount is not null : memory.AttackType != 0)
+        {
+            throw new InvalidDataException("Counter preliminary projection and actual ordinary contact classification differ from the explicit resolver source.");
         }
     }
 
@@ -220,7 +232,7 @@ public static class DiagnosticCounterCycleValidation
             throw new InvalidDataException("Counter actual admitted AI gates/B98 owner differ from the declared primary reaction.");
         }
         var contacts = attempt.Contacts.Where(value => value.Primary.Serial == primarySerial).ToArray();
-        if (contacts.Length != 1 || queue.PendingOrder != contacts[0].Primary.Recipient.PendingReaction.Order || queue.Callback < contacts[0].Primary.Callback || command.HeaderGeneration <= contacts[0].Primary.HeaderGeneration)
+        if (contacts.Length != 1 || contacts[0].Primary.Preliminary || queue.PendingOrder != contacts[0].Primary.Recipient.PendingReaction.Order || queue.Callback < contacts[0].Primary.Callback || command.HeaderGeneration <= contacts[0].Primary.HeaderGeneration)
         {
             throw new InvalidDataException("Counter physical callback epoch does not own its actual committed reaction order.");
         }

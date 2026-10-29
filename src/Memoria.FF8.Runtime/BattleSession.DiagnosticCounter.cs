@@ -13,7 +13,7 @@ public sealed record BattleDiagnosticCounterActor([property: JsonRequired] strin
     public uint BattleStatuses { get; init; }
 }
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record BattleDiagnosticCounterPrimary([property: JsonRequired] long Serial, [property: JsonRequired] long Callback, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] byte QueuedCommand, [property: JsonRequired] ushort ActionId, [property: JsonRequired] byte InternalCommand, [property: JsonRequired] int BeforeHp, [property: JsonRequired] int AfterHp, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] long HeaderGeneration, [property: JsonRequired] BattleDiagnosticCounterActor Recipient);
+public sealed record BattleDiagnosticCounterPrimary([property: JsonRequired] long Serial, [property: JsonRequired] long Callback, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] byte QueuedCommand, [property: JsonRequired] ushort ActionId, [property: JsonRequired] byte InternalCommand, [property: JsonRequired] int BeforeHp, [property: JsonRequired] int AfterHp, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] long HeaderGeneration, [property: JsonRequired] BattleDiagnosticCounterActor Recipient, [property: JsonRequired] bool Preliminary);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record BattleDiagnosticCounterContact([property: JsonRequired] BattleDiagnosticCounterPrimary Primary, [property: JsonRequired] int ContactIndex, [property: JsonRequired] bool TriggerRecomputed, [property: JsonRequired] NativeBattleActionPacketsState Packets);
 public enum BattleDiagnosticCounterCallbackPhase
@@ -86,7 +86,7 @@ public sealed partial class BattleSession
             return;
         }
         byte queued = command.NativeQueuedCommand ?? native.Command;
-        BattleDiagnosticCounterPrimary primary = new(++diagnosticCounterPrimarySerial, NativeHostCallbacks ?? Frame, contact.Actor.Id, checked((byte)contact.Actor.NativeIndex), recipient.Id, checked((byte)recipient.NativeIndex), queued, native.ActionId, native.Command, hp.Before, hp.After, index, generation, CaptureDiagnosticCounterActor(recipient));
+        BattleDiagnosticCounterPrimary primary = new(++diagnosticCounterPrimarySerial, NativeHostCallbacks ?? Frame, contact.Actor.Id, checked((byte)contact.Actor.NativeIndex), recipient.Id, checked((byte)recipient.NativeIndex), queued, native.ActionId, native.Command, hp.Before, hp.After, index, generation, CaptureDiagnosticCounterActor(recipient), contact.DiagnosticPreliminary);
         contact.DiagnosticPrimary = primary;
         diagnosticCounterPending[(primary.RecipientIndex, order)] = primary.Serial;
     }
