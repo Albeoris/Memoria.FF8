@@ -9,7 +9,7 @@ public static class NativeBattleElectrocute275ActMesh
 {
     public static bool Visible(NativeBattleGfAnimationNode node) => NativeBattleActMeshRendering.Visible(node);
 
-    public static NativeBattleElectrocute275ActMeshStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context12, NativeBattlePackedMatrix32 camera, NativeBattleEffectArena temporary88, NativeBattleEffectArena arena, uint morphAddress, int morphLength, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, NativeBattleCameraProjection projection, short dqa, int dqb, short? zsf3, short? zsf4, NativeBattleSummonColors constants, short? localVectorW = null)
+    public static NativeBattleElectrocute275ActMeshStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context12, NativeBattlePackedMatrix32 camera, NativeBattleEffectArena temporary88, NativeBattleEffectArena arena, uint morphAddress, int morphLength, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, NativeBattleCameraProjection projection, short dqa, int dqb, short? zsf3, short? zsf4, NativeBattleSummonColors constants, short? localVectorW = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleAnchorActPreparationStep prepared = NativeBattleAnchorActPreparation.Prepare(source, node, context12, camera, temporary88, arena, morphAddress, morphLength, registers, constants, NativeBattleAnchorActContextPolicy.Electrocute275, localVectorW);
         int geometry = prepared.GeometryOffset;
@@ -30,7 +30,7 @@ public static class NativeBattleElectrocute275ActMesh
             end = checked(end + 4 + faces * stride);
         }
         ImmutableArray<byte> shape = Slice(source.Data, geometry, checked(end - geometry)).ToArray().ToImmutableArray();
-        NativeBattleCuraga88MeshStep drawn = NativeBattleCuraga88Mesh.EmitBatch(shape, shapeAddress, matrix, projection, temporary88, registers, farControls, dqa, dqb, zsf4, constants, zsf3: zsf3, selectedVerticesAddress: selectedAddress, readSelectedVertex: prepared.ReadVertex);
+        NativeBattleCuraga88MeshStep drawn = NativeBattleCuraga88Mesh.EmitBatch(shape, shapeAddress, matrix, projection, temporary88, registers, farControls, dqa, dqb, zsf4, constants, zsf3: zsf3, selectedVerticesAddress: selectedAddress, readSelectedVertex: prepared.ReadVertex, pilotIdentity: pilotIdentity);
         return new(drawn.Batch, drawn.Context88, arena, drawn.Registers, drawn.FarControls);
     }
     private static int I32(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadInt32LittleEndian(Slice(bytes, offset, 4));

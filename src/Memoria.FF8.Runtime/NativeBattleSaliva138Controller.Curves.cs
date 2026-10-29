@@ -112,7 +112,7 @@ public static partial class NativeBattleSaliva138Controller
                     temporary = temporary.Write(0x10, BitConverter.GetBytes(unchecked((ushort)(((byte)age & 7) << 4))));
                     temporary = temporary.Write(0x14, new byte[4]).Write(0x18, BitConverter.GetBytes(0x01000100u)).Write(0x1C, new byte[4]).Write(0x20, BitConverter.GetBytes(0x01000080u));
                     frame = PublishContext(frame, temporaryAddress, temporary, 92);
-                    frame = inputs.Execute(frame, new NativeBattleSaliva138DrawCustom92(temporaryAddress));
+                    frame = inputs.Execute(frame, new NativeBattleSaliva138DrawCustom92(temporaryAddress) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(Effect, Read(frame, address)) with { ResourceGeneration = resources.InitialMesh.Address } });
                     frame = Release(frame, 92);
                 }
                 task = Read(frame, address);
@@ -180,16 +180,21 @@ public static partial class NativeBattleSaliva138Controller
         {
             frame = LoadMatrix(frame, inputs.ReadCamera(frame));
             NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Saliva requires its actual projection controls.");
+            Dictionary<uint, NativeBattleSaliva138RibbonSample> pilotSamples = [];
             foreach (uint record in CurveChain(frame, task.ReadDword(0x28)))
             {
                 NativeBattleVector point = new(CurveSigned(frame, record), CurveSigned(frame, record + 2), CurveSigned(frame, record + 4));
                 NativeBattleGeometryRegisterStep registers = NativeBattleGeometry.LoadVector(CurveRegisters(frame), 0, point, CurveSigned(frame, record + 6));
-                registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
+                NativeBattleActionMatrix matrix = NativeBattleGeometry.CaptureMatrix(registers.Geometry);
+                NativeBattleCameraProjection projection = inputs.ReadProjection(frame);
+                registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                 frame = CurvePublish(frame, registers);
-                frame = CurveDword(frame, record + 8, registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Saliva requires its actual projected point."));
+                uint screen = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Saliva requires its actual projected point.");
+                pilotSamples.Add(record, new(NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection), screen));
+                frame = CurveDword(frame, record + 8, screen);
                 frame = CurveWord(frame, record + 12, unchecked((ushort)((registers.Geometry.Sz[3] ?? throw new NotSupportedException("Saliva requires its actual projected depth.")) >> 2)));
             }
-            (frame, NativeBattleGfGeometryBatch batch) = DrawCurveRibbon(frame, task.ReadDword(0x28), Signed(task, 0x24), resources);
+            (frame, NativeBattleGfGeometryBatch batch) = DrawCurveRibbon(frame, task.ReadDword(0x28), Signed(task, 0x24), resources, pilotSamples);
             frame = inputs.Execute(frame, new NativeBattleSaliva138DeliverRibbonBatch(batch));
         }
         task = Read(frame, address);
@@ -242,9 +247,10 @@ public static partial class NativeBattleSaliva138Controller
     {
         for (int index = 0; index < 96; index++)
         {
-            uint address = checked(Working(frame) + 0x5B0u + (uint)(index * 32));
+            uint address = checked(Working(frame) + (uint)PointsOffset + (uint)(index * 32));
             if (CurveSigned(frame, address + 6) == -1)
             {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena ?? throw new NotSupportedException("Saliva curve allocation requires its physical point arena."), checked(Working(frame) + (uint)PointsOffset), index);
                 frame = WriteArena(frame, address, CurveXyz(point));
                 frame = CurveWord(frame, address + 6, 200);
                 frame = CurveWord(frame, address + 0x18, 128);
@@ -255,7 +261,7 @@ public static partial class NativeBattleSaliva138Controller
         return (frame, 0);
     }
 
-    public static (NativeBattleSaliva138Frame Frame, NativeBattleGfGeometryBatch Batch) DrawCurveRibbon(NativeBattleSaliva138Frame frame, uint head, short count, NativeBattleSaliva138Resources resources)
+    public static (NativeBattleSaliva138Frame Frame, NativeBattleGfGeometryBatch Batch) DrawCurveRibbon(NativeBattleSaliva138Frame frame, uint head, short count, NativeBattleSaliva138Resources resources, IReadOnlyDictionary<uint, NativeBattleSaliva138RibbonSample>? pilotSamples = null)
     {
         if (count < 3 || count > 96)
         {
@@ -301,7 +307,21 @@ public static partial class NativeBattleSaliva138Controller
             packet.Word16(36, 0xC008);
             packet.Word16(48, 0xC038);
             int bucket = 17 + ((depth + CurveSigned(frame, next + 0xC)) >> 3);
-            attempts.Add(packet.Attempt(new(bucket, packet.Words(), [])));
+            NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), []);
+            if (pilotSamples is not null)
+            {
+                NativeBattleSaliva138RibbonSample first = pilotSamples[current];
+                NativeBattleSaliva138RibbonSample second = pilotSamples[next];
+                NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Saliva curve presentation requires its physical point arena.");
+                uint bank = checked(Working(frame) + (uint)PointsOffset);
+                int firstSlot = checked((int)((current - bank) / 32));
+                int secondSlot = checked((int)((next - bank) / 32));
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(Effect, arena, bank, firstSlot, secondSlot) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(Effect, arena, bank, secondSlot).Generation };
+                primitive = primitive with { PilotGeometry = new(identity, first.World, first.World, second.World, second.World, 4) { ScreenOffsets = [Offset(current + 8, first.Screen), Offset(current + 0x10, first.Screen), Offset(next + 8, second.Screen), Offset(next + 0x10, second.Screen)], UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero } };
+
+                System.Numerics.Vector2 Offset(uint endpoint, uint center) => new(CurveSigned(frame, endpoint) - unchecked((short)center), CurveSigned(frame, endpoint + 2) - unchecked((short)(center >> 16)));
+            }
+            attempts.Add(packet.Attempt(primitive));
             allocated += 52;
         }
         return (frame, new(attempts.ToImmutable(), allocated));

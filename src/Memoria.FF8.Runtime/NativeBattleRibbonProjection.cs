@@ -16,7 +16,7 @@ public static class NativeBattleRibbonProjection
         return Math.Max(depth, (uint)(focal >> 1));
     }
 
-    public static NativeBattleEffectMemory ProjectCurrent(NativeBattleEffectMemory memory, uint head, NativeBattleRibbonBank bank, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls)
+    public static NativeBattleEffectMemory ProjectCurrent(NativeBattleEffectMemory memory, uint head, NativeBattleRibbonBank bank, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, Action<uint, System.Numerics.Vector3>? captureWorld = null)
     {
         if (bank.PointCount <= 0 || bank.ArenaOffset < 0 || bank.ArenaOffset > NativeBattleEffectArena.Length - checked(bank.PointCount * 40))
         {
@@ -39,6 +39,11 @@ public static class NativeBattleRibbonProjection
             int at = checked(bank.ArenaOffset + (int)offset);
             byte[] point = arena.Read(at, 8);
             registers = NativeBattleGeometry.LoadVector(registers, 0, new(BinaryPrimitives.ReadInt16LittleEndian(point), BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan(4))), BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan(6)));
+            if (captureWorld is not null)
+            {
+                NativeBattleVector vertex = new(BinaryPrimitives.ReadInt16LittleEndian(point), BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan(4)));
+                captureWorld(address, NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(NativeBattleGeometry.CaptureMatrix(registers.Geometry), vertex), projection));
+            }
             registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
             arena = arena.Write(at + 0x10, BitConverter.GetBytes(registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Ribbon requires its projected screen."))).Write(at + 0x14, BitConverter.GetBytes((registers.Geometry.Sz[3] ?? throw new NotSupportedException("Ribbon requires its projected depth.")) >> 2));
             address = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(at + 0x24, 4));

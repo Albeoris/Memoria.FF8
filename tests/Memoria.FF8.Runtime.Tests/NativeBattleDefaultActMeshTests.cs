@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Numerics;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -114,6 +115,139 @@ public sealed class NativeBattleDefaultActMeshTests
         Assert.NotNull(Assert.Single(result.Batch.Attempts).Primitive);
         Assert.Equal((short)0x3333, BinaryPrimitives.ReadInt16LittleEndian(result.Memory.GeometryRegisters!.V2.Select(value => value!.Value).ToArray().AsSpan(6)));
         Assert.Throws<NotSupportedException>(() => NativeBattleDefaultActMesh.Draw(Memory(2000), source, 0, Context(), Projection, Constants));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void Group12_capture_uses_loaded_matrix_and_exact_inline_selected_or_packed_operands_without_native_changes(int group)
+    {
+        for (int mode = 0; mode < 3; mode++)
+        {
+            NativeBattleGfAnimationSource source = Source(group, packed: true);
+            NativeBattleActionMatrix loaded = new([8192, 0, 0, 0, 4096, 0, 0, 0, 4096], 70, 30, 2100, 4096);
+            NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770() with { X = 50, Y = 10, Z = 100 };
+            NativeBattleCameraProjection projection = new(view, 100, 160, 108);
+            NativeBattleEffectMemory memory = Memory(2000);
+            memory = memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(memory.GeometryRegisters!, loaded, true, true, null) };
+            NativeBattleEffectArena context = Context(mode == 0 ? 0x30u : 0x2030u);
+            NativeBattlePilotVisualIdentity identity = new(138, 0x1000, 2, 7, 19);
+            List<int> reads = [];
+            NativeBattleDefaultActMeshStep Draw(NativeBattlePilotVisualIdentity? capture)
+            {
+                return NativeBattleDefaultActMesh.Draw(memory, source, 0, context, projection, Constants, ReadVertex, _ => null, readPackedVertex: mode == 2 ? ReadPacked : null, pilotIdentity: capture);
+            }
+            NativeBattleVector ReadVertex(int offset)
+            {
+                reads.Add(offset);
+                NativeBattleVector vertex = Vertex(offset);
+                return vertex with { X = (short)(vertex.X + 25) };
+            }
+            NativeBattleEffectArena ReadPacked(int offset)
+            {
+                NativeBattleVector vertex = ReadVertex(offset);
+                byte[] bytes = new byte[8];
+                BinaryPrimitives.WriteInt16LittleEndian(bytes, vertex.X);
+                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(2), vertex.Y);
+                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(4), vertex.Z);
+                return NativeBattleEffectArena.Clear().Write(0, bytes).MarkUnknown(6, 2);
+            }
+            NativeBattleDefaultActMeshStep plain = Draw(null);
+            int[] originalReads = reads.ToArray();
+            reads.Clear();
+            NativeBattleDefaultActMeshStep captured = Draw(identity);
+            Assert.Equal(originalReads, reads);
+            Assert.Equal(NativeBattleTestSnapshots.Json(plain.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+            Assert.Equal(NativeBattleTestSnapshots.Json(plain.Context88), NativeBattleTestSnapshots.Json(captured.Context88));
+            NativeBattleGfGeometryAttempt expected = Assert.Single(plain.Batch.Attempts);
+            NativeBattleGfGeometryAttempt actual = Assert.Single(captured.Batch.Attempts);
+            Assert.Equal(expected.Data.ToArray(), actual.Data.ToArray());
+            Assert.Equal(expected.WriteMask.ToArray(), actual.WriteMask.ToArray());
+            Assert.Equal(plain.Batch.AllocationBytes, captured.Batch.AllocationBytes);
+            Assert.Null(expected.Primitive!.PilotGeometry);
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected.Primitive), NativeBattleTestSnapshots.Json(actual.Primitive! with { PilotGeometry = null }));
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(actual.Primitive.PilotGeometry);
+            Assert.Equal(identity.Bank, geometry.Identity.Bank);
+            Assert.Equal(identity.Generation, geometry.Identity.Generation);
+            Assert.Equal(new Vector3(mode == 0 ? -780 : -730, mode == 2 ? 420 : -380, 2000), geometry.A);
+            Assert.Equal(new Vector3(mode == 0 ? 820 : 870, -380, 2000), geometry.B);
+            Assert.Equal(new Vector3(mode == 0 ? -780 : -730, 420, 2000), geometry.C);
+            if (mode == 2)
+            {
+                Assert.Equal(geometry.C, geometry.A);
+            }
+            Assert.Equal((byte)((group & 1) == 0 ? 3 : 4), geometry.CornerCount);
+            if ((group & 1) != 0)
+            {
+                Assert.Equal(new Vector3(mode == 0 ? 820 : 870, 420, 2000), geometry.D);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Group12_capture_preserves_native_fourth_reachability_after_near_or_backface_checks(bool backface)
+    {
+        NativeBattleGfAnimationSource source = Source(7);
+        byte[] bytes = source.Data.ToArray();
+        const int face = 12 + 4 + 7 * 4;
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(face + 10), 0xFFFE);
+        if (backface)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(face + 6), 4);
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(face + 8), 2);
+        }
+        source = source with { Data = bytes.ToImmutableArray() };
+        foreach (bool packed in new[] { false, true })
+        {
+            List<int> reads = [];
+            NativeBattleVector ReadVertex(int offset)
+            {
+                reads.Add(offset);
+                return Vertex(offset);
+            }
+            NativeBattleEffectArena ReadPacked(int offset)
+            {
+                NativeBattleVector vertex = ReadVertex(offset);
+                byte[] row = new byte[6];
+                BinaryPrimitives.WriteInt16LittleEndian(row, vertex.X);
+                BinaryPrimitives.WriteInt16LittleEndian(row.AsSpan(2), vertex.Y);
+                BinaryPrimitives.WriteInt16LittleEndian(row.AsSpan(4), vertex.Z);
+                return NativeBattleEffectArena.Clear().Write(0, row).MarkUnknown(6, 2);
+            }
+            NativeBattleDefaultActMeshStep DrawNative(NativeBattlePilotVisualIdentity? identity) => NativeBattleDefaultActMesh.Draw(Memory(backface ? 2000 : 0), source, 0, Context(0x2000).MarkUnknown(0x18, 4), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Constants, ReadVertex, _ => null, readPackedVertex: packed ? ReadPacked : null, pilotIdentity: identity);
+            if (backface && packed)
+            {
+                // Packed snapshots overwrite the retained V0 NormalInput on each native load.
+                // The reached first-three projection is degenerate, so native NCLIP does not reject it.
+                InvalidDataException baseline = Assert.Throws<InvalidDataException>(() => DrawNative(null));
+                Assert.Equal(new[] { 0, 16, 8, 0xFFFE * 4 }, reads);
+                reads.Clear();
+                InvalidDataException captured = Assert.Throws<InvalidDataException>(() => DrawNative(new(138, 0x1000, 2, 7, 0)));
+                Assert.Equal(baseline.Message, captured.Message);
+                Assert.Equal(new[] { 0, 16, 8, 0xFFFE * 4 }, reads);
+                continue;
+            }
+            NativeBattleDefaultActMeshStep plain = DrawNative(null);
+            int[] baselineReads = reads.ToArray();
+            reads.Clear();
+            NativeBattleDefaultActMeshStep result = DrawNative(new(138, 0x1000, 2, 7, 0));
+            Assert.Equal(baselineReads, reads);
+            Assert.Equal(backface ? new[] { 0, 16, 8 } : new[] { 0, 8, 16 }, reads);
+            Assert.Equal(NativeBattleTestSnapshots.Json(plain.Memory), NativeBattleTestSnapshots.Json(result.Memory));
+            Assert.Equal(NativeBattleTestSnapshots.Json(plain.Context88), NativeBattleTestSnapshots.Json(result.Context88));
+            Assert.Equal(NativeBattleTestSnapshots.Json(plain.Batch), NativeBattleTestSnapshots.Json(result.Batch));
+            Assert.Null(Assert.Single(result.Batch.Attempts).Primitive);
+            Assert.Equal(0, result.Batch.AllocationBytes);
+            Assert.Throws<NotSupportedException>(() => result.Context88.Read(0x2C, 4));
+        }
     }
 
     private const uint Address = 0x112015C;

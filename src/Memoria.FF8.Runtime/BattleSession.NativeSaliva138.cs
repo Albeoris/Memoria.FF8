@@ -83,7 +83,8 @@ public sealed partial class BattleSession
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("Saliva138 drawing requires its addressed temporary memory."), 88);
                 NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
                 uint morph = checked(current.State.ReadDword(NativeBattleSaliva138Profile.WorkingGlobal) + NativeBattleSaliva138Profile.MorphOffset);
-                NativeBattleDefaultActContext40Step drawn = NativeBattleDefaultActContext40.Draw(current.Memory, source, node, context, temporary, Projection(), colors, morph, NativeBattleActContext40Policy.Saliva138);
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(138, NativeBattleSaliva138Controller.Read(current, address), node.ResourceOffset) with { ResourceGeneration = unchecked((long)source.Address << 32 | (uint)offset) };
+                NativeBattleDefaultActContext40Step drawn = NativeBattleDefaultActContext40.Draw(current.Memory, source, node, context, temporary, Projection(), colors, morph, NativeBattleActContext40Policy.Saliva138, pilotIdentity: identity);
                 NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.Temporary88, 88);
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Saliva138 requires its current ordering table.");
                 uint cursor = current.State.ReadDword(NativeBattleSaliva138Profile.CursorGlobal);
@@ -116,7 +117,7 @@ public sealed partial class BattleSession
                 case NativeBattleSaliva138DrawCustom92 mesh:
                     NativeBattleEffectArena context = ReadTemporary(current, mesh.TemporaryAddress, 92);
                     NativeBattleStaticMeshResource source = resources.InitialMesh with { Bytes = current.State.ReadMesh() };
-                    NativeBattleWindowedMeshStep drawn = NativeBattleWindowedMesh.Draw(current.Memory, source, context, Projection(), NativeBattleWindowedMeshLayout.Saliva138, ReadSelectedVertex);
+                    NativeBattleWindowedMeshStep drawn = NativeBattleWindowedMesh.Draw(current.Memory, source, context, Projection(), NativeBattleWindowedMeshLayout.Saliva138, ReadSelectedVertex, pilotIdentity: mesh.PilotIdentity);
                     return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, mesh.TemporaryAddress, drawn.Context, 92) }, drawn.Batch);
 
                     (NativeBattleVector Vertex, short? W) ReadSelectedVertex(uint address)
@@ -145,7 +146,7 @@ public sealed partial class BattleSession
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Saliva contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleSaliva138DrawSprite180 sprite:
                     NativeBattleModuleResource spriteSource = resources.Sprite(sprite.SourceAddress);
-                    NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, ReadTemporary(current, sprite.TemporaryAddress, 180), address => address == spriteSource.Address ? spriteSource : throw new NotSupportedException("Saliva selected an unsupported sprite source."), Projection(), Camera().Roll, 17);
+                    NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, ReadTemporary(current, sprite.TemporaryAddress, 180), address => address == spriteSource.Address ? spriteSource : throw new NotSupportedException("Saliva selected an unsupported sprite source."), Projection(), Camera().Roll, 17, pilotIdentity: sprite.PilotIdentity);
                     return Deliver(current with { Memory = spriteDraw.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, sprite.TemporaryAddress, spriteDraw.Temporary180, 180) }, spriteDraw.Batch);
                 default:
                     throw new NotSupportedException("Saliva operation has no proved implementation.");

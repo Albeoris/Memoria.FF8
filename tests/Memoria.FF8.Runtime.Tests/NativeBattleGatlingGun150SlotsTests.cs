@@ -168,6 +168,37 @@ public sealed class NativeBattleGatlingGun150SlotsTests
         Assert.Equal((ushort)1, NativeBattleGatlingGun150Controller.Read(frame, address).ReadWord(12));
     }
 
+    [Theory]
+    [InlineData(0x60E820u, 0, false)]
+    [InlineData(0x60EDA0u, 100, false)]
+    [InlineData(0x60F330u, 200, true)]
+    public void Particle_rows_keep_actual_task_and_authored_mode_identity_and_advance_generation_only_on_native_birth(uint callback, int primitive, bool bankA)
+    {
+        Fixture fixture = new();
+        (NativeBattleGatlingGun150Frame frame, uint address) = fixture.Task(callback, 0);
+        uint bank = bankA ? ParticleABase : ParticleBBase;
+        frame = frame with { State = ClearHeads(NativeBattleGatlingGun150State.FromUnknown()).WriteView(CasterPointGlobal, Packed(100, 200, 1000), 8) };
+        long before = NativeBattlePilotVisualLifetimes.Identity(150, frame.State.Globals, bank, 0).Generation;
+        (frame, _) = NativeBattleGatlingGun150Controller.AdvanceSlots(frame, address, fixture.Resources, fixture.Inputs());
+        long born = NativeBattlePilotVisualLifetimes.Identity(150, frame.State.Globals, bank, 0).Generation;
+        Assert.NotEqual(before, born);
+        NativeBattleGatlingGun150Inputs native = fixture.Inputs(0x201);
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        NativeBattleGatlingGun150Inputs capture = native with { Execute = (current, operation) =>
+        {
+            identities.Add(Assert.IsType<NativeBattlePilotVisualIdentity>(operation.PilotIdentity));
+            Assert.DoesNotContain("PilotIdentity", JsonSerializer.Serialize(operation));
+            return native.Execute(current, operation);
+        } };
+        NativeCrtRandomState random = frame.Random;
+        (frame, _) = NativeBattleGatlingGun150Controller.AdvanceSlots(frame, address, fixture.Resources, capture);
+        NativeBattlePilotVisualIdentity first = identities[0];
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(150, NativeBattleGatlingGun150Controller.Read(frame, address), primitive) with { ResourceGeneration = born }, first);
+        Assert.Equal(identities.Count, identities.Distinct().Count());
+        Assert.Equal(random, frame.Random);
+        Assert.Equal(born, NativeBattlePilotVisualLifetimes.Identity(150, frame.State.Globals, bank, 0).Generation);
+    }
+
     private static NativeBattleGatlingGun150State ClearHeads(NativeBattleGatlingGun150State state)
     {
         for (int index = 0; index < ParticleCount; index++)

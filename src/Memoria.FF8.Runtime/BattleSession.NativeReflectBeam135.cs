@@ -90,7 +90,7 @@ public sealed partial class BattleSession
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("ReflectBeam135 drawing requires its addressed temporary memory."), 88);
                 NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
                 uint morph = checked(current.State.ReadDword(NativeBattleReflectBeam135Profile.WorkingGlobal) + NativeBattleReflectBeam135Profile.MorphOffset);
-                NativeBattleReflectBeam135ActContext16Step drawn = NativeBattleReflectBeam135ActContext16.Draw(current.Memory, source, node, context, Camera().CapturePackedView1D97778(), temporary, Projection(), colors, morph, NativeBattleReflectBeam135Profile.MorphBytes);
+                NativeBattleReflectBeam135ActContext16Step drawn = NativeBattleReflectBeam135ActContext16.Draw(current.Memory, source, node, context, Camera().CapturePackedView1D97778(), temporary, Projection(), colors, morph, NativeBattleReflectBeam135Profile.MorphBytes, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(135, NativeBattleReflectBeam135Controller.Read(current, address), node.ResourceOffset) with { ResourceGeneration = ((long)source.Address << 32) | (uint)offset });
                 NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.Temporary88, 88);
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("ReflectBeam135 requires its current ordering table.");
                 uint cursor = current.State.ReadDword(NativeBattleReflectBeam135Profile.CursorGlobal);
@@ -135,7 +135,7 @@ public sealed partial class BattleSession
                     {
                         throw new NotSupportedException("Reflect Beam selected an unsupported static source.");
                     }
-                    NativeBattleStaticMeshContext88Step meshDraw = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, resources.StaticMesh, Projection(), ReadTemporary(current, mesh.TemporaryAddress, 88), colors);
+                    NativeBattleStaticMeshContext88Step meshDraw = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, resources.StaticMesh, Projection(), ReadTemporary(current, mesh.TemporaryAddress, 88), colors, pilotIdentity: mesh.PilotIdentity);
                     return Deliver(current with { Memory = meshDraw.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, mesh.TemporaryAddress, meshDraw.Context, 88) }, meshDraw.Batch);
                 case NativeBattleReflectBeam135Sound sound:
                     Publish(current);
@@ -149,7 +149,7 @@ public sealed partial class BattleSession
                     return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Reflect Beam contact lost its process memory."), Staging = NativeFileStaging };
                 case NativeBattleReflectBeam135DrawSprite180 sprite:
                     NativeBattleModuleResource spriteSource = new[] { resources.SpriteA, resources.SpriteB, resources.SpriteC }.SingleOrDefault(source => source.Address == sprite.SourceAddress) ?? throw new NotSupportedException("Reflect Beam selected an unsupported sprite source.");
-                    NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, ReadTemporary(current, sprite.TemporaryAddress, 180), address => address == spriteSource.Address ? spriteSource : throw new NotSupportedException("Reflect Beam selected an unsupported sprite source."), Projection(), Camera().Roll, 17);
+                    NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, ReadTemporary(current, sprite.TemporaryAddress, 180), address => address == spriteSource.Address ? spriteSource : throw new NotSupportedException("Reflect Beam selected an unsupported sprite source."), Projection(), Camera().Roll, 17, pilotIdentity: sprite.PilotIdentity);
                     return Deliver(current with { Memory = spriteDraw.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, sprite.TemporaryAddress, spriteDraw.Temporary180, 180) }, spriteDraw.Batch);
                 default:
                     throw new NotSupportedException("Reflect Beam operation has no proved implementation.");

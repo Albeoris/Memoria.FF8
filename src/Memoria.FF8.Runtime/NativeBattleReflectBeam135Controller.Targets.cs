@@ -97,7 +97,7 @@ public static partial class NativeBattleReflectBeam135Controller
         (frame, uint temporary) = Allocate(frame, 180);
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadCamera(frame), Vector(task, 12), Signed(task, 18), selected.Scale, selected.Depth) };
         NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(RequireStaging(frame), temporary, selected.Source, 0).Write(temporary + 4, BitConverter.GetBytes(task.ReadWord(18)));
-        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleReflectBeam135DrawSprite180(temporary, selected.Source));
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleReflectBeam135DrawSprite180(temporary, selected.Source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(135, Read(frame, address)) with { ResourceGeneration = selected.Source } });
         frame = Release(frame, 180);
         task = Read(frame, address);
         if (task.Callback == ParticleCCallback)

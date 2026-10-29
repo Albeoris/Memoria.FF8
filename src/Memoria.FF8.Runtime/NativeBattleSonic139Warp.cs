@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleSonic139Warp
 {
-    public static NativeBattleSonic139Frame Draw6A9260(NativeBattleSonic139Frame frame, uint geometry, uint morph, int bucket, int coefficient, int amplitude, int phase, NativeBattleSonic139Inputs inputs, NativeBattleSonic139Resources resources)
+    public static NativeBattleSonic139Frame Draw6A9260(NativeBattleSonic139Frame frame, uint geometry, uint morph, int bucket, int coefficient, int amplitude, int phase, NativeBattleSonic139Inputs inputs, NativeBattleSonic139Resources resources, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<byte> saved = frame.Memory.PrimitiveProcess?.Software?.EnvironmentBuffers?.CurrentGlobal ?? throw new NotSupportedException("Native Sonic warp requires its actual current drawing environment.");
         if (saved.Length != 92)
@@ -31,13 +31,13 @@ public static partial class NativeBattleSonic139Warp
         far = far with { FarRed = 0, FarGreen = 0, FarBlue = 0 };
         NativeBattleScriptedColorRegisters colors = frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Sonic warp requires its current color registers.");
         frame = frame with { Memory = frame.Memory with { PrimitiveProcess = process with { ModelRendererRegisters = far }, ScriptedColorRegisters = colors with { Ir0 = unchecked((uint)coefficient) } } };
-        frame = DrawGouraud6A97C0(frame, temporary, inputs);
+        frame = DrawGouraud6A97C0(frame, temporary, inputs, pilotIdentity: pilotIdentity is { } gouraud ? gouraud with { Primitive = unchecked(gouraud.Primitive * 397) } : null);
         uint between = Cursor(frame);
         frame = SetCursor(frame, checked(between + 8));
         NativeBattleEffectArena midpoint = ReadBytes(frame, between, 8).Write(0, BitConverter.GetBytes(0x01000000u)).Write(4, BitConverter.GetBytes(0xE1000220u));
         frame = Append(frame, between, 8, 8, bucket, 0, midpoint, inputs);
         frame = PublishContext(frame, temporary, Context(frame, temporary, 76).Write(20, BitConverter.GetBytes(faces)), 76);
-        frame = DrawTextured6A9640(frame, temporary, inputs);
+        frame = DrawTextured6A9640(frame, temporary, inputs, pilotIdentity: pilotIdentity is { } textured ? textured with { Primitive = unchecked(textured.Primitive * 397 + 1) } : null);
         frame = Release(frame, 76);
         frame = Environment(frame, saved, opposite, BinaryPrimitives.ReadInt16LittleEndian(saved.AsSpan().Slice(10)), false, bucket, inputs);
         return Environment(frame, saved, 576, 256, true, 4385, inputs);
@@ -147,7 +147,7 @@ public static partial class NativeBattleSonic139Warp
         return Append(frame, address, 64, written, bucket, 0, retained, inputs, true);
     }
 
-    private static NativeBattleSonic139Frame Append(NativeBattleSonic139Frame frame, uint address, int allocation, int written, int bucket, ushort flags, NativeBattleEffectArena packet, NativeBattleSonic139Inputs inputs, bool preserveLink = false)
+    private static NativeBattleSonic139Frame Append(NativeBattleSonic139Frame frame, uint address, int allocation, int written, int bucket, ushort flags, NativeBattleEffectArena packet, NativeBattleSonic139Inputs inputs, bool preserveLink = false, NativeBattlePilotVisualGeometry? pilotGeometry = null)
     {
         frame = WriteBytes(frame, address, packet, allocation);
         (byte[] bytes, bool[] known) = packet.ReadSnapshot(0, allocation);
@@ -160,7 +160,7 @@ public static partial class NativeBattleSonic139Warp
             mask[30] = NativeBattleGfPacketByteState.Untouched;
             mask[31] = NativeBattleGfPacketByteState.Untouched;
         }
-        return inputs.Execute(frame, new NativeBattleSonic139AppendPacket(address, allocation, written, bucket, flags, bytes, known) { WriteMask = mask });
+        return inputs.Execute(frame, new NativeBattleSonic139AppendPacket(address, allocation, written, bucket, flags, bytes, known) { WriteMask = mask, PilotGeometry = pilotGeometry });
     }
 
     private static uint Cursor(NativeBattleSonic139Frame frame) => Dword(frame, 0x2520BF4);

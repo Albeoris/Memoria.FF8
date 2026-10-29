@@ -5,10 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleSonic139Warp
 {
-    public static NativeBattleSonic139Frame DrawGouraud6A97C0(NativeBattleSonic139Frame frame, uint temporary, NativeBattleSonic139Inputs inputs) => DrawTriangles(frame, temporary, false, inputs);
-    public static NativeBattleSonic139Frame DrawTextured6A9640(NativeBattleSonic139Frame frame, uint temporary, NativeBattleSonic139Inputs inputs) => DrawTriangles(frame, temporary, true, inputs);
+    public static NativeBattleSonic139Frame DrawGouraud6A97C0(NativeBattleSonic139Frame frame, uint temporary, NativeBattleSonic139Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null) => DrawTriangles(frame, temporary, false, inputs, pilotIdentity: pilotIdentity);
+    public static NativeBattleSonic139Frame DrawTextured6A9640(NativeBattleSonic139Frame frame, uint temporary, NativeBattleSonic139Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null) => DrawTriangles(frame, temporary, true, inputs, pilotIdentity: pilotIdentity);
 
-    private static NativeBattleSonic139Frame DrawTriangles(NativeBattleSonic139Frame frame, uint temporary, bool textured, NativeBattleSonic139Inputs inputs)
+    private static NativeBattleSonic139Frame DrawTriangles(NativeBattleSonic139Frame frame, uint temporary, bool textured, NativeBattleSonic139Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         NativeBattleEffectArena context = Context(frame, temporary, 76);
         uint stream = Word32(context, 20);
@@ -75,7 +75,17 @@ public static partial class NativeBattleSonic139Warp
             {
                 throw new InvalidDataException("Native Sonic triangle context leaves its actual selected ordering table.");
             }
-            frame = Append(frame, cursor, allocation, allocation, checked((int)((table - baseTable) / 4)), 1, packet, inputs);
+            NativeBattlePilotVisualGeometry? geometry = null;
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 Corner(int corner)
+                {
+                    byte[] xy = packet.Read(8 + corner * 8, 4);
+                    return new(BinaryPrimitives.ReadInt16LittleEndian(xy), BinaryPrimitives.ReadInt16LittleEndian(xy.AsSpan(2)), 0);
+                }
+                geometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + (int)(stream - 20)) }, Corner(0), Corner(1), Corner(2), default, 3) { ScreenSpace = true, ScreenScale = 8 };
+            }
+            frame = Append(frame, cursor, allocation, allocation, checked((int)((table - baseTable) / 4)), 1, packet, inputs, pilotGeometry: geometry);
             cursor = checked(cursor + (uint)allocation);
         }
         frame = PublishContext(frame, temporary, Context(frame, temporary, 76).Write(20, BitConverter.GetBytes(stream)), 76);

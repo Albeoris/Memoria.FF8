@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleElectrocute275BoneProjection
 {
-    public static NativeBattleEffectMemory ProjectChain(NativeBattleEffectMemory memory, uint firstRecord, uint recordBankAddress, int recordBankLength, Func<int, NativeBattlePackedMatrix32> readBone, Func<int, int, byte[]> readGeometry, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, short? localVectorW = null)
+    public static NativeBattleEffectMemory ProjectChain(NativeBattleEffectMemory memory, uint firstRecord, uint recordBankAddress, int recordBankLength, Func<int, NativeBattlePackedMatrix32> readBone, Func<int, int, byte[]> readGeometry, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, short? localVectorW = null, Action<uint, System.Numerics.Vector3>? captureWorld = null)
     {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Electrocute bone projection requires its actual record arena.");
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Electrocute bone projection requires its current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Electrocute bone projection requires its current arithmetic registers."));
@@ -41,6 +41,10 @@ public static class NativeBattleElectrocute275BoneProjection
             }
             registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, camera.ReadMatrix(), true, true, Padding(camera)) };
             registers = NativeBattleGeometry.LoadVector(registers, 0, new(point[0], point[1], point[2]), localVectorW);
+            if (captureWorld is not null)
+            {
+                captureWorld(record, NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(camera.ReadMatrix(), new(point[0], point[1], point[2])), projection));
+            }
             registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
             uint screen = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Electrocute bone chain requires its reached screen FIFO.");
             uint depth = registers.Geometry.Sz[3] ?? throw new NotSupportedException("Electrocute bone chain requires its reached depth FIFO.");

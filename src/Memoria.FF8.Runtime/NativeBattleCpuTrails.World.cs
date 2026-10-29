@@ -64,6 +64,7 @@ public static partial class NativeBattleCpuTrails
         frame = PointVector(frame, free, position);
         frame = PointWord(PointWord(PointWord(PointWord(frame, free + 6, scale), free + 14, 2), free + 0x20, 512), free + 0x22, 768);
         frame = WriteArena(frame, free + 0x24, BitConverter.GetBytes(0u));
+        NativeBattlePilotVisualLifetimes.Allocated(Arena(frame), layout.WorldBankAddress, checked((int)((free - layout.WorldBankAddress) / 40)));
         return new(frame, free);
     }
 

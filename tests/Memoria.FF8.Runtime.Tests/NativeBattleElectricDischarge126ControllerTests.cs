@@ -145,6 +145,8 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
         Assert.Equal((ushort)8, NativeBattleElectricDischarge126Controller.Read(frame, address).ReadWord(12));
         NativeBattleElectricDischarge126DrawSprite180 op = Assert.Single(f.Operations.OfType<NativeBattleElectricDischarge126DrawSprite180>());
         Assert.Equal(SpriteBAddress, op.SourceAddress);
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(126, task) with { ResourceGeneration = SpriteBAddress }, Assert.IsType<NativeBattlePilotVisualIdentity>(op.PilotIdentity));
+        Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(op));
         Assert.Equal((ushort)7, BinaryPrimitives.ReadUInt16LittleEndian(frame.Staging!.Read(op.TemporaryAddress + 4, 2)));
         Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(frame.Staging!.Read(op.TemporaryAddress + 0x24, 2)));
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));

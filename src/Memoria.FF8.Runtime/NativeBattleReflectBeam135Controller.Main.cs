@@ -77,7 +77,7 @@ public static partial class NativeBattleReflectBeam135Controller
                 frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(combined, null));
                 temporary = temporary.Write(0, BitConverter.GetBytes(StaticMeshAddress));
                 frame = PublishContext(frame, temporaryAddress, temporary, 88);
-                frame = inputs.Execute(frame, new NativeBattleReflectBeam135DrawStatic88(temporaryAddress, StaticMeshAddress));
+                frame = inputs.Execute(frame, new NativeBattleReflectBeam135DrawStatic88(temporaryAddress, StaticMeshAddress) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(135, Read(frame, address), pass) with { ResourceGeneration = StaticMeshAddress } });
             }
             frame = Release(frame, 88);
             NativeBattleReflectBeam135ActStep advanced = inputs.AdvanceAct(frame, address, resources.MainAct, 0x28, 0x2B8, ActContext(frame, PointView(mouth), -128));

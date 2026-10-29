@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Numerics;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -68,6 +69,68 @@ public sealed class NativeBattleSaliva138WindowedMeshTests
         Assert.Throws<NotSupportedException>(() => step.Context.Read(0x38, 4));
     }
 
+    [Theory]
+    [InlineData(3, 0)]
+    [InlineData(3, 240)]
+    [InlineData(7, 0)]
+    [InlineData(7, 240)]
+    public void Group12_capture_preserves_window_U_wrap_native_registers_and_ordered_write_ledger(int group, ushort uOffset)
+    {
+        NativeBattleStaticMeshResource source = Source(group);
+        NativeBattleEffectMemory memory = SelectedMemory();
+        NativeBattleActionMatrix matrix = new([8192, 0, 0, 0, 4096, 0, 0, 0, 4096], 70, 30, 2100, 4096);
+        memory = memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(memory.GeometryRegisters!, matrix, true, true, null) };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770() with { X = 50, Y = 10, Z = 100 }, 100, 160, 108);
+        List<uint> plainReads = [];
+        List<uint> capturedReads = [];
+        NativeBattleWindowedMeshStep plain = Draw(source, Context(uOffset), memory, plainReads, projection: projection);
+        NativeBattleWindowedMeshStep captured = Draw(source, Context(uOffset), memory, capturedReads, new(138, 0x1000, 2, 7, 13), projection);
+        Assert.Equal(plainReads, capturedReads);
+        Assert.Equal(new uint[] { SelectedAddress, SelectedAddress + 8, SelectedAddress + 16, SelectedAddress + 24 }, capturedReads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Context), NativeBattleTestSnapshots.Json(captured.Context));
+        Assert.Equal(plain.Batch.AllocationBytes, captured.Batch.AllocationBytes);
+        Assert.Equal(plain.Batch.Attempts.Length, captured.Batch.Attempts.Length);
+        for (int index = 0; index < plain.Batch.Attempts.Length; index++)
+        {
+            NativeBattleGfGeometryAttempt expected = plain.Batch.Attempts[index];
+            NativeBattleGfGeometryAttempt actual = captured.Batch.Attempts[index];
+            Assert.Equal(expected.ByteOffsetRelative, actual.ByteOffsetRelative);
+            Assert.Equal(expected.Data.ToArray(), actual.Data.ToArray());
+            Assert.Equal(expected.WriteMask.ToArray(), actual.WriteMask.ToArray());
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected.Primitive), NativeBattleTestSnapshots.Json(actual.Primitive is { } polygon ? polygon with { PilotGeometry = null } : null));
+        }
+        NativeBattleGfGeometryAttempt emitted = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null);
+        Assert.All(emitted.WriteMask, state => Assert.Equal(NativeBattleGfPacketByteState.Untouched, state));
+        NativeBattlePilotVisualGeometry geometry = emitted.Primitive!.PilotGeometry!;
+        Assert.Empty(emitted.Primitive.VertexPayload4);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal((Vector4?)Vector4.Zero, geometry.SourceDepths);
+        Assert.Equal(new Vector3(-780, -380, 2000), geometry.A);
+        Assert.Equal(new Vector3(820, 420, 2000), geometry.D);
+        Assert.Equal((ushort)138, geometry.Identity.Effect);
+        Assert.All(captured.Batch.Attempts.Where(attempt => attempt.Primitive is { } polygon && polygon.Words.Length == 3), attempt => Assert.Null(attempt.Primitive!.PilotGeometry));
+        Assert.False(captured.Memory.ScriptedColorRegisters!.NormalInputKnown!.Value[6]);
+        Assert.False(captured.Memory.ScriptedColorRegisters.NormalInputKnown.Value[7]);
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(7)]
+    public void Group12_capture_near_rejection_retains_prefix_without_bad_fourth_or_windows(int group)
+    {
+        NativeBattleStaticMeshResource source = Source(group, badFourth: true);
+        NativeBattleEffectArena context = Context().MarkUnknown(0x10, 20);
+        List<uint> reads = [];
+        NativeBattleWindowedMeshStep captured = Draw(source, context, SelectedMemory(0), reads, new(138, 0x1000, 2, 7, 13), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108));
+        NativeBattleWindowedMeshStep plain = Draw(source, context, SelectedMemory(0));
+        Assert.Equal(new uint[] { SelectedAddress, SelectedAddress + 8, SelectedAddress + 16 }, reads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Context), NativeBattleTestSnapshots.Json(captured.Context));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        Assert.Null(Assert.Single(captured.Batch.Attempts).Primitive);
+    }
+
     private const uint Address = 0x1234000;
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);
     private static NativeBattleEffectMemory Memory(int z = 2000)
@@ -80,9 +143,9 @@ public sealed class NativeBattleSaliva138WindowedMeshTests
     private const uint SelectedAddress = NativeBattleEffectNodeMemory.ArenaAddress + SelectedOffset;
     private static NativeBattleEffectArena Context(ushort offset = 0) => NativeBattleEffectArena.Clear().MarkUnknown(0, 92).Write(0, BitConverter.GetBytes(Address)).Write(4, BitConverter.GetBytes(SelectedAddress)).Write(0x10, BitConverter.GetBytes(offset)).Write(0x14, Window(0, 0, 256, 256)).Write(0x1C, Window(0, 0, 128, 256));
 
-    private static NativeBattleWindowedMeshStep Draw(NativeBattleStaticMeshResource source, NativeBattleEffectArena context, NativeBattleEffectMemory memory, List<uint>? reads = null)
+    private static NativeBattleWindowedMeshStep Draw(NativeBattleStaticMeshResource source, NativeBattleEffectArena context, NativeBattleEffectMemory memory, List<uint>? reads = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null)
     {
-        return NativeBattleWindowedMesh.Draw(memory, source, context, Projection, NativeBattleWindowedMeshLayout.Saliva138, ReadVertex);
+        return NativeBattleWindowedMesh.Draw(memory, source, context, projection ?? Projection, NativeBattleWindowedMeshLayout.Saliva138, ReadVertex, pilotIdentity: pilotIdentity);
 
         (NativeBattleVector Vertex, short? W) ReadVertex(uint address)
         {

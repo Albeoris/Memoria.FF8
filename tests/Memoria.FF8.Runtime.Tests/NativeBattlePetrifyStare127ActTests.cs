@@ -99,6 +99,56 @@ public sealed class NativeBattlePetrifyStare127ActTests
         Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
+    [Theory]
+    [InlineData((short)0)]
+    [InlineData((short)2048)]
+    [InlineData((short)4096)]
+    public void Presentation_capture_uses_selected_or_morphed_vertices_without_native_writes(short ratio)
+    {
+        NativeBattleGfAnimationSource original = Source(4, 2, 4);
+        byte[] bytes = original.Data.ToArray();
+        for (int vertex = 0; vertex < 4; vertex++)
+        {
+            int secondVertex = 16 + 12 + (4 + vertex) * 8;
+            short x = BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(secondVertex));
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(secondVertex), checked((short)(x + 100)));
+        }
+        NativeBattleGfAnimationSource source = original with { Data = bytes.ToImmutableArray() };
+        NativeBattleGfAnimationNode node = Node(ratio: ratio, second: 1);
+        NativeBattlePackedMatrix32 camera = Packed();
+        NativeBattleCameraProjection projection = new(camera.ReadMatrix(), 100, 160, 108);
+        NativeBattlePilotVisualIdentity identity = new(127, 0x25212A0, 1, 7, 44) { ResourceGeneration = source.Address };
+        NativeBattlePetrifyStare127ActStep Run(NativeBattlePilotVisualIdentity? pilot) => NativeBattlePetrifyStare127Act.Draw(Memory(), source, node, Context(), camera, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), projection, Colors, MorphAddress, pilotIdentity: pilot);
+        NativeBattlePetrifyStare127ActStep baseline = Run(null);
+        string native = NativeBattleTestSnapshots.Json(baseline);
+        NativeBattlePetrifyStare127ActStep captured = Run(identity);
+        Assert.Equal(native, NativeBattleTestSnapshots.Json(captured));
+        Assert.Null(Assert.Single(baseline.Batch.Attempts).Primitive!.PilotGeometry);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(3, geometry.CornerCount);
+        for (int corner = 0; corner < 3; corner++)
+        {
+            short expectedX = checked((short)((corner == 1 ? 400 : -400) + ratio * 100 / 4096));
+            short expectedY = corner == 2 ? (short)400 : (short)-400;
+            Assert.Equal(expectedX, geometry.Corner(corner).X);
+            Assert.Equal(expectedY, geometry.Corner(corner).Y);
+            if (ratio == 2048)
+            {
+                byte[] scratch = captured.Memory.Arena!.Read(MorphOffset + corner * 8, 6);
+                Assert.Equal(expectedX, BinaryPrimitives.ReadInt16LittleEndian(scratch));
+                Assert.Equal(expectedY, BinaryPrimitives.ReadInt16LittleEndian(scratch.AsSpan(2)));
+                Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(scratch.AsSpan(4)));
+                Assert.Equal(baseline.Memory.Arena!.Read(MorphOffset + corner * 8, 6), scratch);
+            }
+        }
+        if (ratio != 2048)
+        {
+            Assert.Throws<NotSupportedException>(() => captured.Memory.Arena!.Read(MorphOffset, 6));
+        }
+    }
+
     private static NativeBattlePetrifyStare127ActStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena? context = null, NativeBattleEffectMemory? memory = null, NativeBattleActionMatrix? camera = null) => NativeBattlePetrifyStare127Act.Draw(memory ?? Memory(), source, node, context ?? Context(), Packed(camera), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), new(null, 100, 160, 108), Colors, MorphAddress);
     private static NativeBattlePackedMatrix32 Packed(NativeBattleActionMatrix? camera = null) => NativeBattlePackedMatrix32.FromMatrix(camera ?? NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null);
     private static NativeBattleEffectMemory Memory()

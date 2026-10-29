@@ -15,17 +15,31 @@ public sealed record NativeBattleRibbonPacketStep(NativeBattleEffectArena Arena,
 
 public static class NativeBattleRibbonPackets
 {
-    public static (NativeBattleEffectArena Arena, NativeBattleGfGeometryBatch Batch) Draw(NativeBattleEffectArena arena, uint headAddress, short count, NativeBattleRibbonBank bank, ImmutableArray<byte> distances, NativeBattleRibbonPacketPolicy policy, uint? incomingDirectionWord = null)
+    public static (NativeBattleEffectArena Arena, NativeBattleGfGeometryBatch Batch) Draw(NativeBattleEffectArena arena, uint headAddress, short count, NativeBattleRibbonBank bank, ImmutableArray<byte> distances, NativeBattleRibbonPacketPolicy policy, uint? incomingDirectionWord = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<uint, System.Numerics.Vector3>? readWorldCenter = null, Func<uint, uint, NativeBattlePilotVisualIdentity>? identifySegment = null)
     {
-        NativeBattleRibbonPacketStep result = DrawWithDirection(arena, headAddress, count, bank, distances, policy, incomingDirectionWord);
+        NativeBattleRibbonPacketStep result = DrawWithDirection(arena, headAddress, count, bank, distances, policy, incomingDirectionWord, pilotIdentity, readWorldCenter, identifySegment);
         return (result.Arena, result.Batch);
     }
 
-    public static NativeBattleRibbonPacketStep DrawWithDirection(NativeBattleEffectArena arena, uint headAddress, short count, NativeBattleRibbonBank bank, ImmutableArray<byte> distances, NativeBattleRibbonPacketPolicy policy, uint? incomingDirectionWord = null)
+    public static NativeBattleRibbonPacketStep DrawWithDirection(NativeBattleEffectArena arena, uint headAddress, short count, NativeBattleRibbonBank bank, ImmutableArray<byte> distances, NativeBattleRibbonPacketPolicy policy, uint? incomingDirectionWord = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<uint, System.Numerics.Vector3>? readWorldCenter = null, Func<uint, uint, NativeBattlePilotVisualIdentity>? identifySegment = null)
     {
         if (count < 2 || count > bank.PointCount || bank.PointCount > short.MaxValue || bank.PointCount <= 0 || bank.Address == 0 || bank.ArenaOffset < 0 || bank.ArenaOffset > NativeBattleEffectArena.Length - checked(bank.PointCount * 40) || (ulong)bank.Address + (uint)bank.PointCount * 40 > (ulong)uint.MaxValue + 1 || policy.DepthShift > 31 || policy.Width is not (NativeBattleRibbonWidthPolicy.Projected or NativeBattleRibbonWidthPolicy.Anchored))
         {
             throw new InvalidDataException("The ribbon drawing requires its actual linked point count.");
+        }
+        Dictionary<uint, uint>? centers = null;
+        if (pilotIdentity.HasValue && readWorldCenter is not null)
+        {
+            centers = [];
+            uint point = headAddress;
+            for (int index = 0; index < count; index++)
+            {
+                centers.Add(point, Dword(arena, Offset(point, bank) + 0x10));
+                if (index < count - 1)
+                {
+                    point = Next(arena, point, bank);
+                }
+            }
         }
         short? previousX = incomingDirectionWord is uint incomingX ? unchecked((short)incomingX) : null;
         short? previousY = incomingDirectionWord is uint incomingY ? unchecked((short)(incomingY >> 16)) : null;
@@ -69,7 +83,21 @@ public static class NativeBattleRibbonPackets
                 packet.Word(28, secondColor);
                 packet.Word(40, secondColor);
                 int bucket = policy.TableBaseBucket + (unchecked(firstDepth + Word(arena, second + 0x14)) >> policy.DepthShift);
-                attempts.Add(packet.Attempt(new(bucket, packet.Words(), [])));
+                NativeBattleGfGeometryAttempt attempt = packet.Attempt(new(bucket, packet.Words(), []));
+                if (pilotIdentity is { } identity && readWorldCenter is not null && centers is not null && attempt.Primitive is { } primitive)
+                {
+                    System.Numerics.Vector3 a = readWorldCenter(current);
+                    System.Numerics.Vector3 b = readWorldCenter(next);
+                    System.Numerics.Vector2 OffsetFrom(uint corner, uint center) => new(unchecked((short)corner) - unchecked((short)center), unchecked((short)(corner >> 16)) - unchecked((short)(center >> 16)));
+                    NativeBattlePilotVisualGeometry geometry = new(identifySegment?.Invoke(current, next) ?? identity with { Primitive = unchecked(identity.Primitive * 397 + (int)current) }, a, a, b, b, 4)
+                    {
+                        ScreenOffsets = [OffsetFrom(Dword(arena, first + 0x10), centers[current]), OffsetFrom(Dword(arena, first + 0x18), centers[current]), OffsetFrom(Dword(arena, second + 0x10), centers[next]), OffsetFrom(Dword(arena, second + 0x18), centers[next])],
+                        SourceDepths = System.Numerics.Vector4.Zero,
+                        UseSourceDepths = true
+                    };
+                    attempt = attempt with { Primitive = primitive with { PilotGeometry = geometry } };
+                }
+                attempts.Add(attempt);
                 allocated = checked(allocated + 52);
             }
             current = next;

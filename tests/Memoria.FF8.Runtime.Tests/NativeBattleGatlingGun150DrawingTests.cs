@@ -89,6 +89,29 @@ public sealed class NativeBattleGatlingGun150DrawingTests
         Assert.Equal(NativeBattleTemporaryMemory.Address, BitConverter.ToUInt32(sprite.Frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
     }
 
+    [Fact]
+    public void Duplicate_first_mesh_passes_have_distinct_fixed_copy_ids_and_the_original_shared_task_owner()
+    {
+        NativeBattleGatlingGun150Frame frame = Fixture(0x60E6D0, 1);
+        List<NativeBattleGatlingGun150DrawStatic88> draws = [];
+        var result = AdvanceMesh(frame, ChildBank, null!, Inputs((current, operation) =>
+        {
+            draws.Add(Assert.IsType<NativeBattleGatlingGun150DrawStatic88>(operation));
+            return current;
+        }, 0x201));
+        Assert.Equal(2, draws.Count);
+        NativeBattlePilotVisualIdentity first = Assert.IsType<NativeBattlePilotVisualIdentity>(draws[0].PilotIdentity);
+        NativeBattlePilotVisualIdentity second = Assert.IsType<NativeBattlePilotVisualIdentity>(draws[1].PilotIdentity);
+        Assert.Equal(0, first.Primitive);
+        Assert.Equal(1, second.Primitive);
+        Assert.Equal(first with { Primitive = 1 }, second);
+        Assert.Equal((ushort)150, first.Effect);
+        Assert.Equal(0xDC24E0, first.ResourceGeneration);
+        Assert.Equal(frame.Random, result.Frame.Random);
+        Assert.Equal((ushort)1, Read(result.Frame, ChildBank).ReadWord(12));
+        Assert.Equal(0, result.Result);
+    }
+
     private static NativeBattleGatlingGun150Frame Fixture(uint callback, ushort age)
     {
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);

@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         return (staging, graphics with { Models = graphics.Models.SetItem(actor, restored.Model) });
     }
 
-    private NativeBattleEffectMemory ProjectNativeLightningBoneTrail(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, uint head, uint bankAddress, int bankLength)
+    private NativeBattleEffectMemory ProjectNativeLightningBoneTrail(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging staging, NativeBattleGraphicsState graphics, byte actor, uint head, uint bankAddress, int bankLength, Action<uint, System.Numerics.Vector3>? captureWorld = null)
     {
         NativeBattleGraphicsModel model = graphics.Models[actor];
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Lightning bone projection requires its current caster skeleton.");
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
             pointer = new(row.Require(16), null, row.Lengths.TryGetValue(16, out int length) ? length : null);
         }
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Lightning bone projection requires its current camera.");
-        memory = NativeBattleElectrocute275BoneProjection.ProjectChain(memory, head, bankAddress, bankLength, ReadBone, ReadGeometry, camera.CapturePackedView1D97778(), camera.Projection ?? throw new NotSupportedException("Lightning bone projection requires its current projection."), memory.ScriptedGraphics ?? throw new NotSupportedException("Lightning bone projection requires its current projection controls."));
+        memory = NativeBattleElectrocute275BoneProjection.ProjectChain(memory, head, bankAddress, bankLength, ReadBone, ReadGeometry, camera.CapturePackedView1D97778(), camera.Projection ?? throw new NotSupportedException("Lightning bone projection requires its current projection."), memory.ScriptedGraphics ?? throw new NotSupportedException("Lightning bone projection requires its current projection controls."), captureWorld: captureWorld);
         return memory;
 
         NativeBattlePackedMatrix32 ReadBone(int index)

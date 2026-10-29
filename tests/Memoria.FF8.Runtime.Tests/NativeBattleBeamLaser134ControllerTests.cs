@@ -119,6 +119,10 @@ public sealed class NativeBattleBeamLaser134ControllerTests
         Assert.False(draw.World.Known[19]);
         Assert.All(draw.World.Known.Skip(20), known => Assert.True(known));
         Assert.Equal(0, draw.FadeCue);
+        NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity);
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(134, NativeBattleBeamLaser134Controller.Read(frame, frame.Effect.Pools[1].BankAddress)) with { ResourceGeneration = fixture.Resources.Mesh.Address }, identity);
+        Assert.Equal(fixture.Resources.Mesh.Address, identity.ResourceGeneration);
+        Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(draw));
         fixture.Clear();
         fixture.Step(Age(frame, 34));
         Assert.Empty(fixture.Operations.OfType<NativeBattleBeamLaser134DrawStatic88>());

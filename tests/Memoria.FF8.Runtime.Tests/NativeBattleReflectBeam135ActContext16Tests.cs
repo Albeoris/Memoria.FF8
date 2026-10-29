@@ -81,6 +81,35 @@ public sealed class NativeBattleReflectBeam135ActContext16Tests
         Assert.Null(step.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_capture_preserves_native_state_and_selected_quad_corners(bool interpolate)
+    {
+        NativeBattleGfAnimationSource source = Source(4);
+        NativeBattleGfAnimationNode node = Node(interpolate);
+        NativeBattlePackedMatrix32 camera = Camera();
+        NativeBattleCameraProjection projection = new(camera.ReadMatrix(), 100, 160, 108);
+        NativeBattlePilotVisualIdentity identity = new(135, 0x2520E18, 2, 9, 88) { ResourceGeneration = ((long)source.Address << 32) | 0x214u };
+        NativeBattleReflectBeam135ActContext16Step Run(NativeBattlePilotVisualIdentity? pilot)
+        {
+            NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
+            memory = memory with { Arena = NativeBattleEffectArena.Clear(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), PrimitiveProcess = memory.PrimitiveProcess! with { ModelRendererRegisters = new(1, 2, 3, 4, 5) } };
+            return NativeBattleReflectBeam135ActContext16.Draw(memory, source, node, Context(-128), camera, Temporary(), projection, Constants, MorphAddress, 544, pilotIdentity: pilot);
+        }
+        NativeBattleReflectBeam135ActContext16Step baseline = Run(null);
+        string native = NativeBattleTestSnapshots.Json(baseline);
+        NativeBattleReflectBeam135ActContext16Step captured = Run(identity);
+        Assert.Equal(native, NativeBattleTestSnapshots.Json(captured));
+        Assert.Null(Assert.Single(baseline.Batch.Attempts).Primitive!.PilotGeometry);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(4, geometry.CornerCount);
+        Assert.Equal(interpolate ? -350f : -400f, geometry.A.X);
+        Assert.Equal(interpolate ? 450f : 400f, geometry.D.X);
+    }
+
     private static NativeBattleAnchorActPreparationStep Prepare(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context, NativeBattleEffectArena? arena = null)
     {
         return NativeBattleAnchorActPreparation.Prepare(source, node, context, Camera(), Temporary(), arena ?? NativeBattleEffectArena.Clear(), MorphAddress, 544, new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), Constants, NativeBattleAnchorActContextPolicy.ReflectBeam135);

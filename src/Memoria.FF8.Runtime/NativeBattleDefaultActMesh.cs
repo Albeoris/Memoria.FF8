@@ -8,12 +8,12 @@ public sealed record NativeBattleDefaultActMeshStep(NativeBattleEffectMemory Mem
 
 public static class NativeBattleDefaultActMesh
 {
-    public static NativeBattleDefaultActMeshStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, int geometryOffset, NativeBattleEffectArena context88, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<int, NativeBattleVector>? readVertex = null, Func<int, short?>? readW = null, int tableBaseBucket = 17, byte depthShift = 2, Func<int, NativeBattleEffectArena>? readPackedVertex = null)
+    public static NativeBattleDefaultActMeshStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, int geometryOffset, NativeBattleEffectArena context88, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<int, NativeBattleVector>? readVertex = null, Func<int, short?>? readW = null, int tableBaseBucket = 17, byte depthShift = 2, Func<int, NativeBattleEffectArena>? readPackedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return Draw(memory, source.Data, source.Address, geometryOffset, context88, projection, constants, readVertex, readW, tableBaseBucket, depthShift, readPackedVertex);
+        return Draw(memory, source.Data, source.Address, geometryOffset, context88, projection, constants, readVertex, readW, tableBaseBucket, depthShift, readPackedVertex, pilotIdentity);
     }
 
-    public static NativeBattleDefaultActMeshStep Draw(NativeBattleEffectMemory memory, ImmutableArray<byte> source, uint sourceAddress, int geometryOffset, NativeBattleEffectArena context88, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<int, NativeBattleVector>? readVertex = null, Func<int, short?>? readW = null, int tableBaseBucket = 17, byte depthShift = 2, Func<int, NativeBattleEffectArena>? readPackedVertex = null)
+    public static NativeBattleDefaultActMeshStep Draw(NativeBattleEffectMemory memory, ImmutableArray<byte> source, uint sourceAddress, int geometryOffset, NativeBattleEffectArena context88, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<int, NativeBattleVector>? readVertex = null, Func<int, short?>? readW = null, int tableBaseBucket = 17, byte depthShift = 2, Func<int, NativeBattleEffectArena>? readPackedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         context88.Validate();
         if (context88.ExceedsExtent(88) || depthShift > 31)
@@ -57,6 +57,8 @@ public static class NativeBattleDefaultActMesh
             bool textured = group is 2 or 3 or 6 or 7;
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
+                NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[quad ? 4 : 3] : null;
                 byte[] face = Read(cursor, lengths[group]).ToArray();
                 for (int corner = 0; corner < 3; corner++)
                 {
@@ -124,6 +126,10 @@ public static class NativeBattleDefaultActMesh
                     int biased = Math.Max(0, unchecked((int)depth + (int)Dword(context88, 0x18)));
                     context88 = Put(context88, 0x2C, unchecked((uint)biased));
                     attempt = attempt with { Primitive = polygon with { Bucket = unchecked(tableBaseBucket + (biased >> depthShift)) } };
+                    if (pilotIdentity is { } identity && world is not null)
+                    {
+                        attempt = attempt with { Primitive = attempt.Primitive! with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)world.Length)) } };
+                    }
                     allocated = checked(allocated + attempt.PacketLength);
                 }
                 attempts.Add(attempt);
@@ -142,11 +148,25 @@ public static class NativeBattleDefaultActMesh
                         short? w = known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : null;
                         registers = NativeBattleGeometry.LoadVector(registers, slot, vertex, w);
                         registers = registers with { Colors = registers.Colors with { NormalInput = bytes.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray() } };
+                        Capture(corner, vertex);
+                        if (corner < 3)
+                        {
+                            Capture(0, vertex);
+                        }
                     }
                     else
                     {
                         (NativeBattleVector vertex, short? w) = Vertex(corner);
                         registers = NativeBattleGeometry.LoadVector(registers, slot, vertex, w);
+                        Capture(corner, vertex);
+                    }
+                }
+
+                void Capture(int corner, NativeBattleVector vertex)
+                {
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, vertex), projection);
                     }
                 }
 

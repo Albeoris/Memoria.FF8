@@ -145,6 +145,8 @@ public sealed class NativeBattleReflectBeam135SecondaryTests
                 NativeBattleReflectBeam135DrawStatic88 draw = Assert.IsType<NativeBattleReflectBeam135DrawStatic88>(operation);
                 Order.Add("static");
                 Assert.Equal(StaticMeshAddress, draw.SourceAddress);
+                Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(135, Task(frame)) with { ResourceGeneration = StaticMeshAddress }, Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity));
+                Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(draw));
                 Assert.Equal(NativeBattleTemporaryMemory.Address + 88, U32(frame.Staging!, NativeBattleTemporaryMemory.Cursor));
                 Assert.Equal(0x30u, U32(frame.Staging!, draw.TemporaryAddress + 0x1C));
                 Assert.Equal(StaticMeshAddress, U32(frame.Staging!, draw.TemporaryAddress));

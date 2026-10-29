@@ -58,7 +58,7 @@ public static partial class NativeBattleDeathController
                 NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, nodeInputs);
                 NativeCrtRandomState random = current.Random;
                 bool releaseMesh = false;
-                _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver, current.Effect.Binding.Effect == 14 ? NativeBattlePilotVisualLifetimes.Identity(14, Read(address)) : null, PreparePilotMesh);
+                _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver, current.Effect.Binding.Effect is 14 or 74 ? NativeBattlePilotVisualLifetimes.Identity(current.Effect.Binding.Effect, Read(address)) : null, PreparePilotMesh);
                 NativeBattleEffectNodeMemoryWrite flushed = memory.FlushStorage();
                 current = current with { Memory = flushed.Memory, Effect = flushed.Effect, Random = random };
                 hierarchy = new(current.Effect.Pools);
@@ -91,7 +91,7 @@ public static partial class NativeBattleDeathController
                         NativeBattleEffectNodeMemoryWrite live = memory.FlushStorage();
                         (byte[] padding, bool[] known) = live.Memory.Arena!.ReadSnapshot(node + 0xAC + 18, 2);
                         short? matrixPadding = known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(padding) : null;
-                        NativeBattleDeathNodeMeshStep emitted = NativeBattleDeathNodeDrawing.Emit(current with { Memory = memory.CaptureProcessMemory() }, bytes, meshAddress, matrix, inputs.Projection, inputs.Colors, matrixPadding, current.Effect.Binding.Effect == 14 ? identity : null);
+                        NativeBattleDeathNodeMeshStep emitted = NativeBattleDeathNodeDrawing.Emit(current with { Memory = memory.CaptureProcessMemory() }, bytes, meshAddress, matrix, inputs.Projection, inputs.Colors, matrixPadding, current.Effect.Binding.Effect is 14 or 74 ? identity : null);
                         current = emitted.Frame;
                         releaseMesh = ++instance == count;
                         memory.PublishProcessMemory(current.Memory);

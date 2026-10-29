@@ -32,7 +32,7 @@ public static partial class NativeBattleElectricDischarge126Controller
         NativeBattleCpuTrailTaskStep result = NativeBattleCpuTrails.AdvanceBoneTrail(CpuFrame(frame), address, Layout(frame), resources.ReadPathWord, (owners, binding, head, count) =>
         {
             current = WithCpuFrame(current, owners);
-            current = inputs.Execute(current, new NativeBattleElectricDischarge126DrawBoneTrail(binding, head, count));
+            current = inputs.Execute(current, new NativeBattleElectricDischarge126DrawBoneTrail(binding, head, count) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(126, Read(current, address)) });
             return CpuFrame(current);
         });
         return (WithCpuFrame(current, result.Frame), result.Result);

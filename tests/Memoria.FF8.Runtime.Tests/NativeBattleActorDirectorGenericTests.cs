@@ -160,7 +160,7 @@ public sealed class NativeBattleActorDirectorGenericTests
         Assert.Equal(unchecked((short)0x5678), memory.ReadPlacementEuler().Z);
     }
 
-    private static (NativeBattleCuragaFrame Frame, uint Address, NativeBattleCuragaResources Resources, NativeBattleCuragaControllerInputs Inputs) Fixture(ushort effect)
+    internal static (NativeBattleCuragaFrame Frame, uint Address, NativeBattleCuragaResources Resources, NativeBattleCuragaControllerInputs Inputs) Fixture(ushort effect)
     {
         NativeBattleActorDirectorProfile profile = NativeBattleActorDirectorProfile.ForEffect(effect);
         NativeBattleEffectHierarchy hierarchy = new(profile.Pools.Select(pool => NativeBattleEffectTaskPool.Initialize(pool.Descriptor, pool.Bank, pool.Stride, pool.Capacity)).ToImmutableArray());

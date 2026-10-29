@@ -116,6 +116,50 @@ public sealed class NativeBattleSaliva138CurveTests
     }
 
     [Fact]
+    public void Group12_curve_capture_keeps_native_edges_packets_and_both_endpoint_births()
+    {
+        NativeBattleSaliva138Frame frame = Prepare();
+        Dictionary<uint, NativeBattleSaliva138RibbonSample> samples = new()
+        {
+            [PointAddress(0)] = new(new(-60, 92, 2000), 100u | 200u << 16),
+            [PointAddress(1)] = new(new(-44, 92, 2000), 116u | 200u << 16),
+            [PointAddress(2)] = new(new(-28, 92, 2000), 132u | 200u << 16)
+        };
+        var native = NativeBattleSaliva138Controller.DrawCurveRibbon(Prepare(), PointAddress(0), 3, Resources(Mesh()));
+        var captured = NativeBattleSaliva138Controller.DrawCurveRibbon(frame, PointAddress(0), 3, Resources(Mesh()), samples);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Frame), NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(captured.Batch.Attempts[0].Primitive!.PilotGeometry);
+        Assert.Equal(samples[PointAddress(0)].World, geometry.A);
+        Assert.Equal(geometry.A, geometry.B);
+        Assert.Equal(samples[PointAddress(1)].World, geometry.C);
+        Assert.Equal(geometry.C, geometry.D);
+        Assert.Equal(new System.Numerics.Vector2(0, -1), geometry.ScreenOffsets[0]);
+        Assert.Equal(new System.Numerics.Vector2(0, 1), geometry.ScreenOffsets[1]);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        Assert.NotEqual(geometry.Identity, captured.Batch.Attempts[1].Primitive!.PilotGeometry!.Identity);
+        NativeBattleEffectArena arena = frame.Memory.Arena!;
+        long secondBirth = NativeBattlePilotVisualLifetimes.Identity(138, arena, PointAddress(0), 1).Generation;
+        Assert.Equal(secondBirth, geometry.Identity.ResourceGeneration);
+        NativeBattlePilotVisualLifetimes.Allocated(arena, PointAddress(0), 1);
+        frame = Prepare(frame);
+        var recycled = NativeBattleSaliva138Controller.DrawCurveRibbon(frame, PointAddress(0), 3, Resources(Mesh()), samples);
+        NativeBattlePilotVisualGeometry replacement = recycled.Batch.Attempts[0].Primitive!.PilotGeometry!;
+        Assert.Equal(geometry.Identity.Generation, replacement.Identity.Generation);
+        Assert.NotEqual(geometry.Identity.ResourceGeneration, replacement.Identity.ResourceGeneration);
+        Assert.Equal(geometry, NativeBattlePilotVisualGeometry.Sample(geometry, replacement, 0.5f));
+
+        NativeBattleSaliva138Frame Prepare(NativeBattleSaliva138Frame? retained = null)
+        {
+            NativeBattleSaliva138Frame current = retained ?? Frame(Mesh());
+            current = Point(current, 0, 100, 200, 512, 200, 128, PointAddress(1));
+            current = Point(current, 1, 116, 200, 512, 200, 64, PointAddress(2));
+            return Point(current, 2, 132, 200, 512, 200, 32, 0);
+        }
+    }
+
+    [Fact]
     public void Zero_first_edge_requires_native_unobserved_previous_direction_only_when_later_edge_consumes_it()
     {
         NativeBattleSaliva138Frame frame = Frame(Mesh());
@@ -211,6 +255,38 @@ public sealed class NativeBattleSaliva138CurveTests
         Assert.Throws<NotSupportedException>(() => task.ReadWord(0x22));
         Assert.Equal(frame.Random, actual.Frame.Random);
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(actual.Frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
+    }
+
+    [Fact]
+    public void Group12_actual_curve_birth_changes_generation_when_a_freed_point_is_reused()
+    {
+        NativeBattleSaliva138Frame frame = WithCurve(Frame(Mesh()), 1);
+        uint address = WorkingAddress + CurveOffset;
+        NativeBattleModulePoolTask task = NativeBattleSaliva138Controller.Read(frame, address).WriteWord(12, 0).WriteWord(14, 0).WriteWord(16, 2000).WriteWord(0x14, 100).WriteWord(0x16, 100).WriteWord(0x18, 2000).WriteWord(0x1A, 1024).WriteWord(0x1C, 0).WriteWord(0x1E, 0).WriteWord(0x20, 2000).WriteWord(0x24, 0);
+        frame = NativeBattleSaliva138Controller.Write(frame, address, task);
+        NativeBattleEffectArena arena = frame.Memory.Arena!;
+        for (int index = 0; index < PointCount; index++)
+        {
+            arena = arena.Write(PointOffset(index) + 6, BitConverter.GetBytes(ushort.MaxValue));
+        }
+        frame = frame with { Memory = frame.Memory with { Arena = arena }, State = frame.State with { ScaleMatrix32 = frame.State.ScaleMatrix32!.MarkUnknown(18, 14) } };
+        NativeBattleSaliva138Inputs inputs = Inputs(frame, (current, operation) =>
+        {
+            NativeBattleSaliva138DrawCustom92 custom = Assert.IsType<NativeBattleSaliva138DrawCustom92>(operation);
+            Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(138, NativeBattleSaliva138Controller.Read(current, address)) with { ResourceGeneration = MeshAddress }, custom.PilotIdentity);
+            return current;
+        });
+        var first = NativeBattleSaliva138Controller.AdvanceCurve(frame, address, Resources(Mesh()), inputs);
+        NativeBattlePilotVisualIdentity original = NativeBattlePilotVisualLifetimes.Identity(138, first.Frame.Memory.Arena!, PointAddress(0), 0);
+        arena = first.Frame.Memory.Arena!.Write(PointOffset(0) + 6, BitConverter.GetBytes(ushort.MaxValue));
+        frame = first.Frame with { Memory = first.Frame.Memory with { Arena = arena } };
+        task = NativeBattleSaliva138Controller.Read(frame, address).WriteWord(0x12, 1).WriteWord(0x24, 0);
+        frame = NativeBattleSaliva138Controller.Write(frame, address, task);
+        var second = NativeBattleSaliva138Controller.AdvanceCurve(frame, address, Resources(Mesh()), inputs);
+        NativeBattlePilotVisualIdentity replacement = NativeBattlePilotVisualLifetimes.Identity(138, second.Frame.Memory.Arena!, PointAddress(0), 0);
+        Assert.NotEqual(original.Generation, replacement.Generation);
+        Assert.Equal(PointAddress(0), NativeBattleSaliva138Controller.Read(second.Frame, address).ReadDword(0x28));
+        Assert.Equal(first.Frame.Random, second.Frame.Random);
     }
 
     [Fact]

@@ -129,7 +129,7 @@ public sealed class NativeBattleDeathNodeDrawingTests
     private static NativeBattleEffectArena Context(NativeBattleDeathFrame frame) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleEffectNodeContextMemory.Capture(frame.Memory), NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleEffectArena.Clear().MarkUnknown(0, 104), 0, 104);
     private static uint U32(NativeBattleEffectArena context, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(context.Read(offset, 4));
 
-    private static ImmutableArray<byte> Mesh(bool reverse = false)
+    internal static ImmutableArray<byte> Mesh(bool reverse = false)
     {
         byte[] mesh = new byte[108];
         BinaryPrimitives.WriteUInt32LittleEndian(mesh, 40);

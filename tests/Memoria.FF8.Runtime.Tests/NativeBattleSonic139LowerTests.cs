@@ -126,6 +126,56 @@ public sealed class NativeBattleSonic139LowerTests
         Assert.Equal(Geometry + 0x48, Dword(Context(actual, temporary, 76), 20));
     }
 
+    [Fact]
+    public void Both_warp_passes_capture_exact_native_SXY_and_preserve_environment_and_packet_ledgers()
+    {
+        List<NativeBattleSonic139AppendPacket> plain = [];
+        List<NativeBattleSonic139AppendPacket> captured = [];
+        NativeBattleSonic139Frame native = NativeBattleSonic139Warp.Draw6A9260(Scene(), Geometry, Base + 0xF3C, 17, 2048, 0, 0, Inputs((current, operation) =>
+        {
+            plain.Add(Assert.IsType<NativeBattleSonic139AppendPacket>(operation));
+            return current;
+        }), Resources);
+        NativeBattlePilotVisualIdentity identity = new(139, 1, 2, 3, 0x10000) { ResourceGeneration = Geometry };
+        NativeBattleSonic139Frame receipt = NativeBattleSonic139Warp.Draw6A9260(Scene(), Geometry, Base + 0xF3C, 17, 2048, 0, 0, Inputs((current, operation) =>
+        {
+            captured.Add(Assert.IsType<NativeBattleSonic139AppendPacket>(operation));
+            return current;
+        }), Resources, pilotIdentity: identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(receipt));
+        Assert.Equal(6, captured.Count);
+        for (int index = 0; index < captured.Count; index++)
+        {
+            NativeBattleSonic139AppendPacket expected = plain[index];
+            NativeBattleSonic139AppendPacket actual = captured[index];
+            Assert.Equal(expected.Data, actual.Data);
+            Assert.Equal(expected.Known, actual.Known);
+            Assert.Equal(expected.WriteMask, actual.WriteMask);
+            Assert.Equal(expected.Address, actual.Address);
+            Assert.Equal(expected.Allocation, actual.Allocation);
+            Assert.Equal(expected.Flags, actual.Flags);
+            if (actual.Flags == 0)
+            {
+                Assert.Null(actual.PilotGeometry);
+                continue;
+            }
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(actual.PilotGeometry);
+            Assert.True(geometry.ScreenSpace);
+            Assert.Equal(8, geometry.ScreenScale);
+            Assert.Equal((byte)3, geometry.CornerCount);
+            Assert.Equal(identity.Generation, geometry.Identity.Generation);
+            for (int corner = 0; corner < 3; corner++)
+            {
+                short x = BinaryPrimitives.ReadInt16LittleEndian(actual.Data.AsSpan(8 + corner * 8));
+                short y = BinaryPrimitives.ReadInt16LittleEndian(actual.Data.AsSpan(10 + corner * 8));
+                Assert.Equal(x, geometry.Corner(corner).X * geometry.ScreenScale * 0.125f);
+                Assert.Equal(y, geometry.Corner(corner).Y * geometry.ScreenScale * 0.125f);
+            }
+            Assert.DoesNotContain("PilotGeometry", JsonSerializer.Serialize(actual));
+        }
+        Assert.NotEqual(captured[1].PilotGeometry!.Identity, captured[3].PilotGeometry!.Identity);
+    }
+
     private static NativeBattleSonic139Frame Scene()
     {
         NativeBattleSonic139Frame frame = Frame();

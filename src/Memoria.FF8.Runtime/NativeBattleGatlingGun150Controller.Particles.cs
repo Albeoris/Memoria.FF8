@@ -50,7 +50,7 @@ public static partial class NativeBattleGatlingGun150Controller
             (byte[] wBytes, bool[] wKnown) = packed.ReadSnapshot(6, 2);
             short? w = wKnown.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(wBytes) : null;
             frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), position, w, scale, unchecked((short)-(scale >> 4))) };
-            frame = inputs.Execute(frame, new NativeBattleGatlingGun150DrawSprite180(allocation.Address, source));
+            frame = inputs.Execute(frame, new NativeBattleGatlingGun150DrawSprite180(allocation.Address, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(150, NativeBattleGatlingGun150Controller.Read(frame, taskAddress), mode * 100 + index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(150, frame.State.Globals, bank, index).Generation } });
             NativeBattleGatlingGun150State state = frame.State;
             if (paused)
             {
@@ -118,6 +118,7 @@ public static partial class NativeBattleGatlingGun150Controller
                     1 => BirthPlanar150(frame, row, taskAddress),
                     _ => BirthBurst150(frame, row, taskAddress)
                 };
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, bank, index);
             }
         }
         task = NativeBattleGatlingGun150Controller.Read(frame, taskAddress);

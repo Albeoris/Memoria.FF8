@@ -9,7 +9,7 @@ public static class NativeBattlePetrifyStare127Act
 {
     public static bool Visible(NativeBattleGfAnimationNode node) => NativeBattleActMeshRendering.Visible(node);
 
-    public static NativeBattlePetrifyStare127ActStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context16, NativeBattlePackedMatrix32 camera, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, int morphLength = 1000, short? localVectorW = null)
+    public static NativeBattlePetrifyStare127ActStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context16, NativeBattlePackedMatrix32 camera, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, int morphLength = 1000, short? localVectorW = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!Visible(node))
         {
@@ -100,7 +100,7 @@ public static class NativeBattlePetrifyStare127Act
         }
         temporary88 = Store(temporary88, 0x18, Dword(context16, 8));
         NativeBattleEffectArena? selectedArena = arena;
-        NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(memory, source, geometry, temporary88, projection, colors, ReadVertex, ReadW);
+        NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(memory, source, geometry, temporary88, projection, colors, ReadVertex, ReadW, pilotIdentity: pilotIdentity);
         return new(drawn.Memory, drawn.Context88, drawn.Batch);
 
         void Transform(NativeBattleVector vector, short? w)

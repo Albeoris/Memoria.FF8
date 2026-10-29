@@ -41,10 +41,10 @@ public static partial class NativeBattleGatlingGun150Controller
             context = context.Write(12, BitConverter.GetBytes(cue));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleGatlingGun150DrawStatic88(temporary, source));
+        frame = inputs.Execute(frame, new NativeBattleGatlingGun150DrawStatic88(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(150, task, 0) with { ResourceGeneration = source } });
         if (first)
         {
-            frame = inputs.Execute(frame, new NativeBattleGatlingGun150DrawStatic88(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleGatlingGun150DrawStatic88(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(150, task, 1) with { ResourceGeneration = source } });
         }
         frame = Release(frame, 88);
         if ((inputs.GraphicsFlags & 0x201) != 0)
@@ -74,7 +74,7 @@ public static partial class NativeBattleGatlingGun150Controller
         (frame, uint temporary) = Allocate(frame, 180);
         ushort phase = task.ReadWord(12);
         frame = PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(0xDC1FA4u)).Write(4, BitConverter.GetBytes(phase)).Write(0x24, new byte[2]), 180);
-        frame = inputs.Execute(frame, new NativeBattleGatlingGun150DrawSprite180(temporary, 0xDC1FA4));
+        frame = inputs.Execute(frame, new NativeBattleGatlingGun150DrawSprite180(temporary, 0xDC1FA4) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(150, task) with { ResourceGeneration = 0xDC1FA4 } });
         frame = Release(frame, 180);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

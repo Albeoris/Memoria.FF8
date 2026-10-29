@@ -100,6 +100,9 @@ public sealed class NativeBattleReflectBeam135TargetsTests
         Assert.Equal(2, actual.Result);
         NativeBattleReflectBeam135DrawSprite180 draw = Assert.Single(f.Operations.OfType<NativeBattleReflectBeam135DrawSprite180>());
         Assert.Equal(source, draw.SourceAddress);
+        NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity);
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(135, task) with { ResourceGeneration = source }, identity);
+        Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(draw));
         Assert.Equal((ushort)phase, BinaryPrimitives.ReadUInt16LittleEndian(actual.Frame.Staging!.Read(draw.TemporaryAddress + 4, 2)));
         Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(actual.Frame.Staging.Read(draw.TemporaryAddress + 36, 2)));
         Assert.Throws<NotSupportedException>(() => actual.Frame.Staging.Read(draw.TemporaryAddress + 40, 2));

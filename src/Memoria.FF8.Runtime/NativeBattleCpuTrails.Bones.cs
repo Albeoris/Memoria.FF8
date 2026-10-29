@@ -87,6 +87,7 @@ public static partial class NativeBattleCpuTrails
         frame = BoneWord(frame, point + 0x22, fade);
         frame = BoneWord(frame, point + 0x20, intensity);
         frame = WriteArena(frame, point + 0x24, BitConverter.GetBytes(0u));
+        NativeBattlePilotVisualLifetimes.Allocated(Arena(frame), layout.BoneBankAddress, checked((int)((point - layout.BoneBankAddress) / 40)));
         return new(frame, point);
     }
 

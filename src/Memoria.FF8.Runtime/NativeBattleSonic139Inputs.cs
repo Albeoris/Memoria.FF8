@@ -6,7 +6,11 @@ public sealed record NativeBattleSonic139Frame(NativeBattleEffectMemory Memory, 
 }
 
 public sealed record NativeBattleSonic139PointStep(NativeBattleSonic139Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleSonic139ActContext(NativeBattlePackedMatrix32 Matrix, int DepthBias, uint MorphAddress);
+public sealed record NativeBattleSonic139ActContext(NativeBattlePackedMatrix32 Matrix, int DepthBias, uint MorphAddress)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleSonic139ActStep(NativeBattleSonic139Frame Frame, int Remaining);
 public sealed record NativeBattleSonic139Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleSonic139Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleSonic139Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleSonic139Frame, uint, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSonic139Frame, uint, short> ReadHeading, Func<NativeBattleSonic139Frame, NativeBattleEffectArena, NativeBattleSonic139PointStep> ReadEmitter6A9200, Func<NativeBattleSonic139Frame, uint, NativeBattleSonic139PointStep> ReadAnchor571400, Func<NativeBattleSonic139Frame, uint, NativeBattleGfAnimationSource, NativeBattleSonic139ActContext, NativeBattleSonic139ActStep> AdvanceAct, Func<NativeBattleSonic139Frame, NativeBattleSonic139Operation, NativeBattleSonic139Frame> Execute);
 
@@ -19,4 +23,6 @@ public sealed record NativeBattleSonic139RequestCommonCompletion(uint SourceAddr
 public sealed record NativeBattleSonic139AppendPacket(uint Address, int Allocation, int Written, int Bucket, ushort Flags, byte[] Data, bool[] Known) : NativeBattleSonic139Operation
 {
     public NativeBattleGfPacketByteState[] WriteMask { get; init; } = [];
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualGeometry? PilotGeometry { get; init; }
 }

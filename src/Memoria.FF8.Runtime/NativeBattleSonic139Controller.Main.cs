@@ -19,7 +19,7 @@ public static partial class NativeBattleSonic139Controller
             NativeBattleVector point = Point(emitter.Point8);
             NativeBattleActionMatrix local = NativeBattlePandemona291Restoration.Rotation701270(unchecked((short)-inputs.ReadHeading(frame, frame.State.ReadDword(CasterGlobal)))) with { X = point.X, Y = point.Y, Z = point.Z };
             NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);
-            NativeBattleSonic139ActStep act = inputs.AdvanceAct(frame, address + 0x30, resources.MainAct, new(NativeBattlePackedMatrix32.FromMatrix(composed, null), -128, frame.State.ReadDword(WorkingGlobal) + MorphOffset));
+            NativeBattleSonic139ActStep act = inputs.AdvanceAct(frame, address + 0x30, resources.MainAct, new(NativeBattlePackedMatrix32.FromMatrix(composed, null), -128, frame.State.ReadDword(WorkingGlobal) + MorphOffset) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(139, Read(frame, address), 0x30) });
             frame = act.Frame;
         }
         if ((uint)age < 30)
@@ -39,7 +39,7 @@ public static partial class NativeBattleSonic139Controller
                 uint destination = frame.State.ReadDword(WorkingGlobal) + MorphOffset;
                 frame = NativeBattleSonic139Morph.Morph6A9BB0(frame, Frame0Address + (uint)(bank * FrameLength), Frame0Address + (uint)(((bank + 1) & 3) * FrameLength), destination, ratio, inputs, resources);
                 int wave = NativeBattleCameraMath.Sine(phase >> 1);
-                frame = NativeBattleSonic139Warp.Draw6A9260(frame, CopiedMeshAddress, destination, ((depth - 512) >> 2) + 17, 4096 - wave, wave * 2, phase, inputs, resources);
+                frame = NativeBattleSonic139Warp.Draw6A9260(frame, CopiedMeshAddress, destination, ((depth - 512) >> 2) + 17, 4096 - wave, wave * 2, phase, inputs, resources, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(139, Read(frame, address), 0x10000) with { ResourceGeneration = CopiedMeshAddress });
             }
         }
         int later = age - 30;
@@ -73,7 +73,7 @@ public static partial class NativeBattleSonic139Controller
                 frame = LoadMatrix(frame, Packed(frame.State.ReadView(MatrixAddress, 32)));
                 int phase = later * 4096 / 40;
                 int wave = NativeBattleCameraMath.Sine(phase >> 1);
-                frame = NativeBattleSonic139Warp.Draw6A9260(frame, CopiedMeshAddress, CopiedMeshAddress + 8, (bucketDepth >> 2) + 17, 4096 - wave, wave, phase, inputs, resources);
+                frame = NativeBattleSonic139Warp.Draw6A9260(frame, CopiedMeshAddress, CopiedMeshAddress + 8, (bucketDepth >> 2) + 17, 4096 - wave, wave, phase, inputs, resources, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(139, Read(frame, address), 0x20000) with { ResourceGeneration = CopiedMeshAddress });
             }
         }
         if (age == 0)
@@ -132,7 +132,7 @@ public static partial class NativeBattleSonic139Controller
         registers = NativeBattleGeometry.Transform(registers, false);
         frame = Publish(frame, registers);
         NativeBattleActionMatrix matrix = view.ReadMatrix() with { X = unchecked(view.ReadMatrix().X + registers.Colors.Mac[0]!.Value), Y = unchecked(view.ReadMatrix().Y + registers.Colors.Mac[1]!.Value), Z = unchecked(view.ReadMatrix().Z + registers.Colors.Mac[2]!.Value) };
-        NativeBattleSonic139ActStep act = inputs.AdvanceAct(frame, address + 32, resources.TargetAct, new(NativeBattlePackedMatrix32.FromMatrix(matrix, view.Known[18] && view.Known[19] ? BitConverter.ToUInt16(view.Bytes.AsSpan().Slice(18)) : null), 0, frame.State.ReadDword(WorkingGlobal) + MorphOffset));
+        NativeBattleSonic139ActStep act = inputs.AdvanceAct(frame, address + 32, resources.TargetAct, new(NativeBattlePackedMatrix32.FromMatrix(matrix, view.Known[18] && view.Known[19] ? BitConverter.ToUInt16(view.Bytes.AsSpan().Slice(18)) : null), 0, frame.State.ReadDword(WorkingGlobal) + MorphOffset) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(139, Read(frame, address), 0x20) });
         frame = act.Frame;
         task = Read(frame, address);
         uint actor = task.ReadDword(16);

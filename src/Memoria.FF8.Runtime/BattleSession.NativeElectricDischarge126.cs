@@ -15,6 +15,8 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Electric Discharge requires its actual process memory.");
         NativeBattleElectricDischarge126Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Electric Discharge requires its CRT stream."), memory.ElectricDischarge126 ?? throw new NotSupportedException("Electric Discharge requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Electric Discharge requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Electric Discharge requires its original interpolation constants.");
+        Dictionary<uint, System.Numerics.Vector3> worldPoints = [];
+        Dictionary<uint, System.Numerics.Vector3> bonePoints = [];
         NativeBattleElectricDischarge126Inputs inputs = new(nativeActionPackets, colors, actor => graphics.Models[actor], actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Electric Discharge requires its current skeleton.")).BoneCount, CurrentBinding, _ => Camera().CapturePackedView1D97778(), Anchor, Bone, AdvanceAct, Execute);
         frame = initialize ? NativeBattleElectricDischarge126Controller.Initialize(frame, resources, inputs) : NativeBattleElectricDischarge126Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
@@ -137,9 +139,9 @@ public sealed partial class BattleSession
                 case NativeBattleElectricDischarge126ProjectWorld project:
                     uint working = current.State.ReadDword(NativeBattleElectricDischarge126Profile.WorkingGlobal);
                     NativeBattleRibbonBank bank = new(checked(working + NativeBattleElectricDischarge126Profile.WorldPointsOffset), checked((int)(working - NativeBattleElectricDischarge126Profile.ArenaAddress) + NativeBattleElectricDischarge126Profile.WorldPointsOffset), NativeBattleElectricDischarge126Profile.PointCount);
-                    return current with { Memory = NativeBattleRibbonProjection.ProjectCurrent(current.Memory, project.HeadAddress, bank, Camera().Projection ?? throw new NotSupportedException("Electric Discharge requires its current projection."), current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Electric Discharge requires its current projection controls.")) };
+                    return current with { Memory = NativeBattleRibbonProjection.ProjectCurrent(current.Memory, project.HeadAddress, bank, Camera().Projection ?? throw new NotSupportedException("Electric Discharge requires its current projection."), current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Electric Discharge requires its current projection controls."), (address, world) => worldPoints[address] = world) };
                 case NativeBattleElectricDischarge126DrawWorld world:
-                    var worldDraw = NativeBattleElectricDischarge126Ribbons.DrawProjected(current, world.HeadAddress, world.Count, world.TextureVOffset, resources, NativeBattleRibbonProjection.CaptureWorldDirectionWord(current.Memory, Camera().Projection ?? throw new NotSupportedException("World ribbon requires its current projection.")));
+                    var worldDraw = NativeBattleElectricDischarge126Ribbons.DrawProjected(current, world.HeadAddress, world.Count, world.TextureVOffset, resources, NativeBattleRibbonProjection.CaptureWorldDirectionWord(current.Memory, Camera().Projection ?? throw new NotSupportedException("World ribbon requires its current projection.")), world.PilotIdentity, worldPoints);
                     return Deliver(worldDraw.Frame, worldDraw.Batch);
                 case NativeBattleElectricDischarge126DrawBoneTrail boneTrail:
                     byte caster = current.Effect.Parameters!.Actor78;
@@ -148,11 +150,11 @@ public sealed partial class BattleSession
                         throw new InvalidDataException("Electric Discharge bone trail leaves its current addressed caster binding.");
                     }
                     uint boneBank = checked(current.State.ReadDword(NativeBattleElectricDischarge126Profile.WorkingGlobal) + NativeBattleElectricDischarge126Profile.BonePointsOffset);
-                    current = current with { Memory = ProjectNativeLightningBoneTrail(current.Memory, current.Effect, current.Staging!, graphics, caster, boneTrail.HeadAddress, boneBank, NativeBattleElectricDischarge126Profile.PointCount * NativeBattleElectricDischarge126Profile.PointStride) };
-                    var boneDraw = NativeBattleElectricDischarge126Ribbons.DrawBoneProjected(current, boneTrail.HeadAddress, boneTrail.Count, resources);
+                    current = current with { Memory = ProjectNativeLightningBoneTrail(current.Memory, current.Effect, current.Staging!, graphics, caster, boneTrail.HeadAddress, boneBank, NativeBattleElectricDischarge126Profile.PointCount * NativeBattleElectricDischarge126Profile.PointStride, (address, world) => bonePoints[address] = world) };
+                    var boneDraw = NativeBattleElectricDischarge126Ribbons.DrawBoneProjected(current, boneTrail.HeadAddress, boneTrail.Count, resources, boneTrail.PilotIdentity, bonePoints);
                     return Deliver(boneDraw.Frame, boneDraw.Batch);
                 case NativeBattleElectricDischarge126DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.Phase, 2);
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.Phase, 2, sprite.PilotIdentity);
                 case NativeBattleElectricDischarge126ContactAll contacts:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
@@ -170,14 +172,14 @@ public sealed partial class BattleSession
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0xC, 0xC8);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Act, 0, (next, node) =>
             {
-                current = NativeBattleElectricDischarge126Drawing.EmitNode(current, resources.Act, context, node, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Electric Discharge requires its projection."), colors, Deliver);
+                current = NativeBattleElectricDischarge126Drawing.EmitNode(current, resources.Act, context, node, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Electric Discharge requires its projection."), colors, Deliver, NativeBattlePilotVisualLifetimes.Identity(126, NativeBattleElectricDischarge126Controller.Read(current, taskAddress), node.ResourceOffset) with { ResourceGeneration = resources.Act.Address });
                 return next;
             });
             current = NativeBattleElectricDischarge126Controller.Write(current, taskAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleElectricDischarge126Controller.Read(current, taskAddress), 0xC, advanced.Workspace));
             return new(current, advanced.Remaining == 0 ? 2 : 0);
         }
 
-        NativeBattleElectricDischarge126Frame DrawSprite(NativeBattleElectricDischarge126Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift)
+        NativeBattleElectricDischarge126Frame DrawSprite(NativeBattleElectricDischarge126Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Electric Discharge sprite drawing requires its physical temporary memory.");
@@ -186,7 +188,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Electric Discharge sprite arguments differ from its current physical frame.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Electric Discharge sprite dispatcher selected a different source."), Camera().Projection ?? throw new NotSupportedException("Electric Discharge sprite drawing requires its current projection."), Camera().Roll, 17, depthShift);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Electric Discharge sprite dispatcher selected a different source."), Camera().Projection ?? throw new NotSupportedException("Electric Discharge sprite drawing requires its current projection."), Camera().Roll, 17, depthShift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

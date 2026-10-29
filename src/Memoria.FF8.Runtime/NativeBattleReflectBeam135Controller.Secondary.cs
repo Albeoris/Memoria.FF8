@@ -67,7 +67,7 @@ public static partial class NativeBattleReflectBeam135Controller
             (frame, uint temporaryAddress) = Allocate(frame, 88);
             NativeBattleEffectArena temporary = Context(frame, temporaryAddress, 88).Write(0, BitConverter.GetBytes(StaticMeshAddress)).Write(0x1C, BitConverter.GetBytes(0x30u));
             frame = PublishContext(frame, temporaryAddress, temporary, 88);
-            frame = inputs.Execute(frame, new NativeBattleReflectBeam135DrawStatic88(temporaryAddress, StaticMeshAddress));
+            frame = inputs.Execute(frame, new NativeBattleReflectBeam135DrawStatic88(temporaryAddress, StaticMeshAddress) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(135, Read(frame, address)) with { ResourceGeneration = StaticMeshAddress } });
             frame = Release(frame, 88);
         }
         else if (task.ReadWord(0xE) == 0)

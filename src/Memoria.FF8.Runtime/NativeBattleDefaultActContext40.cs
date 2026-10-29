@@ -9,12 +9,12 @@ public static class NativeBattleDefaultActContext40
 {
     public static bool Visible(NativeBattleGfAnimationNode node) => NativeBattleActMeshRendering.Visible(node);
 
-    public static NativeBattleDefaultActContext40Step Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context40, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, NativeBattleActContext40Policy policy, short? localVectorW = null)
+    public static NativeBattleDefaultActContext40Step Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context40, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, NativeBattleActContext40Policy policy, short? localVectorW = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return DrawCore(memory, source, node, context40, temporary88, projection, colors, morphAddress, policy.MorphScratchLength, policy, localVectorW);
+        return DrawCore(memory, source, node, context40, temporary88, projection, colors, morphAddress, policy.MorphScratchLength, policy, localVectorW, pilotIdentity);
     }
 
-    internal static NativeBattleDefaultActContext40Step DrawCore(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context40, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, int morphLength, NativeBattleActContext40Policy policy, short? localVectorW)
+    internal static NativeBattleDefaultActContext40Step DrawCore(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context40, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, int morphLength, NativeBattleActContext40Policy policy, short? localVectorW, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         policy.Validate();
         if (!Visible(node))
@@ -114,7 +114,7 @@ public static class NativeBattleDefaultActContext40
         }
         temporary88 = Store(temporary88, 0x18, Dword(context40, 32));
         NativeBattleEffectArena? selectedArena = arena;
-        NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(memory, source, geometry, temporary88, projection, colors, ReadVertex, ReadW);
+        NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(memory, source, geometry, temporary88, projection, colors, ReadVertex, ReadW, pilotIdentity: pilotIdentity);
         return new(drawn.Memory, drawn.Context88, drawn.Batch);
 
         void Transform(NativeBattleVector vector, short? w)

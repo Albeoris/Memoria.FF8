@@ -16,5 +16,13 @@ public sealed record NativeBattleReflectBeam135Contact(int Index) : NativeBattle
 public sealed record NativeBattleReflectBeam135Stage(short Depth, uint ColorFlags) : NativeBattleReflectBeam135Operation;
 public sealed record NativeBattleReflectBeam135ComposeCaster(byte Actor) : NativeBattleReflectBeam135Operation;
 public sealed record NativeBattleReflectBeam135RestoreCaster(byte Actor) : NativeBattleReflectBeam135Operation;
-public sealed record NativeBattleReflectBeam135DrawStatic88(uint TemporaryAddress, uint SourceAddress) : NativeBattleReflectBeam135Operation;
-public sealed record NativeBattleReflectBeam135DrawSprite180(uint TemporaryAddress, uint SourceAddress) : NativeBattleReflectBeam135Operation;
+public sealed record NativeBattleReflectBeam135DrawStatic88(uint TemporaryAddress, uint SourceAddress) : NativeBattleReflectBeam135Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
+public sealed record NativeBattleReflectBeam135DrawSprite180(uint TemporaryAddress, uint SourceAddress) : NativeBattleReflectBeam135Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}

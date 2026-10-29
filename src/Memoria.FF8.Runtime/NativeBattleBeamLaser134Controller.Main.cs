@@ -101,7 +101,7 @@ public static partial class NativeBattleBeamLaser134Controller
                 short width = unchecked((short)(NativeBattleCameraMath.Sine(cue >> 1) >> 3));
                 NativeBattleActionMatrix diagonal = new([width, 0, 0, 0, width, 0, 0, 0, unchecked((short)length)], 0, 0, 0, 4096);
                 NativeBattleActionMatrix scaled = NativeBattleGfMatrices.Multiply56C090(world, diagonal) with { X = world.X, Y = world.Y, Z = world.Z };
-                frame = inputs.Execute(frame, new NativeBattleBeamLaser134DrawStatic88(NativeBattlePackedMatrix32.FromMatrix(scaled, null), cue));
+                frame = inputs.Execute(frame, new NativeBattleBeamLaser134DrawStatic88(NativeBattlePackedMatrix32.FromMatrix(scaled, null), cue) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(134, Read(frame, address)) with { ResourceGeneration = resources.Mesh.Address } });
             }
         }
         relative = age - 22;

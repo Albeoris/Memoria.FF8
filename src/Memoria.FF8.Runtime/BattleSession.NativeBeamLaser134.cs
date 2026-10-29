@@ -100,7 +100,7 @@ public sealed partial class BattleSession
                 }
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("Beam Laser drawing requires its addressed temporary memory."), 88);
                 NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
-                NativeBattleDefaultActContext40Step drawn = NativeBattleDefaultActContext40.Draw(current.Memory, source, node, context, temporary, Projection(), colors, BinaryPrimitives.ReadUInt32LittleEndian(context.Read(36, 4)), NativeBattleActContext40Policy.BeamLaser134);
+                NativeBattleDefaultActContext40Step drawn = NativeBattleDefaultActContext40.Draw(current.Memory, source, node, context, temporary, Projection(), colors, BinaryPrimitives.ReadUInt32LittleEndian(context.Read(36, 4)), NativeBattleActContext40Policy.BeamLaser134, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(134, NativeBattleBeamLaser134Controller.Read(current, address), node.ResourceOffset) with { ResourceGeneration = ((long)source.Address << 32) | (uint)offset });
                 NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.Temporary88, 88);
                 current = Deliver(current with { Memory = drawn.Memory, Staging = published }, drawn.Batch);
                 current = current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging!, 88) };
@@ -135,7 +135,7 @@ public sealed partial class BattleSession
                         context = context.Write(8, new byte[3]).Write(12, BitConverter.GetBytes(mesh.FadeCue));
                     }
                     NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(Camera().CapturePackedView1D97778().ReadMatrix(), mesh.World.ReadMatrix());
-                    NativeBattleStaticMeshContext88Step drawnMesh = NativeBattleStaticMeshContext88.Draw(current.Memory, resources.Mesh, matrix, Projection(), context, colors);
+                    NativeBattleStaticMeshContext88Step drawnMesh = NativeBattleStaticMeshContext88.Draw(current.Memory, resources.Mesh, matrix, Projection(), context, colors, pilotIdentity: mesh.PilotIdentity);
                     current = Deliver(current with { Memory = drawnMesh.Memory, Staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawnMesh.Context, 88) }, drawnMesh.Batch);
                     return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging!, 88) };
                 case NativeBattleBeamLaser134Sound sound:
@@ -156,7 +156,7 @@ public sealed partial class BattleSession
                     NativeBattleEffectMemory prepared = NativeBattleModuleSpriteSetup.Setup571BC0(current.Memory, Camera().CapturePackedView1D97778(), position, phase, (short)(sprite.Moving ? 3072 : 4096), (short)(sprite.Moving ? -768 : -1024));
                     NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(current.Staging!, sprite.Temporary180, source.Address, 0).Write(sprite.Temporary180 + 4, BitConverter.GetBytes(phase));
                     NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, sprite.Temporary180, 180), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 180), 0, 180);
-                    NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(prepared, temporary, address => address == source.Address ? source : throw new NotSupportedException("Beam Laser selected an unsupported sprite source."), Projection(), Camera().Roll);
+                    NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(prepared, temporary, address => address == source.Address ? source : throw new NotSupportedException("Beam Laser selected an unsupported sprite source."), Projection(), Camera().Roll, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(134, task) with { ResourceGeneration = source.Address });
                     return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, sprite.Temporary180, drawn.Temporary180, 180) }, drawn.Batch);
                 default:
                     throw new NotSupportedException("Beam Laser operation has no proved implementation.");

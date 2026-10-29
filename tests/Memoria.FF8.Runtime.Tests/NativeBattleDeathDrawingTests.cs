@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -79,11 +79,11 @@ public sealed class NativeBattleDeathDrawingTests
         Assert.Contains(draw.Packets.Attempts, attempt => attempt.Primitive is { } primitive && (primitive.Words[1] >> 24 & 0xFC) == 0x2C);
     }
 
-    private static NativeBattleShadowSource Shadow => new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), new(4096, 0, 4096), Enumerable.Repeat(new NativeBattleVector(0, 0, 0), 10).ToImmutableArray());
+    internal static NativeBattleShadowSource Shadow => new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), new(4096, 0, 4096), Enumerable.Repeat(new NativeBattleVector(0, 0, 0), 10).ToImmutableArray());
 
     private static NativeBattleDeathDraw Draw((NativeBattleDeathFrame Frame, NativeBattleModulePoolTask Task, NativeBattleEffectOwnedModelState Model, NativeBattleDeathResources Resources, NativeBattleCameraProjection Projection) fixture) => NativeBattleDeathDrawing.Dark(fixture.Frame, fixture.Task, fixture.Model, fixture.Resources, NativeBattlePackedMatrix32.FromMatrix(fixture.Projection.View!, null), fixture.Projection, Shadow, new(true));
 
-    private static (NativeBattleDeathFrame Frame, NativeBattleModulePoolTask Task, NativeBattleEffectOwnedModelState Model, NativeBattleDeathResources Resources, NativeBattleCameraProjection Projection) Fixture(int depth, ushort effect = 14)
+    internal static (NativeBattleDeathFrame Frame, NativeBattleModulePoolTask Task, NativeBattleEffectOwnedModelState Model, NativeBattleDeathResources Resources, NativeBattleCameraProjection Projection) Fixture(int depth, ushort effect = 14)
     {
         NativeBattleDeathFamilyProfile profile = NativeBattleDeathFamilyProfile.ForEffect(effect);
         byte[] bytes = new byte[188];
@@ -116,7 +116,12 @@ public sealed class NativeBattleDeathDrawingTests
         }
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read(bytes.AsSpan(88, 92).ToArray(), 1);
         NativeBattleEffectOwnedModelResource model = new(0x1000, bytes.ToImmutableArray(), source, meshes);
-        NativeBattleEffectOwnedModelStep initialized = NativeBattleEffectOwnedModel.Initialize8DD0F0(new(1, 0, null, profile.Callback(0x8B6F70), new byte[0x140 - 12].ToImmutableArray()), profile.ModuleAddress(0x2742450), model, 3, 0x808080);
+        NativeBattleCureFamilyPool descriptor = profile.Pools[3];
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor.Descriptor, descriptor.Bank, descriptor.Stride, descriptor.Capacity);
+        (NativeBattleEffectTaskPool allocated, int slot) = pool.Append(profile.Callback(0x8B6F70));
+        pool = allocated;
+        NativeBattleModulePoolTask owned = NativeBattleTaskFixture.EditTask(pool.Slots[slot], data => data with { Payload = new byte[0x140 - 12].ToImmutableArray() });
+        NativeBattleEffectOwnedModelStep initialized = NativeBattleEffectOwnedModel.Initialize8DD0F0(owned, profile.ModuleAddress(0x2742450), model, 3, 0x808080);
         NativeBattleModulePoolTask task = initialized.Task.WriteDword(0x114, 4096).WriteDword(0x118, 4096).WriteDword(0x11C, 4096);
         NativeBattleEffectOwnedModelState state = initialized.State with { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(4096, 4096, 4096))], false) };
         NativeBattleDeathResources resources = new(new("camera", []), model, [], [], new("first", []), new("second", []), new(0, 1, []), [], 1, 2) { Effect = effect };

@@ -95,6 +95,12 @@ public sealed class NativeBattleReflectBeam135ControllerTests
         frame = frame with { State = frame.State with { Globals = frame.State.Globals.MarkUnknown(checked((int)(ScaleMatrixGlobal - BaseAddress)) + 18, 14) } };
         var actual = NativeBattleReflectBeam135Controller.AdvanceMain(frame, Fixture.MainAddress, f.Resources, f.Inputs);
         Assert.Equal(3, f.Statics.Count);
+        NativeBattlePilotVisualIdentity[] identities = f.Operations.OfType<NativeBattleReflectBeam135DrawStatic88>().Select(draw => Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity)).ToArray();
+        Assert.Equal(new int[] { 2, 1, 0 }, identities.Select(identity => identity.Primitive).ToArray());
+        Assert.Equal(3, identities.Distinct().Count());
+        NativeBattlePilotVisualIdentity owner = NativeBattlePilotVisualLifetimes.Identity(135, NativeBattleReflectBeam135Controller.Read(frame, Fixture.MainAddress)) with { ResourceGeneration = StaticMeshAddress };
+        Assert.All(identities, identity => Assert.Equal(owner, identity with { Primitive = 0 }));
+        Assert.All(f.Operations.OfType<NativeBattleReflectBeam135DrawStatic88>(), draw => Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(draw)));
         Assert.All(f.Statics, draw => Assert.Equal(new int?[] { 110, 220, 330 }, draw.Matrix.Translation.ToArray()));
         Assert.All(f.Statics, draw => Assert.Null(draw.Matrix.Rotation20[18]));
         Assert.All(f.Statics, draw => Assert.Null(draw.Matrix.Rotation20[19]));

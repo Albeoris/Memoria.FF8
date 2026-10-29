@@ -7,7 +7,7 @@ public sealed record NativeBattleWindowedMeshStep(NativeBattleEffectMemory Memor
 
 public static class NativeBattleWindowedMesh
 {
-    public static NativeBattleWindowedMeshStep Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource source, NativeBattleEffectArena context, NativeBattleCameraProjection projection, NativeBattleWindowedMeshLayout layout, Func<uint, (NativeBattleVector Vertex, short? W)> readVertex, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleWindowedMeshStep Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource source, NativeBattleEffectArena context, NativeBattleCameraProjection projection, NativeBattleWindowedMeshLayout layout, Func<uint, (NativeBattleVector Vertex, short? W)> readVertex, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         context.Validate();
         if (source.Bytes.IsDefault || source.Bytes.Length < 8 || Dword(context, 0) != source.Address || depthShift > 31 || context.ExceedsExtent(layout.ContextBytes))
@@ -37,10 +37,20 @@ public static class NativeBattleWindowedMesh
                 NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Windowed mesh requires its current projection controls.");
                 registers ??= new(memory.GeometryRegisters ?? throw new NotSupportedException("Windowed mesh requires its current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Windowed mesh requires its current color registers."));
                 NativeBattleGeometryRegisterStep step = registers;
+                NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(step.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[quad ? 4 : 3] : null;
+                void Capture(int corner, NativeBattleVector vertex)
+                {
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, vertex), projection);
+                    }
+                }
                 for (int corner = 0; corner < 3; corner++)
                 {
                     (NativeBattleVector vertex, short? w) = Vertex(face, corner);
                     step = NativeBattleGeometry.LoadVector(step, corner, vertex, w);
+                    Capture(corner, vertex);
                 }
                 step = NativeBattleGeometry.ProjectTriple(step, projection, controls.Dqa, controls.Dqb);
                 uint flags = step.Colors.Flags ?? throw new InvalidDataException("Windowed mesh projection did not publish FLAG.");
@@ -73,6 +83,7 @@ public static class NativeBattleWindowedMesh
                 {
                     (NativeBattleVector vertex, short? w) = Vertex(face, 3);
                     step = NativeBattleGeometry.LoadVector(step, 0, vertex, w);
+                    Capture(3, vertex);
                     step = NativeBattleGeometry.ProjectSingle(step, projection, controls.Dqa, controls.Dqb);
                     corners[3] = new(step.Geometry.Sxy[2] ?? throw new InvalidDataException("Windowed mesh requires its fourth SXY output."), unchecked((ushort)(step.Geometry.Sz[3] ?? throw new InvalidDataException("Windowed mesh requires its fourth SZ output."))), step.Colors.Flags ?? throw new InvalidDataException("Windowed mesh requires its fourth FLAG output."));
                     writes.Dword(ScreenOffset(group, 3), corners[3].Screen);
@@ -108,6 +119,10 @@ public static class NativeBattleWindowedMesh
                 NativeBattleMeshPacketVariant variant = new(null, null, false, false) { SkipOffscreenRejection = true };
                 NativeBattleGfGeometryAttempt packed = NativeBattleGfGeometryPackets.EmitAttempt(face, corners, group, packing, null, allocated, variant: variant);
                 NativeBattleGeometryPrimitive polygon = (packed.Primitive ?? throw new InvalidDataException("Windowed mesh admitted polygon was rejected by its layout encoder.")) with { Bucket = checked(tableBaseBucket + (unchecked((int)depth) >> depthShift)), VertexPayload4 = [] };
+                if (pilotIdentity is { } identity && world is not null)
+                {
+                    polygon = polygon with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)world.Length)) { UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero } };
+                }
                 if (!textured)
                 {
                     attempts.Add(packed with { Primitive = polygon });

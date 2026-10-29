@@ -103,7 +103,7 @@ public static partial class NativeBattleDeathController
                 matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, scaleX, scaleY, scaleZ);
                 matrix = NativeBattleGfMatrices.Compose56C2F0(inputs.Projection.View ?? throw new NotSupportedException("Native Death sparks require the current camera matrix."), matrix);
                 NativeBattleEsunaMeshContext context = new(0xF0, task.ReadDword(0x40), fade, S(task, 0x52), 0, 0, new(0, 0, 256, 256), new(0, 0, 256, 256), 17, 2);
-                NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitBatch88E240(resources.Spark.Bytes, matrix, inputs.Projection, context, inputs.Colors, pilotIdentity: current.Effect.Binding.Effect == 14 ? NativeBattlePilotVisualLifetimes.Identity(14, task, index) : null);
+                NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitBatch88E240(resources.Spark.Bytes, matrix, inputs.Projection, context, inputs.Colors, pilotIdentity: current.Effect.Binding.Effect is 14 or 74 ? NativeBattlePilotVisualLifetimes.Identity(current.Effect.Binding.Effect, task, index) : null);
                 PublishSparkTemporary();
                 Emit(new NativeBattleDeathPackets(batch));
             }

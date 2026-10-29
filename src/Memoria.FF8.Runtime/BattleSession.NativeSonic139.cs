@@ -104,7 +104,7 @@ public sealed partial class BattleSession
                     return next;
                 }
                 (current, uint temporary) = NativeBattleSonic139Controller.Allocate(current, 88);
-                NativeBattleDefaultActContext40Step drawn = NativeBattleDefaultActContext40.Draw(current.Memory, source, node, caller, NativeBattleSonic139Controller.Context(current, temporary, 88), Projection(), colors, context.MorphAddress, policy);
+                NativeBattleDefaultActContext40Step drawn = NativeBattleDefaultActContext40.Draw(current.Memory, source, node, caller, NativeBattleSonic139Controller.Context(current, temporary, 88), Projection(), colors, context.MorphAddress, policy, pilotIdentity: context.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + node.ResourceOffset), ResourceGeneration = checked(source.Address + (uint)BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(8 + node.GeometryIndex * 4))) } : null);
                 current = NativeBattleSonic139Controller.PublishContext(current with { Memory = drawn.Memory }, temporary, drawn.Temporary88, 88);
                 current = Deliver(current, drawn.Batch);
                 current = NativeBattleSonic139Controller.Release(current, 88);
@@ -204,7 +204,7 @@ public sealed partial class BattleSession
                 throw new NotSupportedException("Sonic Wave packet commands require their actual written bytes.");
             }
             ImmutableArray<uint> words = Enumerable.Range(0, packet.Written / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
-            NativeBattleGeometryPrimitive polygon = new(packet.Bucket, words, packet.Flags == 0 ? [0, 0, 0, 0] : []);
+            NativeBattleGeometryPrimitive polygon = new(packet.Bucket, words, packet.Flags == 0 ? [0, 0, 0, 0] : []) { PilotGeometry = packet.PilotGeometry };
             NativeBattleGfGeometryBatch batch = new([new(0, bytes.ToImmutableArray(), mask.ToImmutableArray(), polygon)], packet.Allocation);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Sonic Wave requires its pending ordering table.");
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, offset, primitive.Pending, batch, packet.Flags);

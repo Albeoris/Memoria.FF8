@@ -54,11 +54,44 @@ public sealed class NativeBattleElectricDischarge126DrawingTests
         Assert.Same(frame, result);
     }
 
-    private static NativeBattleElectricDischarge126Frame Draw(NativeBattleElectricDischarge126Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, Func<NativeBattleElectricDischarge126Frame, NativeBattleGfGeometryBatch, NativeBattleElectricDischarge126Frame> deliver)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ACT_capture_forwards_selected_or_morph_source_and_preserves_native_delivery(bool interpolate)
+    {
+        NativeBattleGfAnimationNode node = Node(0);
+        if (interpolate)
+        {
+            byte[] bytes = node.Data.ToArray();
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(38), 2048);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(42), 1);
+            node = node with { Data = bytes.ToImmutableArray() };
+        }
+        NativeBattleGfGeometryBatch? batch = null;
+        NativeBattleElectricDischarge126Frame Deliver(NativeBattleElectricDischarge126Frame frame, NativeBattleGfGeometryBatch emitted)
+        {
+            batch = emitted;
+            return frame;
+        }
+        NativeBattleElectricDischarge126Frame native = Draw(Frame(), Source(4), node, Deliver);
+        string nativeFrame = NativeBattleTestSnapshots.Json(native);
+        string nativeBatch = NativeBattleTestSnapshots.Json(batch!);
+        NativeBattlePilotVisualIdentity identity = new(126, ActDescriptor, 3, 19, node.ResourceOffset) { ResourceGeneration = 0x12417D8 };
+        NativeBattleElectricDischarge126Frame captured = Draw(Frame(), Source(4), node, Deliver, identity);
+        Assert.Equal(nativeFrame, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(nativeBatch, NativeBattleTestSnapshots.Json(batch!));
+        NativeBattlePilotVisualGeometry geometry = Assert.Single(batch!.Attempts).Primitive!.PilotGeometry!;
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(4, geometry.CornerCount);
+        Assert.Equal(interpolate ? -350f : -400f, geometry.A.X);
+    }
+
+    private static NativeBattleElectricDischarge126Frame Draw(NativeBattleElectricDischarge126Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, Func<NativeBattleElectricDischarge126Frame, NativeBattleGfGeometryBatch, NativeBattleElectricDischarge126Frame> deliver, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint morph = frame.State.ReadDword(WorkingGlobal) + MorphOffset;
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 12).Write(0, new byte[6]).Write(8, BitConverter.GetBytes(morph));
-        return NativeBattleElectricDischarge126Drawing.EmitNode(frame, source, context, node, NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, deliver);
+        return NativeBattleElectricDischarge126Drawing.EmitNode(frame, source, context, node, NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, deliver, pilotIdentity);
     }
 
     private static NativeBattleElectricDischarge126Frame Frame()

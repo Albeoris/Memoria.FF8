@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Numerics;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -60,6 +61,50 @@ public sealed class NativeBattleSaliva138ActContext40Tests
         NativeBattleDefaultActContext40Step step = Draw(Policy, Source(4, 1), Node(header, x: 100), Context(context));
         Assert.Equal(expectedX, step.Memory.GeometryRegisters!.Translation[0]);
         Assert.Equal(2000, step.Memory.GeometryRegisters.Translation[2]);
+    }
+
+    [Fact]
+    public void Group12_capture_reads_actual_morph_rows_after_weighting_and_loaded_matrix_without_native_changes()
+    {
+        NativeBattleGfAnimationSource source = Source(48, 2, group: 4);
+        byte[] bytes = source.Data.ToArray();
+        for (int vertex = 0; vertex < 48; vertex++)
+        {
+            int offset = 16 + 12 + (48 + vertex) * 8;
+            short x = BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset));
+            short y = BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset + 2));
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset), (short)(x + 200));
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset + 2), (short)(y + 100));
+        }
+        source = source with { Data = bytes.ToImmutableArray() };
+        NativeBattleGfAnimationNode node = RotatedScaled(0x40300);
+        byte[] nodeBytes = node.Data.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(nodeBytes.AsSpan(38), 2048);
+        BinaryPrimitives.WriteInt16LittleEndian(nodeBytes.AsSpan(42), 1);
+        node = node with { Data = nodeBytes.ToImmutableArray() };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770() with { X = 17, Y = 23, Z = 100 }, 100, 160, 108);
+        NativeBattleEffectMemory initial = Memory();
+        NativeBattleDefaultActContext40Step Draw(NativeBattlePilotVisualIdentity? identity) => NativeBattleDefaultActContext40.Draw(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(initial))!, source, node, Context(), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), projection, NativeBattleGteColorInterpolation.CodeConstants45F270, MorphAddress, Policy, pilotIdentity: identity);
+        NativeBattleDefaultActContext40Step plain = Draw(null);
+        NativeBattleDefaultActContext40Step captured = Draw(new(138, 0x1000, 2, 7, 3));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Temporary88), NativeBattleTestSnapshots.Json(captured.Temporary88));
+        NativeBattleGfGeometryAttempt expected = Assert.Single(plain.Batch.Attempts);
+        NativeBattleGfGeometryAttempt actual = Assert.Single(captured.Batch.Attempts);
+        Assert.Equal(expected.Data.ToArray(), actual.Data.ToArray());
+        Assert.Equal(expected.WriteMask.ToArray(), actual.WriteMask.ToArray());
+        Assert.Null(expected.Primitive!.PilotGeometry);
+        Assert.Equal((short)-300, BinaryPrimitives.ReadInt16LittleEndian(captured.Memory.Arena!.Read(MorphOffset, 2)));
+        Assert.Equal((short)-350, BinaryPrimitives.ReadInt16LittleEndian(captured.Memory.Arena.Read(MorphOffset + 2, 2)));
+        Assert.Throws<NotSupportedException>(() => captured.Memory.Arena.Read(MorphOffset + 6, 2));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(actual.Primitive!.PilotGeometry);
+        NativeBattleActionMatrix loaded = NativeBattleGeometry.CaptureMatrix(captured.Memory.GeometryRegisters!);
+        Vector3 Expected(short x, short y) => new((loaded.Rotation[0] * x + loaded.Rotation[1] * y) / 4096f + loaded.X - 17, (loaded.Rotation[3] * x + loaded.Rotation[4] * y) / 4096f + loaded.Y - 23, (loaded.Rotation[6] * x + loaded.Rotation[7] * y) / 4096f + loaded.Z - 100);
+        Assert.InRange(Vector3.Distance(Expected(-300, -350), geometry.A), 0f, 0.001f);
+        Assert.InRange(Vector3.Distance(Expected(500, -350), geometry.B), 0f, 0.001f);
+        Assert.InRange(Vector3.Distance(Expected(-300, 450), geometry.C), 0f, 0.001f);
+        Assert.Equal((byte)3, geometry.CornerCount);
+        Assert.False(captured.Memory.ScriptedColorRegisters!.NormalInputKnown!.Value[6]);
     }
 
     private static NativeBattleGfAnimationNode RotatedScaled(uint header)

@@ -106,6 +106,31 @@ public sealed class NativeBattleEerieSoundWave130ActTests
         Assert.Throws<InvalidDataException>(() => NativeBattleEerieSoundWave130Act.Draw(Memory(), Source(96, 2), Node(ratio: 2048, second: 1), Context(), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), new(null, 100, 160, 108), Colors, MorphAddress, 760));
     }
 
+    [Fact]
+    public void Capture_uses_consumed_morph_vertices_and_preserves_native_context_and_register_writes()
+    {
+        NativeBattleGfAnimationSource original = Source(4, 2, 4);
+        byte[] bytes = original.Data.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(60), -200);
+        NativeBattleGfAnimationSource source = original with { Data = bytes.ToImmutableArray() };
+        NativeBattleGfAnimationNode node = Node(ratio: 2048, second: 1);
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleEerieSoundWave130ActStep native = NativeBattleEerieSoundWave130Act.Draw(Memory(), source, node, Context(), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), projection, Colors, MorphAddress);
+        NativeBattlePilotVisualIdentity identity = new(130, 1, 2, 3, 4) { ResourceGeneration = source.Address + 16 };
+        NativeBattleEerieSoundWave130ActStep captured = NativeBattleEerieSoundWave130Act.Draw(Memory(), source, node, Context(), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), projection, Colors, MorphAddress, pilotIdentity: identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Temporary88), NativeBattleTestSnapshots.Json(captured.Temporary88));
+        NativeBattleGfGeometryAttempt expected = Assert.Single(native.Batch.Attempts);
+        NativeBattleGfGeometryAttempt actual = Assert.Single(captured.Batch.Attempts);
+        Assert.Equal(expected.Data, actual.Data);
+        Assert.Equal(expected.WriteMask, actual.WriteMask);
+        Assert.Equal(native.Batch.AllocationBytes, captured.Batch.AllocationBytes);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(actual.Primitive!.PilotGeometry);
+        Assert.Equal((ushort)130, geometry.Identity.Effect);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(new System.Numerics.Vector3(-300, -400, 2000), geometry.A);
+    }
+
     private static NativeBattleEerieSoundWave130ActStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena? context = null, NativeBattleEffectMemory? memory = null) => NativeBattleEerieSoundWave130Act.Draw(memory ?? Memory(), source, node, context ?? Context(), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), new(null, 100, 160, 108), Colors, MorphAddress);
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(MorphOffset, 768), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
     private static NativeBattleEffectArena Context(NativeBattleActionMatrix? matrix = null)

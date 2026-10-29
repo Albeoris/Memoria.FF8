@@ -12,6 +12,15 @@ public sealed record NativeBattleSaliva138Inputs(NativeBattleActionPacketsState 
 public abstract record NativeBattleSaliva138Operation;
 public sealed record NativeBattleSaliva138Sound(uint Value, uint Flags, byte Pan) : NativeBattleSaliva138Operation;
 public sealed record NativeBattleSaliva138Contact(int Index) : NativeBattleSaliva138Operation;
-public sealed record NativeBattleSaliva138DrawCustom92(uint TemporaryAddress) : NativeBattleSaliva138Operation;
-public sealed record NativeBattleSaliva138DrawSprite180(uint TemporaryAddress, uint SourceAddress) : NativeBattleSaliva138Operation;
+public sealed record NativeBattleSaliva138DrawCustom92(uint TemporaryAddress) : NativeBattleSaliva138Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
+public sealed record NativeBattleSaliva138DrawSprite180(uint TemporaryAddress, uint SourceAddress) : NativeBattleSaliva138Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleSaliva138DeliverRibbonBatch(NativeBattleGfGeometryBatch Batch) : NativeBattleSaliva138Operation;
+public sealed record NativeBattleSaliva138RibbonSample(System.Numerics.Vector3 World, uint Screen);
