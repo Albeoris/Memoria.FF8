@@ -185,7 +185,7 @@ public static class NativeBattleStatusMagicController
         NativeBattleModulePoolTask Play(NativeBattleModulePoolTask task, int offset, int length, NativeBattleGfAnimationSource source, NativeBattleVector anchor, int depth)
         {
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), length);
-            NativeBattlePilotVisualIdentity? identity = resources.Effect == 122 ? NativeBattlePilotVisualLifetimes.Identity(122, task, offset) : null;
+            NativeBattlePilotVisualIdentity? identity = resources.Effect is 120 or 122 ? NativeBattlePilotVisualLifetimes.Identity(resources.Effect, task, offset) : null;
             NativeBattleGfAnimationAdvance step = workspace.Advance701970(source, 0, (owner, node) =>
             {
                 current = NativeBattleStatusMagicDrawing.Draw(current, resources, source, node, anchor, depth, inputs, identity);

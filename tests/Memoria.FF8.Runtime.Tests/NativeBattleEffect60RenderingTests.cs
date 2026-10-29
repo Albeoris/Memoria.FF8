@@ -75,6 +75,43 @@ public sealed class NativeBattleEffect60RenderingTests
         Assert.Throws<NotSupportedException>(() => task.ReadWord(0x18A));
     }
 
+    [Theory]
+    [InlineData(0x17A0D04u, 0)]
+    [InlineData(0x17A0D04u, 2048)]
+    [InlineData(0x17A0D04u, 4096)]
+    [InlineData(0x17A3150u, 0)]
+    [InlineData(0x17A3150u, 2048)]
+    [InlineData(0x17A3150u, 4096)]
+    public void ACT_presentation_captures_actual_selected_or_morphed_vertices_with_native_write_parity(uint sourceAddress, int ratio)
+    {
+        NativeBattleGfAnimationSource source = Source(3) with { Address = sourceAddress };
+        NativeBattleGfAnimationNode node = Node(0x200, ratio);
+        NativeBattleCureFamilyPool bank = NativeBattleEffect60Profile.Pools[4];
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(bank.Descriptor, bank.Bank, bank.Stride, bank.Capacity);
+        (pool, int slot) = pool.Append(sourceAddress == 0x17A0D04 ? NativeBattleEffect60Profile.ActPrimaryCallback : NativeBattleEffect60Profile.ActSecondaryCallback);
+        NativeBattleModulePoolTask task = pool.Slots[slot].WriteDword(0x94, sourceAddress);
+        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(60, task, node.NodeIndex) with { ResourceGeneration = sourceAddress };
+        NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770();
+        NativeBattleCameraProjection projection = new(view, 100, 160, 108);
+        NativeBattleActMeshDraw native = Draw(null);
+        NativeBattleActMeshDraw smooth = Draw(identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(smooth));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(smooth.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal((ushort)60, geometry.Identity.Effect);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal((long)sourceAddress, geometry.Identity.ResourceGeneration);
+        Assert.Equal(-400 + ratio * 100 / 4096f, geometry.A.X);
+        Assert.Equal(-400 + ratio * 200 / 4096f, geometry.A.Y);
+        Assert.Equal(2000, geometry.A.Z);
+        string beforeSample = NativeBattleTestSnapshots.Json(smooth);
+        _ = NativeBattlePilotVisualGeometry.Sample(geometry, geometry with { A = geometry.A + new System.Numerics.Vector3(10, 0, 0) }, 0.5f);
+        Assert.Equal(beforeSample, NativeBattleTestSnapshots.Json(smooth));
+        Assert.Null(Assert.Single(native.Batch.Attempts).Primitive!.PilotGeometry);
+
+        NativeBattleActMeshDraw Draw(NativeBattlePilotVisualIdentity? capture) => NativeBattleEffect60Rendering.DrawNode(source, node, new(view with { Z = 2000 }, -3), NativeBattleEffectArena.Clear().MarkUnknown(0, 104), NativeBattleEffectArena.Clear().MarkUnknown(0, 968), Registers(), new(1, 2, 3, 4, 5), projection, 0, 0, 0x155, 0x100, Constants, capture);
+    }
+
     private static NativeBattleGeometryRegisterStep Registers() => new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown() with { Material = 0xAA123456, Rgb = [0x11, 0x22, 0x33] });
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
     private static short Rotation(NativeBattleGeometryRegisters registers, int index) => unchecked((short)(registers.Rotation20[index * 2]!.Value | registers.Rotation20[index * 2 + 1]!.Value << 8));
