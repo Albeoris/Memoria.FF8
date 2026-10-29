@@ -9,22 +9,35 @@ public static partial class LocalizationProjectBuilder
     /// <summary>Creates a canonical insertion candidate from an existing verified source-catalog entry without inferring keys from rendered text.</summary>
     public static LocalizationRecord CreateVerifiedRecord(LocalizationSourceEntry source, LocalizationManifest manifest)
     {
+        if (source.Category == "System")
+        {
+            LocalizationSourceEntry? canonical = SystemTextCatalog.SourceEntries().FirstOrDefault(entry => entry.Key == source.Key);
+            if (source.File != SystemTextCatalog.File || source.Language != "en" || canonical is null || canonical.Text != source.Text || canonical.Metadata.GetValueOrDefault("Authored ID") != source.Metadata.GetValueOrDefault("Authored ID"))
+            {
+                throw new InvalidDataException("An engine-authored System insertion requires its canonical authored source identity and template.");
+            }
+        }
         string Normalize(string language) => language.Equals("ja", StringComparison.OrdinalIgnoreCase) ? "jp" : language;
-        if (!Normalize(source.Language).Equals(Normalize(manifest.FieldScriptBaseLanguage), StringComparison.OrdinalIgnoreCase))
+        if (source.Category != "System" && !Normalize(source.Language).Equals(Normalize(manifest.FieldScriptBaseLanguage), StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("The verified source row does not belong to the project's script-base dataset.");
         }
         bool present = IsPresent(source);
+        bool nativeSourcePresent = present && Normalize(source.Language).Equals(Normalize(manifest.FieldScriptBaseLanguage), StringComparison.OrdinalIgnoreCase);
         Dictionary<string, JsonElement> extensions = CreateSourceExtensions(source);
-        extensions["equivalentKeys"] = JsonSerializer.SerializeToElement(new Dictionary<string, string[]> { [manifest.FieldScriptBaseLanguage] = [source.Key] });
+        if (!nativeSourcePresent)
+        {
+            extensions["sourceGap"] = JsonSerializer.SerializeToElement("No native text exists in the selected script-base dataset.");
+        }
+        extensions["equivalentKeys"] = JsonSerializer.SerializeToElement(new Dictionary<string, string[]> { [source.Category == "System" ? source.Language : manifest.FieldScriptBaseLanguage] = [source.Key] });
         extensions["equivalentContexts"] = JsonSerializer.SerializeToElement(new Dictionary<string, object>());
         LocalizationRecord row = new()
         {
             Category = source.Category,
             File = source.File,
             Key = source.Key,
-            Source = present ? source.Text : null,
-            SourcePresent = present,
+            Source = nativeSourcePresent ? source.Text : null,
+            SourcePresent = nativeSourcePresent,
             Target = null,
             TargetPresent = false,
             References = manifest.ReferenceLanguages.ToDictionary(pair => pair.Key, pair => Normalize(pair.Value).Equals(Normalize(source.Language), StringComparison.OrdinalIgnoreCase) && present ? source.Text : null, StringComparer.Ordinal),

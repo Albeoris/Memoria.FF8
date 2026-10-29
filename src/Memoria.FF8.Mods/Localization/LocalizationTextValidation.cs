@@ -8,6 +8,8 @@ namespace Memoria.FF8.Mods.Localization;
 
 public static class LocalizationTextValidation
 {
+    private static readonly IReadOnlyDictionary<string, string> SystemSources = SystemTextCatalog.SourceEntries().ToDictionary(entry => entry.Key, entry => entry.Text, StringComparer.Ordinal);
+
     public static void Validate(LocalizationRecord row)
     {
         if (string.IsNullOrEmpty(row.Target))
@@ -18,10 +20,20 @@ public static class LocalizationTextValidation
         {
             throw new InvalidDataException($"{row.Key}: translated text contains a raw control character.");
         }
-        Dictionary<string, int> translated = Placeholders(row.Target, row.Key);
-        if (row.SourcePresent && row.Source is not null)
+        string? source = row.Category == "System" && row.File == SystemTextCatalog.File && SystemSources.TryGetValue(row.Key, out string? authored) ? authored : row.SourcePresent ? row.Source : null;
+        if (row.Category == "System" && LocalizationCompositeFormatValidation.TryReadSource(source ?? "", out var composite))
         {
-            Dictionary<string, int> required = Placeholders(row.Source, row.Key);
+            LocalizationCompositeFormatValidation.Validate(composite!, row.Target, row.Key);
+            return;
+        }
+        Dictionary<string, int> translated = Placeholders(row.Target, row.Key, out _);
+        if (source is not null)
+        {
+            Dictionary<string, int> required = Placeholders(source, row.Key, out bool nativeSource);
+            if (row.Category == "System" && !nativeSource)
+            {
+                throw new InvalidDataException($"{row.Key}: the System source is neither a valid BCL template nor a recognized native-control owner.");
+            }
             if (required.Count != translated.Count || required.Any(pair => translated.GetValueOrDefault(pair.Key) != pair.Value))
             {
                 throw new InvalidDataException($"{row.Key}: translated text must preserve the required dynamic placeholders and their occurrence counts.");
@@ -29,8 +41,9 @@ public static class LocalizationTextValidation
         }
     }
 
-    private static Dictionary<string, int> Placeholders(string text, string key)
+    private static Dictionary<string, int> Placeholders(string text, string key, out bool containsNativeControls)
     {
+        containsNativeControls = false;
         Dictionary<string, int> placeholders = new(StringComparer.Ordinal);
         foreach (Match match in Regex.Matches(text, "\\{(End|Next|Line|Speaker|Pause|Var|Item|Char|Key|Color|Dialog|Option|Term[^ {}]*|Name)(?=[ }]|$)", RegexOptions.CultureInvariant))
         {
@@ -92,6 +105,7 @@ public static class LocalizationTextValidation
             {
                 throw new InvalidDataException($"{key}: malformed known control tag {{{code}{(hasSpace ? " " : "")}{parameter}}}.");
             }
+            containsNativeControls = true;
             if (code is "Var" or "Item" or "Char" or "Key" or "Dialog" or "Name")
             {
                 string identity = code + " " + number;
