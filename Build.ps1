@@ -34,23 +34,37 @@ function Invoke-DotNet {
 }
 
 $root = $PSScriptRoot
+$graphBuild = Join-Path $root ('artifacts/build/' + $RuntimeIdentifier + '/graph')
+$graphArguments = @('--artifacts-path', $graphBuild, ('-p:MemoriaTargetRuntime=' + $RuntimeIdentifier), '-p:MemoriaGraphicsBackend=Vulkan', '-p:TargetFramework=net10.0', '-p:SkipMusicHost=true')
 if ($Scope -ne 'Distribution') {
     Push-Location $root
     try {
         if ($Scope -eq 'Portable') {
-            Invoke-DotNet @('build', 'Memoria.FF8.Portable.slnx', '-c', $Configuration, '-p:TargetFramework=net10.0', '-m:1')
+            # Match the complete native graph so this subset updates incrementally
+            # after packaging, while still building on a standalone invocation.
+            Invoke-DotNet (@('build', 'Memoria.FF8.Portable.slnx', '-c', $Configuration, '-m:1') + $graphArguments)
             if ($Test) {
-                foreach ($project in @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Bootstrap.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.Launcher.Tests', 'Memoria.FF8.LinuxTesting.Tests')) {
-                    Invoke-DotNet @('test', '--project', "tests/$project", '-c', $Configuration, '--no-progress')
+                $testProjects = @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Bootstrap.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.Launcher.Tests', 'Memoria.FF8.LinuxTesting.Tests')
+                & (Join-Path $root 'tests/Shared/Report-TestResources.ps1') -Projects $testProjects
+                $previousFixtureNotice = $env:MEMORIA_TEST_FIXTURE_NOTICE_REPORTED
+                try {
+                    $env:MEMORIA_TEST_FIXTURE_NOTICE_REPORTED = '1'
+                    foreach ($project in $testProjects) {
+                        Invoke-DotNet (@('run', '--project', "tests/$project", '-c', $Configuration, '--no-build') + $graphArguments)
+                    }
+                    # This selection uses no optional game fixtures.
+                    Invoke-DotNet (@('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--filter-class', '*SteamAchievementBackendTests'))
                 }
-                Invoke-DotNet @('test', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration, '--no-progress', '--filter-class', '*SteamAchievementBackendTests')
+                finally {
+                    $env:MEMORIA_TEST_FIXTURE_NOTICE_REPORTED = $previousFixtureNotice
+                }
             }
         }
         else {
             $destination = Join-Path $root "artifacts/launcher/$RuntimeIdentifier"
             Invoke-DotNet @('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:PublishTrimmed=false', '-o', $destination)
             if ($Test) {
-                Invoke-DotNet @('test', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration, '--no-progress')
+                Invoke-DotNet @('run', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration)
             }
             Write-Host "Launcher-only payload (game host supplied separately): $destination"
         }
@@ -100,7 +114,7 @@ try {
         & (Join-Path $root 'tools/Build-NativeVulkan.ps1') -RuntimeIdentifier $RuntimeIdentifier -OutputDirectory $nativeVulkan -Distro $env:MemoriaNativeVulkanDistro
         $nativeVulkanArguments = @(('-p:MemoriaNativeVulkanDirectory=' + $nativeVulkan), '-p:MemoriaNativeVulkanPrepared=true')
     }
-    Invoke-DotNet (@('build', 'Memoria.FF8.Native.slnx', '-c', $Configuration, ('-p:MemoriaTargetRuntime=' + $RuntimeIdentifier), '-p:MemoriaGraphicsBackend=Vulkan', '-p:TargetFramework=net10.0', '-p:SkipMusicHost=true', '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/graph')), '-m:1') + $nativeVulkanArguments)
+    Invoke-DotNet (@('build', 'Memoria.FF8.Native.slnx', '-c', $Configuration, '-m:1') + $graphArguments + $nativeVulkanArguments)
     $nativeDirect3D12 = Join-Path $artifacts 'native-dx12'
     if ($RuntimeIdentifier -eq 'win-x64') {
         & (Join-Path $root 'tools/Build-NativeDirect3D12.ps1') -OutputDirectory $nativeDirect3D12
@@ -146,15 +160,15 @@ try {
         if ($RuntimeIdentifier -like 'osx-*') {
             & (Join-Path $root 'tools/Get-MoltenVK.ps1') -Destination $hostOutput
         }
-        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', $hostOutput, $RuntimeIdentifier)
-        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--graphics-payload', $hostOutput, $backend.Name, (Join-Path $root 'tools/shader-manifest.json'), $RuntimeIdentifier)
+        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', $hostOutput, $RuntimeIdentifier)
+        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', '--graphics-payload', $hostOutput, $backend.Name, (Join-Path $root 'tools/shader-manifest.json'), $RuntimeIdentifier)
     }
     Invoke-DotNet (@('publish', 'src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj', '-o', $data, '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/bootstrap')), '-p:PublishSingleFile=false') + $publishArguments)
     # Keep the released worker path with the common x64 music implementation and its complete runtime.
     Invoke-DotNet @('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-o', (Join-Path $data 'audio-host'), '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/music')), '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishSingleFile=false')
     $launcherSingleFile = if ($RuntimeIdentifier -eq 'win-x64') { 'true' } else { 'false' }
     Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-o', $launcher, '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/launcher')), ('-p:PublishSingleFile=' + $launcherSingleFile), '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:PublishDocumentationFile=false', '-p:PublishReferencesDocumentationFiles=false') + $publishArguments)
-    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--native-image', $RuntimeIdentifier, (Join-Path $data $executable))
+    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', '--native-image', $RuntimeIdentifier, (Join-Path $data $executable))
 
     if ($Test) {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Remastered.Tests', '-c', $Configuration)
@@ -186,7 +200,7 @@ try {
     if (!(Test-Path -LiteralPath $launcherExecutable -PathType Leaf)) {
         throw "The launcher publish did not produce $launcherName."
     }
-    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--native-image', $RuntimeIdentifier, $launcherExecutable)
+    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', '--native-image', $RuntimeIdentifier, $launcherExecutable)
     if ($RuntimeIdentifier -eq 'win-x64') {
         Move-Item -LiteralPath $launcherExecutable -Destination $payload
         if (@(Get-ChildItem -LiteralPath $launcher -Force).Count -ne 0) {
@@ -267,10 +281,10 @@ try {
     if ($RuntimeIdentifier -eq 'win-x64') {
         Compress-Archive -LiteralPath (Join-Path $package $launcherName), (Join-Path $package 'Data'), (Join-Path $package 'Mods') -DestinationPath $archive -Force
         # The released Windows updater remains an immutable gate on every build.
-        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Updater.Compatibility', '-c', $Configuration, '--', $archive)
+        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Updater.Compatibility', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', $archive)
     }
     else {
-        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--create-tar', $package, $archive)
+        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', '--create-tar', $package, $archive)
     }
     & (Join-Path $root 'tools/Test-Distribution.ps1') -ArchivePath $archive -RuntimeIdentifier $RuntimeIdentifier -Configuration $Configuration
     Write-Host "Distribution: $package"

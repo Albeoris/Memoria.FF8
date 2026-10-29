@@ -109,7 +109,7 @@ public sealed class MediaToolsInstallationTests
             return Task.FromResult(true);
         });
 
-        bool available = await installation.EnsureAsync(directory.Path, _ => throw new InvalidOperationException("Must not request consent"), _ => { });
+        bool available = await installation.EnsureAsync(directory.Path, _ => throw new InvalidOperationException("Must not request consent"), _ => { }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(available);
         Assert.Equal([directory.Path], validated);
@@ -130,7 +130,7 @@ public sealed class MediaToolsInstallationTests
             prompts++;
             Assert.True(Directory.Exists(directory.Path));
             return false;
-        }, _ => { });
+        }, _ => { }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.False(available);
         Assert.Equal(1, prompts);
@@ -147,7 +147,7 @@ public sealed class MediaToolsInstallationTests
         MediaToolsInstallation installation = new(client, Options, validate: _ => Task.FromResult(false));
         List<string> reports = [];
 
-        bool available = await installation.EnsureAsync(directory.Path, _ => true, reports.Add);
+        bool available = await installation.EnsureAsync(directory.Path, _ => true, reports.Add, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.False(available);
         string report = string.Join(Environment.NewLine, reports);
@@ -167,7 +167,7 @@ public sealed class MediaToolsInstallationTests
         MediaToolsInstallation installation = new(client, Options, validate: _ => Task.FromResult(false));
         List<string> reports = [];
 
-        bool available = await installation.EnsureAsync(directory.Path, _ => true, reports.Add);
+        bool available = await installation.EnsureAsync(directory.Path, _ => true, reports.Add, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.False(available);
         string report = string.Join(Environment.NewLine, reports);
@@ -203,7 +203,7 @@ public sealed class MediaToolsInstallationTests
             return Task.FromResult(true);
         });
 
-        await installation.InstallAsync(directory.Path);
+        await installation.InstallAsync(directory.Path, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(validatedPath);
         Assert.True(installedValidated);
@@ -214,6 +214,39 @@ public sealed class MediaToolsInstallationTests
         Assert.Equal("readme text", File.ReadAllText(System.IO.Path.Combine(directory.Path, "README.txt")));
         Assert.Equal("documentation", File.ReadAllText(System.IO.Path.Combine(directory.Path, "doc", "index.html")));
         Assert.DoesNotContain(Directory.EnumerateFiles(directory.Path, "*", SearchOption.AllDirectories), path => System.IO.Path.GetFileName(path).Equals("ffplay.exe", StringComparison.OrdinalIgnoreCase) || System.IO.Path.GetExtension(path).Equals(".dll", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task Cancellation_during_validation_cannot_report_completion(int cancelledValidation)
+    {
+        using TestDirectory directory = new();
+        using DownloadHandler handler = ArchiveHandler(CreateArchive());
+        using HttpClient client = new(handler);
+        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        TaskCompletionSource validating = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int validations = 0;
+        MediaToolsInstallation installation = new(client, Options, validate: async _ =>
+        {
+            int current = ++validations;
+            if (current == cancelledValidation)
+            {
+                validating.SetResult();
+                await release.Task.WaitAsync(TestContext.Current.CancellationToken);
+            }
+            return current != 1;
+        });
+        List<MediaToolsProgress> updates = [];
+        Task<bool> install = installation.EnsureAsync(directory.Path, _ => true, _ => { }, updates.Add, cancellation.Token);
+        await validating.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        cancellation.Cancel();
+        release.SetResult();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => install);
+        Assert.DoesNotContain(updates, update => update.Stage == MediaToolsStage.Complete);
+        Assert.False(Directory.Exists(directory.Path) && Directory.GetDirectories(directory.Path, ".install-*").Length > 0);
     }
 
     [Theory]
@@ -228,7 +261,7 @@ public sealed class MediaToolsInstallationTests
         MediaToolsInstallation installation = new(client, Options, validate: _ => Task.FromResult(true));
         List<MediaToolsProgress> updates = [];
 
-        await installation.InstallAsync(directory.Path, updates.Add);
+        await installation.InstallAsync(directory.Path, updates.Add, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal([MediaToolsStage.FetchingChecksums, MediaToolsStage.Downloading, MediaToolsStage.Verifying, MediaToolsStage.Extracting, MediaToolsStage.Validating, MediaToolsStage.Complete], updates.Select(update => update.Stage).Distinct());
         MediaToolsProgress[] downloads = updates.Where(update => update.Stage == MediaToolsStage.Downloading).ToArray();
@@ -252,7 +285,7 @@ public sealed class MediaToolsInstallationTests
         MediaToolsInstallation installation = new(client, Options, validate: _ => throw new InvalidOperationException("Must not execute untrusted tools"));
         List<MediaToolsProgress> updates = [];
 
-        Exception failure = await Assert.ThrowsAnyAsync<Exception>(() => installation.InstallAsync(directory.Path, updates.Add));
+        Exception failure = await Assert.ThrowsAnyAsync<Exception>(() => installation.InstallAsync(directory.Path, updates.Add, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Contains("SHA-256", failure.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(MediaToolsStage.Verifying, updates[^1].Stage);
@@ -270,7 +303,7 @@ public sealed class MediaToolsInstallationTests
         using HttpClient client = new(handler);
         MediaToolsInstallation installation = new(client, Options, validate: _ => throw new InvalidOperationException("Must not execute tools without an exact checksum"));
 
-        await Assert.ThrowsAnyAsync<Exception>(() => installation.InstallAsync(directory.Path));
+        await Assert.ThrowsAnyAsync<Exception>(() => installation.InstallAsync(directory.Path, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffmpeg.exe")));
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffprobe.exe")));
@@ -286,7 +319,7 @@ public sealed class MediaToolsInstallationTests
         using HttpClient client = new(handler);
         MediaToolsInstallation installation = new(client, Options, validate: _ => Task.FromResult(true));
 
-        await Assert.ThrowsAnyAsync<Exception>(() => installation.InstallAsync(directory.Path));
+        await Assert.ThrowsAnyAsync<Exception>(() => installation.InstallAsync(directory.Path, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffmpeg.exe")));
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffprobe.exe")));
@@ -303,14 +336,14 @@ public sealed class MediaToolsInstallationTests
         using HttpClient client = new(handler);
         MediaToolsInstallation installation = new(client, Options, validate: _ => Task.FromResult(false));
 
-        await Assert.ThrowsAnyAsync<Exception>(() => installation.InstallAsync(directory.Path));
+        await Assert.ThrowsAnyAsync<Exception>(() => installation.InstallAsync(directory.Path, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Equal("existing tool", await File.ReadAllTextAsync(existing, TestContext.Current.CancellationToken));
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffprobe.exe")));
     }
 
     [Fact]
-    public async Task Stalled_response_headers_time_out_before_validation_or_installation()
+    public async Task Stalled_response_headers_report_inactivity_and_wait_for_cancel()
     {
         using TestDirectory directory = new();
         using DownloadHandler handler = new(async (_, token) =>
@@ -321,14 +354,27 @@ public sealed class MediaToolsInstallationTests
         using HttpClient client = new(handler);
         MediaToolsInstallation installation = new(client, Options, TimeSpan.FromMilliseconds(150), _ => throw new InvalidOperationException("Must not validate an incomplete download"));
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => installation.InstallAsync(directory.Path));
+        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        TaskCompletionSource noticed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task install = installation.InstallAsync(directory.Path, update =>
+        {
+            if (update.IsStalled)
+            {
+                noticed.TrySetResult();
+            }
+        }, cancellation.Token);
+        await noticed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.False(install.IsCompleted);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => install);
+        Assert.Empty(Directory.GetDirectories(directory.Path, ".install-*"));
 
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffmpeg.exe")));
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffprobe.exe")));
     }
 
     [Fact]
-    public async Task Stalled_response_body_times_out_before_validation_or_installation()
+    public async Task Stalled_response_body_reports_inactivity_and_waits_for_cancel()
     {
         using TestDirectory directory = new();
         byte[] archive = CreateArchive();
@@ -336,14 +382,27 @@ public sealed class MediaToolsInstallationTests
         using HttpClient client = new(handler);
         MediaToolsInstallation installation = new(client, Options, TimeSpan.FromMilliseconds(150), _ => throw new InvalidOperationException("Must not validate an incomplete download"));
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => installation.InstallAsync(directory.Path));
+        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        TaskCompletionSource noticed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task install = installation.InstallAsync(directory.Path, update =>
+        {
+            if (update.IsStalled)
+            {
+                noticed.TrySetResult();
+            }
+        }, cancellation.Token);
+        await noticed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.False(install.IsCompleted);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => install);
+        Assert.Empty(Directory.GetDirectories(directory.Path, ".install-*"));
 
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffmpeg.exe")));
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffprobe.exe")));
     }
 
     [Fact]
-    public async Task Active_transfer_can_take_longer_than_the_idle_timeout()
+    public async Task Active_transfer_can_take_longer_than_the_inactivity_notice_delay()
     {
         using TestDirectory directory = new();
         byte[] archive = CreateArchive();
@@ -352,11 +411,47 @@ public sealed class MediaToolsInstallationTests
         using HttpClient client = new(handler);
         MediaToolsInstallation installation = new(client, Options, TimeSpan.FromMilliseconds(300), _ => Task.FromResult(true));
 
-        await installation.InstallAsync(directory.Path);
+        await installation.InstallAsync(directory.Path, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(stream.ReadCount > 12);
         Assert.True(File.Exists(System.IO.Path.Combine(directory.Path, "ffmpeg.exe")));
         Assert.True(File.Exists(System.IO.Path.Combine(directory.Path, "ffprobe.exe")));
+    }
+
+    [Fact]
+    public async Task Inactive_download_can_resume_and_clears_its_notice()
+    {
+        byte[] payload = [1, 2, 3];
+        using DelayedReadStream source = new(payload, 3, TimeSpan.FromMilliseconds(50));
+        using DownloadHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(source) });
+        using HttpClient client = new(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        using MemoryStream destination = new();
+        List<MediaToolsProgress> updates = [];
+        await MediaToolsInstallation.DownloadAsync(client, Options.ReleaseUrl, destination, 10, TimeSpan.FromMilliseconds(5), updates.Add, TestContext.Current.CancellationToken);
+        Assert.Equal(payload, destination.ToArray());
+        Assert.Contains(updates, update => update.IsStalled);
+        Assert.False(updates[^1].IsStalled);
+        Assert.Equal(payload.Length, updates[^1].BytesReceived);
+        Assert.False(source.CanRead);
+    }
+
+    [Theory]
+    [InlineData(11L, 3)]
+    [InlineData(2L, 3)]
+    [InlineData(4L, 3)]
+    [InlineData(null, 11)]
+    public async Task Download_rejects_oversized_or_inconsistent_content(long? declaredLength, int actualLength)
+    {
+        using DownloadHandler handler = new(_ =>
+        {
+            HttpResponseMessage response = new(HttpStatusCode.OK) { Content = new StreamContent(new MemoryStream(new byte[actualLength])) };
+            response.Content.Headers.ContentLength = declaredLength;
+            return response;
+        });
+        using HttpClient client = new(handler);
+        using MemoryStream destination = new();
+        await Assert.ThrowsAsync<InvalidDataException>(() => MediaToolsInstallation.DownloadAsync(client, Options.ReleaseUrl, destination, 10, TimeSpan.FromSeconds(60), null, TestContext.Current.CancellationToken));
+        Assert.True(destination.Length <= 10);
     }
 
     private static DownloadHandler ArchiveHandler(byte[] archive, string? checksum = null, Func<Stream>? stream = null)

@@ -39,7 +39,7 @@ public sealed class MacFfmpegPrebuiltInstallTests : IDisposable
     public void PackageExtractsToolsLibrariesAndNoticesButNotHeaders()
     {
         using MemoryStream archive = Archive(Package());
-        MacFfmpegPrebuiltInstall.ExtractPackageTar(archive, directory, Root);
+        MacFfmpegPrebuiltInstall.ExtractPackageTar(archive, directory, Root, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal("ffmpeg", File.ReadAllText(Path.Combine(directory, "bin", "ffmpeg")));
         Assert.Equal("ffprobe", File.ReadAllText(Path.Combine(directory, "bin", "ffprobe")));
         Assert.Equal("avcodec", File.ReadAllText(Path.Combine(directory, "lib", "libavcodec.63.1.101.dylib")));
@@ -55,7 +55,7 @@ public sealed class MacFfmpegPrebuiltInstallTests : IDisposable
     {
         Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows symlinks require additional machine privileges.");
         using MemoryStream archive = Archive(Package(), Link("lib/libavcodec.63.dylib", "libavcodec.63.1.101.dylib"));
-        MacFfmpegPrebuiltInstall.ExtractPackageTar(archive, directory, Root);
+        MacFfmpegPrebuiltInstall.ExtractPackageTar(archive, directory, Root, cancellationToken: TestContext.Current.CancellationToken);
         string link = Path.Combine(directory, "lib", "libavcodec.63.dylib");
         Assert.Equal("libavcodec.63.1.101.dylib", new FileInfo(link).LinkTarget);
         Assert.Equal("avcodec", File.ReadAllText(link));
@@ -68,7 +68,7 @@ public sealed class MacFfmpegPrebuiltInstallTests : IDisposable
     public void LibraryLinksOutsideThePackageAreRejected(string target)
     {
         using MemoryStream archive = Archive(Package(), Link("lib/libavcodec.63.dylib", target));
-        Assert.Throws<InvalidDataException>(() => MacFfmpegPrebuiltInstall.ExtractPackageTar(archive, directory, Root));
+        Assert.Throws<InvalidDataException>(() => MacFfmpegPrebuiltInstall.ExtractPackageTar(archive, directory, Root, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -79,14 +79,14 @@ public sealed class MacFfmpegPrebuiltInstallTests : IDisposable
     public void UnexpectedPackageEntriesAreRejected(string name)
     {
         using MemoryStream archive = Archive([.. Package(), (name, "unexpected")]);
-        Assert.Throws<InvalidDataException>(() => MacFfmpegPrebuiltInstall.ExtractPackageTar(archive, directory, Root));
+        Assert.Throws<InvalidDataException>(() => MacFfmpegPrebuiltInstall.ExtractPackageTar(archive, directory, Root, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public void PackageWithoutLicenseNoticesIsRejected()
     {
         using MemoryStream archive = Archive(Package().Where(file => !file.Name.Contains("/LICENSES/", StringComparison.Ordinal)).ToArray());
-        Assert.Throws<InvalidDataException>(() => MacFfmpegPrebuiltInstall.ExtractPackageTar(archive, directory, Root));
+        Assert.Throws<InvalidDataException>(() => MacFfmpegPrebuiltInstall.ExtractPackageTar(archive, directory, Root, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]

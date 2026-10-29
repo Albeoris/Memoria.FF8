@@ -361,11 +361,15 @@ internal sealed partial class LauncherWindow : Window
             {
                 return await InstallMacFfmpegAsync(client, installation);
             }
-            if (!OperatingSystem.IsMacOS() && !await MediaToolsInstallation.ValidateAsync(mediaDirectory) &&!await LauncherDialogs.ConfirmAsync(this, "Memoria — FFmpeg setup", $"Download and verify {options.ArchiveName} for video and replacement audio playback?\n\nSource: {options.ReleaseUrl}\nInstall to: {mediaDirectory}\n\nFFmpeg is a separate third-party LGPL dependency. License notices are kept with the tools. Cancel to stay in the launcher."))
+            if (!OperatingSystem.IsMacOS() && !await MediaToolsInstallation.ValidateAsync(mediaDirectory) && !await LauncherDialogs.ConfirmAsync(this, "Memoria — FFmpeg setup", $"Download and verify {options.ArchiveName} for video and replacement audio playback?\n\nSource: {options.ReleaseUrl}\nInstall to: {mediaDirectory}\n\nFFmpeg is a separate third-party LGPL dependency. License notices are kept with the tools. Cancel to stay in the launcher."))
             {
                 return false;
             }
-            bool ready = await installation.EnsureAsync(mediaDirectory, _ => true, message => status.Text = message, UpdateMediaProgress);
+            bool ready = false;
+            if (!await RunMediaSetupAsync(async token => ready = await installation.EnsureAsync(mediaDirectory, _ => true, message => status.Text = message, UpdateMediaProgress, token)))
+            {
+                return false;
+            }
             await RefreshMediaStatusAsync();
             if (ready)
             {
@@ -427,6 +431,7 @@ internal sealed partial class LauncherWindow : Window
         try
         {
             await install(setup.Token);
+            setup.Token.ThrowIfCancellationRequested();
             return true;
         }
         catch (OperationCanceledException) when (setup.IsCancellationRequested)
@@ -450,6 +455,7 @@ internal sealed partial class LauncherWindow : Window
         mediaProgress.Value = progress.Stage == MediaToolsStage.Complete ? 100 : progress.TotalBytes is > 0 ? Math.Clamp(100d * progress.BytesReceived / progress.TotalBytes.Value, 0, 100) : 0;
         mediaProgressText.Text = progress.Stage switch
         {
+            _ when progress.IsStalled => "No FFmpeg download data for 60 seconds; the transfer may be stalled. Still waiting. Use Cancel setup to stop.",
             MediaToolsStage.FetchingChecksums => "Fetching FFmpeg checksums…",
             MediaToolsStage.Downloading when progress.TotalBytes is > 0 => $"Downloading FFmpeg — {mediaProgress.Value:F0}% · {progress.BytesReceived / 1048576d:F1} / {progress.TotalBytes.Value / 1048576d:F1} MiB",
             MediaToolsStage.Downloading => $"Downloading FFmpeg — {progress.BytesReceived / 1048576d:F1} MiB received",

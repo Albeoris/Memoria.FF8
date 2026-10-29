@@ -1,4 +1,4 @@
-name: Desktop distributions
+name: Desktop validation and distributions
 
 on:
   pull_request:
@@ -11,16 +11,25 @@ permissions:
   actions: read
   contents: read
 
+# A new PR revision supersedes its old validation. Main/tag runs retain their
+# source-specific packaging locks and are never cancelled by a PR update.
+concurrency:
+  group: desktop-pr-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   package:
+    name: Validate ${{ matrix.rid }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-2025
             rid: win-x64
+            native-path: artifacts/native-dx12
           - os: ubuntu-24.04
             rid: linux-x64
+            native-path: artifacts/native-vulkan/linux-x64
           - os: macos-15-intel
             rid: osx-x64
     concurrency:
@@ -31,16 +40,6 @@ jobs:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v5
-        with:
-          global-json-file: global.json
-      - name: Validate artifact reuse and orchestration contracts
-        shell: pwsh
-        run: |
-          node --test .github/scripts/find-distribution.test.cjs
-          ./tools/linux-testing/tests/Orchestration.Tests.ps1
-          ./tools/packaging/tests/Packaging.Tests.ps1
-          ./tools/Get-PlatformInventory.ps1 -Check
       - name: Find a tested payload for this source and RID
         id: distribution
         uses: actions/github-script@v9
@@ -56,21 +55,72 @@ jobs:
           path: artifacts
           github-token: ${{ github.token }}
           run-id: ${{ steps.distribution.outputs.run-id }}
-      - uses: actions/cache@v6
+      - name: Use the installed SDK when global.json accepts it
         if: steps.distribution.outputs.reuse != 'true'
+        id: sdk
+        shell: pwsh
+        run: ./.github/scripts/Test-InstalledSdk.ps1
+      - uses: actions/setup-dotnet@v5
+        if: steps.distribution.outputs.reuse != 'true' && steps.sdk.outputs.available != 'true'
+        with:
+          global-json-file: global.json
+      - uses: actions/cache/restore@v6
+        if: steps.distribution.outputs.reuse != 'true'
+        id: nuget
         with:
           path: ${{ env.NUGET_PACKAGES }}
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.*', '**/Directory.Packages.props', '**/packages.lock.json', 'global.json') }}
           restore-keys: ${{ runner.os }}-nuget-
+      - name: Identify the native runtime cache
+        if: matrix.native-path && steps.distribution.outputs.reuse != 'true'
+        id: native
+        shell: pwsh
+        env:
+          RECIPE: ${{ hashFiles('vendor/MonoGame.Native.DX12/**', 'vendor/MonoGame.Native.Vulkan/**', 'vendor/MonoGame.Native.TextInput/**', 'tools/Build-NativeDirect3D12.ps1', 'tools/Test-NativeDirect3D12.ps1', 'tools/Build-NativeVulkan.ps1', '.config/dotnet-tools.json', 'global.json') }}
+        run: |
+          if (!$env:ImageVersion -or !$env:RECIPE) { throw 'The runner image and native recipe are required for caching.' }
+          "key=${{ matrix.os }}-native-v1-$env:ImageVersion-$env:RECIPE" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+      # Cache only prepared libraries, receipts and notices. The build scripts
+      # verify every restored receipt and binary against the current recipe.
+      - uses: actions/cache/restore@v6
+        if: matrix.native-path && steps.distribution.outputs.reuse != 'true'
+        id: native-cache
+        with:
+          path: ${{ matrix.native-path }}
+          key: ${{ steps.native.outputs.key }}
+      - name: Validate artifact reuse and orchestration contracts
+        if: steps.distribution.outputs.reuse != 'true'
+        shell: pwsh
+        run: |
+          node --test .github/scripts/*.test.cjs
+          ./tools/linux-testing/tests/Orchestration.Tests.ps1
+          ./tools/packaging/tests/Packaging.Tests.ps1
+          ./tools/Get-PlatformInventory.ps1 -Check
       - name: Install Linux build and font dependencies
         if: runner.os == 'Linux' && steps.distribution.outputs.reuse != 'true'
         run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-cjk build-essential cmake git curl unzip openssl binutils libsdl2-dev
-      - name: Compile complete distribution and selected portable tests
+      - name: Compile complete distribution
         if: steps.distribution.outputs.reuse != 'true'
         shell: pwsh
         run: |
           ./Build.ps1 -RuntimeIdentifier ${{ matrix.rid }}
+      - name: Build portable graph and run selected tests
+        if: steps.distribution.outputs.reuse != 'true'
+        shell: pwsh
+        run: |
           ./Build.ps1 -Scope Portable -RuntimeIdentifier ${{ matrix.rid }} -Test
+      # PRs consume the main cache without uploading another large copy. Only
+      # trusted main builds populate it; immutable tested payloads remain separate.
+      - uses: actions/cache/save@v6
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.distribution.outputs.reuse != 'true' && steps.nuget.outputs.cache-hit != 'true'
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ steps.nuget.outputs.cache-primary-key }}
+      - uses: actions/cache/save@v6
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.native-path && steps.distribution.outputs.reuse != 'true' && steps.native-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ matrix.native-path }}
+          key: ${{ steps.native.outputs.key }}
       - name: Validated package receipt ${{ matrix.rid }}
         if: steps.distribution.outputs.reuse != 'true'
         shell: pwsh
@@ -95,6 +145,7 @@ jobs:
           retention-days: 90
 
   publish:
+    name: Publish nightly or tagged release
     needs: package
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
@@ -106,7 +157,12 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
+      - name: Use the installed SDK when global.json accepts it
+        id: sdk
+        shell: pwsh
+        run: ./.github/scripts/Test-InstalledSdk.ps1
       - uses: actions/setup-dotnet@v5
+        if: steps.sdk.outputs.available != 'true'
         with:
           global-json-file: global.json
       - uses: actions/download-artifact@v8

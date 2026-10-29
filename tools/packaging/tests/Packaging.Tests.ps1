@@ -7,12 +7,16 @@ $temporary = Join-Path ([IO.Path]::GetTempPath()) ('memoria-packaging-tests-' + 
 New-Item -ItemType Directory -Path $temporary | Out-Null
 $checker = Join-Path $product 'tools/Memoria.FF8.Distribution.Check'
 function Invoke-Checker([string[]]$Arguments, [switch]$ExpectFailure) {
-    $output = @(& dotnet run --project $checker -c $Configuration -- @Arguments 2>&1)
+    $output = @(& dotnet run --project $checker -c $Configuration --no-build -- @Arguments 2>&1)
     if (($LASTEXITCODE -ne 0) -ne [bool]$ExpectFailure) {
         throw "Unexpected distribution checker result for $($Arguments[0]): $($output -join [Environment]::NewLine)"
     }
 }
 try {
+    & dotnet build $checker -c $Configuration --nologo
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Could not build the distribution checker.'
+    }
     $package = Join-Path $temporary 'package'
     foreach ($relative in @('Memoria.Launcher', 'Data/Memoria.FF8', 'Data/audio-host/Memoria.FF8.Music', 'Data/Game/vulkan/Memoria.FF8', 'Data/Game/vulkan/Memoria.PsfDecoder')) {
         $path = Join-Path $package $relative

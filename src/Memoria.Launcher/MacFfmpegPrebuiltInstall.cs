@@ -56,7 +56,7 @@ internal static class MacFfmpegPrebuiltInstall
             progress?.Invoke(new(MediaToolsStage.Downloading));
             await using (FileStream archive = File.Create(archivePath))
             {
-                await MacFfmpegSourceBuild.DownloadAsync(client, source, archive, MacFfmpegSourceBuild.DownloadInactivityTimeout, progress, cancellationToken);
+                await MacFfmpegSourceBuild.DownloadAsync(client, source, archive, MediaToolsInstallation.DownloadInactivityNoticeDelay, progress, cancellationToken);
                 progress?.Invoke(new(MediaToolsStage.Verifying));
                 archive.Position = 0;
                 string actual = Convert.ToHexString(await SHA256.HashDataAsync(archive, cancellationToken));
@@ -71,7 +71,7 @@ internal static class MacFfmpegPrebuiltInstall
             {
                 using FileStream file = File.OpenRead(archivePath);
                 using XZStream decompressed = new(file);
-                ExtractPackageTar(decompressed, package, root);
+                ExtractPackageTar(decompressed, package, root, cancellationToken);
             }, cancellationToken);
 
             progress?.Invoke(new(MediaToolsStage.Validating));
@@ -86,6 +86,7 @@ internal static class MacFfmpegPrebuiltInstall
             await MacFfmpegSourceBuild.RequireComponentsAsync(ffmpeg, "-encoders", MacFfmpegSourceBuild.RequiredEncoders, cancellationToken);
             await MacFfmpegSourceBuild.RequireComponentsAsync(ffmpeg, "-muxers", MacFfmpegSourceBuild.RequiredMuxers, cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             Replace(package, directory);
             if (!await MediaToolsInstallation.ValidateAsync(directory, diagnostics.Add, cancellationToken))
             {
@@ -148,7 +149,7 @@ internal static class MacFfmpegPrebuiltInstall
     /// Extracts the tools, their libraries, license notices and build information below the expected release root. Headers are skipped.
     /// Library version links are recreated only when they name a sibling library extracted from the same archive.
     /// </summary>
-    internal static void ExtractPackageTar(Stream stream, string directory, string root)
+    internal static void ExtractPackageTar(Stream stream, string directory, string root, CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(directory);
         string fullRoot = Path.GetFullPath(directory) + Path.DirectorySeparatorChar;
@@ -160,6 +161,7 @@ internal static class MacFfmpegPrebuiltInstall
         TarEntry? entry;
         while ((entry = archive.GetNextEntry()) is not null)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (++count > 5000 || (total += entry.Length) > MaximumExtractedSize)
             {
                 throw new InvalidDataException("The prebuilt FFmpeg package exceeds extraction limits.");

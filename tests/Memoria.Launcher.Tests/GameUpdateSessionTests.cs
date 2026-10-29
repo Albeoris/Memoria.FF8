@@ -101,13 +101,17 @@ public sealed class GameUpdateSessionTests : IDisposable
     public async Task TimeoutRemovesShutdownRequestBeforeGameCanProcessItLate()
     {
         GameUpdateSession session = new(Path.Combine(root, "session"));
-        Task<JsonElement> shutdown = session.RequestAsync("shutdown-for-update", () => false, TimeSpan.FromMilliseconds(50));
-        string requestPath = Assert.Single(System.IO.Directory.GetFiles(Path.Combine(session.ControlDirectory, "requests"), "*.json"));
-        using (JsonDocument request = JsonDocument.Parse(File.ReadAllText(requestPath)))
+        string? requestPath = null;
+        Task<JsonElement> shutdown = session.RequestAsync("shutdown-for-update", () =>
         {
+            // Observe the published request before the timeout can remove it, even if setup exhausts the short deadline.
+            requestPath = Assert.Single(System.IO.Directory.GetFiles(Path.Combine(session.ControlDirectory, "requests"), "*.json"));
+            using JsonDocument request = JsonDocument.Parse(File.ReadAllText(requestPath));
             Assert.Equal("shutdown-for-update", request.RootElement.GetProperty("Command").GetString());
-        }
+            return false;
+        }, TimeSpan.FromMilliseconds(50));
         await Assert.ThrowsAsync<TimeoutException>(() => shutdown);
+        Assert.NotNull(requestPath);
         Assert.False(File.Exists(requestPath));
         Assert.Empty(System.IO.Directory.GetFiles(Path.Combine(session.ControlDirectory, "requests")));
     }

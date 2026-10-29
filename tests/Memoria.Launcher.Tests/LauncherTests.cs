@@ -307,7 +307,7 @@ public sealed class LauncherTests : IDisposable
         using HttpClient client = new(new OfflineHandler());
         MediaToolsInstallation installation = new(client, new FfmpegDownloadOptions(new Uri("https://example.invalid/"), "ffmpeg-win64-lgpl.zip"), validate: path => Task.FromResult(path == directory));
 
-        bool ready = await installation.EnsureAsync(directory, _ => throw new InvalidOperationException("Installed tools must not request download consent."), _ => throw new InvalidOperationException("Installed tools must not report download progress."));
+        bool ready = await installation.EnsureAsync(directory, _ => throw new InvalidOperationException("Installed tools must not request download consent."), _ => throw new InvalidOperationException("Installed tools must not report download progress."), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(ready);
     }

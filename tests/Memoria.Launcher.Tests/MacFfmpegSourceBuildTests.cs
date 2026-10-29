@@ -51,21 +51,27 @@ public sealed class MacFfmpegSourceBuildTests : IDisposable
         Assert.DoesNotContain("pcm_s16be", MacFfmpegSourceBuild.ListedComponents(encoders));
     }
 
-    [Fact]
-    public async Task StalledHeadersTimeOut()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StalledTransferReportsInactivityAndWaitsForCallerCancellation(bool stallBody)
     {
-        using HttpClient client = new(new StallingHandler(stallBody: false)) { Timeout = Timeout.InfiniteTimeSpan };
+        using HttpClient client = new(new StallingHandler(stallBody)) { Timeout = Timeout.InfiniteTimeSpan };
         using MemoryStream destination = new();
-        await Assert.ThrowsAsync<TimeoutException>(() => MacFfmpegSourceBuild.DownloadAsync(client, new Uri("https://example.invalid/ffmpeg.tar.xz"), destination, TimeSpan.FromMilliseconds(200), null, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task StalledBodyTimesOutAfterReceivedData()
-    {
-        using HttpClient client = new(new StallingHandler(stallBody: true)) { Timeout = Timeout.InfiniteTimeSpan };
-        using MemoryStream destination = new();
-        await Assert.ThrowsAsync<TimeoutException>(() => MacFfmpegSourceBuild.DownloadAsync(client, new Uri("https://example.invalid/ffmpeg.tar.xz"), destination, TimeSpan.FromMilliseconds(200), null, TestContext.Current.CancellationToken));
-        Assert.Equal(StallingStream.Prefix.Length, destination.Length);
+        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        TaskCompletionSource noticed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task download = MacFfmpegSourceBuild.DownloadAsync(client, new Uri("https://example.invalid/ffmpeg.tar.xz"), destination, TimeSpan.FromMilliseconds(50), update =>
+        {
+            if (update.IsStalled)
+            {
+                noticed.TrySetResult();
+            }
+        }, cancellation.Token);
+        await noticed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.False(download.IsCompleted);
+        Assert.Equal(stallBody ? StallingStream.Prefix.Length : 0, destination.Length);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => download);
     }
 
     [Fact]
@@ -92,7 +98,7 @@ public sealed class MacFfmpegSourceBuildTests : IDisposable
     public void SourceArchiveExtractsTheReleaseTree()
     {
         using MemoryStream archive = Archive(Release());
-        MacFfmpegSourceBuild.ExtractSourceTar(archive, directory);
+        MacFfmpegSourceBuild.ExtractSourceTar(archive, directory, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal("configure", File.ReadAllText(Path.Combine(directory, Root, "configure")));
         Assert.Equal("lgpl", File.ReadAllText(Path.Combine(directory, Root, "COPYING.LGPLv2.1")));
         Assert.True(File.Exists(Path.Combine(directory, Root, "libavcodec", "h264dec.c")));
@@ -106,7 +112,7 @@ public sealed class MacFfmpegSourceBuildTests : IDisposable
     public void SourceArchiveRejectsForeignOrEscapingPaths(string name)
     {
         using MemoryStream archive = Archive(Release().Append((name, "x")).ToArray());
-        Assert.Throws<InvalidDataException>(() => MacFfmpegSourceBuild.ExtractSourceTar(archive, directory));
+        Assert.Throws<InvalidDataException>(() => MacFfmpegSourceBuild.ExtractSourceTar(archive, directory, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -118,14 +124,14 @@ public sealed class MacFfmpegSourceBuildTests : IDisposable
             writer.WriteEntry(new PaxTarEntry(TarEntryType.SymbolicLink, Root + "/configure") { LinkName = "/etc/passwd" });
         }
         archive.Position = 0;
-        Assert.Throws<InvalidDataException>(() => MacFfmpegSourceBuild.ExtractSourceTar(archive, directory));
+        Assert.Throws<InvalidDataException>(() => MacFfmpegSourceBuild.ExtractSourceTar(archive, directory, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public void SourceArchiveRequiresConfigureAndLicenseNotices()
     {
         using MemoryStream archive = Archive((Root + "/configure", "configure"), (Root + "/LICENSE.md", "license"));
-        Assert.Throws<InvalidDataException>(() => MacFfmpegSourceBuild.ExtractSourceTar(archive, directory));
+        Assert.Throws<InvalidDataException>(() => MacFfmpegSourceBuild.ExtractSourceTar(archive, directory, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]

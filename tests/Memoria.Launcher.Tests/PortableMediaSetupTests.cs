@@ -75,7 +75,7 @@ public sealed class PortableMediaSetupTests : IDisposable
         using HttpClient client = new(new RejectNetwork());
         MediaToolsInstallation installation = new(client, new FfmpegDownloadOptions(new Uri("https://example.invalid/"), "", rid), validate: _ => Task.FromResult(false));
         List<string> reports = [];
-        Assert.False(await installation.EnsureAsync(directory, _ => throw new InvalidOperationException("No unreviewed download should request consent."), reports.Add));
+        Assert.False(await installation.EnsureAsync(directory, _ => throw new InvalidOperationException("No unreviewed download should request consent."), reports.Add, cancellationToken: TestContext.Current.CancellationToken));
         Assert.Contains("Manual installation", Assert.Single(reports));
         Assert.Contains(directory, reports[0]);
     }
@@ -85,7 +85,7 @@ public sealed class PortableMediaSetupTests : IDisposable
     {
         using HttpClient client = new(new RejectNetwork());
         MediaToolsInstallation installation = new(client, new FfmpegDownloadOptions(new Uri("https://example.invalid/"), "ffmpeg-master-latest-win64-lgpl.zip", "linux-x64"));
-        await Assert.ThrowsAsync<ArgumentException>(() => installation.InstallAsync(directory));
+        await Assert.ThrowsAsync<ArgumentException>(() => installation.InstallAsync(directory, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]

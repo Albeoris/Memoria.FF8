@@ -36,7 +36,7 @@ export PATH="$PATH:$HOME/.dotnet/tools"
 pwsh ./Build.ps1
 ```
 
-The official `powershell-<version>-osx-arm64.pkg` (or `-osx-x64.pkg`) from the [PowerShell releases](https://github.com/PowerShell/PowerShell/releases) is a self-contained alternative to the .NET tool. `Build.sh` does not yet run the MoltenVK, manifest and package-validation steps, so use `Build.ps1` for macOS packages.
+The official `powershell-<version>-osx-arm64.pkg` (or `-osx-x64.pkg`) from the [PowerShell releases](https://github.com/PowerShell/PowerShell/releases) is a self-contained alternative to the .NET tool. Use `Build.ps1` for macOS packages.
 
 Apple Silicon Macs produce `Memoria-FF8-osx-arm64.tar.gz` with native arm64 executables; on a Mac, the default RID follows the hardware, including when the shell runs under Rosetta. This is a local build only: releases and CI do not publish it, so its launcher disables online updates. FFmpeg and FFprobe must then also be native arm64 (or universal) LGPL builds; Homebrew's `ffmpeg` enables GPL components and is rejected. On macOS the launcher's FFmpeg setup offers a pinned prebuilt LGPL FFmpeg 9.0.1 package first and, if that fails, offers to build FFmpeg 9.0.2 from the official source release (pinned SHA-256, signature checked against the FFmpeg release key when pinned) with LGPL-only, system-library configuration and only the encoders and muxers playback uses; it needs the Xcode Command Line Tools and writes `ffmpeg-build.log` beside the tools.
 
@@ -90,16 +90,16 @@ This compiles the complete Native graph, publishes every applicable process, cre
 
 The optional `-Test` switch adds Remastered, launcher, selected App, UI, field pose/render interpolation and the entire Runtime.Tests project. The App selection includes portable actor sampling regressions and the optional installed-resource opening presentation check at 30 and 60 FPS. Runtime.Tests includes battle-effect tests, so this switch is a broad test run rather than the default check for a focused change. Run focused tests separately when only part of that selection is relevant or authorized. It does not run every optional integration or gameplay acceptance check.
 
-GitHub Actions builds all three packages on pull requests, `main`, version tags and manual runs. PR jobs have read-only permissions. Publication waits for the complete RID set from one source commit. Selected portable tests run separately; CI never invokes distribution `-Test`. Receipts/artifact reuse are specific to source, RID and build recipe/toolchain identity. Expired or deleted tested payloads require restoration instead of silently rebuilding. A stale main commit cannot replace current nightly. Tag version changes retain verified non-manifest payload hashes/modes and record the resulting archive digest.
+GitHub Actions uses one matrix with three platform jobs on pull requests, `main`, actual version tags and manual runs. Each job validates a complete package and selected portable tests; PRs have read-only permissions and never publish a release. The publication job runs only for `main` or an actual version tag and waits for the complete RID set from one source commit. CI never invokes distribution `-Test`. Receipts/artifact reuse are specific to source, RID and build recipe/toolchain identity. Expired or deleted tested payloads require restoration instead of silently rebuilding. A stale main commit cannot replace current nightly. Tag version changes retain verified non-manifest payload hashes/modes and record the resulting archive digest. See [CI lifecycle and caches](../../.github/README.md).
 
 ## Focused tests
 
-Most test projects use xUnit with Microsoft Testing Platform, selected in `global.json`. Run them through `dotnet test`; their executable entry points also remain available. `Memoria.FF8.Events.Tests` has its own console scenario runner. Select the project closest to the changed contract:
+Most test projects use xUnit with Microsoft Testing Platform, selected in `global.json`. Use their native executable entry points for concise output, as `Build.ps1` does: shared configuration hides individual skipped-test blocks while keeping skip totals and failure details. Missing optional fixture settings are reported once at startup; a multi-project build reports their union once. `dotnet test` remains supported, but the .NET 10 orchestrator renders skipped results independently of the native configuration. `Memoria.FF8.Events.Tests` has its own console scenario runner. Select the project closest to the changed contract:
 
 ```powershell
-dotnet test --project tests/Memoria.FF8.Ui.Tests -c Release --no-progress
-dotnet test --project tests/Memoria.FF8.Runtime.Tests -c Release --no-progress --filter-class '*NativePcSaveCompressionTests'
-dotnet test --project tests/Memoria.FF8.App.Tests -c Release --no-progress --filter-class '*MediaToolsInstallationTests'
+dotnet run --project tests/Memoria.FF8.Ui.Tests -c Release
+dotnet run --project tests/Memoria.FF8.Runtime.Tests -c Release -- --filter-class '*NativePcSaveCompressionTests'
+dotnet run --project tests/Memoria.FF8.App.Tests -c Release -- --filter-class '*MediaToolsInstallationTests'
 ```
 
 | Project | Main responsibility |

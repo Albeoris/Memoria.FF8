@@ -194,7 +194,7 @@ public sealed class MediaToolsDiscoveryTests : IDisposable
             using System.Net.Http.HttpClient client = new();
             MediaToolsInstallation installation = new(client, new FfmpegDownloadOptions(new Uri("https://example.invalid/"), "ffmpeg-test-win64-lgpl.zip"), validate: _ => Task.FromResult(false));
             List<string> reports = [];
-            Assert.False(await installation.EnsureAsync(system, _ => throw new InvalidOperationException("System directories must never receive an installer prompt."), reports.Add));
+            Assert.False(await installation.EnsureAsync(system, _ => throw new InvalidOperationException("System directories must never receive an installer prompt."), reports.Add, cancellationToken: TestContext.Current.CancellationToken));
             Assert.Contains("cannot replace files", Assert.Single(reports));
             Assert.False(Directory.Exists(system));
         }

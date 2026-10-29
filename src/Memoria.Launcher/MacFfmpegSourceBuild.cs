@@ -20,8 +20,6 @@ internal static class MacFfmpegSourceBuild
     private const string SourceRoot = "ffmpeg-" + Version;
     internal const long MaximumArchiveSize = 64L * 1024 * 1024;
     private const long MaximumSourceSize = 512L * 1024 * 1024;
-    // A server or proxy that stops sending headers or data fails the download instead of stalling setup indefinitely.
-    internal static readonly TimeSpan DownloadInactivityTimeout = TimeSpan.FromSeconds(60);
     // Playback only writes raw video and PCM to pipes (FfmpegMovieDecoder, PcmAudioDecoder) and copies video packets to IVF to count frames.
     internal static readonly string[] RequiredEncoders = ["rawvideo", "pcm_s16le"];
     internal static readonly string[] RequiredMuxers = ["rawvideo", "s16le", "ivf"];
@@ -75,7 +73,7 @@ internal static class MacFfmpegSourceBuild
             progress?.Invoke(new(MediaToolsStage.Downloading));
             await using (FileStream archive = File.Create(archivePath))
             {
-                await DownloadAsync(client, source, archive, DownloadInactivityTimeout, progress, cancellationToken);
+                await DownloadAsync(client, source, archive, MediaToolsInstallation.DownloadInactivityNoticeDelay, progress, cancellationToken);
                 progress?.Invoke(new(MediaToolsStage.Verifying));
                 archive.Position = 0;
                 string actual = Convert.ToHexString(await SHA256.HashDataAsync(archive, cancellationToken));
@@ -90,7 +88,7 @@ internal static class MacFfmpegSourceBuild
             {
                 using FileStream file = File.OpenRead(archivePath);
                 using XZStream decompressed = new(file);
-                ExtractSourceTar(decompressed, sources);
+                ExtractSourceTar(decompressed, sources, cancellationToken);
             }, cancellationToken);
             string tree = Path.Combine(sources, SourceRoot);
             string prefix = Path.Combine(staging, "install");
@@ -120,6 +118,7 @@ internal static class MacFfmpegSourceBuild
             {
                 throw new InvalidDataException("The built FFmpeg tools failed validation: " + string.Join(" ", diagnostics));
             }
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (string file in Directory.EnumerateFiles(result))
             {
                 File.Move(file, Path.Combine(directory, Path.GetFileName(file)), true);
@@ -257,51 +256,13 @@ internal static class MacFfmpegSourceBuild
         }
     }
 
-    internal static async Task DownloadAsync(HttpClient client, Uri uri, Stream destination, TimeSpan inactivityTimeout, Action<MediaToolsProgress>? progress, CancellationToken cancellationToken)
+    internal static async Task DownloadAsync(HttpClient client, Uri uri, Stream destination, TimeSpan inactivityNoticeDelay, Action<MediaToolsProgress>? progress, CancellationToken cancellationToken)
     {
-        if (uri.Scheme != Uri.UriSchemeHttps)
-        {
-            throw new ArgumentException("FFmpeg downloads require HTTPS.");
-        }
-        // Every wait on the server restarts the inactivity deadline; only the caller's token means cancellation.
-        using CancellationTokenSource inactivity = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        try
-        {
-            inactivity.CancelAfter(inactivityTimeout);
-            using HttpResponseMessage response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, inactivity.Token);
-            response.EnsureSuccessStatusCode();
-            long? length = response.Content.Headers.ContentLength;
-            await using Stream source = await response.Content.ReadAsStreamAsync(inactivity.Token);
-            byte[] buffer = new byte[81920];
-            long total = 0;
-            Stopwatch updates = Stopwatch.StartNew();
-            int read;
-            inactivity.CancelAfter(inactivityTimeout);
-            while ((read = await source.ReadAsync(buffer, inactivity.Token)) > 0)
-            {
-                total += read;
-                if (total > MaximumArchiveSize)
-                {
-                    throw new InvalidDataException("The FFmpeg download exceeds the expected size limit.");
-                }
-                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                if (updates.ElapsedMilliseconds >= 100)
-                {
-                    progress?.Invoke(new(MediaToolsStage.Downloading, total, length));
-                    updates.Restart();
-                }
-                inactivity.CancelAfter(inactivityTimeout);
-            }
-            progress?.Invoke(new(MediaToolsStage.Downloading, total, length));
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new TimeoutException($"The FFmpeg download received no data for {inactivityTimeout.TotalSeconds:F0} seconds. Check the connection and start FFmpeg setup again.");
-        }
+        await MediaToolsInstallation.DownloadAsync(client, uri, destination, MaximumArchiveSize, inactivityNoticeDelay, progress, cancellationToken);
     }
 
     /// <summary>Extracts only regular files and directories below the single release root, keeping their Unix modes.</summary>
-    internal static void ExtractSourceTar(Stream stream, string directory)
+    internal static void ExtractSourceTar(Stream stream, string directory, CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(directory);
         string root = Path.GetFullPath(directory) + Path.DirectorySeparatorChar;
@@ -312,6 +273,7 @@ internal static class MacFfmpegSourceBuild
         TarEntry? entry;
         while ((entry = archive.GetNextEntry()) is not null)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (++count > 20000 || (total += entry.Length) > MaximumSourceSize)
             {
                 throw new InvalidDataException("The FFmpeg source archive exceeds extraction limits.");
