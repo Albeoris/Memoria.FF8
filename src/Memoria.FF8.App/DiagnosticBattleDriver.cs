@@ -10,6 +10,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public double BaselineSeconds { get; init; } = 1;
     public double ReadinessTimeoutSeconds { get; init; } = 30;
     public double ActionTimeoutSeconds { get; init; } = 120;
+    public double DispatchTimeoutSeconds { get; init; } = 10;
     public double OverallTimeoutSeconds { get; init; } = 300;
     public int TailFrames { get; init; } = 2;
     public string? ProgressPath { get; init; }
@@ -74,7 +75,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         {
             throw new NotSupportedException("The driver requires ordinary semantic input or an explicit native enemy/Limit selection; unresolved capabilities and combat repairs need typed adapters.");
         }
-        if (!double.IsFinite(BaselineSeconds) || BaselineSeconds < 0 || !double.IsFinite(ReadinessTimeoutSeconds) || ReadinessTimeoutSeconds <= 0 || !double.IsFinite(ActionTimeoutSeconds) || ActionTimeoutSeconds <= 0 || !double.IsFinite(OverallTimeoutSeconds) || OverallTimeoutSeconds <= 0 || TailFrames < 2)
+        if (!double.IsFinite(BaselineSeconds) || BaselineSeconds < 0 || !double.IsFinite(ReadinessTimeoutSeconds) || ReadinessTimeoutSeconds <= 0 || !double.IsFinite(ActionTimeoutSeconds) || ActionTimeoutSeconds <= 0 || !double.IsFinite(DispatchTimeoutSeconds) || DispatchTimeoutSeconds <= 0 || !double.IsFinite(OverallTimeoutSeconds) || OverallTimeoutSeconds <= 0 || TailFrames < 2)
         {
             throw new InvalidDataException("Diagnostic driver requires finite positive deadlines, an installed effect identity and at least two presented tail frames.");
         }
@@ -97,7 +98,6 @@ internal sealed record DiagnosticDriverObservation(double Seconds, long Callback
 /// <summary>Two submissions on one uninterrupted host; completion is a preparation candidate, never an acceptance verdict.</summary>
 internal sealed class DiagnosticBattleDriver
 {
-    private const double MaximumDispatchWaitSeconds = 10;
     private readonly DiagnosticBattleDriverRecipe recipe;
     private readonly double started;
     private double stageStarted;
@@ -382,7 +382,7 @@ internal sealed class DiagnosticBattleDriver
             Fail("OVERALL_TIMEOUT");
             return false;
         }
-        if (Stage == DiagnosticDriverStage.AwaitDispatch && seconds - executionStarted >= (recipe.CounterCycle is null ? Math.Min(MaximumDispatchWaitSeconds, recipe.ActionTimeoutSeconds) : recipe.ActionTimeoutSeconds))
+        if (Stage == DiagnosticDriverStage.AwaitDispatch && seconds - executionStarted >= (recipe.CounterCycle is null ? Math.Min(recipe.DispatchTimeoutSeconds, recipe.ActionTimeoutSeconds) : recipe.ActionTimeoutSeconds))
         {
             Fail("EXPECTED_EFFECT_DISPATCH_TIMEOUT");
             return false;
