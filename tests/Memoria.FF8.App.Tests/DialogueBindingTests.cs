@@ -15,6 +15,18 @@ public sealed class DialogueBindingTests
     }
 
     [Fact]
+    public void CapturedDialoguePromptsStayFrozenAfterControlBindingsChange()
+    {
+        KeyboardInput input = new();
+        Func<ushort, string> captured = input.CaptureNativeButtonBindingPrompt();
+        string before = DialogueTextFormatter.FormatWithPrompts(Template, buttonBindingHint: captured);
+        Assert.Equal(input.NativeButtonBindingPrompt(0x1040), captured(0x1040));
+        input.Profile = input.Profile.WithBinding(ControlAction.Cancel, ControlDevice.Keyboard, new([Keys.LeftControl, Keys.K], []));
+        Assert.NotEqual(before, DialogueTextFormatter.FormatWithPrompts(Template, buttonBindingHint: input.NativeButtonBindingPrompt));
+        Assert.Equal(before, DialogueTextFormatter.FormatWithPrompts(Template, buttonBindingHint: captured));
+    }
+
+    [Fact]
     public void Remapped_keyboard_actions_and_chords_replace_native_face_button_tags()
     {
         KeyboardInput input = new();

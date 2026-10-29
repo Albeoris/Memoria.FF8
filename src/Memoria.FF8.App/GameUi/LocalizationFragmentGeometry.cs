@@ -6,7 +6,7 @@ using SkiaSharp;
 
 namespace Memoria.FF8.GameUi;
 
-internal sealed record LocalizationTextHit(LocalizationTextBinding Binding, UiRect Bounds, float? Size = null, string? FontFamily = null, float? MaximumWidth = null, string? NativeProfileId = null);
+internal sealed record LocalizationTextHit(LocalizationTextBinding Binding, UiRect Bounds, float? Size = null, string? FontFamily = null, float? MaximumWidth = null, string? NativeProfileId = null, NativeTextContext? NativeContext = null);
 
 /// <summary>Projects source-owned shaped clusters, never matching a displayed word back to a resource.</summary>
 internal static class LocalizationFragmentGeometry

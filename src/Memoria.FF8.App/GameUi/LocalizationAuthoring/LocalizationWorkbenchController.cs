@@ -203,6 +203,9 @@ public sealed class LocalizationWorkbenchController : IDisposable
     public IReadOnlyList<LocalizationWorkbenchLanguage> EditorLanguages => languages;
     public string Status => status;
     public Func<string, string, string?, AuthoringCompatibilityReport>? CompatibilityReporter { get; set; }
+    public Func<string>? CompatibilityRevision { get; set; }
+    private (Func<string, string, string?, AuthoringCompatibilityReport>? Reporter, string Text, int Language, string Revision)? compatibilityCacheKey;
+    private AuthoringCompatibilityReport? cachedCompatibilityReport;
     public AuthoringCompatibilityReport? CompatibilityReport
     {
         get
@@ -215,7 +218,13 @@ public sealed class LocalizationWorkbenchController : IDisposable
             {
                 _ = validate?.Invoke(Session!.Draft.Present ? Session.Draft.Text ?? "" : "");
             }
-            return CompatibilityReporter?.Invoke(Editor.Text, language == 0 ? "Target" : "Reference", language == 0 ? null : languages[language].Id);
+            var key = (CompatibilityReporter, Editor.Text, language, CompatibilityRevision?.Invoke() ?? "");
+            if (compatibilityCacheKey != key)
+            {
+                cachedCompatibilityReport = CompatibilityReporter?.Invoke(Editor.Text, language == 0 ? "Target" : "Reference", language == 0 ? null : languages[language].Id);
+                compatibilityCacheKey = key;
+            }
+            return cachedCompatibilityReport;
         }
     }
     public IReadOnlyList<LocalizationWorkbenchControlHit> ControlHits => controlHits;

@@ -22,6 +22,7 @@ internal sealed partial class RecreateGame
         public int DrawGroup { get; init; }
         public Memoria.FF8.Resources.ITextTermSource? Terms { get; init; }
         public Func<string, string>? FormatTemplate { get; init; }
+        public Func<ushort, string>? ButtonBindings { get; init; }
         public NativeTextContext? NativeContext { get; init; }
         public float? FontSize { get; init; }
         public string? FontFamily { get; init; }
@@ -82,6 +83,7 @@ internal sealed partial class RecreateGame
         gameMenus.Register(new MenuScreenDefinition { Id = "localization-catalog", Title = "Localization · Canonical catalog", Help = "Inspect exact rows without picking workbench chrome. Reference data remains read-only.", TitleText = _ => AuthoringHostText("catalog.title", "Localization · Canonical catalog"), HelpText = _ => AuthoringHostText("catalog.help", "Inspect exact rows without picking workbench chrome. Reference data remains read-only."), Entries = _ => AuthoringCatalogEntries(), GalleryEligible = false });
         gameMenus.Register(new MenuScreenDefinition { Id = "localization-shortcuts", Title = "Localization · Editor shortcuts", Help = "Choose a command, release the current key, then press its new shortcut. Escape cancels capture.", TitleText = _ => AuthoringHostText("shortcuts.title", "Localization · Editor shortcuts"), HelpText = _ => AuthoringHostText("shortcuts.help", "Choose a command, release the current key, then press its new shortcut. Escape cancels capture."), Entries = _ => AuthoringShortcutEntries(), GalleryEligible = false });
         localizationWorkbench.ObservationText = AuthoringObservationText;
+        localizationWorkbench.CompatibilityRevision = () => $"{uiPreferences.TextFontMode}:{uiPreferences.TextLayoutMode}:{nativeTextFont?.Revision}";
         localizationWorkbench.Localize = LocalizeUiText;
         localizationWorkbench.CopyText = authoringClipboard.Copy;
         localizationWorkbench.PasteText = authoringClipboard.Paste;
@@ -353,9 +355,13 @@ internal sealed partial class RecreateGame
         {
             hit = hit with { NativeContext = AuthoringTextContext(hit.Binding) };
         }
-        if (hit.Terms is null)
+        if (hit.Terms is null && !hit.Detached)
         {
             hit = hit with { Terms = authoringTermSnapshot };
+        }
+        if (hit.ButtonBindings is null && !hit.Detached)
+        {
+            hit = hit with { ButtonBindings = keyboard.CaptureNativeButtonBindingPrompt() };
         }
         if (!hit.Detached && hit.Binding.Names.Count == 0 && events is not null)
         {
@@ -555,7 +561,7 @@ internal sealed partial class RecreateGame
             LocalizationRecord original = localizationWorkbench.Session.Base.Row;
             localizationWorkbench.CompatibilityReporter = (value, role, dataset) =>
             {
-                LocalizationTextBinding binding = editingAuthoringBinding ?? new LocalizationTextBinding(localizationWorkbench.Session!.Base.Identity.Key, original.Source, value, value) { Category = original.Category, File = original.File };
+                LocalizationTextBinding binding = editingAuthoringBinding ?? new LocalizationTextBinding(localizationWorkbench.Session!.Base.Identity.Key, original.Source ?? "", value, value) { Category = original.Category, File = original.File };
                 NativeTextContext context = editingAuthoringHit?.NativeContext ?? AuthoringTextContext(binding);
                 if (original.Category == "Fields")
                 {
@@ -877,8 +883,7 @@ internal sealed partial class RecreateGame
 
     private NativeTextContext AuthoringTextContext(LocalizationTextBinding binding)
     {
-        string family = binding.Category switch { "System" => "System", "World" or "Draw points" => "World", "Battle" => "Battle", _ => NativeDialogueContext.ResourceFamily };
-        return NativeDialogueContext with { ResourceFamily = family, Field = family == "Fields" ? binding.File ?? world?.Field?.Name : null };
+        return MonoGameUiCanvas.NativeContextForBinding(binding, NativeDialogueContext);
     }
 
     private string FormatAuthoringDialogueTemplate(string template)
@@ -901,7 +906,7 @@ internal sealed partial class RecreateGame
             observedAuthoringOccurrenceIds[dialogue.Channel] = occurrence;
             Guid id = Guid.NewGuid();
             observedAuthoringBindings[id] = binding;
-            observedAuthoringHits[id] = new(binding, new(panel.X, panel.Y, panel.Width, panel.Height), dialogue) { Window = events?.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel), Terms = authoringTermSnapshot, NativeContext = AuthoringTextContext(binding), FormatTemplate = TryGeneratedAuthoringDialogue(dialogue, out var generatedObservation) ? generatedObservation!.FormatTemplate : null };
+            observedAuthoringHits[id] = new(binding, new(panel.X, panel.Y, panel.Width, panel.Height), dialogue) { Window = events?.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel), Terms = authoringTermSnapshot, NativeContext = AuthoringTextContext(binding), ButtonBindings = keyboard.CaptureNativeButtonBindingPrompt(), FormatTemplate = TryGeneratedAuthoringDialogue(dialogue, out var generatedObservation) ? generatedObservation!.FormatTemplate : null };
             localizationWorkbench.Observe(new(id, DateTimeOffset.UtcNow, new(binding.Category ?? "Fields", binding.File ?? "messages_world", binding.Key), dialogue.Text, $"{session.State.Scene} · channel {dialogue.Channel} · operation {dialogue.Operation}"));
             if (observedAuthoringBindings.Count > 10000)
             {
@@ -930,7 +935,7 @@ internal sealed partial class RecreateGame
         }
         Guid id = Guid.NewGuid();
         observedAuthoringBindings[id] = binding;
-        observedAuthoringHits[id] = new(binding, default, Detached: true) { Terms = authoringTermSnapshot, NativeContext = AuthoringTextContext(binding) };
+        observedAuthoringHits[id] = new(binding, default, Detached: true) { Terms = authoringTermSnapshot, NativeContext = AuthoringTextContext(binding), ButtonBindings = keyboard.CaptureNativeButtonBindingPrompt() };
         LocalizationRecord? row = authoringSelection?.Rows.GetValueOrDefault(binding.Key);
         localizationWorkbench.Observe(new(id, DateTimeOffset.UtcNow, new(row?.Category ?? binding.Category ?? channel.Split('/')[0], row?.File ?? binding.File ?? channel, binding.Key), rendered, channel + " · " + occurrenceId));
         if (observedAuthoringLifecycles.Count > 10000)

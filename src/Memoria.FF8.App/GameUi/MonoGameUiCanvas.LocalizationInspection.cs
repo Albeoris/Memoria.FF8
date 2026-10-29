@@ -36,7 +36,7 @@ internal sealed partial class MonoGameUiCanvas : IUiTextFragmentInspector
         }
         Rectangle visible = Rectangle.Intersect(RectangleFor(bounds), CurrentClip);
         PortableTextCluster cluster = new(Enumerable.Range(0, value.Length).ToArray(), new(bounds.X, bounds.Y, bounds.Right, bounds.Bottom));
-        PublishInspection(LocalizationFragmentGeometry.Map(binding, [cluster], Vector2.Zero, 1, new(visible.X, visible.Y, visible.Width, visible.Height)), size, UseNativeFonts ? null : family, bounds.Width, UseNativeFonts ? NativeFont?.ProfileFor(NativeMenuTextContext)?.Id : null);
+        PublishInspection(LocalizationFragmentGeometry.Map(binding, [cluster], Vector2.Zero, 1, new(visible.X, visible.Y, visible.Width, visible.Height)), size, UseNativeFonts ? null : family, bounds.Width, UseNativeFonts ? NativeFont?.ProfileFor(NativeContextFor(value))?.Id : null, NativeContextFor(value));
     }
 
     private void Inspect(string value, Vector2 position, float size, float maximumWidth, Rectangle clip, string? fontFamily = null, bool verticallyCentered = false)
@@ -68,18 +68,18 @@ internal sealed partial class MonoGameUiCanvas : IUiTextFragmentInspector
         PublishInspection(LocalizationFragmentGeometry.Map(binding, raster.Clusters, position, 1, visible), size, SystemFontCatalog.ResolveFamily(family), maximumWidth);
     }
 
-    private void InspectNative(string value, NativeFontLayoutResult layout, Vector2 origin, float scale, Rectangle clip, float size, float maximumWidth, string? profileId)
+    private void InspectNative(string value, NativeFontLayoutResult layout, Vector2 origin, float scale, Rectangle clip, float size, float maximumWidth, string? profileId, NativeTextContext? context = null)
     {
         if (InspectTextBatch is null && InspectText is null || LocalizationTextTrace.Find(value) is not { } binding)
         {
             return;
         }
-        PublishInspection(LocalizationFragmentGeometry.Map(binding, LocalizationFragmentGeometry.ClippedNativeClusters(layout, origin, scale, clip), Vector2.Zero, 1, new(clip.X, clip.Y, clip.Width, clip.Height)), size, null, maximumWidth, profileId);
+        PublishInspection(LocalizationFragmentGeometry.Map(binding, LocalizationFragmentGeometry.ClippedNativeClusters(layout, origin, scale, clip), Vector2.Zero, 1, new(clip.X, clip.Y, clip.Width, clip.Height)), size, null, maximumWidth, profileId, context);
     }
 
-    private void PublishInspection(IReadOnlyList<LocalizationTextHit> hits, float? size = null, string? family = null, float? maximumWidth = null, string? nativeProfile = null)
+    private void PublishInspection(IReadOnlyList<LocalizationTextHit> hits, float? size = null, string? family = null, float? maximumWidth = null, string? nativeProfile = null, NativeTextContext? context = null)
     {
-        hits = hits.Select(hit => hit with { Size = size, FontFamily = family, MaximumWidth = maximumWidth is float width && float.IsFinite(width) ? width : null, NativeProfileId = nativeProfile }).ToArray();
+        hits = hits.Select(hit => hit with { Size = size, FontFamily = family, MaximumWidth = maximumWidth is float width && float.IsFinite(width) ? width : null, NativeProfileId = nativeProfile, NativeContext = context }).ToArray();
         if (InspectTextBatch is not null)
         {
             InspectTextBatch(hits);

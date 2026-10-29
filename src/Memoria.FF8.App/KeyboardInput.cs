@@ -96,6 +96,12 @@ internal sealed class KeyboardInput
         return string.Join("+", NativeButtons.Where(binding => (buttons & binding.Mask) != 0).Select(binding => BindingPrompt(binding.Action)));
     }
 
+    internal Func<ushort, string> CaptureNativeButtonBindingPrompt()
+    {
+        var bindings = NativeButtons.Select(binding => (binding.Mask, Text: BindingPrompt(binding.Action))).ToArray();
+        return buttons => string.Join("+", bindings.Where(binding => (buttons & binding.Mask) != 0).Select(binding => binding.Text));
+    }
+
     internal static ControlAction NativeButtonAction(ushort button)
     {
         return NativeButtons.Single(binding => binding.Mask == button).Action;

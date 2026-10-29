@@ -20,7 +20,11 @@ internal sealed partial class MonoGameUiCanvas : INativeButtonTextMetrics
 
     private NativeTextContext NativeContextFor(string value)
     {
-        LocalizationTextBinding? binding = LocalizationTextTrace.Find(value);
+        return NativeContextForBinding(LocalizationTextTrace.Find(value), NativeMenuTextContext);
+    }
+
+    internal static NativeTextContext NativeContextForBinding(LocalizationTextBinding? binding, NativeTextContext fallback)
+    {
         string? category = binding?.Category;
         if (category is null && binding?.Fragments.Count > 0)
         {
@@ -29,11 +33,13 @@ internal sealed partial class MonoGameUiCanvas : INativeButtonTextMetrics
         }
         string family = category switch
         {
-            null or "System" => "System",
+            null => fallback.ResourceFamily,
+            "System" => "System",
+            "Draw points" => "World",
             "Magic" or "Items" or "Weapons" or "Characters" or "Guardians" or "Abilities" or "Information and SeeD exam" => "Menus",
             _ => category
         };
-        return new(resources?.Source.Edition.ToString() ?? "Classic", family, family == "Fields" ? binding?.File : null, resources?.ResourceLanguage ?? "en");
+        return new(fallback.Edition, family, family == "Fields" ? binding?.File ?? fallback.Field : null, fallback.DictionaryLanguage);
     }
 
     private UiSize MeasureNativeText(string value, float size, float width, NativeTextContext? context = null)
@@ -60,7 +66,7 @@ internal sealed partial class MonoGameUiCanvas : INativeButtonTextMetrics
         {
             float scale = nativeScale;
             NativeFontLayoutResult layout = NativeFont.Layout(value, context ?? NativeMenuTextContext, bounds.Width / scale);
-            InspectNative(value, layout, new(bounds.X, bounds.Y + y), scale, Rectangle.Intersect(RectangleFor(bounds), CurrentClip), size, bounds.Width, NativeFont.ProfileFor(context ?? NativeMenuTextContext)?.Id);
+            InspectNative(value, layout, new(bounds.X, bounds.Y + y), scale, Rectangle.Intersect(RectangleFor(bounds), CurrentClip), size, bounds.Width, NativeFont.ProfileFor(context ?? NativeMenuTextContext)?.Id, context);
         }
         if (!drawn)
         {

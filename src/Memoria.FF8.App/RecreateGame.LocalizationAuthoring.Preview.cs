@@ -14,6 +14,7 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private ITextTermSource? authoringTermSnapshot;
+    private string? authoringTermProblem;
     private Task<ITextTermSource>? authoringTermsLoading;
     private long authoringTermsGeneration = -1;
     private string? detachedAuthoringKey;
@@ -35,11 +36,17 @@ internal sealed partial class RecreateGame
                 if (authoringTermsGeneration == resourceHost.Resources.CatalogGeneration)
                 {
                     authoringTermSnapshot = captured;
+                    if (authoringNotice == authoringTermProblem)
+                    {
+                        authoringNotice = "";
+                    }
+                    authoringTermProblem = null;
                 }
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException)
             {
-                authoringNotice = "Preview dictionary context unavailable: " + exception.Message;
+                authoringTermProblem = "Preview dictionary context unavailable: " + exception.Message;
+                authoringNotice = authoringTermProblem;
             }
         }
         if (authoringTermsLoading is null && authoringTermsGeneration != resourceHost.Resources.CatalogGeneration)
@@ -80,7 +87,7 @@ internal sealed partial class RecreateGame
         {
             names = editingAuthoringBinding?.Arguments.OfType<IReadOnlyDictionary<int, string>>().LastOrDefault();
         }
-        return DialogueTextFormatter.Parse(body, names, CapturedAuthoringVariables(), keyboard.NativeButtonBindingPrompt, editingAuthoringHit?.Terms, originalCompatible: originalCompatible);
+        return DialogueTextFormatter.Parse(body, names, CapturedAuthoringVariables(), editingAuthoringHit?.ButtonBindings ?? (_ => throw new NotSupportedException("Captured button-binding context is unavailable for this historical occurrence.")), editingAuthoringHit?.Terms, originalCompatible: originalCompatible);
     }
 
     private void DrawDetachedAuthoringPreview(Rectangle bounds)

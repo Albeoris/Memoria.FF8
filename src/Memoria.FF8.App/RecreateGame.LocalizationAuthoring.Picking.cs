@@ -24,7 +24,7 @@ internal sealed partial class RecreateGame
         {
             if (hit.Binding.Key.Length != 0 && !hit.Bounds.IsEmpty)
             {
-                authoringHits.Add(new(hit.Binding, hit.Bounds) { DrawGroup = group, Terms = authoringTermSnapshot, NativeContext = AuthoringTextContext(hit.Binding), FontSize = hit.Size, FontFamily = hit.FontFamily, MaximumWidth = hit.MaximumWidth });
+                authoringHits.Add(new(hit.Binding, hit.Bounds) { DrawGroup = group, Terms = authoringTermSnapshot, NativeContext = hit.NativeContext ?? AuthoringTextContext(hit.Binding), FontSize = hit.Size, FontFamily = hit.FontFamily, MaximumWidth = hit.MaximumWidth });
             }
         }
     }

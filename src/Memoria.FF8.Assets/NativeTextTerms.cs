@@ -35,10 +35,10 @@ public sealed class NativeTextTerms : ITextTermSource
 
     public static NativeTextTerms Capture(ResourceService resources)
     {
-        long generation = resources.Generation;
+        long generation = resources.CatalogGeneration;
         NativeTextTerms source = Read(resources);
         string[] values = Enumerable.Range(0, source.entries.Length).Select(source.Resolve).ToArray();
-        if (resources.Generation != generation)
+        if (resources.CatalogGeneration != generation)
         {
             throw new IOException("The text dictionary changed while its preview context was being captured.");
         }
