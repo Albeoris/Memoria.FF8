@@ -9,12 +9,71 @@ internal sealed class PresentationTiming
     private TimeSpan accumulated;
     private readonly Queue<(long Completed, TimeSpan Duration)> recentUpdateCosts = [];
     private TimeProvider? costClock;
+    private TimeProvider presentationClock = TimeProvider.System;
+    private long presentationFrameStarted;
+    private object? presentationOwner;
+    private object? presentationFrameOwner;
+    private bool presentationFrameCanAdvance;
+    private bool presentationFrameEnabled;
+    private double presentationSpeed = 1;
 
     public TimeSpan SimulationTotal { get; private set; }
 
     public void DiscardPendingTime()
     {
         accumulated = TimeSpan.Zero;
+        FreezePresentationFrame();
+    }
+
+    public void BeginPresentationFrame(object? owner, bool advancing, TimeProvider? timeProvider = null)
+    {
+        presentationClock = timeProvider ?? TimeProvider.System;
+        presentationFrameStarted = presentationClock.GetTimestamp();
+        presentationFrameOwner = owner;
+        presentationFrameCanAdvance = advancing && owner is not null;
+        presentationFrameEnabled = presentationFrameCanAdvance && ReferenceEquals(owner, presentationOwner);
+        if (!presentationFrameEnabled)
+        {
+            presentationOwner = null;
+        }
+    }
+
+    public void AdmitPresentationOwner(object owner, double speed = 1)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (!double.IsFinite(speed) || speed <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(speed));
+        }
+        if (presentationFrameCanAdvance && ReferenceEquals(owner, presentationFrameOwner))
+        {
+            // A newly admitted session starts carrying time on the next host frame.
+            presentationOwner = owner;
+            presentationSpeed = speed;
+        }
+    }
+
+    public void FreezePresentationFrame()
+    {
+        presentationFrameCanAdvance = false;
+        presentationFrameEnabled = false;
+        presentationOwner = null;
+    }
+
+    public TimeSpan RenderElapsed(object owner, bool advancing)
+    {
+        if (!advancing)
+        {
+            FreezePresentationFrame();
+            return TimeSpan.Zero;
+        }
+        if (!presentationFrameEnabled || !ReferenceEquals(owner, presentationFrameOwner) || !ReferenceEquals(owner, presentationOwner))
+        {
+            return TimeSpan.Zero;
+        }
+        TimeSpan work = presentationClock.GetElapsedTime(presentationFrameStarted);
+        TimeSpan elapsed = accumulated + (work > TimeSpan.Zero ? work : TimeSpan.Zero);
+        return TimeSpan.FromTicks((long)Math.Min(elapsed.Ticks * presentationSpeed, MaximumElapsed.Ticks));
     }
 
     public static int FrameLimit(UiPreferences preferences, bool menu, bool battle, bool worldMap = false)

@@ -10,6 +10,8 @@ internal sealed partial class RecreateGame
     private int? appliedFrameLimit;
     private bool appliedNativeBattlePacing;
     private int appliedMsaaSamples;
+    private bool battlePresentationUpdated;
+    private bool CanAdvanceBattleRenderPhase => !focusPaused && !discardFocusElapsed && !updateSave.Paused && !userPaused && !dialogContext.IsBusy && !dialogInputBlocked && pendingCapture is null && battleEntryTransition is null && !capturingControls && !fieldFaulted && autoPlay?.Paused != true;
 
     private void ApplyDisplaySettings()
     {
@@ -55,16 +57,24 @@ internal sealed partial class RecreateGame
         presentationTiming.Accumulate(gameTime.ElapsedGameTime);
         if (pendingCapture is not null)
         {
+            presentationTiming.FreezePresentationFrame();
             return;
         }
+        bool updated = false;
+        battlePresentationUpdated = false;
         presentationTiming.RunUpdates(workBudget, () =>
         {
             double nativeCallbackRate = ActiveBattle?.NativeGraphics is null ? 0 : NativeBattleGraphicsPresentationClock.CallbacksPerSecond * gameplayClock.SpeedMultiplier;
             return PresentationTiming.UpdateStep(appliedFrameLimit ?? 60, nativeCallbackRate);
         }, step =>
         {
+            updated = true;
             UpdateGameFrame(new GameTime(presentationTiming.SimulationTotal, step, gameTime.IsRunningSlowly));
             return battleEntryTransition is null && pendingCapture is null;
         });
+        if ((updated && !battlePresentationUpdated) || !CanAdvanceBattleRenderPhase)
+        {
+            presentationTiming.FreezePresentationFrame();
+        }
     }
 }

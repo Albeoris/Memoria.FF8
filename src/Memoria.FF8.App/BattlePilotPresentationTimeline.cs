@@ -7,17 +7,28 @@ internal sealed class BattlePilotPresentationTimeline
 {
     private NativeBattlePreparedPresentation? earlier;
     private NativeBattlePreparedPresentation? later;
+    private object? presentationOwner;
+    private float sampledAlpha;
 
-    internal (NativeBattlePreparedPresentation Frame, NativeBattlePreparedPresentation? Next, float Alpha) Select(NativeBattlePreparedPresentation current, bool smooth, float alpha)
+    internal (NativeBattlePreparedPresentation Frame, NativeBattlePreparedPresentation? Next, float Alpha) Select(NativeBattlePreparedPresentation current, bool smooth, float alpha, object? owner = null)
     {
+        if (!ReferenceEquals(owner, presentationOwner))
+        {
+            earlier = null;
+            later = null;
+            sampledAlpha = 0;
+            presentationOwner = owner;
+        }
         if (!smooth || current.PilotEffect is not (2 or 3 or 144))
         {
             earlier = null;
             later = null;
+            sampledAlpha = 0;
             return (current, null, 0);
         }
         if (later is null || current.Callback != later.Callback || current.PilotEffect != later.PilotEffect || current.PilotGeneration != later.PilotGeneration)
         {
+            sampledAlpha = 0;
             earlier = later is not null && current.Callback == later.Callback + 1 && current.PilotEffect == later.PilotEffect && current.PilotGeneration == later.PilotGeneration ? later : null;
         }
         later = current;
@@ -25,6 +36,9 @@ internal sealed class BattlePilotPresentationTimeline
         {
             return (current, null, 0);
         }
-        return (earlier, current, float.IsFinite(alpha) ? Math.Clamp(alpha, 0, 1) : 0);
+        // Pausing can discard the host carry while retaining the same completed interval.
+        // Hold its last sampled phase until native time catches up; new intervals reset it.
+        sampledAlpha = Math.Max(sampledAlpha, float.IsFinite(alpha) ? Math.Clamp(alpha, 0, 1) : 0);
+        return (earlier, current, sampledAlpha);
     }
 }

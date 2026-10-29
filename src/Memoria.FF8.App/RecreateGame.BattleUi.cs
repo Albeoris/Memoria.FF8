@@ -119,6 +119,8 @@ internal sealed partial class RecreateGame
         active.PublishNativeEscapeButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldControlButtons);
         active.PublishNativeScanMappedButtons(slotsOwned || duelOwned ? (ushort)0 : ReadDiagnosticScanMappedButtons(active, keyboard.HeldFieldButtons));
         active.AdvanceNativeGraphicsPresentation(elapsed);
+        battlePresentationUpdated = true;
+        presentationTiming.AdmitPresentationOwner(active, presentationElapsed.Ticks > 0 ? elapsed.Ticks / (double)presentationElapsed.Ticks : 1);
         if (ReferenceEquals(active, world?.Battle))
         {
             world.SynchronizeBattlePresentation();
@@ -529,7 +531,7 @@ internal sealed partial class RecreateGame
         {
             battleScene!.SmoothCompatibleMotion = uiPreferences.BattleMotion == BattleMotionMode.SmoothCompatible;
             battleScene.PilotDiagnosticsEnabled = diagnosticTelemetry?.VisualChangesEnabled == true;
-            pixels = battleScene.Render(active, size.Width, size.Height, battleGpu);
+            pixels = battleScene.Render(active, size.Width, size.Height, battleGpu, presentationTiming.RenderElapsed(active, CanAdvanceBattleRenderPhase));
             if (diagnosticTelemetry?.VisualChangesEnabled == true && battleGpu is not null)
             {
                 long frameOrdinal = diagnosticPresentedFrames + 1;

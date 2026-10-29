@@ -151,6 +151,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        presentationTiming.BeginPresentationFrame(ActiveBattle, CanAdvanceBattleRenderPhase);
         SynchronizationContext.SetSynchronizationContext(dialogContext);
         dialogContext.Drain();
         desktopDialogs.PumpPendingEvents();
