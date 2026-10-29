@@ -392,7 +392,7 @@ public sealed class UiView
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment, UiTextFlow flow)
         {
-            canvas.Text(text, fontSize * scale, Map(bounds), color, fontFamily, verticalAlignment, flow);
+            canvas.Text(text, fontSize * scale, MapText(bounds), color, fontFamily, verticalAlignment, flow);
         }
 
         public void Paper(UiRect bounds, UiColor color)
@@ -402,7 +402,7 @@ public sealed class UiView
 
         public void OutlinedText(string text, float fontSize, UiRect bounds, UiColor color, UiColor outline, float thickness)
         {
-            canvas.OutlinedText(text, fontSize * scale, Map(bounds), color, outline, thickness * scale);
+            canvas.OutlinedText(text, fontSize * scale, MapText(bounds), color, outline, thickness * scale);
         }
 
         public void Fill(UiRect bounds, UiColor color)
@@ -412,22 +412,22 @@ public sealed class UiView
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
         {
-            canvas.Text(text, fontSize * scale, Map(bounds), color);
+            canvas.Text(text, fontSize * scale, MapText(bounds), color);
         }
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily)
         {
-            canvas.Text(text, fontSize * scale, Map(bounds), color, fontFamily);
+            canvas.Text(text, fontSize * scale, MapText(bounds), color, fontFamily);
         }
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
         {
-            canvas.Text(text, fontSize * scale, Map(bounds), color, verticalAlignment);
+            canvas.Text(text, fontSize * scale, MapText(bounds), color, verticalAlignment);
         }
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment, UiTextFlow flow)
         {
-            canvas.Text(text, fontSize * scale, Map(bounds), color, verticalAlignment, flow);
+            canvas.Text(text, fontSize * scale, MapText(bounds), color, verticalAlignment, flow);
         }
 
         public void MenuPointer(UiRect bounds)
@@ -463,6 +463,11 @@ public sealed class UiView
         public void PopClip()
         {
             canvas.PopClip();
+        }
+
+        private UiRect MapText(UiRect bounds)
+        {
+            return new UiRect(bounds.X * scale + offsetX, bounds.Y * scale + offsetY, bounds.Width * scale, bounds.Height * scale);
         }
 
         private UiRect Map(UiRect bounds)

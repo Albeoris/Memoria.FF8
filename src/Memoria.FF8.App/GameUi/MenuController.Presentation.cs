@@ -137,16 +137,21 @@ public sealed partial class MenuController
     {
         var content = Grid([1], compact ? [0.8f, 1.4f] : [1.2f, 1, 1.8f], 10);
         Place(content, Portrait(member), 0);
-        var name = Grid([1, 1], [1], 0);
-        Place(name, VectorLabel(member?.Name ?? "", compact ? 15 : 28), 0);
-        Place(name, VectorLabel(member is null ? "" : FormatSystemText("ui.vectorpartycard.caption.lv", "Lv  {0}", Number(member.Level)), compact ? 13 : 22, true), 1);
+        float nameSize = compact ? 15 : 28;
+        float levelSize = compact ? 13 : 22;
+        float hpSize = compact ? 12 : 22;
+        const float progressRow = 7;
+        const float progressGap = 2;
+        var name = Grid([nameSize, levelSize], [1], 0);
+        Place(name, VectorLabel(member?.Name ?? "", nameSize), 0);
+        Place(name, VectorLabel(member is null ? "" : FormatSystemText("ui.vectorpartycard.caption.lv", "Lv  {0}", Number(member.Level)), levelSize, true), 1);
         Place(content, name, 0, 1);
-        var hp = VectorRows([0, 7], [1], 2);
-        Place(hp, VectorLabel(member is null ? "" : FormatSystemText("ui.vectorpartycard.caption.hp.template", "{0}{1}", (compact ? "" : SystemText("ui.vectorpartycard.caption.hp", "HP   ")), Hp(member)), compact ? 12 : 22), 0);
+        var hp = VectorRows([0, progressRow], [1], progressGap);
+        Place(hp, VectorLabel(member is null ? "" : FormatSystemText("ui.vectorpartycard.caption.hp.template", "{0}{1}", (compact ? "" : SystemText("ui.vectorpartycard.caption.hp", "HP   ")), Hp(member)), hpSize), 0);
         Place(hp, new UiProgressBar { Min = 0, Max = Math.Max(1, member?.MaximumHp ?? 1), Value = member?.CurrentHp ?? 0, Height = compact ? 4 : 7, VerticalAlignment = UiAlignment.Start }, 1);
         if (compact)
         {
-            var summary = Grid([2, 1], [1], 0);
+            var summary = Grid([nameSize + levelSize, hpSize + progressRow + progressGap], [1], 0);
             Place(summary, name, 0);
             Place(summary, hp, 1);
             content.Children.Remove(name);

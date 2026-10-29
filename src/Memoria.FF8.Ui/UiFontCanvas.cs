@@ -87,15 +87,18 @@ internal sealed class UiFontCanvas(IUiCanvas canvas, string fontFamily) : IUiCan
     public void AlignedText(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment horizontalAlignment)
     {
         float offset = 0;
+        float width = bounds.Width;
         if (horizontalAlignment is UiAlignment.End or UiAlignment.Center)
         {
-            offset = Math.Max(0, bounds.Width - MeasureText(text, fontSize, bounds.Width).Width);
+            width = Math.Min(bounds.Width, MeasureText(text, fontSize, bounds.Width).Width);
+            offset = Math.Max(0, bounds.Width - width);
             if (horizontalAlignment == UiAlignment.Center)
             {
                 offset /= 2;
+                width += offset;
             }
         }
-        Text(text, fontSize, new UiRect(bounds.X + offset, bounds.Y, bounds.Width - offset, bounds.Height), color);
+        Text(text, fontSize, new UiRect(bounds.X + offset, bounds.Y, width, bounds.Height), color);
     }
 
     public void OutlinedText(string text, float fontSize, UiRect bounds, UiColor color, UiColor outline, float thickness)

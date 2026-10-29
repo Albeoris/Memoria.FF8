@@ -229,7 +229,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         {
             if (ButtonPromptText.Contains(value))
             {
-                return ButtonPromptText.Measure(value, size, maximumWidth, fontFamily, text => NativeButtonAdvance(text, size), NativeButtonMetrics("", size).Height);
+                return ButtonPromptText.Measure(value, size, maximumWidth, fontFamily, text => NativeButtonAdvance(text, size), NativeButtonMetrics("", size).Height, text => NativeButtonMetrics(text, size).Width);
             }
             return MeasureNativeText(value, size, maximumWidth);
         }

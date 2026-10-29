@@ -139,14 +139,15 @@ internal static class ButtonPromptText
         return source;
     }
 
-    internal static UiSize Measure(string value, float size, float width, string? family, Func<string, float>? measure = null, float? lineHeight = null)
+    internal static UiSize Measure(string value, float size, float width, string? family, Func<string, float>? measure = null, float? lineHeight = null, Func<string, float>? paintWidth = null)
     {
         if (value.Length == 0 || size <= 0)
         {
             return new UiSize(0, 0);
         }
         DialogueVisualLine[] lines = Lines(value, size, width, family, measure, lineHeight);
-        return new UiSize(lines.Select(line => line.Width).DefaultIfEmpty(0).Max(), lines.Length * (lineHeight ?? SystemTextLayout.LineHeight(size, family)));
+        float measuredWidth = lines.Select(line => paintWidth is null ? line.Width : Math.Max(line.Width, line.Runs.Where(run => !run.Run.IsButton).Select(run => run.X + paintWidth(run.Run.Text)).DefaultIfEmpty(0).Max())).DefaultIfEmpty(0).Max();
+        return new UiSize(measuredWidth, lines.Length * (lineHeight ?? SystemTextLayout.LineHeight(size, family)));
     }
 
     internal static void Draw(IUiCanvas canvas, string value, float size, UiRect bounds, UiColor color, string? family, UiAlignment alignment, UiTextOverflow overflow, UiTextFlow flow = UiTextFlow.Auto)
@@ -158,7 +159,7 @@ internal static class ButtonPromptText
         INativeButtonTextMetrics? native = canvas is INativeButtonTextMetrics { UsesNativeButtonMetrics: true } metrics ? metrics : null;
         Func<string, float>? nativeMeasure = native is null ? null : text => native.NativeButtonAdvance(text, size);
         float? nativeHeight = native is null ? null : native.NativeButtonMetrics("", size).Height;
-        UiTextViewport viewport = overflow.Layout(value, size, bounds, family, width => Measure(value, size, width, family, nativeMeasure, nativeHeight), flow);
+        UiTextViewport viewport = overflow.Layout(value, size, bounds, family, width => Measure(value, size, width, family, nativeMeasure, nativeHeight, native is null ? null : text => native.NativeButtonMetrics(text, size).Width), flow);
         DialogueVisualLine[] lines = Lines(value, size, viewport.WrapWidth, family, nativeMeasure, nativeHeight);
         using SystemTextMeasurer? measurer = native is null ? SystemTextLayout.CreateMeasurer(size, family) : null;
         float y = bounds.Y - viewport.OffsetY;
@@ -176,7 +177,8 @@ internal static class ButtonPromptText
                     float x = bounds.X + placed.X - viewport.OffsetX;
                     float lineHeight = nativeHeight ?? measurer!.LineHeight;
                     float width = DialogueLayout.MeasureRun(placed.Run, nativeMeasure ?? (text => measurer!.Measure(text)), lineHeight);
-                    UiRect runBounds = new(x, y, Math.Max(1, MathF.Ceiling(width) + 2), lineHeight);
+                    float paintWidth = native is not null && !placed.Run.IsButton ? Math.Max(width, native.NativeButtonMetrics(placed.Run.Text, size).Width) : width;
+                    UiRect runBounds = new(x, y, Math.Max(1, MathF.Ceiling(paintWidth) + 2), lineHeight);
                     if (placed.Run.IsButton)
                     {
                         if (canvas is IUiTextFragmentInspector inspector)

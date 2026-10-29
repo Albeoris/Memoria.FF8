@@ -2,6 +2,17 @@ namespace Memoria.FF8.Ui.Tests;
 
 public sealed class UiAlignedTextTests
 {
+    [Fact]
+    public void RightAlignmentRetainsMeasuredWidthAcrossLargeUnusedSpace()
+    {
+        const float measuredWidth = 31.497145f;
+        RecordingCanvas recording = new() { MeasuredWidth = measuredWidth };
+        IUiCanvas canvas = recording;
+        UiRect bounds = new(2600, 20, 736.2446f, 40);
+        canvas.AlignedText("7", 17, bounds, new UiColor(255, 255, 255), UiAlignment.End);
+        Assert.Equal(measuredWidth, Assert.Single(recording.Texts).Bounds.Width);
+    }
+
     [Theory]
     [InlineData(UiAlignment.Center, 70, 140)]
     [InlineData(UiAlignment.End, 130, 80)]

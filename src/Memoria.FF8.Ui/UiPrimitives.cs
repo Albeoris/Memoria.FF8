@@ -123,12 +123,14 @@ public interface IUiCanvas
             return;
         }
         UiSize measured = MeasureText(text, fontSize, bounds.Width);
-        float offset = Math.Max(0, bounds.Width - measured.Width);
+        float width = Math.Min(bounds.Width, measured.Width);
+        float offset = Math.Max(0, bounds.Width - width);
         if (horizontalAlignment == UiAlignment.Center)
         {
             offset /= 2;
+            width += offset;
         }
-        Text(text, fontSize, new UiRect(bounds.X + offset, bounds.Y, bounds.Width - offset, bounds.Height), color);
+        Text(text, fontSize, new UiRect(bounds.X + offset, bounds.Y, width, bounds.Height), color);
     }
 
     /// <summary>Measures the same wrapped glyph bounds used by Text, in canvas coordinates.</summary>
