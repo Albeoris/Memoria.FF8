@@ -74,6 +74,8 @@ dotnet build Memoria.FF8.Native.slnx -c Release -p:MemoriaTargetRuntime=linux-x6
 
 Use `osx-x64` for Intel Mac and `osx-arm64` for a local Apple Silicon build. `MemoriaTargetRuntime` chooses native packages at solution level; individual publishes use `-r`. Compilation includes battle-effect test assemblies; execution still requires an authorized affected-effect selection.
 
+The distribution script builds a complete RID-specific, self-contained graph with its final debug settings, then publishes Vulkan, dispatcher, music and launcher payloads with `--no-build` from that graph. DX11 and DX12 use their own backend outputs. The portable test step uses the same graph properties and binaries. This differs from the framework-dependent manual graph above: `MemoriaBuildRuntimeIdentifier` applies the selected RID during project evaluation, because the SDK rejects a solution-level `RuntimeIdentifier`. Run `Build.ps1` for the complete packaging contract; each `dotnet` call reports its elapsed time.
+
 The required Albeoris.Frameworks source closure is included in [vendor/Albeoris.Frameworks](../../vendor/Albeoris.Frameworks/README.md), with its license, upstream revision and retained changes. No sibling checkout or submodule is needed. NuGet versions are centralized in [Directory.Packages.props](../../Directory.Packages.props).
 
 Ordinary builds copy missing bundled native mod files beside the app and launcher without overwriting existing files. Edit source packages under `Mods/Memoria` to change future distributions; preserve or remove an output copy explicitly when testing changed defaults.

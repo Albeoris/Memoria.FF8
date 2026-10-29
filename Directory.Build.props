@@ -7,6 +7,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <WarningsAsErrors>$(WarningsAsErrors);CA1416</WarningsAsErrors>
+    <!-- A solution cannot take RuntimeIdentifier globally; project evaluation resolves the graph's requested RID. -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And '$(MemoriaBuildRuntimeIdentifier)' != ''">$(MemoriaBuildRuntimeIdentifier)</RuntimeIdentifier>
     <MemoriaTargetRuntime Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</MemoriaTargetRuntime>
     <MemoriaTargetRuntime Condition="'$(MemoriaTargetRuntime)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">win-x64</MemoriaTargetRuntime>
     <MemoriaTargetRuntime Condition="'$(MemoriaTargetRuntime)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</MemoriaTargetRuntime>

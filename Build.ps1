@@ -27,15 +27,24 @@ if ($RuntimeIdentifier -like 'osx-*' -and $Scope -ne 'Portable') {
 function Invoke-DotNet {
     param([string[]]$Arguments)
 
-    & dotnet @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "dotnet failed with exit code $LASTEXITCODE."
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        & dotnet @Arguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "dotnet failed with exit code $LASTEXITCODE."
+        }
+    }
+    finally {
+        Write-Host ('dotnet {0}: {1:F2}s.' -f ($Arguments -join ' '), $timer.Elapsed.TotalSeconds)
     }
 }
 
 $root = $PSScriptRoot
 $graphBuild = Join-Path $root ('artifacts/build/' + $RuntimeIdentifier + '/graph')
-$graphArguments = @('--artifacts-path', $graphBuild, ('-p:MemoriaTargetRuntime=' + $RuntimeIdentifier), '-p:MemoriaGraphicsBackend=Vulkan', '-p:TargetFramework=net10.0', '-p:SkipMusicHost=true')
+$graphArguments = @('--artifacts-path', $graphBuild, ('-p:MemoriaBuildRuntimeIdentifier=' + $RuntimeIdentifier), '-p:SelfContained=true', ('-p:MemoriaTargetRuntime=' + $RuntimeIdentifier), '-p:MemoriaGraphicsBackend=Vulkan', '-p:TargetFramework=net10.0', '-p:SkipMusicHost=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false', '-p:ShouldUnsetParentConfigurationAndPlatform=false')
+if ($env:MEMORIA_FF8_PSF_DECODER_DIRECTORY) {
+    $graphArguments += @(('-p:MemoriaPsfDecoderDirectory=' + [IO.Path]::GetFullPath($env:MEMORIA_FF8_PSF_DECODER_DIRECTORY)), '-p:MemoriaPsfDecoderPrepared=true')
+}
 if ($Scope -ne 'Distribution') {
     Push-Location $root
     try {
@@ -122,7 +131,7 @@ try {
     $publishArguments = @('-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false')
     foreach ($backend in $backends) {
         $hostOutput = Join-Path $data ('Game/' + $backend.Directory)
-        $hostBuild = Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/' + $backend.Directory)
+        $hostBuild = if ($backend.Name -eq 'Vulkan') { $graphBuild } else { Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/' + $backend.Directory) }
         $hostAssets += Join-Path $hostBuild 'obj/Memoria.FF8.App/project.assets.json'
         $nativePublishArguments = @()
         if ($RuntimeIdentifier -eq 'linux-x64' -and $backend.Name -eq 'Vulkan') {
@@ -134,7 +143,12 @@ try {
         if ($RuntimeIdentifier -eq 'win-x64' -and $backend.Name -eq 'Direct3D12') {
             $nativePublishArguments += @(('-p:MemoriaNativeDirect3D12Directory=' + $nativeDirect3D12), '-p:MemoriaNativeDirect3D12Prepared=true')
         }
-        Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:SkipMusicHost=true', '-p:PublishSingleFile=false', '-m:1') + $nativePublishArguments + $publishArguments)
+        if ($backend.Name -eq 'Vulkan') {
+            Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-c', $Configuration, '--no-build', '-o', $hostOutput, '-p:PublishSingleFile=false') + $graphArguments + $nativePublishArguments)
+        }
+        else {
+            Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:SkipMusicHost=true', '-p:PublishSingleFile=false', '-m:1') + $nativePublishArguments + $publishArguments)
+        }
         if ($RuntimeIdentifier -eq 'linux-x64' -and $backend.Name -eq 'Vulkan') {
             & (Join-Path $root 'tools/Build-NativeVulkan.ps1') -RuntimeIdentifier $RuntimeIdentifier -OutputDirectory $nativeVulkan -VerifyOnly
             Copy-Item -LiteralPath (Join-Path $nativeVulkan 'libmgruntime.so'), (Join-Path $nativeVulkan 'native-runtime.json') -Destination $hostOutput -Force
@@ -160,15 +174,15 @@ try {
         if ($RuntimeIdentifier -like 'osx-*') {
             & (Join-Path $root 'tools/Get-MoltenVK.ps1') -Destination $hostOutput
         }
-        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', $hostOutput, $RuntimeIdentifier)
-        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', '--graphics-payload', $hostOutput, $backend.Name, (Join-Path $root 'tools/shader-manifest.json'), $RuntimeIdentifier)
+        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', $hostOutput, $RuntimeIdentifier))
+        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--graphics-payload', $hostOutput, $backend.Name, (Join-Path $root 'tools/shader-manifest.json'), $RuntimeIdentifier))
     }
-    Invoke-DotNet (@('publish', 'src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj', '-o', $data, '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/bootstrap')), '-p:PublishSingleFile=false') + $publishArguments)
+    Invoke-DotNet (@('publish', 'src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj', '-c', $Configuration, '--no-build', '-o', $data, '-p:PublishSingleFile=false') + $graphArguments)
     # Keep the released worker path with the common x64 music implementation and its complete runtime.
-    Invoke-DotNet @('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-o', (Join-Path $data 'audio-host'), '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/music')), '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishSingleFile=false')
+    Invoke-DotNet (@('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '--no-build', '-o', (Join-Path $data 'audio-host'), '-p:PublishSingleFile=false') + $graphArguments)
     $launcherSingleFile = if ($RuntimeIdentifier -eq 'win-x64') { 'true' } else { 'false' }
-    Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-o', $launcher, '--artifacts-path', (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/launcher')), ('-p:PublishSingleFile=' + $launcherSingleFile), '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:PublishDocumentationFile=false', '-p:PublishReferencesDocumentationFiles=false') + $publishArguments)
-    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', '--native-image', $RuntimeIdentifier, (Join-Path $data $executable))
+    Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-c', $Configuration, '--no-build', '-o', $launcher, ('-p:PublishSingleFile=' + $launcherSingleFile), '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:PublishDocumentationFile=false', '-p:PublishReferencesDocumentationFiles=false') + $graphArguments)
+    Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--native-image', $RuntimeIdentifier, (Join-Path $data $executable)))
 
     if ($Test) {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Remastered.Tests', '-c', $Configuration)
@@ -200,7 +214,7 @@ try {
     if (!(Test-Path -LiteralPath $launcherExecutable -PathType Leaf)) {
         throw "The launcher publish did not produce $launcherName."
     }
-    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', '--native-image', $RuntimeIdentifier, $launcherExecutable)
+    Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--native-image', $RuntimeIdentifier, $launcherExecutable))
     if ($RuntimeIdentifier -eq 'win-x64') {
         Move-Item -LiteralPath $launcherExecutable -Destination $payload
         if (@(Get-ChildItem -LiteralPath $launcher -Force).Count -ne 0) {
@@ -224,7 +238,7 @@ try {
     $licenses = Join-Path $data 'licenses'
     New-Item -ItemType Directory -Force -Path $licenses | Out-Null
     $copiedPackages = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    $assetFiles = $hostAssets + @( (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/bootstrap/obj/Memoria.FF8.Bootstrap/project.assets.json')), (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/music/obj/Memoria.FF8.Music/project.assets.json')), (Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/launcher/obj/Memoria.Launcher/project.assets.json')))
+    $assetFiles = $hostAssets + @((Join-Path $graphBuild 'obj/Memoria.FF8.Bootstrap/project.assets.json'), (Join-Path $graphBuild 'obj/Memoria.FF8.Music/project.assets.json'), (Join-Path $graphBuild 'obj/Memoria.Launcher/project.assets.json'))
     foreach ($assetsPath in $assetFiles) {
         $assets = Get-Content -LiteralPath $assetsPath -Raw | ConvertFrom-Json -AsHashtable
         foreach ($entry in $assets.libraries.GetEnumerator()) {
@@ -281,12 +295,12 @@ try {
     if ($RuntimeIdentifier -eq 'win-x64') {
         Compress-Archive -LiteralPath (Join-Path $package $launcherName), (Join-Path $package 'Data'), (Join-Path $package 'Mods') -DestinationPath $archive -Force
         # The released Windows updater remains an immutable gate on every build.
-        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Updater.Compatibility', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', $archive)
+        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Updater.Compatibility', '-c', $Configuration, '--no-build') + $graphArguments + @('--', $archive))
     }
     else {
-        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build', '--artifacts-path', $graphBuild, '--', '--create-tar', $package, $archive)
+        Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--create-tar', $package, $archive))
     }
-    & (Join-Path $root 'tools/Test-Distribution.ps1') -ArchivePath $archive -RuntimeIdentifier $RuntimeIdentifier -Configuration $Configuration
+    & (Join-Path $root 'tools/Test-Distribution.ps1') -ArchivePath $archive -RuntimeIdentifier $RuntimeIdentifier -Configuration $Configuration -BuildArguments $graphArguments
     Write-Host "Distribution: $package"
     Write-Host "Archive: $archive"
 }

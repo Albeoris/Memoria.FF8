@@ -40,6 +40,17 @@ after packaging rather than compiling a second copy. A standalone portable run
 still builds its full subset before testing. Repeated packaging checks reuse
 their compiled checker.
 
+The native graph is built for the selected RID with the same self-contained and
+debug settings as the distribution. Vulkan, dispatcher, music and launcher
+publishes use `--no-build` against that graph; they still compute and validate
+their individual payloads. DX11 and DX12 retain separate backend outputs. Each
+`dotnet` invocation reports elapsed time, so restore/build/publish delays remain
+visible in the job log.
+
+Transitive projects not listed in the solution inherit the selected
+configuration and platform. This prevents a Release solution build from
+silently producing Debug dependencies that publishing would compile again.
+
 Windows Direct3D 12 and Linux Vulkan builds also cache the prepared native
 library, receipt and license notices. These small caches use exact runner-image
 and source-recipe identities, with no fallback key. Only main pushes save them.

@@ -6,7 +6,8 @@
     <PlatformTarget>$(MemoriaTargetArchitecture)</PlatformTarget>
     <AssemblyName>Memoria.Launcher</AssemblyName>
     <RootNamespace>Memoria.Launcher</RootNamespace>
-    <PublishSingleFile>true</PublishSingleFile>
+    <PublishSingleFile Condition="'$(MemoriaTargetRuntime)' == 'win-x64'">true</PublishSingleFile>
+    <PublishSingleFile Condition="'$(MemoriaTargetRuntime)' != 'win-x64'">false</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <DebugType>embedded</DebugType>
   </PropertyGroup>
