@@ -12,7 +12,7 @@ public sealed class DiagnosticShotCycleDriverTests
     private static DiagnosticBattleDriverRecipe Recipe => new(Input, 188) { ExpectedNativeAction = 0, ExpectedNativeCommand = 237, LimitSelection = new(1, 4, 256), ShotCycle = Declaration, BaselineSeconds = 0 };
     private static DiagnosticShotObservation Point(long callback, int inventory, BattleNativeShotPhase? phase, byte learned = 0) => new(callback, inventory, learned, phase is { } value ? new(0, 8, 120, value == BattleNativeShotPhase.Ending ? (short)-1 : value == BattleNativeShotPhase.Opening ? (short)120 : (short)100, checked((byte)inventory), value) : null);
     private static DiagnosticShotCycleReceipt Receipt(int execution, long callback, int inventory) => new(execution, "party-2", "enemy-0", 0, 3, Declaration, 188, new("party-2", 2, 14, true, [1], NativeBattleRandomState.Initialize(0), NativeBattleRandomState.Initialize(0)), Point(callback, inventory, null, execution == 1 ? (byte)0 : (byte)1));
-    private static BattleDiagnosticEffectDispatch Dispatch(int serial, long callback, byte command) => new(serial, callback, "party-2", BattleAbility.LimitBreak, 0, 188, 188, command) { NativeActorIndex = 0, NativeTargetMask = command == 238 ? (ushort)0x80F8 : (ushort)8, NativeHeaderIndex = 0, NativeHeaderGeneration = serial };
+    private static BattleDiagnosticEffectDispatch Dispatch(int serial, long callback, byte command) => new(serial, callback, "party-2", BattleAbility.LimitBreak, command == 14 ? 101 : 0, 188, 188, command) { NativeActorIndex = 0, NativeTargetMask = command == 238 ? (ushort)0x80F8 : (ushort)8, NativeHeaderIndex = 0, NativeHeaderGeneration = serial };
 
     private static void Complete(DiagnosticShotCycleDriver cycle, long callback, int inventory, int serial, Action<BattleDiagnosticEffectDispatch>? observe = null)
     {
@@ -70,6 +70,53 @@ public sealed class DiagnosticShotCycleDriverTests
         string json = JsonSerializer.Serialize(second);
         DiagnosticShotCycleReceipt restored = JsonSerializer.Deserialize<DiagnosticShotCycleReceipt>(json)!;
         DiagnosticShotCycleValidation.ValidateReceipt(restored, Input, 188, restored.Dispatches, 20, 24);
+    }
+
+    [Theory]
+    [InlineData((byte)0, 101)]
+    [InlineData((byte)1, 102)]
+    [InlineData((byte)2, 103)]
+    [InlineData((byte)3, 104)]
+    [InlineData((byte)4, 105)]
+    [InlineData((byte)5, 106)]
+    [InlineData((byte)6, 107)]
+    [InlineData((byte)7, 108)]
+    public void Native_header_identity_distinguishes_opening_item_from_firing_and_ending_ammo(byte ammo, int opening)
+    {
+        DiagnosticShotCycleDeclaration declaration = Declaration with { AmmoAction = ammo };
+        Assert.Equal(opening, declaration.ExpectedHeaderAction(14));
+        Assert.Equal(ammo, declaration.ExpectedHeaderAction(237));
+        Assert.Equal(ammo, declaration.ExpectedHeaderAction(238));
+        Assert.Throws<InvalidDataException>(() => declaration.ExpectedHeaderAction(15));
+    }
+
+    [Fact]
+    public void Observed_opening101_is_accepted_and_raw_ammo0_is_rejected()
+    {
+        DiagnosticShotCycleDriver cycle = new(Receipt(1, 902, 3), Input);
+        cycle.Opened(Point(902, 3, BattleNativeShotPhase.Opening));
+        BattleDiagnosticEffectDispatch observed = Dispatch(2, 936, 14) with { ActionId = 101, NativeHeaderGeneration = 2 };
+        Assert.Throws<InvalidDataException>(() => cycle.ObserveDispatch(observed with { ActionId = 0 }));
+        cycle.ObserveDispatch(observed);
+        Assert.Equal(101, Assert.Single(cycle.Receipt.Dispatches).ActionId);
+    }
+
+    [Fact]
+    public void Firing_and_ending_reject_opening_item101_and_accept_raw_ammo0()
+    {
+        DiagnosticShotCycleDriver cycle = new(Receipt(1, 10, 3), Input);
+        cycle.Opened(Point(10, 3, BattleNativeShotPhase.Opening));
+        cycle.ObserveDispatch(Dispatch(1, 11, 14));
+        Assert.Equal(DiagnosticShotOperation.Trigger, cycle.Observe(Point(11, 3, BattleNativeShotPhase.Ready), false));
+        cycle.Triggered(Point(11, 2, BattleNativeShotPhase.AwaitingEffect));
+        Assert.Throws<InvalidDataException>(() => cycle.ObserveDispatch(Dispatch(2, 12, 237) with { ActionId = 101 }));
+        cycle.ObserveDispatch(Dispatch(2, 12, 237));
+        Assert.Equal(DiagnosticShotOperation.End, cycle.Observe(Point(13, 2, BattleNativeShotPhase.Ready, 1), false));
+        cycle.Ended(Point(13, 2, BattleNativeShotPhase.Ending, 1));
+        Assert.Throws<InvalidDataException>(() => cycle.ObserveDispatch(Dispatch(3, 14, 238) with { ActionId = 101 }));
+        cycle.ObserveDispatch(Dispatch(3, 14, 238));
+        cycle.Observe(Point(14, 2, null, 1), true);
+        Assert.True(cycle.Completed);
     }
 
     [Theory]

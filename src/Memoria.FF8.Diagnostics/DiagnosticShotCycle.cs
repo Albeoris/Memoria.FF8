@@ -6,6 +6,20 @@ namespace Memoria.FF8.BattleEffects;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DiagnosticShotCycleDeclaration([property: JsonRequired] byte AmmoAction, [property: JsonRequired] ushort OpeningEffect, [property: JsonRequired] ushort EndingEffect)
 {
+    public ushort ExpectedHeaderAction(byte command)
+    {
+        if (AmmoAction > 7)
+        {
+            throw new InvalidDataException("Shot header identity requires its original ammo0..7 index.");
+        }
+        return command switch
+        {
+            14 => checked((ushort)(101 + AmmoAction)),
+            237 or 238 => AmmoAction,
+            _ => throw new InvalidDataException("Shot header identity requires command14,237 or238.")
+        };
+    }
+
     public void Validate(BattleInput input, ushort effect, int? nativeAction, byte? nativeCommand)
     {
         if (AmmoAction > 7 || OpeningEffect == 0 || EndingEffect == 0 || effect == 0 || input.Kind != BattleInputKind.Action || input.Ability != BattleAbility.LimitBreak || input.ActionId != (14 << 16 | AmmoAction) || nativeAction != AmmoAction || nativeCommand != 237 || string.IsNullOrWhiteSpace(input.ActorId) || string.IsNullOrWhiteSpace(input.TargetId))
@@ -77,7 +91,7 @@ public static class DiagnosticShotCycleValidation
             BattleDiagnosticEffectDispatch dispatch = dispatches[index];
             DiagnosticShotObservation lower = points[index == 0 ? 1 : index == 1 ? 3 : 5];
             DiagnosticShotObservation upper = points[index == 0 ? 2 : index == 1 ? 4 : 6];
-            if (dispatch != receipt.Dispatches[index] || dispatch.Reflection is not null || dispatch.ActorId != receipt.ActorId || dispatch.Ability != BattleAbility.LimitBreak || dispatch.ActionId != ammo || dispatch.NativeCommand != commands[index] || dispatch.RequestedEffect != effects[index] || dispatch.ExecutedEffect != effects[index] || dispatch.NativeActorIndex != receipt.ActorIndex || dispatch.NativeTargetMask != (index == 2 ? 0x80F8 : opening.TargetMask) || dispatch.NativeHeaderIndex is not int header || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || !headers.Add((header, generation)) || dispatch.Callback < lower.Callback || dispatch.Callback > upper.Callback || index > 0 && (dispatch.Serial <= dispatches[index - 1].Serial || dispatch.Callback < dispatches[index - 1].Callback))
+            if (dispatch != receipt.Dispatches[index] || dispatch.Reflection is not null || dispatch.ActorId != receipt.ActorId || dispatch.Ability != BattleAbility.LimitBreak || dispatch.ActionId != receipt.Declaration.ExpectedHeaderAction(commands[index]) || dispatch.NativeCommand != commands[index] || dispatch.RequestedEffect != effects[index] || dispatch.ExecutedEffect != effects[index] || dispatch.NativeActorIndex != receipt.ActorIndex || dispatch.NativeTargetMask != (index == 2 ? 0x80F8 : opening.TargetMask) || dispatch.NativeHeaderIndex is not int header || dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || !headers.Add((header, generation)) || dispatch.Callback < lower.Callback || dispatch.Callback > upper.Callback || index > 0 && (dispatch.Serial <= dispatches[index - 1].Serial || dispatch.Callback < dispatches[index - 1].Callback))
             {
                 throw new InvalidDataException("Shot cycle dispatch identity, stage or header lineage is invalid.");
             }

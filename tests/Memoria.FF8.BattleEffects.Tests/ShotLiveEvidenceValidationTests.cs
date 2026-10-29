@@ -8,45 +8,51 @@ namespace Memoria.FF8.BattleEffects.Tests;
 public sealed class ShotLiveEvidenceValidationTests
 {
     private static readonly JsonSerializerOptions Json = new(RecordJson.Options) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
-    private static DiagnosticShotCycleDeclaration Declaration => new(0, 188, 188);
+    private static readonly ushort[] Effects = [188, 192, 193, 194, 195, 196, 197, 198];
     private static BattleInput Input => new(BattleInputKind.Action, ActorId: "party0", TargetId: "enemy0", Ability: BattleAbility.LimitBreak, ActionId: 14 << 16);
 
-    private static DiagnosticShotCycleReceipt Cycle(int index)
+    private static DiagnosticShotCycleReceipt Cycle(int index, byte ammo = 0)
     {
         long callback = 10 + index * 10;
         int inventory = 3 - index;
-        DiagnosticShotObservation Point(long cb, int stock, BattleNativeShotPhase? phase, byte learned) => new(cb, stock, learned, phase is { } value ? new(0, 8, 120, value == BattleNativeShotPhase.Ending ? (short)-1 : value == BattleNativeShotPhase.Opening ? (short)120 : (short)100, (byte)stock, value) : null);
-        byte learned = index == 0 ? (byte)0 : (byte)1;
+        ushort effect = Effects[ammo];
+        byte learnedAfter = (byte)(1 << ammo);
+        DiagnosticShotCycleDeclaration declaration = new(ammo, effect, effect);
+        DiagnosticShotObservation Point(long cb, int stock, BattleNativeShotPhase? phase, byte learned) => new(cb, stock, learned, phase is { } value ? new(ammo, 8, 120, value == BattleNativeShotPhase.Ending ? (short)-1 : value == BattleNativeShotPhase.Opening ? (short)120 : (short)100, (byte)stock, value) : null);
+        byte learned = index == 0 ? (byte)0 : learnedAfter;
         byte[] commands = [14, 237, 238];
-        BattleDiagnosticEffectDispatch[] dispatches = commands.Select((command, stage) => new BattleDiagnosticEffectDispatch(index * 3 + stage + 1, callback + stage + 1, "party0", BattleAbility.LimitBreak, 0, 188, 188, command) { NativeActorIndex = 0, NativeTargetMask = command == 238 ? (ushort)0x80F8 : (ushort)8, NativeHeaderIndex = 0, NativeHeaderGeneration = index * 3 + stage + 1 }).ToArray();
-        return new(index + 1, "party0", "enemy0", 0, 3, Declaration, 188, new("party0", 2, 14, true, [1], NativeBattleRandomState.Initialize(0), NativeBattleRandomState.Initialize(0)), Point(callback, inventory, null, learned))
+        BattleDiagnosticEffectDispatch[] dispatches = commands.Select((command, stage) => new BattleDiagnosticEffectDispatch(index * 3 + stage + 1, callback + stage + 1, "party0", BattleAbility.LimitBreak, command == 14 ? 101 + ammo : ammo, effect, effect, command) { NativeActorIndex = 0, NativeTargetMask = command == 238 ? (ushort)0x80F8 : (ushort)8, NativeHeaderIndex = 0, NativeHeaderGeneration = index * 3 + stage + 1 }).ToArray();
+        return new(index + 1, "party0", "enemy0", 0, 3, declaration, effect, new("party0", 2, 14, true, [1], NativeBattleRandomState.Initialize(0), NativeBattleRandomState.Initialize(0)), Point(callback, inventory, null, learned))
         {
             Opening = Point(callback, inventory, BattleNativeShotPhase.Opening, learned),
             ReadyToFire = Point(callback + 1, inventory, BattleNativeShotPhase.Ready, learned),
             Triggered = Point(callback + 1, inventory - 1, BattleNativeShotPhase.AwaitingEffect, learned),
-            ReadyToEnd = Point(callback + 2, inventory - 1, BattleNativeShotPhase.Ready, 1),
-            Ending = Point(callback + 2, inventory - 1, BattleNativeShotPhase.Ending, 1),
-            Completed = Point(callback + 4, inventory - 1, null, 1),
+            ReadyToEnd = Point(callback + 2, inventory - 1, BattleNativeShotPhase.Ready, learnedAfter),
+            Ending = Point(callback + 2, inventory - 1, BattleNativeShotPhase.Ending, learnedAfter),
+            Completed = Point(callback + 4, inventory - 1, null, learnedAfter),
             Dispatches = dispatches
         };
     }
 
-    private static JsonObject Report()
+    private static JsonObject Report(byte ammo = 0)
     {
         JsonObject report = LiveEvidenceValidationTests.Report();
-        report["expected_effect"] = 188;
-        report["expected_native_action"] = 0;
+        ushort effect = Effects[ammo];
+        DiagnosticShotCycleDeclaration declaration = new(ammo, effect, effect);
+        BattleInput input = Input with { ActionId = (14 << 16) | ammo };
+        report["expected_effect"] = effect;
+        report["expected_native_action"] = ammo;
         report["expected_native_command"] = 237;
-        report["input"] = JsonSerializer.SerializeToNode(Input, Json);
-        report["shot_cycle"] = JsonSerializer.SerializeToNode(Declaration, Json);
-        DiagnosticShotCycleReceipt[] cycles = [Cycle(0), Cycle(1)];
+        report["input"] = JsonSerializer.SerializeToNode(input, Json);
+        report["shot_cycle"] = JsonSerializer.SerializeToNode(declaration, Json);
+        DiagnosticShotCycleReceipt[] cycles = [Cycle(0, ammo), Cycle(1, ammo)];
         report["shot_cycles"] = JsonSerializer.SerializeToNode(cycles, Json);
         report["limit_selections"] = JsonSerializer.SerializeToNode(cycles.Select(cycle => cycle.Selection).ToArray(), Json);
         report["supporting_effects"] = new JsonArray();
         report["supporting_invocations"] = new JsonArray();
         report["declared_repairs"] = new JsonArray();
         report["declared_terminal_hold"] = null;
-        report["initialization"] = new JsonObject { ["preparation"] = new JsonObject { ["fixture"] = new JsonObject { ["items"] = new JsonArray(new JsonObject { ["id"] = 101, ["count"] = 3 }) }, ["driver"] = new JsonObject { ["input"] = JsonSerializer.SerializeToNode(Input, Json), ["expected_effect"] = 188, ["expected_native_action"] = 0, ["expected_native_command"] = 237, ["limit_selection"] = JsonSerializer.SerializeToNode(new BattleDiagnosticLimitSelection(1, 4, 256), Json), ["shot_cycle"] = JsonSerializer.SerializeToNode(Declaration, Json) } } };
+        report["initialization"] = new JsonObject { ["preparation"] = new JsonObject { ["fixture"] = new JsonObject { ["items"] = new JsonArray(new JsonObject { ["id"] = 101 + ammo, ["count"] = 3 }) }, ["driver"] = new JsonObject { ["input"] = JsonSerializer.SerializeToNode(input, Json), ["expected_effect"] = effect, ["expected_native_action"] = ammo, ["expected_native_command"] = 237, ["limit_selection"] = JsonSerializer.SerializeToNode(new BattleDiagnosticLimitSelection(1, 4, 256), Json), ["shot_cycle"] = JsonSerializer.SerializeToNode(declaration, Json) } } };
         for (int index = 0; index < 2; index++)
         {
             JsonObject execution = report["executions"]![index]!.AsObject();
@@ -84,11 +90,34 @@ public sealed class ShotLiveEvidenceValidationTests
         return LiveEvidenceValidation.Validate(document.RootElement);
     }
 
-    [Fact]
-    public void Explicit_shot_protocol_admits_one_fired_dispatch_between_verified_controls_per_execution()
+    [Theory]
+    [InlineData((byte)0)]
+    [InlineData((byte)1)]
+    [InlineData((byte)2)]
+    [InlineData((byte)3)]
+    [InlineData((byte)4)]
+    [InlineData((byte)5)]
+    [InlineData((byte)6)]
+    [InlineData((byte)7)]
+    public void Explicit_shot_protocol_admits_one_fired_dispatch_between_verified_controls_per_execution(byte ammo)
     {
-        LiveEvidenceVerdict result = Validate(Report());
+        LiveEvidenceVerdict result = Validate(Report(ammo));
         Assert.True(result.Verdict == "PASS", string.Join(Environment.NewLine, result.Errors));
+    }
+
+    [Theory]
+    [InlineData((byte)0, 0, 0)]
+    [InlineData((byte)7, 0, 7)]
+    [InlineData((byte)0, 1, 101)]
+    [InlineData((byte)7, 1, 108)]
+    [InlineData((byte)0, 2, 101)]
+    [InlineData((byte)7, 2, 108)]
+    public void Opening_item_and_firing_ending_ammo_namespaces_are_not_interchangeable(byte ammo, int stage, int forged)
+    {
+        JsonObject report = Report(ammo);
+        report["executions"]![0]!["dispatches"]![stage]!["action_id"] = forged;
+        report["shot_cycles"]![0]!["dispatches"]![stage]!["action_id"] = forged;
+        Assert.NotEqual("PASS", Validate(report).Verdict);
     }
 
     [Theory]
