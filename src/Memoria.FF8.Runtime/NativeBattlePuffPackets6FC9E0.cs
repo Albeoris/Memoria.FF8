@@ -7,7 +7,7 @@ public sealed record NativeBattlePuffPacketStep(NativeBattleFileStaging Staging,
 
 public static class NativeBattlePuffPackets6FC9E0
 {
-    public static NativeBattlePuffPacketStep Draw(NativeBattleFileStaging staging, uint temporary, NativeBattleCameraProjection projection, Func<uint, int, byte[]> readResource, int bucket)
+    public static NativeBattlePuffPacketStep Draw(NativeBattleFileStaging staging, uint temporary, NativeBattleCameraProjection projection, Func<uint, int, byte[]> readResource, int bucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int count = unchecked((int)ReadDword(staging, temporary + 48));
         uint source = ReadDword(staging, temporary + 44);
@@ -76,7 +76,19 @@ public static class NativeBattlePuffPackets6FC9E0
                 allocated += 40;
             }
 
-            NativeBattleGeometryPrimitive Primitive() => new(bucket, Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(word * 4))).ToImmutableArray(), [a.Depth, b.Depth, c.Depth, d.Depth]);
+            NativeBattleGeometryPrimitive Primitive()
+            {
+                NativeBattleGeometryPrimitive primitive = new(bucket, Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(word * 4))).ToImmutableArray(), [a.Depth, b.Depth, c.Depth, d.Depth]);
+                if (pilotIdentity is { } identity)
+                {
+                    System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertices[corner]), projection);
+                    System.Numerics.Vector3 origin = NativeBattlePilotVisualGeometry.CameraToWorld(new(matrix.X, matrix.Y, matrix.Z), projection);
+                    System.Numerics.Vector3 Axis(int column) => NativeBattlePilotVisualGeometry.CameraToWorldDirection(new(matrix.Rotation[column] / 4096f, matrix.Rotation[3 + column] / 4096f, matrix.Rotation[6 + column] / 4096f), projection);
+                    NativeBattlePilotSpriteGeometry sprite = new(new(vertices[0].X, vertices[0].Y, 0), new(vertices[1].X, vertices[1].Y, 0), new(vertices[2].X, vertices[2].Y, 0), new(vertices[3].X, vertices[3].Y, 0), origin, Axis(0), Axis(1), Axis(2));
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, World(0), World(1), World(2), World(3), 4) { Sprite = sprite } };
+                }
+                return primitive;
+            }
             void Store8(int offset, byte value)
             {
                 packet[offset] = value;

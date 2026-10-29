@@ -25,7 +25,7 @@ public static partial class NativeBattleFatedCircle162Controller
             selected = 0x23D07A0;
         }
         NativeBattleModuleMeshContext context = new(flags, counter >= 32 ? 0u : null, counter >= 32 ? (counter - 32) << 9 : null, null, null, null, 17, 2);
-        NativeBattleFatedCircle162MeshStep drawn = NativeBattleFatedCircle162Packets.Emit5FB980(frame.Staging, 0xDA2348, selected, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, context, 10 * counter, colors);
+        NativeBattleFatedCircle162MeshStep drawn = NativeBattleFatedCircle162Packets.Emit5FB980(frame.Staging, 0xDA2348, selected, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, context, 10 * counter, colors, NativeBattlePilotVisualLifetimes.Identity(162, task, 0xDA2348));
         frame = inputs.Execute(frame with { Staging = drawn.Staging }, new NativeBattleFatedCircle162Geometry(drawn.Batch));
         return DampedScale(frame, pool, slot, inputs.GraphicsFlags, task, counter, 40);
     }

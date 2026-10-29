@@ -22,7 +22,7 @@ public static partial class NativeBattleFatedCircle162Controller
         short pivotZ = ReadWord(frame.Staging, 0xDA8CB4u + (uint)fragment * 4);
         NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CD50(new(0, 0, 0)) with { X = Word(task, 16), Y = Word(task, 18), Z = Word(task, 20) };
         NativeBattleActionMatrix parent = NativeBattlePoseMatrices.Compose56C2F0(view, world);
-        NativeBattleGfGeometryBatch packets = NativeBattleFatedCircle162Packets.Emit5FBEB0(frame.Staging, mesh, parent, new(Word(task, 28), Word(task, 32), unchecked((short)(2 * Word(task, 12)))), new(pivotX, 0, pivotZ), projection, colors);
+        NativeBattleGfGeometryBatch packets = NativeBattleFatedCircle162Packets.Emit5FBEB0(frame.Staging, mesh, parent, new(Word(task, 28), Word(task, 32), unchecked((short)(2 * Word(task, 12)))), new(pivotX, 0, pivotZ), projection, colors, NativeBattlePilotVisualLifetimes.Identity(162, task, fragment));
         frame = inputs.Execute(frame, new NativeBattleFatedCircle162Geometry(packets));
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -44,7 +44,7 @@ public static partial class NativeBattleFatedCircle162Controller
 
 public static partial class NativeBattleFatedCircle162Packets
 {
-    public static NativeBattleGfGeometryBatch Emit5FBEB0(NativeBattleFileStaging staging, uint mesh, NativeBattleActionMatrix parent, NativeBattleVector angles, NativeBattleVector pivot, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Emit5FBEB0(NativeBattleFileStaging staging, uint mesh, NativeBattleActionMatrix parent, NativeBattleVector angles, NativeBattleVector pivot, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CD50(angles) with { X = pivot.X, Y = pivot.Y, Z = pivot.Z };
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(parent, local);
@@ -64,14 +64,23 @@ public static partial class NativeBattleFatedCircle162Packets
             {
                 byte[] face = staging.Read(cursor, stride);
                 NativeBattleModuleProjectedVertex[] corners = new NativeBattleModuleProjectedVertex[3];
+                System.Numerics.Vector3[]? world = pilotIdentity is null ? null : new System.Numerics.Vector3[3];
                 for (int corner = 0; corner < 3; corner++)
                 {
                     uint vertex = checked(mesh + 8u + 4u * BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)));
                     byte[] source = staging.Read(vertex, 6);
                     NativeBattleVector point = new(unchecked((short)(BinaryPrimitives.ReadInt16LittleEndian(source) - pivot.X)), BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(2)), unchecked((short)(BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(4)) - pivot.Z)));
                     corners[corner] = NativeBattleModuleProjection.Project45FE10(matrix, point, projection);
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+                    }
                 }
                 NativeBattleGfGeometryAttempt attempt = NativeBattleModulePackets.EmitFace572200(face, corners, group, new(0, null, null, null, null, null, 17, 2), colors, allocated);
+                if (pilotIdentity is { } identity && world is not null && attempt.Primitive is { } primitive)
+                {
+                    attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + group * 4096 + index) }, world[0], world[1], world[2], default, 3) } };
+                }
                 attempts.Add(attempt);
                 if (attempt.Primitive is not null)
                 {

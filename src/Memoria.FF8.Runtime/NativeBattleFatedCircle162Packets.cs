@@ -7,7 +7,7 @@ public sealed record NativeBattleFatedCircle162MeshStep(NativeBattleFileStaging 
 
 public static partial class NativeBattleFatedCircle162Packets
 {
-    public static NativeBattleFatedCircle162MeshStep Emit5FB980(NativeBattleFileStaging staging, uint mesh, uint? selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, int scroll, NativeBattleSummonColors colors)
+    public static NativeBattleFatedCircle162MeshStep Emit5FB980(NativeBattleFileStaging staging, uint mesh, uint? selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, int scroll, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint cursor = checked(mesh + ReadDword(mesh) + 24);
         int count = unchecked((int)ReadDword(cursor));
@@ -22,12 +22,17 @@ public static partial class NativeBattleFatedCircle162Packets
             BinaryPrimitives.WriteUInt32LittleEndian(face, command);
             staging = staging.Write(cursor, face.AsSpan(0, 4));
             NativeBattleModuleProjectedVertex[] corners = new NativeBattleModuleProjectedVertex[3];
+            System.Numerics.Vector3[]? world = pilotIdentity is null ? null : new System.Numerics.Vector3[3];
             for (int corner = 0; corner < 3; corner++)
             {
                 uint vertex = checked((selectedVertices ?? mesh + 8) + 4u * BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)));
                 byte[] xyz = staging.Read(vertex, 6);
                 NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
                 corners[corner] = NativeBattleModuleProjection.Project45FE10(matrix, point, projection);
+                if (world is not null)
+                {
+                    world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+                }
             }
             NativeBattleGfGeometryAttempt common = NativeBattleModulePackets.EmitFace572200(face, corners, 6, context, colors, allocated);
             byte[] data = new byte[48];
@@ -53,6 +58,10 @@ public static partial class NativeBattleFatedCircle162Packets
                 mask.AsSpan(44, 4).Fill(NativeBattleGfPacketByteState.Known);
                 ImmutableArray<uint> words = Enumerable.Range(0, 12).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
                 primitive = admitted with { Words = words };
+                if (pilotIdentity is { } identity && world is not null)
+                {
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, world[0], world[1], world[2], default, 3) };
+                }
             }
             attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             if (primitive is not null)

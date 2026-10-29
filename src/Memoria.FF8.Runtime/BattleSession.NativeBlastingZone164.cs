@@ -29,6 +29,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Blasting Zone requires its published view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Blasting Zone requires its original color arithmetic.");
         NativeBattleBlastingZone164Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Blasting Zone requires its entered module."), NativeFileStaging ?? throw new NotSupportedException("Native Blasting Zone requires its entered physical resource bytes."), nativeCrtRandom ?? throw new NotSupportedException("Native Blasting Zone requires its retained CRT random owner."));
+        NativeBattlePilotVisualIdentity drawingIdentity = default;
         NativeBattleBlastingZone164Inputs inputs = new(graphics.Flags, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Blasting Zone requires its signed file IO result."), actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native Blasting Zone requires actual actor scale."), actor => ReadNativeRenzokuken160WeaponTip(graphics, actor), Execute);
         frame = NativeBattleBlastingZone164Controller.Advance5F5B10(frame, Child);
         NativeEffectMemory = frame.Memory;
@@ -38,6 +39,7 @@ public sealed partial class BattleSession
 
         NativeBattleBlastingZone164ChildStep Child(NativeBattleBlastingZone164Frame current, NativeBattleEffectTaskPool pool, int slot)
         {
+            drawingIdentity = NativeBattlePilotVisualLifetimes.Identity(164, pool.Slots[slot]);
             return pool.Slots[slot].Callback switch
             {
                 0x5F0430 => NativeBattleBlastingZone164Controller.Advance5F0430(current, pool, slot, inputs, view, colors),
@@ -121,17 +123,18 @@ public sealed partial class BattleSession
                     NativeCamera = shaking with { ViewTranslationScratch = (shaking.ViewTranslationScratch ?? throw new NotSupportedException("Native Blasting Zone requires its retained translation scratch.")) with { Y = shake.Offset } };
                     return current;
                 case NativeBattleBlastingZone164MeshDraw mesh:
+                    NativeBattlePilotVisualIdentity meshIdentity = mesh.PilotIdentity ?? drawingIdentity with { Primitive = unchecked(((int)mesh.Address * 397 + mesh.Context.DepthShift) * 31 + mesh.SemanticLayer) };
                     NativeBattleStaticMeshResource resource = resources.Meshes.Single(resource => resource.Address == mesh.Address);
                     Func<int, NativeBattleVector>? vertices = mesh.SelectedVerticesAddress is uint selected ? offset => NativeBattleBlastingZone164Packets.ReadSelectedVertex(current.Staging, selected, offset) : null;
                     NativeBattleGfGeometryBatch batch;
                     if (mesh.Scrolling is { } scrolling)
                     {
                         NativeBattleScriptedGraphicsMemory registers = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Blasting Zone requires its actual GTE registers.");
-                        batch = NativeBattleShivaScrollingPackets.Emit64E080(resource, mesh.Matrix, projection, scrolling, registers.Zsf3 ?? throw new NotSupportedException("Native Blasting Zone requires its GTE ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native Blasting Zone requires its GTE ZSF4."), registers.Dqa, registers.Dqb, colors);
+                        batch = NativeBattleShivaScrollingPackets.Emit64E080(resource, mesh.Matrix, projection, scrolling, registers.Zsf3 ?? throw new NotSupportedException("Native Blasting Zone requires its GTE ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native Blasting Zone requires its GTE ZSF4."), registers.Dqa, registers.Dqb, colors, meshIdentity);
                     }
                     else
                     {
-                        batch = mesh.Tinted ? NativeBattleTintedMeshPackets.Emit(resource.Bytes, mesh.Matrix, projection, mesh.Context, unchecked((uint)ReadInt(current.Staging, 0x23CA110)), colors, vertices) : NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors, vertices);
+                        batch = mesh.Tinted ? NativeBattleTintedMeshPackets.Emit(resource.Bytes, mesh.Matrix, projection, mesh.Context, unchecked((uint)ReadInt(current.Staging, 0x23CA110)), colors, vertices, meshIdentity) : NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors, vertices, pilotIdentity: meshIdentity);
                     }
                     return AppendGeometry(current, batch, mesh.Common);
                 case NativeBattleBlastingZone164Sprite sprite:

@@ -31,6 +31,7 @@ public static partial class NativeBattleRinoa89Controller
                 colors.AsSpan(4, 4).CopyTo(star.AsSpan(12));
                 byte increment = star[15];
                 star[15] = unchecked((byte)(increment + ((increment * Draw()) >> 17)));
+                NativeBattlePilotVisualLifetimes.Allocated(RequireArena(frame), ArenaAddress + 31748, group * 128 + index);
                 writer.Write(31748 + (group * 128 + index) * 16, star);
             }
         }

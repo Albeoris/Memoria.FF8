@@ -80,7 +80,7 @@ public sealed partial class BattleSession
                 case 0x783F80:
                     return NativeBattleRinoa86Program.Advance(current, address, new(pointer => resources.Programs.Single(source => source.Address == pointer), (next, source, node) =>
                     {
-                        NativeBattleRinoa86NodeDraw draw = NativeBattleRinoa86ProgramDrawing.Draw7838C0(source, node, next.State.MorphScratch, projection, colors);
+                        NativeBattleRinoa86NodeDraw draw = NativeBattleRinoa86ProgramDrawing.Draw7838C0(source, node, next.State.MorphScratch, projection, colors, NativeBattlePilotVisualLifetimes.Identity(86, task, unchecked((int)source.Address * 397 + node.Node.ResourceOffset)));
                         return Append(next with { State = next.State with { MorphScratch = draw.MorphScratch } }, draw.Packets, false);
                     }, view));
                 default:

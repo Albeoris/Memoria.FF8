@@ -20,7 +20,7 @@ public static partial class NativeBattleFatedCircle162Controller
             NativeBattleActionMatrix rotation = new(NativeBattleModuleAlignment.Rotation5714F0(ReadWord(frame.Staging, address + 14), axis), 0, 0, 0, 4096);
             NativeBattleVector point = NativeBattleGfMatrices.RotateShort56C4F0(rotation, new(0, 0, ReadWord(frame.Staging, address + 16)));
             point = new(unchecked((short)(point.X + Word(task, 16))), unchecked((short)(point.Y + Word(task, 18))), unchecked((short)(point.Z + Word(task, 20))));
-            (frame, bool ended) = DrawSprite(frame, inputs, 0xDA1F20, unchecked((ushort)ReadWord(frame.Staging, address + 4)), point, ReadWord(frame.Staging, address + 6), 0, view, projection, cameraRoll);
+            (frame, bool ended) = DrawSprite(frame, inputs, 0xDA1F20, unchecked((ushort)ReadWord(frame.Staging, address + 4)), point, ReadWord(frame.Staging, address + 6), 0, view, projection, cameraRoll, NativeBattleSquallFinisherVisualIdentity.Particle(162, task, address, 0xDA1F20));
             if (paused)
             {
                 continue;
@@ -49,6 +49,7 @@ public static partial class NativeBattleFatedCircle162Controller
                     break;
                 }
                 uint address = 0x23CE650u + (uint)free * 24;
+                NativeBattleSquallFinisherVisualIdentity.Allocated(162, task, address);
                 NativeBattleFileStaging staging = WriteDword(frame.Staging, address, 1);
                 staging = WriteWord(staging, address + 4, 0);
                 staging = WriteWord(staging, address + 6, unchecked((ushort)(Rand() % 512 + 384)));
@@ -115,6 +116,7 @@ public static partial class NativeBattleFatedCircle162Controller
             rotation = NativeBattlePoseMatrices.Scale56BEF0(rotation, scale, scale, 0);
             NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
             {
+                PilotIdentity = NativeBattleSquallFinisherVisualIdentity.Particle(162, task, address, sprite.Address),
                 Resource = sprite,
                 SpriteFrame = selected,
                 Phase = unchecked((ushort)age),
@@ -151,6 +153,7 @@ public static partial class NativeBattleFatedCircle162Controller
                     break;
                 }
                 uint address = 0x23CEA40u + (uint)free * 24;
+                NativeBattleSquallFinisherVisualIdentity.Allocated(162, task, address);
                 NativeBattleFileStaging staging = WriteDword(frame.Staging, address, 2);
                 staging = WriteWord(staging, address + 4, 19);
                 staging = WriteWord(staging, address + 6, unchecked((ushort)(Rand() % 5120 + 2304)));

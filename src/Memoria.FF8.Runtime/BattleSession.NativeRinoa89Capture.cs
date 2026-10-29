@@ -46,7 +46,7 @@ public sealed partial class BattleSession
             {
                 frame = frame with { Memory = frame.Memory with { PrimitiveProcess = gate.Process.PublishModelColor(group.ColorFlags) } };
                 (byte[] retained, _) = frame.Staging.ReadSnapshot(workspace, capacity);
-                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), colors, shift, new(0, 0, 320, 216), bucket, group.ColorDepth);
+                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), colors, shift, new(0, 0, 320, 216), bucket, group.ColorDepth, pilotIdentity: NativeBattleRinoa89Visuals.Task(frame, NativeBattleRinoa89Controller.Body, primitive: 100 + index), pilotScreenSpace: true, pilotContinuous: false);
                 NativeBattleRinoa89CaptureStep written = NativeBattleRinoa89Capture.AppendCommon(frame, graphics.PrimitiveFrame!.Pending, drawn.Packets);
                 frame = written.Frame with { Staging = written.Frame.Staging.Write(workspace, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)) };
                 NativeBattlePrimitiveProcess published = frame.Memory.PrimitiveProcess!;
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             NativeEffectMemory = frame.Memory;
             NativeFileStaging = frame.Staging;
             short depth = BinaryPrimitives.ReadInt16LittleEndian(frame.Staging.Read(context + 68, 2));
-            graphics = DrawNativeEffectModel5099D0(graphics, index, matrix, projection, 4112, 16, 4, NativeBattleRinoa89Capture.TableAddress, depth, context + 64);
+            graphics = DrawNativeEffectModel5099D0(graphics, index, matrix, projection, 4112, 16, 4, NativeBattleRinoa89Capture.TableAddress, depth, context + 64, pilotIdentity: NativeBattleRinoa89Visuals.Task(frame, NativeBattleRinoa89Controller.Body, primitive: 200 + index), pilotScreenSpace: true, pilotContinuous: false);
             frame = frame with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
         }
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging, 76) };

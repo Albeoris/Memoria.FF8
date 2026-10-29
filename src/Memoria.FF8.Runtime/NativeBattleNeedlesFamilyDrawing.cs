@@ -38,15 +38,17 @@ public static class NativeBattleNeedlesFamilyDrawing
         return new(Publish(memory, registers), context220);
     }
 
-    public static NativeBattleNeedlesDrawStep DrawNeedle(NativeBattleEffectMemory memory, NativeBattleEffectArena context220, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleNeedlesDrawStep DrawNeedle(NativeBattleEffectMemory memory, NativeBattleEffectArena context220, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Needle drawing requires its actual GTE controls.");
         NativeBattleGeometryRegisterStep registers = Registers(memory);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
+        NativeBattleActionMatrix? pilotMatrix = pilotIdentity is null ? null : NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(registers.Geometry).ReadMatrix();
         for (int index = 0; index < 4; index++)
         {
             byte[] face = context220.Read(0x8C + index * 20, 20);
+            System.Numerics.Vector3[]? pilotWorld = pilotIdentity is null ? null : new System.Numerics.Vector3[3];
             for (int corner = 0; corner < 3; corner++)
             {
                 int vertex = 0x6C + BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2, 2)) * 4;
@@ -54,7 +56,12 @@ public static class NativeBattleNeedlesFamilyDrawing
                 {
                     throw new InvalidDataException("Needle face leaves its four copied packed vertices.");
                 }
-                registers = NativeBattleGeometry.LoadVector(registers, corner, new(unchecked((short)Word(context220, vertex)), unchecked((short)Word(context220, vertex + 2)), unchecked((short)Word(context220, vertex + 4))), unchecked((short)Word(context220, vertex + 6)));
+                NativeBattleVector point = new(unchecked((short)Word(context220, vertex)), unchecked((short)Word(context220, vertex + 2)), unchecked((short)Word(context220, vertex + 4)));
+                registers = NativeBattleGeometry.LoadVector(registers, corner, point, unchecked((short)Word(context220, vertex + 6)));
+                if (pilotWorld is not null)
+                {
+                    pilotWorld[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix!, point), projection);
+                }
             }
             registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
             uint flags = registers.Colors.Flags ?? throw new InvalidDataException("Needle projection requires its FLAG result.");
@@ -80,6 +87,11 @@ public static class NativeBattleNeedlesFamilyDrawing
             {
                 uint otz = registers.Geometry.Otz ?? throw new InvalidDataException("Needle drawing requires its native OTZ result.");
                 attempt = attempt with { Primitive = primitive with { Bucket = checked(tableBaseBucket + (int)(otz >> depthShift)) } };
+                if (pilotIdentity is { } identity && pilotWorld is not null)
+                {
+                    NativeBattleGeometryPrimitive emitted = attempt.Primitive!;
+                    attempt = attempt with { Primitive = emitted with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 4 + index) }, pilotWorld[0], pilotWorld[1], pilotWorld[2], default, 3) } };
+                }
                 context220 = Put(context220, 8, otz);
                 allocated = checked(allocated + 28);
             }

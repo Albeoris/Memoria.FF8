@@ -59,7 +59,7 @@ public static partial class NativeBattleFatedCircle162Controller
                 drawFlags |= 0xC0;
                 fade = streaks ? (age << 11) - 2048 : (age - 4) << 10;
             }
-            frame = DrawMesh(frame, inputs, mesh, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, colors, new(drawFlags, 0, fade, null, null, null, 17, 2));
+            frame = DrawMesh(frame, inputs, mesh, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, colors, new(drawFlags, 0, fade, null, null, null, 17, 2), pilotIdentity: NativeBattleSquallFinisherVisualIdentity.Particle(162, task, address, mesh));
             if (paused)
             {
                 continue;
@@ -120,6 +120,7 @@ public static partial class NativeBattleFatedCircle162Controller
                     break;
                 }
                 uint address = 0x23CEA40u + (uint)free * 24;
+                NativeBattleSquallFinisherVisualIdentity.Allocated(162, task, address);
                 NativeBattleFileStaging staging = WriteDword(frame.Staging, address, flag);
                 staging = WriteWord(staging, address + 4, 0);
                 staging = WriteWord(staging, address + 6, unchecked((ushort)(streaks ? Rand() % 5120 + 2048 : Rand() % 1536 + 1024)));

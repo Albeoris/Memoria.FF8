@@ -59,12 +59,12 @@ public static class NativeBattleProjectedSpriteD8
         return DrawCore(head, readResource, projection, cameraRoll, tableBaseBucket, true, 2, false);
     }
 
-    internal static NativeBattleProjectedSpriteDraw DrawUnbiased571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, bool allowCallerScale = false, bool allowFirstPaletteOverride = false)
+    internal static NativeBattleProjectedSpriteDraw DrawUnbiased571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, bool allowCallerScale = false, bool allowFirstPaletteOverride = false, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return DrawCore(new(memory, temporary180), readResource, projection, cameraRoll, tableBaseBucket, false, depthShift, allowCallerScale, allowFirstPaletteOverride);
+        return DrawCore(new(memory, temporary180), readResource, projection, cameraRoll, tableBaseBucket, false, depthShift, allowCallerScale, allowFirstPaletteOverride, pilotIdentity);
     }
 
-    private static NativeBattleProjectedSpriteDraw DrawCore(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, bool readD8DepthBias, byte depthShift, bool allowCallerScale, bool allowFirstPaletteOverride = false)
+    private static NativeBattleProjectedSpriteDraw DrawCore(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, bool readD8DepthBias, byte depthShift, bool allowCallerScale, bool allowFirstPaletteOverride = false, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena temporary = head.TemporaryD8;
         ushort callerFlags = ReadWord(temporary, 0x24);
@@ -137,7 +137,7 @@ public static class NativeBattleProjectedSpriteD8
             }
         }
         temporary = Dword(Dword(Dword(Dword(Dword(temporary, 0xB0, (flags & 8) != 0 ? 1u : 0u), 0xAC, 0), 0xA4, 4096), 0xA8, 0), 0x3C, uint.MaxValue);
-        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 255) { Resource = resource, SpriteFrame = selected, Phase = phase, SpriteFlags = flags };
+        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 255) { PilotIdentity = pilotIdentity, Resource = resource, SpriteFrame = selected, Phase = phase, SpriteFlags = flags };
         if ((flags & 0x10) != 0)
         {
             byte[] palettes = resource.Bytes.AsSpan().Slice(4, 4).ToArray();

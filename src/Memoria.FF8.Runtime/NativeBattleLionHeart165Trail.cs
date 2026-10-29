@@ -67,7 +67,7 @@ public static partial class NativeBattleLionHeart165Controller
                     observed = WriteDword(observed, temporary + 20, end);
                 }
                 frame = frame with { Staging = observed };
-            });
+            }, NativeBattlePilotVisualLifetimes.Identity(165, task));
             frame = inputs.Execute(frame, new NativeBattleLionHeart165TrailDraw(packets.Batch, packets.PoolCursorAdvance));
         }
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging, 64) };

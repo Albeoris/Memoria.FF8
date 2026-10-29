@@ -60,6 +60,7 @@ public static partial class NativeBattleLionHeart165Controller
                 {
                     break;
                 }
+                NativeBattleLionHeart165VisualIdentity.Allocated(task, row);
                 NativeBattleFileStaging staging = frame.Staging;
                 NativeBattleVector bone = default;
                 if (callback == 0x5EB410)
@@ -182,7 +183,7 @@ public static partial class NativeBattleLionHeart165Controller
             }
             ushort phase = unchecked((ushort)(callback == 0x5EBBD0 ? age >> 1 : age));
             NativeBattleModuleSpriteFrame animation = resource.ProjectedFrame571C80(phase);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = animation, Phase = phase, Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = callback is 0x5EBBD0 or 0x5EE980 ? 0 : -(scale >> 3), SpriteFlags = flags };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = NativeBattleLionHeart165VisualIdentity.Particle(task, row, resource.Address), Resource = resource, SpriteFrame = animation, Phase = phase, Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = callback is 0x5EBBD0 or 0x5EE980 ? 0 : -(scale >> 3), SpriteFlags = flags };
             NativeBattleActionMatrix billboard = NativeBattlePoseMatrices.ModuleSpriteCamera(draw, parent, cameraRoll);
             if (callback is not (0x5EBBD0 or 0x5EE980))
             {
@@ -194,6 +195,7 @@ public static partial class NativeBattleLionHeart165Controller
                 frame = frame with { Staging = LongVector(LongVector(frame.Staging, directionOffset, direction.X, direction.Y, direction.Z), pointOffset, billboard.X, billboard.Y, billboard.Z) };
             }
             NativeBattleModuleSpriteTemporaryResult emitted = NativeBattleModuleSpriteTemporary.Emit571C80(frame.Staging, context.Address, draw, projection with { View = parent }, cameraRoll, 17, 2);
+            emitted = emitted with { Batch = NativeBattleLionHeart165VisualIdentity.RebaseSprite(emitted.Batch, parent, projection) };
             frame = inputs.Execute(frame with { Staging = emitted.Staging, Memory = frame.Memory with { Arena = arena } }, new NativeBattleLionHeart165Sprite(emitted.Batch, callback == 0x5EBBD0));
             arena = frame.Memory.Arena;
             if (paused)

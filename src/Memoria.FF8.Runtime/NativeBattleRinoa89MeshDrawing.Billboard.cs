@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleRinoa89MeshDrawing
 {
-    public static NativeBattleRinoa89ParticleDraw DrawBillboard6FD340(NativeBattleRinoa89Frame frame, NativeBattleVector point, ushort scale, short depthDisplacement, short phase, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleRinoa89Resources resources)
+    public static NativeBattleRinoa89ParticleDraw DrawBillboard6FD340(NativeBattleRinoa89Frame frame, NativeBattleVector point, ushort scale, short depthDisplacement, short phase, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleRinoa89Resources resources, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (phase < 0)
         {
@@ -18,7 +18,8 @@ public static partial class NativeBattleRinoa89MeshDrawing
             Anchor = new(point.X, point.Y, point.Z, 0),
             Scale = unchecked((short)scale),
             DepthOffset = depthDisplacement,
-            SpriteFlags = 0
+            SpriteFlags = 0,
+            PilotIdentity = pilotIdentity
         };
         NativeBattleActionMatrix billboard = NativeBattlePoseMatrices.ModuleSpriteCamera(draw, view, 0);
         NativeBattleFileStaging staging = frame.Staging;

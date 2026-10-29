@@ -8,7 +8,7 @@ public sealed record NativeBattleRinoa87NodeDraw(ImmutableArray<byte> MorphScrat
 /// <summary>7766B0's complete original node shape, transform, depth bias and scrolling-window operands.</summary>
 public static class NativeBattleRinoa87ProgramDrawing
 {
-    public static NativeBattleRinoa87NodeDraw Draw7766B0(NativeBattleGfAnimationSource source, NativeBattleRinoa87ProgramNode callback, ImmutableArray<byte> morphScratch, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleRinoa87NodeDraw Draw7766B0(NativeBattleGfAnimationSource source, NativeBattleRinoa87ProgramNode callback, ImmutableArray<byte> morphScratch, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGfAnimationNode node = callback.Node;
         if (node.Data.IsDefault || node.Data.Length != 44 || morphScratch.IsDefault || morphScratch.Length != 1120 || callback.MorphScratch != 0x25B46A8)
@@ -72,7 +72,7 @@ public static class NativeBattleRinoa87ProgramDrawing
             }
             ReadOnlySpan<byte> point = selected.AsSpan().Slice(offset, 6);
             return new(BinaryPrimitives.ReadInt16LittleEndian(point), BinaryPrimitives.ReadInt16LittleEndian(point[2..]), BinaryPrimitives.ReadInt16LittleEndian(point[4..]));
-        });
+        }, pilotIdentity);
         return new(morphScratch, packets);
 
         ReadOnlySpan<byte> Read(int offset, int count)

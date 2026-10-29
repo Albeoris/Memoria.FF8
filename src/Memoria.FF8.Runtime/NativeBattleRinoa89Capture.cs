@@ -85,7 +85,7 @@ public static class NativeBattleRinoa89Capture
                 int root = NativeBattleWaterExecutionFields.ArenaOffset(checked(tableAddress + (uint)primitive.Bucket * 4), 4);
                 uint previous = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(root, 4));
                 uint proxy = 0x1C48828u + (uint)links.ProxyCount * 24;
-                links.PrependAddressed(previous, reference, primitive.Words, 0, primitive.VertexPayload4);
+                links.PrependAddressed(previous, reference, primitive.Words, 0, primitive.VertexPayload4, pilotGeometry: primitive.PilotGeometry);
                 stores.Add(new(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), NativeBattleCommonPacketArena.KnownLinkMask));
                 arena = arena.Write(root, BitConverter.GetBytes(proxy));
             }

@@ -7,7 +7,7 @@ public sealed record NativeBattleRinoa89ParticleDraw(NativeBattleRinoa89Frame Fr
 
 public static partial class NativeBattleRinoa89ParticleDrawing
 {
-    public static NativeBattleRinoa89ParticleDraw DrawSparks6FC8B0(NativeBattleRinoa89Frame frame, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Func<uint, int, byte[]> readResource)
+    public static NativeBattleRinoa89ParticleDraw DrawSparks6FC8B0(NativeBattleRinoa89Frame frame, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Func<uint, int, byte[]> readResource, bool captureVisual = false)
     {
         NativeBattleEffectArena arena = ParticleArena(frame);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging, 180);
@@ -52,7 +52,7 @@ public static partial class NativeBattleRinoa89ParticleDrawing
                 staging = Dword(staging, temporary + 48, checked((uint)count));
             }
             staging = Dword(staging, temporary + 44, selected + 4);
-            NativeBattleRinoa89ParticleDraw draw = DrawQuads6FC9E0(frame with { Staging = staging }, temporary, projection, readResource);
+            NativeBattleRinoa89ParticleDraw draw = DrawQuads6FC9E0(frame with { Staging = staging }, temporary, projection, readResource, captureVisual ? NativeBattleRinoa89Visuals.Row(arena, 4672, index) : null);
             staging = draw.Frame.Staging;
             foreach (NativeBattleGfGeometryAttempt attempt in draw.Packets.Attempts)
             {
@@ -63,9 +63,9 @@ public static partial class NativeBattleRinoa89ParticleDrawing
         return new(frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(staging, 180) }, new(attempts.ToImmutable(), allocated));
     }
 
-    public static NativeBattleRinoa89ParticleDraw DrawQuads6FC9E0(NativeBattleRinoa89Frame frame, uint temporary, NativeBattleCameraProjection projection, Func<uint, int, byte[]> readResource)
+    public static NativeBattleRinoa89ParticleDraw DrawQuads6FC9E0(NativeBattleRinoa89Frame frame, uint temporary, NativeBattleCameraProjection projection, Func<uint, int, byte[]> readResource, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattlePuffPacketStep drawn = NativeBattlePuffPackets6FC9E0.Draw(frame.Staging, temporary, projection, readResource, 19);
+        NativeBattlePuffPacketStep drawn = NativeBattlePuffPackets6FC9E0.Draw(frame.Staging, temporary, projection, readResource, 19, pilotIdentity);
         return new(frame with { Staging = drawn.Staging }, drawn.Packets);
     }
 

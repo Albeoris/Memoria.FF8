@@ -67,7 +67,7 @@ public sealed partial class BattleSession
             NativeBattleEffectArena context = Temporary(current, draw.Temporary220, 220);
             NativeBattleEffectArena slot = current.State.ReadView(current.State.Profile.NeedleBank + checked((uint)(draw.Index * 56)), 56);
             NativeBattleNeedlesPrepareStep prepared = NativeBattleNeedlesFamilyDrawing.PrepareNeedle(current.Memory, context, slot, Packed(context, 0x2C));
-            NativeBattleNeedlesDrawStep drawn = NativeBattleNeedlesFamilyDrawing.DrawNeedle(prepared.Memory, prepared.Context220, Projection(), colors);
+            NativeBattleNeedlesDrawStep drawn = NativeBattleNeedlesFamilyDrawing.DrawNeedle(prepared.Memory, prepared.Context220, Projection(), colors, pilotIdentity: draw.PilotIdentity);
             NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, draw.Temporary220, drawn.Context220, 220);
             return Deliver(current with { Memory = drawn.Memory, Staging = staging }, drawn.Batch);
         }
@@ -99,7 +99,7 @@ public sealed partial class BattleSession
             NativeBattleGeometryRegisters geometry = prepared.Memory.GeometryRegisters ?? throw new InvalidDataException("Needles spark preparation lost its geometry controls.");
             geometry = geometry with { Translation = [BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(20)), y, BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(28))] };
             current = current with { Memory = prepared.Memory with { GeometryRegisters = geometry }, State = current.State.WriteView(profile.MatrixAddress, matrix, 32) };
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, Temporary(current, draw.Temporary180, 180), ReadSource, Projection(), Camera().Roll);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, Temporary(current, draw.Temporary180, 180), ReadSource, Projection(), Camera().Roll, pilotIdentity: draw.PilotIdentity);
             NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, draw.Temporary180, drawn.Temporary180, 180);
             return Deliver(current with { Memory = drawn.Memory, Staging = staging }, drawn.Batch);
 

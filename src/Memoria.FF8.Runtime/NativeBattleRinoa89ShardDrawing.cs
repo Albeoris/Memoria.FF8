@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleRinoa89ShardDrawing
 {
-    public static NativeBattleGfGeometryBatch Draw6FCFD0(NativeBattleEffectArena arena)
+    public static NativeBattleGfGeometryBatch Draw6FCFD0(NativeBattleEffectArena arena, bool captureVisual = false)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int cursor = 0;
@@ -48,6 +48,11 @@ public static class NativeBattleRinoa89ShardDrawing
                 Store(4, BitConverter.GetBytes(612401280u));
                 ImmutableArray<uint> words = Enumerable.Range(0, 8).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(word * 4))).ToImmutableArray();
                 primitive = new(1024, words, [0, 0, 0, 0]) { PhysicalWriteMask = mask.ToImmutableArray() };
+                if (captureVisual)
+                {
+                    System.Numerics.Vector3 Screen(int corner) => new(BinaryPrimitives.ReadInt16LittleEndian(packet.AsSpan(8 + corner * 8)), BinaryPrimitives.ReadInt16LittleEndian(packet.AsSpan(10 + corner * 8)), 0);
+                    primitive = primitive with { PilotGeometry = new(NativeBattleRinoa89Visuals.Row(arena, 24228, index), Screen(0), Screen(1), Screen(2), default, 3) { ScreenSpace = true } };
+                }
             }
             attempts.Add(new(cursor, packet.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             if (primitive is not null)

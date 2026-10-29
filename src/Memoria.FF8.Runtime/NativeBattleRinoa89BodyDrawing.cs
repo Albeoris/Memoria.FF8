@@ -8,7 +8,7 @@ public sealed record NativeBattleRinoa89BoneStep(NativeBattleRinoa89Frame Frame,
 
 public static class NativeBattleRinoa89BodyDrawing
 {
-    public static NativeBattleRinoa89BodyDraw Draw6A79B0(NativeBattleRinoa89Frame frame, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelResource resource, NativeBattleCameraProjection projection, bool hardware)
+    public static NativeBattleRinoa89BodyDraw Draw6A79B0(NativeBattleRinoa89Frame frame, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelResource resource, NativeBattleCameraProjection projection, bool hardware, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Wishing Star body requires its current camera matrix.");
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Wishing Star body requires its actual projected workspace.");
@@ -31,7 +31,7 @@ public static class NativeBattleRinoa89BodyDrawing
             process = process.PublishModelColor(rgb);
             int geometryStart = resource.Section(1);
             ImmutableArray<byte> geometry = resource.Bytes.Slice(geometryStart, resource.Section(2) - geometryStart);
-            NativeBattleQuezacotlPathModelBatch batch = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(geometry, selector => NativeBattleArenaPose.ReadMatrix(skeleton, checked(32 + selector * 48)), projection, rgb, task.ReadDword(176));
+            NativeBattleQuezacotlPathModelBatch batch = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(geometry, selector => NativeBattleArenaPose.ReadMatrix(skeleton, checked(32 + selector * 48)), projection, rgb, task.ReadDword(176), pilotIdentity);
             foreach (NativeBattleGfGeometryAttempt write in batch.VertexScratchWrites)
             {
                 arena = arena.Write(checked(100492 + write.ByteOffsetRelative), write.Data.AsSpan());

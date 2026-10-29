@@ -95,7 +95,7 @@ public sealed partial class BattleSession
                 case 0x77E6C0:
                     return NativeBattleRinoa87Program.Advance(current, address, new(pointer => pointer == resources.Program.Address ? resources.Program : pointer == 0x19CF018 ? new(pointer, (NativeFileStaging ?? throw new NotSupportedException("Native77E600 requires its completed external file407 owner.")).Read(pointer, resources.Io.Files[0].Data.Length).ToImmutableArray()) : throw new NotSupportedException("Native776580 programme source has no original addressed owner."), (next, model, selector) => ReadBone(next, checked(model - 48), selector), (_, actor) => graphics.Models[Minimum(actor)].Transform?.Scale38 ?? throw new NotSupportedException("Native77E780 requires its target scaleWORD38."), (next, source, node) =>
                     {
-                        NativeBattleRinoa87NodeDraw draw = NativeBattleRinoa87ProgramDrawing.Draw7766B0(source, node, next.State.MorphScratch, projection, colors);
+                        NativeBattleRinoa87NodeDraw draw = NativeBattleRinoa87ProgramDrawing.Draw7766B0(source, node, next.State.MorphScratch, projection, colors, NativeBattlePilotVisualLifetimes.Identity(87, task, unchecked((int)source.Address * 397 + node.Node.ResourceOffset)));
                         return Append(next with { State = next.State with { MorphScratch = draw.MorphScratch } }, draw.Packets, false);
                     }, view));
                 case 0x779050:
@@ -208,7 +208,7 @@ public sealed partial class BattleSession
                 }
                 ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
                 int length = meshes.IsEmpty ? 0 : meshes.Max(mesh => checked(mesh.Vertices.Length * 8));
-                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, capture.Projection, group.ColorFlags, uint.MaxValue, new byte[length].ToImmutableArray(), colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth);
+                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, capture.Projection, group.ColorFlags, uint.MaxValue, new byte[length].ToImmutableArray(), colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth, new(0, 0x500FD0, 1, 0, 0), pilotScreenSpace: true, pilotContinuous: false);
                 if (drawn.ProjectedBytesWritten != length)
                 {
                     throw new NotSupportedException("Native778AB0 requires complete projected records before packet consumers.");

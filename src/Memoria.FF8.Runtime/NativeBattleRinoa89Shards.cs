@@ -81,6 +81,7 @@ public static partial class NativeBattleRinoa89Controller
         for (int triangle = 0; triangle < count; triangle++)
         {
             int offset = 24228 + triangle * 52;
+            NativeBattlePilotVisualLifetimes.Allocated(RequireArena(frame), ArenaAddress + 24228, triangle);
             writer.Write(offset + 6, BitConverter.GetBytes((ushort)16));
             random = random.Draw(out ushort draw);
             writer.Write(offset + 16, BitConverter.GetBytes(checked(ArenaAddress + 30468u + 20u * (uint)(draw & 63))));

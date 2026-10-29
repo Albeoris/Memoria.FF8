@@ -39,6 +39,7 @@ public static partial class NativeBattleRoughDivide163Controller
                 {
                     break;
                 }
+                NativeBattleSquallFinisherVisualIdentity.Allocated(163, task, record);
                 NativeBattleFileStaging staging = WriteWord(WriteDword(frame.Staging, record, flag), record + 4, 0);
                 int scale = flag == 1 ? Rand() % 512 + 1280 : flag == 2 ? Rand() % 768 + 1024 : Rand() % 1408 + 1408;
                 staging = WriteWord(staging, record + 6, unchecked((ushort)scale));
@@ -90,6 +91,7 @@ public static partial class NativeBattleRoughDivide163Controller
             NativeBattleModuleSpriteFrame animation = resource.ProjectedFrame571C80(unchecked((ushort)age));
             NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
             {
+                PilotIdentity = NativeBattleSquallFinisherVisualIdentity.Particle(163, task, record, sprite.Address),
                 Resource = resource,
                 SpriteFrame = animation,
                 Phase = unchecked((ushort)age),

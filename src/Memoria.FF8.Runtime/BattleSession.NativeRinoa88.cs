@@ -105,7 +105,7 @@ public sealed partial class BattleSession
                         return new(BinaryPrimitives.ReadInt16LittleEndian(anchor.AsSpan()), 0, BinaryPrimitives.ReadInt16LittleEndian(anchor.AsSpan().Slice(4)));
                     }, (next, source, node) =>
                     {
-                        NativeBattleRinoa88NodeDraw drawn = NativeBattleRinoa88ProgramDrawing.Draw76A380(source, node, next.State.MorphScratch, projection, colors);
+                        NativeBattleRinoa88NodeDraw drawn = NativeBattleRinoa88ProgramDrawing.Draw76A380(source, node, next.State.MorphScratch, projection, colors, NativeBattlePilotVisualLifetimes.Identity(88, task, unchecked((int)source.Address * 397 + node.Node.ResourceOffset)));
                         return Append(next with { State = next.State with { MorphScratch = drawn.MorphScratch } }, drawn.Packets);
                     }, view));
                 case 0x76C700:

@@ -59,7 +59,7 @@ public static partial class NativeBattleFatedCircle162Controller
             var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(ReadWord(staging, 0x23CF3C0) - ReadWord(staging, 0x23CF1C0), ReadWord(staging, 0x23CF3C2) - ReadWord(staging, 0x23CF1C2), ReadWord(staging, 0x23CF3C4) - ReadWord(staging, 0x23CF1C4));
             staging = Direction(staging, 0x23CF420, direction.X, direction.Y, direction.Z);
             frame = frame with { Staging = staging };
-            NativeBattleGilgameshSwordTrailPacketResult drawn = NativeBattleGilgameshSwordTrailPackets.Emit(new(curve), view, projection, registers, colors, 0x3A903030);
+            NativeBattleGilgameshSwordTrailPacketResult drawn = NativeBattleGilgameshSwordTrailPackets.Emit(new(curve), view, projection, registers, colors, 0x3A903030, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(162, task));
             frame = inputs.Execute(frame, new NativeBattleFatedCircle162Trail(drawn.Batch, drawn.PoolCursorAdvance));
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)

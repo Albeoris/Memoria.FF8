@@ -7,9 +7,9 @@ public sealed record NativeBattleRinoa88MeshContext(uint Flags, uint FarColor, i
 /// <summary>76A650's reached normalized polygon stores, including its conditional pair of texture-window packets.</summary>
 public static class NativeBattleRinoa88MeshPackets
 {
-    public static NativeBattleGfGeometryBatch EmitBatch76A650(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleRinoa88MeshContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector>? readSelectedVertex = null)
+    public static NativeBattleGfGeometryBatch EmitBatch76A650(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleRinoa88MeshContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector>? readSelectedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, readSelectedVertex, (group, face, corner, offset) => EmitFace(group, face, corner, context, colors, offset));
+        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, readSelectedVertex, (group, face, corner, offset) => EmitFace(group, face, corner, context, colors, offset), pilotIdentity: pilotIdentity);
     }
 
     public static NativeBattleGfGeometryBatch EmitFace(int group, ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleRinoa88MeshContext context, NativeBattleSummonColors colors, int byteOffset = 0)

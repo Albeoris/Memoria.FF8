@@ -141,13 +141,13 @@ public static class NativeBattleRestorationMeshPackets
         return NativeBattleEffectMeshPackets.EmitTextured(face, readCorner, true, true, Normalize(context, true), colors, byteOffset);
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch884370(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<uint>? observeFirstThreeFlags = null)
+    public static NativeBattleGfGeometryBatch EmitBatch884370(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<uint>? observeFirstThreeFlags = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader reader = new(mesh);
-        return EmitBatch884370(reader, matrix, projection, context, colors, readSelectedVertex, observeFirstThreeFlags);
+        return EmitBatch884370(reader, matrix, projection, context, colors, readSelectedVertex, observeFirstThreeFlags, pilotIdentity);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch884370(NativeBattleGfSourceReader mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<uint>? observeFirstThreeFlags = null)
+    internal static NativeBattleGfGeometryBatch EmitBatch884370(NativeBattleGfSourceReader mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<uint>? observeFirstThreeFlags = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, readSelectedVertex, (group, face, readCorner, offset) => group switch
         {
@@ -159,7 +159,7 @@ public static class NativeBattleRestorationMeshPackets
             6 => EmitGt3_885310(face, readCorner, context, colors, offset),
             7 => EmitGt4_885570(face, readCorner, context, colors, offset),
             _ => throw new NotSupportedException($"Native884370 group{group} requires its own original polygon leaf.")
-        }, observeFirstThreeFlags);
+        }, observeFirstThreeFlags, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleEffectMeshPacketContext Normalize(NativeBattleEsunaMeshContext context)

@@ -21,6 +21,7 @@ public static partial class NativeBattleBlastingZone164Controller
                 {
                     break;
                 }
+                NativeBattleSquallFinisherVisualIdentity.Allocated(164, task, row);
                 SetDword(row, 1);
                 SetWord(row + 4, 0);
                 SetWord(row + 6, Rand() % 1536 + 1024);
@@ -45,7 +46,7 @@ public static partial class NativeBattleBlastingZone164Controller
             }
             short age = ReadWord(frame.Staging, row + 4);
             NativeBattleActionMatrix world = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(new(0, ReadWord(frame.Staging, row + 14), 0)), ReadWord(frame.Staging, row + 6), ReadWord(frame.Staging, row + 18), 0) with { X = ReadWord(frame.Staging, row + 8), Y = 0, Z = ReadWord(frame.Staging, row + 12) };
-            frame = inputs.Execute(frame, new NativeBattleBlastingZone164MeshDraw(0xD95904, NativeBattlePoseMatrices.Compose56C2F0(basis, world), new(age >= 4 ? 0xF3u : 0x33u, 0, age >= 4 ? 682 * (age - 4) : null, null, null, null, 17, 2), true));
+            frame = inputs.Execute(frame, new NativeBattleBlastingZone164MeshDraw(0xD95904, NativeBattlePoseMatrices.Compose56C2F0(basis, world), new(age >= 4 ? 0xF3u : 0x33u, 0, age >= 4 ? 682 * (age - 4) : null, null, null, null, 17, 2), true) { PilotIdentity = NativeBattleSquallFinisherVisualIdentity.Particle(164, task, row, 0xD95904) });
             if (!paused)
             {
                 if (age < 10)

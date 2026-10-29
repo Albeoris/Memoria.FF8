@@ -3,7 +3,11 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleRinoa89ProgramContext(NativeBattleActionMatrix Matrix, uint Morph, short Depth);
+public sealed record NativeBattleRinoa89ProgramContext(NativeBattleActionMatrix Matrix, uint Morph, short Depth)
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
+
 public sealed record NativeBattleRinoa89ProgramDraw(NativeBattleRinoa89Frame Frame, NativeBattleGfGeometryBatch Packets);
 
 public static class NativeBattleRinoa89ProgramDrawing
@@ -73,7 +77,7 @@ public static class NativeBattleRinoa89ProgramDrawing
         staging = Dword(Dword(staging, address + 24, unchecked((uint)(int)context.Depth)), address + 32, 0);
         NativeBattleTextureWindow full = new(0, 0, 256, 256);
         NativeBattleEsunaMeshContext operands = new(flags, node.Scalar36 != 0 ? node.Color32 : null, node.Scalar36 != 0 ? node.Scalar36 : null, context.Depth, 0, 0, full, full, 17, 2);
-        NativeBattleWindowedMesh701DD0Result result = NativeBattleWindowedMesh701DD0.Emit(staging, address, meshAddress, source.Data.Slice(geometry, source.Data.Length - geometry), matrix, projection, operands, colors, ReadSelected);
+        NativeBattleWindowedMesh701DD0Result result = NativeBattleWindowedMesh701DD0.Emit(staging, address, meshAddress, source.Data.Slice(geometry, source.Data.Length - geometry), matrix, projection, operands, colors, ReadSelected, context.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + node.ResourceOffset) } : null);
         return new(frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(result.Staging, 108) }, result.Batch);
 
         NativeBattleVector ReadSelected(int offset)

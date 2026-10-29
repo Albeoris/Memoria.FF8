@@ -36,6 +36,7 @@ public static partial class NativeBattleRoughDivide163Controller
                 {
                     break;
                 }
+                NativeBattleSquallFinisherVisualIdentity.Allocated(163, task, record);
                 NativeBattleFileStaging staging = WriteWord(WriteDword(frame.Staging, record, flag), record + 4, 0);
                 if (callback == 0x5F81D0)
                 {
@@ -169,7 +170,7 @@ public static partial class NativeBattleRoughDivide163Controller
             }
             world = world with { X = ReadWord(staging, record + 8), Y = callback == 0x5F81D0 ? 0 : ReadWord(staging, record + 10), Z = ReadWord(staging, record + 12) };
             frame = frame with { Staging = staging };
-            frame = DrawParticleMesh(frame, inputs, mesh, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, colors, new(drawFlags, 0, fade, null, null, null, 17, 2));
+            frame = DrawParticleMesh(frame, inputs, mesh, NativeBattlePoseMatrices.Compose56C2F0(view, world), projection, colors, new(drawFlags, 0, fade, null, null, null, 17, 2), NativeBattleSquallFinisherVisualIdentity.Particle(163, task, record, mesh));
             if (paused)
             {
                 continue;
@@ -224,11 +225,11 @@ public static partial class NativeBattleRoughDivide163Controller
         }
     }
 
-    private static NativeBattleRoughDivide163Frame DrawParticleMesh(NativeBattleRoughDivide163Frame frame, NativeBattleRoughDivide163Inputs inputs, uint address, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleModuleMeshContext context)
+    private static NativeBattleRoughDivide163Frame DrawParticleMesh(NativeBattleRoughDivide163Frame frame, NativeBattleRoughDivide163Inputs inputs, uint address, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleModuleMeshContext context, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleStaticMeshResource source = frame.Memory.RoughDivide163?.RetainedResources?.Meshes.Single(mesh => mesh.Address == address) ?? throw new NotSupportedException("Native Rough Divide requires its actually retained mesh resources.");
         ImmutableArray<byte> bytes = frame.Staging.Read(address, source.Bytes.Length).ToImmutableArray();
-        return inputs.Execute(frame, new NativeBattleRoughDivide163Geometry(NativeBattleModulePackets.EmitBatch572200(bytes, 0, default, matrix, projection, context, colors)));
+        return inputs.Execute(frame, new NativeBattleRoughDivide163Geometry(NativeBattleModulePackets.EmitBatch572200(bytes, 0, default, matrix, projection, context, colors, pilotIdentity: pilotIdentity)));
     }
 
     private static int NormalizedSquare(int x, int y, int z)

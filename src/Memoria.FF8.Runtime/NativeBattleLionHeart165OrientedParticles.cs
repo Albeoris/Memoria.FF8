@@ -37,6 +37,7 @@ public static partial class NativeBattleLionHeart165Controller
                 {
                     break;
                 }
+                NativeBattleLionHeart165VisualIdentity.Allocated(task, row);
                 NativeBattleFileStaging staging = SetMemory(WriteMemoryDword(frame.Staging, row, unchecked((uint)marker)), row + 4, 0);
                 staging = SetMemory(staging, row + 6, Rand() % 6144 + (fan ? 3072 : 7168));
                 int dx;
@@ -143,7 +144,7 @@ public static partial class NativeBattleLionHeart165Controller
             {
                 current = WriteMemoryDword(current, context.Address + 12, unchecked((uint)fade.Value));
             }
-            frame = inputs.Execute(frame with { Staging = current }, new NativeBattleLionHeart165MeshDraw(0xD81620, matrix, new(flags, 0, fade, null, null, null, 17, 2), true));
+            frame = inputs.Execute(frame with { Staging = current }, new NativeBattleLionHeart165MeshDraw(0xD81620, matrix, new(flags, 0, fade, null, null, null, 17, 2), true) { PilotIdentity = NativeBattleLionHeart165VisualIdentity.Particle(task, row, 0xD81620) });
             if (paused)
             {
                 continue;

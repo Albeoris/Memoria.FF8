@@ -39,7 +39,7 @@ public static partial class NativeBattleBlastingZone164Controller
                 Emit(0xD8B880, disk, 0xCC, 1024, false, false, 4123, 12);
                 int diskScale = Word(task, 28) + 96;
                 NativeBattleActionMatrix border = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)), diskScale, diskScale, diskScale) with { X = 0, Y = Word(task, 18), Z = focalLength };
-                Emit(0xD8B880, border, 0xC3, 32 * (80 - counter), false, false, 4122, 12);
+                Emit(0xD8B880, border, 0xC3, 32 * (80 - counter), false, false, 4122, 12, 1);
                 break;
             case 0x5F49B0:
             case 0x5F4B70:
@@ -132,9 +132,9 @@ public static partial class NativeBattleBlastingZone164Controller
         bool released = callback == 0x5F44F0 ? Word(task, 12) >= lifetime : task.ReadWord(12) >= lifetime;
         return new(frame, pool.WriteSlot(slot, task), released ? 2 : 0);
 
-        void Emit(uint address, NativeBattleActionMatrix matrix, uint flags, int? fade, bool common = false, bool tinted = false, int table = 17, byte shift = 2)
+        void Emit(uint address, NativeBattleActionMatrix matrix, uint flags, int? fade, bool common = false, bool tinted = false, int table = 17, byte shift = 2, int layer = 0)
         {
-            frame = inputs.Execute(frame, new NativeBattleBlastingZone164MeshDraw(address, matrix, new(flags, 0, fade, null, null, null, table, shift), common, tinted));
+            frame = inputs.Execute(frame, new NativeBattleBlastingZone164MeshDraw(address, matrix, new(flags, 0, fade, null, null, null, table, shift), common, tinted) { SemanticLayer = layer });
         }
         void Scroll(uint address, NativeBattleActionMatrix matrix, uint flags, int? fade, int v)
         {

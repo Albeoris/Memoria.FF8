@@ -26,7 +26,7 @@ public static partial class NativeBattleFatedCircle162Controller
             }
             short age = ReadWord(frame.Staging, address + 4);
             NativeBattleVector position = new(ReadWord(frame.Staging, address + 8), ReadWord(frame.Staging, address + 10), ReadWord(frame.Staging, address + 12));
-            (frame, bool ended) = DrawSprite(frame, inputs, sprite, unchecked((ushort)age), position, ReadWord(frame.Staging, address + 6), impact ? (ushort)8 : (ushort)0, view, projection, cameraRoll);
+            (frame, bool ended) = DrawSprite(frame, inputs, sprite, unchecked((ushort)age), position, ReadWord(frame.Staging, address + 6), impact ? (ushort)8 : (ushort)0, view, projection, cameraRoll, NativeBattleSquallFinisherVisualIdentity.Particle(162, task, address, sprite));
             if (paused)
             {
                 continue;
@@ -79,6 +79,7 @@ public static partial class NativeBattleFatedCircle162Controller
                     break;
                 }
                 uint address = checked(bank + (uint)free * 24);
+                NativeBattleSquallFinisherVisualIdentity.Allocated(162, task, address);
                 NativeBattleFileStaging staging = WriteDword(frame.Staging, address, 1);
                 staging = WriteWord(staging, address + 4, 0);
                 int scale = initial ? Rand() % 1280 + 2304 : smoke ? Rand() % 4096 + 2304 : Rand() % 3584 + 2048;
@@ -124,10 +125,10 @@ public static partial class NativeBattleFatedCircle162Controller
         return -1;
     }
 
-    private static (NativeBattleFatedCircle162Frame Frame, bool Ended) DrawSprite(NativeBattleFatedCircle162Frame frame, NativeBattleFatedCircle162Inputs inputs, uint address, ushort phase, NativeBattleVector position, short scale, ushort flags, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
+    private static (NativeBattleFatedCircle162Frame Frame, bool Ended) DrawSprite(NativeBattleFatedCircle162Frame frame, NativeBattleFatedCircle162Inputs inputs, uint address, ushort phase, NativeBattleVector position, short scale, ushort flags, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleSearchSpriteResource sprite = frame.Memory.FatedCircle162?.RetainedResources?.Sprites.Single(resource => resource.Address == address) ?? throw new NotSupportedException("Native Fated Circle particles require resources retained by actual entry.");
-        NativeBattleRenzokuken160SpritePackets draw = NativeBattleRenzokuken160Drawing.DrawSprite571C80(new(sprite, phase, position, scale, null, flags), projection, view, cameraRoll);
+        NativeBattleRenzokuken160SpritePackets draw = NativeBattleRenzokuken160Drawing.DrawSprite571C80(new(sprite, phase, position, scale, null, flags), projection, view, cameraRoll, pilotIdentity);
         return (inputs.Execute(frame, new NativeBattleFatedCircle162Sprite(draw.Packets)), draw.AnimationEnded);
     }
 }

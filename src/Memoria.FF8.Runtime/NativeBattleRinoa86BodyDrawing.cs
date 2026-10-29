@@ -25,7 +25,7 @@ public static class NativeBattleRinoa86BodyDrawing
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native780130 requires its actual renderer process owner.");
         var gate = process.Enter5099D0(capabilities.HardwareEnabled ?? throw new NotSupportedException("Native780130 requires its current hardware capability."));
         int start = frame.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native780130 requires its current private packet cursor.");
-        NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, shadow, capabilities, colors, projected, () => gate.Draw);
+        NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, shadow, capabilities, colors, projected, () => gate.Draw, NativeBattlePilotVisualLifetimes.Identity(86, task));
         process = gate.Process;
         if (gate.Draw)
         {

@@ -15,6 +15,7 @@ public static partial class NativeBattleBlastingZone164Controller
                 {
                     continue;
                 }
+                NativeBattleSquallFinisherVisualIdentity.Allocated(164, task, row);
                 SetDword(row, 2);
                 SetWord(row + 4, 0);
                 SetWord(row + 6, Rand() % 6144 + 1024);
@@ -42,7 +43,7 @@ public static partial class NativeBattleBlastingZone164Controller
             bool fading = age < 6 || age >= 10;
             int? fade = fading ? age < 6 ? 4096 - 682 * age : 682 * (age - 10) : null;
             uint flags = fading ? 0xF3u : 0x33u;
-            frame = inputs.Execute(frame, new NativeBattleBlastingZone164MeshDraw(0xD91AD0, matrix, new(flags, 0, fade, null, null, null, 17, 2), false) { Scrolling = new(flags, fade, 0, ReadWord(frame.Staging, row + 10), 17, 2, new(0, 0, 64, 128)) });
+            frame = inputs.Execute(frame, new NativeBattleBlastingZone164MeshDraw(0xD91AD0, matrix, new(flags, 0, fade, null, null, null, 17, 2), false) { PilotIdentity = NativeBattleSquallFinisherVisualIdentity.Particle(164, task, row, 0xD91AD0), Scrolling = new(flags, fade, 0, ReadWord(frame.Staging, row + 10), 17, 2, new(0, 0, 64, 128)) });
             if (!paused)
             {
                 if (age < 16)

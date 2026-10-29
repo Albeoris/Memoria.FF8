@@ -59,7 +59,7 @@ public static partial class NativeBattleRoughDivide163Controller
             var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(ReadWord(staging, 0x23CD318) - ReadWord(staging, 0x23CD0F8), ReadWord(staging, 0x23CD31A) - ReadWord(staging, 0x23CD0FA), ReadWord(staging, 0x23CD31C) - ReadWord(staging, 0x23CD0FC));
             staging = Direction(staging, 0x23CD338, direction.X, direction.Y, direction.Z);
             frame = frame with { Staging = staging };
-            NativeBattleGilgameshSwordTrailPacketResult drawn = NativeBattleGilgameshSwordTrailPackets.Emit(new(curve), view, projection, registers, colors, 0x3A903030);
+            NativeBattleGilgameshSwordTrailPacketResult drawn = NativeBattleGilgameshSwordTrailPackets.Emit(new(curve), view, projection, registers, colors, 0x3A903030, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(163, task));
             frame = inputs.Execute(frame, new NativeBattleRoughDivide163Trail(drawn.Batch, drawn.PoolCursorAdvance));
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)

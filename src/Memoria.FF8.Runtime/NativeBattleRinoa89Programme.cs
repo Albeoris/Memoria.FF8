@@ -8,6 +8,7 @@ public static class NativeBattleRinoa89Programme
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools.Single(bank => bank.DescriptorAddress == descriptor);
         NativeBattleModulePoolTask task = pool.Slots[slot];
+        context = context with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(89, task, offset) };
         NativeBattleGfAnimationWorkspace workspace = Workspace();
         if (initialize)
         {

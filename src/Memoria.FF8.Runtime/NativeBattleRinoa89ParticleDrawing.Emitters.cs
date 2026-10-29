@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleRinoa89ParticleDrawing
 {
-    public static NativeBattleRinoa89ParticleDraw DrawEmitters6FC500(NativeBattleRinoa89Frame frame, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int, byte[]> readResource)
+    public static NativeBattleRinoa89ParticleDraw DrawEmitters6FC500(NativeBattleRinoa89Frame frame, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int, byte[]> readResource, bool captureVisual = false)
     {
         NativeBattleEffectArena arena = ParticleArena(frame);
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging, 76);
@@ -44,6 +44,7 @@ public static partial class NativeBattleRinoa89ParticleDrawing
             NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.MultiplyGteRotation45E470(view, local) with { X = x, Y = y, Z = z };
             staging = Matrix(staging, temporary, matrix, false).MarkUnknown(temporary + 18, 2);
             NativeBattleModuleProjectedVertex[] vertices = new NativeBattleModuleProjectedVertex[4];
+            System.Numerics.Vector3[]? world = captureVisual ? new System.Numerics.Vector3[4] : null;
             for (int corner = 0; corner < 3; corner++)
             {
                 vertices[corner] = NativeBattleModuleProjection.Project45FE10(matrix, Vertex(corner), projection);
@@ -75,14 +76,24 @@ public static partial class NativeBattleRinoa89ParticleDrawing
             uint farColor = (uint)(descriptor[4] | descriptor[5] << 8 | descriptor[6] << 16);
             Store32(4, colors.Interpolate(BinaryPrimitives.ReadUInt32LittleEndian(face), fade, farColor));
             ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(word * 4))).ToImmutableArray();
-            attempts.Add(new(allocated, packet.ToImmutableArray(), mask.ToImmutableArray(), new(checked(17 + (average >> 2)), words, vertices.Select(vertex => (int)vertex.Depth).ToImmutableArray())));
+            NativeBattleGeometryPrimitive primitive = new(checked(17 + (average >> 2)), words, vertices.Select(vertex => (int)vertex.Depth).ToImmutableArray());
+            if (world is not null)
+            {
+                primitive = primitive with { PilotGeometry = new(NativeBattleRinoa89Visuals.Row(arena, 16960, index), world[0], world[1], world[2], world[3], 4) };
+            }
+            attempts.Add(new(allocated, packet.ToImmutableArray(), mask.ToImmutableArray(), primitive));
             allocated += 40;
 
             NativeBattleVector Vertex(int corner)
             {
                 ushort selector = BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2));
                 byte[] bytes = readResource(checked(source + 8u + selector * 4u), 6);
-                return new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4)));
+                NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4)));
+                if (world is not null)
+                {
+                    world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+                }
+                return point;
             }
             void Store32(int displacement, uint value)
             {

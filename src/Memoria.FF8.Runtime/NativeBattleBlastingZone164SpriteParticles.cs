@@ -32,6 +32,7 @@ public static partial class NativeBattleBlastingZone164Controller
                 {
                     break;
                 }
+                NativeBattleSquallFinisherVisualIdentity.Allocated(164, task, row);
                 SetDword(row, 1);
                 SetWord(row + 4, 0);
                 SetWord(row + 6, Rand() % (orbit ? 640 : final ? 3072 : 640) + (orbit ? 768 : final ? 768 : 512));
@@ -95,8 +96,10 @@ public static partial class NativeBattleBlastingZone164Controller
             }
             short scale = ReadWord(frame.Staging, row + 6);
             NativeBattleModuleSpriteFrame animation = resource.ProjectedFrame571C80(unchecked((ushort)age));
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = animation, Phase = unchecked((ushort)age), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, SpriteFlags = final ? (ushort)8 : (ushort)0, DepthOffset = final ? -(scale >> 3) : 0 };
-            frame = inputs.Execute(frame, new NativeBattleBlastingZone164Sprite(NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = basis }, cameraRoll, 17, 2), orbit));
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = NativeBattleSquallFinisherVisualIdentity.Particle(164, task, row, spriteAddress), Resource = resource, SpriteFrame = animation, Phase = unchecked((ushort)age), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, SpriteFlags = final ? (ushort)8 : (ushort)0, DepthOffset = final ? -(scale >> 3) : 0 };
+            NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = basis }, cameraRoll, 17, 2);
+            batch = NativeBattleLionHeart165VisualIdentity.RebaseSprite(batch, basis, projection);
+            frame = inputs.Execute(frame, new NativeBattleBlastingZone164Sprite(batch, orbit));
             if (paused)
             {
                 continue;

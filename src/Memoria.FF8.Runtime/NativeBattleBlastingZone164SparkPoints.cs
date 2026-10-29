@@ -21,6 +21,7 @@ public static partial class NativeBattleBlastingZone164Controller
                 {
                     break;
                 }
+                NativeBattleSquallFinisherVisualIdentity.Allocated(164, task, row);
                 frame = frame with { Staging = WriteWord(WriteDword(frame.Staging, row, 1), row + 4, 0) };
                 uint source = 0x23C9DC8u + (uint)(Rand() % 105) * 8;
                 frame = frame with { Staging = frame.Staging.Write(row + 8, frame.Staging.Read(source, 8)) };
@@ -67,7 +68,10 @@ public static partial class NativeBattleBlastingZone164Controller
             }
             if ((projected.Flags & 0x60000) == 0)
             {
-                packets.Add(new(new(17 + (projected.Depth >> 4), [0x02000000, color, projected.Screen], []), packets.Count * 12, 0));
+                System.Numerics.Vector3 world = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+                NativeBattlePilotVisualGeometry geometry = new(NativeBattleSquallFinisherVisualIdentity.Particle(164, task, row, 0), world, world, world, world, 4) { ScreenOffsets = [new(0, 0), new(8, 0), new(0, 8), new(8, 8)], UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero };
+                NativeBattleGeometryPrimitive primitive = new(17 + (projected.Depth >> 4), [0x02000000, color, projected.Screen], []) { PilotGeometry = geometry };
+                packets.Add(new(primitive, packets.Count * 12, 0));
             }
         }
         frame = inputs.Execute(frame, new NativeBattleBlastingZone164Tiles(new(packets.ToImmutable(), packets.Count * 12)));

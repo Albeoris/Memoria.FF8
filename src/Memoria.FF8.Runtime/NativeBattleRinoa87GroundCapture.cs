@@ -54,20 +54,22 @@ public static class NativeBattleRinoa87GroundCapture
         NativeBattleGroundCaptureWrite current = new(memory, ordering);
         current = Append(current, NativeBattleDrawEnvironmentPackets.Restore45C0F0(new byte[64].ToImmutableArray(), source), 64, source[0x18] == 0 ? 24 : 36);
         current = drawGround(current);
-        current = Append(current, Black(true), 24, 24, 1);
+        current = Append(current, Black(true), 24, 24, 1, BlackGeometry(0));
         current = Append(current, Words(0x02000000, 0xE1000020, 0), 12, 12);
-        current = Append(current, Black(false), 24, 24, 1);
+        current = Append(current, Black(false), 24, 24, 1, BlackGeometry(1));
         current = Append(current, NativeBattleDrawEnvironmentPackets.Area45C940(new byte[12].ToImmutableArray(), 768, 384, 64, 64), 12, 12);
         return Append(current, NativeBattleDrawEnvironmentPackets.Offset45C9B0(new byte[8].ToImmutableArray(), 768, 384), 12, 8);
     }
 
-    private static NativeBattleGroundCaptureWrite Append(NativeBattleGroundCaptureWrite current, ImmutableArray<byte> data, int allocation, int written, ushort flags = 0)
+    private static NativeBattlePilotVisualGeometry BlackGeometry(int layer) => new(new(0, 0, 0, 0, layer), new(0, 0, 0), new(63, 0, 0), new(0, 63, 0), new(63, 63, 0), 4, false) { ScreenSpace = true, ScreenScale = 8, UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero };
+
+    private static NativeBattleGroundCaptureWrite Append(NativeBattleGroundCaptureWrite current, ImmutableArray<byte> data, int allocation, int written, ushort flags = 0, NativeBattlePilotVisualGeometry? pilotGeometry = null)
     {
         byte[] bytes = new byte[allocation];
         data.AsSpan().CopyTo(bytes);
         NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[allocation];
         Array.Fill(mask, NativeBattleGfPacketByteState.Known, 3, written - 3);
-        NativeBattleGeometryPrimitive primitive = new(17, ReadWords(bytes), [0, 0, 0, 0]);
+        NativeBattleGeometryPrimitive primitive = new(17, ReadWords(bytes), [0, 0, 0, 0]) { PilotGeometry = pilotGeometry };
         NativeBattleGfGeometryAttempt attempt = new(0, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive);
         NativeBattleCommonPacketWrite appended = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native778AB0 lost its COMMON owner."), current.Ordering, new([attempt], allocation), flags);
         return new(current.Memory with { PrimitiveProcess = appended.Process }, appended.Ordering);

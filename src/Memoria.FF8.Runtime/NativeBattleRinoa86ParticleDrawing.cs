@@ -19,7 +19,7 @@ public static class NativeBattleRinoa86ParticleDrawing
             {
                 throw new InvalidDataException("Native782990 requires its actual selected sprite bank.");
             }
-            return new(NativeBattleSearchSprites.Draw7582A0(task, resources.Sprite, view, projection, cameraRoll), false);
+            return new(NativeBattleSearchSprites.Draw7582A0(task, resources.Sprite, view, projection, cameraRoll, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(86, task)), false);
         }
         if (!resources.Meshes.TryGetValue(task.ReadDword(76), out ImmutableArray<byte> mesh))
         {
@@ -51,7 +51,7 @@ public static class NativeBattleRinoa86ParticleDrawing
         local = NativeBattlePoseMatrices.Scale56BEF0(local, unchecked((int)task.ReadDword(48)), unchecked((int)task.ReadDword(52)), unchecked((int)task.ReadDword(56))) with { X = Word(28), Y = Word(30), Z = Word(32) };
         NativeBattleActionMatrix camera = NativeBattlePoseMatrices.Compose56C2F0(view, local);
         NativeBattleRinoa86MeshContext operands = new(240, task.ReadDword(64), Word(80), Word(82), u, v, full, after, 17, 2);
-        return new(NativeBattleRinoa86MeshPackets.EmitBatch7807B0(mesh, camera, projection, operands, colors), true);
+        return new(NativeBattleRinoa86MeshPackets.EmitBatch7807B0(mesh, camera, projection, operands, colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(86, task)), true);
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));
     }

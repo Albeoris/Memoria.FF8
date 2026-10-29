@@ -7,7 +7,7 @@ public sealed record NativeBattleRinoa89StarDraw(NativeBattleRinoa89Frame Frame,
 
 public static class NativeBattleRinoa89StarDrawing
 {
-    public static NativeBattleRinoa89StarDraw Draw6FCD50(NativeBattleRinoa89Frame frame, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, int centerX, int centerY, int centerZ, int depthBias, int radiusLimit)
+    public static NativeBattleRinoa89StarDraw Draw6FCD50(NativeBattleRinoa89Frame frame, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, int centerX, int centerY, int centerZ, int depthBias, int radiusLimit, bool captureVisual = false)
     {
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native6FCD50 requires its retained1024-star source.");
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging, 100);
@@ -58,6 +58,11 @@ public static class NativeBattleRinoa89StarDrawing
                     Array.Fill(mask, NativeBattleGfPacketByteState.Known, 0, 8);
                     ImmutableArray<uint> words = [0x02000000, color, projected.Screen];
                     primitive = new(checked(17 + bucket), words, [0, 0, 0, 0]) { PhysicalWriteMask = mask.ToImmutableArray() };
+                    if (captureVisual)
+                    {
+                        System.Numerics.Vector3 world = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+                        primitive = primitive with { PilotGeometry = new(NativeBattleRinoa89Visuals.Row(arena, 31748, group * 128 + index), world, world, world, world, 4) { ScreenOffsets = [new(0, 0), new(8, 0), new(0, 8), new(8, 8)] } };
+                    }
                 }
                 attempts.Add(new(cursor, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive));
                 if (primitive is not null)

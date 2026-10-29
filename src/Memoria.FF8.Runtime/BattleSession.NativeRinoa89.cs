@@ -31,7 +31,7 @@ public sealed partial class BattleSession
         ImmutableArray<byte> targets = Enumerable.Range(0, count).Select(index => nativeActionPackets.ReadContact(checked(first + index)).Primary.ActorIndex).ToImmutableArray();
         NativeBattleRinoa89PreparationServices preparation = new(index => graphics.Models[index], WriteModel, index => ReadNativeModelAnchor(graphics, index), targets, checked(0x1D28344u + (uint)first * 24), body, Bind, Select, NativeBattleRinoa89Controller.InitializeShards6FA3E0);
         NativeBattleRinoa89BodyInputs inputs = new(resources, index => graphics.Models[index], WriteModel, Execute, ReadBone19, Contacts, Poll, Reload);
-        NativeBattleRinoa89SpriteServices sprites = new((current, point, scale, displacement, phase) => Particle(NativeBattleRinoa89MeshDrawing.DrawBillboard6FD340(current, point, scale, displacement, phase, projection, (NativeCamera ?? camera).Roll, resources)), (current, matrix, angles) => Particle(NativeBattleRinoa89MeshDrawing.DrawSpriteMesh6FD3C0(current, matrix, angles, view, projection, colors, resources)));
+
         int beamMesh = checked((int)(0x1497140 - NativeBattleRinoa89Resources.StaticAddress));
         NativeBattleRinoa89BeamServices beams = new(view, projection, colors, resources.StaticImage.Data.Slice(beamMesh, resources.StaticImage.Data.Length - beamMesh), resources.Program(0x14A3EB0), Append, Contacts);
         frame = NativeBattleRinoa89Controller.AdvanceRoot6F9D80(frame, new(index => graphics.Models[index], (current, slot) => NativeBattleRinoa89Controller.PrepareBody6F9D80(current, slot, preparation), Child));
@@ -132,6 +132,8 @@ public sealed partial class BattleSession
         NativeBattleRinoa89TaskStep Child(NativeBattleRinoa89Frame current, uint descriptor, int slot)
         {
             NativeBattleEffectTaskPool pool = current.Effect.Pools.Single(bank => bank.DescriptorAddress == descriptor);
+            NativeBattlePilotVisualIdentity visualIdentity = NativeBattlePilotVisualLifetimes.Identity(89, pool.Slots[slot]);
+            NativeBattleRinoa89SpriteServices sprites = new((active, point, scale, displacement, phase) => Particle(NativeBattleRinoa89MeshDrawing.DrawBillboard6FD340(active, point, scale, displacement, phase, projection, (NativeCamera ?? camera).Roll, resources, visualIdentity)), (active, matrix, angles) => Particle(NativeBattleRinoa89MeshDrawing.DrawSpriteMesh6FD3C0(active, matrix, angles, view, projection, colors, resources, visualIdentity)));
             return pool.Slots[slot].Callback switch
             {
                 0x6FA780 => NativeBattleRinoa89Controller.AdvanceBody6FA780(current, pool, slot, inputs),
@@ -156,28 +158,28 @@ public sealed partial class BattleSession
                     NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(view, NativeBattlePandemona291Restoration.Rotation701270(0) with { X = program.Anchor.X, Y = program.Anchor.Y, Z = program.Anchor.Z });
                     return NativeBattleRinoa89Programme.Execute701970(current, NativeBattleRinoa89Controller.Body, 0, program.WorkOffset, program.WorkOffset == 816 ? 236 : 772, program.ClearSize, resources.Program(program.Source), program.Initialize, program.Advance, new(matrix, 0x20DFAB8 + 100492, program.Depth), projection, colors, program.Common, Append);
                 case NativeBattleRinoa89ApproachMesh mesh:
-                    return Particle(NativeBattleRinoa89MeshDrawing.DrawApproach6FA780(current, mesh.Anchor.X, mesh.Anchor.Y, mesh.Anchor.Z, mesh.Delta, view, projection, colors, resources));
+                    return Particle(NativeBattleRinoa89MeshDrawing.DrawApproach6FA780(current, mesh.Anchor.X, mesh.Anchor.Y, mesh.Anchor.Z, mesh.Delta, view, projection, colors, resources, NativeBattleRinoa89Visuals.Task(current, NativeBattleRinoa89Controller.Body, primitive: 10)));
                 case NativeBattleRinoa89ReturnMeshes mesh:
-                    return Particle(NativeBattleRinoa89MeshDrawing.DrawReturnBurst6FA780(current, mesh.Anchor.X, mesh.Anchor.Y, mesh.Anchor.Z, mesh.Age, view, projection, colors, resources));
+                    return Particle(NativeBattleRinoa89MeshDrawing.DrawReturnBurst6FA780(current, mesh.Anchor.X, mesh.Anchor.Y, mesh.Anchor.Z, mesh.Age, view, projection, colors, resources, NativeBattleRinoa89Visuals.Task(current, NativeBattleRinoa89Controller.Body, primitive: 11)));
                 case NativeBattleRinoa89SpawnBeam beam:
                     NativeBattleEffectTaskPool beamPool = current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleRinoa89Controller.Beams);
                     NativeBattleRinoa89BeamBirth birth = beam.Wide ? NativeBattleRinoa89Controller.SpawnBeam6FD4D0(current, beamPool, beam.X, beam.Y, resources.Program(0x14A3EB0)) : NativeBattleRinoa89Controller.SpawnBeam6FDB80(current, beamPool, beam.X, beam.Y, resources.Program(0x14A3EB0));
                     return birth.Frame with { Effect = birth.Frame.Effect with { Pools = birth.Frame.Effect.Pools.Select(pool => pool.DescriptorAddress == beamPool.DescriptorAddress ? birth.Pool : pool).ToImmutableArray() } };
                 case NativeBattleRinoa89Stars stars:
-                    NativeBattleRinoa89StarDraw drawnStars = NativeBattleRinoa89StarDrawing.Draw6FCD50(current, view, projection, stars.Anchor.X, stars.Anchor.Y, stars.Anchor.Z, 0, 65536);
+                    NativeBattleRinoa89StarDraw drawnStars = NativeBattleRinoa89StarDrawing.Draw6FCD50(current, view, projection, stars.Anchor.X, stars.Anchor.Y, stars.Anchor.Z, 0, 65536, true);
                     return AppendCommon(drawnStars.Frame, drawnStars.Packets, 1);
                 case NativeBattleRinoa89CaptureScene:
                     (current, graphics) = CaptureNativeRinoa89Scene(current, graphics, resources, projection, colors);
                     return current;
                 case NativeBattleRinoa89Fade fade:
-                    return AppendCommon(current, NativeBattleRinoa89FadeDrawing.Draw7040B0(fade.Red, fade.Green, fade.Blue, NativeBattleRinoa89FadeDrawing.Factor6FC450(fade.Age, fade.In, fade.Hold, fade.Out)), 1);
+                    return AppendCommon(current, NativeBattleRinoa89FadeDrawing.Draw7040B0(fade.Red, fade.Green, fade.Blue, NativeBattleRinoa89FadeDrawing.Factor6FC450(fade.Age, fade.In, fade.Hold, fade.Out), NativeBattleRinoa89Visuals.Task(current, NativeBattleRinoa89Controller.Body, primitive: 12)), 1);
                 case NativeBattleRinoa89DrawShards:
-                    return AppendCommon(current, NativeBattleRinoa89ShardDrawing.Draw6FCFD0(current.Memory.Arena ?? throw new NotSupportedException("Native Wishing Star shards require their physical arena.")), 1);
+                    return AppendCommon(current, NativeBattleRinoa89ShardDrawing.Draw6FCFD0(current.Memory.Arena ?? throw new NotSupportedException("Native Wishing Star shards require their physical arena."), true), 1);
                 case NativeBattleRinoa89PublishView:
                     NativeBattlePcRenderRequest render = current.Memory.PcRenderRequest ?? throw new NotSupportedException("Native6E2AC0 requires its retained PC render request.");
                     return current with { Memory = current.Memory with { PcRenderRequest = render.Request47CF50(0, 255, 255, 255, 63) } };
                 case NativeBattleRinoa89DrawBody:
-                    NativeBattleRinoa89BodyDraw drawn = NativeBattleRinoa89BodyDrawing.Draw6A79B0(current, BodyTask(current), body, projection, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native Wishing Star requires its renderer capability."));
+                    NativeBattleRinoa89BodyDraw drawn = NativeBattleRinoa89BodyDrawing.Draw6A79B0(current, BodyTask(current), body, projection, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native Wishing Star requires its renderer capability."), NativeBattleRinoa89Visuals.Task(current, NativeBattleRinoa89Controller.Body, primitive: 13));
                     return Append(drawn.Frame, drawn.Packets, false);
                 case NativeBattleRinoa89RestoreCamera:
                     NativeBattleCameraState active = NativeCamera ?? throw new NotSupportedException("Native Wishing Star closure requires its camera owner.");
@@ -187,8 +189,8 @@ public sealed partial class BattleSession
                 case NativeBattleRinoa89DrawParticles particles:
                     return particles.Callback switch
                     {
-                        0x6FC500 => Particle(NativeBattleRinoa89ParticleDrawing.DrawEmitters6FC500(current, view, projection, colors, current.Staging.Read)),
-                        0x6FC8B0 => Particle(NativeBattleRinoa89ParticleDrawing.DrawSparks6FC8B0(current, view, projection, current.Staging.Read)),
+                        0x6FC500 => Particle(NativeBattleRinoa89ParticleDrawing.DrawEmitters6FC500(current, view, projection, colors, current.Staging.Read, true)),
+                        0x6FC8B0 => Particle(NativeBattleRinoa89ParticleDrawing.DrawSparks6FC8B0(current, view, projection, current.Staging.Read, true)),
                         _ => throw new NotSupportedException("Native Wishing Star selected an unsupported particle renderer.")
                     };
                 case NativeBattleRinoa89IoEvents ioEvents:

@@ -8,9 +8,9 @@ public sealed record NativeBattleWindowedMesh701DD0Result(NativeBattleFileStagin
 /// <summary>701DD0's eight physical polygon groups and context suffix.</summary>
 public static class NativeBattleWindowedMesh701DD0
 {
-    public static NativeBattleWindowedMesh701DD0Result Emit(NativeBattleFileStaging staging, uint temporary, uint meshAddress, ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEsunaMeshContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector> readSelectedVertex)
+    public static NativeBattleWindowedMesh701DD0Result Emit(NativeBattleFileStaging staging, uint temporary, uint meshAddress, ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEsunaMeshContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector> readSelectedVertex, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleGfGeometryBatch batch = NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, readSelectedVertex, EmitFace);
+        NativeBattleGfGeometryBatch batch = NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, readSelectedVertex, EmitFace, pilotIdentity: pilotIdentity);
         int cursor = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(mesh.AsSpan()));
         for (int group = 0; group < 8; group++)
         {

@@ -10,7 +10,7 @@ public static class NativeBattleRinoa88ParticleDrawing
         {
             throw new InvalidDataException("Native7720C0 requires its actual body-particle sprite owner.");
         }
-        return NativeBattleSearchSprites.Draw7582A0(task, sprite, view, projection, cameraRoll);
+        return NativeBattleSearchSprites.Draw7582A0(task, sprite, view, projection, cameraRoll, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(88, task));
     }
 
     public static NativeBattleGfGeometryBatch DrawMesh(NativeBattleModulePoolTask task, ImmutableArray<byte> mesh, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
@@ -34,7 +34,7 @@ public static class NativeBattleRinoa88ParticleDrawing
         NativeBattleActionMatrix camera = task.Callback == 0x772D90 ? NativeBattlePoseMatrices.Compose56C2F0(view, local) : local;
         NativeBattleTextureWindow full = new(0, 0, 256, 256);
         NativeBattleRinoa88MeshContext operands = new(240, task.ReadDword(64), Word(80), Word(82), 0, 0, full, full, 17, 2);
-        return NativeBattleRinoa88MeshPackets.EmitBatch76A650(mesh, camera, projection, operands, colors);
+        return NativeBattleRinoa88MeshPackets.EmitBatch76A650(mesh, camera, projection, operands, colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(88, task));
 
         short Word(int offset) => unchecked((short)task.ReadWord(offset));
     }

@@ -22,6 +22,7 @@ public static partial class NativeBattleRoughDivide163Controller
                 {
                     break;
                 }
+                NativeBattleSquallFinisherVisualIdentity.Allocated(163, task, record);
                 NativeBattleFileStaging staging = WriteWord(WriteDword(frame.Staging, record, 4), record + 4, 0);
                 short scale = unchecked((short)(Rand() % 2560 + 1280));
                 staging = WriteWord(staging, record + 6, unchecked((ushort)scale));
@@ -52,6 +53,7 @@ public static partial class NativeBattleRoughDivide163Controller
             NativeBattleModuleSpriteFrame animation = resource.ProjectedFrame571C80(unchecked((ushort)age));
             NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
             {
+                PilotIdentity = NativeBattleSquallFinisherVisualIdentity.Particle(163, task, record, sprite.Address),
                 Resource = resource,
                 SpriteFrame = animation,
                 Phase = unchecked((ushort)age),
@@ -67,7 +69,7 @@ public static partial class NativeBattleRoughDivide163Controller
                 int meshScale = ReadWord(staging, record + 16);
                 NativeBattleActionMatrix rotation = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CD50(new(512, -512, ReadWord(staging, record + 20))), meshScale, meshScale, meshScale);
                 NativeBattleActionMatrix matrix = rotation with { X = spriteCamera.X, Y = spriteCamera.Y, Z = spriteCamera.Z };
-                frame = DrawParticleMesh(frame, inputs, 0xD9CE04, matrix, projection, colors, new(age >= 0 ? 0xF3u : 0x33u, 0, age >= 0 ? 682 * age : null, null, null, null, 17, 2));
+                frame = DrawParticleMesh(frame, inputs, 0xD9CE04, matrix, projection, colors, new(age >= 0 ? 0xF3u : 0x33u, 0, age >= 0 ? 682 * age : null, null, null, null, 17, 2), NativeBattleSquallFinisherVisualIdentity.Particle(163, task, record, 0xD9CE04));
             }
             if (paused)
             {

@@ -14,7 +14,7 @@ public static partial class NativeBattleRinoa89Controller
         if (age < 12)
         {
             NativeBattleActionMatrix pose = ReadBeamPose(task);
-            frame = BeamDrawMesh(frame, pose, services, true);
+            frame = BeamDrawMesh(frame, pose, services, true, task);
             if (age > 3 && age < 8)
             {
                 frame = BeamSpawnSparks(frame, pose, 8, true);
@@ -40,7 +40,7 @@ public static partial class NativeBattleRinoa89Controller
                 throw new InvalidDataException("Native6FD580 requires its actual retained programme.");
             }
             NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(services.View, pose);
-            NativeBattleRinoa89ProgramContext context = new(matrix, ArenaAddress + 100492, 0);
+            NativeBattleRinoa89ProgramContext context = new(matrix, ArenaAddress + 100492, 0) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(89, task, 48) };
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 48, 344);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(services.Program14A3EB0, 0, (current, node) =>
             {
@@ -66,7 +66,7 @@ public static partial class NativeBattleRinoa89Controller
         if (age < 12)
         {
             NativeBattleActionMatrix pose = ReadBeamPose(task);
-            frame = BeamDrawMesh(frame, pose, services, false);
+            frame = BeamDrawMesh(frame, pose, services, false, task);
             task = task.WriteDword(32, unchecked((uint)(pose.X + pose.Rotation[2] / -2))).WriteDword(36, unchecked((uint)(pose.Y + pose.Rotation[5] / -2))).WriteDword(40, unchecked((uint)(pose.Z + pose.Rotation[8] / -2)));
         }
         if (age >= 3)
@@ -89,7 +89,7 @@ public static partial class NativeBattleRinoa89Controller
         return new(frame, pool.WriteSlot(slot, task), age < 12 ? 0 : 2);
     }
 
-    private static NativeBattleRinoa89Frame BeamDrawMesh(NativeBattleRinoa89Frame frame, NativeBattleActionMatrix pose, NativeBattleRinoa89BeamServices services, bool common)
+    private static NativeBattleRinoa89Frame BeamDrawMesh(NativeBattleRinoa89Frame frame, NativeBattleActionMatrix pose, NativeBattleRinoa89BeamServices services, bool common, NativeBattleModulePoolTask task)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging, 120);
         uint address = allocation.Address;
@@ -102,7 +102,7 @@ public static partial class NativeBattleRinoa89Controller
         staging = staging.MarkUnknown(address + 18, 2).Write(address + 20, BitConverter.GetBytes(matrix.X)).Write(address + 24, BitConverter.GetBytes(matrix.Y)).Write(address + 28, BitConverter.GetBytes(matrix.Z));
         staging = Dword(Dword(staging, address + 60, 48), address + 32, 0x1497140);
         NativeBattleModuleMeshContext context = new(48, null, null, null, null, null, 17, 2);
-        NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(staging, address + 32, 0x1497140, services.Mesh1497140, matrix, services.Projection, context, services.Colors);
+        NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(staging, address + 32, 0x1497140, services.Mesh1497140, matrix, services.Projection, context, services.Colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(89, task, 1));
         frame = services.PublishPackets(frame with { Staging = drawn.Staging }, drawn.Batch, common);
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging, 120) };
     }

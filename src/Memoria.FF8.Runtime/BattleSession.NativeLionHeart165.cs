@@ -29,6 +29,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Lion Heart requires its published view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Lion Heart requires its original color arithmetic.");
         NativeBattleLionHeart165Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Lion Heart requires its entered module."), NativeFileStaging ?? throw new NotSupportedException("Native Lion Heart requires its physical resource bytes."), nativeCrtRandom ?? throw new NotSupportedException("Native Lion Heart requires its retained CRT random owner."));
+        NativeBattlePilotVisualIdentity drawingIdentity = default;
         NativeBattleLionHeart165Inputs inputs = new(graphics.Flags, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Lion Heart requires its signed file IO result."), actor => graphics.Models[actor], actor => ReadNativeModelAnchor(graphics, actor), (actor, selector, fraction) => ReadNativeGraphicsBone(graphics, actor, selector, fraction), actor => ReadNativeRenzokuken160WeaponTip(graphics, actor), Execute);
         frame = NativeBattleLionHeart165Controller.Advance5F01F0(frame, Child);
         NativeEffectMemory = frame.Memory;
@@ -38,6 +39,7 @@ public sealed partial class BattleSession
 
         NativeBattleLionHeart165ChildStep Child(NativeBattleLionHeart165Frame current, NativeBattleEffectTaskPool pool, int slot)
         {
+            drawingIdentity = NativeBattlePilotVisualLifetimes.Identity(165, pool.Slots[slot]);
             return pool.Slots[slot].Callback switch
             {
                 0x5E9650 => NativeBattleLionHeart165Controller.Advance5E9650(current, pool, slot, inputs, view),
@@ -144,10 +146,10 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleLionHeart165MeshDraw mesh:
                     NativeBattleStaticMeshResource resource = resources.Meshes.Single(resource => resource.Address == mesh.Address);
-                    return AppendGeometry(current, NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors), mesh.Common);
+                    return AppendGeometry(current, NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors, pilotIdentity: mesh.PilotIdentity ?? drawingIdentity with { Primitive = unchecked((int)mesh.Address) }), mesh.Common);
                 case NativeBattleLionHeart165WindowedMeshDraw mesh:
                     NativeBattleStaticMeshResource windowed = resources.Meshes.Single(resource => resource.Address == mesh.Address);
-                    return AppendGeometry(current, NativeBattleHoly175WindowedMeshPackets.EmitBatch650720(windowed.Bytes, mesh.Matrix, projection, mesh.Context, colors), mesh.Common);
+                    return AppendGeometry(current, NativeBattleHoly175WindowedMeshPackets.EmitBatch650720(windowed.Bytes, mesh.Matrix, projection, mesh.Context, colors, pilotIdentity: mesh.PilotIdentity ?? drawingIdentity with { Primitive = unchecked((int)mesh.Address) }), mesh.Common);
                 case NativeBattleLionHeart165Sprite sprite:
                     return AppendGeometry(current, sprite.Batch.CapturedWrites ?? throw new NotSupportedException("Native Lion Heart sprite requires its physical571DC0 packet stores."), sprite.Common);
                 case NativeBattleLionHeart165TrailDraw trail:
@@ -155,7 +157,7 @@ public sealed partial class BattleSession
                     int cursor = checked(current.Effect.DrawArenaOffset!.Value + trail.CursorAdvance - trail.Batch.AllocationBytes);
                     return current with { Effect = current.Effect with { DrawArenaOffset = cursor }, Staging = Dword(current.Staging, 0x23C6948, checked(0x209FAB8u + (uint)cursor)) };
                 case NativeBattleLionHeart165Echo echo:
-                    (current, graphics) = DrawNativeLionHeart165Echo(current, graphics, echo.Actor, echo.TemporaryAddress, projection);
+                    (current, graphics) = DrawNativeLionHeart165Echo(current, graphics, echo.Actor, echo.TemporaryAddress, projection, drawingIdentity);
                     return current;
                 default:
                     throw new NotSupportedException("Native Lion Heart service has no original implementation.");

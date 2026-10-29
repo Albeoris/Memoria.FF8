@@ -24,6 +24,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Fated Circle requires its actual current view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Fated Circle requires its original color arithmetic.");
         NativeBattleFatedCircle162Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Fated Circle requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Fated Circle requires its entered physical resource bytes."), nativeCrtRandom ?? throw new NotSupportedException("Native Fated Circle requires its retained CRT random owner."));
+        NativeBattlePilotVisualIdentity? drawingIdentity = null;
         NativeBattleFatedCircle162Inputs inputs = new(graphics.Flags, nativeActionPackets, () => NativeEffectIoResult ?? throw new NotSupportedException("Native Fated Circle requires its actual signed file IO result."), Anchor571400, Target5020A0, Bone240, actor => graphics.Models[actor], actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native Fated Circle requires its actual target scaleWORD26."), Execute, Capture);
         frame = NativeBattleFatedCircle162Controller.Advance5FD090(frame, Child, TextureLoad);
         NativeEffectMemory = frame.Memory;
@@ -51,6 +52,8 @@ public sealed partial class BattleSession
 
         NativeBattleFatedCircle162ChildStep Child(NativeBattleFatedCircle162Frame current, NativeBattleEffectTaskPool pool, int slot)
         {
+            drawingIdentity = NativeBattlePilotVisualLifetimes.Identity(162, pool.Slots[slot]);
+            inputs = inputs with { PilotIdentity = drawingIdentity };
             return pool.Slots[slot].Callback switch
             {
                 0x5F91D0 => NativeBattleFatedCircle162Controller.Advance5F91D0(current, pool, slot, inputs),
@@ -180,7 +183,8 @@ public sealed partial class BattleSession
             }
             ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
             int length = meshes.IsEmpty ? 0 : meshes.Max(mesh => checked(mesh.Vertices.Length * 8));
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, capture.Projection, group.ColorFlags, uint.MaxValue, new byte[length].ToImmutableArray(), colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth);
+            NativeBattlePilotVisualIdentity? captureIdentity = drawingIdentity is { } identity ? identity with { Effect = 0, Primitive = 1 } : null;
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, capture.Projection, group.ColorFlags, uint.MaxValue, new byte[length].ToImmutableArray(), colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth, captureIdentity, pilotScreenSpace: true, pilotContinuous: false);
             if (drawn.ProjectedBytesWritten != length)
             {
                 throw new NotSupportedException("Native5FC5E0 requires complete original projected records before their packet consumers.");

@@ -4,12 +4,13 @@ public sealed record NativeBattleRenzokuken160SpritePackets(NativeBattleModulePa
 
 public static class NativeBattleRenzokuken160Drawing
 {
-    public static NativeBattleRenzokuken160SpritePackets DrawSprite571C80(NativeBattleRenzokuken160Sprite sprite, NativeBattleCameraProjection projection, NativeBattleActionMatrix view, short cameraRoll)
+    public static NativeBattleRenzokuken160SpritePackets DrawSprite571C80(NativeBattleRenzokuken160Sprite sprite, NativeBattleCameraProjection projection, NativeBattleActionMatrix view, short cameraRoll, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleModuleResource resource = new(0, sprite.Resource.Address, 0, 0, sprite.Resource.Bytes);
         NativeBattleModuleSpriteFrame frame = resource.ProjectedFrame571C80(sprite.Frame);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
+            PilotIdentity = pilotIdentity,
             Resource = resource,
             SpriteFrame = frame,
             Phase = sprite.Frame,

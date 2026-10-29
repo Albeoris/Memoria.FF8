@@ -137,7 +137,7 @@ public static class NativeBattleNeedlesFamilyController
             {
                 continue;
             }
-            frame = inputs.Execute(frame, new NativeBattleNeedlesFamilyDrawNeedle(temporary220, index));
+            frame = inputs.Execute(frame, new NativeBattleNeedlesFamilyDrawNeedle(temporary220, index) { PilotIdentity = RowIdentity(frame, slot, profile.NeedleBank, index) });
             if (Paused(frame, inputs))
             {
                 continue;
@@ -160,6 +160,7 @@ public static class NativeBattleNeedlesFamilyController
                 if (empty >= 0)
                 {
                     uint spark = profile.SparkBank + (uint)(empty * 24);
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, profile.SparkBank, empty);
                     NativeBattleNeedlesFamilyState state = PutWord(frame.State.WriteDword(spark, 1), spark + 4, 6);
                     for (int axis = 0; axis < 3; axis++)
                     {
@@ -183,7 +184,7 @@ public static class NativeBattleNeedlesFamilyController
                 continue;
             }
             frame = StoreWord(frame, temporary180 + 4, 0);
-            frame = inputs.Execute(frame, new NativeBattleNeedlesFamilyDrawSpark(sprite40, temporary180, index));
+            frame = inputs.Execute(frame, new NativeBattleNeedlesFamilyDrawSpark(sprite40, temporary180, index) { PilotIdentity = RowIdentity(frame, slot, profile.SparkBank, index) });
             if (Paused(frame, inputs))
             {
                 continue;
@@ -227,6 +228,7 @@ public static class NativeBattleNeedlesFamilyController
                 break;
             }
             uint record = profile.NeedleBank + (uint)(index * 56);
+            NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, profile.NeedleBank, index);
             frame = frame with { State = frame.State.WriteDword(record, 1) };
             frame = Random(frame, out ushort lifetime);
             short duration = (short)((lifetime % 4) + 4);
@@ -290,6 +292,13 @@ public static class NativeBattleNeedlesFamilyController
             }
         }
         return frame;
+    }
+
+    internal static NativeBattlePilotVisualIdentity RowIdentity(NativeBattleNeedlesFamilyFrame frame, int taskSlot, uint bank, int row)
+    {
+        NativeBattlePilotVisualIdentity task = NativeBattlePilotVisualLifetimes.Identity(frame.State.Effect, frame.Effect.Pools[1].Slots[taskSlot], unchecked((int)bank * 397 + row));
+        NativeBattlePilotVisualIdentity allocated = NativeBattlePilotVisualLifetimes.Identity(frame.State.Effect, frame.State.Globals, bank, row);
+        return task with { ResourceGeneration = allocated.Generation };
     }
 
     private static int FirstContact(NativeBattleNeedlesFamilyFrame frame, NativeBattleNeedlesFamilyInputs inputs) => inputs.Packets.Headers[(frame.Effect.Parameters ?? throw new NotSupportedException("Needles requires its captured header.")).HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Needles requires its actual current first contact.");

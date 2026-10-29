@@ -105,7 +105,7 @@ public static class NativeBattleRinoa87Nodes
         bool AdvanceContext()
         {
             NativeBattleRecover93NodeFrame bridge = ToNodeFrame(frame, random);
-            NativeBattleRecover93NodeStep next = NativeBattleEffectNodeCaller.Advance74F6E0(Policy, bridge, address, controller.ReadModel, projection, cameraRoll, ordering, colors, prepareMeshOverride: PrepareMesh);
+            NativeBattleRecover93NodeStep next = NativeBattleEffectNodeCaller.Advance74F6E0(Policy, bridge, address, controller.ReadModel, projection, cameraRoll, ordering, colors, prepareMeshOverride: PrepareMesh, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(87, task), preparePilotMeshOverride: PreparePilotMesh);
             frame = FromNodeFrame(frame, next.Frame);
             random = next.Frame.Random;
             ordering = next.Ordering;
@@ -123,6 +123,18 @@ public static class NativeBattleRinoa87Nodes
             }
             NativeBattleFullLifeMeshContext operands = new(flags, fade == 0 ? null : memory.Dword(node + 364), fade == 0 ? null : fade, null, null, null, 17, 2);
             return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch884370(bytes, matrix, projection, operands, colors, observeFirstThreeFlags: memory.WriteProjectionFlags);
+        }
+        NativeBattleEffectNodePilotMeshInstance PreparePilotMesh(NativeBattleEffectNodeMemory memory, int node, byte[] source)
+        {
+            short sourceFlags = BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(58));
+            short fade = unchecked((short)memory.Word(node + 462));
+            uint flags = sourceFlags == 0 ? 0x30u : 0;
+            if (fade != 0)
+            {
+                flags |= 0xC0;
+            }
+            NativeBattleFullLifeMeshContext operands = new(flags, fade == 0 ? null : memory.Dword(node + 364), fade == 0 ? null : fade, null, null, null, 17, 2);
+            return (bytes, matrix, identity) => NativeBattleRestorationMeshPackets.EmitBatch884370(bytes, matrix, projection, operands, colors, observeFirstThreeFlags: memory.WriteProjectionFlags, pilotIdentity: identity);
         }
     }
 

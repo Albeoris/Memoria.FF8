@@ -4,6 +4,10 @@ public sealed record NativeBattleBlastingZone164MeshDraw(uint Address, NativeBat
 {
     public uint? SelectedVerticesAddress { get; init; }
     public NativeBattleShivaScrollingContext? Scrolling { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int SemanticLayer { get; init; }
 }
 
 public static partial class NativeBattleBlastingZone164Controller
@@ -27,7 +31,7 @@ public static partial class NativeBattleBlastingZone164Controller
                 int? secondFade = counter < 8 ? (8 - counter) << 9 : null;
                 Emit(0xD909F0, AtCamera(second, secondCamera), secondFlags, secondFade);
                 NativeBattleActionMatrix reflected = NativeBattleGfMatrices.Euler56CE30(new(0, 0, unchecked((short)-Word(task, 24))));
-                Emit(0xD909F0, AtCamera(reflected, secondCamera), secondFlags, secondFade);
+                Emit(0xD909F0, AtCamera(reflected, secondCamera), secondFlags, secondFade, layer: 1);
                 break;
             case 0x5F1E70:
                 Emit(0xD90F00, Billboard(task, Word(task, 28), -Word(task, 22), view), counter >= 20 ? 0xF3u : 0x33u, counter >= 20 ? (counter - 20) << 9 : null);
@@ -106,9 +110,9 @@ public static partial class NativeBattleBlastingZone164Controller
         bool released = callback is 0x5F1E70 or 0x5F3B30 ? Word(task, 12) >= lifetime : task.ReadWord(12) >= lifetime;
         return new(frame, pool.WriteSlot(slot, task), released ? 2 : 0);
 
-        void Emit(uint address, NativeBattleActionMatrix matrix, uint flags, int? fade, bool common = false, bool tinted = false, byte shift = 2)
+        void Emit(uint address, NativeBattleActionMatrix matrix, uint flags, int? fade, bool common = false, bool tinted = false, byte shift = 2, int layer = 0)
         {
-            frame = inputs.Execute(frame, new NativeBattleBlastingZone164MeshDraw(address, matrix, new(flags, 0, fade, null, null, null, 17, shift), common, tinted));
+            frame = inputs.Execute(frame, new NativeBattleBlastingZone164MeshDraw(address, matrix, new(flags, 0, fade, null, null, null, 17, shift), common, tinted) { SemanticLayer = layer });
         }
     }
 

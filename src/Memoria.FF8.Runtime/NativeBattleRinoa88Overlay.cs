@@ -91,6 +91,16 @@ public static class NativeBattleRinoa88Overlay
             }
             ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, data.Length).Select(index => retainLink && index < 3 ? NativeBattleGfPacketByteState.Untouched : NativeBattleGfPacketByteState.Known).ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(7, words, readRetainedProxyDepth(attempts.Count)) { PhysicalWriteMask = mask };
+            if (!retainLink)
+            {
+                System.Numerics.Vector3 Corner(int index)
+                {
+                    uint screen = words[2 + index];
+                    return new(unchecked((short)screen), unchecked((short)(screen >> 16)), 0);
+                }
+                ImmutableArray<int> depths = primitive.VertexPayload4;
+                primitive = primitive with { PilotGeometry = new(new(0, 0, 0, 0, (offset - 12) / 24), Corner(0), Corner(1), Corner(2), Corner(3), 4, false) { ScreenSpace = true, UseSourceDepths = true, SourceDepths = new(depths.ElementAtOrDefault(0), depths.ElementAtOrDefault(1), depths.ElementAtOrDefault(2), depths.ElementAtOrDefault(3)) } };
+            }
             attempts.Add(new(offset, data.ToImmutableArray(), mask, primitive));
         }
     }

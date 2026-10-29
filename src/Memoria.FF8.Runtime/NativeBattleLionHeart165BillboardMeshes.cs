@@ -1,6 +1,10 @@
 namespace Memoria.FF8.Runtime;
 
-public abstract record NativeBattleLionHeart165Operation;
+public abstract record NativeBattleLionHeart165Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleLionHeart165MeshDraw(uint Address, NativeBattleActionMatrix Matrix, NativeBattleModuleMeshContext Context, bool Common) : NativeBattleLionHeart165Operation;
 public sealed record NativeBattleLionHeart165Inputs(uint GraphicsFlags, Func<int> Pending508500, Func<byte, NativeBattleGraphicsModel> ReadModel, Func<byte, NativeBattleModuleAnchor> ReadPosition, Func<byte, byte, short, NativeBattleVector> ReadBone, Func<byte, NativeBattleRenzokuken160WeaponTip> ReadWeaponTip, Func<NativeBattleLionHeart165Frame, NativeBattleLionHeart165Operation, NativeBattleLionHeart165Frame> Execute);
 

@@ -7,7 +7,7 @@ public sealed record NativeBattleLionHeart165EchoDraw(NativeBattleLionHeart165Fr
 
 public static partial class NativeBattleLionHeart165Controller
 {
-    public static NativeBattleLionHeart165EchoDraw DrawEchoMesh5EF0C0(NativeBattleLionHeart165Frame frame, uint temporary, uint verticesAddress, uint polygonAddress, NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleShivaPlane plane, ImmutableArray<int> selectors, uint color, uint orderingTable, uint packetCursor, short zsf3, short zsf4, short dqa, int dqb, NativeBattleModelTextureBinding? textureBinding = null, Action<ushort>? observeDepth = null)
+    public static NativeBattleLionHeart165EchoDraw DrawEchoMesh5EF0C0(NativeBattleLionHeart165Frame frame, uint temporary, uint verticesAddress, uint polygonAddress, NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleShivaPlane plane, ImmutableArray<int> selectors, uint color, uint orderingTable, uint packetCursor, short zsf3, short zsf4, short dqa, int dqb, NativeBattleModelTextureBinding? textureBinding = null, Action<ushort>? observeDepth = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         mesh.Validate();
         if (selectors.IsDefault || selectors.Length != 56 || selectors.Any(value => value is < 0 or > 5))
@@ -38,8 +38,10 @@ public static partial class NativeBattleLionHeart165Controller
         frame = frame with { Staging = staging };
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
+        int polygonIndex = -1;
         foreach (NativeBattleRawPolygon polygon in mesh.Polygons)
         {
+            polygonIndex++;
             if (polygon.Bytes.Length != (polygon.Quad ? 20 : 16))
             {
                 continue;
@@ -126,6 +128,13 @@ public static partial class NativeBattleLionHeart165Controller
             if (!clipped.IsEmpty)
             {
                 NativeBattleGfGeometryAttempt emitted = NativeBattleShivaPlaneClipping.Emit5C3410(clipped, view, projection, color, unchecked((uint)ReadDword(frame.Staging, temporary + 52)), unchecked((uint)ReadDword(frame.Staging, temporary + 56)), zsf3, zsf4, dqa, dqb, allocated, observeDepth);
+                if (pilotIdentity is { } identity && emitted.Primitive is { } primitive)
+                {
+                    System.Numerics.Vector3 World(int index) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(view, clipped[index].Position), projection);
+                    int topology = NativeBattleShivaVisualIdentity.ClipTopology(triangle.Select(vertex => vertex.Position), plane);
+                    NativeBattlePilotVisualIdentity faceIdentity = identity with { Primitive = unchecked((identity.Primitive * 65537 + polygonIndex * 2 + (firstTriangle ? 0 : 1)) * 31 + topology) };
+                    emitted = emitted with { Primitive = primitive with { PilotGeometry = new(faceIdentity, World(0), World(1), World(2), clipped.Length == 4 ? World(3) : default, checked((byte)clipped.Length)) } };
+                }
                 attempts.Add(emitted);
                 allocated = checked(allocated + emitted.PacketLength);
                 uint average = 0;

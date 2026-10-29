@@ -134,12 +134,13 @@ public static partial class NativeBattleFatedCircle162Controller
         return Finish(frame, pool, slot, task.WriteWord(12, unchecked((ushort)(counter + 1))), 21);
     }
 
-    private static NativeBattleFatedCircle162Frame DrawMesh(NativeBattleFatedCircle162Frame frame, NativeBattleFatedCircle162Inputs inputs, uint address, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleModuleMeshContext context, ImmutableArray<byte> selectedVertices = default)
+    private static NativeBattleFatedCircle162Frame DrawMesh(NativeBattleFatedCircle162Frame frame, NativeBattleFatedCircle162Inputs inputs, uint address, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleModuleMeshContext context, ImmutableArray<byte> selectedVertices = default, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleFatedCircle162Resources resources = frame.Memory.FatedCircle162?.RetainedResources ?? throw new NotSupportedException("Native Fated Circle drawing requires resources retained by actual entry.");
         NativeBattleStaticMeshResource mesh = resources.Meshes.Single(resource => resource.Address == address);
         ImmutableArray<byte> bytes = frame.Staging.Read(address, mesh.Bytes.Length).ToImmutableArray();
-        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(bytes, 0, selectedVertices, matrix, projection, context, colors);
+        NativeBattlePilotVisualIdentity? identity = pilotIdentity ?? (inputs.PilotIdentity is { } task ? task with { Primitive = unchecked((int)address) } : null);
+        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(bytes, 0, selectedVertices, matrix, projection, context, colors, pilotIdentity: identity);
         return inputs.Execute(frame, new NativeBattleFatedCircle162Geometry(batch));
     }
 

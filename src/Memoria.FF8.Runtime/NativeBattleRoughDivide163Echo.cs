@@ -42,7 +42,7 @@ public static partial class NativeBattleRoughDivide163Controller
                 staging = WriteWord(staging, destination + 20, unchecked((ushort)(ReadWord(staging, current + 4) - offset.Z)));
             }
             frame = frame with { Staging = staging };
-            (NativeBattleGfGeometryBatch batch, int cursor) = DrawEcho(staging, count, counter, view, projection, registers, colors);
+            (NativeBattleGfGeometryBatch batch, int cursor) = DrawEcho(staging, count, counter, view, projection, registers, colors, NativeBattlePilotVisualLifetimes.Identity(163, task));
             frame = inputs.Execute(frame, new NativeBattleRoughDivide163Trail(batch, cursor));
         }
         else
@@ -61,7 +61,7 @@ public static partial class NativeBattleRoughDivide163Controller
         return new(frame, pool.WriteSlot(slot, task), Word(task, 12) >= 40 ? 2 : 0);
     }
 
-    private static (NativeBattleGfGeometryBatch Batch, int Cursor) DrawEcho(NativeBattleFileStaging staging, int count, short age, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory registers, NativeBattleSummonColors colors)
+    private static (NativeBattleGfGeometryBatch Batch, int Cursor) DrawEcho(NativeBattleFileStaging staging, int count, short age, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory registers, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity identity)
     {
         uint bright = 0x3A202080;
         uint middle = 0x3A04040E;
@@ -74,6 +74,7 @@ public static partial class NativeBattleRoughDivide163Controller
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
+        Dictionary<uint, System.Numerics.Vector3> world = [];
         for (int segment = 0; segment < count - 1; segment++)
         {
             uint current = checked(0x23CE168u + (uint)segment * 24);
@@ -110,15 +111,20 @@ public static partial class NativeBattleRoughDivide163Controller
                 a = [middle, bright, middle, bright];
                 b = [bright, middle, bright, middle];
             }
-            attempts.Add(EchoPacket(allocation, bucket, [nextLeft, nextCenter, currentLeft, currentCenter], a));
-            attempts.Add(EchoPacket(allocation + 36, bucket, [nextCenter, nextRight, currentCenter, currentRight], b));
+            NativeBattlePilotVisualGeometry first = new(identity with { Primitive = segment * 2 }, world[next + 8], world[next], world[current + 8], world[current], 4);
+            NativeBattlePilotVisualGeometry second = new(identity with { Primitive = segment * 2 + 1 }, world[next], world[next + 16], world[current], world[current + 16], 4);
+            attempts.Add(EchoPacket(allocation, bucket, [nextLeft, nextCenter, currentLeft, currentCenter], a, first));
+            attempts.Add(EchoPacket(allocation + 36, bucket, [nextCenter, nextRight, currentCenter, currentRight], b, second));
             allocation += 72;
         }
         return (new(attempts.ToImmutable(), allocation), checked(allocation + 36));
 
         NativeBattleModuleProjectedVertex Project(uint address)
         {
-            return NativeBattleModuleProjection.Project45FE10(view, new(ReadWord(staging, address), ReadWord(staging, address + 2), ReadWord(staging, address + 4)), projection);
+            NativeBattleVector point = new(ReadWord(staging, address), ReadWord(staging, address + 2), ReadWord(staging, address + 4));
+            NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(view, point, projection);
+            world[address] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(view, point), projection);
+            return projected;
         }
     }
 
@@ -130,7 +136,7 @@ public static partial class NativeBattleRoughDivide163Controller
         return new(offset, bytes.ToImmutableArray(), mask, null);
     }
 
-    private static NativeBattleGfGeometryAttempt EchoPacket(int offset, int bucket, NativeBattleModuleProjectedVertex[] points, uint[] colors)
+    private static NativeBattleGfGeometryAttempt EchoPacket(int offset, int bucket, NativeBattleModuleProjectedVertex[] points, uint[] colors, NativeBattlePilotVisualGeometry geometry)
     {
         uint[] words = [0x08000000, colors[0], points[0].Screen, colors[1], points[1].Screen, colors[2], points[2].Screen, colors[3], points[3].Screen];
         byte[] bytes = new byte[36];
@@ -139,7 +145,7 @@ public static partial class NativeBattleRoughDivide163Controller
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
         }
         ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 36).ToImmutableArray();
-        NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutableArray(), points.Select(point => (int)point.Depth).ToImmutableArray()) { PhysicalWriteMask = mask };
+        NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutableArray(), points.Select(point => (int)point.Depth).ToImmutableArray()) { PhysicalWriteMask = mask, PilotGeometry = geometry };
         return new(offset, bytes.ToImmutableArray(), mask, primitive);
     }
 }

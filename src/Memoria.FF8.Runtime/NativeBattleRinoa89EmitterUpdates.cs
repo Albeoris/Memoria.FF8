@@ -27,6 +27,7 @@ public static partial class NativeBattleRinoa89Controller
                 }
             }
         }
+        NativeBattlePilotVisualLifetimes.Allocated(arena, ArenaAddress + 4672, (offset - 4672) / 24);
         int next = offset < 16936 ? offset + 24 : 4672;
         return new(frame with { Staging = Dword(frame.Staging, 0x2556590, checked(ArenaAddress + (uint)next)) }, offset);
     }

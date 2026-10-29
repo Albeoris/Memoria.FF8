@@ -95,11 +95,11 @@ public static partial class NativeBattleRoughDivide163Controller
         if (task.Callback == 0x5F8B80)
         {
             bool fading = counter < 4 || counter >= 10;
-            batch = NativeBattleShivaScrollingPackets.Emit64E080(current, matrix, projection, new(fading ? 0xF3u : 0x33u, fading ? fade : null, counter * Word(task, 34), 0, 17, 2, new(0, 192, 128, 64)), 341, 256, 0, 0, colors);
+            batch = NativeBattleShivaScrollingPackets.Emit64E080(current, matrix, projection, new(fading ? 0xF3u : 0x33u, fading ? fade : null, counter * Word(task, 34), 0, 17, 2, new(0, 192, 128, 64)), 341, 256, 0, 0, colors, NativeBattlePilotVisualLifetimes.Identity(163, task, unchecked((int)address)));
         }
         else
         {
-            batch = NativeBattleModulePackets.EmitBatch572200(current.Bytes, 0, default, matrix, projection, new(counter >= fadeStart ? 0xF3u : 0x33u, 0, counter >= fadeStart ? fade : null, null, null, null, 17, 2), colors);
+            batch = NativeBattleModulePackets.EmitBatch572200(current.Bytes, 0, default, matrix, projection, new(counter >= fadeStart ? 0xF3u : 0x33u, 0, counter >= fadeStart ? fade : null, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(163, task, unchecked((int)address)));
         }
         frame = inputs.Execute(frame, new NativeBattleRoughDivide163Geometry(batch));
         if (paused)
