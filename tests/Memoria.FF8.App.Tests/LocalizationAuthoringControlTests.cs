@@ -32,15 +32,27 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
         Assert.False(RecreateGame.TryResolveAuthoringCatalogKey("$en_field_0000", out _));
     }
 
-    [Fact]
-    public void ActualWorkbenchMenuConfirmationReachesItsDedicatedActionHandler()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ActualWorkbenchMenuConfirmationReachesItsDedicatedActionHandler(bool demo)
     {
         string? received = null;
         MenuController menus = new();
         menus.ConnectLocalizationWorkbench(() => [new("project", "Project", "", Action: new("localization-workbench", "select:fixture"))], action => received = action);
-        menus.Open("localization-workbench", demo: true);
+        menus.Open("localization-workbench", demo: demo);
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal("select:fixture", received);
+    }
+
+    [Fact]
+    public void FixtureActionMessageCanBeReadRepeatedlyWithoutSelfReference()
+    {
+        MenuController menus = new();
+        menus.Open("main", demo: true);
+        menus.Execute(new("slot-select"));
+        Assert.Contains("Fixture spell preview selected", menus.Message);
+        Assert.Equal(menus.Message, menus.Message);
     }
 
     [Fact]
@@ -67,8 +79,10 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
-    public async Task InstalledStandaloneFieldAndFormattedMenuUseRealPickerPreviewConflictAndPublication()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InstalledStandaloneFieldAndFormattedMenuUseRealPickerPreviewConflictAndPublication(bool native)
     {
         string game = TestResources.GameDirectory;
         string standalone = TestResources.FixturePath("App.Tests.LocalizationFieldQuestionTests.Standalone");
@@ -101,7 +115,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
         File.WriteAllText(Path.Combine(package, "mod.ini"), "[Mod]\nname=Workbench acceptance\nenabled=0\n");
         string settings = Path.Combine(root, "settings");
         Directory.CreateDirectory(settings);
-        File.WriteAllText(Path.Combine(settings, "ui-settings.json"), JsonSerializer.Serialize(new { MusicVolume = 0, SoundVolume = 0, VoiceVolume = 0 }));
+        new UiPreferences { MusicVolume = 0, SoundVolume = 0, VoiceVolume = 0, TextFontMode = native ? GameTextFontMode.Native : GameTextFontMode.System, TextLayoutMode = native ? GameTextLayoutMode.OriginalCompatible : GameTextLayoutMode.Adaptive }.Save(Path.Combine(settings, "ui-settings.json"));
         string control = Path.Combine(root, "control");
         Directory.CreateDirectory(Path.Combine(control, "requests"));
         ProcessStartInfo start = new(Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "Memoria.FF8.exe" : "Memoria.FF8")) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, RedirectStandardOutput = true, RedirectStandardError = true };
@@ -123,6 +137,12 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             await WaitUi(state => state.GetProperty("Localization").GetProperty("SelectedPackage").GetString() == PackageId && !state.GetProperty("Localization").GetProperty("LoadingProject").GetBoolean());
             await SelectEntry("authoring-toggle");
             JsonElement ready = await WaitLocalization(state => state.GetProperty("Enabled").GetBoolean() && Hits(state).Any(hit => hit.GetProperty("Key").GetString() == fieldKey));
+            Assert.Equal(native ? "Native" : "System", ready.GetProperty("Native").GetProperty("FontMode").GetString());
+            Assert.Equal(native ? "OriginalCompatible" : "Adaptive", ready.GetProperty("Native").GetProperty("LayoutMode").GetString());
+            if (native)
+            {
+                Assert.True(ready.GetProperty("Native").GetProperty("Ready").GetBoolean(), ready.GetProperty("Native").GetProperty("Diagnostic").GetString());
+            }
             JsonElement simulation = ready.GetProperty("Simulation").Clone();
             await Pick(fieldKey);
             JsonElement opened = await WaitLocalization(state => state.GetProperty("Mode").GetString() == "Edit" && state.GetProperty("Identity").GetProperty("Key").GetString() == fieldKey);
@@ -130,7 +150,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             Assert.True(string.IsNullOrEmpty(opened.GetProperty("Draft").GetProperty("Text").GetString()));
             FieldMessageTargetSyntax syntax = new();
             LocalizationTargetParts parts = syntax.Parse(fieldSource.Text);
-            string translation = syntax.Compose(parts with { Body = "日本語 😀 " + parts.Body });
+            string translation = syntax.Compose(parts with { Body = (native ? "Native " : "日本語 😀 ") + parts.Body });
             await Request("ui-input", new(Edit: UiEditCommand.SelectAll));
             await Request("ui-input", new(Language: 1));
             Assert.True((await Request("ui-status")).GetProperty("Localization").GetProperty("ReferenceReadOnly").GetBoolean());
@@ -145,7 +165,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
 
             string ours = syntax.Compose(parts with { Body = "Ours " + parts.Body });
             string theirs = syntax.Compose(parts with { Body = "External " + parts.Body });
-            string merged = syntax.Compose(parts with { Body = "Merged 日本語 " + parts.Body });
+            string merged = syntax.Compose(parts with { Body = (native ? "Merged " : "Merged 日本語 ") + parts.Body });
             await Replace(ours);
             await Preview();
             LocalizationProjectStore external = new(package);
@@ -188,7 +208,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             Assert.True(File.Exists(capture));
             Assert.Equal(originalHash, SHA256.HashData(File.ReadAllBytes(standalone)));
             Assert.Contains("enabled=0", File.ReadAllText(Path.Combine(package, "mod.ini")));
-            PreserveEvidence(capture, new { FieldKey = fieldKey, SystemKey = systemKey, OriginalSaveUnchanged = true, NativeSimulationUnchanged = true, PackageStayedDisabled = true });
+            PreserveEvidence(capture, new { Presentation = native ? "NativeOriginal" : "SystemAdaptive", FieldKey = fieldKey, SystemKey = systemKey, OriginalSaveUnchanged = true, NativeSimulationUnchanged = true, PackageStayedDisabled = true });
             await Request("quit");
             await process.WaitForExitAsync(timeout.Token);
             Assert.Equal(0, process.ExitCode);

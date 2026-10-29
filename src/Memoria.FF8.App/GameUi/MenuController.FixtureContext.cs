@@ -47,8 +47,12 @@ public sealed partial class MenuController
         {
             return false;
         }
-        ApplyDemo(action);
-        SetSystemMessage(() => FormatSystemText("ui.executefixtureaction.message.preview.fixture.template.preview.fixture.0", "Preview / Fixture: {0}", Message));
+        if (!ApplyDemo(action))
+        {
+            return false;
+        }
+        string message = Message;
+        SetSystemMessage(() => FormatSystemText("ui.executefixtureaction.message.preview.fixture.template.preview.fixture.0", "Preview / Fixture: {0}", message));
         return true;
     }
 }

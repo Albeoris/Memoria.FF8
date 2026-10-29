@@ -957,10 +957,13 @@ public sealed partial class MenuController
             Message = "";
             return;
         }
-        ApplyDemo(action);
+        if (!ApplyDemo(action))
+        {
+            SetSystemMessage(() => FormatSystemText("ui.applydemo.message.unsupported.contract.no.fixture.mutation.is.defined", "Unsupported contract: {0}. No fixture mutation is defined.", action.Kind));
+        }
     }
 
-    private void ApplyDemo(MenuAction action)
+    private bool ApplyDemo(MenuAction action)
     {
         var data = Data;
         var character = Character;
@@ -1269,9 +1272,9 @@ public sealed partial class MenuController
                 }
                 break;
             default:
-                SetSystemMessage(() => FormatSystemText("ui.applydemo.message.unsupported.contract.no.fixture.mutation.is.defined", "Unsupported contract: {0}. No fixture mutation is defined.", action.Kind));
-                break;
+                return false;
         }
+        return true;
     }
 
     public static string Number(int? value) => value?.ToString() ?? "?";
