@@ -440,7 +440,7 @@ public sealed partial class BattleHudController
         {
             return;
         }
-        if (SelectedCommand == BattleAbility.Magic && !MagicAvailable)
+        if (SelectedCommand is BattleAbility.Magic or BattleAbility.Draw && !MagicAvailable)
         {
             ShowCommandError(SystemText("battle.ui.attack.the.selected.action.is.unavailable", "The selected action is unavailable."));
             return;

@@ -8,19 +8,23 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleUiTests
 {
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public void Magic_command_is_unavailable_under_silence(bool nativeSilence, bool effectSilence)
+    [InlineData(BattleAbility.Magic, false, false)]
+    [InlineData(BattleAbility.Magic, true, false)]
+    [InlineData(BattleAbility.Magic, false, true)]
+    [InlineData(BattleAbility.Draw, false, false)]
+    [InlineData(BattleAbility.Draw, true, false)]
+    [InlineData(BattleAbility.Draw, false, true)]
+    public void Magic_and_draw_commands_are_unavailable_under_silence(BattleAbility ability, bool nativeSilence, bool effectSilence)
     {
         BattleDefinition definition = Definition();
         definition.Combatants[0] = definition.Combatants[0] with
         {
-            Abilities = [BattleAbility.Attack, BattleAbility.Magic],
+            Abilities = [BattleAbility.Attack, ability],
             NativeStatus0 = nativeSilence ? (ushort)0x10 : (ushort)0,
             StatusEffects = effectSilence ? [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Silence, DurationFrames = 60 }] : [],
             MagicStocks = [new(1, 10)]
         };
+        definition.Combatants[1] = definition.Combatants[1] with { NativeDrawSlots = [new(1, 0), new(0, 0), new(0, 0), new(0, 0)] };
         definition = definition with { ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Damage, 10, false)] };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn());
@@ -31,12 +35,13 @@ public sealed class BattleUiTests
         view.Draw(canvas, theme);
         bool silenced = nativeSilence || effectSilence;
         Assert.Equal(!silenced, hud.MagicAvailable);
-        Assert.Equal(silenced ? theme.Muted : theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == "Magic").Color);
+        Assert.Equal(!silenced, hud.DrawAvailable);
+        Assert.Equal(silenced ? theme.Muted : theme.Foreground, Assert.Single(canvas.TextDraws, draw => draw.Text == ability.ToString()).Color);
         hud.Navigate(MenuInput.Down);
-        Assert.Equal(BattleAbility.Magic, hud.SelectedCommand);
+        Assert.Equal(ability, hud.SelectedCommand);
         hud.Navigate(MenuInput.Confirm);
-        Assert.Equal(!silenced, hud.SelectingAction);
-        Assert.False(hud.SelectingTarget);
+        Assert.Equal(!silenced && ability == BattleAbility.Magic, hud.SelectingAction);
+        Assert.Equal(!silenced && ability == BattleAbility.Draw, hud.SelectingTarget);
     }
 
     [Theory]

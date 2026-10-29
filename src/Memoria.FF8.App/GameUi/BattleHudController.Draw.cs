@@ -6,7 +6,7 @@ public sealed partial class BattleHudController
 {
     private string? selectedDrawSourceId;
     private int? selectedDrawActionId;
-    public bool DrawAvailable => session.Combatants.Any(IsDrawSource);
+    public bool DrawAvailable => MagicAvailable && session.Combatants.Any(IsDrawSource);
     public bool SelectingDrawMode { get; private set; }
     public bool SelectingDrawSource => SelectedCommand == BattleAbility.Draw && SelectingTarget && selectedDrawSourceId is null;
     public bool SelectingDrawCastRecipient => SelectedCommand == BattleAbility.Draw && SelectingTarget && selectedDrawSourceId is not null;
