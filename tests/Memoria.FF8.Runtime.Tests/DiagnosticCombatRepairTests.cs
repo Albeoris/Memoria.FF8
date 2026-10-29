@@ -119,7 +119,7 @@ public sealed class DiagnosticCombatRepairTests
         Assert.Same(actor, session.Combatants[0]);
         Assert.Same(timers, typeof(BattleCombatant).GetProperty("NativeStatusTimers", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(actor));
         BattleDiagnosticCombatant observed = session.ObserveDiagnosticCombatants()[0];
-        Assert.Equal((ushort)0, observed.Statuses0);
+        Assert.Equal((ushort)0x200, observed.Statuses0); // Native low-HP classification is derived from400/1000HP.
         Assert.Equal(0u, observed.Statuses1);
         Assert.All(timers, timer => Assert.Equal((short)-1111, timer));
         Assert.Equal(400, actor.CurrentHp);
