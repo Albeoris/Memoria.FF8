@@ -89,21 +89,21 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleAcid170DrawBody172 body:
                     Publish(current);
-                    var drawnBody = DrawNativeAcid170Body(current, graphics, checked((byte)body.Actor), body.TemporaryAddress);
+                    var drawnBody = DrawNativeAcid170Body(current, graphics, checked((byte)body.Actor), body.TemporaryAddress, body.PilotIdentity);
                     graphics = drawnBody.Graphics;
                     return drawnBody.Frame;
                 case NativeBattleAcid170DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)));
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)), sprite.PilotIdentity);
                 case NativeBattleAcid170DrawMesh92 selectedMesh:
-                    return DrawSelectedMesh(current, selectedMesh.TemporaryAddress, selectedMesh.SourceAddress, selectedMesh.TableBaseBucket, unchecked((byte)(selectedMesh.DepthShift & 31)));
+                    return DrawSelectedMesh(current, selectedMesh.TemporaryAddress, selectedMesh.SourceAddress, selectedMesh.TableBaseBucket, unchecked((byte)(selectedMesh.DepthShift & 31)), selectedMesh.PilotIdentity);
                 case NativeBattleAcid170DrawStatic88 mesh:
-                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)));
+                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)), mesh.PilotIdentity);
                 default:
                     throw new NotSupportedException("Acid170 emitted an unsupported native operation.");
             }
         }
 
-        NativeBattleAcid170Frame DrawSprite(NativeBattleAcid170Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleAcid170Frame DrawSprite(NativeBattleAcid170Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Acid170 sprite requires its actual temporary memory.");
@@ -112,22 +112,22 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Acid170 sprite arguments differ from its physical temporary.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Acid170 sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Acid170 sprite requires its projection."), Camera().Roll, bucket, shift);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Acid170 sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Acid170 sprite requires its projection."), Camera().Roll, bucket, shift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }
 
-        NativeBattleAcid170Frame DrawMesh(NativeBattleAcid170Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleAcid170Frame DrawMesh(NativeBattleAcid170Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleStaticMeshResource mesh = resources.ReadMesh(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Acid170 mesh requires its actual temporary memory.");
             NativeBattleEffectArena temporary = Temporary(staging, address, 88);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Acid170 requires its current projection."), temporary, colors, bucket, shift);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Acid170 requires its current projection."), temporary, colors, bucket, shift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context, 88) };
             return Deliver(current, drawn.Batch);
         }
 
-        NativeBattleAcid170Frame DrawSelectedMesh(NativeBattleAcid170Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleAcid170Frame DrawSelectedMesh(NativeBattleAcid170Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleStaticMeshResource mesh = resources.ReadMesh(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Acid170 selected mesh requires its actual temporary memory.");
@@ -138,14 +138,14 @@ public sealed partial class BattleSession
             NativeBattleGfGeometryBatch batch;
             if ((flags & 0x400) != 0)
             {
-                NativeBattleAcid170MeshContext92Step drawn = NativeBattleAcid170MeshContext92.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Acid170 selected mesh requires its projection."), temporary, colors, bucket, shift, selected, selected is uint vertexAddress ? offset => SelectedVertex(current, vertexAddress, offset) : null);
+                NativeBattleAcid170MeshContext92Step drawn = NativeBattleAcid170MeshContext92.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Acid170 selected mesh requires its projection."), temporary, colors, bucket, shift, selected, selected is uint vertexAddress ? offset => SelectedVertex(current, vertexAddress, offset) : null, pilotIdentity: pilotIdentity);
                 memory = drawn.Memory;
                 temporary = drawn.Context92;
                 batch = drawn.Batch;
             }
             else
             {
-                NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Acid170 selected mesh requires its projection."), temporary, colors, bucket, shift, selected, selected is uint vertexAddress ? offset => SelectedVertex(current, vertexAddress, offset) : null);
+                NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Acid170 selected mesh requires its projection."), temporary, colors, bucket, shift, selected, selected is uint vertexAddress ? offset => SelectedVertex(current, vertexAddress, offset) : null, pilotIdentity: pilotIdentity);
                 memory = drawn.Memory;
                 temporary = drawn.Context;
                 batch = drawn.Batch;

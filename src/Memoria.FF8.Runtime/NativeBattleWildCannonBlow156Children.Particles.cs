@@ -19,7 +19,7 @@ public static partial class NativeBattleWildCannonBlow156Children
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(0xDB528Cu)).Write(4, BitConverter.GetBytes((ushort)(task.ReadWord(12) & 3))).Write(0x24, new byte[2]);
         frame = PublishContext(frame, temporary, context, 180);
-        frame = inputs.Execute(frame, new NativeBattleWildCannonBlow156DrawSprite180(temporary, 0xDB528C));
+        frame = inputs.Execute(frame, new NativeBattleWildCannonBlow156DrawSprite180(temporary, 0xDB528C) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(156, task) with { ResourceGeneration = 0xDB528C } });
         frame = Release(frame, 180);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -68,7 +68,7 @@ public static partial class NativeBattleWildCannonBlow156Children
             {
                 frame = SetupSprite(frame, inputs, record + 8, size, unchecked((short)-(size >> 4)));
             }
-            frame = inputs.Execute(frame, new NativeBattleWildCannonBlow156DrawSprite180(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleWildCannonBlow156DrawSprite180(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(156, task, kind * 150 + index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(156, frame.State.Globals, record, 0).Generation } });
             if (paused)
             {
                 continue;
@@ -194,7 +194,12 @@ public static partial class NativeBattleWildCannonBlow156Children
     private static NativeBattleVector Point(NativeBattleWildCannonBlow156Frame frame, uint address) => new(Word(frame, address), Word(frame, address + 2), Word(frame, address + 4));
     private static NativeBattleWildCannonBlow156Frame PutWord(NativeBattleWildCannonBlow156Frame frame, uint address, int value) => frame with { State = frame.State.WriteWord(address, unchecked((ushort)value)) };
     private static NativeBattleWildCannonBlow156Frame PutDword(NativeBattleWildCannonBlow156Frame frame, uint address, uint value) => frame with { State = frame.State.WriteDword(address, value) };
-    private static NativeBattleWildCannonBlow156Frame BirthHeader(NativeBattleWildCannonBlow156Frame frame, uint record, NativeBattleModulePoolTask task) => PutWord(PutDword(frame, record, unchecked((uint)(int)Signed(task, 0x18))), record + 4, 0);
+    private static NativeBattleWildCannonBlow156Frame BirthHeader(NativeBattleWildCannonBlow156Frame frame, uint record, NativeBattleModulePoolTask task)
+    {
+        frame = PutWord(PutDword(frame, record, unchecked((uint)(int)Signed(task, 0x18))), record + 4, 0);
+        NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, record, 0);
+        return frame;
+    }
     private static uint FindFree(NativeBattleWildCannonBlow156Frame frame, uint bank, int count)
     {
         for (int index = 0; index < count; index++)

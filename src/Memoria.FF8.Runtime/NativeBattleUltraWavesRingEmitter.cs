@@ -7,7 +7,7 @@ public sealed record NativeBattleUltraWavesEmitterStep(NativeBattleEffectMemory 
 
 public static class NativeBattleUltraWavesRingEmitter
 {
-    public static NativeBattleUltraWavesEmitterStep Advance(NativeBattleUltraWavesEmitterStep step, ushort effect, NativeBattleStaticMeshResource ring, ImmutableArray<uint> palette, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, bool paused, Func<NativeBattleUltraWavesEmitterStep, NativeBattleGfGeometryBatch, NativeBattleUltraWavesEmitterStep> deliver)
+    public static NativeBattleUltraWavesEmitterStep Advance(NativeBattleUltraWavesEmitterStep step, ushort effect, NativeBattleStaticMeshResource ring, ImmutableArray<uint> palette, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, bool paused, Func<NativeBattleUltraWavesEmitterStep, NativeBattleGfGeometryBatch, NativeBattleUltraWavesEmitterStep> deliver, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int divisor = effect switch
         {
@@ -85,7 +85,7 @@ public static class NativeBattleUltraWavesRingEmitter
             {
                 context = context.Write(12, BitConverter.GetBytes(unchecked((life - 6) * 682))).Write(0x1C, BitConverter.GetBytes(U32(context, 0x1C) | 0xC0));
             }
-            NativeBattleUltraWavesRingDraw drawn = NativeBattleUltraWavesRingDrawing.Draw(step.Memory, context, ring, projection, constants);
+            NativeBattleUltraWavesRingDraw drawn = NativeBattleUltraWavesRingDrawing.Draw(step.Memory, context, ring, projection, constants, pilotIdentity: pilotIdentity is { } identity ? NativeBattleUltraWavesVisualLifetimes.Identity(identity, step.Task, particle) : null);
             context = drawn.Temporary108;
             step = step with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(step.Staging, contextAllocation.Address, context, 108) };
             step = step with { Staging = NativeBattleTemporaryMemory.PublishView(step.Staging, matrixAllocation.Address, temporary, 136) };
@@ -138,6 +138,10 @@ public static class NativeBattleUltraWavesRingEmitter
                     Put(at + 16 + axis * 2, unchecked(Word(step.Task, 24 + axis * 2) * 150) >> 12);
                 }
                 Put(at + 22, 100);
+                if (pilotIdentity.HasValue)
+                {
+                    NativeBattleUltraWavesVisualLifetimes.Allocated(step.Task, particle);
+                }
                 break;
             }
         }

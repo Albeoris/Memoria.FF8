@@ -11,7 +11,7 @@ public static partial class NativeBattleMeltEye158Controller
         short scale = DrawingWord(task, 0x1C);
         (frame, uint temporary) = DrawingAllocate(frame, 180);
         frame = DrawingBeginSprite(frame, temporary, resources.SpriteA.Address);
-        frame = inputs.Execute(frame, new NativeBattleMeltEye158DrawSprite180(temporary, resources.SpriteA.Address, TaskVector(task, 0x10), DrawingOptionalWord(task, 0x16), scale, unchecked((short)-(scale >> 3)), DrawingWord(task, 12)));
+        frame = inputs.Execute(frame, new NativeBattleMeltEye158DrawSprite180(temporary, resources.SpriteA.Address, TaskVector(task, 0x10), DrawingOptionalWord(task, 0x16), scale, unchecked((short)-(scale >> 3)), DrawingWord(task, 12)) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(158, task) with { ResourceGeneration = resources.SpriteA.Address } });
         frame = DrawingRelease(frame, 180);
         if (DrawingPaused(inputs))
         {
@@ -31,7 +31,7 @@ public static partial class NativeBattleMeltEye158Controller
         local = local with { Rotation = NativeBattlePoseMatrices.ScaleRotation56BEF0(local.Rotation, new(scale, scale, scale)), X = DrawingWord(task, 0x10), Y = DrawingWord(task, 0x12), Z = DrawingWord(task, 0x14) };
         frame = DrawingLoad(frame, inputs, local);
         int age = DrawingWord(task, 12);
-        frame = DrawingStatic(frame, resources.MeshB.Address, age < 6 ? 0x33u : 0xF3u, age < 6 ? null : (age - 6) << 9, 2, inputs);
+        frame = DrawingStatic(frame, resources.MeshB.Address, age < 6 ? 0x33u : 0xF3u, age < 6 ? null : (age - 6) << 9, 2, inputs, NativeBattlePilotVisualLifetimes.Identity(158, task) with { ResourceGeneration = resources.MeshB.Address });
         if (DrawingPaused(inputs))
         {
             return (frame, 0);
@@ -60,7 +60,7 @@ public static partial class NativeBattleMeltEye158Controller
         local = local with { X = origin.X, Y = origin.Y, Z = origin.Z };
         frame = DrawingLoad(frame, inputs, local);
         int age = DrawingWord(task, 12);
-        frame = DrawingStatic(frame, resources.MeshA.Address, age < 8 ? 0x33u : 0xF3u, age < 8 ? null : (age - 8) * 682, 30, inputs);
+        frame = DrawingStatic(frame, resources.MeshA.Address, age < 8 ? 0x33u : 0xF3u, age < 8 ? null : (age - 8) * 682, 30, inputs, NativeBattlePilotVisualLifetimes.Identity(158, task) with { ResourceGeneration = resources.MeshA.Address });
         if (DrawingPaused(inputs))
         {
             return (frame, 0);
@@ -77,7 +77,7 @@ public static partial class NativeBattleMeltEye158Controller
         return LoadGteMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(combined, null));
     }
 
-    private static NativeBattleMeltEye158Frame DrawingStatic(NativeBattleMeltEye158Frame frame, uint source, uint flags, int? cue, byte shift, NativeBattleMeltEye158Inputs inputs)
+    private static NativeBattleMeltEye158Frame DrawingStatic(NativeBattleMeltEye158Frame frame, uint source, uint flags, int? cue, byte shift, NativeBattleMeltEye158Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         (frame, uint temporary) = DrawingAllocate(frame, 88);
         NativeBattleFileStaging staging = frame.Staging!.Write(temporary, BitConverter.GetBytes(source)).Write(temporary + 8, new byte[4]).Write(temporary + 0x1C, BitConverter.GetBytes(flags));
@@ -85,7 +85,7 @@ public static partial class NativeBattleMeltEye158Controller
         {
             staging = staging.Write(temporary + 12, BitConverter.GetBytes(value));
         }
-        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleMeltEye158DrawStatic88(temporary, source, shift));
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleMeltEye158DrawStatic88(temporary, source, shift) { PilotIdentity = pilotIdentity });
         return DrawingRelease(frame, 88);
     }
 

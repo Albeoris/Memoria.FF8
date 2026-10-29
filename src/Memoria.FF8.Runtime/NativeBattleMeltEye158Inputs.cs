@@ -5,7 +5,11 @@ public sealed record NativeBattleMeltEye158Frame(NativeBattleEffectMemory Memory
     public NativeBattleFileStaging? Staging { get; init; }
 }
 public sealed record NativeBattleMeltEye158PointStep(NativeBattleMeltEye158Frame Frame, NativeBattleVector Position);
-public abstract record NativeBattleMeltEye158Operation;
+public abstract record NativeBattleMeltEye158Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleMeltEye158Sound(uint Packed) : NativeBattleMeltEye158Operation;
 public sealed record NativeBattleMeltEye158BulkContact(int First, int Count) : NativeBattleMeltEye158Operation;
 public sealed record NativeBattleMeltEye158DrawStatic88(uint Temporary88, uint MeshAddress, byte DepthShift) : NativeBattleMeltEye158Operation;

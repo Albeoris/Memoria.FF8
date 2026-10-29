@@ -40,9 +40,21 @@ public static class NativeBattleBreath129Mesh
                 context = NativeBattleEffectNodeContextMemory.Copy(ReadBytes(frame, checked(selected + (uint)index * 4), 8), 0, context, 56 + corner * 8, 8);
             }
             frame = PublishContext(frame, temporary, context, 92);
+            NativeBattleActionMatrix? pilotMatrix = inputs.PilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+            System.Numerics.Vector3[]? world = inputs.PilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
+            System.Numerics.Vector3 World(int corner)
+            {
+                byte[] xyz = context.Read(56 + corner * 8, 6);
+                NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
+                return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix!, point), inputs.ReadProjection(frame));
+            }
             for (int corner = 0; corner < 3; corner++)
             {
                 registers = Load(registers, corner, context, 56 + corner * 8);
+                if (world is not null)
+                {
+                    world[corner] = World(corner);
+                }
             }
             registers = NativeBattleGeometry.ProjectTriple(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
             byte[] mask = new byte[52];
@@ -63,6 +75,10 @@ public static class NativeBattleBreath129Mesh
                     Store(8 + corner * 12, BitConverter.GetBytes(registers.Geometry.Sxy[corner]!.Value));
                 }
                 registers = Load(registers, 0, context, 80);
+                if (world is not null)
+                {
+                    world[3] = World(3);
+                }
                 registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
                 Store(44, BitConverter.GetBytes(registers.Geometry.Sxy[2]!.Value));
                 registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Native Breath GT4 requires its current ZSF4."));
@@ -109,7 +125,8 @@ public static class NativeBattleBreath129Mesh
                     frame = Publish(frame, registers);
                     frame = PublishContext(frame, temporary, context, 92);
                     frame = AppendWindow(frame, checked(cursor + 52), context, 16, selectedBucket, inputs);
-                    frame = Append(frame, cursor, packet, mask, selectedBucket, payload, true, inputs);
+                    NativeBattlePilotVisualGeometry? geometry = inputs.PilotIdentity is { } identity && world is not null ? new(identity with { Primitive = unchecked(identity.Primitive * 397 + (int)faces) }, world[0], world[1], world[2], world[3], 4) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } : null;
+                    frame = Append(frame, cursor, packet, mask, selectedBucket, payload, true, inputs, geometry);
                     frame = AppendWindow(frame, checked(cursor + 64), context, 24, selectedBucket, inputs);
                     cursor = checked(cursor + 76);
                 }
@@ -157,12 +174,12 @@ public static class NativeBattleBreath129Mesh
         NativeBattleEffectArena packet = ReadBytes(frame, address, 12).Write(0, BitConverter.GetBytes(0x02000000u)).Write(4, BitConverter.GetBytes(window)).Write(8, new byte[4]);
         return Append(frame, address, packet, Enumerable.Repeat((byte)1, 12).ToArray(), bucket, [0, 0, 0, 0], true, inputs);
     }
-    private static NativeBattleBreath129Frame Append(NativeBattleBreath129Frame frame, uint address, NativeBattleEffectArena packet, byte[] writes, int bucket, ImmutableArray<int> payload, bool insert, NativeBattleBreath129Inputs inputs)
+    private static NativeBattleBreath129Frame Append(NativeBattleBreath129Frame frame, uint address, NativeBattleEffectArena packet, byte[] writes, int bucket, ImmutableArray<int> payload, bool insert, NativeBattleBreath129Inputs inputs, NativeBattlePilotVisualGeometry? pilotGeometry = null)
     {
         frame = WriteBytes(frame, address, packet, writes.Length);
         (byte[] data, bool[] known) = packet.ReadSnapshot(0, writes.Length);
         NativeBattleGfPacketByteState[] mask = writes.Select(value => value == 0 ? NativeBattleGfPacketByteState.Untouched : NativeBattleGfPacketByteState.Known).ToArray();
-        return inputs.Execute(frame, new NativeBattleBreath129AppendPacket(address, writes.Length, writes.Length, bucket, 0, data, known) { WriteMask = mask, VertexPayload4 = payload, Insert = insert });
+        return inputs.Execute(frame, new NativeBattleBreath129AppendPacket(address, writes.Length, writes.Length, bucket, 0, data, known) { WriteMask = mask, VertexPayload4 = payload, Insert = insert, PilotGeometry = pilotGeometry });
     }
     private static uint ReadDword(NativeBattleBreath129Frame frame, uint address) => Dword(ReadBytes(frame, address, 4), 0);
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));

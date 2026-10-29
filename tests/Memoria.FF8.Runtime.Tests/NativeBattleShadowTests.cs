@@ -154,6 +154,34 @@ public sealed class NativeBattleShadowTests
         Assert.Throws<InvalidDataException>(() => NativeBattlePoseMatrices.ShadowBounds5086F0(source, pose with { Bones = [] }));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Group14_caller_shadow_identity_keeps_native_fan_ledger_and_default_null(bool gouraud)
+    {
+        NativeBattleModuleProjectedVertex[] points = Projected();
+        System.Numerics.Vector3[] world = Enumerable.Range(0, 10).Select(index => new System.Numerics.Vector3(index * 10, index * 20, 2000)).ToArray();
+        NativeBattlePilotVisualIdentity caller = new(169, 0x23B1D08, 2, 5, 0x5088A0);
+        NativeBattleGfGeometryBatch native = NativeBattleShadowPackets.EmitBatch5088A0(points, 0x32A1C3E5, gouraud, 17, 4);
+        NativeBattleGfGeometryBatch captured = NativeBattleShadowPackets.EmitBatch5088A0(points, 0x32A1C3E5, gouraud, 17, 4, world, caller);
+        NativeBattleGfGeometryBatch explicitDefault = NativeBattleShadowPackets.EmitBatch5088A0(points, 0x32A1C3E5, gouraud, 17, 4, world, null);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(explicitDefault));
+        Assert.All(native.Attempts, attempt => Assert.Null(attempt.Primitive!.PilotGeometry));
+        Assert.Null(captured.Attempts[0].Primitive!.PilotGeometry);
+        Assert.Null(captured.Attempts[^1].Primitive!.PilotGeometry);
+        for (int triangle = 0; triangle < 8; triangle++)
+        {
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(captured.Attempts[triangle + 1].Primitive!.PilotGeometry);
+            Assert.Equal(caller with { Primitive = unchecked(caller.Primitive * 397 + triangle) }, geometry.Identity);
+            Assert.Equal(world[0], geometry.A);
+            Assert.Equal(world[triangle + 1], geometry.B);
+            Assert.Equal(world[triangle + 2], geometry.C);
+            Assert.Equal(4, geometry.DepthQuantum);
+            Assert.Equal(-300, geometry.DepthOffset);
+        }
+    }
+
     private static NativeBattleActionMatrix Identity() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
 
     private static NativeBattleModuleProjectedVertex[] Projected()

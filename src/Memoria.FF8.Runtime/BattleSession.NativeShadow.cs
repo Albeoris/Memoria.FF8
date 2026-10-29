@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState SubmitNativeShadowPackets5088A0(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleCameraProjection projection, int tableBaseBucket, bool ordinaryModel, byte depthShift = 16, uint? privateOrderingAddress = null, bool pilotScreenSpace = false, bool pilotContinuous = true)
+    private NativeBattleGraphicsState SubmitNativeShadowPackets5088A0(NativeBattleGraphicsState graphics, NativeBattleGraphicsModel model, NativeBattleCameraProjection projection, int tableBaseBucket, bool ordinaryModel, byte depthShift = 16, uint? privateOrderingAddress = null, bool pilotScreenSpace = false, bool pilotContinuous = true, NativeBattlePilotVisualIdentity? callerPilotIdentity = null)
     {
         if (this.definition.NativeGraphics?.PrimitiveTables is null || (model.Flags0 & 0x20) != 0)
         {
@@ -34,11 +34,11 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveProcess packets = memory.PrimitiveProcess ?? throw new NotSupportedException("Native5088A0 requires its actual common packet cursor.");
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native5088A0 requires its initialized OT.");
         NativeBattleGfGeometryBatch batch = NativeBattleShadowPackets.EmitBatch5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native5088A0 requires modelDWORD44."), gouraud, tableBaseBucket, depthShift);
-        if (NativePilotSceneIdentity(0x5088A0, model.Index) is { } identity)
+        if ((callerPilotIdentity ?? NativePilotSceneIdentity(0x5088A0, model.Index)) is { } identity)
         {
             System.Numerics.Vector3 World(int corner) => pilotScreenSpace ? new(unchecked((short)vertices[corner].Screen), unchecked((short)(vertices[corner].Screen >> 16)), vertices[corner].Depth) : NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shape.CameraMatrix, shape.Vertices[corner]), projection);
             int Depth(int corner) => 4 * (vertices[corner].Depth >> 2) - 300;
-            batch = batch with { Attempts = batch.Attempts.Select((attempt, index) => index is >= 1 and <= 8 && attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = index - 1 }, World(0), World(index), World(index + 1), default, 3, pilotContinuous) { ScreenSpace = pilotScreenSpace, DepthOffset = -300, DepthQuantum = 4, SourceDepths = new(Depth(0), Depth(index), Depth(index + 1), 0), UseSourceDepths = pilotScreenSpace } } } : attempt).ToImmutableArray() };
+            batch = batch with { Attempts = batch.Attempts.Select((attempt, index) => index is >= 1 and <= 8 && attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = callerPilotIdentity.HasValue ? unchecked(identity.Primitive * 397 + index - 1) : index - 1 }, World(0), World(index), World(index + 1), default, 3, pilotContinuous) { ScreenSpace = pilotScreenSpace, DepthOffset = -300, DepthQuantum = 4, SourceDepths = new(Depth(0), Depth(index), Depth(index + 1), 0), UseSourceDepths = pilotScreenSpace } } } : attempt).ToImmutableArray() };
         }
         if (privateOrderingAddress is uint table)
         {

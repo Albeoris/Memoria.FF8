@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 {
     private sealed record NativeUltraWavesCaptureResult(NativeBattleGraphicsState Graphics, NativeBattleEffectArena Packets, NativeBattleEffectArena CapturePackets, int Cursor);
 
-    private NativeUltraWavesCaptureResult CaptureNativeUltraWaves(NativeBattleGraphicsState graphics, NativeBattleEffectArena packets, NativeBattleEffectArena capturePackets, int cursor, string packetBank, string captureBank, ImmutableArray<int> directory)
+    private NativeUltraWavesCaptureResult CaptureNativeUltraWaves(NativeBattleGraphicsState graphics, NativeBattleEffectArena packets, NativeBattleEffectArena capturePackets, int cursor, string packetBank, string captureBank, ImmutableArray<int> directory, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Ultra Waves capture requires its process memory.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Ultra Waves capture requires its primitive process.");
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             NativeBattleUltraWavesStageCapture84Step drawn;
             try
             {
-                drawn = NativeBattleUltraWavesStageCapture84.DrawGroup(memory, temporary, group.ColorFlags, group.ColorDepth, bones, Read, geometryAddress, View(scratchAddress, scratchLength), scratchLength, captureProjection, definition.NativeGraphics!.Rules.SummonColors!, definition.NativeGraphics.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Ultra Waves capture requires its renderer capability."), directory[index * 2], checked((byte)directory[index * 2 + 1]));
+                drawn = NativeBattleUltraWavesStageCapture84.DrawGroup(memory, temporary, group.ColorFlags, group.ColorDepth, bones, Read, geometryAddress, View(scratchAddress, scratchLength), scratchLength, captureProjection, definition.NativeGraphics!.Rules.SummonColors!, definition.NativeGraphics.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Ultra Waves capture requires its renderer capability."), directory[index * 2], checked((byte)directory[index * 2 + 1]), pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + index), ResourceGeneration = geometryAddress } : null);
             }
             catch (InvalidDataException exception)
             {

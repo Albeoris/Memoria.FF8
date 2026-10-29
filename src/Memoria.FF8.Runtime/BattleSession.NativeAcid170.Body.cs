@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleAcid170Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeAcid170Body(NativeBattleAcid170Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress)
+    private (NativeBattleAcid170Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeAcid170Body(NativeBattleAcid170Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Acid170 target requires its current skeleton.");
@@ -25,7 +25,7 @@ public sealed partial class BattleSession
 
         NativeBattleAcid170ModelFrame Shadow(NativeBattleAcid170ModelFrame current)
         {
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Acid170 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Acid170 shadow requires its current GTE data.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Acid170 shadow requires its depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Acid170 shadow requires its original template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Acid170 shadow requires its primitive capabilities."), 4121, 16);
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Acid170 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Acid170 shadow requires its current GTE data.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Acid170 shadow requires its depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Acid170 shadow requires its original template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Acid170 shadow requires its primitive capabilities."), 4121, 16, pilotIdentity is { } shadowOwner ? shadowOwner with { Primitive = 0x5088A0 } : null);
             current = current with { Memory = current.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors }, Staging = shadow.Staging };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78) };
             current = AppendCommon(current, shadow.Batch);
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
         NativeBattleAcid170ModelFrame DrawBody(NativeBattleAcid170ModelFrame current)
         {
             NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(Bridge(current), false);
-            return DrawSource(current, pointer, NativeBattleBodyBoneMatrices.Require(current.Model, source));
+            return DrawSource(current, pointer, NativeBattleBodyBoneMatrices.Require(current.Model, source), false);
         }
 
         NativeBattleAcid170ModelFrame Restore(NativeBattleAcid170ModelFrame current)
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
             NativeBattleActionMatrix world = current.Model.GeometryWorldMatrix ?? throw new NotSupportedException("Acid170 linked target requires its actual world matrix.");
             ImmutableArray<NativeBattleActionMatrix> composed = NativeBattlePoseMatrices.ComposeStageCamera(local.Matrices, world, 0);
             current = current with { Model = current.Model with { CurrentLinkedBoneMatrices = local with { Matrices = composed } } };
-            current = DrawSource(current, NativeDeformedGeometryPointer(Bridge(current), true), composed);
+            current = DrawSource(current, NativeDeformedGeometryPointer(Bridge(current), true), composed, true);
             NativeBattleSequenceState sequence = current.Model.SequenceState ?? throw new NotSupportedException("Acid170 linked target requires its decoded pose.");
             NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, linkedSource);
             ImmutableArray<NativeBattleActionMatrix> restored = NativeBattlePoseMatrices.StageBoneMatrices(linkedSource, decoded);
@@ -66,12 +66,12 @@ public sealed partial class BattleSession
             return current with { Model = current.Model with { CurrentLinkedBoneMatrices = local with { Matrices = restored } }, Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
         }
 
-        NativeBattleAcid170ModelFrame DrawSource(NativeBattleAcid170ModelFrame current, NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> matrices)
+        NativeBattleAcid170ModelFrame DrawSource(NativeBattleAcid170ModelFrame current, NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> matrices, bool linkedSource)
         {
             uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Acid170 target requires its physical geometry address.");
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativeAcid170View(current.Staging, scratchAddress, scratchLength);
-            NativeBattleAcid170ModelStep drawn = NativeBattleAcid170ModelDrawing.DrawBody(current.Memory, current.Temporary172, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Acid170 target requires its current depth controls."), scratchAddress, scratchLength);
+            NativeBattleAcid170ModelStep drawn = NativeBattleAcid170ModelDrawing.DrawBody(current.Memory, current.Temporary172, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Acid170 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = linkedSource ? 1 : 0, ResourceGeneration = sourceAddress } : null);
             current = current with { Memory = drawn.Memory, Temporary172 = drawn.Temporary172, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, temporaryAddress, current.Temporary172, 172) };
             return AppendCommon(current, drawn.Batch);

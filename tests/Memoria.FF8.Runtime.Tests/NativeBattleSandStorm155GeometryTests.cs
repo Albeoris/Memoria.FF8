@@ -85,11 +85,14 @@ public sealed class NativeBattleSandStorm155GeometryTests
         uint address = 0x23F1AF8;
         NativeBattleModulePoolTask task = NativeBattleSandStorm155Controller.Read(frame, address).WriteWord(12, unchecked((ushort)age)).WriteWord(0x12, 4096).WriteWord(0x16, 32);
         frame = NativeBattleSandStorm155Controller.Write(frame, address, task);
+        List<NativeBattlePilotVisualIdentity> identities = [];
         List<NativeBattleEffectArena> contexts = [];
         List<ImmutableArray<int?>> translations = [];
         NativeBattleSandStorm155Inputs inputs = Inputs((current, operation) =>
         {
             NativeBattleSandStorm155DrawMesh88 draw = Assert.IsType<NativeBattleSandStorm155DrawMesh88>(operation);
+            identities.Add(Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity));
+            Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(draw));
             contexts.Add(NativeBattleTemporaryMemory.ReadView(current.Staging!, draw.TemporaryAddress, 88));
             translations.Add(current.Memory.GeometryRegisters!.Translation);
             return current;
@@ -97,6 +100,10 @@ public sealed class NativeBattleSandStorm155GeometryTests
         (NativeBattleSandStorm155Frame actual, int result) = NativeBattleSandStorm155Mesh.Advance607210(frame, address, Resources(), inputs, 0x200);
         Assert.Equal(0, result);
         Assert.Equal(2, contexts.Count);
+        Assert.Equal(new int[] { 0, 1 }, identities.Select(identity => identity.Primitive).ToArray());
+        Assert.NotEqual(identities[0], identities[1]);
+        Assert.Equal(identities[0] with { Primitive = 1 }, identities[1]);
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(155, task) with { ResourceGeneration = Resources().Mesh.Address }, identities[0]);
         Assert.Equal(flags, BinaryPrimitives.ReadUInt32LittleEndian(contexts[0].Read(0x1C, 4)));
         Assert.Equal(0x20F3u, BinaryPrimitives.ReadUInt32LittleEndian(contexts[1].Read(0x1C, 4)));
         Assert.Equal(firstCue, BinaryPrimitives.ReadInt32LittleEndian(contexts[0].Read(12, 4)));

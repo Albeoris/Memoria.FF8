@@ -91,14 +91,42 @@ public sealed class NativeBattleAcid170MeshContext92Tests
         Assert.Throws<NotSupportedException>(() => NativeBattleAcid170MeshContext92.DrawLoaded(Memory(2000), Mesh(3), new(null, 100, 160, 108), Context(), NativeBattleGteColorInterpolation.CodeConstants45F270));
     }
 
-    private static NativeBattleAcid170MeshContext92Step Draw(int group, int depth = 2000, bool flat = false, bool reverse = false, short fourthZ = 0, bool outside = false, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? context = null)
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(7)]
+    public void Group14_selected_source_capture_retains_loaded_matrix_compound_ledger_and_depths(int group)
+    {
+        NativeBattlePilotVisualIdentity identity = new(170, 0x240CC08, 3, 7, 2) { ResourceGeneration = 0x23B10F0 };
+        var native = Draw(group);
+        var captured = Draw(group, pilotIdentity: identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Null(Assert.Single(native.Batch.Attempts).Primitive!.PilotGeometry);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(identity with { Primitive = identity.Primitive * 397 + 44 + group * 4 }, geometry.Identity);
+        Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(400, -400, 2000), geometry.B);
+        Assert.Equal(new System.Numerics.Vector3(-400, 400, 2000), geometry.C);
+        Assert.Equal(group == 2 ? (byte)3 : (byte)4, geometry.CornerCount);
+        if (geometry.CornerCount == 4)
+        {
+            Assert.Equal(new System.Numerics.Vector3(400, 400, 2000), geometry.D);
+        }
+        Assert.False(geometry.UseSourceDepths);
+        var nearNative = Draw(group, depth: 0);
+        var nearCaptured = Draw(group, depth: 0, pilotIdentity: identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(nearNative), NativeBattleTestSnapshots.Json(nearCaptured));
+        Assert.Null(Assert.Single(nearCaptured.Batch.Attempts).Primitive);
+    }
+
+    private static NativeBattleAcid170MeshContext92Step Draw(int group, int depth = 2000, bool flat = false, bool reverse = false, short fourthZ = 0, bool outside = false, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? context = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector[] positions = [new(-400, -400, 0), new(400, -400, 0), new(-400, flat ? (short)-400 : (short)400, 0), new(400, 400, fourthZ)];
         if (outside)
         {
             positions = [new(-5000, -400, 0), new(-4000, -400, 0), new(-5000, 400, 0), new(-4000, 400, 0)];
         }
-        return NativeBattleAcid170MeshContext92.DrawLoaded(memory ?? Memory(depth), Mesh(group, reverse), new(null, 100, 160, 108), context ?? Context(), NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, 0x23B10F0, offset => (positions[offset / 8], null));
+        return NativeBattleAcid170MeshContext92.DrawLoaded(memory ?? Memory(depth), Mesh(group, reverse), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), context ?? Context(), NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, 0x23B10F0, offset => (positions[offset / 8], null), pilotIdentity);
     }
     private static NativeBattleEffectMemory Memory(int z) => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = z }, true, true, 123), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
     private static NativeBattleEffectArena Context() => NativeBattleEffectArena.Clear().MarkUnknown(0, 92).Write(0, BitConverter.GetBytes(0xD6904Cu)).Write(4, BitConverter.GetBytes(0x23B10F0u)).Write(8, new byte[3]).Write(12, BitConverter.GetBytes(2048)).Write(16, BitConverter.GetBytes((ushort)32)).Write(28, BitConverter.GetBytes(0x24F3u));

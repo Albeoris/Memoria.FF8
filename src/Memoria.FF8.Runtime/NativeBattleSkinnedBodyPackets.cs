@@ -5,8 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleSkinnedBodyPackets
 {
-    public static (NativeBattleEffectArena Temporary, NativeBattleGeometryRegisterStep Registers, NativeBattleGfGeometryAttempt Attempt) EmitBaseFace(byte[] source, bool quad, NativeBattleEffectArena scratch, int vertexCount, NativeBattleEffectArena temporary, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, int tableBaseBucket, byte depthShift, int offset, int flagOffset, int areaOffset, int depthOffset)
+    public static (NativeBattleEffectArena Temporary, NativeBattleGeometryRegisterStep Registers, NativeBattleGfGeometryAttempt Attempt) EmitBaseFace(byte[] source, bool quad, NativeBattleEffectArena scratch, int vertexCount, NativeBattleEffectArena temporary, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, int tableBaseBucket, byte depthShift, int offset, int flagOffset, int areaOffset, int depthOffset, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+        System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[quad ? 4 : 3] : null;
         byte[] bytes = new byte[quad ? 40 : 32];
         NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[bytes.Length];
         for (int corner = 0; corner < 3; corner++)
@@ -70,7 +72,12 @@ public static class NativeBattleSkinnedBodyPackets
             }
             byte[] xyz = scratch.Read(checked(index * 8), 6);
             (byte[] w, bool[] known) = scratch.ReadSnapshot(checked(index * 8 + 6), 2);
-            return NativeBattleGeometry.LoadVector(registers, slot, new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4))), known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(w) : null);
+            NativeBattleVector vertex = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
+            if (world is not null)
+            {
+                world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, vertex), projection);
+            }
+            return NativeBattleGeometry.LoadVector(registers, slot, vertex, known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(w) : null);
         }
 
         void Write(int at, uint value)
@@ -81,6 +88,10 @@ public static class NativeBattleSkinnedBodyPackets
 
         (NativeBattleEffectArena Temporary, NativeBattleGeometryRegisterStep Registers, NativeBattleGfGeometryAttempt Attempt) Finish(NativeBattleGeometryPrimitive? primitive)
         {
+            if (primitive is not null && pilotIdentity is { } identity && world is not null)
+            {
+                primitive = primitive with { PilotGeometry = new(identity, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)world.Length)) };
+            }
             return (temporary, registers, new(offset, bytes.ToImmutableArray(), mask.ToImmutableArray(), primitive));
         }
     }

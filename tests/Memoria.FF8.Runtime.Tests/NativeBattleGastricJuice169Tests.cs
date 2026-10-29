@@ -31,6 +31,15 @@ public sealed class NativeBattleGastricJuice169Tests
         BinaryPrimitives.WriteUInt16LittleEndian(model.AsSpan(52), 4);
         ImmutableArray<byte> vertices = World(new(-100, -100, 1000), new(100, -100, 1000), new(-100, 100, 1000));
         NativeBattleGfGeometryBatch batch = NativeBattleGastricJuice169.Emit5E0450(model.ToImmutableArray(), vertices, Identity, Projection, 0, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattlePilotVisualIdentity identity = new(169, 0x23B1D08, 4, 8, 2);
+        NativeBattleGfGeometryBatch captured = NativeBattleGastricJuice169.Emit5E0450(model.ToImmutableArray(), vertices, Identity, Projection, 0, NativeBattleGteColorInterpolation.CodeConstants45F270, identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(batch), NativeBattleTestSnapshots.Json(captured));
+        Assert.Null(Assert.Single(batch.Attempts).Primitive!.PilotGeometry);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 1000), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(100, -100, 1000), geometry.B);
+        Assert.Equal(new System.Numerics.Vector3(-100, 100, 1000), geometry.C);
+        Assert.Equal(identity with { Primitive = identity.Primitive * 397 + 44 }, geometry.Identity);
         Assert.Equal(36, batch.AllocationBytes);
         NativeBattleGfGeometryAttempt attempt = Assert.Single(batch.Attempts);
         Assert.NotNull(attempt.Primitive);
@@ -58,6 +67,66 @@ public sealed class NativeBattleGastricJuice169Tests
         Assert.Equal(0x14604Cu, overlay.Words[3] & 0xFFFFFF);
         Assert.Equal(0u, overlay.Words[5] & 0xFFFFFF);
         Assert.Equal((short)2048, BinaryPrimitives.ReadInt16LittleEndian(world.AsSpan(14)));
+    }
+
+    [Fact]
+    public void Group14_full_MAC_splash_uses_original_current_matrix_and_actual_view_only_for_capture()
+    {
+        byte[] quad = new byte[20];
+        quad[0] = 16;
+        quad[1] = 128;
+        quad[2] = 8;
+        quad[3] = 0x2C;
+        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
+        {
+            Resource = new(0, 0xD6A620, 0, 0, new byte[8].ToImmutableArray()),
+            SpriteFrame = new(-1, false, quad.ToImmutableArray()),
+            Anchor = new(0, 0, 0, 0),
+            Scale = 4096,
+            Direction = 4096,
+            SpriteCameraXOffset = 1234,
+            SpriteCameraYOffset = -120,
+            SpriteCameraZOffset = 4000
+        };
+        NativeBattlePilotVisualIdentity identity = new(169, 0x23B1D08, 4, 8, 107) { ResourceGeneration = 3 };
+        NativeBattleCameraProjection actualView = Projection with { View = Identity with { X = 100, Y = 50, Z = 200 } };
+        NativeBattleActionMatrix current = NativeBattlePoseMatrices.ModuleSpriteCamera(draw, Identity, 0);
+        NativeBattleModulePacketBatch native = NativeBattleModulePackets.EmitSprite571DC0(draw, Projection, 0, 17, 2);
+        NativeBattleModulePacketBatch captured = NativeBattleModulePackets.EmitSprite571DC0(draw with { PilotIdentity = identity }, actualView, 0, 17, 2, current);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        NativeBattleGeometryPrimitive baseline = Assert.Single(native.Primitives).Primitive;
+        Assert.Null(baseline.PilotGeometry);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Primitives).Primitive.PilotGeometry);
+        Assert.Equal(identity with { Primitive = identity.Primitive * 397 }, geometry.Identity);
+        NativeBattleActionMatrix quadMatrix = NativeBattlePoseMatrices.ModuleSpriteQuadCamera(current, quad);
+        NativeBattleVector[] corners = [new(-128, -64, 0), new(128, -64, 0), new(-128, 64, 0), new(128, 64, 0)];
+        for (int index = 0; index < corners.Length; index++)
+        {
+            System.Numerics.Vector3 camera = NativeBattlePilotVisualGeometry.Transform(quadMatrix, corners[index]);
+            Assert.Equal(camera - new System.Numerics.Vector3(100, 50, 200), geometry.Corner(index));
+        }
+        Assert.NotNull(geometry.Sprite);
+    }
+
+    [Fact]
+    public void Group14_drop_row_generation_is_shared_by_real_bank_owner_and_changes_on_reuse()
+    {
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x23B1CF8, 0x23B1D08, 36, 100);
+        (pool, int firstSlot) = pool.Append(0x5E18A0);
+        (pool, int secondSlot) = pool.Append(0x5E18A0);
+        NativeBattleModulePoolTask first = pool.Slots[firstSlot];
+        NativeBattleModulePoolTask second = pool.Slots[secondSlot];
+        NativeBattlePilotVisualIdentity before = NativeBattleGastricJuice169VisualLifetimes.Identity(first, 7, false);
+        NativeBattleGastricJuice169VisualLifetimes.Allocated(first, 7);
+        NativeBattlePilotVisualIdentity allocated = NativeBattleGastricJuice169VisualLifetimes.Identity(first, 7, false);
+        Assert.Equal(before.ResourceGeneration + 1, allocated.ResourceGeneration);
+        Assert.Equal(allocated.ResourceGeneration, NativeBattleGastricJuice169VisualLifetimes.Identity(second, 7, false).ResourceGeneration);
+        Assert.NotEqual(allocated, NativeBattleGastricJuice169VisualLifetimes.Identity(second, 7, false));
+        Assert.Equal(allocated, NativeBattleGastricJuice169VisualLifetimes.Identity(first.WriteWord(12, 9), 7, false));
+        Assert.NotEqual(allocated, NativeBattleGastricJuice169VisualLifetimes.Identity(first, 7, true));
+        Assert.Equal(before.ResourceGeneration, NativeBattleGastricJuice169VisualLifetimes.Identity(first, 8, false).ResourceGeneration);
+        NativeBattleGastricJuice169VisualLifetimes.Allocated(second, 7);
+        Assert.Equal(allocated.ResourceGeneration + 1, NativeBattleGastricJuice169VisualLifetimes.Identity(first, 7, false).ResourceGeneration);
     }
 
     private static NativeBattleActionMatrix Identity => NativeBattleCuragaMatrices.Identity8DD770();

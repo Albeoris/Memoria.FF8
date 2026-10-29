@@ -75,6 +75,8 @@ public sealed class NativeBattleBreath157ChildrenTests
         var actual = Advance(frame, callback, Inputs(0x200, (current, operation) =>
         {
             var draw = Assert.IsType<NativeBattleBreath157DrawMesh88>(operation);
+            Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(157, Read(current, TaskAddress), contexts.Count) with { ResourceGeneration = draw.SourceAddress }, draw.PilotIdentity);
+            Assert.Equal(NativeBattleTestSnapshots.Json(draw with { PilotIdentity = null }), NativeBattleTestSnapshots.Json(draw));
             sources.Add(draw.SourceAddress);
             contexts.Add(Context(current, draw.TemporaryAddress, 88));
             translations.Add(current.Memory.GeometryRegisters!.Translation);
@@ -136,7 +138,9 @@ public sealed class NativeBattleBreath157ChildrenTests
     {
         NativeBattleBreath157Frame frame = Frame(callback);
         frame = frame with { State = frame.State.WriteView(Bank + 16, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 8) };
+        long generation = NativeBattlePilotVisualLifetimes.Identity(157, frame.State.Globals, Bank, 0).Generation;
         var actual = Advance(frame, callback, Inputs());
+        Assert.True(NativeBattlePilotVisualLifetimes.Identity(157, actual.Frame.State.Globals, Bank, 0).Generation > generation);
         NativeCrtRandomState expected = frame.Random;
         for (int index = 0; index < draws; index++)
         {

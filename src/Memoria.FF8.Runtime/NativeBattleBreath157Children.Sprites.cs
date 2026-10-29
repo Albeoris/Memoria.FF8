@@ -16,7 +16,7 @@ public static partial class NativeBattleBreath157Children
         frame = NativeBattleBreath157Geometry.TransformBillboard(frame, frame.State.ReadView(MovingPoint(task), 8), Signed(task, 0x1C), true);
         (frame, uint temporary) = Allocate(frame, 180);
         frame = PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(0xDB0AC0u)).Write(4, BitConverter.GetBytes((ushort)(task.ReadWord(12) & 3))).Write(0x24, new byte[2]), 180);
-        frame = inputs.Execute(frame, new NativeBattleBreath157DrawSprite180(temporary, 0xDB0AC0));
+        frame = inputs.Execute(frame, new NativeBattleBreath157DrawSprite180(temporary, 0xDB0AC0) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(157, task) with { ResourceGeneration = 0xDB0AC0 } });
         frame = Release(frame, 180);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -69,7 +69,7 @@ public static partial class NativeBattleBreath157Children
                 short? w = known[0] && known[1] ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null;
                 frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), Point(frame, record + 8), w, size, unchecked((short)-(size >> 4))) };
             }
-            frame = inputs.Execute(frame, new NativeBattleBreath157DrawSprite180(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleBreath157DrawSprite180(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(157, Read(frame, address), kind * 100 + index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(157, frame.State.Globals, record, 0).Generation } });
             if (paused)
             {
                 continue;
@@ -103,6 +103,7 @@ public static partial class NativeBattleBreath157Children
                     break;
                 }
                 frame = frame with { State = frame.State.WriteDword(record, tag).WriteWord(record + 4, 0) };
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, record, 0);
                 frame = DrawRandom(frame, out ushort random);
                 frame = PutWord(frame, record + 6, kind switch { 0 => (random & 1023) + 768, 1 => random % 896 + 512, _ => random % 2816 + 1536 });
                 if (kind == 0)

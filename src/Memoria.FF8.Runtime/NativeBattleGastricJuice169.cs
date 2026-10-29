@@ -41,10 +41,11 @@ public static class NativeBattleGastricJuice169
         }
     }
 
-    public static NativeBattleGfGeometryBatch Emit5E0450(ImmutableArray<byte> source, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int fade, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Emit5E0450(ImmutableArray<byte> source, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int fade, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int cursor = BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan());
         int allocated = 0;
+        Dictionary<ushort, System.Numerics.Vector3>? world = pilotIdentity.HasValue ? [] : null;
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int[] lengths = [12, 12, 20, 24, 20, 24, 28, 36];
         for (int group = 0; group < 8; group++)
@@ -81,6 +82,11 @@ public static class NativeBattleGastricJuice169
                     }
                     ImmutableArray<uint> words = Enumerable.Range(0, data.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
                     primitive = accepted with { Words = words };
+                    if (pilotIdentity is { } identity && world is not null)
+                    {
+                        System.Numerics.Vector3 Corner(int corner) => world[BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan().Slice(4 + corner * 2))];
+                        primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, Corner(0), Corner(1), Corner(2), corners == 4 ? Corner(3) : default, checked((byte)corners)) };
+                    }
                     allocated += data.Length;
                 }
                 attempts.Add(new(original.ByteOffsetRelative, data.ToImmutableArray(), mask.ToImmutable(), primitive));
@@ -92,11 +98,16 @@ public static class NativeBattleGastricJuice169
         NativeBattleModuleProjectedVertex Project(ushort offset)
         {
             ReadOnlySpan<byte> bytes = vertices.AsSpan().Slice(offset * 4, 6);
-            return NativeBattleModuleProjection.Project45FE10(matrix, new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..])), projection);
+            NativeBattleVector vertex = new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..]));
+            if (world is not null)
+            {
+                world[offset] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex), projection);
+            }
+            return NativeBattleModuleProjection.Project45FE10(matrix, vertex, projection);
         }
     }
 
-    public static NativeBattleGfGeometryBatch Tint5DF540(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> worldVertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleVector center, uint modelColor, int frame, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Tint5DF540(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> worldVertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleVector center, uint modelColor, int frame, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint tint = colors.Interpolate(0x28C098, TintFade(frame), 0);
         return NativeBattleActorTintPackets.Emit(polygons, worldVertices, view, projection, modelColor, tint, colors, (positions, ratios) =>
@@ -115,6 +126,6 @@ public static class NativeBattleGastricJuice169
                 }
             }
             return near;
-        });
+        }, pilotIdentity: pilotIdentity);
     }
 }

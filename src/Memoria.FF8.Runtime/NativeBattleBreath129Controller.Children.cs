@@ -53,7 +53,7 @@ public static partial class NativeBattleBreath129Controller
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), new(Signed(task, 16), Signed(task, 18), Signed(task, 20)), size, size, unchecked((short)-(size >> 2))) };
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(0x12238C0u)).Write(4, BitConverter.GetBytes(task.ReadWord(12))).Write(36, new byte[2]);
         frame = PublishContext(frame, temporary, context, 180);
-        frame = inputs.Execute(frame, new NativeBattleBreath129DrawSprite180(temporary, 0x12238C0));
+        frame = inputs.Execute(frame, new NativeBattleBreath129DrawSprite180(temporary, 0x12238C0) { PilotIdentity = inputs.CapturePresentation ? NativeBattleBreath129VisualIdentity.Task(frame, address, 0x12238C0) : null });
         frame = Release(frame, 180);
         task = Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)));
         return (Write(frame, address, task), Signed(task, 12) >= 9 ? 2 : 0);

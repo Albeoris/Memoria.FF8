@@ -51,6 +51,27 @@ public sealed class NativeBattleUltraWavesRingEmitterTests
     }
 
     [Fact]
+    public void Native_row_birth_generation_survives_transient_particle_arena_replacement_and_pause()
+    {
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2404BD0, 0x2404BE0, 36, 100);
+        (pool, int slot) = pool.Append(0x608530);
+        NativeBattleModulePoolTask task = pool.Slots[slot].WriteBytes(12, Task(0).ReadBytes(12, 24));
+        NativeBattlePilotVisualIdentity owner = NativeBattlePilotVisualLifetimes.Identity(154, task);
+        NativeBattleUltraWavesEmitterStep input = Fixture() with { Task = task };
+        NativeBattlePilotVisualIdentity before = NativeBattleUltraWavesVisualLifetimes.Identity(owner, task, 0);
+        NativeBattleUltraWavesEmitterStep born = Advance(input, 154, pilotIdentity: owner);
+        NativeBattlePilotVisualIdentity first = NativeBattleUltraWavesVisualLifetimes.Identity(owner, born.Task, 0);
+        Assert.NotEqual(before.ResourceGeneration, first.ResourceGeneration);
+        NativeBattleUltraWavesEmitterStep copy = born with { Particles = NativeBattleEffectArena.Clear().Write(0, born.Particles.Read(0, 2400)) };
+        NativeBattleUltraWavesEmitterStep paused = Advance(copy, 154, true, pilotIdentity: owner);
+        Assert.Equal(first, NativeBattleUltraWavesVisualLifetimes.Identity(owner, paused.Task, 0));
+        Assert.Equal(NativeBattleTestSnapshots.Json(copy.Particles), NativeBattleTestSnapshots.Json(paused.Particles));
+        Assert.Equal(copy.Task.ReadWord(12), paused.Task.ReadWord(12));
+        NativeBattleUltraWavesVisualLifetimes.Allocated(paused.Task, 0);
+        Assert.NotEqual(first, NativeBattleUltraWavesVisualLifetimes.Identity(owner, paused.Task, 0));
+    }
+
+    [Fact]
     public void Fade_flag_is_sticky_across_particles_and_pause_retains_task_and_particle_bytes()
     {
         NativeBattleUltraWavesEmitterStep input = Fixture();
@@ -82,7 +103,7 @@ public sealed class NativeBattleUltraWavesRingEmitterTests
         Assert.Equal(NativeBattleTestSnapshots.Json(Advance(step, 184)), NativeBattleTestSnapshots.Json(Advance(restored, 184)));
     }
 
-    private static NativeBattleUltraWavesEmitterStep Advance(NativeBattleUltraWavesEmitterStep step, ushort effect, bool paused = false, Func<NativeBattleUltraWavesEmitterStep, NativeBattleGfGeometryBatch, NativeBattleUltraWavesEmitterStep>? deliver = null) => NativeBattleUltraWavesRingEmitter.Advance(step, effect, Mesh(), Enumerable.Repeat(0x123456u, 16).ToImmutableArray(), NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, paused, deliver ?? ((current, _) => current));
+    private static NativeBattleUltraWavesEmitterStep Advance(NativeBattleUltraWavesEmitterStep step, ushort effect, bool paused = false, Func<NativeBattleUltraWavesEmitterStep, NativeBattleGfGeometryBatch, NativeBattleUltraWavesEmitterStep>? deliver = null, NativeBattlePilotVisualIdentity? pilotIdentity = null) => NativeBattleUltraWavesRingEmitter.Advance(step, effect, Mesh(), Enumerable.Repeat(0x123456u, 16).ToImmutableArray(), NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, paused, deliver ?? ((current, _) => current), pilotIdentity: pilotIdentity);
     private static NativeBattleUltraWavesEmitterStep Fixture()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();

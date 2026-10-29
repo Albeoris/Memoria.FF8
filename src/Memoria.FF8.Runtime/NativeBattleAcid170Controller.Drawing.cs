@@ -27,7 +27,7 @@ public static partial class NativeBattleAcid170Controller
                 continue;
             }
             frame = SetupSprite170(frame, inputs, frame.State.ReadView(0x23B1008 + (uint)(point * 8), 8), unchecked((short)size), unchecked((short)-(size >> 3)));
-            frame = inputs.Execute(frame, new NativeBattleAcid170DrawSprite180(temporary, 0xD68DF8));
+            frame = inputs.Execute(frame, new NativeBattleAcid170DrawSprite180(temporary, 0xD68DF8) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(170, Read(frame, address), 0x10000 + point) with { ResourceGeneration = 0xD68DF8 } });
         }
         frame = Release(frame, 180);
         if ((inputs.GraphicsFlags & 0x201) != 0)
@@ -104,7 +104,8 @@ public static partial class NativeBattleAcid170Controller
         frame = PublishContext(frame, temporary, context, length);
         if (!selected || age < 32)
         {
-            frame = inputs.Execute(frame, selected ? new NativeBattleAcid170DrawMesh92(temporary, source) : new NativeBattleAcid170DrawStatic88(temporary, source));
+            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(170, Read(frame, address)) with { ResourceGeneration = source };
+            frame = inputs.Execute(frame, selected ? new NativeBattleAcid170DrawMesh92(temporary, source) { PilotIdentity = identity } : new NativeBattleAcid170DrawStatic88(temporary, source) { PilotIdentity = identity });
         }
         frame = Release(frame, length);
         if ((inputs.GraphicsFlags & 0x201) != 0)
@@ -154,7 +155,7 @@ public static partial class NativeBattleAcid170Controller
             context = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 16, 8), 0, context, 0x84, 8);
             frame = PublishContext(frame, temporary, context, 172);
             frame = inputs.Execute(frame, new NativeBattleAcid170ActorFlags(actor, 0, 4));
-            frame = inputs.Execute(frame, new NativeBattleAcid170DrawBody172(actor, temporary));
+            frame = inputs.Execute(frame, new NativeBattleAcid170DrawBody172(actor, temporary) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(170, Read(frame, address)) });
             frame = Release(frame, 172);
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)

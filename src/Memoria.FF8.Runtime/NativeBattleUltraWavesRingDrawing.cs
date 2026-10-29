@@ -8,7 +8,7 @@ public sealed record NativeBattleUltraWavesRingDraw(NativeBattleEffectMemory Mem
 
 public static class NativeBattleUltraWavesRingDrawing
 {
-    public static NativeBattleUltraWavesRingDraw Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary108, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleSummonColors constants)
+    public static NativeBattleUltraWavesRingDraw Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary108, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (U32(temporary108, 0) != mesh.Address || U32(temporary108, 0x1C) is not (0x33 or 0xF3))
         {
@@ -39,10 +39,20 @@ public static class NativeBattleUltraWavesRingDrawing
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = mesh.Bytes.AsSpan().Slice(directory, strides[group]).ToArray();
+                NativeBattleActionMatrix? pilotMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
+                void Capture(int corner, NativeBattleVector vertex)
+                {
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix!, vertex), projection);
+                    }
+                }
                 for (int corner = 0; corner < 3; corner++)
                 {
                     (NativeBattleVector vertex, short w) = Vertex(corner);
                     registers = NativeBattleGeometry.LoadVector(registers, corner, vertex, w);
+                    Capture(corner, vertex);
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
                 uint projectedFlags = registers.Colors.Flags ?? throw new NotSupportedException("Ultra Waves ring requires its reached RTPT flags.");
@@ -82,6 +92,10 @@ public static class NativeBattleUltraWavesRingDrawing
                         registers = registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, material, U32(temporary108, 12), far, constants).Registers };
                     }
                     attempt = attempt with { Primitive = attempt.Primitive with { Bucket = unchecked(17 + (unchecked((int)depth) >> 2)) } };
+                    if (pilotIdentity is { } identity && world is not null)
+                    {
+                        attempt = attempt with { Primitive = attempt.Primitive! with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + directory) }, world[0], world[1], world[2], world[3], 4) } };
+                    }
                     allocated = checked(allocated + attempt.PacketLength);
                 }
                 attempts.Add(attempt);
@@ -94,6 +108,7 @@ public static class NativeBattleUltraWavesRingDrawing
                     {
                         (NativeBattleVector vertex, short w) = Vertex(3);
                         registers = NativeBattleGeometry.LoadVector(registers, 0, vertex, w);
+                        Capture(3, vertex);
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         corners[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
                         registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Ultra Waves ring requires its actual ZSF4."));

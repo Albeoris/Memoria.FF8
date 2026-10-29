@@ -65,7 +65,9 @@ public sealed class NativeBattleSandStorm155ControllerTests
         {
             expected = expected.Draw(out _);
         }
+        long previousGeneration = NativeBattlePilotVisualLifetimes.Identity(155, frame.State.Globals, bank, 0).Generation;
         var actual = spiral ? NativeBattleSandStorm155Controller.AdvanceSpiral(frame, 0x23F1AF8, Resources(), Inputs()) : NativeBattleSandStorm155Controller.AdvanceSpray(frame, 0x23F1AF8, Resources(), Inputs());
+        Assert.NotEqual(previousGeneration, NativeBattlePilotVisualLifetimes.Identity(155, actual.Frame.State.Globals, bank, 0).Generation);
         Assert.Equal(expected, actual.Frame.Random);
         Assert.Equal(spiral ? 5 : 3, Enumerable.Range(0, 100).Count(index => actual.Frame.State.ReadDword(bank + (uint)(index * 24)) == 1));
         if (!spiral)
@@ -87,7 +89,10 @@ public sealed class NativeBattleSandStorm155ControllerTests
         NativeBattleSandStorm155Inputs inputs = Inputs((current, operation) =>
         {
             calls++;
-            var draw = Assert.IsType<NativeBattleSandStorm155DrawSprite180>(operation);
+            NativeBattleSandStorm155DrawSprite180 draw = Assert.IsType<NativeBattleSandStorm155DrawSprite180>(operation);
+            NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity);
+            Assert.Equal((spiral ? 100 : 0), identity.Primitive);
+            Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(155, frame.State.Globals, bank, 0).Generation, identity.ResourceGeneration);
             return current with { Staging = current.Staging!.Write(draw.TemporaryAddress + 0x28, BitConverter.GetBytes((short)-1)) };
         }) with { GraphicsFlags = 0x200 };
         var actual = spiral ? NativeBattleSandStorm155Controller.AdvanceSpiral(frame, 0x23F1AF8, Resources(), inputs) : NativeBattleSandStorm155Controller.AdvanceSpray(frame, 0x23F1AF8, Resources(), inputs);

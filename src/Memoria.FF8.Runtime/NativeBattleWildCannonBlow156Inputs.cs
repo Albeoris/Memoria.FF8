@@ -8,7 +8,11 @@ public sealed record NativeBattleWildCannonBlow156Frame(NativeBattleEffectMemory
 public sealed record NativeBattleWildCannonBlow156PointStep(NativeBattleWildCannonBlow156Frame Frame, NativeBattleEffectArena Point8);
 public sealed record NativeBattleWildCannonBlow156Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleWildCannonBlow156Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleWildCannonBlow156Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleWildCannonBlow156Frame, int, NativeBattleActionMatrix> ReadModelWorld, Func<NativeBattleWildCannonBlow156Frame, int, int, int, NativeBattleWildCannonBlow156PointStep> ReadBone502170, Func<NativeBattleWildCannonBlow156Frame, ushort, NativeBattleWildCannonBlow156PointStep> ReadTargetCenter, Func<NativeBattleWildCannonBlow156Frame, NativeBattleWildCannonBlow156Operation, NativeBattleWildCannonBlow156Frame> Execute);
 
-public abstract record NativeBattleWildCannonBlow156Operation;
+public abstract record NativeBattleWildCannonBlow156Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleWildCannonBlow156Sound(uint Value, uint Flags, byte Pan) : NativeBattleWildCannonBlow156Operation;
 public sealed record NativeBattleWildCannonBlow156ContactsAll(int HeaderIndex) : NativeBattleWildCannonBlow156Operation;
 public sealed record NativeBattleWildCannonBlow156DrawSprite180(uint TemporaryAddress, uint SourceAddress) : NativeBattleWildCannonBlow156Operation;

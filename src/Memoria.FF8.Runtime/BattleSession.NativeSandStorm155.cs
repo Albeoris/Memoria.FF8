@@ -79,15 +79,15 @@ public sealed partial class BattleSession
                     graphics = ApplyNativeHeaderContacts(graphics, contacts.HeaderIndex);
                     return Import(current);
                 case NativeBattleSandStorm155DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress);
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.PilotIdentity);
                 case NativeBattleSandStorm155DrawMesh88 mesh:
-                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress);
+                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.PilotIdentity);
                 default:
                     throw new NotSupportedException("Sand Storm emitted an unsupported native operation.");
             }
         }
 
-        NativeBattleSandStorm155Frame DrawSprite(NativeBattleSandStorm155Frame current, uint address, uint sourceAddress)
+        NativeBattleSandStorm155Frame DrawSprite(NativeBattleSandStorm155Frame current, uint address, uint sourceAddress, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleModuleResource resource = sourceAddress == resources.SpriteA.Address ? resources.SpriteA : sourceAddress == resources.SpriteB.Address ? resources.SpriteB : throw new NotSupportedException("Sand Storm selected an unsupported original sprite.");
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Sand Storm sprite requires its actual temporary memory.");
@@ -96,11 +96,11 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Sand Storm sprite arguments differ from its physical temporary.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Sand Storm sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Sand Storm sprite requires its projection."), Camera().Roll);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Sand Storm sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Sand Storm sprite requires its projection."), Camera().Roll, pilotIdentity: pilotIdentity);
             return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) }, drawn.Batch);
         }
 
-        NativeBattleSandStorm155Frame DrawMesh(NativeBattleSandStorm155Frame current, uint address, uint sourceAddress)
+        NativeBattleSandStorm155Frame DrawMesh(NativeBattleSandStorm155Frame current, uint address, uint sourceAddress, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleStaticMeshResource mesh = resources.Mesh;
             if (sourceAddress != mesh.Address)
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Sand Storm mesh requires its current primitive process.");
             NativeBattleScriptedGraphicsMemory controls = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Sand Storm mesh requires its current projection controls.");
             short? padding = geometry.Rotation20[18] is byte low && geometry.Rotation20[19] is byte high ? unchecked((short)(low | high << 8)) : null;
-            NativeBattleCuraga88MeshStep drawn = NativeBattleCuraga88Mesh.EmitBatch(mesh.Bytes, mesh.Address, NativeBattleGeometry.CaptureMatrix(geometry), Camera().Projection ?? throw new NotSupportedException("Sand Storm mesh requires its projection."), temporary, new(geometry, current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Sand Storm mesh requires its current arithmetic registers.")), process.ModelRendererRegisters ?? throw new NotSupportedException("Sand Storm mesh requires its current far-color controls."), controls.Dqa, controls.Dqb, controls.Zsf4, colors, matrixPadding18: padding, zsf3: controls.Zsf3, selectedVerticesAddress: NativeBattleSandStorm155Profile.SelectedVerticesAddress, readSelectedVertex: ReadVertex);
+            NativeBattleCuraga88MeshStep drawn = NativeBattleCuraga88Mesh.EmitBatch(mesh.Bytes, mesh.Address, NativeBattleGeometry.CaptureMatrix(geometry), Camera().Projection ?? throw new NotSupportedException("Sand Storm mesh requires its projection."), temporary, new(geometry, current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Sand Storm mesh requires its current arithmetic registers.")), process.ModelRendererRegisters ?? throw new NotSupportedException("Sand Storm mesh requires its current far-color controls."), controls.Dqa, controls.Dqb, controls.Zsf4, colors, matrixPadding18: padding, zsf3: controls.Zsf3, selectedVerticesAddress: NativeBattleSandStorm155Profile.SelectedVerticesAddress, readSelectedVertex: ReadVertex, pilotIdentity: pilotIdentity);
             current = current with { Memory = current.Memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors, PrimitiveProcess = process with { ModelRendererRegisters = drawn.FarControls } }, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context88, 88) };
             return Deliver(current, drawn.Batch);
 

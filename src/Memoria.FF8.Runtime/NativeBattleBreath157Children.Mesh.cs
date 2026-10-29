@@ -51,7 +51,7 @@ public static partial class NativeBattleBreath157Children
             flags |= 0xC0;
         }
         frame = PublishContext(frame, temporary, context.Write(0x1C, BitConverter.GetBytes(flags)), 88);
-        frame = inputs.Execute(frame, new NativeBattleBreath157DrawMesh88(temporary, source));
+        frame = inputs.Execute(frame, new NativeBattleBreath157DrawMesh88(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(157, Read(frame, address), 0) with { ResourceGeneration = source } });
         frame = Release(frame, 88);
         if (kind >= 2)
         {
@@ -70,7 +70,7 @@ public static partial class NativeBattleBreath157Children
                 source = 0xDB2F54;
                 frame = PublishContext(frame, temporary, Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(source)), 88);
             }
-            frame = inputs.Execute(frame, new NativeBattleBreath157DrawMesh88(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleBreath157DrawMesh88(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(157, Read(frame, address), 1) with { ResourceGeneration = source } });
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

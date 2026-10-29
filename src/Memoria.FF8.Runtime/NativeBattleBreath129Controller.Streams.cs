@@ -42,7 +42,9 @@ public static partial class NativeBattleBreath129Controller
             frame = StoreWord(frame, address + 2, unchecked((ushort)width));
             frame = StoreWord(frame, address + 20, unchecked((ushort)intensity));
             frame = StoreWord(frame, address + 22, unchecked((ushort)decay));
-            return (StoreDword(frame, address + 24, 0), address);
+            frame = StoreDword(frame, address + 24, 0);
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, first, slot);
+            return (frame, address);
         }
         return (frame, 0);
     }
@@ -108,7 +110,7 @@ public static partial class NativeBattleBreath129Controller
         if (Signed(current, 12) >= 2)
         {
             short phase = ReadSigned(frame, Working(frame) + 0x16BA);
-            frame = NativeBattleBreath129Geometry.DrawLinked6B6450(frame, current.ReadDword(24), phase, Signed(current, 12), resources, inputs);
+            frame = NativeBattleBreath129Geometry.DrawLinked6B6450(frame, current.ReadDword(24), phase, Signed(current, 12), resources, inputs with { PilotIdentity = inputs.CapturePresentation ? NativeBattleBreath129VisualIdentity.Task(frame, address, 0x1228F04) : null });
         }
         cursor = Read(frame, address).ReadDword(24);
         while (ReadSigned(frame, cursor + 20) <= 16)

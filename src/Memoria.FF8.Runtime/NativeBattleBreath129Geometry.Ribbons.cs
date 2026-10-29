@@ -11,6 +11,7 @@ public static partial class NativeBattleBreath129Geometry
         {
             throw new InvalidDataException("Breath linked drawing requires its bounded native point count.");
         }
+        Dictionary<uint, System.Numerics.Vector3>? world = inputs.PilotIdentity.HasValue ? [] : null;
         uint point = firstPoint;
         HashSet<uint> visited = [];
         while (point != 0)
@@ -38,6 +39,10 @@ public static partial class NativeBattleBreath129Geometry
             int selected = ((w + phase) & 0xFFF) * 2;
             transformed = transformed with { X = unchecked((short)(transformed.X + (unchecked(resources.TrigonometricWords8192[selected + 1] * radius) >> 12))), Y = unchecked((short)(transformed.Y - (unchecked(resources.TrigonometricWords8192[selected] * radius) >> 12))) };
             frame = Load(frame, Packed(frame.State.ReadView(0x2521110, 32)));
+            if (world is not null)
+            {
+                world[point] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(NativeBattleGeometry.CaptureMatrix(Registers(frame).Geometry), transformed), inputs.ReadProjection(frame));
+            }
             frame = Project(frame, Point(transformed), inputs);
             registers = Registers(frame);
             frame = Dword(frame, point + 4, registers.Geometry.Sxy[2]!.Value);
@@ -52,24 +57,29 @@ public static partial class NativeBattleBreath129Geometry
         {
             throw new InvalidDataException("Breath linked count differs from its physical chain.");
         }
-        return EdgesAndPackets(frame, firstPoint, count, false, resources.DistanceTable, inputs);
+        return EdgesAndPackets(frame, firstPoint, count, false, resources.DistanceTable, inputs, pilotWorld: world);
     }
 
     public static NativeBattleBreath129Frame DrawFibre6B6CC0(NativeBattleBreath129Frame frame, uint address, NativeBattleBreath129Resources resources, NativeBattleBreath129Inputs inputs, NativeBattleBreath129FibreStack? stack = null)
     {
         frame = Load(frame, inputs.ReadView(frame));
+        Dictionary<uint, System.Numerics.Vector3>? world = inputs.PilotIdentity.HasValue ? [] : null;
         for (int index = 0; index < 16; index++)
         {
             uint point = checked(address + (uint)(index * 16));
+            if (world is not null)
+            {
+                world[point] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(NativeBattleGeometry.CaptureMatrix(Registers(frame).Geometry), Vector(Get(frame, point, 8))), inputs.ReadProjection(frame));
+            }
             frame = Project(frame, Get(frame, point, 8), inputs);
             NativeBattleGeometryRegisterStep registers = Registers(frame);
             frame = Dword(frame, point, registers.Geometry.Sxy[2]!.Value);
             frame = Word(frame, point + 4, unchecked((int)registers.Geometry.Sz[3]!.Value) >> 2);
         }
-        return EdgesAndPackets(frame, address, 16, true, resources.DistanceTable, inputs, stack);
+        return EdgesAndPackets(frame, address, 16, true, resources.DistanceTable, inputs, stack, world);
     }
 
-    private static NativeBattleBreath129Frame EdgesAndPackets(NativeBattleBreath129Frame frame, uint first, int count, bool fibre, ImmutableArray<byte> distances, NativeBattleBreath129Inputs inputs, NativeBattleBreath129FibreStack? stack = null)
+    private static NativeBattleBreath129Frame EdgesAndPackets(NativeBattleBreath129Frame frame, uint first, int count, bool fibre, ImmutableArray<byte> distances, NativeBattleBreath129Inputs inputs, NativeBattleBreath129FibreStack? stack = null, IReadOnlyDictionary<uint, System.Numerics.Vector3>? pilotWorld = null)
     {
         if (distances.IsDefault || distances.Length != 16384)
         {
@@ -82,6 +92,20 @@ public static partial class NativeBattleBreath129Geometry
         int width = fibre ? 6 : 2;
         short? previousX = fibre && stack is not null ? unchecked((short)stack.CrtSavedEdi) : null;
         short? previousY = fibre && stack is not null ? unchecked((short)(stack.CrtSavedEdi >> 16)) : null;
+        Dictionary<uint, uint>? centers = null;
+        if (inputs.PilotIdentity.HasValue && pilotWorld is not null)
+        {
+            centers = [];
+            uint selected = first;
+            for (int index = 0; index < count; index++)
+            {
+                centers.Add(selected, Dword(frame, selected + (uint)screen));
+                if (index < count - 1)
+                {
+                    selected = Next(frame, selected);
+                }
+            }
+        }
         uint at = first;
         for (int index = 0; index < count; index++)
         {
@@ -138,7 +162,14 @@ public static partial class NativeBattleBreath129Geometry
                 static uint Gray(int value) => unchecked((uint)(((value << 8) | value) << 8 | value));
                 packet = packet.Write(4, BitConverter.GetBytes(Gray(firstColor))).Write(16, BitConverter.GetBytes(Gray(firstColor))).Write(7, [0x3E]).Write(28, BitConverter.GetBytes(Gray(secondColor))).Write(40, BitConverter.GetBytes(Gray(secondColor)));
                 int bucket = 17 + ((Word(frame, at + (uint)depth) + Word(frame, next + (uint)depth)) >> (fibre ? 4 : 5));
-                frame = Append(frame, packet, 52, bucket, inputs);
+                NativeBattlePilotVisualGeometry? geometry = null;
+                if (inputs.PilotIdentity is { } identity && pilotWorld is not null && centers is not null)
+                {
+                    NativeBattlePilotVisualIdentity segment = fibre ? identity with { Primitive = index } : NativeBattleBreath129VisualIdentity.Segment(frame, frame.State.ReadDword(0x252115C) + 0x19C0, at, next);
+                    System.Numerics.Vector2 OffsetFrom(uint corner, uint center) => new(unchecked((short)corner) - unchecked((short)center), unchecked((short)(corner >> 16)) - unchecked((short)(center >> 16)));
+                    geometry = new(segment, pilotWorld[at], pilotWorld[at], pilotWorld[next], pilotWorld[next], 4) { ScreenOffsets = [OffsetFrom(Dword(frame, at + (uint)screen), centers[at]), OffsetFrom(Dword(frame, at + (uint)right), centers[at]), OffsetFrom(Dword(frame, next + (uint)screen), centers[next]), OffsetFrom(Dword(frame, next + (uint)right), centers[next])] };
+                }
+                frame = Append(frame, packet, 52, bucket, inputs, geometry);
             }
             at = next;
         }

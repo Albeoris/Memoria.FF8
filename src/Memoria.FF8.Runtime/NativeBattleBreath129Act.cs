@@ -77,7 +77,7 @@ public static class NativeBattleBreath129Act
             draw = draw.Write(8, BitConverter.GetBytes(node.Color32));
         }
         frame = PublishContext(frame, temporary, draw, 88);
-        frame = inputs.Execute(frame, new NativeBattleBreath129DrawDefaultMesh88(temporary, geometry));
+        frame = inputs.Execute(frame, new NativeBattleBreath129DrawDefaultMesh88(temporary, geometry) { PilotIdentity = inputs.PilotIdentity });
         return Release(frame, 88);
     }
 }

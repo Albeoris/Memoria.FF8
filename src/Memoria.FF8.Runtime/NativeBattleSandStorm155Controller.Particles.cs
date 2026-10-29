@@ -33,7 +33,7 @@ public static partial class NativeBattleSandStorm155Controller
             }
             frame = frame with { Staging = RequireStaging(frame).Write(temporary + 4, BitConverter.GetBytes(unchecked((ushort)(spiral ? age >> 1 : age)))) };
             frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), position, OptionalWord(frame, record + 14), size, unchecked((short)-(size >> 4))) };
-            frame = inputs.Execute(frame, new NativeBattleSandStorm155DrawSprite180(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleSandStorm155DrawSprite180(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(155, NativeBattleSandStorm155Controller.Read(frame, address), (spiral ? 100 : 0) + index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(155, frame.State.Globals, record, 0).Generation } });
             if (paused)
             {
                 continue;
@@ -122,6 +122,7 @@ public static partial class NativeBattleSandStorm155Controller
                     frame = Word(frame, record + 16, unchecked(cosine * velocity) >> 12);
                     frame = Word(frame, record + 20, unchecked(sine * velocity) >> 12);
                 }
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, record, 0);
             }
         }
         NativeBattleModulePoolTask task = Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)));

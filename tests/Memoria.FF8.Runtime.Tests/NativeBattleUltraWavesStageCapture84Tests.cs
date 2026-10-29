@@ -11,6 +11,32 @@ public sealed class NativeBattleUltraWavesStageCapture84Tests
     private static NativeBattleSummonColors Constants => new(0, 0, 1f / 4096f, BitConverter.Int64BitsToDouble(0x4330000080000000L));
 
     [Fact]
+    public void Every_capture_group_forwards_distinct_source_identity_and_retains_snapshot_screen_geometry()
+    {
+        HashSet<NativeBattlePilotVisualIdentity> identities = [];
+        for (int group = 0; group < 4; group++)
+        {
+            NativeBattlePilotVisualIdentity owner = new(154, 1, 2, 3, group) { ResourceGeneration = 0x1939C30 };
+            NativeBattleUltraWavesStageCapture84Step native = Draw(Memory(), Geometry(false), Temporary(), 4096);
+            NativeBattleUltraWavesStageCapture84Step captured = Draw(Memory(), Geometry(false), Temporary(), 4096, pilotIdentity: owner);
+            Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+            foreach (NativeBattleGfGeometryAttempt attempt in captured.Batch.Attempts)
+            {
+                if (attempt.Primitive is not { } primitive)
+                {
+                    continue;
+                }
+                NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+                Assert.True(geometry.ScreenSpace);
+                Assert.False(geometry.Continuous);
+                Assert.Equal(owner.ResourceGeneration, geometry.Identity.ResourceGeneration);
+                Assert.True(identities.Add(geometry.Identity));
+            }
+        }
+        Assert.NotEmpty(identities);
+    }
+
+    [Fact]
     public void Prepare_preserves_unwritten_bytes_and_copies_unknown_flags_without_graphics_substitution()
     {
         NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 84).ToArray());
@@ -119,7 +145,7 @@ public sealed class NativeBattleUltraWavesStageCapture84Tests
         Assert.Null(actual.Memory.ScriptedColorRegisters!.Ir0);
         Assert.Null(actual.Memory.GeometryRegisters!.Rotation20[18]);
     }
-    private static NativeBattleUltraWavesStageCapture84Step Draw(NativeBattleEffectMemory memory, byte[] geometry, NativeBattleEffectArena temporary, short depth, NativeBattleActionMatrix? matrix = null, NativeBattleEffectArena? previous = null) => NativeBattleUltraWavesStageCapture84.DrawGroup(memory, temporary, 0x00808080, depth, [NativeBattlePackedMatrix32.FromMatrix(matrix ?? Matrix, null)], (offset, length) => geometry.AsSpan(offset, length).ToArray(), 0x1939C30, previous ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 64), 64, Projection, Constants, false, 4122, 6);
+    private static NativeBattleUltraWavesStageCapture84Step Draw(NativeBattleEffectMemory memory, byte[] geometry, NativeBattleEffectArena temporary, short depth, NativeBattleActionMatrix? matrix = null, NativeBattleEffectArena? previous = null, NativeBattlePilotVisualIdentity? pilotIdentity = null) => NativeBattleUltraWavesStageCapture84.DrawGroup(memory, temporary, 0x00808080, depth, [NativeBattlePackedMatrix32.FromMatrix(matrix ?? Matrix, null)], (offset, length) => geometry.AsSpan(offset, length).ToArray(), 0x1939C30, previous ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 64), 64, Projection, Constants, false, 4122, 6, pilotIdentity: pilotIdentity);
     private static NativeBattleEffectArena Temporary() => NativeBattleUltraWavesStageCapture84.Prepare(NativeBattleEffectArena.Clear().MarkUnknown(0, 84), 0x196A018, NativeBattleEffectArena.Clear().MarkUnknown(0, 4));
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with
     {

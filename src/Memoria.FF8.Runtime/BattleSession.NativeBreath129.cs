@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         NativeBattleBreath129Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Breath requires its actual CRT stream."), memory.Breath129 ?? throw new NotSupportedException("Breath requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Breath requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Breath requires its interpolation constants.");
         NativeBattleBreath129Inputs? inputs = null;
-        inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Breath requires its current projection."), (_, address) => graphics.Models[Actor(address)], (_, address) => (graphics.Models[Actor(address)].Transform ?? throw new NotSupportedException("Breath requires its actor heading.")).Angle36, Bone, Anchor, ReadBody, PublishBody, AdvanceAct, Execute);
+        inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Breath requires its current projection."), (_, address) => graphics.Models[Actor(address)], (_, address) => (graphics.Models[Actor(address)].Transform ?? throw new NotSupportedException("Breath requires its actor heading.")).Angle36, Bone, Anchor, ReadBody, PublishBody, AdvanceAct, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleBreath129Controller.Initialize(frame, resources, inputs) : NativeBattleBreath129Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -112,15 +112,15 @@ public sealed partial class BattleSession
                 case NativeBattleBreath129AppendPacket packet:
                     return AppendPacket(current, packet);
                 case NativeBattleBreath129DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress);
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.PilotIdentity);
                 case NativeBattleBreath129DrawDefaultMesh88 mesh:
-                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress);
+                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.PilotIdentity);
                 default:
                     throw new NotSupportedException("Breath emitted an unsupported native operation.");
             }
         }
 
-        NativeBattleBreath129Frame DrawSprite(NativeBattleBreath129Frame current, uint address, uint sourceAddress)
+        NativeBattleBreath129Frame DrawSprite(NativeBattleBreath129Frame current, uint address, uint sourceAddress, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleModuleResource resource = resources.Sprite;
             if (sourceAddress != resource.Address)
@@ -133,11 +133,11 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Breath sprite arguments differ from its physical temporary.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Breath sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Breath sprite requires its projection."), Camera().Roll);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Breath sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Breath sprite requires its projection."), Camera().Roll, pilotIdentity: pilotIdentity);
             return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) }, drawn.Batch);
         }
 
-        NativeBattleBreath129Frame DrawMesh(NativeBattleBreath129Frame current, uint address, uint sourceAddress)
+        NativeBattleBreath129Frame DrawMesh(NativeBattleBreath129Frame current, uint address, uint sourceAddress, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleGfAnimationSource act = new[] { resources.FirstAct, resources.SecondAct, resources.ThirdAct, resources.FourthAct }.Single(source => sourceAddress >= source.Address && sourceAddress < source.Address + source.Data.Length);
             System.Collections.Immutable.ImmutableArray<byte> meshBytes = act.Data.AsSpan().Slice(checked((int)(sourceAddress - act.Address))).ToArray().ToImmutableArray();
@@ -147,7 +147,7 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Breath mesh requires its current primitive process.");
             NativeBattleScriptedGraphicsMemory controls = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Breath mesh requires its current projection controls.");
             short? padding = geometry.Rotation20[18] is byte low && geometry.Rotation20[19] is byte high ? unchecked((short)(low | high << 8)) : null;
-            NativeBattleCuraga88MeshStep drawn = NativeBattleCuraga88Mesh.EmitBatch(meshBytes, sourceAddress, NativeBattleGeometry.CaptureMatrix(geometry), Camera().Projection ?? throw new NotSupportedException("Breath mesh requires its projection."), temporary, new(geometry, current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Breath mesh requires its current arithmetic registers.")), process.ModelRendererRegisters ?? throw new NotSupportedException("Breath mesh requires its current far-color controls."), controls.Dqa, controls.Dqb, controls.Zsf4, colors, matrixPadding18: padding, zsf3: controls.Zsf3, selectedVerticesAddress: BinaryPrimitives.ReadUInt32LittleEndian(temporary.Read(4, 4)), readSelectedVertex: ReadVertex);
+            NativeBattleCuraga88MeshStep drawn = NativeBattleCuraga88Mesh.EmitBatch(meshBytes, sourceAddress, NativeBattleGeometry.CaptureMatrix(geometry), Camera().Projection ?? throw new NotSupportedException("Breath mesh requires its projection."), temporary, new(geometry, current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Breath mesh requires its current arithmetic registers.")), process.ModelRendererRegisters ?? throw new NotSupportedException("Breath mesh requires its current far-color controls."), controls.Dqa, controls.Dqb, controls.Zsf4, colors, matrixPadding18: padding, zsf3: controls.Zsf3, selectedVerticesAddress: BinaryPrimitives.ReadUInt32LittleEndian(temporary.Read(4, 4)), readSelectedVertex: ReadVertex, pilotIdentity: pilotIdentity);
             current = current with { Memory = current.Memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors, PrimitiveProcess = process with { ModelRendererRegisters = drawn.FarControls } }, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context88, 88) };
             return Deliver(current, drawn.Batch);
 
@@ -203,7 +203,7 @@ public sealed partial class BattleSession
             NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(current.Memory, current.Effect.Pools, address, size);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (next, node) =>
             {
-                current = NativeBattleBreath129Act.Draw6B57B0(current, node, source, context, inputs ?? throw new InvalidDataException("Breath lost its initialized services."));
+                current = NativeBattleBreath129Act.Draw6B57B0(current, node, source, context, (inputs ?? throw new InvalidDataException("Breath lost its initialized services.")) with { PilotIdentity = inputs!.CapturePresentation ? NativeBattleBreath129VisualIdentity.Workspace(current, address, source.Address, node.ResourceOffset) : null });
                 return next;
             });
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(current.Memory, current.Effect.Pools, address, advanced.Workspace);
@@ -228,7 +228,7 @@ public sealed partial class BattleSession
                 }
             }
             ImmutableArray<uint> words = Enumerable.Range(0, packet.Written / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
-            NativeBattleGeometryPrimitive? polygon = packet.Insert ? new(packet.Bucket, words, packet.VertexPayload4) : null;
+            NativeBattleGeometryPrimitive? polygon = packet.Insert ? new(packet.Bucket, words, packet.VertexPayload4) { PilotGeometry = packet.PilotGeometry } : null;
             NativeBattleGfGeometryBatch batch = new([new(0, bytes.ToImmutableArray(), mask.ToImmutableArray(), polygon)], packet.Insert ? packet.Allocation : 0);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Breath requires its pending ordering table.");
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, checked((int)(packet.Address - NativeBattleEffectNodeMemory.ArenaAddress)), primitive.Pending, batch, packet.Flags);

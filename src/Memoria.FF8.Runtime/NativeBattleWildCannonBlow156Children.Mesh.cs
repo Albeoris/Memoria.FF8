@@ -46,7 +46,7 @@ public static partial class NativeBattleWildCannonBlow156Children
         }
         context = context.Write(0x1C, BitConverter.GetBytes(flags));
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleWildCannonBlow156DrawMesh88(temporary, source));
+        frame = inputs.Execute(frame, new NativeBattleWildCannonBlow156DrawMesh88(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(156, task, kind) with { ResourceGeneration = source } });
         frame = Release(frame, 88);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

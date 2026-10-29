@@ -7,6 +7,21 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleUltraWavesRingDrawingTests
 {
     [Fact]
+    public void Actual_ring_capture_retains_loaded_source_corners_and_full_native_ledger()
+    {
+        NativeBattlePilotVisualIdentity owner = new(154, 1, 2, 3, 4);
+        NativeBattleUltraWavesRingDraw native = Draw(Mesh(2000), Context(false));
+        NativeBattleUltraWavesRingDraw captured = Draw(Mesh(2000), Context(false), pilotIdentity: owner);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(owner.Generation, geometry.Identity.Generation);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 2000), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(100, 100, 2000), geometry.D);
+        NativeBattleUltraWavesRingDraw rejected = Draw(Mesh(0), Context(false), pilotIdentity: owner);
+        Assert.Null(Assert.Single(rejected.Batch.Attempts).Primitive);
+    }
+
+    [Fact]
     public void Actual_FT4_context_uses_uniform_palette_and_publishes_GTE_FAR_and_physical_stores()
     {
         NativeBattleUltraWavesRingDraw drawn = Draw(Mesh(2000), Context(false));
@@ -67,7 +82,7 @@ public sealed class NativeBattleUltraWavesRingDrawingTests
     }
 
     private const uint MeshAddress = 0xD34450;
-    private static NativeBattleUltraWavesRingDraw Draw(NativeBattleStaticMeshResource mesh, NativeBattleEffectArena temporary, NativeBattleEffectMemory? memory = null) => NativeBattleUltraWavesRingDrawing.Draw(memory ?? Memory(), temporary, mesh, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
+    private static NativeBattleUltraWavesRingDraw Draw(NativeBattleStaticMeshResource mesh, NativeBattleEffectArena temporary, NativeBattleEffectMemory? memory = null, NativeBattlePilotVisualIdentity? pilotIdentity = null) => NativeBattleUltraWavesRingDrawing.Draw(memory ?? Memory(), temporary, mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
     private static NativeBattleEffectMemory Memory()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();

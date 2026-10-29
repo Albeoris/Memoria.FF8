@@ -48,7 +48,7 @@ public static partial class NativeBattleAcid170Controller
                 frame = SetupSprite170(frame, inputs, frame.State.ReadView(row + 8, 8), size, unchecked((short)-(size >> 4)));
             }
             frame = PublishContext(frame, temporary, context, 180);
-            frame = inputs.Execute(frame, new NativeBattleAcid170DrawSprite180(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleAcid170DrawSprite180(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(170, Read(frame, address), (raw ? 0x30000 : 0x20000) + index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(170, frame.State.Globals, row, 0).Generation } });
             if ((inputs.GraphicsFlags & 0x201) != 0)
             {
                 continue;
@@ -94,6 +94,7 @@ public static partial class NativeBattleAcid170Controller
                 break;
             }
             frame = frame with { State = frame.State.WriteDword(row, unchecked((uint)(int)Signed(task, 14))).WriteWord(row + 4, 0) };
+            NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, row, 0);
             frame = DrawRandom(frame, out ushort size);
             frame = PutWord170(frame, row + 6, raw ? (size & 63) + 96 : size % 2560 + 1792);
             if (raw)

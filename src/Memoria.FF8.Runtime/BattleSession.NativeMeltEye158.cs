@@ -88,7 +88,7 @@ public sealed partial class BattleSession
                 case NativeBattleMeltEye158DrawStatic88 mesh:
                     NativeBattleFileStaging meshStaging = current.Staging ?? throw new NotSupportedException("Melt-Eye requires its actual mesh temporary memory.");
                     NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(meshStaging, mesh.Temporary88, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
-                    NativeBattleStaticMeshContext88Step drawnMesh = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, resources.Mesh(mesh.MeshAddress), Projection(), context, colors, depthShift: mesh.DepthShift);
+                    NativeBattleStaticMeshContext88Step drawnMesh = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, resources.Mesh(mesh.MeshAddress), Projection(), context, colors, depthShift: mesh.DepthShift, pilotIdentity: mesh.PilotIdentity);
                     return Deliver(current with { Memory = drawnMesh.Memory, Staging = NativeBattleTemporaryMemory.PublishView(meshStaging, mesh.Temporary88, drawnMesh.Context, 88) }, drawnMesh.Batch);
                 case NativeBattleMeltEye158DrawSprite180 sprite:
                     NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Melt-Eye requires its actual sprite temporary memory.");
@@ -100,7 +100,7 @@ public sealed partial class BattleSession
                     NativeBattleEffectMemory prepared = NativeBattleModuleSpriteSetup.Setup571BC0(current.Memory, Camera().CapturePackedView1D97778(), sprite.Position, sprite.W, sprite.Scale, sprite.Depth);
                     staging = staging.Write(sprite.Temporary180 + 4, BitConverter.GetBytes(sprite.Phase));
                     NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, sprite.Temporary180, 180), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 180), 0, 180);
-                    NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(prepared, temporary, resources.Sprite, Projection(), Camera().Roll);
+                    NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(prepared, temporary, resources.Sprite, Projection(), Camera().Roll, pilotIdentity: sprite.PilotIdentity);
                     return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, sprite.Temporary180, drawn.Temporary180, 180) }, drawn.Batch);
                 default:
                     throw new NotSupportedException("Melt-Eye operation has no proved implementation.");

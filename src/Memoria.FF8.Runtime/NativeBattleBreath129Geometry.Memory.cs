@@ -42,13 +42,13 @@ public static partial class NativeBattleBreath129Geometry
         return Publish(frame, NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb));
     }
 
-    private static NativeBattleBreath129Frame Append(NativeBattleBreath129Frame frame, NativeBattleEffectArena packet, int length, int bucket, NativeBattleBreath129Inputs inputs)
+    private static NativeBattleBreath129Frame Append(NativeBattleBreath129Frame frame, NativeBattleEffectArena packet, int length, int bucket, NativeBattleBreath129Inputs inputs, NativeBattlePilotVisualGeometry? pilotGeometry = null)
     {
         uint address = frame.State.ReadDword(0x252117C);
         (byte[] bytes, bool[] known) = packet.ReadSnapshot(0, length);
         NativeBattleGfPacketByteState[] mask = Enumerable.Range(0, length).Select(index => index is 38 or 39 or 50 or 51 ? NativeBattleGfPacketByteState.Untouched : known[index] ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Unknown).ToArray();
         ImmutableArray<int> depths = Registers(frame).Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Breath packet insertion requires all four actual retained SZ values.")))).ToImmutableArray();
         frame = frame with { State = frame.State.WriteDword(0x252117C, checked(address + (uint)length)) };
-        return inputs.Execute(frame, new NativeBattleBreath129AppendPacket(address, length, length, bucket, 0, bytes, known) { WriteMask = mask, VertexPayload4 = depths });
+        return inputs.Execute(frame, new NativeBattleBreath129AppendPacket(address, length, length, bucket, 0, bytes, known) { WriteMask = mask, VertexPayload4 = depths, PilotGeometry = pilotGeometry is null ? null : pilotGeometry with { SourceDepths = new(depths[0], depths[1], depths[2], depths[3]), UseSourceDepths = true } });
     }
 }

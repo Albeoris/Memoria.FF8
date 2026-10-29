@@ -9,6 +9,30 @@ public sealed class NativeBattleWildCannonBlow156ChildrenTests
     private const uint TaskAddress = 0x23EF488;
 
     [Theory]
+    [InlineData(0x605F40u, 0x23EEA98u, 0, 99)]
+    [InlineData(0x6063E0u, 0x23ECE78u, 1, 149)]
+    [InlineData(0x6065A0u, 0x23EDC88u, 2, 149)]
+    [InlineData(0x606A60u, 0x23EEA98u, 3, 99)]
+    public void Last_native_row_in_each_mode_retains_actual_task_and_bank_generation_without_pause_updates(uint callback, uint bank, int kind, int row)
+    {
+        NativeBattleWildCannonBlow156Frame frame = Frame(callback);
+        frame = Write(frame, TaskAddress, Read(frame, TaskAddress).WriteWord(12, 3).WriteWord(14, 0).WriteWord(0x18, 2));
+        uint record = bank + (uint)(row * 24);
+        frame = frame with { State = frame.State.WriteView(record, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(2u)).Write(6, BitConverter.GetBytes((short)1024)).Write(12, BitConverter.GetBytes((short)1000)), 24) };
+        string nativeState = NativeBattleTestSnapshots.Json(frame.State);
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        NativeBattleWildCannonBlow156Inputs native = Inputs(0x201);
+        var result = Advance(frame, callback, native with { Execute = (current, operation) =>
+        {
+            identities.Add(Assert.IsType<NativeBattlePilotVisualIdentity>(operation.PilotIdentity));
+            return native.Execute(current, operation);
+        } });
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(156, Read(frame, TaskAddress), kind * 150 + row) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(156, frame.State.Globals, record, 0).Generation }, Assert.Single(identities));
+        Assert.Equal(frame.Random, result.Frame.Random);
+        Assert.Equal(nativeState, NativeBattleTestSnapshots.Json(result.Frame.State));
+    }
+
+    [Theory]
     [InlineData(0x605DF0u, 3, 0xDB6DFCu, 0x33u, null)]
     [InlineData(0x605DF0u, 4, 0xDB6DFCu, 0xF3u, 0)]
     [InlineData(0x606200u, 0, 0xDB68ECu, 0xF3u, 0)]
@@ -26,6 +50,9 @@ public sealed class NativeBattleWildCannonBlow156ChildrenTests
         {
             NativeBattleWildCannonBlow156DrawMesh88 draw = Assert.IsType<NativeBattleWildCannonBlow156DrawMesh88>(operation);
             Assert.Equal(source, draw.SourceAddress);
+            int kind = callback switch { 0x605DF0 => 0, 0x606200 => 1, 0x6067B0 => 2, _ => 3 };
+            Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(156, Read(frame, TaskAddress), kind) with { ResourceGeneration = source }, Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity));
+            Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(draw));
             submitted = Context(current, draw.TemporaryAddress, 88);
             Assert.Equal(new int?[] { 110, 20, 2300 }, current.Memory.GeometryRegisters!.Translation.ToArray());
             return current;
@@ -81,7 +108,9 @@ public sealed class NativeBattleWildCannonBlow156ChildrenTests
         {
             frame = frame with { State = frame.State.WriteView(bank + 14, NativeBattleEffectArena.Clear().MarkUnknown(0, 2), 2) };
         }
+        long previousGeneration = NativeBattlePilotVisualLifetimes.Identity(156, frame.State.Globals, bank, 0).Generation;
         var actual = Advance(frame, callback, Inputs());
+        Assert.NotEqual(previousGeneration, NativeBattlePilotVisualLifetimes.Identity(156, actual.Frame.State.Globals, bank, 0).Generation);
         NativeCrtRandomState random = frame.Random;
         for (int index = 0; index < draws; index++)
         {

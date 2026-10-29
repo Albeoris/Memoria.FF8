@@ -107,6 +107,80 @@ public sealed class NativeBattleBreath129ControllerTests
         Assert.Equal(Arena + 0x1BB70, advanced.Frame.State.ReadDword(CursorGlobal));
     }
 
+    [Theory]
+    [InlineData(0x38, 0x12239B8u)]
+    [InlineData(0x140, 0x1226098u)]
+    [InlineData(0x1A8, 0x122688Cu)]
+    public void Workspace_identity_uses_actual_containing_task_source_and_copy(int offset, uint source)
+    {
+        NativeBattleBreath129Frame frame = Frame();
+        string baseline = NativeBattleTestSnapshots.Json(frame);
+        NativeBattlePilotVisualIdentity identity = NativeBattleBreath129VisualIdentity.Workspace(frame, MainAddress + (uint)offset, source, 44);
+        NativeBattlePilotVisualIdentity owner = NativeBattlePilotVisualLifetimes.Identity(129, Read(frame, MainAddress));
+        Assert.Equal(owner.Bank, identity.Bank);
+        Assert.Equal(owner.Slot, identity.Slot);
+        Assert.Equal(owner.Generation, identity.Generation);
+        Assert.Equal(44, identity.Primitive);
+        Assert.Equal(((long)source << 32) | (uint)offset, identity.ResourceGeneration);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(frame));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Either_linked_point_rebirth_changes_segment_identity_and_keeps_survivor_generation(int endpoint)
+    {
+        NativeBattleBreath129Frame frame = Frame();
+        (frame, uint first) = AllocatePoint(frame, 0, 32, 1024, -128);
+        (frame, uint second) = AllocatePoint(frame, 1, 32, 1024, -128);
+        NativeBattlePilotVisualIdentity before = NativeBattleBreath129VisualIdentity.Segment(frame, FirstPoint, first, second);
+        frame = WriteBytes(frame, endpoint == 0 ? first : second, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(ushort.MaxValue)), 2);
+        (frame, uint reborn) = AllocatePoint(frame, 2, 32, 1024, -128);
+        Assert.Equal(endpoint == 0 ? first : second, reborn);
+        NativeBattlePilotVisualIdentity after = NativeBattleBreath129VisualIdentity.Segment(frame, FirstPoint, first, second);
+        Assert.NotEqual(before, after);
+        Assert.Equal(endpoint == 0, before.Generation != after.Generation);
+        Assert.Equal(endpoint == 1, before.ResourceGeneration != after.ResourceGeneration);
+    }
+
+    [Fact]
+    public void Fibre_identity_rejects_recycled_capture_owner_without_using_temporary_pointer_as_lifetime()
+    {
+        NativeBattleBreath129Frame frame = Frame();
+        (frame, uint target) = AppendTarget(frame);
+        frame = SpawnFibres(frame, 0x812345, 0x12292F8, target + 0x128, 12, 5, 0x800);
+        NativeBattlePilotVisualIdentity workspace = NativeBattleBreath129VisualIdentity.Workspace(frame, target + 0x18, 0x1225468, 32);
+        Assert.Equal(frame.Effect.Pools[2].DescriptorAddress, workspace.Bank);
+        NativeBattlePilotVisualIdentity first = NativeBattleBreath129VisualIdentity.Fibre(frame, FibreAddress, 0x1100000);
+        Assert.Equal(first, NativeBattleBreath129VisualIdentity.Fibre(frame, FibreAddress, 0x1100000));
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools[2].Advance((owner, _) => new(owner, 2)).Pool;
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, pool) } };
+        (frame, uint replacement) = AppendTarget(frame);
+        Assert.Equal(target, replacement);
+        NativeBattlePilotVisualIdentity second = NativeBattleBreath129VisualIdentity.Fibre(frame, FibreAddress, 0x1100000);
+        Assert.Equal(first.Generation, second.Generation);
+        Assert.NotEqual(first.ResourceGeneration, second.ResourceGeneration);
+    }
+
+    [Fact]
+    public void Fibre_identity_accepts_only_reached_immutable_control_source_outside_task_storage()
+    {
+        NativeBattleBreath129Frame frame = SpawnFibres(Frame(), 0x812345, 0x1229318, NativeBattleBreath129Profile.ControlTrianglesAddress, 12, 7, 0x100);
+        NativeBattlePilotVisualIdentity first = NativeBattleBreath129VisualIdentity.Fibre(frame, FibreAddress, 0x1100000);
+        Assert.Equal(first, NativeBattleBreath129VisualIdentity.Fibre(frame, FibreAddress, 0x1100000));
+        NativeBattleBreath129Frame unsupported = Write(frame, FibreAddress, Read(frame, FibreAddress).WriteDword(24, 0x1229330));
+        Assert.Throws<InvalidDataException>(() => NativeBattleBreath129VisualIdentity.Fibre(unsupported, FibreAddress, 0x1100000));
+    }
+
+    private static (NativeBattleBreath129Frame Frame, uint Address) AppendTarget(NativeBattleBreath129Frame frame)
+    {
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools[2];
+        (pool, int slot) = pool.Append(0x6B5FC0);
+        Assert.InRange(slot, 0, pool.Slots.Length - 1);
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, pool) } };
+        return (frame, checked(pool.BankAddress + (uint)(slot * pool.Stride)));
+    }
+
     private static NativeBattleBreath129Frame Frame()
     {
         NativeBattleEffectTaskPool[] pools = [NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1), NativeBattleEffectTaskPool.Initialize(0x2521180, Arena, 0x18, 9), NativeBattleEffectTaskPool.Initialize(0x2521190, Arena + 0xD8, 0x1E8, 3), NativeBattleEffectTaskPool.Initialize(0x25211A0, FibreAddress, 0x80, 16), NativeBattleEffectTaskPool.Initialize(0x25211B0, Arena + 0xE90, 0x20, 64), NativeBattleEffectTaskPool.Initialize(0x25211C0, MainAddress, 0x330, 1)];

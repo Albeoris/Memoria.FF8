@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private static int AdvanceNativeStickyWebThread(ref NativeBattleModulePoolTask task, NativeBattleGraphicsState graphics, byte[] data, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf3, short zsf4, bool paused, Action<NativeBattleGfGeometryBatch, int> append)
+    private static int AdvanceNativeStickyWebThread(ref NativeBattleModulePoolTask task, NativeBattleGraphicsState graphics, byte[] data, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf3, short zsf4, bool paused, Action<NativeBattleGfGeometryBatch, int> append, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
         NativeBattleActionMatrix world = graphics.Models[effect.Parameters!.Actor78].GeometryWorldMatrix ?? throw new NotSupportedException("Native Sticky Web requires its caster world matrix.");
@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(record), 1);
         data.AsSpan(0x1920, 8).CopyTo(data.AsSpan(record + 4));
         data.AsSpan(0x1928, 8).CopyTo(data.AsSpan(record + 12));
-        append(NativeBattleStickyWeb153Drawing.Line(Vector(0x1920), anchor, view, projection, zsf3), 0);
+        append(NativeBattleStickyWeb153Drawing.Line(Vector(0x1920), anchor, view, projection, zsf3, pilotIdentity: pilotIdentity is { } line ? line with { Primitive = unchecked(line.Primitive * 397) } : null), 0);
         int count = 0;
         int available = counter >= 25 ? 30 - counter : 5;
         for (; count < available; count++)
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             globals.Read(0x9E8, 0x100).CopyTo(data.AsSpan(0x9E8));
             ImmutableArray<NativeBattleVector> first = Enumerable.Range(0, 16).Select(index => Vector(0x9E8 + index * 8)).ToImmutableArray();
             ImmutableArray<NativeBattleVector> second = Enumerable.Range(0, 16).Select(index => Vector(0xA68 + index * 8)).ToImmutableArray();
-            append(NativeBattleStickyWeb153Drawing.Strips(first, second, view, projection, colors, zsf4), 36);
+            append(NativeBattleStickyWeb153Drawing.Strips(first, second, view, projection, colors, zsf4, pilotIdentity: pilotIdentity is { } strip ? strip with { Primitive = unchecked(strip.Primitive * 397 + 1), ResourceGeneration = count } : null), 36);
         }
         if (paused)
         {

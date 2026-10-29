@@ -51,7 +51,7 @@ public static class NativeBattleSandStorm155Mesh
         }
         context = context.Write(0, BitConverter.GetBytes(0xDB8150u)).Write(4, BitConverter.GetBytes(NativeBattleSandStorm155Geometry.SelectedVertices)).Write(8, BitConverter.GetBytes(0u)).Write(12, BitConverter.GetBytes(cue)).Write(0x1C, BitConverter.GetBytes(flags));
         frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, temporary, context, 88) };
-        frame = inputs.Execute(frame, new NativeBattleSandStorm155DrawMesh88(temporary, resources.Mesh.Address));
+        frame = inputs.Execute(frame, new NativeBattleSandStorm155DrawMesh88(temporary, resources.Mesh.Address) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(155, task, 0) with { ResourceGeneration = resources.Mesh.Address } });
         NativeBattleActionMatrix second = NativeBattlePoseMatrices.Scale56BEF0(local, 6600, Signed(task, 0x12), 6600);
         composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), second);
         frame = Load(frame, composed, false);
@@ -61,7 +61,7 @@ public static class NativeBattleSandStorm155Mesh
         cue = unchecked(cue + unchecked(4096 - cue) / 2);
         context = context.Write(12, BitConverter.GetBytes(cue)).Write(0x1C, BitConverter.GetBytes(flags | 0xC0));
         frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, temporary, context, 88) };
-        frame = inputs.Execute(frame, new NativeBattleSandStorm155DrawMesh88(temporary, resources.Mesh.Address));
+        frame = inputs.Execute(frame, new NativeBattleSandStorm155DrawMesh88(temporary, resources.Mesh.Address) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(155, task, 1) with { ResourceGeneration = resources.Mesh.Address } });
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging!, 88) };
         if ((graphicsFlags & 0x201) != 0)
         {

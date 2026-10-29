@@ -7,7 +7,7 @@ public sealed record NativeBattleAcid170ModelStep(NativeBattleEffectMemory Memor
 
 public static partial class NativeBattleAcid170ModelDrawing
 {
-    public static NativeBattleAcid170ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary172, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleAcid170ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary172, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (scratchLength < 0 || depthShift > 31 || U32(temporary172, 4) != scratchAddress)
         {
@@ -83,7 +83,7 @@ public static partial class NativeBattleAcid170ModelDrawing
                 for (int face = 0; face < faces; face++)
                 {
                     byte[] source = Read(cursor, quad ? 20 : 16);
-                    var drawn = NativeBattleSkinnedBodyPackets.EmitBaseFace(source, quad, vertexScratch, count, temporary172, registers, projection, controls, tableBaseBucket, depthShift, allocated, 0x50, 0x44, 0x4C);
+                    var drawn = NativeBattleSkinnedBodyPackets.EmitBaseFace(source, quad, vertexScratch, count, temporary172, registers, projection, controls, tableBaseBucket, depthShift, allocated, 0x50, 0x44, 0x4C, pilotIdentity is { } identity ? identity with { Primitive = unchecked((identity.Primitive * 397 + index) * 65537 + cursor) } : null);
                     temporary172 = drawn.Temporary;
                     registers = drawn.Registers;
                     NativeBattleGfGeometryAttempt attempt = drawn.Attempt;

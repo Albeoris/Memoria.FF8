@@ -23,7 +23,7 @@ public static partial class NativeBattleBreath129Geometry
         NativeBattleBreath129SampleStep a = Sample6B6FE0(frame, body.Source, checked(triangles + (uint)(first * 24)), firstFrames, progress, resources, inputs);
         NativeBattleBreath129SampleStep b = Sample6B6FE0(a.Frame, body.Source, checked(triangles + (uint)(second * 24)), secondFrames, progress, resources, inputs);
         NativeBattleBreath129FibrePreparation prepared = PrepareFibre6B68C0(b.Frame, taskAddress, a.Point8, a.Normal8, b.Point8, b.Normal8, resources, inputs);
-        frame = DrawFibre6B6CC0(prepared.Frame, prepared.Address, resources, inputs, prepared.Stack);
+        frame = DrawFibre6B6CC0(prepared.Frame, prepared.Address, resources, inputs with { PilotIdentity = inputs.CapturePresentation ? NativeBattleBreath129VisualIdentity.Fibre(prepared.Frame, taskAddress, body.Source.GeometryAddress) : null }, prepared.Stack);
         return Release(frame, 0x100);
     }
 

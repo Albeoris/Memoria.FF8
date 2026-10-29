@@ -153,12 +153,12 @@ public sealed partial class BattleSession
             if (!burst && frame < 30)
             {
                 int height = unchecked((Vector(0x1928).Y - Word(task, 18)) * (0x1000000 / scale)) >> 12;
-                batch = NativeBattleStickyWeb153Drawing.Clipped(resources, matrix, projection, height, zsf3, zsf4, dqa, dqb);
+                batch = NativeBattleStickyWeb153Drawing.Clipped(resources, matrix, projection, height, zsf3, zsf4, dqa, dqb, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(153, task, 2) with { ResourceGeneration = resources.Web.Address });
             }
             else
             {
                 bool fade = frame >= (burst ? 6 : 37);
-                batch = NativeBattleModulePackets.EmitBatch572200((burst ? resources.Burst : resources.Web).Bytes, 0, default, matrix, projection, new(fade ? 0xF3u : burst ? 0x33u : 0u, 0, fade ? (frame - (burst ? 6 : 37)) << 9 : 0, null, null, 0, 17, 2), colors);
+                batch = NativeBattleModulePackets.EmitBatch572200((burst ? resources.Burst : resources.Web).Bytes, 0, default, matrix, projection, new(fade ? 0xF3u : burst ? 0x33u : 0u, 0, fade ? (frame - (burst ? 6 : 37)) << 9 : 0, null, null, 0, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(153, task, burst ? 3 : 2) with { ResourceGeneration = (burst ? resources.Burst : resources.Web).Address });
             }
             Append(batch);
             if (paused)
@@ -188,7 +188,7 @@ public sealed partial class BattleSession
                 int scale = ReadWord(offset + 6);
                 NativeBattleVector position = Vector(offset + 8);
                 NativeBattleModuleSpriteFrame sprite = resources.Sprite.SpriteFrame(frame);
-                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Sprite, SpriteFrame = sprite, Phase = unchecked((ushort)frame), Anchor = new(position.X, position.Y, position.Z, 0), Scale = scale, DepthOffset = -(scale >> 4), Direction = 4096, SpriteFlags = 8 };
+                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Sprite, SpriteFrame = sprite, Phase = unchecked((ushort)frame), Anchor = new(position.X, position.Y, position.Z, 0), Scale = scale, DepthOffset = -(scale >> 4), Direction = 4096, SpriteFlags = 8, PilotIdentity = NativeBattleStickyWeb153VisualLifetimes.Identity(task, particle, type) };
                 Append(NativeBattleMeltdownPacketConversion.FromSprite(NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2)));
                 if (paused)
                 {
@@ -251,6 +251,7 @@ public sealed partial class BattleSession
                     {
                         Put(offset + 18, -10 - Roll() % 60);
                     }
+                    NativeBattleStickyWeb153VisualLifetimes.Allocated(task, free);
                 }
             }
             task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
@@ -259,7 +260,7 @@ public sealed partial class BattleSession
 
         int Thread(ref NativeBattleModulePoolTask task)
         {
-            return AdvanceNativeStickyWebThread(ref task, graphics, data, view, projection, colors, zsf3, zsf4, paused, Append);
+            return AdvanceNativeStickyWebThread(ref task, graphics, data, view, projection, colors, zsf3, zsf4, paused, Append, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(153, task));
         }
         int Add(uint callback)
         {

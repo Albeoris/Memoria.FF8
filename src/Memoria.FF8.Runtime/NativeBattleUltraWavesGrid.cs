@@ -79,7 +79,7 @@ public static class NativeBattleUltraWavesGrid
         return grid;
     }
 
-    public static NativeBattleUltraWavesGridDraw Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena grid, NativeBattleEffectArena quads, uint gridAddress, uint quadsAddress, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection, short focalShadow, byte buffer, uint color)
+    public static NativeBattleUltraWavesGridDraw Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena grid, NativeBattleEffectArena quads, uint gridAddress, uint quadsAddress, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection, short focalShadow, byte buffer, uint color, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (buffer > 1)
         {
@@ -119,7 +119,17 @@ public static class NativeBattleUltraWavesGrid
             byte[] bytes = quads.Read(packet, 40);
             ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-            links.Prepend(0x101A, new(bank, 0, packet), words, 0, [0, 0, 0, 0]);
+            NativeBattlePilotVisualGeometry? geometry = null;
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 Corner(int corner)
+                {
+                    uint xy = words[2 + corner * 2];
+                    return new(unchecked((short)xy), unchecked((short)(xy >> 16)), 0);
+                }
+                geometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + index), ResourceGeneration = quadsAddress }, Corner(0), Corner(1), Corner(2), Corner(3), 4) { ScreenSpace = true, ScreenScale = 1, UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero };
+            }
+            links.Prepend(0x101A, new(bank, 0, packet), words, 0, [0, 0, 0, 0], pilotGeometry: geometry);
             if (linked)
             {
                 quads = quads.Write(packet, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));

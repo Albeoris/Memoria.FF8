@@ -134,6 +134,54 @@ public sealed class NativeBattleBreath129LowerTests
         Assert.NotEqual(0u, Dword(Context(actual, temporary, 92), 52) & 0x60000);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Selected_GT4_capture_preserves_native_operand_preread_and_late_fourth_gate(bool clipped)
+    {
+        NativeBattleBreath129Frame Run(bool capture, out List<NativeBattleBreath129AppendPacket> output)
+        {
+            NativeBattleBreath129Frame frame = MeshFrame(clipped ? (short)0 : (short)1000, out uint temporary);
+            frame = frame with { State = frame.State with { PendingColdSources = false } };
+            if (clipped)
+            {
+                frame = WriteBytes(frame, Base + 0x35F0 + 24, ReadBytes(frame, Base + 0x35F0 + 24, 8).MarkUnknown(0, 2), 8);
+            }
+            List<NativeBattleBreath129AppendPacket> packets = [];
+            NativeBattleBreath129Inputs inputs = Inputs((current, operation) =>
+            {
+                packets.Add(Assert.IsType<NativeBattleBreath129AppendPacket>(operation));
+                return current;
+            }) with { ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), PilotIdentity = capture ? new(129, 0x25211C0, 0, 4, 0) { ResourceGeneration = 0x12272DC } : null };
+            NativeBattleBreath129Frame result = NativeBattleBreath129Mesh.Draw6B5A50(frame, temporary, 17, 2, inputs);
+            if (clipped)
+            {
+                Assert.Throws<NotSupportedException>(() => Context(result, temporary, 92).Read(80, 2));
+            }
+            output = packets;
+            return result;
+        }
+        NativeBattleBreath129Frame native = Run(false, out var nativePackets);
+        string nativeFrame = NativeBattleTestSnapshots.Json(native);
+        string nativeWrites = System.Text.Json.JsonSerializer.Serialize(nativePackets);
+        NativeBattleBreath129Frame captured = Run(true, out var packets);
+        Assert.Equal(nativeFrame, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(nativeWrites, System.Text.Json.JsonSerializer.Serialize(packets));
+        if (clipped)
+        {
+            Assert.Null(Assert.Single(packets).PilotGeometry);
+        }
+        else
+        {
+            NativeBattleBreath129AppendPacket polygon = Assert.Single(packets, p => p.PilotGeometry is not null);
+            NativeBattlePilotVisualGeometry geometry = polygon.PilotGeometry!;
+            Assert.Equal(new System.Numerics.Vector3(-100, -100, 1000), geometry.A);
+            Assert.Equal(new System.Numerics.Vector3(100, 100, 1000), geometry.D);
+            Assert.Equal(new System.Numerics.Vector4(polygon.VertexPayload4[0], polygon.VertexPayload4[1], polygon.VertexPayload4[2], polygon.VertexPayload4[3]), geometry.SourceDepths);
+            Assert.True(geometry.UseSourceDepths);
+        }
+    }
+
     internal static NativeBattleBreath129Frame Frame()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770(), true, true, null), ScriptedColorRegisters = new([0, 0, 0], [0, 0, 0], [1, 2, 3], 0) { Material = 0, Ir0 = 0 }, PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };

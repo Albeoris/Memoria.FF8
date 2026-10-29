@@ -8,7 +8,7 @@ public sealed record NativeBattleAcid170MeshContext92Step(NativeBattleEffectMemo
 
 public static class NativeBattleAcid170MeshContext92
 {
-    public static NativeBattleAcid170MeshContext92Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
+    public static NativeBattleAcid170MeshContext92Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Acid mesh requires its actual loaded geometry registers."), memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown());
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Acid requires its current projection controls.");
@@ -19,10 +19,10 @@ public static class NativeBattleAcid170MeshContext92
         {
             throw new InvalidDataException("Acid mesh requires its actual addressed caller context.");
         }
-        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift, selectedVerticesAddress, readSelectedVertex);
+        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift, selectedVerticesAddress, readSelectedVertex, pilotIdentity);
     }
 
-    private static NativeBattleAcid170MeshContext92Step DrawCore(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters far, uint flags, int tableBaseBucket, byte depthShift, uint? selectedVerticesAddress, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex)
+    private static NativeBattleAcid170MeshContext92Step DrawCore(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters far, uint flags, int tableBaseBucket, byte depthShift, uint? selectedVerticesAddress, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics!;
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess!;
@@ -60,10 +60,20 @@ public static class NativeBattleAcid170MeshContext92
             for (int index = 0; index < count; index++)
             {
                 byte[] face = mesh.Bytes.AsSpan().Slice(cursor, lengths[group]).ToArray();
+                NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[quad ? 4 : 3] : null;
+                void Capture(int corner, NativeBattleVector vertex)
+                {
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, vertex), projection);
+                    }
+                }
                 for (int corner = 0; corner < 3; corner++)
                 {
                     (NativeBattleVector position, short? w) = Vertex(corner);
                     registers = NativeBattleGeometry.LoadVector(registers, corner, position, w);
+                    Capture(corner, position);
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
                 uint projectedFlags = registers.Colors.Flags!.Value;
@@ -88,6 +98,7 @@ public static class NativeBattleAcid170MeshContext92
                     {
                         (NativeBattleVector position, short? w) = Vertex(corner);
                         registers = NativeBattleGeometry.LoadVector(registers, 0, position, w);
+                        Capture(3, position);
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
                         registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Acid requires its actual ZSF4 control."));
@@ -147,6 +158,10 @@ public static class NativeBattleAcid170MeshContext92
                     mask.AsSpan(attempt.PacketLength, 4).Fill(NativeBattleGfPacketByteState.Known);
                     ImmutableArray<uint> words = Enumerable.Range(0, data.Length / 4).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray();
                     compound = accepted with { Words = words, PhysicalWriteMask = mask.ToImmutableArray() };
+                    if (pilotIdentity is { } identity && world is not null)
+                    {
+                        compound = compound with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)world.Length)) };
+                    }
                     allocated = checked(allocated + data.Length);
                 }
                 attempts.Add(new(attempt.ByteOffsetRelative, data.ToImmutableArray(), mask.ToImmutableArray(), compound));

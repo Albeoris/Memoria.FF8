@@ -106,7 +106,7 @@ public static partial class NativeBattleBreath129Controller
             frame = LoadMatrix(frame, packed);
             context = context.Write(0, BitConverter.GetBytes(0x12272DCu)).Write(14, BitConverter.GetBytes(unchecked((ushort)((phase & 7) << 4)))).Write(16, new byte[4]).Write(20, BitConverter.GetBytes((ushort)256)).Write(22, BitConverter.GetBytes((ushort)256)).Write(24, new byte[4]).Write(28, BitConverter.GetBytes((ushort)256)).Write(30, BitConverter.GetBytes((ushort)128)).Write(32, BitConverter.GetBytes(Working(frame) + 0x35F0));
             frame = PublishContext(frame, temporary, context, 92);
-            frame = NativeBattleBreath129Mesh.Draw6B5A50(frame, temporary, 17, 2, inputs);
+            frame = NativeBattleBreath129Mesh.Draw6B5A50(frame, temporary, 17, 2, inputs with { PilotIdentity = inputs.CapturePresentation ? NativeBattleBreath129VisualIdentity.Task(frame, address, NativeBattleBreath129Profile.MeshAddress) : null });
             frame = Release(frame, 92);
             if ((phase & 1) == 0)
             {

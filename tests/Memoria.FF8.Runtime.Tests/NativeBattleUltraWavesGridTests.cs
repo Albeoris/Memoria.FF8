@@ -6,6 +6,40 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleUltraWavesGridTests
 {
+    [Theory]
+    [InlineData((byte)0)]
+    [InlineData((byte)1)]
+    public void All_authored_cells_capture_exact_final_SXY_in_both_native_buffers_without_write_changes(byte buffer)
+    {
+        NativeBattlePilotVisualIdentity owner = new(154, 1, 2, 3, 4);
+        NativeBattleUltraWavesGridDraw Run(NativeBattlePilotVisualIdentity? identity)
+        {
+            NativeBattleUltraWavesGridInitialization initialized = Initialize(true);
+            return NativeBattleUltraWavesGrid.Draw(Memory(), NativeBattleUltraWavesGrid.Wave(initialized.Grid, 11), initialized.Quads, GridAddress, QuadsAddress, NativeBattleLogicalOrdering.Clear(), Projection, 512, buffer, 0x123456, identity);
+        }
+        NativeBattleUltraWavesGridDraw native = Run(null);
+        NativeBattleUltraWavesGridDraw captured = Run(owner);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(1080, captured.Ordering.Packets.Length);
+        HashSet<NativeBattlePilotVisualIdentity> identities = [];
+        foreach (NativeBattleLogicalPacket packet in captured.Ordering.Packets)
+        {
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(packet.PilotGeometry);
+            Assert.True(identities.Add(geometry.Identity));
+            Assert.True(geometry.ScreenSpace);
+            Assert.Equal(1, geometry.ScreenScale);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+            for (int corner = 0; corner < 4; corner++)
+            {
+                uint xy = packet.Words[2 + corner * 2];
+                Assert.Equal(unchecked((short)xy), geometry.Corner(corner).X);
+                Assert.Equal(unchecked((short)(xy >> 16)), geometry.Corner(corner).Y);
+            }
+        }
+        Assert.All(captured.Ordering.Proxies, proxy => Assert.Equal((ushort)0, proxy.Flags20));
+    }
+
     [Fact]
     public void Initialize_writes_actual_pointers_UVs_and_border_words_without_inventing_screen_or_CLUT()
     {

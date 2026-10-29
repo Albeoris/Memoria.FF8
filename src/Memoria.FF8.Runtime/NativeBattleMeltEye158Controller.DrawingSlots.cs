@@ -24,7 +24,7 @@ public static partial class NativeBattleMeltEye158Controller
             }
             if (sample < 48)
             {
-                frame = DrawingSprite(frame, temporary, resources.SpriteC.Address, checked(curve + 0x38 + (uint)(sample * 8)), unchecked((short)scale), unchecked((short)-(scale >> 3)), unchecked((short)(task.ReadByte(12) & 3)), inputs);
+                frame = DrawingSprite(frame, temporary, resources.SpriteC.Address, checked(curve + 0x38 + (uint)(sample * 8)), unchecked((short)scale), unchecked((short)-(scale >> 3)), unchecked((short)(task.ReadByte(12) & 3)), inputs, NativeBattlePilotVisualLifetimes.Identity(158, task, 0x10000 + sample) with { ResourceGeneration = curve });
             }
             sample--;
             scale -= 48;
@@ -44,6 +44,7 @@ public static partial class NativeBattleMeltEye158Controller
                     {
                         NativeBattleEffectArena position = frame.State.ReadView(checked(curve + 0x38 + (uint)(sample * 8)), 8);
                         frame = frame with { State = frame.State.WriteDword(row, mask).WriteWord(row + 6, unchecked((ushort)scale)).WriteView(row + 8, position, 8) };
+                        NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, row, 0);
                     }
                 }
                 sample--;
@@ -58,7 +59,7 @@ public static partial class NativeBattleMeltEye158Controller
             }
             short phase = unchecked((short)frame.State.ReadWord(row + 4));
             short rowScale = unchecked((short)frame.State.ReadWord(row + 6));
-            frame = DrawingSprite(frame, temporary, resources.SpriteC.Address, row + 8, rowScale, unchecked((short)-(rowScale >> 4)), phase, inputs);
+            frame = DrawingSprite(frame, temporary, resources.SpriteC.Address, row + 8, rowScale, unchecked((short)-(rowScale >> 4)), phase, inputs, RowIdentity158(frame, Read(frame, address), row, 0x20000 + index));
             if (!DrawingPaused(inputs))
             {
                 phase = unchecked((short)(phase + 2));
@@ -106,7 +107,7 @@ public static partial class NativeBattleMeltEye158Controller
             }
             short phase = unchecked((short)frame.State.ReadWord(row + 4));
             short scale = unchecked((short)frame.State.ReadWord(row + 6));
-            frame = DrawingSprite(frame, temporary, resources.SpriteB.Address, row + 8, scale, unchecked((short)-(scale >> 4)), phase, inputs);
+            frame = DrawingSprite(frame, temporary, resources.SpriteB.Address, row + 8, scale, unchecked((short)-(scale >> 4)), phase, inputs, RowIdentity158(frame, Read(frame, address), row, 0x30000 + index));
             if (DrawingPaused(inputs))
             {
                 continue;
@@ -161,6 +162,7 @@ public static partial class NativeBattleMeltEye158Controller
                 }
                 uint row = checked(SlotBankA + (uint)(slot * SlotStride));
                 frame = frame with { State = frame.State.WriteDword(row, unchecked((uint)mask)).WriteWord(row + 4, 0) };
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, row, 0);
                 frame = Random(frame, out ushort sizeRoll);
                 NativeBattleMeltEye158State state = frame.State.WriteWord(row + 6, unchecked((ushort)(sizeRoll % 1536 + 1792)));
                 state = state.WriteWord(row + 8, unchecked((ushort)start.X)).WriteWord(row + 10, unchecked((ushort)start.Y)).WriteWord(row + 12, unchecked((ushort)start.Z));
@@ -180,13 +182,15 @@ public static partial class NativeBattleMeltEye158Controller
         return (Write(frame, address, task), DrawingWord(task, 12) >= 4 && active == 0 ? 2 : 0);
     }
 
-    private static NativeBattleMeltEye158Frame DrawingSprite(NativeBattleMeltEye158Frame frame, uint temporary, uint source, uint positionAddress, short scale, short depth, short phase, NativeBattleMeltEye158Inputs inputs)
+    private static NativeBattleMeltEye158Frame DrawingSprite(NativeBattleMeltEye158Frame frame, uint temporary, uint source, uint positionAddress, short scale, short depth, short phase, NativeBattleMeltEye158Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector position = DrawingStateVector(frame.State, positionAddress);
         (byte[] bytes, bool[] known) = frame.State.ReadView(positionAddress + 6, 2).ReadSnapshot(0, 2);
         short? w = known.All(value => value) ? System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(bytes) : null;
-        return inputs.Execute(frame, new NativeBattleMeltEye158DrawSprite180(temporary, source, position, w, scale, depth, phase));
+        return inputs.Execute(frame, new NativeBattleMeltEye158DrawSprite180(temporary, source, position, w, scale, depth, phase) { PilotIdentity = pilotIdentity });
     }
+
+    private static NativeBattlePilotVisualIdentity RowIdentity158(NativeBattleMeltEye158Frame frame, NativeBattleModulePoolTask task, uint row, int primitive) => NativeBattlePilotVisualLifetimes.Identity(158, task, primitive) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(158, frame.State.Globals, row, 0).Generation };
 
     private static int DrawingFindSlot(NativeBattleMeltEye158State state, uint bank, int count)
     {

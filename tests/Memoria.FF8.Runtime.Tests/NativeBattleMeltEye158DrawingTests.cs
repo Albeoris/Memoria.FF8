@@ -26,6 +26,8 @@ public sealed class NativeBattleMeltEye158DrawingTests
         f.Feedback = feedback;
         var step = NativeBattleMeltEye158Controller.AdvanceImpactSprite(frame, ChildBank, f.Resources, f.Inputs);
         NativeBattleMeltEye158DrawSprite180 draw = Assert.Single(f.Draws.OfType<NativeBattleMeltEye158DrawSprite180>());
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(158, f.Task(frame)) with { ResourceGeneration = f.Resources.SpriteA.Address }, draw.PilotIdentity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(draw with { PilotIdentity = null }), NativeBattleTestSnapshots.Json(draw));
         Assert.Null(draw.W);
         Assert.Equal((short)80, draw.Scale);
         Assert.Equal((short)-10, draw.Depth);
@@ -52,6 +54,7 @@ public sealed class NativeBattleMeltEye158DrawingTests
         frame = frame with { Staging = frame.Staging!.Write(NativeBattleTemporaryMemory.Address + 12, BitConverter.GetBytes(0x12345678)) };
         var step = head ? NativeBattleMeltEye158Controller.AdvanceHeadMesh(frame, ChildBank, f.Resources, f.Inputs) : NativeBattleMeltEye158Controller.AdvanceImpactMesh(frame, ChildBank, f.Resources, f.Inputs);
         NativeBattleMeltEye158DrawStatic88 draw = Assert.Single(f.Draws.OfType<NativeBattleMeltEye158DrawStatic88>());
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(158, f.Task(frame)) with { ResourceGeneration = head ? f.Resources.MeshA.Address : f.Resources.MeshB.Address }, draw.PilotIdentity);
         Assert.Equal((byte)shift, draw.DepthShift);
         Assert.Equal(flags, U32(step.Frame.Staging!, draw.Temporary88 + 0x1C));
         Assert.Equal(cue < 0 ? 0x12345678 : cue, unchecked((int)U32(step.Frame.Staging!, draw.Temporary88 + 12)));
@@ -87,6 +90,7 @@ public sealed class NativeBattleMeltEye158DrawingTests
     {
         Fixture f = new();
         NativeBattleMeltEye158Frame frame = f.Set(f.Set(f.Frame, 14, 1), 0x18, 7);
+        long generation = NativeBattlePilotVisualLifetimes.Identity(158, frame.State.Globals, SlotBankA, 0).Generation;
         NativeCrtRandomState expected = frame.Random;
         for (int index = 0; index < 10; index++)
         {
@@ -94,6 +98,7 @@ public sealed class NativeBattleMeltEye158DrawingTests
         }
         var step = NativeBattleMeltEye158Controller.AdvanceForkEmitter(frame, ChildBank, f.Resources, f.Inputs);
         Assert.Equal(expected, step.Frame.Random);
+        Assert.True(NativeBattlePilotVisualLifetimes.Identity(158, step.Frame.State.Globals, SlotBankA, 0).Generation > generation);
         Assert.Equal(1u, step.Frame.State.ReadDword(SlotBankA));
         Assert.Equal(1u, step.Frame.State.ReadDword(SlotBankA + 24));
         Assert.Throws<NotSupportedException>(() => step.Frame.State.ReadWord(SlotBankA + 14));

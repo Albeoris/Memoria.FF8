@@ -51,6 +51,7 @@ public sealed partial class BattleSession
                 Put(1, slot, Clear(1, slot).WriteByte(14, unchecked((byte)effect.Parameters.TargetMask7A)));
             }
         }
+        NativeBattlePilotVisualIdentity? pilotIdentity = null;
         int survivors = 1;
         if (root.ReadByte(15) != 0)
         {
@@ -62,6 +63,7 @@ public sealed partial class BattleSession
                 {
                     pools[current] = pool;
                     NativeBattleModulePoolTask task = pool.Slots[slot];
+                    pilotIdentity = NativeBattlePilotVisualLifetimes.Identity(113, task);
                     int result = task.Callback switch
                     {
                         0x6CAE10 => Main(ref task),
@@ -181,7 +183,7 @@ public sealed partial class BattleSession
             NativeBattleModuleResource resource = resources.Sprites.Single(sprite => sprite.Address == resourceAddress);
             NativeBattleVector point = BadVector(task, 20);
             int depth = resource.Address == 0x12C118C && frame < 4 ? 0 : -(BadWord(task, 34) >> 2);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(frame), Phase = task.ReadWord(12), Anchor = new(point.X, point.Y, point.Z, 0), Scale = BadWord(task, 26), DepthOffset = depth, Direction = 4096, SpriteFlags = 0 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(frame), Phase = task.ReadWord(12), Anchor = new(point.X, point.Y, point.Z, 0), Scale = BadWord(task, 26), DepthOffset = depth, Direction = 4096, SpriteFlags = 0, PilotIdentity = pilotIdentity is { } spriteIdentity ? spriteIdentity with { ResourceGeneration = resource.Address } : null };
             NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch, NativeBattleEffectGouraudWrites.FullDword);
             NativeEffectMemory = written.Memory;
@@ -283,7 +285,7 @@ public sealed partial class BattleSession
                 }
                 matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, node.Vector24.X, node.Vector24.Y, node.Vector24.Z);
                 uint flags = (flag & 0xDFFF) | 0x2000u | (node.Scalar36 == 0 ? 0u : 0xC0u);
-                Append(NativeBattleModulePackets.EmitBatch572200(source, geometry, vertices, matrix, projection, new(flags, node.Scalar36 == 0 ? 0u : node.Color32, node.Scalar36, null, null, null, 17, 2), colors));
+                Append(NativeBattleModulePackets.EmitBatch572200(source, geometry, vertices, matrix, projection, new(flags, node.Scalar36 == 0 ? 0u : node.Color32, node.Scalar36, null, null, null, 17, 2), colors, pilotIdentity: pilotIdentity is { } cloudIdentity ? cloudIdentity with { Primitive = node.ResourceOffset, ResourceGeneration = resources.Cloud.Address } : null));
                 return current;
             });
             task = advanced.Workspace.CopyTo(task, 12 + (4), retainUnknown: true);
@@ -310,21 +312,21 @@ public sealed partial class BattleSession
             {
                 if ((actor.SequenceState!.MeshMask124 & (1u << (index & 31))) != 0)
                 {
-                    Submit(shared && index == 1 ? linked.Single() : body[index], bones, shared && index == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!);
+                    Submit(shared && index == 1 ? linked.Single() : body[index], bones, shared && index == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!, index, shared && index == 1);
                 }
             }
             actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
             if (!shared && !linked.IsEmpty)
             {
                 ImmutableArray<NativeBattleActionMatrix> weaponBones = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(actor, resource.LinkedPoseSource!, view);
-                foreach (NativeBattleRawMesh mesh in linked)
+                for (int linkedIndex = 0; linkedIndex < linked.Length; linkedIndex++)
                 {
-                    Submit(mesh, weaponBones, actor.LinkedTextureSlots!);
+                    Submit(linked[linkedIndex], weaponBones, actor.LinkedTextureSlots!, linkedIndex, true);
                 }
             }
             graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor) };
 
-            void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding binding)
+            void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding binding, int meshIndex, bool linkedSource)
             {
                 ushort maximum = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Bad Breath requires its actual projected scratch capacity.");
                 uint address = checked(0x196B018u - (uint)maximum * 8);
@@ -340,7 +342,7 @@ public sealed partial class BattleSession
                     BinaryPrimitives.WriteUInt32LittleEndian(output.AsSpan(index * 8 + 4), projected[index].DepthAndClip);
                 }
                 NativeFileStaging = NativeFileStaging!.Write(address, output);
-                NativeBattleGfGeometryBatch batch = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, actor.Color40!.Value, resource.GeometryRelocated507550 ? null : binding);
+                NativeBattleGfGeometryBatch batch = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, actor.Color40!.Value, resource.GeometryRelocated507550 ? null : binding, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = ((long)NativeBattleModelResourceRow.Address100(actor) << 32) | ((linkedSource ? 1L : 0L) << 31) | (uint)meshIndex } : null);
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory!.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, batch);
                 NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
