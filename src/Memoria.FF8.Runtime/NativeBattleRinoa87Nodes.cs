@@ -84,10 +84,7 @@ public static class NativeBattleRinoa87Nodes
                 throw new NotSupportedException("Native779130 requires its reached source and body-bone placement mode4.");
             }
             NativeBattleNodeSource data = frame.State.NodeData ?? new NativeBattleNodeSource(resources.Data);
-            if (frame.State.NodeData is not null)
-            {
-                NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(data);
-            }
+            NativeBattleTaskOperation.AdmitCurrentRetainedMemoryStorage(data);
             using NativeBattleNodeBankOperation bank = new(data);
             uint flag = bank.ReadUInt32(0);
             if (flag == 0)
