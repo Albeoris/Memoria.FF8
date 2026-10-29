@@ -15,6 +15,19 @@ internal sealed partial class MonoGameUiCanvas
 
     public void BattleMessage(DialogueDocument document, float size, UiRect bounds, double seconds)
     {
+        if (document.Binding is { } binding && InspectText is not null)
+        {
+            Rectangle visible = Rectangle.Intersect(RectangleFor(bounds), CurrentClip);
+            if (visible.Width > 0 && visible.Height > 0)
+            {
+                InspectText(binding, new UiRect(visible.X, visible.Y, visible.Width, visible.Height));
+            }
+        }
+        if (UseNativeFonts)
+        {
+            DrawNativeBattleMessage(document, size, bounds, seconds);
+            return;
+        }
         var key = (document, size, bounds.Width, text.FontFamily);
         if (!battleMessageLayouts.TryGetValue(key, out BattleMessageLayout? layout))
         {
@@ -48,6 +61,31 @@ internal sealed partial class MonoGameUiCanvas
                 }
             }
             y += layout.LineHeight;
+        }
+    }
+
+    private void DrawNativeBattleMessage(DialogueDocument document, float size, UiRect bounds, double seconds)
+    {
+        float y = bounds.Y;
+        float lineHeight = size;
+        foreach (DialogueLine line in document.Pages.FirstOrDefault()?.Lines ?? [])
+        {
+            float x = bounds.X;
+            foreach (DialogueRun run in line.Runs)
+            {
+                Color color = run.Color * (run.Blink ? DialogueBlink.Opacity(seconds) : 1);
+                UiRect runBounds = new(x, y, Math.Max(1, bounds.Right - x), Math.Max(1, bounds.Bottom - y));
+                if (run.IsButton)
+                {
+                    ButtonPrompt.Draw(batch, pixel, text, run.Text, size, new Vector2(x, y), lineHeight, color.A / 255f, text.FontFamily, Rectangle.Intersect(RectangleFor(bounds), CurrentClip), this);
+                }
+                else
+                {
+                    DrawNativeText(run.Text, size, runBounds, new UiColor(color.R, color.G, color.B, color.A), UiAlignment.Start, NativeBattleTextContext);
+                }
+                x += NativeTextAdvance(run.Text, size, NativeBattleTextContext);
+            }
+            y += lineHeight;
         }
     }
 }

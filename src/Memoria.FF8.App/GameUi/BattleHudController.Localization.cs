@@ -1,4 +1,5 @@
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.GameUi;
 
@@ -8,6 +9,7 @@ public sealed partial class BattleHudController
     private Func<BattleCombatant, string>? localizedCombatantName;
     private Func<BattleAbility, BattleCombatant?, string, string>? localizedCommandName;
     private Func<BattleEvent, string>? localizedBattleMessage;
+    private Func<BattleEvent, BoundLocalizationText?>? boundBattleMessage;
     private Func<string, string, string>? localizeSystemText;
     private Func<int, string, string>? localizeGlobalMessage;
 
@@ -21,6 +23,7 @@ public sealed partial class BattleHudController
         localizedCombatantName = presentation.CombatantName;
         localizedCommandName = presentation.CommandName;
         localizedBattleMessage = presentation.Message;
+        boundBattleMessage = presentation.BoundMessage;
         localizeSystemText = presentation.SystemText;
         localizeGlobalMessage = presentation.GlobalMessage;
     }

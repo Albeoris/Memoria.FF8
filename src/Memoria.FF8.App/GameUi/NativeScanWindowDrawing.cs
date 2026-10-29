@@ -1,13 +1,16 @@
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.GameUi;
 
 internal interface INativeScanTextCanvas
 {
+    bool ScanOriginalLayout => false;
     float ScanTextAdvance(string value, float size);
     void ScanTextRun(string value, float size, float x, float y, UiColor color);
+    void ScanTextRun(string value, float size, float x, float y, UiColor color, LocalizationTextBinding? binding) => ScanTextRun(value, size, x, y, color);
 }
 
 /// <summary>Draws current Scan window semantics using the product's system fonts.</summary>
@@ -54,7 +57,7 @@ internal static class NativeScanWindowDrawing
                         float x = left + (window.OriginalRectangle.X + 6 + line.X) * scale;
                         float y = top + (window.OriginalRectangle.Y + 6 + line.Y) * scale;
                         float lineSize = size;
-                        if (line.FitWidth)
+                        if (line.FitWidth && canvas is not INativeScanTextCanvas { ScanOriginalLayout: true })
                         {
                             float width = line.Line.Runs.Sum(run => canvas is INativeScanTextCanvas native ? native.ScanTextAdvance(run.Text, size) : canvas.MeasureText(run.Text, size, float.PositiveInfinity).Width);
                             float available = Math.Max(0, clip.X + clip.Width - x);
@@ -70,7 +73,7 @@ internal static class NativeScanWindowDrawing
                             UiColor color = new(Channel(source.R, intensity), Channel(source.G, intensity), Channel(source.B, intensity), (byte)Math.Clamp((int)(source.A * opacity), 0, 255));
                             if (canvas is INativeScanTextCanvas native)
                             {
-                                native.ScanTextRun(run.Text, lineSize, x, y, color);
+                                native.ScanTextRun(run.Text, lineSize, x, y, color, line.Binding ?? window.Binding);
                                 x += native.ScanTextAdvance(run.Text, lineSize);
                             }
                             else

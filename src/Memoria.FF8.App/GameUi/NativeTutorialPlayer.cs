@@ -28,6 +28,11 @@ internal sealed partial class NativeTutorialPlayer
     private bool complete;
     private readonly Dictionary<string, string> settings = new(StringComparer.Ordinal);
     private readonly Dictionary<int, string> names;
+    private readonly string messageOccurrenceSession = Guid.NewGuid().ToString("N");
+    private long messagePresentationId;
+    private long observedPresentationId = -1;
+    private int? observedTextId;
+    private long messageOccurrenceSequence;
 
     public NativeTutorialPlayer(NativeTutorialCatalog catalog, LiveMenuCatalog menuCatalog, int tutorialId, JsonElement? saved = null, IReadOnlyDictionary<int, string>? names = null)
     {
@@ -122,6 +127,7 @@ internal sealed partial class NativeTutorialPlayer
                     return;
                 case 3:
                     messageVisible = true;
+                    messagePresentationId++;
                     UpdateMessage();
                     OperationExecuted?.Invoke(pc, word);
                     pc++;
@@ -231,7 +237,28 @@ internal sealed partial class NativeTutorialPlayer
 
     private void UpdateMessage()
     {
-        Menu.ShowTutorialMessage(messageVisible ? Menu.FormatNativeTutorialText(Menu.LocalizeNativeTutorial($"mngrp_slot{definition.Descriptor.TextResource:000}_table", textId, definition.Texts[textId].Value), names) : null, centerX, centerY);
+        if (!messageVisible)
+        {
+            Menu.ShowTutorialMessage(null, centerX, centerY);
+            observedTextId = null;
+            return;
+        }
+        string file = $"mngrp_slot{definition.Descriptor.TextResource:000}_table";
+        string source = definition.Texts[textId].Value;
+        var bound = Menu.BindNativeTutorial(file, textId, source);
+        string rendered = Menu.FormatNativeTutorialText(bound?.Text ?? Menu.LocalizeNativeTutorial(file, textId, source), names);
+        if (bound is not null)
+        {
+            var binding = bound.Binding with { Text = rendered, Arguments = [names.ToDictionary(pair => pair.Key, pair => pair.Value)] };
+            rendered = Memoria.FF8.Resources.Localization.LocalizationTextTrace.Attach(rendered, binding);
+            if (observedTextId != textId || observedPresentationId != messagePresentationId)
+            {
+                observedTextId = textId;
+                observedPresentationId = messagePresentationId;
+                Menu.ObserveTutorialDialogue(binding, messageOccurrenceSession + ":" + (++messageOccurrenceSequence).ToString(CultureInfo.InvariantCulture), rendered);
+            }
+        }
+        Menu.ShowTutorialMessage(rendered, centerX, centerY);
     }
 
     private MenuData BuildData()

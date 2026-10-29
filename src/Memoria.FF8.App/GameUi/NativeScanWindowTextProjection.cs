@@ -1,17 +1,20 @@
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.GameUi;
 
 internal sealed record NativeScanTextLine(DialogueLine Line, int X, int Y)
 {
     public bool FitWidth { get; init; }
+    public LocalizationTextBinding? Binding { get; init; }
 }
 internal sealed record NativeScanWindowText(int Index, NativeBattleScanRect Outer, NativeBattleScanRect Inner, ushort Progress, ushort Intensity, byte Priority, IReadOnlyList<NativeScanTextLine> Lines)
 {
     public required NativeBattleScanRect OriginalRectangle { get; init; }
     public required byte BackendFlags38 { get; init; }
-    public DialogueDocument Document => new([new DialoguePage(Lines.Select(line => line.Line).ToArray())]);
+    public LocalizationTextBinding? Binding { get; init; }
+    public DialogueDocument Document => new([new DialoguePage(Lines.Select(line => line.Line).ToArray())]) { Binding = Binding };
 }
 
 /// <summary>Projects current native text progress into semantic runs for the system text renderer.</summary>
@@ -108,7 +111,7 @@ internal static class NativeScanWindowTextProjection
                         text.Add(token);
                     }
                 }
-                DialogueDocument document = DialogueTextFormatter.Parse(encoding.GetString(text.ToArray()));
+                DialogueDocument document = DialogueTextFormatter.Parse(encoding.GetString(text.ToArray()), originalCompatible: true);
                 DialogueLine line = document.Pages.SelectMany(page => page.Lines).Single() with { SourceLineIndex = lineIndex };
                 int x = row.ReadWord(0x30) + 2;
                 if (row.ReadByte(0x29) <= lineIndex && lineIndex <= row.ReadByte(0x2A))

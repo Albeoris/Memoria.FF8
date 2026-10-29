@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8;
 
@@ -20,7 +21,15 @@ internal sealed record DialoguePage(IReadOnlyList<DialogueLine> Lines, string? S
 
 internal sealed record DialogueDocument(IReadOnlyList<DialoguePage> Pages)
 {
-    public string Text => string.Join('\n', Pages.SelectMany(page => page.Lines).Select(line => line.Text));
+    public LocalizationTextBinding? Binding { get; init; }
+    public string Text
+    {
+        get
+        {
+            string text = string.Join('\n', Pages.SelectMany(page => page.Lines).Select(line => line.Text));
+            return Binding is null ? text : LocalizationTextTrace.Attach(text, Binding with { Text = text });
+        }
+    }
 
     public DialogueDocument WithLiteralLine(string text)
     {
@@ -28,6 +37,6 @@ internal sealed record DialogueDocument(IReadOnlyList<DialoguePage> Pages)
         int sourceLine = pages.SelectMany(page => page.Lines).Max(line => line.SourceLineIndex) + 1;
         var line = new DialogueLine([new DialogueRun(text, Color.White)], sourceLine);
         pages[^1] = pages[^1] with { Lines = pages[^1].Lines.Append(line).ToArray() };
-        return new DialogueDocument(pages);
+        return new DialogueDocument(pages) { Binding = Binding };
     }
 }

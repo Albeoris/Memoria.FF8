@@ -1,4 +1,5 @@
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.GameUi;
 
@@ -15,6 +16,12 @@ public sealed partial class BattleHudController
     private double battlePresentationSeconds;
     private DialogueDocument? commandError;
     private double commandErrorUntil;
+    private BattleEvent? observedBattleMessage;
+    private readonly string messageOccurrenceSession = Guid.NewGuid().ToString("N");
+    private long messageOccurrenceSequence;
+    private bool formattedOriginalCompatible;
+    internal bool OriginalCompatibleLayout { get; set; }
+    internal event Action<LocalizationTextBinding, string, string, string>? DialoguePresented;
 
     public string? BattleMessage => BattleMessageDocument?.Text;
 
@@ -32,13 +39,19 @@ public sealed partial class BattleHudController
             {
                 return battlePresentationSeconds < commandErrorUntil ? commandError : null;
             }
-            string displayed = localizedBattleMessage?.Invoke(message) ?? message.Message;
+            BoundLocalizationText? bound = boundBattleMessage?.Invoke(message);
+            string displayed = bound?.Text ?? localizedBattleMessage?.Invoke(message) ?? message.Message;
             string bindings = DialogueTextFormatter.ExpandButtonBindings(displayed, NativeButtonBindingHint);
-            if (!ReferenceEquals(message, formattedBattleMessageEvent) || bindings != formattedBattleMessageBindings)
+            if (!ReferenceEquals(message, formattedBattleMessageEvent) || bindings != formattedBattleMessageBindings || formattedOriginalCompatible != OriginalCompatibleLayout)
             {
-                formattedBattleMessage = DialogueTextFormatter.Parse(displayed, TextNames(), buttonBindingHint: NativeButtonBindingHint);
+                formattedBattleMessage = DialogueTextFormatter.Parse(displayed, TextNames(), buttonBindingHint: NativeButtonBindingHint, originalCompatible: OriginalCompatibleLayout);
                 formattedBattleMessageEvent = message;
                 formattedBattleMessageBindings = bindings;
+                formattedOriginalCompatible = OriginalCompatibleLayout;
+            }
+            if (formattedBattleMessage is not null && bound is not null && (formattedBattleMessage.Binding is not { } retained || retained.Key != bound.Binding.Key || retained.Template != bound.Binding.Template || retained.ResourceFingerprint != bound.Binding.ResourceFingerprint))
+            {
+                formattedBattleMessage = formattedBattleMessage with { Binding = bound.Binding with { Text = formattedBattleMessage.Text, Arguments = [TextNames()] } };
             }
             return formattedBattleMessage;
         }
@@ -94,6 +107,20 @@ public sealed partial class BattleHudController
         if (activeBattleMessage is null)
         {
             battleMessageFrames = 0;
+        }
+        ObserveBattleMessage();
+    }
+
+    private void ObserveBattleMessage()
+    {
+        if (activeBattleMessage is not { } message || battleMessageFrames < message.NativeMessageDelayFrames || ReferenceEquals(observedBattleMessage, message))
+        {
+            return;
+        }
+        observedBattleMessage = message;
+        if (BattleMessageDocument is { Binding: { } binding } document)
+        {
+            DialoguePresented?.Invoke(binding, "Battle/messages", messageOccurrenceSession + ":" + (++messageOccurrenceSequence).ToString(System.Globalization.CultureInfo.InvariantCulture), document.Text);
         }
     }
 

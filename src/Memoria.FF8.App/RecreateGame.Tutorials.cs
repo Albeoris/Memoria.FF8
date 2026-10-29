@@ -16,7 +16,8 @@ internal sealed partial class RecreateGame
     {
         if (resourceHost is not null)
         {
-            gameMenus!.ConfigureNativeTutorialLocalization(new LocalizationBattlePresentation(resourceHost.Resources).Table);
+            LocalizationBattlePresentation localization = new(resourceHost.Resources);
+            gameMenus!.ConfigureNativeTutorialLocalization(localization.Table, localization.BoundTable);
         }
         using GameAssets assets = new(options.GameDirectory);
         NativeTutorialCatalog nativeTutorialCatalog = assets.ReadNativeTutorialCatalog();
@@ -105,7 +106,8 @@ internal sealed partial class RecreateGame
         gameMenus = current.Menu;
         if (resourceHost is not null)
         {
-            gameMenus.ConfigureNativeTutorialLocalization(new LocalizationBattlePresentation(resourceHost.Resources).Table);
+            LocalizationBattlePresentation localization = new(resourceHost.Resources);
+            gameMenus.ConfigureNativeTutorialLocalization(localization.Table, localization.BoundTable);
             gameMenus.ConnectLocalizationText(resourceHost.Resources.Localize);
         }
         gameMenus.ConnectReadOnlyTutorialControls(() => keyboard.Profile, () => keyboard.ControllerPresentation, () => keyboard.LastInputDevice);

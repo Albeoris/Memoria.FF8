@@ -1,4 +1,5 @@
 using Memoria.FF8.Ui;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.GameUi;
 
@@ -10,7 +11,10 @@ public sealed partial class MenuController
 
     internal void ShowTutorialMessage(string? text, int centerX, int centerY)
     {
-        if (_tutorialMessage == text && _tutorialMessageX == centerX / 384f && _tutorialMessageY == centerY / 256f)
+        LocalizationTextBinding? before = _tutorialMessage is null ? null : LocalizationTextTrace.Find(_tutorialMessage);
+        LocalizationTextBinding? after = text is null ? null : LocalizationTextTrace.Find(text);
+        bool sameBinding = before?.Key == after?.Key && before?.ResourceFingerprint == after?.ResourceFingerprint && before?.Template == after?.Template && before?.PackageId == after?.PackageId;
+        if (_tutorialMessage == text && sameBinding && _tutorialMessageX == centerX / 384f && _tutorialMessageY == centerY / 256f)
         {
             return;
         }
