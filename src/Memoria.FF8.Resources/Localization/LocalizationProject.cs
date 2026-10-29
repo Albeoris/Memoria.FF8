@@ -43,6 +43,8 @@ public sealed record LocalizationPayload
     public string? Category { get; init; }
     public string? File { get; init; }
     public IReadOnlyDictionary<string, string> Worksheets { get; init; } = new Dictionary<string, string>();
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = new(StringComparer.Ordinal);
 }
 
 public sealed record LocalizationArtworkDeclaration

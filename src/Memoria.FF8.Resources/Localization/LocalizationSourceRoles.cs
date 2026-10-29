@@ -46,11 +46,12 @@ public static class LocalizationSourceRoles
         foreach (string language in new[] { primary, manifest.FieldScriptBaseLanguage }.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             string? label = manifest.ReferenceLanguages.FirstOrDefault(pair => pair.Value.Equals(language, StringComparison.OrdinalIgnoreCase)).Key;
-            if (label is not null && !string.IsNullOrEmpty(row.References.GetValueOrDefault(label)))
+            bool referencePresent = label is not null && (row.ReferencePresence.TryGetValue(label, out bool declared) ? declared : row.References.ContainsKey(label));
+            if (referencePresent && !string.IsNullOrEmpty(row.References.GetValueOrDefault(label!)))
             {
-                return (row.References[label]!, language);
+                return (row.References[label!]!, language);
             }
-            if (manifest.SourceLanguage.Equals(language, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(row.Source))
+            if (row.SourcePresent && manifest.SourceLanguage.Equals(language, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(row.Source))
             {
                 return (row.Source, language);
             }

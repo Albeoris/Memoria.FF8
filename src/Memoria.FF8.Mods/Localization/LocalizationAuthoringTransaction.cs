@@ -7,7 +7,7 @@ namespace Memoria.FF8.Mods.Localization;
 internal static class LocalizationAuthoringTransaction
 {
     private const string Journal = ".localization-authoring.transaction.json";
-    internal sealed record FileChange(string Destination, string Backup, string Candidate);
+    internal sealed record FileChange(string Destination, string Backup, string Candidate, bool Existed = true, string? CandidateSha256 = null);
     internal static FileStream Acquire(string root)
     {
         string locks = Path.Combine(Path.GetTempPath(), "Memoria.Localization.Authoring.Locks");
@@ -27,6 +27,19 @@ internal static class LocalizationAuthoringTransaction
         {
             string backup = LocalizationProjectIO.Resolve(root, change.Backup);
             string destination = LocalizationProjectIO.Resolve(root, change.Destination);
+            if (!change.Existed)
+            {
+                string candidate = LocalizationProjectIO.Resolve(root, change.Candidate);
+                if (!File.Exists(candidate) && File.Exists(destination))
+                {
+                    if (change.CandidateSha256 is null || Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(destination))) != change.CandidateSha256)
+                    {
+                        throw new InvalidDataException("A newly inserted payload changed after an interrupted save; retain the recovery files and review the external change.");
+                    }
+                    File.Delete(destination);
+                }
+                continue;
+            }
             if (!File.Exists(backup))
             {
                 throw new InvalidDataException("An interrupted authoring transaction lacks its recovery backup.");
@@ -36,7 +49,7 @@ internal static class LocalizationAuthoringTransaction
         File.Delete(path);
         Cleanup(root, changes);
     }
-    internal static void Publish(string root, IReadOnlyDictionary<string, byte[]> candidates, CancellationToken cancellation, IReadOnlyDictionary<string, byte[]>? expectedOriginals = null)
+    internal static void Publish(string root, IReadOnlyDictionary<string, byte[]> candidates, CancellationToken cancellation, IReadOnlyDictionary<string, byte[]>? expectedOriginals = null, IReadOnlySet<string>? expectedAbsent = null)
     {
         string token = Guid.NewGuid().ToString("N");
         List<FileChange> changes = [];
@@ -46,6 +59,14 @@ internal static class LocalizationAuthoringTransaction
         {
             foreach (string relative in candidates.Keys.Concat(expectedOriginals?.Keys.AsEnumerable() ?? []).Distinct(StringComparer.OrdinalIgnoreCase))
             {
+                if (expectedAbsent?.Contains(relative) == true)
+                {
+                    if (File.Exists(LocalizationProjectIO.Resolve(root, relative)))
+                    {
+                        throw new IOException("A new localization payload appeared during final write coordination; review and retry.");
+                    }
+                    continue;
+                }
                 FileStream original = new(LocalizationProjectIO.Resolve(root, relative), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
                 originals.Add(original);
                 if (expectedOriginals?.TryGetValue(relative, out byte[]? expected) == true)
@@ -62,9 +83,13 @@ internal static class LocalizationAuthoringTransaction
             {
                 string backup = relative + ".authoring-" + token + ".bak";
                 string candidate = relative + ".authoring-" + token + ".tmp";
-                File.Copy(LocalizationProjectIO.Resolve(root, relative), LocalizationProjectIO.Resolve(root, backup), false);
-                using (FileStream retained = new(LocalizationProjectIO.Resolve(root, backup), FileMode.Open, FileAccess.Write, FileShare.Read))
+                bool existed = expectedAbsent?.Contains(relative) != true;
+                changes.Add(new(relative, backup, candidate, existed, Convert.ToHexString(SHA256.HashData(bytes))));
+                Directory.CreateDirectory(Path.GetDirectoryName(LocalizationProjectIO.Resolve(root, relative))!);
+                if (existed)
                 {
+                    File.Copy(LocalizationProjectIO.Resolve(root, relative), LocalizationProjectIO.Resolve(root, backup), false);
+                    using FileStream retained = new(LocalizationProjectIO.Resolve(root, backup), FileMode.Open, FileAccess.Write, FileShare.Read);
                     retained.Flush(true);
                 }
                 using (FileStream staged = new(LocalizationProjectIO.Resolve(root, candidate), FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
@@ -72,7 +97,6 @@ internal static class LocalizationAuthoringTransaction
                     staged.Write(bytes);
                     staged.Flush(true);
                 }
-                changes.Add(new(relative, backup, candidate));
             }
             cancellation.ThrowIfCancellationRequested();
             using (FileStream journal = new(Path.Combine(root, Journal), FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
@@ -83,7 +107,14 @@ internal static class LocalizationAuthoringTransaction
             journalWritten = true;
             foreach (FileChange change in changes)
             {
-                File.Replace(LocalizationProjectIO.Resolve(root, change.Candidate), LocalizationProjectIO.Resolve(root, change.Destination), null);
+                if (change.Existed)
+                {
+                    File.Replace(LocalizationProjectIO.Resolve(root, change.Candidate), LocalizationProjectIO.Resolve(root, change.Destination), null);
+                }
+                else
+                {
+                    File.Move(LocalizationProjectIO.Resolve(root, change.Candidate), LocalizationProjectIO.Resolve(root, change.Destination));
+                }
             }
             File.Delete(Path.Combine(root, Journal));
             journalWritten = false;

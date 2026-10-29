@@ -127,17 +127,59 @@ public sealed class LocalizationProjectStore(string packageDirectory) : ILocaliz
             }
             LocalizationRecord changed = current.Row with { Target = target.Text, TargetPresent = target.Present };
             LocalizationRecord[] updatedRows = expected.Missing ? project.Entries.Append(changed).ToArray() : project.Entries.Select(row => Matches(row, expected.Identity) ? changed : row).ToArray();
-            LocalizationProjectIO.Validate(project with { Entries = updatedRows });
-            IEnumerable<LocalizationPayload> payloads = expected.Missing ? project.Manifest.Payloads : LocalizationProjectIO.DiscoverPayloads(root, project.Manifest);
-            LocalizationPayload payload = payloads.Single(item => (item.Category is null || item.Category == expected.Identity.Category) && (item.File is null || item.File == expected.Identity.File) && (expected.Missing || Contains(item, project.Manifest, expected.Identity)));
+            LocalizationPayload? existingPayload = project.Manifest.Layout == "single" ? project.Manifest.Payloads.Single() : LocalizationProjectIO.DiscoverPayloads(root, project.Manifest).SingleOrDefault(item => (item.Category is null || item.Category == expected.Identity.Category) && (item.File is null || item.File == expected.Identity.File) && (expected.Missing || Contains(item, project.Manifest, expected.Identity)));
+            if (existingPayload is null && !expected.Missing)
+            {
+                throw new InvalidDataException("The canonical row's payload disappeared before saving.");
+            }
+            bool newPayload = existingPayload is null;
+            LocalizationPayload payload = existingPayload ?? new LocalizationPayload { Path = "Localization/" + expected.Identity.Category + "/" + expected.Identity.File + "." + project.Manifest.Format, Category = expected.Identity.Category, File = expected.Identity.File };
+            bool ownershipChanged = project.Manifest.Layout == "single" && (payload.Category is not null && payload.Category != expected.Identity.Category || payload.File is not null && payload.File != expected.Identity.File);
+            if (ownershipChanged)
+            {
+                payload = payload with { Category = payload.Category == expected.Identity.Category ? payload.Category : null, File = payload.File == expected.Identity.File ? payload.File : null };
+            }
             string destination = LocalizationProjectIO.Resolve(root, payload.Path);
             // Read sharing permits readers and atomic replacement, while refusing cooperative in-place writers.
-            using FileStream original = new(destination, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+            using FileStream? original = newPayload ? null : new(destination, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
             using MemoryStream content = new();
-            original.CopyTo(content);
+            original?.CopyTo(content);
             byte[] originalBytes = content.ToArray();
-            byte[] candidate = project.Manifest.Format == "json" ? PatchJson(originalBytes, project.Manifest, expected.Identity, target, expected.Missing ? changed : null) : PatchWorkbook(originalBytes, project.Manifest, payload, expected.Identity, target, expected.Missing ? changed : null);
-            IReadOnlyList<LocalizationRecord> parsed = project.Manifest.Format == "json" ? LocalizationProjectJson.Read(candidate, project.Manifest, payload) : LocalizationProjectWorkbook.Read(candidate, project.Manifest, payload);
+            bool newSheet = project.Manifest.Format == "xlsx" && !payload.Worksheets.ContainsKey(expected.Identity.Category);
+            if (newSheet)
+            {
+                Dictionary<string, string> worksheets = new(payload.Worksheets, StringComparer.Ordinal);
+                worksheets.Add(expected.Identity.Category, ChooseWorksheetName(expected.Identity.Category, newPayload ? [] : WorkbookSheetNames(originalBytes)));
+                payload = payload with { Worksheets = worksheets };
+            }
+            byte[] originalManifest = File.ReadAllBytes(LocalizationProjectIO.Resolve(root, LocalizationProjectIO.ManifestRelativePath));
+            byte[]? manifestCandidate = null;
+            LocalizationManifest candidateManifest = project.Manifest;
+            if (newPayload || newSheet || ownershipChanged)
+            {
+                JsonObject manifestDocument = JsonNode.Parse(originalManifest)!.AsObject();
+                JsonArray declarations = manifestDocument["payloads"]!.AsArray();
+                JsonObject? declaration = declarations.OfType<JsonObject>().SingleOrDefault(item => (string?)item["path"] == payload.Path);
+                if (declaration is null)
+                {
+                    declarations.Add(JsonSerializer.SerializeToNode(payload, LocalizationProjectIO.JsonOptions));
+                }
+                else
+                {
+                    declaration["worksheets"] = JsonSerializer.SerializeToNode(payload.Worksheets);
+                    if (ownershipChanged)
+                    {
+                        declaration["category"] = payload.Category;
+                        declaration["file"] = payload.File;
+                    }
+                }
+                manifestCandidate = JsonSerializer.SerializeToUtf8Bytes(manifestDocument, LocalizationProjectIO.JsonOptions);
+                candidateManifest = JsonSerializer.Deserialize<LocalizationManifest>(manifestCandidate, LocalizationProjectIO.JsonOptions)!;
+            }
+            LocalizationProject candidateProject = project with { Manifest = candidateManifest, Entries = updatedRows };
+            LocalizationProjectIO.Validate(candidateProject);
+            byte[] candidate = newPayload ? CreatePayload(candidateManifest, payload, changed) : project.Manifest.Format == "json" ? PatchJson(originalBytes, candidateManifest, expected.Identity, target, expected.Missing ? changed : null) : PatchWorkbook(originalBytes, candidateManifest, payload, expected.Identity, target, expected.Missing ? changed : null);
+            IReadOnlyList<LocalizationRecord> parsed = project.Manifest.Format == "json" ? LocalizationProjectJson.Read(candidate, candidateManifest, payload) : LocalizationProjectWorkbook.Read(candidate, candidateManifest, payload);
             LocalizationRecord parsedRow = parsed.Single(row => Matches(row, expected.Identity));
             if (parsedRow.Target != target.Text && !(project.Manifest.Format != "json" && target.Text is null && parsedRow.Target == ""))
             {
@@ -146,17 +188,24 @@ public sealed class LocalizationProjectStore(string packageDirectory) : ILocaliz
             cancellation.ThrowIfCancellationRequested();
             LocalizationProject latestProject = LocalizationProjectIO.ReadForAuthoring(root);
             LocalizationRowSnapshot latest = CurrentSnapshot(latestProject, expected);
-            if (latest.Revision != expected.Revision || latest.ProjectId != expected.ProjectId || latest.Missing != expected.Missing || !File.ReadAllBytes(destination).AsSpan().SequenceEqual(originalBytes))
+            if (latest.Revision != expected.Revision || latest.ProjectId != expected.ProjectId || latest.Missing != expected.Missing || (newPayload ? File.Exists(destination) : !File.ReadAllBytes(destination).AsSpan().SequenceEqual(originalBytes)))
             {
                 return new(LocalizationCommitStatus.Conflict, latest, "The payload changed during preparation; review the refreshed candidate.");
             }
             // Existing rows own one payload; verified insertion additionally owns the binding-sidecar entry.
             Dictionary<string, byte[]> candidates = new() { [payload.Path] = candidate };
-            Dictionary<string, byte[]> expectedOriginals = new() { [payload.Path] = originalBytes };
-            expectedOriginals[LocalizationProjectIO.ManifestRelativePath] = File.ReadAllBytes(LocalizationProjectIO.Resolve(root, LocalizationProjectIO.ManifestRelativePath));
+            Dictionary<string, byte[]> expectedOriginals = new() { [LocalizationProjectIO.ManifestRelativePath] = originalManifest };
+            if (!newPayload)
+            {
+                expectedOriginals[payload.Path] = originalBytes;
+            }
             foreach (LocalizationDependencyFile dependency in project.EncodingFiles)
             {
                 expectedOriginals[dependency.Path] = dependency.Content;
+            }
+            if (manifestCandidate is not null)
+            {
+                candidates[LocalizationProjectIO.ManifestRelativePath] = manifestCandidate;
             }
             if (project.Manifest.ExtensionsPath is string evidencePath)
             {
@@ -183,9 +232,9 @@ public sealed class LocalizationProjectStore(string packageDirectory) : ILocaliz
             {
                 return new(LocalizationCommitStatus.Conflict, final, "Canonical evidence changed during final preparation.");
             }
-            original.Dispose();
-            LocalizationAuthoringTransaction.Publish(root, candidates, cancellation, expectedOriginals);
-            return new(LocalizationCommitStatus.Saved, Snapshot(project with { Entries = updatedRows }, expected.Identity));
+            original?.Dispose();
+            LocalizationAuthoringTransaction.Publish(root, candidates, cancellation, expectedOriginals, newPayload ? new HashSet<string>([payload.Path], StringComparer.OrdinalIgnoreCase) : null);
+            return new(LocalizationCommitStatus.Saved, Snapshot(candidateProject, expected.Identity));
         }
         catch (OperationCanceledException)
         {
@@ -209,6 +258,46 @@ public sealed class LocalizationProjectStore(string packageDirectory) : ILocaliz
     {
         byte[] bytes = File.ReadAllBytes(LocalizationProjectIO.Resolve(root, payload.Path));
         return (manifest.Format == "json" ? LocalizationProjectJson.Read(bytes, manifest, payload) : LocalizationProjectWorkbook.Read(bytes, manifest, payload)).Any(row => Matches(row, identity));
+    }
+    private static byte[] CreatePayload(LocalizationManifest manifest, LocalizationPayload payload, LocalizationRecord row)
+    {
+        if (manifest.Format == "json")
+        {
+            return LocalizationProjectJson.Write([row], manifest);
+        }
+        string temporary = Path.Combine(Path.GetTempPath(), "Memoria.Localization.Authoring-" + Guid.NewGuid().ToString("N") + ".xlsx");
+        try
+        {
+            LocalizationProjectWorkbook.Write(temporary, [row], manifest, payload);
+            return File.ReadAllBytes(temporary);
+        }
+        finally
+        {
+            File.Delete(temporary);
+        }
+    }
+    private static IReadOnlyList<string> WorkbookSheetNames(byte[] bytes)
+    {
+        using MemoryStream stream = new(bytes, false);
+        using ZipArchive zip = new(stream, ZipArchiveMode.Read);
+        using Stream workbook = zip.GetEntry("xl/workbook.xml")!.Open();
+        XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        return XDocument.Load(workbook).Descendants(ns + "sheet").Select(sheet => (string)sheet.Attribute("name")!).ToArray();
+    }
+    private static string ChooseWorksheetName(string category, IReadOnlyList<string> existing)
+    {
+        string safe = new(category.Select(character => "[]:*?/\\'".Contains(character) ? '_' : character).ToArray());
+        if (safe.Length == 0)
+        {
+            safe = "Localization";
+        }
+        string result = safe[..Math.Min(31, safe.Length)];
+        for (int suffix = 1; existing.Contains(result, StringComparer.OrdinalIgnoreCase); suffix++)
+        {
+            string tail = "_" + suffix.ToString(CultureInfo.InvariantCulture);
+            result = safe[..Math.Min(31 - tail.Length, safe.Length)] + tail;
+        }
+        return result;
     }
     private static bool Matches(LocalizationRecord row, LocalizationRowIdentity identity) => row.Category == identity.Category && row.File == identity.File && row.Key == identity.Key;
     private static LocalizationRowSnapshot CurrentSnapshot(LocalizationProject project, LocalizationRowSnapshot expected)
@@ -295,7 +384,54 @@ public sealed class LocalizationProjectStore(string packageDirectory) : ILocaliz
             string[] shared = zip.GetEntry("xl/sharedStrings.xml") is null ? [] : Xml("xl/sharedStrings.xml").Descendants(ns + "si").Select(item => string.Concat(item.Descendants(ns + "t").Select(text => text.Value))).ToArray();
             string Value(XElement? cell) => cell is null ? "" : (string?)cell.Attribute("t") == "s" ? shared[int.Parse(cell.Element(ns + "v")!.Value, System.Globalization.CultureInfo.InvariantCulture)] : (string?)cell.Attribute("t") == "inlineStr" ? string.Concat(cell.Descendants(ns + "t").Select(text => text.Value)) : cell.Element(ns + "v")?.Value ?? "";
             string sheetName = payload.Worksheets[identity.Category];
-            XElement sheet = Xml("xl/workbook.xml").Descendants(ns + "sheet").Single(item => (string?)item.Attribute("name") == sheetName);
+            XDocument workbookDocument = Xml("xl/workbook.xml");
+            XElement? sheet = workbookDocument.Descendants(ns + "sheet").SingleOrDefault(item => (string?)item.Attribute("name") == sheetName);
+            void WriteXml(string name, XDocument document)
+            {
+                zip.GetEntry(name)?.Delete();
+                using Stream output = zip.CreateEntry(name).Open();
+                document.Save(output, SaveOptions.DisableFormatting);
+            }
+            if (sheet is null)
+            {
+                if (insertion is null)
+                {
+                    throw new InvalidDataException("The declared localization worksheet is missing.");
+                }
+                int partIndex = 1;
+                while (zip.GetEntry("xl/worksheets/sheet" + partIndex + ".xml") is not null)
+                {
+                    partIndex++;
+                }
+                string newPart = "worksheets/sheet" + partIndex.ToString(CultureInfo.InvariantCulture) + ".xml";
+                string relationId = "rIdAuthoring" + Guid.NewGuid().ToString("N");
+                XDocument relationships = Xml("xl/_rels/workbook.xml.rels");
+                XNamespace packageRelations = "http://schemas.openxmlformats.org/package/2006/relationships";
+                relationships.Root!.Add(new XElement(packageRelations + "Relationship", new XAttribute("Id", relationId), new XAttribute("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"), new XAttribute("Target", newPart)));
+                uint sheetId = workbookDocument.Descendants(ns + "sheet").Select(item => (uint)item.Attribute("sheetId")!).DefaultIfEmpty().Max() + 1;
+                sheet = new XElement(ns + "sheet", new XAttribute("name", sheetName), new XAttribute("sheetId", sheetId), new XAttribute(rel + "id", relationId));
+                workbookDocument.Root!.Element(ns + "sheets")!.Add(sheet);
+                XDocument contentTypes = Xml("[Content_Types].xml");
+                contentTypes.Root!.Add(new XElement(contentTypes.Root.Name.Namespace + "Override", new XAttribute("PartName", "/xl/" + newPart), new XAttribute("ContentType", "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml")));
+                XElement header = new(ns + "row", new XAttribute("r", 1));
+                string[] headers = LocalizationProjectWorkbook.RequiredHeaders(manifest);
+                for (int index = 0; index < headers.Length; index++)
+                {
+                    int value = index + 1;
+                    string column = "";
+                    while (value > 0)
+                    {
+                        value--;
+                        column = (char)('A' + value % 26) + column;
+                        value /= 26;
+                    }
+                    header.Add(new XElement(ns + "c", new XAttribute("r", column + "1"), new XAttribute("t", "inlineStr"), new XElement(ns + "is", new XElement(ns + "t", headers[index]))));
+                }
+                WriteXml("xl/" + newPart, new XDocument(new XElement(ns + "worksheet", new XElement(ns + "sheetData", header))));
+                WriteXml("xl/workbook.xml", workbookDocument);
+                WriteXml("xl/_rels/workbook.xml.rels", relationships);
+                WriteXml("[Content_Types].xml", contentTypes);
+            }
             string relationship = (string)sheet.Attribute(rel + "id")!;
             string part = Xml("xl/_rels/workbook.xml.rels").Root!.Elements().Single(item => (string?)item.Attribute("Id") == relationship).Attribute("Target")!.Value;
             string path = new Uri(new Uri("https://workbook.invalid/xl/workbook.xml"), part).AbsolutePath.TrimStart('/');

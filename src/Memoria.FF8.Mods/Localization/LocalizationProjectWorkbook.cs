@@ -269,7 +269,7 @@ internal static class LocalizationProjectWorkbook
         return result;
     }
 
-    private static string[] RequiredHeaders(LocalizationManifest manifest)
+    internal static string[] RequiredHeaders(LocalizationManifest manifest)
     {
         return manifest.SchemaVersion >= 2
             ? ["File", "Key", manifest.TargetColumn, .. manifest.ReferenceLanguages.Keys, .. manifest.ReferenceLanguages.Keys.Select(ReferenceKeyColumn)]

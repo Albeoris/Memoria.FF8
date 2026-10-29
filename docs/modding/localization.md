@@ -87,7 +87,7 @@ Run these source-build examples from the product root containing `Build.ps1`. Se
 ```powershell
 dotnet run --project tools/Memoria.FF8.Localization -c Release -- languages --game-dir "$env:MEMORIA_FF8_GAME_DIR"
 
-dotnet run --project tools/Memoria.FF8.Localization -c Release -- export --game-dir "$env:MEMORIA_FF8_GAME_DIR" --script-base en --references jp,en --target "en (Alternate translation)" --name "Alternate translation" --format json --layout split --output "$env:MEMORIA_FF8_LOCALIZATION_OUTPUT"
+dotnet run --project tools/Memoria.FF8.Localization -c Release -- export --game-dir "$env:MEMORIA_FF8_GAME_DIR" --script-base en --source-reference jp --references jp,en --target "en (Alternate translation)" --name "Alternate translation" --format json --layout split --output "$env:MEMORIA_FF8_LOCALIZATION_OUTPUT"
 
 dotnet run --project tools/Memoria.FF8.Localization -c Release -- validate --input "$env:MEMORIA_FF8_LOCALIZATION_INPUT"
 
@@ -96,7 +96,7 @@ dotnet run --project tools/Memoria.FF8.Localization -c Release -- convert --inpu
 dotnet run --project tools/Memoria.FF8.Localization -c Release -- patch --input "$env:MEMORIA_FF8_LOCALIZATION_INPUT" --output "$env:MEMORIA_FF8_LOCALIZATION_OUTPUT" --name "Translation corrections"
 ```
 
-Formats are `json` and `xlsx`; layouts are `single` and `split`. Export accepts ordered comma-separated `--references jp,en,fr`; `--script-base` selects the base game language. The legacy `--source jp` option remains accepted and prepends `jp` to the references. Older projects with a Source column are read with that dataset as the first reference; conversion preserves their row and project identities. Probe actual availability first: requesting a dataset does not install it. Validate and convert are offline operations. Ctrl+C cancels export/conversion, and completed new packages remain disabled. Existing output directories are rejected.
+Formats are `json` and `xlsx`; layouts are `single` and `split`. Export accepts ordered comma-separated `--references jp,en,fr`; `--script-base` selects the base game language and `--source-reference jp` independently designates the translation source. The legacy `--source jp` remains an alias; contradictory source options are rejected. Missing source/base reference columns are appended without moving selected columns. Without an explicit source option, the script base is the CLI's Source Reference. Older projects recover the source role from primary or legacy metadata without reordering references; conversion preserves their row and project identities. Probe actual availability first: requesting a dataset does not install it. Validate and convert are offline operations. Ctrl+C cancels export/conversion, and completed new packages remain disabled. Existing output directories are rejected.
 
 The export summary reports **Resource/coverage diagnostics** from the manifest's `sourceGaps` array across selected datasets. These can describe unsupported sections, unavailable banks, failed decoders or missing correspondence; they are not a missing-translation count. Review their category/resource/reason entries when a reference is blank.
 

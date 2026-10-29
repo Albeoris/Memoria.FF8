@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DocumentFormat.OpenXml.Packaging;
@@ -232,6 +233,91 @@ public sealed class LocalizationAuthoringStoreTests : IDisposable
         Assert.Equal(3, loaded.Entries.Count);
         Assert.Equal("inserted", loaded.Entries.Single(row => row.Key == verified.Key).Target);
         Assert.Equal(7, loaded.Entries.Single(row => row.Key == verified.Key).ExtensionData["Unknown"].GetProperty("keep").GetInt32());
+    }
+
+    [Fact]
+    public void SourceSeedingHonorsExplicitAbsenceFlags()
+    {
+        LocalizationProject project = Project();
+        LocalizationRecord row = project.Entries[0] with { ReferencePresence = new Dictionary<string, bool> { ["Reference [ja]"] = false, ["Reference [en]"] = false } };
+        Assert.Equal("base", LocalizationSourceRoles.Seed(project.Manifest, row).Text);
+        Assert.Throws<InvalidOperationException>(() => LocalizationSourceRoles.Seed(project.Manifest, row with { SourcePresent = false }));
+    }
+
+    [Theory]
+    [InlineData("json", "single")]
+    [InlineData("json", "split")]
+    [InlineData("xlsx", "single")]
+    [InlineData("xlsx", "split")]
+    public async Task NewResourceFamilyIsInsertedWithoutReexportingExistingContent(string format, string layout)
+    {
+        LocalizationProject project = Project();
+        LocalizationProjectIO.WriteNew(project with { Manifest = project.Manifest with { SchemaVersion = 2 } }, root, format, layout, TestContext.Current.CancellationToken);
+        LocalizationProject initial = LocalizationProjectIO.Read(root);
+        string originalPayload = Path.Combine(root, initial.Manifest.Payloads[0].Path);
+        string manifestPath = Path.Combine(root, LocalizationProjectIO.ManifestRelativePath);
+        JsonNode manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!;
+        manifest["translatorNote"] = new JsonObject { ["keep"] = "manifest metadata" };
+        manifest["payloads"]![0]!["translatorPayloadNote"] = "retained";
+        File.WriteAllText(manifestPath, manifest.ToJsonString());
+        if (format == "xlsx" && layout == "single")
+        {
+            using SpreadsheetDocument workbook = SpreadsheetDocument.Open(originalPayload, true);
+            WorkbookPart book = workbook.WorkbookPart!;
+            WorksheetPart annotation = book.AddNewPart<WorksheetPart>();
+            annotation.Worksheet = new Worksheet(new SheetData(new Row(new Cell { CellReference = "A1", CellFormula = new CellFormula("1+1"), CellValue = new CellValue("2") }) { RowIndex = 1 }));
+            book.Workbook!.Sheets!.Append(new Sheet { Id = book.GetIdOfPart(annotation), SheetId = 99, Name = "Magic" });
+            book.Workbook.Save();
+            annotation.Worksheet.Save();
+        }
+        byte[] originalBytes = File.ReadAllBytes(originalPayload);
+        LocalizationProjectStore store = new(root);
+        LocalizationSourceEntry source = new("Magic", "names_magic", "$en_names_magic_0000", "magic source", "en", new Dictionary<string, string?> { ["Resource Hash"] = "native identity" });
+        LocalizationRecord verified = LocalizationProjectBuilder.CreateVerifiedRecord(source, LocalizationProjectIO.Read(root).Manifest);
+        LocalizationRowSnapshot prepared = await store.ReadOrPrepareRowAsync(verified, TestContext.Current.CancellationToken);
+        LocalizationCommitResult result = await store.CommitAsync(prepared, new(true, "translated magic"), TestContext.Current.CancellationToken);
+        Assert.Equal(LocalizationCommitStatus.Saved, result.Status);
+        LocalizationProject loaded = LocalizationProjectIO.Read(root);
+        Assert.Equal("translated magic", loaded.Entries.Single(row => row.Key == source.Key).Target);
+        Assert.Equal("old", loaded.Entries.Single(row => row.Key == Identity.Key).Target);
+        Assert.Equal("manifest metadata", loaded.Manifest.ExtensionData["translatorNote"].GetProperty("keep").GetString());
+        Assert.Equal("retained", loaded.Manifest.Payloads[0].ExtensionData["translatorPayloadNote"].GetString());
+        Assert.Equal(result.Current!.Revision, (await store.ReadRowAsync(prepared.Identity, TestContext.Current.CancellationToken)).Revision);
+        if (layout == "split")
+        {
+            Assert.Equal(2, loaded.Manifest.Payloads.Count);
+            Assert.Equal(originalBytes, File.ReadAllBytes(originalPayload));
+        }
+        else if (format == "xlsx")
+        {
+            Assert.NotEqual("Magic", loaded.Manifest.Payloads[0].Worksheets["Magic"]);
+            using SpreadsheetDocument workbook = SpreadsheetDocument.Open(originalPayload, false);
+            Sheet annotation = workbook.WorkbookPart!.Workbook!.Sheets!.Elements<Sheet>().Single(sheet => sheet.Name == "Magic");
+            WorksheetPart part = (WorksheetPart)workbook.WorkbookPart.GetPartById(annotation.Id!);
+            Assert.Equal("1+1", part.Worksheet!.Descendants<CellFormula>().Single().Text);
+        }
+    }
+
+    [Fact]
+    public void InterruptedNewPayloadInsertionRestoresManifestAndRemovesOnlyPublishedCandidate()
+    {
+        LocalizationProjectIO.WriteNew(Project(), root, "json", "single", TestContext.Current.CancellationToken);
+        string manifestRelative = LocalizationProjectIO.ManifestRelativePath;
+        string manifestBackup = manifestRelative + ".authoring-test.bak";
+        File.Copy(Path.Combine(root, manifestRelative), Path.Combine(root, manifestBackup));
+        string inserted = "Localization/Magic/names_magic.json";
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(root, inserted))!);
+        byte[] bytes = "{}"u8.ToArray();
+        File.WriteAllBytes(Path.Combine(root, inserted), bytes);
+        File.WriteAllText(Path.Combine(root, manifestRelative), "incomplete manifest");
+        File.WriteAllText(Path.Combine(root, ".localization-authoring.transaction.json"), JsonSerializer.Serialize(new[]
+        {
+            new { Destination = inserted, Backup = inserted + ".bak", Candidate = inserted + ".tmp", Existed = false, CandidateSha256 = Convert.ToHexString(SHA256.HashData(bytes)) },
+            new { Destination = manifestRelative, Backup = manifestBackup, Candidate = manifestRelative + ".tmp", Existed = true, CandidateSha256 = "" }
+        }));
+        Assert.Equal("old", LocalizationProjectIO.Read(root).Entries[0].Target);
+        Assert.False(File.Exists(Path.Combine(root, inserted)));
+        Assert.False(File.Exists(Path.Combine(root, manifestBackup)));
     }
 
     [Fact]
