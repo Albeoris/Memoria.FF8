@@ -65,7 +65,7 @@ public static class NativeBattleLaserEye71Particles
         }
         NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(allocation.Staging, allocation.Address, source, 0).Write(allocation.Address + 4, BitConverter.GetBytes(task.ReadWord(0x50)));
         NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, allocation.Address, 180), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 180), 0, 180);
-        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(memory, temporary, _ => resources.ParticleSprite, inputs.Projection, inputs.CameraRoll);
+        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(memory, temporary, _ => resources.ParticleSprite, inputs.Projection, inputs.CameraRoll, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(71, task, unchecked((int)source)));
         frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, allocation.Address, drawn.Temporary180, 180) };
         frame = inputs.DeliverPrivate(frame, drawn.Batch);
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging ?? throw new NotSupportedException("Laser Eye particle lost its physical temporary owner."), 180) };

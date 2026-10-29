@@ -184,7 +184,7 @@ public sealed partial class BattleSession
                     scale = unchecked((short)(scale * NativeBattleCameraMath.Sine(phase << 7) >> 12));
                 }
                 streamWorld = NativeBattlePoseMatrices.Scale56BEF0(basis, 4096, 4096, scale) with { X = mouth.X, Y = mouth.Y, Z = mouth.Z };
-                Append(NativeBattleStorm11Geometry.Emit6EB6A0(resources.Stream, current, NativeBattleGfMatrices.Compose56C2F0(view, streamWorld), projection, phase, colors));
+                Append(NativeBattleStorm11Geometry.Emit6EB6A0(resources.Stream, current, NativeBattleGfMatrices.Compose56C2F0(view, streamWorld), projection, phase, colors, NativeBattlePilotVisualLifetimes.Identity(11, task, 0x10000)));
             }
             if ((uint)frame < 24)
             {
@@ -307,7 +307,7 @@ public sealed partial class BattleSession
                 }
                 NativeBattleVector point = Vector(task, 16);
                 matrix = matrix with { X = point.X, Y = point.Y, Z = point.Z };
-                Mesh(resources.Debris, matrix, 0);
+                Mesh(resources.Debris, matrix, 0, NativeBattlePilotVisualLifetimes.Identity(11, task));
                 task = MoveDebris6EB790(task, out bool ended);
                 return ended ? 2 : 0;
             }
@@ -322,7 +322,7 @@ public sealed partial class BattleSession
                 NativeBattleVector mouth = Vector(target, 0x34);
                 NativeBattleFullMacVertex point = NativeBattleGfMatrices.TransformMac460840(basis with { X = mouth.X, Y = mouth.Y, Z = mouth.Z }, local);
                 NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Scale56BEF0(basis, unchecked((short)(growth + 1024)), unchecked((short)(growth + 1024)), 4096) with { X = point.X, Y = point.Y, Z = point.Z };
-                Mesh(resources.Ring, matrix, 0x30);
+                Mesh(resources.Ring, matrix, 0x30, NativeBattlePilotVisualLifetimes.Identity(11, task));
                 task = task.WriteWord(14, unchecked((ushort)(growth + 128)));
                 return Word(task, 14) >= 4096 ? 2 : 0;
             }
@@ -337,7 +337,7 @@ public sealed partial class BattleSession
             }
             NativeBattleModuleResource resource = resources.Sprites.Single(sprite => sprite.Address == address);
             int scaleSprite = Word(task, 0x16);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(Word(task, 12)), Phase = task.ReadWord(12), Anchor = new(anchor.X, anchor.Y, anchor.Z, 0), Scale = scaleSprite, DepthOffset = -(scaleSprite >> 2), Direction = 4096, SpriteFlags = 0 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(Word(task, 12)), Phase = task.ReadWord(12), Anchor = new(anchor.X, anchor.Y, anchor.Z, 0), Scale = scaleSprite, DepthOffset = -(scaleSprite >> 2), Direction = 4096, SpriteFlags = 0, PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(11, task) };
             NativeBattleModulePacketBatch spriteBatch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2);
             NativeBattleEffectPacketWrite spriteWritten = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, spriteBatch, NativeBattleEffectGouraudWrites.FullDword);
             NativeEffectMemory = spriteWritten.Memory;
@@ -360,6 +360,7 @@ public sealed partial class BattleSession
             {
                 workspace = workspace.Initialize7016B0(source, size);
             }
+            NativeBattlePilotVisualIdentity visualIdentity = NativeBattlePilotVisualLifetimes.Identity(11, task) with { ResourceGeneration = source.Address };
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
             {
                 if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -394,15 +395,15 @@ public sealed partial class BattleSession
                 {
                     render |= 0xC0;
                 }
-                Append(NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, vertices, matrix, projection, new(render, node.Scalar36 != 0 ? node.Color32 : 0u, node.Scalar36, null, null, null, 17, 2), colors));
+                Append(NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, vertices, matrix, projection, new(render, node.Scalar36 != 0 ? node.Color32 : 0u, node.Scalar36, null, null, null, 17, 2), colors, pilotIdentity: visualIdentity with { Primitive = node.ResourceOffset }));
                 return current;
             });
             task = advanced.Workspace.CopyTo(task, 0x64, retainUnknown: true);
         }
 
-        void Mesh(ImmutableArray<byte> source, NativeBattleActionMatrix world, uint flags)
+        void Mesh(ImmutableArray<byte> source, NativeBattleActionMatrix world, uint flags, NativeBattlePilotVisualIdentity identity)
         {
-            Append(NativeBattleModulePackets.EmitBatch572200(source, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, world), projection, new(flags, 0, 0, null, null, 0, 17, 2), colors));
+            Append(NativeBattleModulePackets.EmitBatch572200(source, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, world), projection, new(flags, 0, 0, null, null, 0, 17, 2), colors, pilotIdentity: identity));
         }
         void Append(NativeBattleGfGeometryBatch batch)
         {

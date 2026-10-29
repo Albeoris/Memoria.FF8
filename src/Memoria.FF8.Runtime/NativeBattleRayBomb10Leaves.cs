@@ -6,6 +6,7 @@ public static partial class NativeBattleRayBomb10Controller
     {
         public int Advance(int index)
         {
+            visualIdentity = NativeBattlePilotVisualLifetimes.Identity(10, Read(index));
             return Read(index).Callback switch
             {
                 0x627F10 => Director(index),
@@ -22,7 +23,7 @@ public static partial class NativeBattleRayBomb10Controller
         }
 
         private static NativeBattleModulePoolTask W(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, unchecked((ushort)value));
-        private void Mesh(uint resource, NativeBattleActionMatrix matrix, bool camera, uint flags, int? fade = null, uint? color = null) => Execute(new NativeBattleRayBomb10Mesh(resource, matrix, camera, flags, fade, color));
+        private void Mesh(uint resource, NativeBattleActionMatrix matrix, bool camera, uint flags, int? fade = null, uint? color = null) => Execute(new NativeBattleRayBomb10Mesh(resource, matrix, camera, flags, fade, color) { PilotIdentity = visualIdentity });
 
         private int Debris(int index)
         {
@@ -95,7 +96,7 @@ public static partial class NativeBattleRayBomb10Controller
             int life = Word(task, 32);
             byte level = unchecked((byte)(128 - unchecked((byte)((128 / life) * Word(task, 12)))));
             NativeBattleActionMatrix world = NativeBattlePoseMatrices.Scale56BEF0(new(NativeBattlePoseMatrices.RotationWords(new(0x400, Word(task, 24), 0)), Word(task, 16), Word(task, 18), Word(task, 20), 4096), Word(task, 28), Word(task, 28), Word(task, 28));
-            Execute(new NativeBattleRayBomb10WorldSprite(0xDEA9E4, 0, world, 0xC, (uint)(level * 0x10101)));
+            Execute(new NativeBattleRayBomb10WorldSprite(0xDEA9E4, 0, world, 0xC, (uint)(level * 0x10101)) { PilotIdentity = visualIdentity });
             if (DrawOnly)
             {
                 return 0;

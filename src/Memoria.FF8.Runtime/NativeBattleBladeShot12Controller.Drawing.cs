@@ -38,7 +38,7 @@ public static partial class NativeBattleBladeShot12Controller
             context = context.Write(8, BitConverter.GetBytes(heading));
         }
         frame = PublishContext(frame, temporary, context, 180);
-        frame = inputs.Execute(frame, new NativeBattleBladeShot12DrawSprite180(temporary, task.ReadDword(0x10)));
+        frame = inputs.Execute(frame, new NativeBattleBladeShot12DrawSprite180(temporary, task.ReadDword(0x10)) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(12, task) with { ResourceGeneration = task.ReadDword(0x10) } });
         frame = Release(frame, 180);
         task = Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)));
         if (Signed(task, 12) >= Signed(task, 0x1A))
@@ -72,13 +72,13 @@ public static partial class NativeBattleBladeShot12Controller
         }
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0x1364F14u)).Write(8, new byte[] { 0, 0, unchecked((byte)((4096 - cue) >> 5)) }).Write(12, BitConverter.GetBytes((cue >> 1) + 2048)).Write(0x1C, BitConverter.GetBytes(0xC0u));
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleBladeShot12DrawCustomMesh88(temporary, 0x1364F14));
+        frame = inputs.Execute(frame, new NativeBattleBladeShot12DrawCustomMesh88(temporary, 0x1364F14) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(12, task) });
         frame = Release(frame, 88);
         task = Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)));
         return (Write(frame, address, task), Signed(task, 12) >= 8 ? 2 : 0);
     }
 
-    public static NativeBattleBladeShot12Frame DrawTransient6EA3E0(NativeBattleBladeShot12Frame frame, uint address, int age, NativeBattleBladeShot12Resources resources, NativeBattleBladeShot12Inputs inputs)
+    public static NativeBattleBladeShot12Frame DrawTransient6EA3E0(NativeBattleBladeShot12Frame frame, uint address, int age, NativeBattleBladeShot12Resources resources, NativeBattleBladeShot12Inputs inputs, int copy = 0)
     {
         if (unchecked((uint)age) >= 20)
         {
@@ -95,7 +95,7 @@ public static partial class NativeBattleBladeShot12Controller
         frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local), null));
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0x136401Cu)).Write(8, new byte[3]).Write(12, BitConverter.GetBytes(NativeBattleCameraMath.Sine(phase >> 2))).Write(0x1C, BitConverter.GetBytes(0xF0u));
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleBladeShot12DrawStatic88(temporary, 0x136401C));
+        frame = inputs.Execute(frame, new NativeBattleBladeShot12DrawStatic88(temporary, 0x136401C) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(12, task, 0x100 + copy) });
         return Release(frame, 88);
     }
 

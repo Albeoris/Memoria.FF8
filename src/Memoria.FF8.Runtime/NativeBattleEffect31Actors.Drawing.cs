@@ -19,18 +19,20 @@ public static partial class NativeBattleEffect31Actors
         NativeBattleEffectArena point = ReadBytes(frame, address + 0x1C, 8);
         (byte[] padding, bool[] known) = point.ReadSnapshot(6, 2);
         short? w = known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(padding) : null;
-        frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), Point(point), w, 4096, unchecked((short)task.ReadWord(0x54))) };
+        NativeBattlePackedMatrix32 view = inputs.ReadView(frame);
+        frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, view, Point(point), w, 4096, unchecked((short)task.ReadWord(0x54))) };
         NativeBattleEffectArena temporary = Temporary(frame, allocation.Address, 180);
         temporary = Word(Dword(temporary, 0, task.ReadDword(0x4C)), 4, unchecked((short)task.ReadWord(0x50)));
         temporary = Word(temporary, 0x24, 0);
         frame = WriteBytes(frame, allocation.Address, temporary, 180);
-        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, temporary, resources.ReadSprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleCameraProjection projection = inputs.ReadProjection(frame);
+        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, temporary, resources.ReadSprite, projection with { View = projection.View ?? view.ReadMatrix() }, inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(31, task));
         frame = WriteBytes(frame with { Memory = drawn.Memory }, allocation.Address, drawn.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect31DrawBatch(drawn.Batch, CursorGlobal));
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 180) };
     }
 
-    public static NativeBattleEffect31Frame DrawNode(NativeBattleEffect31Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 context, NativeBattleEffect31Resources resources, NativeBattleEffect31Inputs inputs)
+    public static NativeBattleEffect31Frame DrawNode(NativeBattleEffect31Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 context, NativeBattleEffect31Resources resources, NativeBattleEffect31Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!NativeBattleActMeshRendering.Visible(node))
         {
@@ -117,7 +119,7 @@ public static partial class NativeBattleEffect31Actors
         frame = WriteBytes(frame, allocation.Address, temporary, 88);
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect31 mesh requires its current primitive process.");
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect31 mesh requires its current projection controls.");
-        NativeBattleCuraga88MeshStep drawn = NativeBattleCuraga88Mesh.EmitBatch(mesh.Bytes, meshAddress, local, inputs.ReadProjection(frame), temporary, registers, process.ModelRendererRegisters ?? throw new NotSupportedException("Effect31 mesh requires its current far-color registers."), controls.Dqa, controls.Dqb, controls.Zsf4, inputs.Colors, zsf3: controls.Zsf3, selectedVerticesAddress: selectedAddress, readSelectedVertex: ReadVertex);
+        NativeBattleCuraga88MeshStep drawn = NativeBattleCuraga88Mesh.EmitBatch(mesh.Bytes, meshAddress, local, inputs.ReadProjection(frame), temporary, registers, process.ModelRendererRegisters ?? throw new NotSupportedException("Effect31 mesh requires its current far-color registers."), controls.Dqa, controls.Dqb, controls.Zsf4, inputs.Colors, zsf3: controls.Zsf3, selectedVerticesAddress: selectedAddress, readSelectedVertex: ReadVertex, pilotIdentity: pilotIdentity);
         frame = Publish(frame, drawn.Registers);
         frame = frame with { Memory = frame.Memory with { PrimitiveProcess = process with { ModelRendererRegisters = drawn.FarControls } } };
         frame = WriteBytes(frame, allocation.Address, drawn.Context88, 88);

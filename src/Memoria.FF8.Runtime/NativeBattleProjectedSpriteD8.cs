@@ -54,9 +54,9 @@ public static class NativeBattleProjectedSpriteD8
         return new(memory with { GeometryRegisters = step.Geometry, ScriptedColorRegisters = step.Colors }, temporaryD8);
     }
 
-    public static NativeBattleProjectedSpriteDraw Draw(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket)
+    public static NativeBattleProjectedSpriteDraw Draw(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return DrawCore(head, readResource, projection, cameraRoll, tableBaseBucket, true, 2, false);
+        return DrawCore(head, readResource, projection, cameraRoll, tableBaseBucket, true, 2, false, pilotIdentity: pilotIdentity);
     }
 
     internal static NativeBattleProjectedSpriteDraw DrawUnbiased571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, bool allowCallerScale = false, bool allowFirstPaletteOverride = false, NativeBattlePilotVisualIdentity? pilotIdentity = null)

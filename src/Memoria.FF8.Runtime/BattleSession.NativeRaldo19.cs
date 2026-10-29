@@ -85,7 +85,7 @@ public sealed partial class BattleSession
                         return drawn.Frame;
                     }
                 case NativeBattleRaldo19BallTask ball:
-                    return NativeBattleRaldo19BallController.Advance(current, ball.Address, resources, new(actor => NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), ExecuteBall, SelectActors));
+                    return NativeBattleRaldo19BallController.Advance(current, ball.Address, resources, new(actor => NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), (drawing, emittedOperation) => ExecuteBall(drawing, emittedOperation, NativeBattlePilotVisualLifetimes.Identity(19, new NativeBattleEffectHierarchy(drawing.Effect.Pools).Read(ball.Address))), SelectActors));
                 case NativeBattleRaldo19DebrisTask debris:
                     return NativeBattleRaldo19Debris.Advance(current, debris.Address, nativeActionPackets, DrawDebris);
                 case NativeBattleRaldo19OverlayTask overlay:
@@ -106,7 +106,7 @@ public sealed partial class BattleSession
             NativeBattleEffectArena bounded = NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, NativeBattleRaldo19DebrisRendering.TemporaryLength);
             NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(current.Effect.Pools).Read(sprite.TaskAddress);
             NativeBattleRaldo19DebrisHead head = NativeBattleRaldo19DebrisRendering.PrepareHead(current, task, camera.CapturePackedView1D97778(), bounded);
-            NativeBattleRaldo19DebrisDraw drawn = NativeBattleRaldo19DebrisRendering.Draw(head, resources, projection, camera.Roll, 17);
+            NativeBattleRaldo19DebrisDraw drawn = NativeBattleRaldo19DebrisRendering.Draw(head, resources, projection, camera.Roll, 17, NativeBattlePilotVisualLifetimes.Identity(19, task));
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Raldo debris requires its current ordering table.");
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(drawn.Frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Raldo debris requires its allocated common packet owner."), primitive.Pending, drawn.Batch);
             NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.TemporaryD8, NativeBattleRaldo19DebrisRendering.TemporaryLength);
@@ -115,7 +115,7 @@ public sealed partial class BattleSession
             return drawn.Frame with { Memory = drawn.Frame.Memory with { PrimitiveProcess = written.Process } };
         }
 
-        NativeBattleRaldo19Frame ExecuteBall(NativeBattleRaldo19Frame current, NativeBattleRaldo19BallOperation operation)
+        NativeBattleRaldo19Frame ExecuteBall(NativeBattleRaldo19Frame current, NativeBattleRaldo19BallOperation operation, NativeBattlePilotVisualIdentity identity)
         {
             switch (operation)
             {
@@ -135,7 +135,7 @@ public sealed partial class BattleSession
                 case NativeBattleRaldo19BallTargetAnchor target:
                     return CaptureAnchor(current, graphics.Models[target.Actor], target.Actor, 0x84);
                 case NativeBattleRaldo19BallRender render:
-                    (graphics, current) = DrawNativeRaldo19Ball(graphics, current, render.Actor);
+                    (graphics, current) = DrawNativeRaldo19Ball(graphics, current, render.Actor, identity);
                     return current;
                 default:
                     throw new NotSupportedException("Raldo ball requires its original model service owner.");

@@ -53,7 +53,7 @@ public static partial class NativeBattleAquaRendering
             cursors[group] = checked(cursor + 4);
             cursor = checked(cursor + 4 + count * stride);
         }
-        NativeBattleGfGeometryBatch batch = NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, inputs.Projection, context.Flags, null, Face);
+        NativeBattleGfGeometryBatch batch = NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, inputs.Projection, context.Flags, null, Face, pilotIdentity: frame.Profile.Effect == 72 ? NativeBattlePilotVisualLifetimes.Identity(72, task) : null);
         PatchDword(0x2C, checked(frame.Profile.MeshAddress + (uint)cursor));
         Emit(new NativeBattleAquaPackets(batch));
         Emit(new NativeBattleAquaTemporaryEnd(104));
@@ -140,7 +140,7 @@ public static partial class NativeBattleAquaRendering
         {
             throw new InvalidDataException("The Aqua sprite resource belongs to another module.");
         }
-        NativeBattleAquaSpriteComposition composed = ComposeSprite(task, resources, inputs.Camera, inputs.Projection, inputs.CameraRoll);
+        NativeBattleAquaSpriteComposition composed = ComposeSprite(task, resources, inputs.Camera, inputs.Projection, inputs.CameraRoll, frame.Profile.Effect == 72 ? NativeBattlePilotVisualLifetimes.Identity(72, task) with { ResourceGeneration = task.ReadDword(0x4C) } : null);
         NativeBattleAquaFrame current = inputs.Execute(frame, new NativeBattleAquaTemporaryBegin(216));
         Matrix(0xB8, composed.Billboard);
         ImmutableArray<short> cameraRotation = inputs.Camera.Rotation;

@@ -8,7 +8,7 @@ public sealed record NativeBattleStaticMeshContext88Step(NativeBattleEffectMemor
 
 public static class NativeBattleStaticMeshContext88
 {
-    public static NativeBattleStaticMeshContext88Step Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, short? matrixPadding18 = null, int tableBaseBucket = 17, byte depthShift = 2, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, Func<int, (NativeBattleVector Vertex, short? W)>? readInlineVertex = null)
+    public static NativeBattleStaticMeshContext88Step Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, short? matrixPadding18 = null, int tableBaseBucket = 17, byte depthShift = 2, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, Func<int, (NativeBattleVector Vertex, short? W)>? readInlineVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? NativeBattleGeometryRegisters.Unknown(), memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown());
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Masamune requires its current projection controls.");
@@ -20,10 +20,10 @@ public static class NativeBattleStaticMeshContext88
             throw new InvalidDataException("Masamune mesh requires its actual addressed caller context.");
         }
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, matrixPadding18) };
-        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift, selectedVerticesAddress, readSelectedVertex, readInlineVertex);
+        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift, selectedVerticesAddress, readSelectedVertex, readInlineVertex, pilotIdentity);
     }
 
-    public static NativeBattleStaticMeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, Func<int, (NativeBattleVector Vertex, short? W)>? readInlineVertex = null)
+    public static NativeBattleStaticMeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, Func<int, (NativeBattleVector Vertex, short? W)>? readInlineVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Static mesh requires its actual loaded geometry registers."), memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown());
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Masamune requires its current projection controls.");
@@ -34,10 +34,10 @@ public static class NativeBattleStaticMeshContext88
         {
             throw new InvalidDataException("Masamune mesh requires its actual addressed caller context.");
         }
-        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift, selectedVerticesAddress, readSelectedVertex, readInlineVertex);
+        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift, selectedVerticesAddress, readSelectedVertex, readInlineVertex, pilotIdentity);
     }
 
-    private static NativeBattleStaticMeshContext88Step DrawCore(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters far, uint flags, int tableBaseBucket, byte depthShift, uint? selectedVerticesAddress, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex, Func<int, (NativeBattleVector Vertex, short? W)>? readInlineVertex)
+    private static NativeBattleStaticMeshContext88Step DrawCore(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters far, uint flags, int tableBaseBucket, byte depthShift, uint? selectedVerticesAddress, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex, Func<int, (NativeBattleVector Vertex, short? W)>? readInlineVertex, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics!;
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess!;
@@ -74,9 +74,15 @@ public static class NativeBattleStaticMeshContext88
             for (int index = 0; index < count; index++)
             {
                 byte[] face = mesh.Bytes.AsSpan().Slice(cursor, lengths[group]).ToArray();
+                NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     (NativeBattleVector position, short? w) = Vertex(corner);
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, position), projection);
+                    }
                     registers = NativeBattleGeometry.LoadVector(registers, corner, position, w);
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
@@ -101,6 +107,10 @@ public static class NativeBattleStaticMeshContext88
                     if (corner == 3)
                     {
                         (NativeBattleVector position, short? w) = Vertex(corner);
+                        if (world is not null)
+                        {
+                            world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, position), projection);
+                        }
                         registers = NativeBattleGeometry.LoadVector(registers, 0, position, w);
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
@@ -147,6 +157,10 @@ public static class NativeBattleStaticMeshContext88
                         }
                     }
                     attempt = attempt with { Primitive = attempt.Primitive with { Bucket = unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift)) } };
+                    if (pilotIdentity is { } identity && attempt.Primitive.Words.Length > 1 && ((attempt.Primitive.Words[1] >> 24) & 0xE0) == 0x20)
+                    {
+                        attempt = attempt with { Primitive = attempt.Primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, world![0], world[1], world[2], quad ? world[3] : default, (byte)(quad ? 4 : 3)) } };
+                    }
                     allocated = checked(allocated + attempt.PacketLength);
                 }
                 attempts.Add(attempt);

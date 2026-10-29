@@ -22,9 +22,9 @@ public static class NativeBattleRaldo19DebrisRendering
         return new(frame with { Memory = prepared.Memory }, prepared.TemporaryD8);
     }
 
-    public static NativeBattleRaldo19DebrisDraw Draw(NativeBattleRaldo19DebrisHead head, NativeBattleRaldo19Resources resources, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket)
+    public static NativeBattleRaldo19DebrisDraw Draw(NativeBattleRaldo19DebrisHead head, NativeBattleRaldo19Resources resources, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleProjectedSpriteDraw drawn = NativeBattleProjectedSpriteD8.Draw(new(head.Frame.Memory, head.TemporaryD8), resources.Debris, projection, cameraRoll, tableBaseBucket);
+        NativeBattleProjectedSpriteDraw drawn = NativeBattleProjectedSpriteD8.Draw(new(head.Frame.Memory, head.TemporaryD8), resources.Debris, projection, cameraRoll, tableBaseBucket, pilotIdentity);
         return new(head.Frame with { Memory = drawn.Memory }, drawn.TemporaryD8, drawn.Batch);
     }
 }

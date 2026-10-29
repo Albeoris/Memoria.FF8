@@ -7,7 +7,7 @@ public sealed record NativeBattleBladeShot12MeshContext88Step(NativeBattleEffect
 
 public static class NativeBattleBladeShot12MeshContext88
 {
-    public static NativeBattleBladeShot12MeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleBladeShot12MeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (Dword(context, 0x1C) != 0xC0 || mesh.Address != 0x1364F14 || Dword(context, 0) != mesh.Address || depthShift > 31)
         {
@@ -30,6 +30,8 @@ public static class NativeBattleBladeShot12MeshContext88
             bool quad = group == 5;
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
+                NativeBattleActionMatrix? sourceMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
                 byte[] face = mesh.Bytes.AsSpan().Slice(cursor, quad ? 24 : 20).ToArray();
                 NativeBattleModuleProjectedVertex[] projected = new NativeBattleModuleProjectedVertex[quad ? 4 : 3];
                 for (int corner = 0; corner < 3; corner++)
@@ -128,6 +130,10 @@ public static class NativeBattleBladeShot12MeshContext88
                         }
                     }
                 }
+                if (primitive is not null && pilotIdentity is { } identity)
+                {
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, world![0], world[1], world[2], quad ? world[3] : default, (byte)(quad ? 4 : 3)) };
+                }
                 attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
                 allocated = checked(allocated + reserve);
                 cursor = checked(cursor + (quad ? 24 : 20));
@@ -145,7 +151,12 @@ public static class NativeBattleBladeShot12MeshContext88
                     {
                         context = context.Write(0x34 + corner * 8, packed);
                     }
-                    return NativeBattleGeometry.LoadVector(registers, slot, new(BinaryPrimitives.ReadInt16LittleEndian(packed), BinaryPrimitives.ReadInt16LittleEndian(packed.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(packed.Slice(4))), BinaryPrimitives.ReadInt16LittleEndian(packed.Slice(6)));
+                    NativeBattleVector vertex = new(BinaryPrimitives.ReadInt16LittleEndian(packed), BinaryPrimitives.ReadInt16LittleEndian(packed.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(packed.Slice(4)));
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(sourceMatrix!, vertex), projection);
+                    }
+                    return NativeBattleGeometry.LoadVector(registers, slot, vertex, BinaryPrimitives.ReadInt16LittleEndian(packed.Slice(6)));
                 }
                 void Store(int offset, uint value)
                 {

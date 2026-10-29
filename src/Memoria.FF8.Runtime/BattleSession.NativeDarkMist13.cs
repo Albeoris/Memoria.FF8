@@ -244,7 +244,7 @@ public sealed partial class BattleSession
                 uint spriteAddress = task.ReadDword(0x4C);
                 NativeBattleModuleResource resource = resources.Sprites.Single(sprite => sprite.Address == spriteAddress);
                 NativeBattleVector point = Vector(task, 0x1C);
-                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(task.ReadWord(0x50)), Phase = task.ReadWord(0x50), Anchor = new(point.X, point.Y, point.Z, 0), Scale = 4096, DepthOffset = Word(task, 0x54), SpriteFlags = task.Callback == 0x8BEF30 ? (ushort)4 : (ushort)0, SpriteColor = task.ReadDword(0x48) };
+                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(task.ReadWord(0x50)), Phase = task.ReadWord(0x50), Anchor = new(point.X, point.Y, point.Z, 0), Scale = 4096, DepthOffset = Word(task, 0x54), SpriteFlags = task.Callback == 0x8BEF30 ? (ushort)4 : (ushort)0, SpriteColor = task.ReadDword(0x48), PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(13, task) };
                 NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2);
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch, NativeBattleEffectGouraudWrites.RgbBytes);
                 NativeEffectMemory = written.Memory;
@@ -291,9 +291,9 @@ public sealed partial class BattleSession
                 task = task.WriteWord(0x48, (ushort)((Word(task, 0x48) - 32) & 4095)).WriteWord(0x58, (ushort)((Word(task, 0x58) + 128) & 4095));
                 process = process with { Swirl = Warp8BE7C0(resources.Ring, Scroll8BE6B0(process.Swirl!.Value), Word(task, 0x58)) };
                 task = task.WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096).WriteWord(0x50, task.ReadWord(0x54));
-                DrawModel(task, process.Swirl.Value);
+                DrawModel(task, process.Swirl.Value, 0);
                 task = task.WriteDword(0x30, 8192).WriteDword(0x34, 8192).WriteDword(0x38, 3072).WriteWord(0x50, task.ReadWord(0x56));
-                DrawModel(task, process.Swirl.Value);
+                DrawModel(task, process.Swirl.Value, 1);
             }
             else
             {
@@ -314,12 +314,12 @@ public sealed partial class BattleSession
                 short nextGrowth = unchecked((short)(growth - 128));
                 task = task.WriteDword(0x30, unchecked(task.ReadDword(0x30) + (uint)growth)).WriteDword(0x34, unchecked(task.ReadDword(0x34) + (uint)growth)).WriteDword(0x38, unchecked(task.ReadDword(0x38) + (uint)growth)).WriteWord(0x5C, nextGrowth < 0 ? (ushort)0 : unchecked((ushort)nextGrowth)).WriteWord(0x5A, unchecked((ushort)(Word(task, 0x5A) + 1024)));
                 task = Store(task, 0x1C, ReadNativeGraphicsBone(graphics, effect.Parameters.Actor78, 0xF0, Word(task, 0x5A)));
-                DrawModel(task, resources.Cloud);
+                DrawModel(task, resources.Cloud, 0);
             }
             return task;
         }
 
-        void DrawModel(NativeBattleModulePoolTask task, ImmutableArray<byte> model)
+        void DrawModel(NativeBattleModulePoolTask task, ImmutableArray<byte> model, int copy)
         {
             if ((task.ReadByte(0x26) & 4) != 0)
             {
@@ -333,7 +333,7 @@ public sealed partial class BattleSession
             matrix = matrix with { X = point.X, Y = point.Y, Z = point.Z };
             matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, unchecked((int)task.ReadDword(0x30)), unchecked((int)task.ReadDword(0x34)), unchecked((int)task.ReadDword(0x38)));
             matrix = NativeBattleGfMatrices.Compose56C2F0(view, matrix);
-            NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(model, 0, default, matrix, projection, new(0xF0, task.ReadDword(0x40), Word(task, 0x50), null, null, 0, 17, 2), colors);
+            NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(model, 0, default, matrix, projection, new(0xF0, task.ReadDword(0x40), Word(task, 0x50), null, null, 0, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(13, task, copy));
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch);
             NativeEffectMemory = written.Memory;
             effect = effect with { DrawArenaOffset = written.Cursor };
@@ -378,12 +378,12 @@ public sealed partial class BattleSession
             process = process with { OverlayPhase = (short)((process.OverlayPhase + 160) & 4095) };
             if ((task.ReadByte(0x26) & 8) != 0)
             {
-                DrawOverlay(actor);
+                DrawOverlay(actor, NativeBattlePilotVisualLifetimes.Identity(13, task));
             }
             return task;
         }
 
-        void DrawOverlay(int index)
+        void DrawOverlay(int index, NativeBattlePilotVisualIdentity identity)
         {
             NativeBattleGraphicsModel actor = graphics.Models[index];
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
@@ -403,7 +403,7 @@ public sealed partial class BattleSession
                 {
                     throw new InvalidDataException("Native Dark Mist exceeds its original overlay vertex work.");
                 }
-                NativeBattleBio22ActorDraw draw = NativeBattleBio22ActorPackets.Emit89D780(geometry.Mesh, bones, main, projection, actor.Color40!.Value, process.OverlayPhase, process.OverlayAmplitude, zsf3, zsf4, process.ActorWork, 0, resource.GeometryRelocated507550 ? null : geometry.Binding);
+                NativeBattleBio22ActorDraw draw = NativeBattleBio22ActorPackets.Emit89D780(geometry.Mesh, bones, main, projection, actor.Color40!.Value, process.OverlayPhase, process.OverlayAmplitude, zsf3, zsf4, process.ActorWork, 0, resource.GeometryRelocated507550 ? null : geometry.Binding, identity with { Primitive = unchecked(index * 65537 + geometry.AuthoredMesh) });
                 process = process with { ActorWork = draw.Work };
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, draw.Packets);
                 NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };

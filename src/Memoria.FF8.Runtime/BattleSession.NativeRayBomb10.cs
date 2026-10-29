@@ -64,7 +64,7 @@ public sealed partial class BattleSession
                     return AppendSprite(current, NativeBattleModulePackets.EmitSprite571DC0(sprite.Draw, projection, camera.Roll, 17, 2));
                 case NativeBattleRayBomb10WorldSprite sprite:
                     NativeBattleModuleResource resource = resources.Sprites.Single(item => item.Address == sprite.Resource);
-                    NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(unchecked((ushort)sprite.Phase)), SpriteFlags = sprite.Flags, SpriteColor = sprite.Color };
+                    NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(unchecked((ushort)sprite.Phase)), SpriteFlags = sprite.Flags, SpriteColor = sprite.Color, PilotIdentity = sprite.PilotIdentity };
                     NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(projection.View ?? throw new NotSupportedException("Native6289B0 requires its actual view."), sprite.World);
                     return AppendSprite(current, NativeBattleModulePackets.EmitSprite571DC0(draw, projection, camera.Roll, 17, 2, matrix));
                 case NativeBattleRayBomb10Mesh mesh:
@@ -77,7 +77,7 @@ public sealed partial class BattleSession
                         2 or 3 => NativeBattleEffectMeshPackets.EmitTextured(face, corner, group == 3, false, context, colors, offset),
                         4 or 5 => NativeBattleEffectMeshPackets.EmitGouraud(face, corner, group == 5, context, colors, offset),
                         _ => NativeBattleEffectMeshPackets.EmitTextured(face, corner, group == 7, true, context, colors, offset)
-                    });
+                    }, pilotIdentity: mesh.PilotIdentity);
                     return Append(current, (process, cursor, ordering) => NativeBattleEffectPacketArena.Append(process, cursor, ordering, batch));
                 default:
                     throw new NotSupportedException("Native Ray-Bomb operation requires its actual immediate owner.");

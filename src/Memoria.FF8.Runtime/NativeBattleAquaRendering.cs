@@ -33,7 +33,7 @@ public static partial class NativeBattleAquaRendering
         return billboard with { X = point.X, Y = point.Y, Z = point.Z };
     }
 
-    public static NativeBattleAquaSpriteComposition ComposeSprite(NativeBattleModulePoolTask task, NativeBattleAquaResources resources, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, short cameraRoll)
+    public static NativeBattleAquaSpriteComposition ComposeSprite(NativeBattleModulePoolTask task, NativeBattleAquaResources resources, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint address = task.ReadDword(0x4C);
         if (!resources.Sprites.TryGetValue(address, out ImmutableArray<byte> resource))
@@ -58,7 +58,7 @@ public static partial class NativeBattleAquaRendering
         NativeBattleActionMatrix billboard = ComposeBillboard(camera, new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20)));
         NativeBattleActionMatrix? main = null;
         NativeBattleActionMatrix? selected = null;
-        NativeBattleGfGeometryBatch batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, phase, billboard, projection, cameraRoll, 17, 2, Word(task, 0x56), value => main = value, value => selected = value);
+        NativeBattleGfGeometryBatch batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, phase, billboard, projection, cameraRoll, 17, 2, Word(task, 0x56), value => main = value, value => selected = value, pilotIdentity: pilotIdentity);
         short width = unchecked((short)(8 * quad[0]));
         short height = unchecked((short)(8 * quad[2]));
         NativeBattleVector[] corners = [new(unchecked((short)-width), unchecked((short)-height), 0), new(width, unchecked((short)-height), 0), new(unchecked((short)-width), height, 0), new(width, height, 0)];

@@ -98,17 +98,17 @@ public sealed partial class BattleSession
                     graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { SequenceState = sequence with { MeshMask124 = (sequence.MeshMask124 & ~mask.ClearMask) | mask.SetMask } }) };
                     return current;
                 case NativeBattleBladeShot12DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)));
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)), sprite.PilotIdentity);
                 case NativeBattleBladeShot12DrawCustomMesh88 selectedMesh:
-                    return DrawCustomMesh(current, selectedMesh.TemporaryAddress, selectedMesh.SourceAddress, selectedMesh.TableBaseBucket, unchecked((byte)(selectedMesh.DepthShift & 31)));
+                    return DrawCustomMesh(current, selectedMesh.TemporaryAddress, selectedMesh.SourceAddress, selectedMesh.TableBaseBucket, unchecked((byte)(selectedMesh.DepthShift & 31)), selectedMesh.PilotIdentity);
                 case NativeBattleBladeShot12DrawStatic88 mesh:
-                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)));
+                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)), mesh.PilotIdentity);
                 default:
                     throw new NotSupportedException("BladeShot12 emitted an unsupported native operation.");
             }
         }
 
-        NativeBattleBladeShot12Frame DrawSprite(NativeBattleBladeShot12Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleBladeShot12Frame DrawSprite(NativeBattleBladeShot12Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? identity)
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("BladeShot12 sprite requires its actual temporary memory.");
@@ -117,26 +117,26 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("BladeShot12 sprite arguments differ from its physical temporary.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("BladeShot12 sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("BladeShot12 sprite requires its projection."), Camera().Roll, bucket, shift);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("BladeShot12 sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("BladeShot12 sprite requires its projection."), Camera().Roll, bucket, shift, pilotIdentity: identity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }
 
-        NativeBattleBladeShot12Frame DrawMesh(NativeBattleBladeShot12Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleBladeShot12Frame DrawMesh(NativeBattleBladeShot12Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? identity)
         {
             NativeBattleStaticMeshResource mesh = resources.ReadMesh(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("BladeShot12 mesh requires its actual temporary memory.");
             NativeBattleEffectArena temporary = Temporary(staging, address, 88);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("BladeShot12 requires its current projection."), temporary, colors, bucket, shift, readInlineVertex: sourceAddress is 0x1362E3C or 0x136372C ? offset => ReadInline(current, sourceAddress, offset) : null);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("BladeShot12 requires its current projection."), temporary, colors, bucket, shift, readInlineVertex: sourceAddress is 0x1362E3C or 0x136372C ? offset => ReadInline(current, sourceAddress, offset) : null, pilotIdentity: identity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context, 88) };
             return Deliver(current, drawn.Batch);
         }
 
-        NativeBattleBladeShot12Frame DrawCustomMesh(NativeBattleBladeShot12Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleBladeShot12Frame DrawCustomMesh(NativeBattleBladeShot12Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? identity)
         {
             NativeBattleStaticMeshResource mesh = resources.ReadMesh(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Blade Shot12 custom mesh requires its addressed temporary.");
-            NativeBattleBladeShot12MeshContext88Step drawn = NativeBattleBladeShot12MeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Blade Shot12 requires its current projection."), Temporary(staging, address, 88), colors, bucket, shift);
+            NativeBattleBladeShot12MeshContext88Step drawn = NativeBattleBladeShot12MeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Blade Shot12 requires its current projection."), Temporary(staging, address, 88), colors, bucket, shift, identity);
             return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context88, 88) }, drawn.Batch);
         }
 

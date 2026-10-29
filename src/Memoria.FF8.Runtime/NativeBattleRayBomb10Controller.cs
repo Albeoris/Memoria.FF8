@@ -103,6 +103,7 @@ public static partial class NativeBattleRayBomb10Controller
     private sealed partial class Execution(NativeBattleRayBomb10Frame frame, NativeBattleRayBomb10Resources resources, NativeBattleRayBomb10Inputs inputs)
     {
         public NativeBattleRayBomb10Frame Frame { get; set; } = frame;
+        private NativeBattlePilotVisualIdentity visualIdentity;
         private readonly byte[] particles = (frame.Memory.RayBomb10 ?? throw new NotSupportedException("Native Ray-Bomb requires its retained particle globals.")).Particles.ToArray();
         private readonly byte?[] saved = frame.Memory.RayBomb10!.SavedActors.ToArray();
         public NativeBattleRayBomb10State Process
@@ -154,6 +155,7 @@ public static partial class NativeBattleRayBomb10Controller
             {
                 if (P32(index, 0) == 0)
                 {
+                    NativeBattleRayBomb10Presentation.Allocated(Frame.Effect.Pools[0].Slots[0], index);
                     return index;
                 }
             }
@@ -173,6 +175,7 @@ public static partial class NativeBattleRayBomb10Controller
                 {
                     continue;
                 }
+                visualIdentity = NativeBattleRayBomb10Presentation.Identity(Frame.Effect.Pools[0].Slots[0], index);
                 short scale = P16(index, 6);
                 NativeBattleModuleSpriteFrame image = Sprite(0xDEABB8, P16(index, 4), ParticlePoint(index), scale, -(scale >> 4));
                 if (DrawOnly)
@@ -199,7 +202,7 @@ public static partial class NativeBattleRayBomb10Controller
         {
             NativeBattleModuleResource resource = resources.Sprites.Single(item => item.Address == resourceAddress);
             NativeBattleModuleSpriteFrame image = resource.ProjectedFrame571C80(phase);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = image, Phase = unchecked((ushort)phase), Anchor = point, Scale = scale, DepthOffset = depth, SpriteFlags = flags, SpriteColor = color, Rotation = rotation, SpriteWorldRotation = world.IsDefault ? [] : world };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = image, Phase = unchecked((ushort)phase), Anchor = point, Scale = scale, DepthOffset = depth, SpriteFlags = flags, SpriteColor = color, Rotation = rotation, SpriteWorldRotation = world.IsDefault ? [] : world, PilotIdentity = visualIdentity };
             Execute(new NativeBattleRayBomb10Sprite(draw));
             return image;
         }

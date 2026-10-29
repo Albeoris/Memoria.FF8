@@ -118,7 +118,7 @@ public static partial class NativeBattleEffect31Actors
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, current);
-            frame = DrawNode(frame, source, node, context, resources, inputs);
+            frame = DrawNode(frame, source, node, context, resources, inputs, NativeBattlePilotVisualLifetimes.Identity(31, task, node.NodeIndex) with { ResourceGeneration = source.Address });
             return NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, length);
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, advanced.Workspace);

@@ -73,7 +73,7 @@ public static class NativeBattleLaserEye71Nodes
             };
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, operands);
             NativeCrtRandomState random = frame.Random;
-            _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver);
+            _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver, NativeBattlePilotVisualLifetimes.Identity(71, NativeBattleLaserEye71Controller.Read(frame, address)), PreparePilotMesh);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
             bank.Publish();
             frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { ExecutableBytes = nodeSource } };
@@ -99,6 +99,12 @@ public static class NativeBattleLaserEye71Nodes
 
             NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] descriptor)
             {
+                NativeBattleEffectNodePilotMeshInstance prepared = PreparePilotMesh(node, descriptor);
+                return (bytes, matrix) => prepared(bytes, matrix, default);
+            }
+
+            NativeBattleEffectNodePilotMeshInstance PreparePilotMesh(int node, byte[] descriptor)
+            {
                 if (frame.State.ReadDword(0x25FA42C) != 0x2793E58)
                 {
                     throw new NotSupportedException("Laser Eye mesh requires its actual copied-view reservation pointer.");
@@ -118,7 +124,7 @@ public static class NativeBattleLaserEye71Nodes
                 {
                     frame = frame with { State = frame.State.WriteDword(0x25FA42C, 0x2793E58) };
                 }
-                return (bytes, matrix) =>
+                return (bytes, matrix, identity) =>
                 {
                     NativeBattleEffectNodeMemoryWrite current = memory.FlushStorage();
                     (byte[] padding, bool[] known) = current.Memory.Arena!.ReadSnapshot(node + 0xAC + 18, 2);
@@ -127,7 +133,7 @@ public static class NativeBattleLaserEye71Nodes
                     NativeBattlePrimitiveProcess primitive = live.PrimitiveProcess ?? throw new NotSupportedException("Laser Eye mesh requires its retained renderer process.");
                     NativeBattleScriptedGraphicsMemory controls = live.ScriptedGraphics ?? throw new NotSupportedException("Laser Eye mesh requires its current projection controls.");
                     NativeBattleEffectArena liveView = NativeBattleEffectNodeContextMemory.Capture(live);
-                    NativeBattleCuraga88MeshStep emitted = NativeBattleCuraga88Mesh.EmitBatch(bytes, meshAddress, matrix, inputs.Projection, Context(liveView), new(live.GeometryRegisters ?? throw new NotSupportedException("Laser Eye mesh requires its geometry registers."), live.ScriptedColorRegisters ?? throw new NotSupportedException("Laser Eye mesh requires its data registers.")), primitive.ModelRendererRegisters ?? throw new NotSupportedException("Laser Eye mesh requires its FAR controls."), controls.Dqa, controls.Dqb, controls.Zsf4, inputs.Colors, matrixPadding, controls.Zsf3);
+                    NativeBattleCuraga88MeshStep emitted = NativeBattleCuraga88Mesh.EmitBatch(bytes, meshAddress, matrix, inputs.Projection, Context(liveView), new(live.GeometryRegisters ?? throw new NotSupportedException("Laser Eye mesh requires its geometry registers."), live.ScriptedColorRegisters ?? throw new NotSupportedException("Laser Eye mesh requires its data registers.")), primitive.ModelRendererRegisters ?? throw new NotSupportedException("Laser Eye mesh requires its FAR controls."), controls.Dqa, controls.Dqb, controls.Zsf4, inputs.Colors, matrixPadding, controls.Zsf3, pilotIdentity: identity);
                     liveView = NativeBattleEffectNodeContextMemory.Copy(emitted.Context88, 0, liveView, NativeBattleCuraga88Mesh.SharedViewOffset, 88);
                     live = NativeBattleEffectNodeContextMemory.Publish(live, liveView);
                     memory.PublishProcessMemory(live with { GeometryRegisters = emitted.Registers.Geometry, ScriptedColorRegisters = emitted.Registers.Colors, PrimitiveProcess = primitive with { ModelRendererRegisters = emitted.FarControls } });

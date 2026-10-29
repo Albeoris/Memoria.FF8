@@ -53,7 +53,7 @@ public static class NativeBattleRaldo19BallRendering
         return new(ball, registers);
     }
 
-    public static NativeBattleRaldo19BallDraw DrawMeshes(NativeBattleEffectArena ball, NativeBattleEffectArena temporaryA8, NativeBattleEffectArena vertexScratch, ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> bones, Func<int, short?> readBonePadding18, uint meshMask, uint actorColor40, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleGeometryRegisterStep registers, NativeBattleScriptedLightingMemory lighting, NativeBattleSummonColors constants)
+    public static NativeBattleRaldo19BallDraw DrawMeshes(NativeBattleEffectArena ball, NativeBattleEffectArena temporaryA8, NativeBattleEffectArena vertexScratch, ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> bones, Func<int, short?> readBonePadding18, uint meshMask, uint actorColor40, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleGeometryRegisterStep registers, NativeBattleScriptedLightingMemory lighting, NativeBattleSummonColors constants, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleRaldo19BallParameters parameters = Read(ball);
         ValidateBound(temporaryA8, TemporaryLength);
@@ -144,8 +144,9 @@ public static class NativeBattleRaldo19BallRendering
                 vertexScratch = Dword(vertexScratch, target + 12, depth);
                 projected.Add(new(screen, unchecked((ushort)depth), registers.Colors.Flags!.Value));
             }
-            foreach (NativeBattleRawPolygon polygon in mesh.Polygons)
+            for (int polygonIndex = 0; polygonIndex < mesh.Polygons.Length; polygonIndex++)
             {
+                NativeBattleRawPolygon polygon = mesh.Polygons[polygonIndex];
                 if (polygon.Bytes.Length != (polygon.Quad ? 20 : 16))
                 {
                     continue;
@@ -181,6 +182,17 @@ public static class NativeBattleRaldo19BallRendering
                 }
                 NativeBattleGfGeometryBatch batch = NativeBattleWendigoBallGeometry.Packets([polygon], projected.ToImmutable(), actorColor40);
                 NativeBattleGeometryPrimitive primitive = batch.Attempts.Single().Primitive!;
+                if (pilotIdentity is { } identity)
+                {
+                    System.Numerics.Vector3 World(int corner)
+                    {
+                        int selector = BinaryPrimitives.ReadUInt16LittleEndian(polygon.Bytes.AsSpan().Slice(corner * 2)) & 0xFFF;
+                        NativeBattleVector final = Vector(vertexScratch, selector * 20);
+                        return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(ReadMatrix(ball, 0x40), final), projection);
+                    }
+                    NativeBattlePilotVisualGeometry geometry = new(identity with { Primitive = unchecked((identity.Primitive * 397 + meshIndex) * 65537 + polygonIndex) }, World(0), World(1), World(2), polygon.Quad ? World(3) : default, (byte)(polygon.Quad ? 4 : 3));
+                    batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } packet ? attempt with { Primitive = packet with { PilotGeometry = geometry } } : attempt).ToImmutableArray() };
+                }
                 temporaryA8 = Dword(temporaryA8, 0x78, unchecked((uint)(primitive.Bucket - 17)));
                 attempts.AddRange(batch.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
                 allocated = checked(allocated + batch.AllocationBytes);

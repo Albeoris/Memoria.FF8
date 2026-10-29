@@ -9,6 +9,63 @@ public sealed class NativeBattleStaticMeshContext88SelectedTests
     private const uint Address = 0x10000000;
     private const uint Selected = 0x20000000;
 
+    [Theory]
+    [InlineData(3, false)]
+    [InlineData(3, true)]
+    [InlineData(4, false)]
+    [InlineData(4, true)]
+    [InlineData(5, false)]
+    [InlineData(5, true)]
+    public void PresentationUsesReachedSelectedOrInlineOperandsWithoutChangingNativeReadsAndWrites(int group, bool selected)
+    {
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleVector[] points = [new(-200, -100, 0), new(200, -100, 0), new(-200, 100, 0), new(200, 100, 0)];
+        NativeBattleEffectMemory memory = Memory(2000);
+        NativeBattleEffectArena context = Context(selected ? 0x2033u : 0x33u);
+        List<int> nativeReads = [];
+        List<int> captureReads = [];
+        NativeBattleStaticMeshContext88Step native = DrawWith(null, nativeReads);
+        NativeBattleStaticMeshContext88Step smooth = DrawWith(new(12, 100, 0, 1, 2), captureReads);
+        Assert.Equal(nativeReads, captureReads);
+        Assert.Equal(group == 4 ? new[] { 0, 8, 16 } : new[] { 0, 8, 16, 24 }, captureReads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Memory), NativeBattleTestSnapshots.Json(smooth.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Context), NativeBattleTestSnapshots.Json(smooth.Context));
+        NativeBattleGfGeometryAttempt nativePacket = Assert.Single(native.Batch.Attempts);
+        NativeBattleGfGeometryAttempt smoothPacket = Assert.Single(smooth.Batch.Attempts);
+        Assert.Equal(nativePacket.Data, smoothPacket.Data);
+        Assert.Equal(nativePacket.WriteMask, smoothPacket.WriteMask);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(smoothPacket.Primitive!.PilotGeometry);
+        Assert.Equal(-200, geometry.A.X);
+        Assert.Equal(-100, geometry.A.Y);
+        Assert.Equal(2000, geometry.A.Z);
+        Assert.Equal(group == 4 ? 3 : 4, geometry.CornerCount);
+
+        NativeBattleStaticMeshContext88Step DrawWith(NativeBattlePilotVisualIdentity? identity, List<int> reads)
+        {
+            (NativeBattleVector Vertex, short? W) Read(int offset)
+            {
+                reads.Add(offset);
+                return (points[offset / 8], null);
+            }
+            return NativeBattleStaticMeshContext88.DrawLoaded(NativeBattleTestSnapshots.Independent(memory), Mesh(group), projection, NativeBattleTestSnapshots.Independent(context), NativeBattleGteColorInterpolation.CodeConstants45F270, selectedVerticesAddress: selected ? Selected : null, readSelectedVertex: selected ? Read : null, readInlineVertex: selected ? null : Read, pilotIdentity: identity);
+        }
+    }
+
+    [Fact]
+    public void PresentationDoesNotReadARejectedFourthCornerOrInventAPacket()
+    {
+        List<int> reads = [];
+        NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.DrawLoaded(Memory(2000), Mesh(3), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context(0x20F3).MarkUnknown(12, 4), NativeBattleGteColorInterpolation.CodeConstants45F270, selectedVerticesAddress: Selected, readSelectedVertex: offset =>
+        {
+            Assert.NotEqual(24, offset);
+            reads.Add(offset);
+            return (new((short)offset, 0, -2000), null);
+        }, pilotIdentity: new(71, 100, 0, 1, 2));
+        Assert.Equal(new[] { 0, 8, 16 }, reads);
+        Assert.Null(Assert.Single(result.Batch.Attempts).Primitive);
+        Assert.Equal(0, result.Batch.AllocationBytes);
+    }
+
     [Fact]
     public void Selected_pointer_uses_byte_offsets_and_retains_unknown_W_in_current_GTE()
     {

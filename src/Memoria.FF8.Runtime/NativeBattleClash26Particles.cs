@@ -193,7 +193,7 @@ public static partial class NativeBattleClash26Controller
                     2 or 3 => NativeBattleEffectMeshPackets.EmitTextured(face, corner, group == 3, false, context, inputs.Colors, offset),
                     4 or 5 => NativeBattleEffectMeshPackets.EmitGouraud(face, corner, group == 5, context, inputs.Colors, offset),
                     _ => NativeBattleEffectMeshPackets.EmitTextured(face, corner, group == 7, true, context, inputs.Colors, offset)
-                });
+                }, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(26, task));
                 Execute(new NativeBattleClash26Packets(batch));
             }
         }
@@ -277,7 +277,7 @@ public static partial class NativeBattleClash26Controller
             {
                 NativeBattleModuleResource resource = resources.Sprites.Single(sprite => sprite.Address == task.ReadDword(0x4C));
                 ushort index = task.ReadWord(0x50);
-                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(index), Phase = index, Anchor = new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20), 0), Scale = task.ReadWord(0x6E), DepthOffset = Word(task, 0x54), SpriteFlags = 0 };
+                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(index), Phase = index, Anchor = new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20), 0), Scale = task.ReadWord(0x6E), DepthOffset = Word(task, 0x54), SpriteFlags = 0, PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(26, task) };
                 Execute(new NativeBattleClash26Sprite(NativeBattleModulePackets.EmitSprite571DC0(draw, inputs.Projection, inputs.CameraRoll, 17, 2)));
             }
         }

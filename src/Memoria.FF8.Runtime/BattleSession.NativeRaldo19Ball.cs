@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleRaldo19Frame Frame) DrawNativeRaldo19Ball(NativeBattleGraphicsState graphics, NativeBattleRaldo19Frame current, int index)
+    private (NativeBattleGraphicsState Graphics, NativeBattleRaldo19Frame Frame) DrawNativeRaldo19Ball(NativeBattleGraphicsState graphics, NativeBattleRaldo19Frame current, int index, NativeBattlePilotVisualIdentity identity)
     {
         NativeBattleRaldo19BallParameters ball = NativeBattleRaldo19BallRendering.Read(current.State.BallC4);
         if (ball.Actor != index || BinaryPrimitives.ReadUInt32LittleEndian(current.State.Descriptor48.Read(4, 4)) != NativeBattleRaldo19BallRendering.VertexAddress)
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
                 selected.Add(relocated ? mesh : mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, texture) }).ToImmutableArray() });
             }
             (uint address, NativeBattleEffectArena temporary) = Allocate(0xA8);
-            NativeBattleRaldo19BallDraw drawn = NativeBattleRaldo19BallRendering.DrawMeshes(current.State.BallC4, temporary, current.State.VertexScratch, selected.MoveToImmutable(), matrices, padding, actor.SequenceState!.MeshMask124, actor.Color40 ?? throw new NotSupportedException("Raldo ball requires its current model color."), projection, controls.Dqa, controls.Dqb, registers, current.Memory.ScriptedLighting ?? throw new NotSupportedException("Raldo ball requires its retained lighting controls."), constants);
+            NativeBattleRaldo19BallDraw drawn = NativeBattleRaldo19BallRendering.DrawMeshes(current.State.BallC4, temporary, current.State.VertexScratch, selected.MoveToImmutable(), matrices, padding, actor.SequenceState!.MeshMask124, actor.Color40 ?? throw new NotSupportedException("Raldo ball requires its current model color."), projection, controls.Dqa, controls.Dqb, registers, current.Memory.ScriptedLighting ?? throw new NotSupportedException("Raldo ball requires its retained lighting controls."), constants, identity with { Primitive = isLinked ? 1 : 0 });
             Release(address, drawn.TemporaryA8, 0xA8);
             registers = drawn.Registers;
             current = current with { State = current.State with { VertexScratch = drawn.VertexScratch }, Memory = current.Memory with { ScriptedLighting = drawn.Lighting } };
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
         void Shadow()
         {
             NativeBattleGraphicsDefinition graphicsDefinition = definition.NativeGraphics!;
-            NativeBattleShadowDrawStep drawn = NativeBattleShadowDrawing.Prepare5088A0(NativeFileStaging ?? throw new NotSupportedException("Raldo shadow requires its actual temporary memory."), registers, actor, projection, controls, graphicsDefinition.Rules.ShadowSource ?? throw new NotSupportedException("Raldo shadow requires its original template."), graphicsDefinition.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Raldo shadow requires its actual primitive capabilities."), 4112, 16);
+            NativeBattleShadowDrawStep drawn = NativeBattleShadowDrawing.Prepare5088A0(NativeFileStaging ?? throw new NotSupportedException("Raldo shadow requires its actual temporary memory."), registers, actor, projection, controls, graphicsDefinition.Rules.ShadowSource ?? throw new NotSupportedException("Raldo shadow requires its original template."), graphicsDefinition.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Raldo shadow requires its actual primitive capabilities."), 4112, 16, identity with { Primitive = 0x5088A0 });
             NativeFileStaging = drawn.Staging;
             registers = drawn.Registers;
             Append(drawn.Batch);

@@ -40,7 +40,7 @@ public static partial class NativeBattleBladeShot12Controller
                 int first = header.FirstContactIndex ?? throw new NotSupportedException("Blade Shot requires its captured first physical contact pointer.");
                 frame = inputs.Execute(frame, new NativeBattleBladeShot12Contact506690(first));
             }
-            frame = DrawFlash(frame, 0x1362C80, age - 32, TaskView(Read(frame, address), 0x4C, 8), inputs);
+            frame = DrawFlash(frame, address, 0x1362C80, age - 32, TaskView(Read(frame, address), 0x4C, 8), inputs);
         }
         if ((uint)(age - 32) < 5)
         {
@@ -48,10 +48,10 @@ public static partial class NativeBattleBladeShot12Controller
             {
                 frame = WriteBytes(frame, address + 0x4C, TaskView(Read(frame, address), 0x2C, 8), 8);
             }
-            frame = DrawFlash(frame, 0x13628FC, age - 32, TaskView(Read(frame, address), 0x4C, 8), inputs);
+            frame = DrawFlash(frame, address, 0x13628FC, age - 32, TaskView(Read(frame, address), 0x4C, 8), inputs);
         }
-        frame = DrawTransient6EA3E0(frame, address, age - 32, resources, inputs);
-        frame = DrawTransient6EA3E0(frame, address, age - 34, resources, inputs);
+        frame = DrawTransient6EA3E0(frame, address, age - 32, resources, inputs, 0);
+        frame = DrawTransient6EA3E0(frame, address, age - 34, resources, inputs, 1);
         if ((uint)(age - 32) < 20)
         {
             int factor = unchecked((age - 32) << 12) / 20 >> 2;
@@ -65,7 +65,7 @@ public static partial class NativeBattleBladeShot12Controller
         {
             task = Read(frame, address);
             NativeBattleEffectArena point = PointView(new(Signed(task, 0x2C), unchecked((short)(Signed(task, 0x2E) + 100)), Signed(task, 0x30)));
-            frame = DrawFlash(frame, 0x1362C80, age - 60, point, inputs);
+            frame = DrawFlash(frame, address, 0x1362C80, age - 60, point, inputs);
             if (age == 60)
             {
                 frame = inputs.Execute(frame, new NativeBattleBladeShot12Sound5013A0(resources.EndingSound, 0, point));
@@ -144,7 +144,7 @@ public static partial class NativeBattleBladeShot12Controller
         NativeBattlePackedMatrix32 matrix = NativeBattleBladeShot12Geometry.Rotation6E9AB0(TaskView(task, 0x54, 6), UnknownMatrix());
         frame = PlaceMatrix(frame, matrix, TaskView(task, 0x2C, 8), inputs);
         frame = PublishContext(frame, temporary, Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0x13646ECu)).Write(0x1C, new byte[4]), 88);
-        return inputs.Execute(frame, new NativeBattleBladeShot12DrawStatic88(temporary, 0x13646EC));
+        return inputs.Execute(frame, new NativeBattleBladeShot12DrawStatic88(temporary, 0x13646EC) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(12, task, 0) });
     }
 
     private static NativeBattleBladeShot12Frame DrawMorphPair(NativeBattleBladeShot12Frame frame, uint address, uint source, uint firstShape, uint secondShape, int phase, uint flags, int spread, NativeBattleBladeShot12Resources resources, NativeBattleBladeShot12Inputs inputs)
@@ -159,19 +159,19 @@ public static partial class NativeBattleBladeShot12Controller
             NativeBattleModulePoolTask task = Read(frame, address);
             NativeBattleActionMatrix rotation = new(NativeBattleDuelSharedPackets.Rotation6D9510(unchecked((short)(Signed(task, 0x56) + direction))), 0, 0, 0, 4096);
             frame = PlaceMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(rotation, null), TaskView(task, 0x4C, 8), inputs);
-            frame = inputs.Execute(frame, new NativeBattleBladeShot12DrawStatic88(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleBladeShot12DrawStatic88(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(12, task, direction == spread ? 0x200 : 0x201) with { ResourceGeneration = source } });
         }
         return Release(frame, 88);
     }
 
-    private static NativeBattleBladeShot12Frame DrawFlash(NativeBattleBladeShot12Frame frame, uint source, int phase, NativeBattleEffectArena point, NativeBattleBladeShot12Inputs inputs)
+    private static NativeBattleBladeShot12Frame DrawFlash(NativeBattleBladeShot12Frame frame, uint address, uint source, int phase, NativeBattleEffectArena point, NativeBattleBladeShot12Inputs inputs)
     {
         (frame, uint temporary) = Allocate(frame, 180);
         byte[] xyz = point.Read(0, 6);
         (byte[] w, bool[] known) = point.ReadSnapshot(6, 2);
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4))), known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(w) : null, 4096, -1024) };
         frame = PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(source)).Write(4, BitConverter.GetBytes(unchecked((ushort)phase))).Write(0x24, new byte[2]), 180);
-        frame = inputs.Execute(frame, new NativeBattleBladeShot12DrawSprite180(temporary, source));
+        frame = inputs.Execute(frame, new NativeBattleBladeShot12DrawSprite180(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(12, Read(frame, address), 0x300) with { ResourceGeneration = source } });
         return Release(frame, 180);
     }
 

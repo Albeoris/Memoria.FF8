@@ -28,7 +28,11 @@ public sealed partial record NativeBattleEffectMemory
 }
 
 public sealed record NativeBattleRayBomb10Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
-public abstract record NativeBattleRayBomb10Operation;
+public abstract record NativeBattleRayBomb10Operation
+{
+    [JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleRayBomb10Mesh(uint Resource, NativeBattleActionMatrix Matrix, bool CameraSpace, uint Flags, int? Fade, uint? FarColor) : NativeBattleRayBomb10Operation;
 public sealed record NativeBattleRayBomb10Sprite(NativeBattleModuleDraw Draw) : NativeBattleRayBomb10Operation;
 public sealed record NativeBattleRayBomb10WorldSprite(uint Resource, short Phase, NativeBattleActionMatrix World, ushort Flags, uint Color) : NativeBattleRayBomb10Operation;

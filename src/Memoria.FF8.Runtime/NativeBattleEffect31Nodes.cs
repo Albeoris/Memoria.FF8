@@ -140,13 +140,14 @@ public static class NativeBattleEffect31Nodes
             }
         });
         memory.PublishProcessMemory(NativeBattleEffectNodeContextMemory.Publish(memory.CaptureProcessMemory(), memory.SpawnScratchObserver!.View));
-        _ = lifecycle.DrawNodes(inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), (_, _) => throw new NotSupportedException("Effect31 selected custom directory has no mesh material path."), (_, batch) =>
+        NativeBattleCameraProjection projection = inputs.ReadProjection(frame);
+        _ = lifecycle.DrawNodes(projection with { View = projection.View ?? camera.ReadMatrix() }, inputs.ReadCameraRoll(frame), (_, _) => throw new NotSupportedException("Effect31 selected custom directory has no mesh material path."), (_, batch) =>
         {
             Publish();
             frame = inputs.Execute(frame, new NativeBattleEffect31DrawBatch(batch, CursorGlobal));
             memory.PublishProcessMemory(frame.Memory);
             memory.SynchronizePublishedStorage(frame.Memory);
-        });
+        }, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(31, Read(frame, address)));
         Publish();
         return frame;
 
