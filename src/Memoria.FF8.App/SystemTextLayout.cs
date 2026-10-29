@@ -39,6 +39,8 @@ internal static class SystemTextLayout
         return PortableTextRasterizer.Rasterize(text, size, maximumWidth, fontFamily, preserveLineMetrics);
     }
 
+    internal static PortableTextRasterResult RasterizeMapped(string text, float size, float maximumWidth, string? fontFamily = null, bool preserveLineMetrics = false) => PortableTextRasterizer.RasterizeMapped(text, size, maximumWidth, fontFamily, preserveLineMetrics);
+
     internal static List<string> Wrap(string text, Func<string, float> measure, float maximumWidth)
     {
         return PortableTextRasterizer.Wrap(text, measure, maximumWidth);

@@ -1,5 +1,7 @@
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
+using Memoria.FF8.Resources.Localization;
+using Memoria.FF8.GameUi;
 
 namespace Memoria.FF8;
 
@@ -11,7 +13,7 @@ internal static class ButtonPromptText
 
     internal static string Mark(string label)
     {
-        return label.Length == 0 || Contains(label) ? label : $"{Open}{label}{Close}";
+        return label.Length == 0 || Contains(label) ? label : LocalizationTextComposition.Concat(Open.ToString(), label, Close.ToString());
     }
 
     internal static string MarkController(Microsoft.Xna.Framework.Input.Buttons button, string label, ControllerPresentation presentation = ControllerPresentation.Generic)
@@ -36,7 +38,7 @@ internal static class ButtonPromptText
             Microsoft.Xna.Framework.Input.Buttons.DPadRight => 143,
             _ => null
         };
-        return Mark(id is int icon ? $"{(char)('\uF100' + icon - 128)}{(char)('\uF180' + (int)presentation)}{label}" : label);
+        return Mark(id is int icon ? LocalizationTextComposition.Concat(((char)('\uF100' + icon - 128)).ToString(), ((char)('\uF180' + (int)presentation)).ToString(), label) : label);
     }
     internal static bool Contains(string value)
     {
@@ -45,7 +47,26 @@ internal static class ButtonPromptText
 
     internal static string PlainText(string value)
     {
-        return new string(value.Where(character => character != Open && character != Close && character is not (>= '\uF100' and <= '\uF10F') && character is not (>= '\uF180' and <= '\uF184')).ToArray());
+        bool Printable(char character) => character != Open && character != Close && character is not (>= '\uF100' and <= '\uF10F') && character is not (>= '\uF180' and <= '\uF184');
+        if (!LocalizationTextTrace.Enabled || LocalizationTextTrace.Find(value) is null)
+        {
+            return new string(value.Where(Printable).ToArray());
+        }
+        List<string> pieces = [];
+        int start = 0;
+        for (int position = 0; position <= value.Length; position++)
+        {
+            if (position < value.Length && Printable(value[position]))
+            {
+                continue;
+            }
+            if (position > start)
+            {
+                pieces.Add(LocalizationTextComposition.Slice(value, start, position - start));
+            }
+            start = position + 1;
+        }
+        return LocalizationTextComposition.Concat(pieces.ToArray());
     }
 
     internal static IEnumerable<DialogueRun> Runs(string value)
@@ -57,7 +78,7 @@ internal static class ButtonPromptText
             int close = open < 0 ? -1 : value.IndexOf(Close, open + 1);
             if (open < 0 || close < 0)
             {
-                string remainder = PlainText(value[cursor..]);
+                string remainder = PlainText(LocalizationTextComposition.Slice(value, cursor, value.Length - cursor));
                 if (remainder.Length > 0)
                 {
                     yield return new DialogueRun(remainder, Color.White);
@@ -66,11 +87,11 @@ internal static class ButtonPromptText
             }
             if (open > cursor)
             {
-                yield return new DialogueRun(PlainText(value[cursor..open]), Color.White);
+                yield return new DialogueRun(PlainText(LocalizationTextComposition.Slice(value, cursor, open - cursor)), Color.White);
             }
             if (close > open + 1)
             {
-                yield return new DialogueRun(value[(open + 1)..close], Color.White, IsButton: true);
+                yield return new DialogueRun(LocalizationTextComposition.Slice(value, open + 1, close - open - 1), Color.White, IsButton: true);
             }
             cursor = close + 1;
         }
@@ -80,8 +101,23 @@ internal static class ButtonPromptText
     {
         using SystemTextMeasurer measurer = SystemTextLayout.CreateMeasurer(size, family);
         List<DialogueVisualLine> lines = [];
-        string[] source = value.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
-        for (int index = 0; index < source.Length; index++)
+        List<string> source = [];
+        int cursor = 0;
+        for (int position = 0; position < value.Length; position++)
+        {
+            if (value[position] is not ('\r' or '\n'))
+            {
+                continue;
+            }
+            source.Add(LocalizationTextComposition.Slice(value, cursor, position - cursor));
+            if (value[position] == '\r' && position + 1 < value.Length && value[position + 1] == '\n')
+            {
+                position++;
+            }
+            cursor = position + 1;
+        }
+        source.Add(LocalizationTextComposition.Slice(value, cursor, value.Length - cursor));
+        for (int index = 0; index < source.Count; index++)
         {
             lines.AddRange(DialogueLayout.Wrap(new DialogueLine(Runs(source[index]).ToArray(), index), Math.Max(1, width), measurer.Measure, false, measurer.LineHeight));
         }
@@ -124,6 +160,10 @@ internal static class ButtonPromptText
                     UiRect runBounds = new(x, y, Math.Max(1, MathF.Ceiling(width) + 2), measurer.LineHeight);
                     if (placed.Run.IsButton)
                     {
+                        if (canvas is IUiTextFragmentInspector inspector)
+                        {
+                            inspector.InspectTextFragment(placed.Run.Text, runBounds, size * 0.82f, family);
+                        }
                         ButtonPrompt.DrawCanvas(canvas, placed.Run.Text, size, runBounds, color.A / 255f, family);
                     }
                     else

@@ -20,6 +20,7 @@
     <ProjectReference Include="../../src/Memoria.FF8.TitleScene/Memoria.FF8.TitleScene.csproj" />
     <Compile Include="../../src/Memoria.FF8.App/SystemFontCatalog.cs" Link="Presentation/SystemFontCatalog.cs" />
     <Compile Include="../../src/Memoria.FF8.App/PortableTextShaper.cs" Link="Presentation/PortableTextShaper.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/PortableTextSourceMap.cs" Link="Presentation/PortableTextSourceMap.cs" />
     <Compile Include="../../src/Memoria.FF8.App/PortableTextRasterizer.cs" Link="Presentation/PortableTextRasterizer.cs" />
     <Compile Include="../../src/Memoria.FF8.App/PortableRaster.cs" Link="Presentation/PortableRaster.cs" />
     <Compile Include="../../src/Memoria.FF8.App/ControllerVectorAtlas.cs" Link="Presentation/ControllerVectorAtlas.cs" />

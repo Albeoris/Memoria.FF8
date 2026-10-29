@@ -90,7 +90,7 @@ internal class PortableTextShaper : IDisposable
             {
                 previousScript = script;
             }
-            elements.Add(new(text, selected, script, levels[codePoint]));
+            elements.Add(new(text, selected, script, levels[codePoint], iterator.ElementIndex));
             codePoint += text.EnumerateRunes().Count();
         }
         // Leading neutral elements take the following script. Inherited marks
@@ -117,7 +117,7 @@ internal class PortableTextShaper : IDisposable
             }
             else
             {
-                runs.Add(new(new StringBuilder(element.Text), element.Font, element.Script, element.Level));
+                runs.Add(new(new StringBuilder(element.Text), element.Font, element.Script, element.Level, element.SourceStart));
             }
         }
         // UAX #9 L2: reverse contiguous sequences from the highest embedding
@@ -163,7 +163,7 @@ internal class PortableTextShaper : IDisposable
                 }
                 blob = builder.Build();
             }
-            shaped.Add(new(blob, width, text, run.Level, run.Script));
+            shaped.Add(new(blob, width, text, run.Level, run.Script, run.SourceStart, run.Font, result));
             width += result.Width;
         }
         ShapedLine line = new(shaped.ToArray(), width / RasterScale);
@@ -174,6 +174,32 @@ internal class PortableTextShaper : IDisposable
     internal (string Text, bool RightToLeft)[] VisualRuns(string value)
     {
         return Shape(value).Runs.Select(run => (run.Text, (run.Level & 1) != 0)).ToArray();
+    }
+
+    internal IReadOnlyList<PortableShapedCluster> SourceClusters(string value)
+    {
+        List<PortableShapedCluster> clusters = [];
+        foreach (ShapedRun run in Shape(value).Runs)
+        {
+            ushort[] glyphs = run.Result.Codepoints.Select(glyph => checked((ushort)glyph)).ToArray();
+            run.Font.Font.GetGlyphWidths(glyphs, out SKRect[] bounds, null);
+            int[] starts = run.Result.Clusters.Select(cluster => checked((int)cluster)).Append(run.Text.Length).Distinct().Order().ToArray();
+            for (int index = 0; index < glyphs.Length; index++)
+            {
+                int start = checked((int)run.Result.Clusters[index]);
+                int end = starts.First(next => next > start);
+                SKRect rectangle = bounds[index];
+                if (rectangle.IsEmpty)
+                {
+                    continue;
+                }
+                SKPoint point = run.Result.Points[index];
+                rectangle.Offset(run.X + point.X, point.Y);
+                rectangle = new(rectangle.Left / RasterScale, rectangle.Top / RasterScale, rectangle.Right / RasterScale, rectangle.Bottom / RasterScale);
+                clusters.Add(new(run.SourceStart + start, end - start, rectangle));
+            }
+        }
+        return clusters;
     }
 
     internal void Draw(SKCanvas canvas, string value, float x, float baseline, SKPaint paint)
@@ -211,9 +237,9 @@ internal class PortableTextShaper : IDisposable
         lines.Clear();
     }
 
-    private sealed record TextElement(string Text, FontRun Font, Script Script, sbyte Level);
-    private sealed record LogicalRun(StringBuilder Text, FontRun Font, Script Script, sbyte Level);
-    private sealed record ShapedRun(SKTextBlob? Blob, float X, string Text, sbyte Level, Script Script);
+    private sealed record TextElement(string Text, FontRun Font, Script Script, sbyte Level, int SourceStart);
+    private sealed record LogicalRun(StringBuilder Text, FontRun Font, Script Script, sbyte Level, int SourceStart);
+    private sealed record ShapedRun(SKTextBlob? Blob, float X, string Text, sbyte Level, Script Script, int SourceStart, FontRun Font, SKShaper.Result Result);
     private sealed record ShapedLine(ShapedRun[] Runs, float Width);
     private sealed record FontRun(SKTypeface Face, SKFont Font, SKShaper Shaper);
 }

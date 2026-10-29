@@ -36,8 +36,17 @@ internal static class PortableTextRasterizer
 
     public static SKBitmap Rasterize(string text, float size, float maximumWidth, string? fontFamily = null, bool preserveLineMetrics = false)
     {
+        return RasterizeDetailed(text, size, maximumWidth, fontFamily, preserveLineMetrics, false).Bitmap;
+    }
+
+    internal static PortableTextRasterResult RasterizeMapped(string text, float size, float maximumWidth, string? fontFamily = null, bool preserveLineMetrics = false) => RasterizeDetailed(text, size, maximumWidth, fontFamily, preserveLineMetrics, true);
+
+    private static PortableTextRasterResult RasterizeDetailed(string text, float size, float maximumWidth, string? fontFamily, bool preserveLineMetrics, bool sourceMap)
+    {
         using PortableTextShaper measurer = CreateMeasurer(size, fontFamily);
-        List<string> lines = Wrap(text, measurer.Measure, maximumWidth);
+        List<PortableTextWrappedLine> mapped = WrapCore(text, measurer.Measure, maximumWidth, sourceMap);
+        List<string> lines = mapped.Select(line => line.Text).ToList();
+        List<PortableTextCluster> clusters = [];
         float width = lines.Max(measurer.Measure) * RasterScale;
         float lineHeight = measurer.LineHeight * RasterScale;
         int margin = RasterMargin(size);
@@ -51,11 +60,20 @@ internal static class PortableTextRasterizer
             for (int index = 0; index < lines.Count; index++)
             {
                 measurer.Draw(canvas, lines[index], margin, margin + index * lineHeight + measurer.Baseline * RasterScale, paint);
+                if (sourceMap)
+                {
+                    foreach (PortableShapedCluster cluster in measurer.SourceClusters(lines[index]))
+                    {
+                        SKRect bounds = cluster.Bounds;
+                        bounds.Offset(margin / (float)RasterScale, margin / (float)RasterScale + index * measurer.LineHeight + measurer.Baseline);
+                        clusters.Add(new(mapped[index].SourcePositions.Skip(cluster.Start).Take(cluster.Length).ToArray(), bounds, index));
+                    }
+                }
             }
         }
         if (preserveLineMetrics)
         {
-            return bitmap.Copy();
+            return new(bitmap.Copy(), clusters);
         }
         SKColor[] pixels = bitmap.Pixels;
         int left = bitmap.Width;
@@ -78,7 +96,7 @@ internal static class PortableTextRasterizer
         }
         if (right < left)
         {
-            return new SKBitmap(1, 1, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+            return new(new SKBitmap(1, 1, SKColorType.Rgba8888, SKAlphaType.Unpremul), []);
         }
         // Cropping glyph bearings must retain authored indentation, including a space
         // at the start of a separately colored run.
@@ -88,29 +106,61 @@ internal static class PortableTextRasterizer
         using SKCanvas crop = new(cropped);
         crop.Clear(SKColors.Transparent);
         crop.DrawBitmap(bitmap, -left, -top);
-        return cropped;
+        return new(cropped, clusters.Select(cluster =>
+        {
+            SKRect bounds = cluster.Bounds;
+            bounds.Offset(-left / (float)RasterScale, -top / (float)RasterScale);
+            return cluster with { Bounds = bounds };
+        }).ToArray());
     }
 
     internal static List<string> Wrap(string text, Func<string, float> measure, float maximumWidth)
     {
-        List<string> lines = [];
-        foreach (string paragraph in text.Replace("\r", "").Split('\n'))
+        return WrapCore(text, measure, maximumWidth, false).Select(line => line.Text).ToList();
+    }
+
+    internal static List<PortableTextWrappedLine> WrapMapped(string text, Func<string, float> measure, float maximumWidth) => WrapCore(text, measure, maximumWidth, true);
+
+    private static List<PortableTextWrappedLine> WrapCore(string text, Func<string, float> measure, float maximumWidth, bool sourceMap)
+    {
+        List<PortableTextWrappedLine> lines = [];
+        string normalized = text.Replace("\r", "");
+        int[] positions = sourceMap ? Enumerable.Range(0, text.Length).Where(index => text[index] != '\r').ToArray() : [];
+        int paragraphStart = 0;
+        foreach (string paragraph in normalized.Split('\n'))
         {
             string line = "";
+            List<int>? sourcePositions = sourceMap ? [] : null;
             bool needsSeparator = false;
+            int wordStart = paragraphStart;
+            void FinishLine()
+            {
+                lines.Add(new(line, sourcePositions?.ToArray() ?? []));
+                sourcePositions?.Clear();
+            }
             foreach (string word in paragraph.Split(' '))
             {
                 string candidate = needsSeparator ? line + " " + word : word;
+                bool separator = needsSeparator;
                 needsSeparator = true;
                 if (line.Length != 0 && measure(candidate) > maximumWidth)
                 {
-                    lines.Add(line);
+                    FinishLine();
                     line = "";
                     needsSeparator = false;
                 }
                 else if (measure(candidate) <= maximumWidth)
                 {
                     line = candidate;
+                    if (sourcePositions is not null)
+                    {
+                        if (separator)
+                        {
+                            sourcePositions.Add(positions[wordStart - 1]);
+                        }
+                        sourcePositions.AddRange(positions.AsSpan(wordStart, word.Length).ToArray());
+                    }
+                    wordStart += word.Length + 1;
                     continue;
                 }
                 TextElementEnumerator elements = StringInfo.GetTextElementEnumerator(word);
@@ -119,14 +169,20 @@ internal static class PortableTextRasterizer
                     string character = elements.GetTextElement();
                     if (line.Length != 0 && measure(line + character) > maximumWidth)
                     {
-                        lines.Add(line);
+                        FinishLine();
                         line = "";
                     }
                     line += character;
+                    if (sourcePositions is not null)
+                    {
+                        sourcePositions.AddRange(positions.AsSpan(wordStart + elements.ElementIndex, character.Length).ToArray());
+                    }
                     needsSeparator = true;
                 }
+                wordStart += word.Length + 1;
             }
-            lines.Add(line);
+            FinishLine();
+            paragraphStart += paragraph.Length + 1;
         }
         return lines;
     }

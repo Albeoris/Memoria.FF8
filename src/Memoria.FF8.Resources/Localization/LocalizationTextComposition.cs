@@ -6,6 +6,27 @@ namespace Memoria.FF8.Resources.Localization;
 /// <summary>Composes known string instances while retaining the canonical owners of their displayed spans.</summary>
 public static class LocalizationTextComposition
 {
+    public static string Slice(string value, int start, int length)
+    {
+        string result = value.Substring(start, length);
+        if (!LocalizationTextTrace.Enabled || LocalizationTextTrace.Find(value) is not { } binding)
+        {
+            return result;
+        }
+        int end = checked(start + length);
+        List<LocalizationTextFragment> fragments = [];
+        foreach (LocalizationTextFragment fragment in binding.Fragments)
+        {
+            int first = Math.Max(start, fragment.Start);
+            int last = Math.Min(end, fragment.Start + fragment.Length);
+            if (last > first)
+            {
+                fragments.Add(fragment with { Start = first - start, Length = last - first });
+            }
+        }
+        return Attach(result, fragments, binding);
+    }
+
     public static string Concat(params string?[] values) => Join("", values);
 
     public static string Join(string separator, IEnumerable<string?> values)
