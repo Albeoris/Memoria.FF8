@@ -45,7 +45,11 @@ public sealed partial record NativeBattleEffectMemory
     }
 }
 public sealed record NativeBattleWendigoFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
-public abstract record NativeBattleWendigoOperation;
+public abstract record NativeBattleWendigoOperation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleWendigoContact(int Index) : NativeBattleWendigoOperation;
 public sealed record NativeBattleWendigoSound(uint Sound, ushort Flags) : NativeBattleWendigoOperation;
 public sealed record NativeBattleWendigoPackets(NativeBattleGfGeometryBatch Batch, bool Secondary) : NativeBattleWendigoOperation;

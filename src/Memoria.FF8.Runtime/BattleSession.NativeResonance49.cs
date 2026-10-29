@@ -135,7 +135,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Resonance49 vertex source is not an actual selected geometry shape or its mutable scratch.");
             }
-            NativeBattleResonance49MeshContext104Step drawn = NativeBattleResonance49MeshContext104.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), operation.VertexAddress, ReadVertex);
+            NativeBattleResonance49MeshContext104Step drawn = NativeBattleResonance49MeshContext104.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), operation.VertexAddress, ReadVertex, pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context104, 104) };
             return Delivered(current, NativeBattleResonance49PacketDelivery.Deliver(current.Memory, current.State, Ordering(), drawn.Batch, 0x26464DC, 0));
 

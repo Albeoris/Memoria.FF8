@@ -305,7 +305,7 @@ public static partial class NativeBattleCuraParticles
             }
             NativeBattleModuleResource resource = resources.Sprites.Single(sprite => sprite.Address == resourceAddress);
             short phase = Word(task, 0x50);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Phase = unchecked((ushort)phase), Anchor = anchor, DepthOffset = depth, Scale = 4096, Direction = 4096, SpriteFlags = flags, SpriteColor = color, SpriteWorldRotation = rotation, PilotIdentity = frame.Effect.Binding.Effect == 25 ? NativeBattlePilotVisualLifetimes.Identity(25, task, flags == 0 ? 0 : 1) : null };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Phase = unchecked((ushort)phase), Anchor = anchor, DepthOffset = depth, Scale = 4096, Direction = 4096, SpriteFlags = flags, SpriteColor = color, SpriteWorldRotation = rotation, PilotIdentity = frame.Effect.Binding.Effect is 25 or 51 ? NativeBattlePilotVisualLifetimes.Identity(frame.Effect.Binding.Effect, task, flags == 0 ? 0 : 1) : null };
             hierarchy = hierarchy.Write(address, task);
             frame = inputs.Execute(frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } }, new NativeBattleCuraSpriteOperation(draw));
             hierarchy = new(frame.Effect.Pools);

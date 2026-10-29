@@ -46,7 +46,7 @@ public static partial class NativeBattleSigh46Controller
                     frame = ReleaseNodeScratch(frame, 180);
                     memory.PublishProcessMemory(frame.Memory);
                 }
-            });
+            }, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(46, Read(frame, address)));
             NativeBattleEffectNodeMemoryWrite final = memory.FlushStorage();
             bank.Publish();
             frame = frame with { Memory = final.Memory, Effect = final.Effect, Random = random, State = frame.State.WriteWord(EmitterScanCursorGlobal, emitterCursor).WriteWord(GeometryScanCursorGlobal, geometryCursor) };

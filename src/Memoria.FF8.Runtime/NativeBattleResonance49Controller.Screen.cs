@@ -59,7 +59,11 @@ public static partial class NativeBattleResonance49Controller
                     }
                     Put(22, BitConverter.GetBytes(page));
                     uint[] quadWords = Enumerable.Range(0, 10).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(quad.AsSpan(index * 4))).ToArray();
-                    NativeBattleGfGeometryAttempt polygon = new(0, quad.ToImmutableArray(), quadMask.ToImmutableArray(), new(bucket, quadWords.ToImmutableArray(), []));
+                    NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(49, Read(frame, address), channel * 70 + row * 7 + column);
+                    System.Numerics.Vector3 Corner(int offset) => new(BinaryPrimitives.ReadInt16LittleEndian(quad.AsSpan(offset)), BinaryPrimitives.ReadInt16LittleEndian(quad.AsSpan(offset + 2)), 0);
+                    // ScreenPair submits full-coordinate packets; presentation sampling first converts eighth units.
+                    NativeBattleGeometryPrimitive primitive = new(bucket, quadWords.ToImmutableArray(), []) { PilotGeometry = new(identity, Corner(8), Corner(16), Corner(24), Corner(32), 4) { ScreenSpace = true, ScreenScale = 8 } };
+                    NativeBattleGfGeometryAttempt polygon = new(0, quad.ToImmutableArray(), quadMask.ToImmutableArray(), primitive);
                     byte[] mode = new byte[12];
                     mode[3] = 2;
                     BinaryPrimitives.WriteUInt32LittleEndian(mode.AsSpan(4), 0xE1000020);

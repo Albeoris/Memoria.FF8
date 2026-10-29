@@ -76,9 +76,9 @@ public static partial class NativeBattleSigh46Controller
             {
                 task = Read(frame, address);
                 frame = Write(frame, address, task.WriteWord(0x46, task.ReadWord(0x7C + angle * 2)).WriteDword(0x4C, task.ReadDword(0x74)));
-                frame = DrawCustomMesh46(frame, address, inputs);
+                frame = DrawCustomMesh46(frame, address, inputs, angle * 2);
                 frame = Write(frame, address, Read(frame, address).WriteDword(0x4C, Read(frame, address).ReadDword(0x78)));
-                frame = DrawCustomMesh46(frame, address, inputs);
+                frame = DrawCustomMesh46(frame, address, inputs, angle * 2 + 1);
             }
             task = Read(frame, address);
             short selector = unchecked((short)(task.ReadWord(0x82) + 1));
@@ -173,7 +173,7 @@ public static partial class NativeBattleSigh46Controller
             frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), new(Signed(task, 0x1C), Signed(task, 0x1E), Signed(task, 0x20)), wKnown.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(wBytes) : null, 4096, Signed(task, 0x54)) };
             NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(task.ReadDword(0x4C))).Write(4, BitConverter.GetBytes(task.ReadWord(0x50))).Write(0x24, new byte[2]);
             frame = PublishContext(frame, temporary, context, 180);
-            frame = inputs.Execute(frame, new NativeBattleSigh46DrawSprite180(temporary, task.ReadDword(0x4C)));
+            frame = inputs.Execute(frame, new NativeBattleSigh46DrawSprite180(temporary, task.ReadDword(0x4C)) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(46, task) with { ResourceGeneration = task.ReadDword(0x4C) } });
             frame = Release(frame, 180);
         }
         return Finish(frame, address);
@@ -199,7 +199,7 @@ public static partial class NativeBattleSigh46Controller
         return Write(frame, childAddress, child);
     }
 
-    private static NativeBattleSigh46Frame DrawCustomMesh46(NativeBattleSigh46Frame frame, uint address, NativeBattleSigh46Inputs inputs)
+    private static NativeBattleSigh46Frame DrawCustomMesh46(NativeBattleSigh46Frame frame, uint address, NativeBattleSigh46Inputs inputs, int copy)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.RotateZ8DD960(NativeBattleCuragaMatrices.RotateX8DD7E0(NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), Signed(task, 0x46)), Signed(task, 0x44)), Signed(task, 0x48));
@@ -209,7 +209,7 @@ public static partial class NativeBattleSigh46Controller
         (frame, uint temporary) = Allocate(frame, 88);
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(task.ReadDword(0x4C))).Write(8, BitConverter.GetBytes(task.ReadDword(0x40))).Write(12, BitConverter.GetBytes((int)Signed(task, 0x50))).Write(0x1C, BitConverter.GetBytes(0xF0u));
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleSigh46DrawMesh88(temporary, task.ReadDword(0x4C)));
+        frame = inputs.Execute(frame, new NativeBattleSigh46DrawMesh88(temporary, task.ReadDword(0x4C)) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(46, task, copy) with { ResourceGeneration = task.ReadDword(0x4C) } });
         return Release(frame, 88);
     }
 

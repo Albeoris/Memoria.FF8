@@ -48,12 +48,13 @@ public static class NativeBattleWendigoBallGeometry
         return camera with { X = translation.X, Y = translation.Y, Z = translation.Z };
     }
 
-    public static NativeBattleGfGeometryBatch Packets(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<NativeBattleModuleProjectedVertex> projected, uint color)
+    public static NativeBattleGfGeometryBatch Packets(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<NativeBattleModuleProjectedVertex> projected, uint color, IReadOnlyList<System.Numerics.Vector3>? pilotWorldVertices = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
-        foreach (NativeBattleRawPolygon polygon in polygons)
+        for (int polygonIndex = 0; polygonIndex < polygons.Length; polygonIndex++)
         {
+            NativeBattleRawPolygon polygon = polygons[polygonIndex];
             if (polygon.Bytes.Length != (polygon.Quad ? 20 : 16))
             {
                 continue;
@@ -92,7 +93,13 @@ public static class NativeBattleWendigoBallGeometry
             int sum = points.Sum(point => (int)point.Depth);
             int key = polygon.Quad ? sum >> 6 : (sum / 3) >> 4;
             ImmutableArray<int> depths = polygon.Quad ? points.Select(point => (int)point.Depth).ToImmutableArray() : [points[0].Depth, points[1].Depth, points[2].Depth, 0];
-            attempts.Add(packet.Attempt(new(17 + key, packet.Words(), depths)));
+            NativeBattleGeometryPrimitive primitive = new(17 + key, packet.Words(), depths);
+            if (pilotIdentity is { } identity && pilotWorldVertices is not null)
+            {
+                System.Numerics.Vector3 Corner(int corner) => pilotWorldVertices[BinaryPrimitives.ReadUInt16LittleEndian(polygon.Bytes.AsSpan().Slice(corner * 2)) & 0xFFF];
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + polygonIndex) }, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)count) };
+            }
+            attempts.Add(packet.Attempt(primitive));
             allocation += length;
         }
         return new(attempts.ToImmutable(), allocation);

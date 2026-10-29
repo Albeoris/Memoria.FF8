@@ -107,7 +107,7 @@ public static partial class NativeBattleWendigoController
             NativeBattleVector position = new(unchecked((short)(point.X - pivot.X)), unchecked((short)(point.Y - pivot.Y)), unchecked((short)(point.Z - pivot.Z)));
             NativeBattleActionMatrix world = Model(actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native Wendigo requires the ball actor world matrix.");
             Model(Model(actor) with { Transform = Transform(actor) with { Position28 = position }, GeometryWorldMatrix = world with { X = position.X, Y = position.Y, Z = position.Z } });
-            Emit(new NativeBattleWendigoDrawBall(actor));
+            Emit(new NativeBattleWendigoDrawBall(actor) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(current.Effect.Binding.Effect, Read(address)) });
         }
         private void DribbleBall(uint address)
         {

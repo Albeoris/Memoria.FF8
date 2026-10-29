@@ -63,7 +63,7 @@ public sealed partial class BattleSession
                     NativeBattleWendigoState ballOwner = Owner(current);
                     NativeEffectMemory = current.Memory;
                     NativeBattleEffectArena module;
-                    (graphics, module) = DrawNativeWendigoBall(graphics, ball.Actor, ballOwner.Module, NativeBattleWendigoController.ModuleBase(shoot), NativeBattleWendigoController.BallAddress(shoot), shoot);
+                    (graphics, module) = DrawNativeWendigoBall(graphics, ball.Actor, ballOwner.Module, NativeBattleWendigoController.ModuleBase(shoot), NativeBattleWendigoController.BallAddress(shoot), shoot, ball.PilotIdentity);
                     NativeBattleEffectMemory ballMemory = NativeEffectMemory ?? throw new InvalidDataException("Native Wendigo renderer lost its frame cursor owner.");
                     return current with { Memory = shoot ? ballMemory with { Shoot42 = ballOwner with { Module = module } } : ballMemory with { Dribble41 = ballOwner with { Module = module } } };
                 case NativeBattleWendigoPackets packets:

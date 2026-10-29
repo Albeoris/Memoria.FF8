@@ -125,7 +125,7 @@ public static partial class NativeBattleWendigoController
                 }
                 NativeBattleActionMatrix rotation = NativeBattleWendigoPrimGeometry.Compose(node, camera);
                 bool fade = node.Scalar36 != 0;
-                NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, vertices, rotation, inputs.Projection, new(fade ? 0x20F0u : 0x2030u, fade ? node.Color32 : 0, node.Scalar36, null, null, 0, 17, 2), inputs.Colors);
+                NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, vertices, rotation, inputs.Projection, new(fade ? 0x20F0u : 0x2030u, fade ? node.Color32 : 0, node.Scalar36, null, null, 0, 17, 2), inputs.Colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(current.Effect.Binding.Effect, Read(address), node.ResourceOffset) with { ResourceGeneration = source.Address });
                 Emit(new NativeBattleWendigoPackets(batch, false));
                 return currentWorkspace;
             });

@@ -140,6 +140,40 @@ public sealed class NativeBattlePotion52Tests
         Assert.Throws<NotSupportedException>(() => NativeBattleCuragaController.InitializeXPotionRoot817410(task, parameters with { HeaderIndex7C = 0 }, packets));
     }
 
+    [Fact]
+    public void XPotion_presentation_flash_uses_its_actual_task_identity_and_stays_discrete_and_read_only()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
+        NativeBattleEffectHierarchyAppend flash = hierarchy.Append8DC540(2, 0x817800, 60, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        hierarchy = flash.Hierarchy.Write(flash.Address, flash.Hierarchy.Read(flash.Address).WriteDword(0x30, 0x15A9208).WriteWord(0x38, 0));
+        NativeBattleCuragaFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
+        NativeBattleCuragaResources resources = Resources() with { FlashProgram = [0x007F7F7F, 0xFF000000] };
+        NativeBattleCuragaFrame independentBeforeCallback = NativeBattleTestSnapshots.Independent(frame);
+        List<NativeBattleCuragaOperation> operations = [];
+        NativeBattleCuragaLeafStep drawn = NativeBattleCuragaParticles.AdvanceSimple(frame, flash.Address, resources, (current, operation) =>
+        {
+            operations.Add(operation);
+            return current;
+        });
+        NativeBattleModulePacketBatch batch = Assert.IsType<NativeBattleCuragaPacketOperation>(Assert.Single(operations)).Batch;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(batch.Primitives[0].Primitive.PilotGeometry);
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(52, hierarchy.Read(flash.Address)), geometry.Identity);
+        Assert.False(geometry.Continuous);
+        Assert.True(geometry.ScreenSpace);
+        Assert.Equal(8, geometry.ScreenScale);
+        Assert.Null(batch.Primitives[1].Primitive.PilotGeometry);
+        string native = NativeBattleTestSnapshots.Json(drawn);
+        Assert.Same(geometry, NativeBattlePilotVisualGeometry.Sample(geometry, geometry with { A = new(100, 100, 100) }, 0.5f));
+        Assert.Equal(native, NativeBattleTestSnapshots.Json(drawn));
+        NativeBattleEffectHierarchy drawnHierarchy = new(drawn.Frame.Effect.Pools);
+        Assert.Equal((ushort)1, drawnHierarchy.Read(flash.Address).ReadWord(0x38));
+        Assert.Equal((byte)1, drawnHierarchy.Read(hierarchy.Address(0, 0)).ReadByte(0x28));
+        Assert.Equal((ushort)0, new NativeBattleEffectHierarchy(independentBeforeCallback.Effect.Pools).Read(flash.Address).ReadWord(0x38));
+        NativeBattleCuragaLeafStep restored = NativeBattleCuragaParticles.AdvanceSimple(independentBeforeCallback, flash.Address, resources, (current, _) => current);
+        Assert.Equal(native, NativeBattleTestSnapshots.Json(restored));
+    }
+
     private static NativeBattleCuragaResources Resources() => new(new("skipped-camera-registration", []), 300143) { Effect = 52 };
 
     private static (NativeBattleCuragaFrame Frame, NativeBattleCuragaControllerInputs Inputs) Fixture(byte targets = 1)

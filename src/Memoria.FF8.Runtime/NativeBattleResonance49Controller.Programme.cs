@@ -45,14 +45,14 @@ public static partial class NativeBattleResonance49Controller
         NativeBattleGfAnimationAdvance advanced = ProgrammeWorkspace(task).Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, current);
-            frame = DrawProgrammeNode49(frame, source, node, composed, Signed(Read(frame, address), 0x88), resources, inputs);
+            frame = DrawProgrammeNode49(frame, source, node, composed, Signed(Read(frame, address), 0x88), resources, inputs, NativeBattlePilotVisualLifetimes.Identity(49, Read(frame, address)));
             return ProgrammeWorkspace(Read(frame, address));
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, advanced.Workspace);
         return (frame, advanced.Remaining);
     }
 
-    public static NativeBattleResonance49Frame DrawProgrammeNode49(NativeBattleResonance49Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 caller, int depthBias, NativeBattleResonance49Resources resources, NativeBattleResonance49Inputs inputs)
+    public static NativeBattleResonance49Frame DrawProgrammeNode49(NativeBattleResonance49Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 caller, int depthBias, NativeBattleResonance49Resources resources, NativeBattleResonance49Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -109,7 +109,7 @@ public static partial class NativeBattleResonance49Controller
             context = context.Write(offset, BitConverter.GetBytes((ushort)(offset is 0x20 or 0x22 or 0x28 or 0x2A ? 256 : 0)));
         }
         frame = PublishContext(frame, temporary, context, 104);
-        frame = inputs.Execute(frame, new NativeBattleResonance49DrawMesh104(temporary, geometryAddress, vertices));
+        frame = inputs.Execute(frame, new NativeBattleResonance49DrawMesh104(temporary, geometryAddress, vertices) { PilotIdentity = pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + node.ResourceOffset), ResourceGeneration = geometryAddress } : null });
         return Release(frame, 104);
     }
 

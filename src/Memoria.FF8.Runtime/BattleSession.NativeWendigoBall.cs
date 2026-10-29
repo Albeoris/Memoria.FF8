@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleEffectArena Module) DrawNativeWendigoBall(NativeBattleGraphicsState graphics, int index, NativeBattleEffectArena module, uint moduleBase, uint ballAddress, bool shoot)
+    private (NativeBattleGraphicsState Graphics, NativeBattleEffectArena Module) DrawNativeWendigoBall(NativeBattleGraphicsState graphics, int index, NativeBattleEffectArena module, uint moduleBase, uint ballAddress, bool shoot, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int ball = Relative(ballAddress);
         if (ReadShort(ball + (shoot ? 0xD0 : 0xB0)) != index)
@@ -39,7 +39,7 @@ public sealed partial class BattleSession
             NativeBattleEffectLocalBounds bounds = actor.GeometryBounds52 ?? throw new NotSupportedException("Native ball shadow requires its original model bounds.");
             NativeBattleShadowGeometry shape = NativeBattlePoseMatrices.ShadowGeometry5088A0(actor, bounds, view, graphicsDefinition.Rules.ShadowSource!, gouraud);
             NativeBattleModuleProjectedVertex[] vertices = shape.Vertices.Select(vertex => NativeBattleModuleProjection.Project45FE10(shape.CameraMatrix, vertex, projection)).ToArray();
-            Append(NativeBattleShadowPackets.EmitBatch5088A0(vertices, actor.Color44!.Value, gouraud, 4112, 16));
+            Append(NativeBattleShadowPackets.EmitBatch5088A0(vertices, actor.Color44!.Value, gouraud, 4112, 16, pilotWorldVertices: pilotIdentity.HasValue ? shape.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shape.CameraMatrix, vertex), projection)).ToArray() : null, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = 0x5088A0 } : null));
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, pose);
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, pose);
@@ -65,10 +65,15 @@ public sealed partial class BattleSession
                 }
                 NativeBattleRawMesh mesh = meshes[meshIndex];
                 ImmutableArray<NativeBattleModuleProjectedVertex>.Builder projected = ImmutableArray.CreateBuilder<NativeBattleModuleProjectedVertex>(mesh.Vertices.Length);
+                System.Numerics.Vector3[]? worldVertices = pilotIdentity.HasValue ? new System.Numerics.Vector3[mesh.Vertices.Length] : null;
                 for (int vertex = 0; vertex < mesh.Vertices.Length; vertex++)
                 {
                     NativeBattleRawVertex raw = mesh.Vertices[vertex];
                     NativeBattleVector point = NativeBattleWendigoBallGeometry.Morph(raw, matrices[raw.Bone], rotation, pivot, weight, radii);
+                    if (worldVertices is not null)
+                    {
+                        worldVertices[vertex] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(camera, point), projection);
+                    }
                     int offset = checked(scratch + vertex * 20);
                     WriteVector(offset, point);
                     // 45E3E0 writes XYZ only; the copied heap WORD at +6 has no initialized producer.
@@ -80,7 +85,7 @@ public sealed partial class BattleSession
                 }
                 NativeBattleModelTextureBinding texture = linkedGeometry || resource.LinkedGeometryUsesBodySkeleton == true && meshIndex == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!;
                 ImmutableArray<NativeBattleRawPolygon> polygons = alreadyRelocated ? mesh.Polygons : mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, texture) }).ToImmutableArray();
-                Append(NativeBattleWendigoBallGeometry.Packets(polygons, projected.ToImmutable(), actor.Color40!.Value));
+                Append(NativeBattleWendigoBallGeometry.Packets(polygons, projected.ToImmutable(), actor.Color40!.Value, worldVertices, pilotIdentity is { } identity ? identity with { Primitive = (linkedGeometry ? 0x10000 : 0) + meshIndex } : null));
             }
         }
 

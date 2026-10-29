@@ -7,6 +7,58 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleResonance49MeshContext104Tests
 {
     [Theory]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(7)]
+    public void CapturedSelectedCornersPreserveNativeContextRegistersAndEveryWrite(int group)
+    {
+        NativeBattleVector[] points = [new(-200, -100, 0), new(200, -100, 0), new(-200, 100, 0), new(200, 100, 0)];
+        List<int> nativeReads = [];
+        List<int> captureReads = [];
+        NativeBattleResonance49MeshContext104Step native = Run(null, nativeReads);
+        NativeBattleResonance49MeshContext104Step smooth = Run(new(49, 100, 0, 1, 2), captureReads);
+        Assert.Equal(nativeReads, captureReads);
+        Assert.Equal(group == 4 ? new[] { 0, 8, 16 } : new[] { 0, 8, 16, 24 }, captureReads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Memory), NativeBattleTestSnapshots.Json(smooth.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Context104), NativeBattleTestSnapshots.Json(smooth.Context104));
+        NativeBattleGfGeometryAttempt first = Assert.Single(native.Batch.Attempts);
+        NativeBattleGfGeometryAttempt second = Assert.Single(smooth.Batch.Attempts);
+        Assert.Equal(first.Data, second.Data);
+        Assert.Equal(first.WriteMask, second.WriteMask);
+        Assert.Equal(first.Primitive!.Bucket, second.Primitive!.Bucket);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(second.Primitive.PilotGeometry);
+        Assert.Equal(-200, geometry.A.X);
+        Assert.Equal(-100, geometry.A.Y);
+        Assert.Equal(2000, geometry.A.Z);
+
+        NativeBattleResonance49MeshContext104Step Run(NativeBattlePilotVisualIdentity? identity, List<int> reads)
+        {
+            return NativeBattleResonance49MeshContext104.DrawLoaded(Memory(2000), Mesh(group), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context(0x20F0), NativeBattleGteColorInterpolation.CodeConstants45F270, selectedVerticesAddress: 0x2647D20, readSelectedVertex: offset =>
+            {
+                reads.Add(offset);
+                return (points[offset / 8], null);
+            }, pilotIdentity: identity);
+        }
+    }
+
+    [Fact]
+    public void CaptureKeepsUnreachedFourthCornerAndCueUnknownOnNearRejection()
+    {
+        List<int> reads = [];
+        NativeBattleResonance49MeshContext104Step result = NativeBattleResonance49MeshContext104.DrawLoaded(Memory(1), Mesh(7), new(NativeBattleCuragaMatrices.Identity8DD770(), 2, 160, 108), Context(0x20F0).MarkUnknown(8, 8), NativeBattleGteColorInterpolation.CodeConstants45F270, selectedVerticesAddress: 0x2647D20, readSelectedVertex: offset =>
+        {
+            Assert.NotEqual(24, offset);
+            reads.Add(offset);
+            return (new(0, 0, 0), null);
+        }, pilotIdentity: new(49, 100, 0, 1, 2));
+        Assert.Equal(new[] { 0, 8, 16 }, reads);
+        Assert.Null(Assert.Single(result.Batch.Attempts).Primitive);
+        Assert.Equal(0, result.Batch.AllocationBytes);
+        Assert.Null(result.Memory.GeometryRegisters!.Otz);
+    }
+
+    [Theory]
     [InlineData(3, 40, 110)]
     [InlineData(4, 28, 109)]
     [InlineData(5, 36, 110)]

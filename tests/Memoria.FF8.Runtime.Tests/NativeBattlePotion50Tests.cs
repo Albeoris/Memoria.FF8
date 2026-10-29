@@ -114,19 +114,61 @@ public sealed class NativeBattlePotion50Tests
         });
         NativeBattleCureParticleStep step = NativeBattleCureParticles.AdvancePrivate(frame, particle.Address, Resources(), inputs);
         Assert.Equal(expected, step.CrtRandomAfter);
-        Assert.Equal(spriteAddress, Assert.IsType<NativeBattleCureSpriteOperation>(Assert.Single(operations)).Draw.Resource!.Address);
+        NativeBattleModuleDraw drawReceipt = Assert.IsType<NativeBattleCureSpriteOperation>(Assert.Single(operations)).Draw;
+        Assert.Equal(spriteAddress, drawReceipt.Resource!.Address);
+        NativeBattlePilotVisualIdentity visualIdentity = Assert.IsType<NativeBattlePilotVisualIdentity>(drawReceipt.PilotIdentity);
+        NativeBattlePilotVisualIdentity taskIdentity = NativeBattlePilotVisualLifetimes.Identity(50, particle.Hierarchy.Read(particle.Address));
+        Assert.Equal((ushort)50, visualIdentity.Effect);
+        Assert.Equal(taskIdentity.Generation, visualIdentity.Generation);
+        Assert.Equal(taskIdentity.Bank, visualIdentity.Bank);
+        Assert.Equal(NativeBattleTestSnapshots.Json(drawReceipt with { PilotIdentity = null }), NativeBattleTestSnapshots.Json(drawReceipt));
         int count = 1;
         while (step.Result == 0 && count < 30)
         {
             operations.Clear();
             step = NativeBattleCureParticles.AdvancePrivate(step.Frame, particle.Address, Resources(), inputs with { CrtRandom = expected });
             Assert.Equal(expected, step.CrtRandomAfter);
+            foreach (NativeBattleCureSpriteOperation receipt in operations.OfType<NativeBattleCureSpriteOperation>())
+            {
+                Assert.Equal(visualIdentity.Generation, receipt.Draw.PilotIdentity!.Value.Generation);
+                Assert.Equal((ushort)50, receipt.Draw.PilotIdentity.Value.Effect);
+            }
             count++;
         }
         Assert.Equal(callbacks, count);
         Assert.Equal(2, step.Result);
         Assert.Empty(operations);
         Assert.Equal((byte)0, new NativeBattleEffectHierarchy(step.Frame.Effect.Pools).Read(target.Address).ReadByte(0x28));
+    }
+
+    [Fact]
+    public void Potion_wedge_presentation_uses_its_native_task_owner_without_changing_rng_or_mode_packets()
+    {
+        var fixture = Fixture();
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
+        NativeBattleEffectHierarchyAppend target = hierarchy.Append8DC540(1, 0x81FCD0, 88, hierarchy.Address(0, 0), (_, _, _) => new(0, 3));
+        hierarchy = target.Hierarchy.Write(target.Address, target.Hierarchy.Read(target.Address).WriteWord(0x38, 100).WriteWord(0x3C, 300).WriteWord(0x4A, unchecked((ushort)-100)).WriteWord(0x52, 50));
+        NativeBattleEffectHierarchyAppend wedge = hierarchy.Append8DC540(3, 0x8DCC20, 92, target.Address, (_, _, _) => new(0, 3));
+        hierarchy = wedge.Hierarchy.Write(wedge.Address, wedge.Hierarchy.Read(wedge.Address).WriteWord(0x56, 8).WriteWord(0x58, 64));
+        NativeBattleCureFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
+        NativeBattleCureControllerInputs controller = fixture.Inputs with { ReadModel = index => new(index, 0) { Transform = new(new(0, 200, 0), new(0, 200, 0), 0, 0, 4096) } };
+        List<NativeBattleCureOperation> operations = [];
+        NativeBattleCureParticleInputs inputs = new(controller, NativeCrtRandomState.FromColdProcess(), (current, operation) =>
+        {
+            operations.Add(operation);
+            return current;
+        }) { Projection = new(controller.Camera, 216, 160, 108) };
+        NativeBattleCureParticleStep step = NativeBattleCureParticles.AdvanceWedge8DCC20(frame, wedge.Address, inputs);
+        Assert.Equal(inputs.CrtRandom.Draw(out _).Draw(out _).Draw(out _), step.CrtRandomAfter);
+        NativeBattleModulePacketBatch batch = Assert.IsType<NativeBattleCurePacketOperation>(Assert.Single(operations)).Batch;
+        Assert.Equal(76, batch.AllocationBytes);
+        Assert.All(batch.Primitives.Take(2), packet =>
+        {
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(packet.Primitive.PilotGeometry);
+            Assert.Equal((ushort)50, geometry.Identity.Effect);
+            Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(50, hierarchy.Read(wedge.Address)).Generation, geometry.Identity.Generation);
+        });
+        Assert.Null(batch.Primitives[2].Primitive.PilotGeometry);
     }
 
     private static (NativeBattleCureFrame Frame, NativeBattleCureControllerInputs Inputs) Fixture()

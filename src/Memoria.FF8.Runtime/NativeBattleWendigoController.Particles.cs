@@ -146,7 +146,7 @@ public static partial class NativeBattleWendigoController
                     throw new NotSupportedException("Native Wendigo requires its exact initialized flipbook.");
                 }
                 NativeBattleVector p = Vector(task, 0x1C);
-                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(Signed(task, 0x50)), Phase = task.ReadWord(0x50), Direction = 4096, Anchor = new(p.X, p.Y, p.Z, 0), Scale = 4096, DepthOffset = Signed(task, 0x54), SpriteFlags = 0 };
+                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(Signed(task, 0x50)), Phase = task.ReadWord(0x50), Direction = 4096, Anchor = new(p.X, p.Y, p.Z, 0), Scale = 4096, DepthOffset = Signed(task, 0x54), SpriteFlags = 0, PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(current.Effect.Binding.Effect, task, index) with { ResourceGeneration = resource.Address } };
                 Emit(new NativeBattleWendigoSprite(draw, false));
             }
         }

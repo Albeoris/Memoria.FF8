@@ -130,7 +130,7 @@ public sealed partial class BattleSession
             NativeBattleStaticMeshResource mesh = current.State.ReadMesh(resources, operation.SourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Sigh mesh requires its addressed temporary memory.");
             NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, operation.TemporaryAddress, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), readInlineVertex: ReadVertex);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), readInlineVertex: ReadVertex, pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context, 88) };
             return Delivered(current, NativeBattleSigh46PacketDelivery.Deliver(current.Memory, current.State, Ordering(), drawn.Batch, NativeBattleSigh46Profile.PrimaryCursorGlobal, 0));
 
@@ -157,7 +157,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Sigh sprite arguments differ from its current physical temporary.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, address => address == resource.Address ? resource : throw new InvalidDataException("Sigh sprite changed its original source."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, address => address == resource.Address ? resource : throw new InvalidDataException("Sigh sprite changed its original source."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Delivered(current, NativeBattleSigh46PacketDelivery.Deliver(current.Memory, current.State, Ordering(), drawn.Batch, NativeBattleSigh46Profile.PrimaryCursorGlobal, 0));
         }

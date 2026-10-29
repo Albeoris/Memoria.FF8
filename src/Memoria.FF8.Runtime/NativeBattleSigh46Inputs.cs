@@ -8,7 +8,11 @@ public sealed record NativeBattleSigh46Frame(NativeBattleEffectMemory Memory, Na
 public sealed record NativeBattleSigh46PointStep(NativeBattleSigh46Frame Frame, NativeBattleEffectArena Point8);
 public sealed record NativeBattleSigh46Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleSigh46Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleSigh46Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleSigh46Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleSigh46Frame, int, int, int, NativeBattleSigh46PointStep> ReadBone502170, Func<NativeBattleSigh46Frame, short> ReadCameraRoll, Func<NativeBattleSigh46Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleSigh46Frame, NativeBattleSigh46Operation, NativeBattleSigh46Frame> Execute);
 
-public abstract record NativeBattleSigh46Operation;
+public abstract record NativeBattleSigh46Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleSigh46UpdateCaster8DC740(uint TaskAddress) : NativeBattleSigh46Operation;
 public sealed record NativeBattleSigh46UpdateTargetBounds8DC610_8DC870(uint TaskAddress) : NativeBattleSigh46Operation;
 public sealed record NativeBattleSigh46Sound501330(uint Packed, uint Flags, byte Pan) : NativeBattleSigh46Operation;

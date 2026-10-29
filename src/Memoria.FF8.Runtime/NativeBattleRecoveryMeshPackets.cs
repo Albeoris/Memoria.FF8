@@ -25,13 +25,13 @@ public static class NativeBattleRecoveryMeshPackets
         return new(next, new(flags, fade != 0 ? farColor : null, fade != 0 ? fade : null, 0, 0, vertical, full, window, 17, 2));
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch8131A0(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null)
+    public static NativeBattleGfGeometryBatch EmitBatch8131A0(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader reader = new(mesh);
-        return EmitBatch8131A0(reader, matrix, projection, context, colors);
+        return EmitBatch8131A0(reader, matrix, projection, context, colors, pilotIdentity);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch8131A0(NativeBattleGfSourceReader mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null)
+    internal static NativeBattleGfGeometryBatch EmitBatch8131A0(NativeBattleGfSourceReader mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, null, (group, face, readCorner, offset) => group switch
         {
@@ -39,6 +39,6 @@ public static class NativeBattleRecoveryMeshPackets
             3 => NativeBattleRestorationMeshPackets.EmitFt4_884B80(face, readCorner, context, colors, offset),
             7 => NativeBattleEffectMeshPackets.EmitTextured(face, readCorner, true, true, NativeBattleRestorationMeshPackets.Normalize(context, true), colors, offset),
             _ => throw new NotSupportedException($"Native8131A0 group{group} requires its own reached original packet leaf.")
-        });
+        }, pilotIdentity: pilotIdentity);
     }
 }

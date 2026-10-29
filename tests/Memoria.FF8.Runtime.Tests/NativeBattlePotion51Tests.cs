@@ -127,6 +127,17 @@ public sealed class NativeBattlePotion51Tests
         Assert.Equal(expected, step.CrtRandomAfter);
         Assert.Equal(2, operations.Count);
         Assert.All(operations, operation => Assert.Equal(0x15A9F78u, Assert.IsType<NativeBattleCuraSpriteOperation>(operation).Draw.Resource!.Address));
+        NativeBattleModuleDraw[] drawReceipts = operations.Cast<NativeBattleCuraSpriteOperation>().Select(operation => operation.Draw).ToArray();
+        NativeBattlePilotVisualIdentity taskIdentity = NativeBattlePilotVisualLifetimes.Identity(51, burst.Hierarchy.Read(burst.Address));
+        Assert.All(drawReceipts, draw =>
+        {
+            NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity);
+            Assert.Equal((ushort)51, identity.Effect);
+            Assert.Equal(taskIdentity.Generation, identity.Generation);
+            Assert.Equal(taskIdentity.Bank, identity.Bank);
+            Assert.Equal(NativeBattleTestSnapshots.Json(draw with { PilotIdentity = null }), NativeBattleTestSnapshots.Json(draw));
+        });
+        Assert.NotEqual(drawReceipts[0].PilotIdentity, drawReceipts[1].PilotIdentity);
     }
 
     private static (NativeBattleCuraFrame Frame, NativeBattleCuraControllerInputs Inputs) Fixture(byte actor = 0)

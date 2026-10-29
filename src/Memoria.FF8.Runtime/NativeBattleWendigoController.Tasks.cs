@@ -188,7 +188,7 @@ public static partial class NativeBattleWendigoController
                 NativeBattleEffectNodeInputs nodeInputs = new(inputs.Projection.View, inputs.ReadModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, emitters, shoot ? 10 : 20, ref emitterScan, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, geometry, shoot ? 30 : 50, ref geometryScan, emitter, source));
                 NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, nodeInputs);
                 NativeCrtRandomState random = current.Random;
-                NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, Prepare);
+                NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, Prepare, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(current.Effect.Binding.Effect, Read(address)), preparePilotMesh: PreparePilot);
                 NativeBattleEffectNodeMemoryWrite flushed = memory.FlushStorage();
                 current = current with { Memory = flushed.Memory, Effect = flushed.Effect, Random = random };
                 hierarchy = new(current.Effect.Pools);
@@ -198,6 +198,11 @@ public static partial class NativeBattleWendigoController
 
                 NativeBattleEffectNodeMeshInstance Prepare(int node, byte[] descriptor)
                 {
+                    NativeBattleEffectNodePilotMeshInstance prepared = PreparePilot(node, descriptor);
+                    return (bytes, matrix) => prepared(bytes, matrix, default);
+                }
+                NativeBattleEffectNodePilotMeshInstance PreparePilot(int node, byte[] descriptor)
+                {
                     short fade = unchecked((short)memory.Word(node + 0x1CE));
                     uint flags = BinaryPrimitives.ReadUInt16LittleEndian(descriptor.AsSpan(0x3A)) == 0 ? 0x30u : 0;
                     if (fade != 0)
@@ -205,7 +210,7 @@ public static partial class NativeBattleWendigoController
                         flags |= 0xC0;
                     }
                     NativeBattleCuragaMeshContext context = new(flags, fade == 0 ? null : memory.Dword(node + 0x16C), fade == 0 ? null : fade, null, null, null, 17, 2);
-                    return (bytes, matrix) => NativeBattleCuragaMeshPackets.EmitBatch87EEB0(bytes, matrix, inputs.Projection, context, colors: inputs.Colors);
+                    return (bytes, matrix, identity) => NativeBattleCuragaMeshPackets.EmitBatch87EEB0(bytes, matrix, inputs.Projection, context, colors: inputs.Colors, pilotIdentity: identity);
                 }
             }
         }

@@ -7,7 +7,7 @@ public static partial class NativeBattleCureParticles
     public static NativeBattleCureParticleStep AdvanceWedge8DCC20(NativeBattleCureFrame frame, uint address, NativeBattleCureParticleInputs inputs)
     {
         NativeBattleCureFrame current = frame;
-        NativeBattleEffectWedgeStep step = NativeBattleEffectWedge.Advance8DCC20(new(frame.Memory, frame.Effect.Pools), address, inputs.CrtRandom, target => inputs.Controller.ReadModel(target).Transform ?? throw new NotSupportedException("Native8DCB80 requires the target's original position WORDs."), inputs.Projection, Execute, frame.Effect.Binding.Effect == 1 ? (ushort)1 : null);
+        NativeBattleEffectWedgeStep step = NativeBattleEffectWedge.Advance8DCC20(new(frame.Memory, frame.Effect.Pools), address, inputs.CrtRandom, target => inputs.Controller.ReadModel(target).Transform ?? throw new NotSupportedException("Native8DCB80 requires the target's original position WORDs."), inputs.Projection, Execute, frame.Effect.Binding.Effect is 1 or 50 ? frame.Effect.Binding.Effect : null);
         return new(current with { Memory = step.Frame.Memory, Effect = current.Effect with { Pools = step.Frame.Pools } }, step.CrtRandomAfter, step.Result);
 
         NativeBattleEffectWedgeFrame Execute(NativeBattleEffectWedgeFrame state, NativeBattleModulePacketBatch batch)
