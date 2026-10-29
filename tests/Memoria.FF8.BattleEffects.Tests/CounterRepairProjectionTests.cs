@@ -88,7 +88,7 @@ public sealed class CounterRepairProjectionTests
         List<string> errors = [];
         try
         {
-            typeof(LiveEvidenceValidation).GetMethod("ValidateSemantics", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [execution, "party0", "party0", "Attack", 0L, 230L, 178L, 10L, 20L, errors, typedRepairs]);
+            typeof(LiveEvidenceValidation).GetMethod("ValidateSemantics", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [execution, "party0", "party0", "Attack", 0L, 230L, 178L, 10L, 20L, errors, typedRepairs, false]);
         }
         catch (TargetInvocationException failure) when (failure.InnerException is { } inner)
         {

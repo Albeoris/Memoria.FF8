@@ -331,7 +331,8 @@ public static class LiveEvidenceValidation
                     errors.Add("INTEGRITY_CHECK_FAILED");
                 }
                 BattleDiagnosticRepairReceipt[]? attemptRepairs = counterCycle is null ? null : counterCycles[index - 1].Attempts.Skip(1).Where(attempt => attempt.PreparationRepair is not null).Select(attempt => attempt.PreparationRepair!).ToArray();
-                ValidateSemantics(execution, actor, target, ability, action, nativeAction, effect, startCallback, endCallback, errors, attemptRepairs);
+                bool nativeRenzCompleted = ValidateNativeRenzokukenCompletion(report, execution, index, input, effect, nativeAction, nativeCommand);
+                ValidateSemantics(execution, actor, target, ability, action, nativeAction, effect, startCallback, endCallback, errors, attemptRepairs, nativeRenzCompleted);
             }
             if (counterCycle is null)
             {
@@ -773,13 +774,139 @@ public static class LiveEvidenceValidation
         }
     }
 
-    private static void ValidateSemantics(JsonElement execution, string actor, string submittedTarget, string ability, long action, long nativeAction, long effect, long startCallback, long endCallback, List<string> errors, BattleDiagnosticRepairReceipt[]? counterRepairs = null)
+    // Native timed Renzokuken releases through its guarded47DE70 descriptor, outside the generic ActiveAction mirror.
+    private static bool ValidateNativeRenzokukenCompletion(JsonElement report, JsonElement execution, int ordinal, JsonElement input, long effect, long nativeAction, long? nativeCommand)
+    {
+        bool selected = Text(input, "ability") == "LimitBreak" && Number(input, "action_id") == 5 << 16;
+        if (!selected && nativeCommand != 250)
+        {
+            return false;
+        }
+        JsonElement preparation = report.GetProperty("initialization").GetProperty("preparation");
+        JsonElement original = preparation.GetProperty("driver");
+        BattleInput submitted = input.Deserialize<BattleInput>(Json) ?? throw new InvalidDataException("Native Renzokuken completion lacks its real semantic input.");
+        submitted.Validate();
+        if (!selected || submitted.Kind != BattleInputKind.Action || submitted.DrawCast || !submitted.MagicTargets.IsEmpty || effect is < 162 or > 165 || nativeCommand != 250 || nativeAction != 65535 || !JsonElement.DeepEquals(input, original.GetProperty("input")) || Number(original, "expected_effect") != effect || OptionalNumber(original, "expected_native_command") != 250 || OptionalNumber(original, "expected_native_action") != 65535 || preparation.TryGetProperty("prelude", out JsonElement prelude) && prelude.ValueKind != JsonValueKind.Null)
+        {
+            throw new InvalidDataException("Native Renzokuken completion requires its exact initialized natural command5/250 finisher role.");
+        }
+        foreach (string bypass in new[] { "shot_cycle", "counter_cycle", "enemy_ability" })
+        {
+            if (original.TryGetProperty(bypass, out JsonElement value) && value.ValueKind != JsonValueKind.Null)
+            {
+                throw new InvalidDataException("Native Renzokuken completion cannot borrow another diagnostic coordinator.");
+            }
+        }
+        if (!report.GetProperty("supporting_effects").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 340 }) || !JsonElement.DeepEquals(report.GetProperty("supporting_effects"), original.GetProperty("supporting_effects")) || report.GetProperty("supporting_invocations").GetArrayLength() != 0 || original.GetProperty("supporting_invocations").GetArrayLength() != 0)
+        {
+            throw new InvalidDataException("Native Renzokuken completion requires its sole real opening effect340 without supporting invocation bypasses.");
+        }
+        BattleDiagnosticLimitSelection policy = original.GetProperty("limit_selection").Deserialize<BattleDiagnosticLimitSelection>(Json) ?? throw new InvalidDataException("Native Renzokuken completion lacks ordinary Limit selection policy.");
+        policy.Validate();
+        BattleDiagnosticLimitSelectionReceipt[] selections = report.GetProperty("limit_selections").Deserialize<BattleDiagnosticLimitSelectionReceipt[]>(Json) ?? throw new InvalidDataException("Native Renzokuken selections are absent.");
+        if (selections.Length != 2 || ordinal is < 1 or > 2)
+        {
+            throw new InvalidDataException("Native Renzokuken completion requires two independent real selections.");
+        }
+        var selection = selections[ordinal - 1];
+        if (selection.ActorId != submitted.ActorId || selection.CommandOwner != 0 || selection.Command != 5 || !selection.Accepted || selection.CrisisSelections.IsDefaultOrEmpty || selection.CrisisSelections.Length > policy.MaximumSelections || selection.CrisisSelections.Any(value => value > 4) || selection.CrisisSelections[^1] < policy.MinimumCrisisLevel || selection.CrisisSelections[^1] > policy.MaximumCrisisLevel || selection.CrisisSelections.Take(selection.CrisisSelections.Length - 1).Any(value => value >= policy.MinimumCrisisLevel && value <= policy.MaximumCrisisLevel) || selection.RandomBefore is null || selection.RandomAfter is null)
+        {
+            throw new InvalidDataException("Native Renzokuken completion lost its accepted ordinary Squall Limit selection.");
+        }
+        selection.RandomBefore.Validate();
+        selection.RandomAfter.Validate();
+        string actor = submitted.ActorId!;
+        string target = submitted.TargetId!;
+        JsonElement initializedTarget = report.GetProperty("initialization").GetProperty("target").GetProperty("target");
+        JsonElement requestedTarget = preparation.GetProperty("target");
+        if (Text(initializedTarget, "actor_id") != target || Text(requestedTarget, "actor_id") != target || OptionalNumber(initializedTarget, "physical_index") is not (>= 3 and < 7) || OptionalNumber(requestedTarget, "physical_index") != Number(initializedTarget, "physical_index") || !Flag(initializedTarget, "alive") || !Flag(initializedTarget, "statistics_ready"))
+        {
+            throw new InvalidDataException("Native Renzokuken completion lost its actually initialized target expectation.");
+        }
+        byte initializedTargetIndex = checked((byte)Number(initializedTarget, "physical_index"));
+        byte? actorIndex = null;
+        byte? targetIndex = null;
+        foreach (string boundary in new[] { "before", "after" })
+        {
+            JsonElement[] states = execution.GetProperty(boundary).EnumerateArray().ToArray();
+            JsonElement[] actors = states.Where(state => Text(state, "id") == actor).ToArray();
+            JsonElement[] targets = states.Where(state => Text(state, "id") == target).ToArray();
+            if (actors.Length != 1 || targets.Length != 1 || OptionalNumber(actors[0], "native_index") is not (>= 0 and < 3) || OptionalNumber(actors[0], "model_id") != 0 || OptionalNumber(targets[0], "native_index") is not (>= 3 and < 7))
+            {
+                throw new InvalidDataException("Native Renzokuken completion requires its actual physical Squall/target owners.");
+            }
+            byte currentActor = checked((byte)Number(actors[0], "native_index"));
+            byte currentTarget = checked((byte)Number(targets[0], "native_index"));
+            if (currentTarget != initializedTargetIndex || actorIndex is not null && actorIndex != currentActor || targetIndex is not null && targetIndex != currentTarget)
+            {
+                throw new InvalidDataException("Native Renzokuken completion replaced its physical actors.");
+            }
+            actorIndex = currentActor;
+            targetIndex = currentTarget;
+        }
+        if (ordinal == 2)
+        {
+            JsonElement[] firstActors = report.GetProperty("executions")[0].GetProperty("before").EnumerateArray().Where(state => Text(state, "id") == actor).ToArray();
+            if (firstActors.Length != 1 || OptionalNumber(firstActors[0], "native_index") != actorIndex)
+            {
+                throw new InvalidDataException("Native Renzokuken cycles replaced their physical Squall owner.");
+            }
+        }
+        BattleDiagnosticEffectDispatch[] dispatches = execution.GetProperty("dispatches").Deserialize<BattleDiagnosticEffectDispatch[]>(Json) ?? throw new InvalidDataException("Native Renzokuken dispatches are absent.");
+        if (dispatches.Length != 2)
+        {
+            throw new InvalidDataException("Native Renzokuken completion requires exactly its opening and focal dispatch.");
+        }
+        JsonElement[] priorDispatches = ordinal == 2 ? report.GetProperty("executions")[0].GetProperty("dispatches").EnumerateArray().ToArray() : [];
+        long previousSerial = ordinal == 2 ? Number(priorDispatches[^1], "serial") : 0;
+        long previousGeneration = ordinal == 2 ? Number(priorDispatches[^1], "native_header_generation") : 0;
+        long previousCallback = Number(execution, "start_callback");
+        for (int index = 0; index < dispatches.Length; index++)
+        {
+            var dispatch = dispatches[index];
+            if (dispatch.ActorId != actor || dispatch.Ability != BattleAbility.LimitBreak || dispatch.NativeActorIndex != actorIndex || dispatch.NativeCommand != (index == 0 ? 5 : 250) || dispatch.ActionId != (index == 0 ? 65534 : 65535) || dispatch.RequestedEffect != (index == 0 ? 340 : effect) || dispatch.ExecutedEffect != dispatch.RequestedEffect || dispatch.Reflection is not null || dispatch.NativeHeaderIndex is not (>= 0 and < 32) || dispatch.NativeHeaderGeneration is not long generation || generation <= previousGeneration || dispatch.Serial <= previousSerial || dispatch.Callback < previousCallback || dispatch.Callback > Number(execution, "end_callback") || dispatch.NativeTargetMask != 1 << targetIndex!.Value)
+            {
+                throw new InvalidDataException("Native Renzokuken completion lost its ordered opening/focal header and target lineage.");
+            }
+            previousSerial = dispatch.Serial;
+            previousGeneration = generation;
+            previousCallback = dispatch.Callback;
+        }
+        BattleEvent[] events = execution.GetProperty("events").Deserialize<BattleEvent[]>(Json) ?? throw new InvalidDataException("Native Renzokuken event ledger is absent.");
+        BattleEvent[] starts = events.Where(entry => entry.Kind == "Renzokuken").ToArray();
+        BattleEvent[] triggers = events.Where(entry => entry.Kind == "GunbladeTrigger").ToArray();
+        long[] allCallbacks = report.GetProperty("gunblade_triggers").EnumerateArray().Select(value => value.GetInt64()).ToArray();
+        if (allCallbacks.Any(value => value < 0) || allCallbacks.Zip(allCallbacks.Skip(1)).Any(pair => pair.First >= pair.Second))
+        {
+            throw new InvalidDataException("Native Renzokuken trigger callbacks must retain their actual ordered identities.");
+        }
+        long[] callbacks = allCallbacks.Where(value => value >= dispatches[0].Callback && value <= dispatches[1].Callback).ToArray();
+        if (ordinal == 2 && allCallbacks.Any(value => !report.GetProperty("executions").EnumerateArray().Any(cycle => value >= Number(cycle.GetProperty("dispatches")[0], "callback") && value <= Number(cycle.GetProperty("dispatches")[1], "callback"))))
+        {
+            throw new InvalidDataException("Native Renzokuken trigger evidence falls outside its actual opening/focal cycles.");
+        }
+        if (starts.Length != 1 || starts[0].ActorId != actor || starts[0].TargetId != target || starts[0].Amount <= 0 || triggers.Length != starts[0].Amount || triggers.Any(entry => entry.ActorId != actor || entry.TargetId != target) || callbacks.Length != triggers.Length || callbacks.Zip(callbacks.Skip(1)).Any(pair => pair.First >= pair.Second) || !Flag(execution, "completed") || !Flag(execution, "cleanup_completed") || Number(execution, "dropped_events") != 0 || Number(execution.GetProperty("frames"), "dropped_samples") != 0 || !Flag(execution.GetProperty("frames"), "valid") || execution.GetProperty("integrity_error").ValueKind != JsonValueKind.Null)
+        {
+            throw new InvalidDataException("Native Renzokuken completion requires its complete authored trigger count and full native owner drain.");
+        }
+        foreach (string boundary in new[] { "start_owners", "end_owners" })
+        {
+            JsonElement owner = execution.GetProperty(boundary);
+            if (Number(owner, "constructor_count") != 1 || Number(owner, "restore_count") != 0 || Number(owner, "reset_count") != 0)
+            {
+                throw new InvalidDataException("Native Renzokuken completion cannot restore or replace its native action owners.");
+            }
+        }
+        return true;
+    }
+
+    private static void ValidateSemantics(JsonElement execution, string actor, string submittedTarget, string ability, long action, long nativeAction, long effect, long startCallback, long endCallback, List<string> errors, BattleDiagnosticRepairReceipt[]? counterRepairs = null, bool nativeRenzCompleted = false)
     {
         Dictionary<string, JsonElement> beforeStates = execution.GetProperty("before").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
         Dictionary<string, JsonElement> afterStates = execution.GetProperty("after").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
         Dictionary<string, long> observedHp = beforeStates.ToDictionary(pair => pair.Key, pair => Number(pair.Value, "current_hp"), StringComparer.Ordinal);
         JsonElement[] resolutions = execution.GetProperty("resolutions").EnumerateArray().ToArray();
-        bool completed = execution.GetProperty("events").EnumerateArray().Any(value => Text(value, "kind") == "ActionComplete" && Text(value, "actor_id") == actor);
+        bool completed = nativeRenzCompleted || execution.GetProperty("events").EnumerateArray().Any(value => Text(value, "kind") == "ActionComplete" && Text(value, "actor_id") == actor);
         if (!completed)
         {
             errors.Add("SEMANTIC_RESOLUTION_UNVERIFIED");
