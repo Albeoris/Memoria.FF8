@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>An immutable presentation version; only explicitly changed pages are copied at publication.</summary>
 internal sealed class NativeBattleVramVersion
 {
-    internal const int PageLength = 4096;
+    internal const int PageLength = 512;
     private readonly ImmutableArray<NativeBattleEffectMemoryRegion> initial;
     private readonly ImmutableDictionary<int, ImmutableArray<byte>> pages;
     private readonly ImmutableSortedDictionary<int, int> coverage;
@@ -110,14 +110,18 @@ internal sealed class NativeBattleVramVersion
         {
             return this;
         }
-        ImmutableDictionary<int, ImmutableArray<byte>> next = pages;
+        if (changedPages.Count == 0)
+        {
+            return new(this, pages, ranges);
+        }
+        ImmutableDictionary<int, ImmutableArray<byte>>.Builder next = pages.ToBuilder();
         foreach (int page in changedPages)
         {
             byte[] bytes = new byte[PageLength];
             arena.ReadInto(page * PageLength, bytes);
-            next = next.SetItem(page, ImmutableCollectionsMarshal.AsImmutableArray(bytes));
+            next[page] = ImmutableCollectionsMarshal.AsImmutableArray(bytes);
         }
-        return new(this, next, ranges);
+        return new(this, next.ToImmutable(), ranges);
     }
 
     internal ImmutableArray<NativeBattleEffectMemoryRegion> CaptureRegions()

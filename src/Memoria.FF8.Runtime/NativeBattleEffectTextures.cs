@@ -552,11 +552,22 @@ public sealed partial record NativeBattleEffectTextureState([property: JsonRequi
             // Exact self-transfers preserve every word; keep their source reads, upload and frame observation below.
             if (copy.SourceX != copy.DestinationX || copy.SourceY != copy.DestinationY)
             {
+                Span<byte> rowBytes = stackalloc byte[2048];
                 Span<byte> valueBytes = stackalloc byte[4];
                 for (int row = 0; row < copy.Height; row++)
                 {
                     int read = 2 * ((copy.SourceY + row) * 1024 + copy.SourceX);
                     int write = 2 * ((copy.DestinationY + row) * 1024 + copy.DestinationX);
+                    // Distinct physical rows cannot overlap. Preserve forward row order so
+                    // a vertical transfer still observes rows written by earlier iterations.
+                    // Within one row, only a rightward overlap can overwrite a later MOVSD source.
+                    if (bytesPerRow != 0 && (copy.SourceY != copy.DestinationY || copy.DestinationX <= copy.SourceX || copy.DestinationX >= copy.SourceX + copy.Width))
+                    {
+                        Span<byte> values = rowBytes[..bytesPerRow];
+                        bank.ReadInto(read, values);
+                        mutation.Write(write, values);
+                        continue;
+                    }
                     int offset = 0;
                     //45BDD0 uses forward REP MOVSD followed by REP MOVSB, including overlapping rectangles.
                     for (; offset + 4 <= bytesPerRow; offset += 4)
