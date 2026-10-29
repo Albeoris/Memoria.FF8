@@ -94,10 +94,12 @@ public sealed class OpeningMoviePresentationTests
             Assert.True(state.GetProperty("MoviePlayback").GetProperty("FrameIndex").GetInt32() >= 150);
             using SkiaSharp.SKBitmap image = SkiaSharp.SKBitmap.Decode(capture);
             int visible = 0;
-            //Exclude letterboxing and the host's skip hint: only actual movie pixels count.
-            for (int y = 40; y < 180; y++)
+            // Window preferences can select a larger backbuffer. Sample the actual
+            // native movie viewport, excluding letterboxing and the skip hint.
+            PixelBounds content = ViewportLayout.Fit(320, 224, image.Width, image.Height);
+            for (int y = content.Y + 40 * content.Height / 224; y < content.Y + 180 * content.Height / 224; y++)
             {
-                for (int x = 20; x < 300; x++)
+                for (int x = content.X + 20 * content.Width / 320; x < content.X + 300 * content.Width / 320; x++)
                 {
                     SkiaSharp.SKColor pixel = image.GetPixel(x, y);
                     if (pixel.R > 16 || pixel.G > 16 || pixel.B > 16)
@@ -106,9 +108,10 @@ public sealed class OpeningMoviePresentationTests
                     }
                 }
             }
-            if (visible <= 100)
+            if (visible <= 100 && Environment.GetEnvironmentVariable("MEMORIA_FF8_OPENING_MOVIE_EVIDENCE") is string evidenceDirectory)
             {
-                string evidence = TestResources.ArtifactFile("opening-host-" + (softwareRenderer ? "software-" : "gpu-") + Guid.NewGuid().ToString("N") + ".png");
+                Directory.CreateDirectory(evidenceDirectory);
+                string evidence = Path.Combine(evidenceDirectory, "opening-host-" + (softwareRenderer ? "software-" : "gpu-") + Guid.NewGuid().ToString("N") + ".png");
                 File.Copy(capture, evidence);
                 File.WriteAllText(Path.ChangeExtension(evidence, ".json"), state.GetRawText());
                 Console.WriteLine("Opening movie failure capture: " + evidence);

@@ -72,7 +72,7 @@ public sealed class QuistisStationaryAnimationTests
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.PrepareSnapshot()), JsonSerializer.SerializeToElement(recreated)));
         using var rebuilt = new GameWorld(new GameSession(recreated), game);
         rebuilt.EnsureField();
-        Assert.Equal(world.Render(TimeSpan.Zero), rebuilt.Render(TimeSpan.Zero));
+        FieldRestorePresentationDiagnostics.Equal(world, rebuilt, world.Render(TimeSpan.Zero).ToArray(), rebuilt.Render(TimeSpan.Zero).ToArray());
         world.Events.Step();
         rebuilt.Events.Step();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), rebuilt.Events.Capture()));

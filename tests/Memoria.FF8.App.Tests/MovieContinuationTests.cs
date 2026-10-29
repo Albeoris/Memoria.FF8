@@ -143,7 +143,7 @@ public sealed class MovieContinuationTests
             using var initialized = new GameWorld(new GameSession(initializedState), directory);
             initialized.EnsureField();
             Assert.Equal(restored.Events.Capture().GetRawText(), initialized.Events.Capture().GetRawText());
-            Assert.Equal(restored.Render(TimeSpan.Zero), initialized.Render(TimeSpan.Zero));
+            FieldRestorePresentationDiagnostics.Equal(restored, initialized, restored.Render(TimeSpan.Zero).ToArray(), initialized.Render(TimeSpan.Zero).ToArray());
             Assert.Equal(232, resumed.State.FieldId);
             File.WriteAllText(TestResources.ArtifactFile("App.Tests.MovieContinuationTests.5.json"), JsonSerializer.Serialize(new
             {

@@ -136,7 +136,7 @@ public sealed class WorldMusicTests
         Assert.Equal(127, audio.PrimaryMusicVolume);
         Assert.True(audio.IsMidiPlaying);
         session.SetEventState(world.Events.Capture());
-        GameState current = session.State;
+        GameState current = session.PrepareSnapshot();
         string path = TestResources.ArtifactFile("App.Tests.WorldMusicTests.1.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         session.Save(path);
