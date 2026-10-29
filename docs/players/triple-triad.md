@@ -18,6 +18,8 @@ Each side contributes at most half the full board area rounded up, without subtr
 
 A 3Ã—3 board has a pool of up to ten cards, five per side. With five-card hands, the entire hand participates exactly as before. With fifty-card hands, only five cards per side participate. One, Diff, All and Direct apply to this pool; cards outside it cannot be selected or transferred.
 
+The reward screen uses the original 3×3 presentation, with the opponent's cards in the upper row and yours in the lower row. Names sit below each card. Hands larger than five cards use pages of five cards per side. Use the arrow buttons or Page Up / Page Down to switch pages; moving the card selection also changes pages automatically. Pages with no eligible opponent cards are skipped. Transferred cards move to the center for acknowledgement.
+
 ## Random redraws
 
 The default allowance is zero. Configure up to three redraws and use the Redraw button or Page Up / Page Down before the first move. Only your hand changes; the opponent's cards, elemental cells and starting player stay fixed. Redraws are saved with the current match. If the opponent starts, confirm Begin match after deciding whether to redraw.

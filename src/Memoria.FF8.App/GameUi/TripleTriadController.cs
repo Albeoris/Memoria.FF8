@@ -296,7 +296,23 @@ public sealed partial class TripleTriadController
             {
                 return;
             }
-            if (key is UiKey.Up or UiKey.Left or UiKey.Down or UiKey.Right)
+            if (key is UiKey.PageUp or UiKey.PageDown)
+            {
+                int tradePageDirection = key == UiKey.PageUp ? -1 : 1;
+                int page = Selection / TradeCardsPerPage;
+                for (int offset = 1; offset < TradePageCount; offset++)
+                {
+                    int targetPage = (page + tradePageDirection * offset + TradePageCount) % TradePageCount;
+                    int first = targetPage * TradeCardsPerPage;
+                    int candidate = Enumerable.Range(first, Math.Min(TradeCardsPerPage, TradingHand.Count - first)).FirstOrDefault(IsLosingTradeSlotEligible, -1);
+                    if (candidate >= 0)
+                    {
+                        Selection = candidate;
+                        break;
+                    }
+                }
+            }
+            else if (key is UiKey.Up or UiKey.Left or UiKey.Down or UiKey.Right)
             {
                 int tradeDirection = key is UiKey.Up or UiKey.Left ? -1 : 1;
                 for (int attempt = 0; attempt < TradingHand.Count; attempt++)

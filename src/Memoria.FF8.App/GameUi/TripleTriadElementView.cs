@@ -8,6 +8,10 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
 {
     private UiRect playBounds;
     private UiRect quitBounds;
+    private static readonly UiRect TradePreviousPageBounds = new(350, 594, 60, 32);
+    private static readonly UiRect TradeNextPageBounds = new(550, 594, 60, 32);
+    private bool IsTradeCardOnPage(int index) => index % controller.Options.HandSize / TripleTriadController.TradeCardsPerPage == controller.TradePage;
+
     private static readonly UiRect SelectionPanel = new(145, 92, 405, 484);
     private static readonly UiRect PreviousPageBounds = new(151, 534, 52, 36);
     private static readonly UiRect NextPageBounds = new(490, 534, 52, 36);
@@ -119,7 +123,7 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
         }
         for (int index = 0; index < controller.TradeCards.Count; index++)
         {
-            if (controller.IsTradeCardRemoved(index) || index == controller.TradingCardIndex)
+            if (!IsTradeCardOnPage(index) || controller.IsTradeCardRemoved(index) || index == controller.TradingCardIndex)
             {
                 continue;
             }
@@ -129,6 +133,12 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
         {
             DrawExchangeCard(controller.TradingCardIndex);
         }
+        if (controller.TradePageCount > 1 && selecting)
+        {
+            DrawPageButton(TradePreviousPageBounds, "<");
+            DrawPageButton(TradeNextPageBounds, ">");
+            canvas.OutlinedText($"{controller.TradePage + 1} / {controller.TradePageCount}", 18, new UiRect(442, 594, 76, 32), theme.Foreground, new UiColor(0, 0, 0), 1);
+        }
         if (controller.TradePhase == TripleTriadTradePhase.ConfirmingSelection)
         {
             theme.Panel(canvas, new UiRect(330, 254, 300, 156));
@@ -136,6 +146,13 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
             canvas.Text(controller.SystemText("card.ui.drawtrade.yes", "Yes"), 24, new UiRect(400, 312, 190, 36), theme.Foreground);
             canvas.Text(controller.SystemText("card.ui.drawtrade.no", "No"), 24, new UiRect(400, 354, 190, 36), theme.Foreground);
             theme.Pointer(canvas, 350, 316 + controller.TradeConfirmationSelection * 42, 26);
+        }
+
+        void DrawPageButton(UiRect bounds, string text)
+        {
+            theme.Panel(canvas, bounds);
+            float width = canvas.MeasureText(text, 22, float.PositiveInfinity).Width;
+            canvas.OutlinedText(text, 22, new UiRect(bounds.X + (bounds.Width - width) / 2, bounds.Y, width, bounds.Height), theme.Foreground, new UiColor(0, 0, 0), 1);
         }
 
         void DrawExchangeCard(int index)
@@ -172,25 +189,14 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
 
     private UiRect ExchangeBounds(int index)
     {
-        if (controller.TradeCards.Count != 10)
-        {
-            int half = controller.TradeCards.Count / 2;
-            TripleTriadLayout layout = new(Layout.Width, Layout.Height, half);
-            UiRect sourceBounds = layout.Hand(index % half, index < half ? 0 : 1);
-            if (index != controller.TradingCardIndex)
-            {
-                return sourceBounds;
-            }
-            float move = (float)controller.TradeProgress;
-            return new UiRect(sourceBounds.X + (400 - sourceBounds.X) * move, sourceBounds.Y + (240 - sourceBounds.Y) * move, sourceBounds.Width, sourceBounds.Height);
-        }
-        float x = (index % 5 - 2) * 64;
-        float y = index < 5 ? 40 : -40;
+        int handSize = controller.Options.HandSize;
+        float x = (index % handSize % TripleTriadController.TradeCardsPerPage - 2) * 64;
+        float y = index < handSize ? 40 : -40;
         float z = 512;
         float progress = (float)controller.TradeProgress;
         if (controller.TradePhase == TripleTriadTradePhase.Entering)
         {
-            float source = index < 5 ? 416 : -416;
+            float source = index < handSize ? 416 : -416;
             x = source + (x - source) * MathF.Sin(progress * MathF.PI / 2);
         }
         if (index == controller.TradingCardIndex)
@@ -435,8 +441,25 @@ internal sealed partial class TripleTriadElementView(TripleTriadController contr
                 controller.Navigate(UiKey.Confirm);
                 return;
             }
+            if (controller.TradePhase == TripleTriadTradePhase.Selecting && controller.TradePageCount > 1)
+            {
+                if (TradePreviousPageBounds.Contains(x, y))
+                {
+                    controller.Navigate(UiKey.PageUp);
+                    return;
+                }
+                if (TradeNextPageBounds.Contains(x, y))
+                {
+                    controller.Navigate(UiKey.PageDown);
+                    return;
+                }
+            }
             for (int slot = 0; slot < controller.Options.HandSize; slot++)
             {
+                if (!IsTradeCardOnPage(slot))
+                {
+                    continue;
+                }
                 UiRect card = ExchangeBounds(slot + controller.TradeCards.Count / 2);
                 if (card.Contains(x, y))
                 {

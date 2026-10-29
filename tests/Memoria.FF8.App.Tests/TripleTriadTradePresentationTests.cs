@@ -12,6 +12,109 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class TripleTriadTradePresentationTests
 {
+    [Theory]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(13)]
+    [InlineData(50)]
+    public void ExpandedExchangeUsesOriginalRowsWithClearCaptionsAndClickablePages(int handSize)
+    {
+        TripleTriadController controller = CreateExpanded(handSize);
+        UiView view = controller.BuildView();
+        for (int page = 0; page < controller.TradePageCount; page++)
+        {
+            RecordingCanvas canvas = Draw(view);
+            int visible = Math.Min(5, handSize - page * 5);
+            var cards = canvas.Images.Where(image => image.Source.Kind == UiImageKind.CardFace).ToArray();
+            Assert.Equal(visible * 2, cards.Length);
+            foreach (var card in cards)
+            {
+                int slot = card.Source.Id % handSize;
+                Assert.Equal(80 + slot % 5 * 160, card.Bounds.X);
+                Assert.Equal(card.Source.Id < handSize ? 360 : 120, card.Bounds.Y);
+                Assert.Equal(160, card.Bounds.Width);
+                Assert.Equal(192, card.Bounds.Height);
+                var label = Assert.Single(canvas.Texts, line => line.Text == controller.TradeCardName(card.Source.Id));
+                Assert.True(label.Bounds.X >= card.Bounds.X);
+                Assert.True(label.Bounds.Right <= card.Bounds.Right);
+                Assert.True(label.Bounds.Y > card.Bounds.Bottom);
+                Assert.DoesNotContain(cards, other => other.Bounds.Contains(label.Bounds.X + label.Bounds.Width / 2, label.Bounds.Y + label.Bounds.Height / 2));
+            }
+            Assert.Contains(canvas.Texts, line => line.Text == $"{page + 1} / {controller.TradePageCount}");
+            if (page + 1 < controller.TradePageCount)
+            {
+                view.Pointer(580, 610, true);
+                view.Pointer(580, 610, false);
+            }
+        }
+        int selected = (controller.TradePageCount - 1) * 5;
+        var finalPage = Draw(view);
+        UiRect target = Assert.Single(finalPage.Images, image => image.Source.Kind == UiImageKind.CardFace && image.Source.Id == handSize + selected).Bounds;
+        view.Pointer(target.X + 80, target.Y + 96, true);
+        view.Pointer(target.X + 80, target.Y + 96, false);
+        Assert.Equal(new[] { selected }, controller.TradeSelection);
+        Advance(controller, TripleTriadController.TradeFlipDuration);
+        controller.Navigate(UiKey.Confirm);
+        Advance(controller, TripleTriadController.TradeMoveDuration);
+        var centered = Assert.Single(Draw(view).Images, image => image.Source.Kind == UiImageKind.CardFace && image.Source.Id == handSize + selected);
+        Assert.Equal(new UiRect(320, 144, 320, 384), centered.Bounds);
+    }
+
+    [Fact]
+    public void OriginalArtworkRendersExpandedRewardPagesAndCenteredAward()
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Original resources required.");
+        TripleTriadCatalog catalog = TripleTriadCatalog.Load(directory);
+        TripleTriadController controller = CreateExpanded(8, definitions: catalog.Cards, name: catalog.Name);
+        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_TRIAD_UI_OUTPUT_DIRECTORY") ?? TestResources.ArtifactDirectory;
+        Directory.CreateDirectory(output);
+        Render("expanded-reward-first-page");
+        controller.Navigate(UiKey.PageDown);
+        Render("expanded-reward-second-page");
+        controller.SelectTradeCard(7);
+        Advance(controller, TripleTriadController.TradeFlipDuration);
+        controller.Navigate(UiKey.Confirm);
+        Advance(controller, TripleTriadController.TradeMoveDuration);
+        Render("expanded-reward-card-acquired");
+
+        void Render(string stage)
+        {
+            using Bitmap bitmap = new(960, 672, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
+            using BattlePreviewCanvas canvas = new(bitmap, directory);
+            UiView view = controller.BuildView();
+            view.Resize(960, 672);
+            view.Draw(canvas, new UiTheme());
+            bitmap.SavePng(Path.Combine(output, stage + ".png"));
+        }
+    }
+
+    [Fact]
+    public void ExchangePageKeysWrapAndSkipPagesWithoutEligibleCards()
+    {
+        TripleTriadController controller = CreateExpanded(13, Enumerable.Range(0, 26).Select(index => index is 13 or 25).ToArray());
+        controller.Navigate(UiKey.PageDown);
+        Assert.Equal(12, controller.Selection);
+        Assert.Equal(2, controller.TradePage);
+        controller.Navigate(UiKey.PageDown);
+        Assert.Equal(0, controller.Selection);
+        controller.Navigate(UiKey.PageUp);
+        Assert.Equal(12, controller.Selection);
+    }
+
+    private static TripleTriadController CreateExpanded(int handSize, bool[]? eligibility = null, IReadOnlyList<TripleTriadCard>? definitions = null, Func<int, string>? name = null)
+    {
+        int[] player = Enumerable.Range(0, handSize).ToArray();
+        int[] opponent = Enumerable.Range(handSize, handSize).ToArray();
+        TripleTriadController controller = new(definitions ?? Cards, player.ToDictionary(id => id, _ => 1), opponent, name ?? (id => $"Long card name {id}"), options: new TripleTriadSettings { Width = 4, Height = 4, HandSize = handSize, BlockedCellCount = 2 });
+        controller.EnablePresentation();
+        controller.BeginTradeSettlement(player, opponent, Enumerable.Range(0, handSize * 2).Select(index => index < handSize ? 0 : 1).ToArray(), TripleTriadTradeRule.One, 1, true, [], _ =>
+        {
+        }, eligibility);
+        Advance(controller, TripleTriadController.TradeEntranceDuration);
+        return controller;
+    }
+
     [Fact]
     public void ExchangeDrawsCardModShortagesWithinEachCardCaption()
     {

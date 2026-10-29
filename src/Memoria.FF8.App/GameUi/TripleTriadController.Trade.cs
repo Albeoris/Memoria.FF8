@@ -48,6 +48,10 @@ public sealed partial class TripleTriadController
         return cardModRequirements.TryGetValue(id, out int required) && owned < required ? $"{name} ({owned}/{required})" : name;
     }
 
+    internal const int TradeCardsPerPage = 5;
+    internal int TradePageCount => (Options.HandSize + TradeCardsPerPage - 1) / TradeCardsPerPage;
+    internal int TradePage => (TradingCardIndex >= 0 ? TradingCardIndex % Options.HandSize : TradePhase == TripleTriadTradePhase.Flipping && flippingTradeSlot >= 0 ? flippingTradeSlot % Options.HandSize : Selection) / TradeCardsPerPage;
+
     public TripleTriadTradePhase TradePhase { get; private set; }
     public IReadOnlyList<int> TradeCards => tradeCards;
     public int TradingCardIndex { get; private set; } = -1;

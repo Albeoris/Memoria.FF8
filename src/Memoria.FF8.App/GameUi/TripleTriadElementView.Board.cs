@@ -4,7 +4,7 @@ namespace Memoria.FF8.GameUi;
 
 internal sealed partial class TripleTriadElementView
 {
-    private TripleTriadLayout Layout => new(controller.Match?.Width ?? controller.Options.Width, controller.Match?.Height ?? controller.Options.Height, controller.Match?.HandSize ?? controller.Options.HandSize);
+    private TripleTriadLayout Layout => controller.TradingHand is not null ? new(3, 3, controller.Options.HandSize) : new(controller.Match?.Width ?? controller.Options.Width, controller.Match?.Height ?? controller.Options.Height, controller.Match?.HandSize ?? controller.Options.HandSize);
     private static readonly UiColor Ink = new(69, 37, 19);
     private static readonly UiColor Gold = new(236, 196, 122);
 
