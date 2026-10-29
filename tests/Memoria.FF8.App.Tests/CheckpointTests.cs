@@ -32,6 +32,7 @@ public sealed class CheckpointTests
             var information = clock.Prepare();
             original.SetMoviePlayback(new MoviePlaybackState(MovieClock.AbsoluteFrame(8.25, information), information.FrameCount - 1, true, false, false));
             engine.MoviePlayback = () => original.State.MoviePlayback;
+            original.SetEventState(engine.Capture());
             Assert.Equal(engine.Capture().GetRawText(), original.PrepareSnapshot().EventState!.Value.GetRawText());
             original.Save(checkpoint);
             var resumed = new GameSession(GameSession.Load(checkpoint));

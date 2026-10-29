@@ -110,7 +110,7 @@ public sealed class StorySafeMovieSkipTests
                 return;
             }
             DialogueState? dialogue = world.Events.CurrentDialogue;
-            PlayerAction action = session.IsMoviePlaying ? new(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new(PlayerActionKind.EnterName, Text: playerName) : dialogue?.FirstChoice is int choice ? new(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new(PlayerActionKind.Confirm) : world.Events.FieldId == 229 && world.Events.CanAcceptMovementInput ? centering++ < 2 ? new(PlayerActionKind.Move, Horizontal: -1) : new(PlayerActionKind.Move, Vertical: 1) : new(PlayerActionKind.Wait);
+            PlayerAction action = session.IsMoviePlaying ? new(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new(PlayerActionKind.EnterName, Text: playerName) : dialogue is { CanConfirm: true, FirstChoice: int choice } ? new(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new(PlayerActionKind.Confirm) : world.Events.FieldId == 229 && world.Events.CanAcceptMovementInput ? centering++ < 2 ? new(PlayerActionKind.Move, Horizontal: -1) : new(PlayerActionKind.Move, Vertical: 1) : new(PlayerActionKind.Wait);
             PlayerActionResult result = world.Apply(action);
             Assert.True(result.Accepted);
             AdvanceClosingDialogue(world, action, result);

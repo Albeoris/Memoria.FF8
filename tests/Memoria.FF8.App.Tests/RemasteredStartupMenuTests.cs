@@ -18,12 +18,17 @@ public sealed class RemasteredStartupMenuTests
         GameSession session = GameWorld.CreateColdProcess(directory!);
         Assert.Equal(SceneKind.Title, session.State.Scene);
         // Exercise the production host provider without constructing a graphics device or sampling physical input.
+        using GameResourceHost resources = new(directory!, watch: false);
+        string saveRoot = Path.Combine(Path.GetTempPath(), "memoria-title-menu-" + Guid.NewGuid().ToString("N"));
+        PlayerSaveMenu saveMenu = new(new PlayerSaveStore(Path.Combine(saveRoot, "checkpoint.json"), directory: Path.Combine(saveRoot, "player-saves")));
         RecreateGame host = (RecreateGame)RuntimeHelpers.GetUninitializedObject(typeof(RecreateGame));
         Set(host, "session", session);
         Set(host, "options", new LaunchOptions { GameDirectory = directory! });
         Set(host, "uiPreferences", new UiPreferences());
         Set(host, "newGameMagicPreferences", new GameplayPreferences());
         Set(host, "keyboard", new KeyboardInput());
+        Set(host, "resourceHost", resources);
+        Set(host, "saveMenu", saveMenu);
         MethodInfo read = typeof(RecreateGame).GetMethod("ReadLiveMenuData", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Func<MenuData> provider = read.CreateDelegate<Func<MenuData>>(host);
         MenuController menus = new(provider);

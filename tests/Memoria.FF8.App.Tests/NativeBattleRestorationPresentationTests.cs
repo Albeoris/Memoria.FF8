@@ -10,7 +10,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleRestorationPresentationTests
 {
-    private static readonly TimeSpan Callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
+    private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
 
     [Theory]
     [InlineData((ushort)24, "Esuna", 27, (byte)2)]
@@ -138,6 +138,8 @@ public sealed class NativeBattleRestorationPresentationTests
         Assert.True(battle.NativeEntryReady);
         BattleSnapshot before = battle.Capture();
         Publish(entryEvidence, entryId + "-after", before, new BattleScenePresentation(assets, definition, true).Render(battle, 320, 224));
+        // The controlled producer edits one restored graph, including its physical status and packet owners.
+        before = NativeBattleStorageSnapshots.Restore(before);
         BattleCombatantSnapshot target = before.Combatants.Single(actor => actor.Id == "target");
         BattleNativeAction native = action.NativeAction!;
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("Restoration component lacks its current target status words.");
@@ -157,8 +159,8 @@ public sealed class NativeBattleRestorationPresentationTests
         NativeBattlePartyPresentation party = before.NativePartyPresentation!;
         NativeBattlePartyPresentedVital targetRow = party.Rows[1]!;
         party = party with { Rows = party.Rows.SetItem(1, targetRow with { HitPoints = healing ? (ushort)50 : resurrection ? (ushort)0 : targetRow.HitPoints }) };
-        before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePartyPresentation = party, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, priorBattle) };
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePartyPresentation = party, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, priorBattle), NativePresentationStatusMemory = before.NativePresentationStatusMemory!.Observe(1, new(priorSaved, priorBattle)) };
+        NativeBattleActionPacketsState packets = before.NativeActionPackets!;
         byte sequence = definition.NativeCommandSequences[native.Command];
         (packets, int header) = packets.Prepare(new(0, native.Command, sequence, -1, native.ActionId, descriptorEffect ?? native.MagicId, null));
         ushort amount = healing ? checked((ushort)(targetHp - 50)) : resurrection ? checked((ushort)targetHp) : (ushort)0;
@@ -186,7 +188,8 @@ public sealed class NativeBattleRestorationPresentationTests
             string id = "restoration-poison-idle-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
             Publish(evidence, id + "-before", idle.Capture(), idleScene.Render(idle, 320, 224));
             idle.AdvanceNativeGraphicsPresentation(Callback);
-            before = idle.Capture();
+            before = NativeBattleStorageSnapshots.Restore(idle.Capture());
+            packets = before.NativeActionPackets!;
             graphics = before.NativeGraphics!;
             byte[] withIcons = idleScene.Render(idle, 320, 224).ToArray();
             Publish(evidence, id + "-after", before, withIcons);

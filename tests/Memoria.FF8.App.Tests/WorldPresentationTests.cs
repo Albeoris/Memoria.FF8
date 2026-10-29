@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Reflection;
 using System.Text.Json;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
@@ -183,6 +184,25 @@ public sealed class WorldPresentationTests
         byte[] first = scene.Render(width, height, interpolation: 0).ToArray();
         byte[] middle = scene.Render(width, height, interpolation: 0.5f).ToArray();
         byte[] last = scene.Render(width, height).ToArray();
+        if (first.AsSpan().SequenceEqual(middle) || middle.AsSpan().SequenceEqual(last))
+        {
+            const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+            WorldPresentation history = (WorldPresentation)typeof(WorldMapScene).GetField("presentation", privateInstance)!.GetValue(scene)!;
+            WorldRenderFrame? previousFrame = (WorldRenderFrame?)typeof(WorldPresentation).GetField("previousFrame", privateInstance)!.GetValue(history);
+            WorldRenderFrame? currentFrame = (WorldRenderFrame?)typeof(WorldPresentation).GetField("currentFrame", privateInstance)!.GetValue(history);
+            WorldTerrainRenderer renderer = (WorldTerrainRenderer)typeof(WorldMapScene).GetField("renderer", privateInstance)!.GetValue(scene)!;
+            Console.WriteLine(JsonSerializer.Serialize(new
+            {
+                PreviousState = new { previous.Frame, previous.X, previous.Z, previous.NativeHeight, previous.BodyYaw, previous.CameraYaw },
+                CurrentState = new { scene.State.Frame, scene.State.X, scene.State.Z, scene.State.NativeHeight, scene.State.BodyYaw, scene.State.CameraYaw },
+                PreviousPresentation = previousFrame is null ? null : new { Position = new { previousFrame.Position.X, previousFrame.Position.Y, previousFrame.Position.Z }, previousFrame.Heading, previousFrame.Camera, previousFrame.AvatarVisible, previousFrame.AnimationId, previousFrame.AnimationFrame },
+                CurrentPresentation = currentFrame is null ? null : new { Position = new { currentFrame.Position.X, currentFrame.Position.Y, currentFrame.Position.Z }, currentFrame.Heading, currentFrame.Camera, currentFrame.AvatarVisible, currentFrame.AnimationId, currentFrame.AnimationFrame },
+                renderer.DrawnTriangles,
+                DistinctRgb = Enumerable.Range(0, first.Length / 4).Select(index => (first[index * 4], first[index * 4 + 1], first[index * 4 + 2])).Distinct().Count(),
+                FirstEqualsMiddle = first.AsSpan().SequenceEqual(middle),
+                MiddleEqualsLast = middle.AsSpan().SequenceEqual(last)
+            }));
+        }
         Assert.NotEqual(first, middle);
         Assert.NotEqual(middle, last);
         Assert.Equal(state, JsonSerializer.Serialize(session.State));

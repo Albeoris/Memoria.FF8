@@ -26,7 +26,8 @@ public sealed class NativeWrappedDirectScrollTests
         Assert.True(DirectBackgroundScrollCertificate.CanBeginLinear(field, query, scene));
         Assert.False(DirectBackgroundScrollCertificate.CanSetLinear(field, query with { TargetY = 9 }));
         Assert.False(DirectBackgroundScrollCertificate.CanSetLinear(field, query with { Duration = -1 }));
-        FieldRenderer renderer = new(field, 640, 448);
+        // Compare native placement without adding independently repeated widescreen strips.
+        FieldRenderer renderer = new(field, 640, 448, nativeMovieViewport: true);
         foreach (short elapsed in new short[] { 0, 1, 29, 30, 59, 60 })
         {
             short x = (short)(55 + elapsed * (-15 - 55) / 60);
@@ -80,7 +81,7 @@ public sealed class NativeWrappedDirectScrollTests
         BackgroundScrollFrame selected = DirectBackgroundScrollCertificate.PrepareCenter(field, scene, 160, -8);
         Assert.Equal(frame.Layers, selected.NativeWrap!.Layers);
         Dictionary<int, Vector2> offsets = field.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, _ => new Vector2(-center.X, -center.Y));
-        FieldRenderer renderer = new(field, 640, 448);
+        FieldRenderer renderer = new(field, 640, 448, nativeMovieViewport: true);
         Assert.Equal(IndependentPixels(field, scene, center), renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets, actorScrollOffset: new Vector2(-center.X, -center.Y), nativeWrapFrame: frame));
     }
 
@@ -107,7 +108,7 @@ public sealed class NativeWrappedDirectScrollTests
             }
             placed.Add(tile with { X = x - center.X, Y = y - center.Y });
         }
-        FieldRenderer independent = new(field with { Background = placed }, 640, 448);
+        FieldRenderer independent = new(field with { Background = placed }, 640, 448, nativeMovieViewport: true);
         return independent.Render(new Dictionary<int, int>(), [], TimeSpan.Zero).ToArray();
     }
 

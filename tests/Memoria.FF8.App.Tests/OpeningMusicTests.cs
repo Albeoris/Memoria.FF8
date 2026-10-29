@@ -60,7 +60,7 @@ public sealed class OpeningMusicTests
             {
                 next = new PlayerAction(PlayerActionKind.EnterName, Text: "Squall");
             }
-            else if (dialogue?.FirstChoice is int choice)
+            else if (dialogue is { CanConfirm: true, FirstChoice: int choice })
             {
                 next = new PlayerAction(PlayerActionKind.Choose, choice);
             }

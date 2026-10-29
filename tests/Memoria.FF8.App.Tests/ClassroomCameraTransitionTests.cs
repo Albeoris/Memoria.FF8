@@ -28,7 +28,7 @@ public sealed class ClassroomCameraTransitionTests
             {
                 next = new(PlayerActionKind.EnterName, Text: "Squall");
             }
-            else if (dialogue?.FirstChoice is int choice)
+            else if (dialogue is { CanConfirm: true, FirstChoice: int choice })
             {
                 next = new(PlayerActionKind.Choose, choice);
             }

@@ -84,9 +84,15 @@ public sealed class NativeInitialEyeRegistrationTests
         NativeFieldRegistrationState registration = Assert.IsType<NativeFieldRegistrationState>(world.Events.Scene.NativeFieldRegistration);
         Assert.Equal(74, registration.FieldId);
         process.Validate(registration);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(process.Memory)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.State.NativeBattleMemory)));
-        Assert.Equal(process.CrtRandom, session.State.CrtRandom);
-        session.SetEventState(world.Events.Capture());
+        // Scene.NativeEyeProcess is cached registration context. Active-field capture refreshes
+        // its shared physical memory after subsequent texture publications.
+        JsonElement currentCheckpoint = world.Events.Capture();
+        NativeFieldEyeProcess currentProcess = JsonSerializer.Deserialize<NativeFieldEyeProcess>(currentCheckpoint.GetProperty("Scene").GetProperty("NativeEyeProcess"))!;
+        currentProcess.Validate(registration);
+        Assert.Equal(JsonSerializer.Serialize(session.CaptureNativeFieldMemory()), JsonSerializer.Serialize(currentProcess.Memory));
+        Assert.Equal(process.CrtRandom, currentProcess.CrtRandom);
+        Assert.Equal(currentProcess.CrtRandom, session.State.CrtRandom);
+        session.SetEventState(currentCheckpoint);
         GameState snapshot = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         using GameWorld restored = new(new GameSession(snapshot), TestResources.GameDirectory);
         restored.EnsureField();

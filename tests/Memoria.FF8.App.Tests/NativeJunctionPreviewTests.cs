@@ -35,6 +35,7 @@ public sealed class NativeJunctionPreviewTests
         {
             vitals = NativeJunctionMenuInput.Apply(vitals, NativeJunctionMenuProjection.PlayerAction(action));
         });
+        menu.Presentation = MenuPresentation.Classic;
         menu.Open("junction-gf");
         AssertSlotPresentation(menu);
         menu.Navigate(MenuInput.Confirm);
@@ -101,6 +102,7 @@ public sealed class NativeJunctionPreviewTests
             vitals = NativeJunctionMenuInput.Apply(vitals, NativeJunctionMenuProjection.PlayerAction(action));
             applied++;
         });
+        menu.Presentation = MenuPresentation.Classic;
         menu.Open("junction-magic");
         Assert.Equal(9, menu.Character!.Stats.Count);
         Assert.NotNull(menu.Character.NextLevelExperience);
@@ -120,7 +122,9 @@ public sealed class NativeJunctionPreviewTests
         Assert.Equal(new UiColor(255, 120, 120), hp.Color);
         Assert.Equal(new UiColor(120, 190, 255), strength.Color);
         Assert.True(hp.Bounds.Bottom <= strength.Bounds.Y);
-        Assert.True(hp.Bounds.Right <= width);
+        float scale = Math.Min(width / view.DesignWidth, height / view.DesignHeight);
+        float offsetX = view.ViewportMode == UiViewportMode.Fit ? (width - view.DesignWidth * scale) / 2 : 0;
+        Assert.True(offsetX + hp.Bounds.Right * scale <= width);
         Assert.Equal(before, JsonSerializer.Serialize(vitals));
         menu.Navigate(MenuInput.Cancel);
         Assert.Equal("junction-magic", menu.ScreenId);

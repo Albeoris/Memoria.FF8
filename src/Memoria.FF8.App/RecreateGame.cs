@@ -1132,6 +1132,15 @@ internal sealed partial class RecreateGame : Game
             session.State.MovieIndex,
             session.State.MovieSeconds,
             session.State.MoviePlayback,
+            MoviePresentation = new
+            {
+                HasFrame = movie?.HasFrame == true,
+                CanPresentCurrentField = world?.CanPresentCurrentField,
+                FieldCallbackClock = events?.Scene.FieldCallbackClock,
+                MovieMaskPlayback = events?.Scene.NativeMovieMask?.Playback,
+                FieldGpuPresented = fieldGpuPresented,
+                FieldGpuPresentationVersion = fieldGpu?.PresentationVersion
+            },
             ExamTimer = session.State.ExamTimer is NativeExamTimerState timer ? new { timer.DisplayEnabled, timer.DisplayX, timer.DisplayY, Text = timer.FieldDisplayText(), RemainingMinimum = timer.Alternatives.Min(alternative => alternative.Remaining), RemainingMaximum = timer.Alternatives.Max(alternative => alternative.Remaining) } : null,
             session.State.FieldArrival,
             session.State.WorldArrival,

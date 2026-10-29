@@ -35,7 +35,7 @@ public sealed class NativeBattlePosePresentationTests
         NativeBattleCameraProjection projection = session.NativeCamera!.Projection!;
         for (int callback = 0; callback < 3; callback++)
         {
-            session.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30));
+            session.AdvanceNativeGraphicsPresentation(NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1));
             audio.Update(session);
             audio.Update(session);
         }
@@ -87,7 +87,7 @@ public sealed class NativeBattlePosePresentationTests
         BattleAudioPresentation audio = new(_ => { }, playModule: heard.Add);
         audio.Update(session);
 
-        session.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30));
+        session.AdvanceNativeGraphicsPresentation(NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1));
         audio.Update(session);
         audio.Update(session);
 
@@ -107,7 +107,7 @@ public sealed class NativeBattlePosePresentationTests
         Assert.Equal(0x0Eu, session.NativeGlobalSoundProcess.OriginalEffectIds[5]);
         AssertEntrySoundAllocation(session);
         Assert.Empty(session.NativeGraphics!.PendingContacts);
-        session.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30));
+        session.AdvanceNativeGraphicsPresentation(NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1));
         audio.Update(session);
         Assert.Equal(2, heard.Count);
         audio.Update(BattleSession.Restore(session.Capture()));

@@ -10,7 +10,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleCuraPresentationTests
 {
-    private static readonly TimeSpan Callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
+    private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
 
     [Fact]
     public void Installed_Cura_casting_runs_original_callbacks_pixels_sound_and_one_healing_contact_through_restore()
@@ -67,15 +67,16 @@ public sealed class NativeBattleCuraPresentationTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        BattleSnapshot before = battle.Capture();
+        // The controlled producer edits one restored graph, including its physical status and packet owners.
+        BattleSnapshot before = NativeBattleStorageSnapshots.Restore(battle.Capture());
         BattleCombatantSnapshot party = before.Combatants.Single(actor => actor.Id == "party");
         Assert.Empty(party.StatusEffects);
         NativeBattleStatusSnapshot status = party.NativeStatus ?? throw new InvalidDataException("Cura component requires its live party status words.");
         //494410 calls47E2D0 before publishing this contact: party B90/B18 copy directly to B92/B1C.
         //This explicitly supplies the formula producer replaced by the controlled packet below; enemy DAT247 masks do not apply to actor0.
         BattleCombatantSnapshot preparedParty = party with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
-        before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray() };
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray(), NativePresentationStatusMemory = before.NativePresentationStatusMemory!.Observe(0, new(status.Saved, status.Battle)) };
+        NativeBattleActionPacketsState packets = before.NativeActionPackets!;
         (packets, int header) = packets.Prepare(new(0, nativeCura.Command, 11, -1, nativeCura.ActionId, nativeCura.MagicId, null));
         //This is a controlled presentation component, after the battle formula has already produced its healing contact.
         //The installed kernel supplies the pose sequence;100 HP isolates506690/493D80 timing and duplicate application.

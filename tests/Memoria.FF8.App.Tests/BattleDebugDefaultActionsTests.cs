@@ -16,7 +16,7 @@ public sealed class BattleDebugDefaultActionsTests
         BattleStock[] items = assets.ReadNewGameEconomy().Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray();
         // Explicit laboratory actor stock is separate from the authentic New Game owner above.
         BattleCombatantDefinition actor = new() { Id = "party-0", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Attack, BattleAbility.Magic, BattleAbility.GuardianForce, BattleAbility.Item], EquipmentIds = [0], MagicStocks = [new(1, 4)] };
-        BattleDefinition initial = BattleDebugDefaults.Create([actor], null, 0, actionDefinitions: actions, items: items);
+        BattleDefinition initial = BattleDebugDefaults.Create([actor], null, 0, actionDefinitions: actions, items: items) with { NativeCommandSequences = assets.ReadNativeBattleCommandSequences() };
         using TemporaryPresetFile file = new();
         BattleDebugPresets presets = new(file.Path);
         BattleDefinition? started = null;

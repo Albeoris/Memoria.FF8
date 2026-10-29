@@ -99,7 +99,7 @@ public sealed class OpeningMoviePresentationTests
                     }
                 }
             }
-            Assert.True(visible > 100, $"The actual host presented a black movie: {visible} visible pixels. {stdout}");
+            Assert.True(visible > 100, $"The actual host presented a black movie: {visible} visible pixels. Status before capture: {state.GetRawText()} {stdout}");
         }
         finally
         {

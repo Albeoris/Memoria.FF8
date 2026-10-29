@@ -54,6 +54,8 @@ public sealed class NativeDirectWrappingTests
         scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 9, 0, 9, 0, 0, 0, 3, 2);
         Assert.False(DirectBackgroundScrollCertificate.CanSetCosine(field, scene, 0, 0, 8, 30));
         scene.BackgroundScrollLayers[1] = new BackgroundScrollSettings(0, 0, 128, 256);
+        Assert.True(DirectBackgroundScrollCertificate.CanSet(field, scene, 0, 0, 8));
+        scene.BackgroundScrollLayers[1] = new BackgroundScrollSettings(0, 0, short.MaxValue, 256);
         Assert.False(DirectBackgroundScrollCertificate.CanSet(field, scene, 0, 0, 8));
     }
 
@@ -65,7 +67,7 @@ public sealed class NativeDirectWrappingTests
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(251);
         SceneEventState scene = CreateScene(field);
-        ActorState actor = JsonSerializer.Deserialize<ActorState>("{\"NativeMovementAccelerationTarget\":null,\"ObjectId\":1,\"Label\":0,\"ModelId\":1,\"CharacterId\":0,\"X\":459,\"Y\":1659,\"Z\":0}")!;
+        ActorState actor = JsonSerializer.Deserialize<ActorState>("{\"NativeAnimationHeader\":null,\"NativeEyes\":null,\"NativeAnimationBackup\":null,\"NativeMovementAccelerationTarget\":null,\"ObjectId\":1,\"Label\":0,\"ModelId\":1,\"CharacterId\":0,\"X\":459,\"Y\":1659,\"Z\":0}")!;
         scene.NativeActorObjectIds.Add(1);
         scene.FieldPartyNativeActorIds.AddRange([0, 255, 255]);
         BackgroundScrollFrame normal = NormalCameraCertificate.Prepare(field, scene, [actor])!;
@@ -90,7 +92,7 @@ public sealed class NativeDirectWrappingTests
         SceneEventState scene = CreateScene(field);
         scene.NativeActorObjectIds.Add(1);
         scene.FieldPartyNativeActorIds.AddRange([0, 255, 255]);
-        ActorState actor = JsonSerializer.Deserialize<ActorState>("{\"NativeMovementAccelerationTarget\":null,\"ObjectId\":1,\"Label\":0,\"ModelId\":1,\"CharacterId\":0,\"X\":459,\"Y\":1659,\"Z\":0}")!;
+        ActorState actor = JsonSerializer.Deserialize<ActorState>("{\"NativeAnimationHeader\":null,\"NativeEyes\":null,\"NativeAnimationBackup\":null,\"NativeMovementAccelerationTarget\":null,\"ObjectId\":1,\"Label\":0,\"ModelId\":1,\"CharacterId\":0,\"X\":459,\"Y\":1659,\"Z\":0}")!;
         scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 8, 0, 8, -32, 8, 0, 3, 2);
         Assert.True(ActorBackgroundScrollCertificate.CanSetInterpolated(field, scene, [actor], 0, 15));
         Assert.True(BackgroundScrollCertificate.CanSetPartyPosition(field, scene, [actor], 0, 0, 15));

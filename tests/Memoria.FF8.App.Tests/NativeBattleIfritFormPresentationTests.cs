@@ -246,7 +246,7 @@ public sealed class NativeBattleIfritFormPresentationTests
             BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
             if (skip)
             {
-                TimeSpan elapsed = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
+                TimeSpan elapsed = TimeSpan.FromTicks((2 * TimeSpan.TicksPerSecond + 30) / 31);
                 long before = battle.NativeGraphics!.Callback;
                 battle.AdvanceNativeGraphicsPresentation(elapsed, TimeSpan.Zero);
                 restored.AdvanceNativeGraphicsPresentation(elapsed, TimeSpan.Zero);

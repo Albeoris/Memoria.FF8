@@ -205,7 +205,8 @@ public sealed class NativeGfMenuTests
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal("junction-stock", controller.ScreenId);
         controller.Navigate(MenuInput.Down);
-        Assert.Equal("Fire   40", controller.SelectedEntry!.Label);
+        Assert.Equal("Fire", controller.SelectedEntry!.Label);
+        Assert.Equal(40, Assert.Single(controller.Data.Magic, magic => magic.Id == controller.SelectedEntry.Action!.SubjectId).Quantity);
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal(PlayerActionKind.SetJunctionMagic, Assert.Single(inputs).Kind);
         Assert.Equal(0, inputs[0].Quantity);

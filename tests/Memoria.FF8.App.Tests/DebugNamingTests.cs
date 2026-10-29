@@ -228,7 +228,7 @@ public sealed class DebugNamingTests
     private static PlayerAction OpeningAction(GameSession session, GameWorld world)
     {
         DialogueState? dialogue = world.Events.CurrentDialogue;
-        return session.IsMoviePlaying ? new(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new(PlayerActionKind.EnterName, Text: "Squall") : dialogue?.FirstChoice is int choice ? new(PlayerActionKind.Choose, choice) : world.Events.CanConfirmDialogue ? new(PlayerActionKind.Confirm) : new(PlayerActionKind.Wait);
+        return session.IsMoviePlaying ? new(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new(PlayerActionKind.EnterName, Text: "Squall") : dialogue is { CanConfirm: true, FirstChoice: int choice } ? new(PlayerActionKind.Choose, choice) : world.Events.CanConfirmDialogue ? new(PlayerActionKind.Confirm) : new(PlayerActionKind.Wait);
     }
 
     private static GameState SaveAndLoad(GameSession session)
