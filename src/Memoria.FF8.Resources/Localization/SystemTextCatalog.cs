@@ -99,6 +99,7 @@ public static partial class SystemTextCatalog
         };
         AddAuthoredDefaults(defaults);
         AddGuardianForceEditorDefaults(defaults);
+        AddWorkbenchDefaults(defaults);
         InitializeChocoboDefaults(defaults);
         return defaults;
     }
