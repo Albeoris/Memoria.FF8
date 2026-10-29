@@ -485,7 +485,7 @@ public sealed class MenuViewTests
 
         public UiSize MeasureText(string text, float fontSize, float maximumWidth)
         {
-            System.Numerics.Vector2 measured = SystemTextLayout.MeasureWrapped(text, fontSize, maximumWidth);
+            var measured = SystemTextLayout.MeasureWrapped(text, fontSize, maximumWidth);
             return new UiSize(measured.X, measured.Y);
         }
 

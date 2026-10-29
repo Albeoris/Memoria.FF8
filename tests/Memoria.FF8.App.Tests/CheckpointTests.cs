@@ -20,7 +20,7 @@ public sealed class CheckpointTests
             original.StartNewGame();
             var clock = new MovieClock(original, directory);
             using var world = new GameWorld(original, directory, clock, sharedAssets: assets);
-            world.EnsureLoaded();
+            world.EnsureField();
             EventEngine engine = world.Events;
             for (int frame = 0; frame < 200 && !original.IsMoviePlaying; frame++)
             {
@@ -36,7 +36,7 @@ public sealed class CheckpointTests
             original.Save(checkpoint);
             var resumed = new GameSession(GameSession.Load(checkpoint));
             using var restoredWorld = new GameWorld(resumed, directory, new MovieClock(resumed, directory), sharedAssets: assets);
-            restoredWorld.EnsureLoaded();
+            restoredWorld.EnsureField();
             EventEngine restoredEngine = restoredWorld.Events;
             Assert.Equal(8.25, resumed.State.MovieSeconds);
             Assert.Equal(engine.Capture().GetRawText(), restoredEngine.Capture().GetRawText());
