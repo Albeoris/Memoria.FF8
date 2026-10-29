@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 internal sealed partial class NativeBattleStorageRestoreContext
 {
     private readonly Dictionary<int, NativeBattleWorkingMemory> graphOwners = [];
+    private readonly Dictionary<(int AuthorityId, bool Borrowed), NativeBattleEffectArena> graphDefiningViews = [];
     private bool hasStorageGraph;
 
     internal void PrepareStorageGraph(BattleSnapshot snapshot) => PrepareStorageGraph(snapshot, snapshot.StorageGraph);
@@ -100,7 +101,22 @@ internal sealed partial class NativeBattleStorageRestoreContext
             {
                 throw new InvalidOperationException("Battle storage references an unknown physical authority.");
             }
-            restored = NativeBattleEffectArena.RestoreGraphView(owner, reference);
+            if (reference.DefinesAuthority)
+            {
+                // PrepareStorageGraph validates every serialized view before mapping begins.
+                // Repeated definitions represent one full arena object, even after JSON has duplicated its DTO.
+                (int AuthorityId, bool Borrowed) key = (reference.AuthorityId, reference.Borrowed);
+                if (!graphDefiningViews.TryGetValue(key, out NativeBattleEffectArena? definition))
+                {
+                    definition = NativeBattleEffectArena.RestoreGraphView(owner, reference);
+                    graphDefiningViews.Add(key, definition);
+                }
+                restored = definition;
+            }
+            else
+            {
+                restored = NativeBattleEffectArena.RestoreGraphView(owner, reference);
+            }
             return true;
         }
         restored = null;
