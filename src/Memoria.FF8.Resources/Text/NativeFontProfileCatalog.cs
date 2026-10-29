@@ -1,5 +1,5 @@
 using Albeoris.Games.FF8.Imaging;
-using Memoria.FF8.Resources.Text;
+
 
 
 namespace Memoria.FF8.Resources.Text;
@@ -105,4 +105,3 @@ public sealed class NativeFontProfileCatalog
 
     private static bool Matches(NativeTextContext assignment, NativeTextContext context) => assignment.Edition == context.Edition && assignment.ResourceFamily == context.ResourceFamily && (assignment.Field is null || assignment.Field == context.Field) && (assignment.DictionaryLanguage is null || assignment.DictionaryLanguage == context.DictionaryLanguage);
 }
-
