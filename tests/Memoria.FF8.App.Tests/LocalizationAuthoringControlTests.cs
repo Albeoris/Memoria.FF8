@@ -216,6 +216,11 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
                 .ToHashSet(StringComparer.Ordinal);
             JsonElement published = await WaitLocalization(state => PublishedLevels(state).IsSupersetOf(expectedLevels));
             Assert.Equal(expectedLevels.Order(StringComparer.Ordinal), PublishedLevels(published).Order(StringComparer.Ordinal));
+            JsonElement publishedUi = await Request("ui-status");
+            if (!string.IsNullOrWhiteSpace(evidence))
+            {
+                File.WriteAllText(Path.Combine(evidence, "published-ui.json"), JsonSerializer.Serialize(publishedUi, Json));
+            }
             string capture = await Capture("workbench");
             Assert.True(File.Exists(capture));
             Assert.Equal(originalHash, SHA256.HashData(File.ReadAllBytes(standalone)));
