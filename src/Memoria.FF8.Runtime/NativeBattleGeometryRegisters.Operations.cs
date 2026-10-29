@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -75,12 +76,12 @@ public static class NativeBattleGeometry
 
     public static NativeBattleGeometryRegisterStep LoadVector(NativeBattleGeometryRegisterStep step, int slot, NativeBattleVector vector, short? w)
     {
-        byte?[] bytes = new byte?[8];
+        Span<byte?> bytes = stackalloc byte?[8];
         PutWord(bytes, 0, unchecked((short)vector.X));
         PutWord(bytes, 2, unchecked((short)vector.Y));
         PutWord(bytes, 4, unchecked((short)vector.Z));
         PutWord(bytes, 6, w);
-        return LoadPackedVector(step, slot, bytes.ToImmutableArray());
+        return LoadPackedVector(step, slot, bytes);
     }
 
     public static NativeBattleGeometryRegisters LoadAnchorScratchXYZ(NativeBattleGeometryRegisters geometry, NativeBattleVector vector)
@@ -101,7 +102,7 @@ public static class NativeBattleGeometry
         return geometry with { AnchorScratch8 = bytes.ToImmutableArray() };
     }
 
-    public static NativeBattleGeometryRegisterStep LoadAnchorVector(NativeBattleGeometryRegisterStep step) => LoadPackedVector(step, 0, step.Geometry.AnchorScratch8);
+    public static NativeBattleGeometryRegisterStep LoadAnchorVector(NativeBattleGeometryRegisterStep step) => LoadPackedVector(step, 0, step.Geometry.AnchorScratch8.AsSpan());
 
     public static NativeBattleGeometryRegisterStep LoadIrColumn(NativeBattleGeometryRegisterStep step, ushort x, ushort y, ushort z)
     {
@@ -203,8 +204,8 @@ public static class NativeBattleGeometry
 
     private static NativeBattleScriptedColorRegisters PublishMac(NativeBattleScriptedColorRegisters colors, int x, int y, int z, uint flags)
     {
-        int[] values = [x, y, z];
-        uint[] limits = [0x81000000, 0x80800000, 0x00400000];
+        ReadOnlySpan<int> values = stackalloc int[] { x, y, z };
+        ReadOnlySpan<uint> limits = stackalloc uint[] { 0x81000000, 0x80800000, 0x00400000 };
         for (int lane = 0; lane < 3; lane++)
         {
             if (values[lane] is < short.MinValue or > short.MaxValue)
@@ -215,35 +216,41 @@ public static class NativeBattleGeometry
         return colors with { Mac = [(int?)x, y, z], Ir = [(int?)Math.Clamp(x, short.MinValue, short.MaxValue), Math.Clamp(y, short.MinValue, short.MaxValue), Math.Clamp(z, short.MinValue, short.MaxValue)], Flags = flags };
     }
 
-    private static NativeBattleGeometryRegisterStep LoadPackedVector(NativeBattleGeometryRegisterStep step, int slot, ImmutableArray<byte?> bytes)
+    private static NativeBattleGeometryRegisterStep LoadPackedVector(NativeBattleGeometryRegisterStep step, int slot, ReadOnlySpan<byte?> bytes)
     {
         Validate(step);
-        if (bytes.IsDefault || bytes.Length != 8)
+        if (bytes.Length != 8)
         {
             throw new InvalidDataException("Native vector load requires its complete packed input width.");
         }
+        if (slot == 0)
+        {
+            byte[] normal = new byte[8];
+            bool[] known = new bool[8];
+            for (int index = 0; index < bytes.Length; index++)
+            {
+                normal[index] = bytes[index] ?? 0;
+                known[index] = bytes[index].HasValue;
+            }
+            return step with { Colors = step.Colors with { NormalInput = ImmutableCollectionsMarshal.AsImmutableArray(normal), NormalInputKnown = ImmutableCollectionsMarshal.AsImmutableArray(known) } };
+        }
         return slot switch
         {
-            0 => step with { Colors = step.Colors with { NormalInput = bytes.Select(value => value ?? 0).ToImmutableArray(), NormalInputKnown = bytes.Select(value => value.HasValue).ToImmutableArray() } },
-            1 => step with { Geometry = step.Geometry with { V1 = bytes } },
-            2 => step with { Geometry = step.Geometry with { V2 = bytes } },
+            1 => step with { Geometry = step.Geometry with { V1 = bytes.ToImmutableArray() } },
+            2 => step with { Geometry = step.Geometry with { V2 = bytes.ToImmutableArray() } },
             _ => throw new ArgumentOutOfRangeException(nameof(slot))
         };
     }
 
     private static NativeBattleVector ReadVector(NativeBattleGeometryRegisterStep step, int slot)
     {
-        ImmutableArray<byte?> bytes;
         if (slot == 0)
         {
             ImmutableArray<byte> normal = step.Colors.NormalInput ?? throw new NotSupportedException("Native geometry requires its loaded V0 input.");
             ImmutableArray<bool>? mask = step.Colors.NormalInputKnown;
-            bytes = normal.Select((value, index) => mask is { } known && !known[index] ? (byte?)null : value).ToImmutableArray();
+            return new(ReadNormalWord(normal, mask, 0), ReadNormalWord(normal, mask, 2), ReadNormalWord(normal, mask, 4));
         }
-        else
-        {
-            bytes = slot == 1 ? step.Geometry.V1 : step.Geometry.V2;
-        }
+        ImmutableArray<byte?> bytes = slot == 1 ? step.Geometry.V1 : step.Geometry.V2;
         return new(ReadWord(bytes, 0), ReadWord(bytes, 2), ReadWord(bytes, 4));
     }
 
@@ -251,17 +258,29 @@ public static class NativeBattleGeometry
 
     private static NativeBattleActionMatrix ReadMatrix(NativeBattleGeometryRegisters geometry, bool translation)
     {
-        ImmutableArray<short> rotation = Enumerable.Range(0, 9).Select(index => ReadWord(geometry.Rotation20, index * 2)).ToImmutableArray();
-        return new(rotation, translation ? Require(geometry.Translation[0]) : 0, translation ? Require(geometry.Translation[1]) : 0, translation ? Require(geometry.Translation[2]) : 0, 4096);
+        short[] rotation = new short[9];
+        for (int index = 0; index < rotation.Length; index++)
+        {
+            rotation[index] = ReadWord(geometry.Rotation20, index * 2);
+        }
+        return new(ImmutableCollectionsMarshal.AsImmutableArray(rotation), translation ? Require(geometry.Translation[0]) : 0, translation ? Require(geometry.Translation[1]) : 0, translation ? Require(geometry.Translation[2]) : 0, 4096);
     }
 
-    private static void PutWord(byte?[] bytes, int offset, short? value)
+    private static void PutWord(Span<byte?> bytes, int offset, short? value)
     {
         bytes[offset] = value is { } word ? unchecked((byte)word) : null;
         bytes[offset + 1] = value is { } high ? unchecked((byte)(high >> 8)) : null;
     }
 
     private static short ReadWord(ImmutableArray<byte?> bytes, int offset) => unchecked((short)(Require(bytes[offset]) | (Require(bytes[offset + 1]) << 8)));
+
+    private static short ReadNormalWord(ImmutableArray<byte> bytes, ImmutableArray<bool>? mask, int offset)
+    {
+        byte low = Require(mask is { } knownLow && !knownLow[offset] ? (byte?)null : bytes[offset]);
+        byte high = Require(mask is { } knownHigh && !knownHigh[offset + 1] ? (byte?)null : bytes[offset + 1]);
+        return unchecked((short)(low | (high << 8)));
+    }
+
     private static T Require<T>(T? value) where T : struct => value ?? throw new NotSupportedException("Native geometry requires the actual retained input lane.");
 
     private static void Validate(NativeBattleGeometryRegisterStep step)

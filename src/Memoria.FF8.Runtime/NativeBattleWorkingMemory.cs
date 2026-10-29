@@ -26,8 +26,8 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     private byte[] data = [];
     private bool[] known = [];
     private object backingIdentity = new();
-    private readonly Dictionary<int, NativeBattleResourcePointer?> pointers = [];
-    private readonly List<int> removedPointers = [];
+    private Dictionary<int, NativeBattleResourcePointer?>? pointers;
+    private List<int>? removedPointers;
     private List<ByteUndo>? byteUndo;
     private List<PointerUndo>? pointerUndo;
     private List<CheckpointMark>? nestedCheckpoints;
@@ -69,7 +69,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     public long GrowthCopyBytes => Observe(growthCopyBytes);
     public long CaptureBytes => Observe(captureBytes);
     public int JournalEntryCount => Observe((byteUndo?.Count ?? 0) + (pointerUndo?.Count ?? 0));
-    public int ResourcePointerCount => Observe(pointers.Count);
+    public int ResourcePointerCount => Observe(pointers?.Count ?? 0);
     public bool HasCheckpoint => Observe(checkpoint);
     public int CheckpointDepth => Observe(checkpoint ? nestedCheckpoints!.Count + 1 : 0);
 
@@ -232,7 +232,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 }
             }
         }
-        ReserveJournal(changes, removedPointers.Count);
+        ReserveJournal(changes, removedPointers?.Count ?? 0);
         ObserveReadWindowWrite(null, offset, source.Length);
         EnsureCapacity(offset + source.Length);
         if (checkpoint)
@@ -279,7 +279,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 }
             }
         }
-        ReserveJournal(changes, removedPointers.Count);
+        ReserveJournal(changes, removedPointers?.Count ?? 0);
         ObserveReadWindowWrite(null, offset, source.Length);
         EnsureCapacity(offset + source.Length);
         if (checkpoint)
@@ -325,7 +325,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 }
             }
         }
-        ReserveJournal(changes, removedPointers.Count);
+        ReserveJournal(changes, removedPointers?.Count ?? 0);
         ObserveReadWindowWrite(null, destination, length);
         EnsureCapacity(destination + length);
         if (checkpoint)
@@ -372,6 +372,8 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         }
         PrepareStorageReceipts();
         PrepareMutation(offset, 4, bytes, numeric is null, 1);
+        Dictionary<int, NativeBattleResourcePointer?> pointerStorage = pointers ?? new();
+        pointerStorage.EnsureCapacity(checked(pointerStorage.Count - (removedPointers?.Count ?? 0) + 1));
         SaveBytes(offset, 4, bytes, numeric is null);
         InvalidatePointers();
         if (numeric is not null)
@@ -384,7 +386,8 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         {
             pointerUndo!.Add(new(offset, false, null));
         }
-        pointers[offset] = pointer;
+        pointerStorage[offset] = pointer;
+        pointers = pointerStorage;
         storedLength = Math.Max(storedLength, offset + 4);
         RecordStorageReceipts(offset, 4, numeric is not null);
         RecordKnownness(offset, 4, numeric is not null);
@@ -399,7 +402,8 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     public bool TryGetResourcePointer(int offset, out NativeBattleResourcePointer? pointer)
     {
         RequireRange(offset, 4);
-        return pointers.TryGetValue(offset, out pointer);
+        pointer = null;
+        return pointers is not null && pointers.TryGetValue(offset, out pointer);
     }
 
     public NativeBattleResourcePointer? ReadResourcePointer(int offset)
@@ -410,7 +414,8 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     public Dictionary<int, NativeBattleResourcePointer?>.Enumerator EnumerateResourcePointers()
     {
         RequireActive();
-        return pointers.GetEnumerator();
+        // A default Dictionary enumerator cannot MoveNext safely; retain an owner-local empty dictionary.
+        return (pointers ??= new()).GetEnumerator();
     }
 
     public void ReserveCheckpointCapacity(int byteEntries, int pointerEntries)
@@ -596,11 +601,11 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             PointerUndo entry = pointerUndo![index];
             if (entry.Present)
             {
-                pointers[entry.Offset] = entry.Value;
+                pointers![entry.Offset] = entry.Value;
             }
             else
             {
-                pointers.Remove(entry.Offset);
+                pointers!.Remove(entry.Offset);
             }
         }
         storedLength = previousStoredLength;
@@ -638,7 +643,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             }
             unknown.Add(new(first, index - first));
         }
-        return new(logicalLength, initialKnownZero, storedLength, regions.ToImmutable(), unknown.ToImmutable(), pointers.ToImmutableDictionary(), CaptureReceipts(DataFootprint), CaptureReceipts(ExplicitCoverage), textureFiles);
+        return new(logicalLength, initialKnownZero, storedLength, regions.ToImmutable(), unknown.ToImmutable(), pointers?.ToImmutableDictionary() ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty, CaptureReceipts(DataFootprint), CaptureReceipts(ExplicitCoverage), textureFiles);
     }
 
     public static NativeBattleWorkingMemory Restore(NativeBattleWorkingMemorySnapshot snapshot)
@@ -706,7 +711,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             {
                 throw new InvalidDataException("Native working snapshot pointer contradicts physical bytes.");
             }
-            result.pointers.Add(entry.Key, pointer);
+            (result.pointers ??= new()).Add(entry.Key, pointer);
         }
         return result;
     }
@@ -750,14 +755,14 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         ownershipSuspended = false;
         data = [];
         known = [];
-        pointers.Clear();
+        pointers?.Clear();
         textureFiles = null;
         textureFileCheckpoint = null;
         byteUndo?.Clear();
         pointerUndo?.Clear();
         nestedCheckpoints?.Clear();
         checkpointParticipants?.Clear();
-        removedPointers.Clear();
+        removedPointers?.Clear();
     }
 
     public void Dispose()
@@ -802,7 +807,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 }
             }
         }
-        ReserveJournal(changes, removedPointers.Count + extraPointers);
+        ReserveJournal(changes, (removedPointers?.Count ?? 0) + extraPointers);
         ObserveReadWindowWrite(null, offset, length);
         EnsureCapacity(offset + length);
     }
@@ -827,25 +832,34 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
 
     private void CollectPointers(int offset, int length)
     {
-        removedPointers.Clear();
-        foreach (int pointer in pointers.Keys)
+        removedPointers?.Clear();
+        if (pointers is null)
         {
+            return;
+        }
+        foreach (var entry in pointers)
+        {
+            int pointer = entry.Key;
             if (pointer < (long)offset + length && pointer + 4L > offset)
             {
-                removedPointers.Add(pointer);
+                (removedPointers ??= []).Add(pointer);
             }
         }
     }
 
     private void InvalidatePointers()
     {
+        if (removedPointers is null)
+        {
+            return;
+        }
         foreach (int offset in removedPointers)
         {
             if (checkpoint)
             {
-                pointerUndo!.Add(new(offset, true, pointers[offset]));
+                pointerUndo!.Add(new(offset, true, pointers![offset]));
             }
-            pointers.Remove(offset);
+            pointers!.Remove(offset);
         }
     }
 

@@ -5,6 +5,62 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleGeometryRegistersTests
 {
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void Packed_V0_reads_require_each_XYZ_byte_but_do_not_consume_unknown_W(int unknownByte)
+    {
+        NativeBattleGeometryRegisterStep loaded = NativeBattleGeometry.LoadVector(Seed(), 0, new(0x1234, -1234, short.MaxValue), 111);
+        loaded = loaded with { Colors = loaded.Colors with { NormalInputKnown = unknownByte < 0 ? null : loaded.Colors.NormalInputKnown!.Value.SetItem(unknownByte, false) } };
+        string before = JsonSerializer.Serialize(loaded);
+        if (unknownByte is >= 0 and < 6)
+        {
+            Assert.Throws<NotSupportedException>(() => NativeBattleGeometry.Transform(loaded));
+        }
+        else
+        {
+            NativeBattleGeometryRegisterStep transformed = NativeBattleGeometry.Transform(loaded);
+            Assert.Equal(new int?[] { 0x1234, -1234, short.MaxValue }, transformed.Colors.Mac);
+            Assert.Equal(0u, transformed.Colors.Flags);
+        }
+        Assert.Equal(before, JsonSerializer.Serialize(loaded));
+    }
+
+    [Fact]
+    public void Packing_and_matrix_capture_keep_prior_register_publications_independent()
+    {
+        NativeBattleGeometryRegisterStep first = NativeBattleGeometry.LoadVector(Seed(), 0, new(short.MinValue, short.MaxValue, -1), null);
+        first = NativeBattleGeometry.LoadVector(first, 1, new(1, -2, 3), unchecked((short)0xBEEF));
+        NativeBattleActionMatrix captured = NativeBattleGeometry.CaptureMatrix(first.Geometry);
+        string before = JsonSerializer.Serialize(first);
+        NativeBattleGeometryRegisterStep later = first;
+        for (int index = 0; index < 16; index++)
+        {
+            later = NativeBattleGeometry.LoadVector(later, 0, new((short)index, (short)-index, (short)(index + 1)), (short)index);
+            later = NativeBattleGeometry.LoadVector(later, 1, new((short)-index, (short)(index + 1), (short)index), null);
+            later = NativeBattleGeometry.LoadVector(later, 2, new((short)(index + 2), (short)index, (short)-index), (short)-index);
+            later = later with { Geometry = NativeBattleGeometry.LoadMatrix(later.Geometry, Identity() with { X = index, Y = -index, Z = index + 3 }, true, true, null) };
+            _ = NativeBattleGeometry.Transform(later);
+        }
+        Assert.Equal(before, JsonSerializer.Serialize(first));
+        Assert.Equal(new byte[] { 0, 0x80, 0xFF, 0x7F, 0xFF, 0xFF, 0, 0 }, first.Colors.NormalInput!.Value);
+        Assert.Equal(new[] { true, true, true, true, true, true, false, false }, first.Colors.NormalInputKnown!.Value);
+        Assert.Equal(new byte?[] { 1, 0, 0xFE, 0xFF, 3, 0, 0xEF, 0xBE }, first.Geometry.V1);
+        Assert.Equal(Identity().Rotation.ToArray(), captured.Rotation.ToArray());
+        Assert.Equal(0, captured.X);
+        Assert.Equal(0, captured.Y);
+        Assert.Equal(0, captured.Z);
+        NativeBattleGeometryRegisterStep restored = JsonSerializer.Deserialize<NativeBattleGeometryRegisterStep>(before)!;
+        Assert.Equal(new int?[] { short.MinValue, short.MaxValue, -1 }, NativeBattleGeometry.Transform(restored).Colors.Mac);
+    }
+
     [Fact]
     public void Unknown_geometry_has_exact_widths_and_preserves_unknown_lanes_through_JSON()
     {

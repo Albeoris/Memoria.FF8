@@ -6,6 +6,104 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleWorkingMemoryTests
 {
     [Fact]
+    public void Pointer_free_owners_defer_the_owner_local_dictionary_until_enumeration()
+    {
+        Assert.SkipUnless(Environment.Is64BitProcess, "The allocation comparison covers the supported 64-bit hosts.");
+        Measure(false);
+        Measure(true);
+        long withoutEnumeration = Measure(false);
+        long withEnumeration = Measure(true);
+        Assert.True(withEnumeration - withoutEnumeration >= 32 * 64, $"Pointer-free owners deferred only {withEnumeration - withoutEnumeration} bytes across 32 owners.");
+
+        static long Measure(bool enumerate)
+        {
+            NativeBattleWorkingMemory[] owners = new NativeBattleWorkingMemory[32];
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int index = 0; index < owners.Length; index++)
+            {
+                NativeBattleWorkingMemory owner = owners[index] = new(16);
+                if (enumerate)
+                {
+                    using var pointers = owner.EnumerateResourcePointers();
+                    Assert.False(pointers.MoveNext());
+                }
+            }
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            GC.KeepAlive(owners);
+            foreach (NativeBattleWorkingMemory owner in owners)
+            {
+                owner.Dispose();
+            }
+            return allocated;
+        }
+    }
+
+    [Fact]
+    public void Empty_pointer_enumerators_are_owner_local_and_preserve_dictionary_invalidation()
+    {
+        using NativeBattleWorkingMemory left = new(32);
+        using NativeBattleWorkingMemory right = new(32);
+        var leftEmpty = left.EnumerateResourcePointers();
+        var rightEmpty = right.EnumerateResourcePointers();
+        Assert.False(leftEmpty.MoveNext());
+        Assert.Equal(default(KeyValuePair<int, NativeBattleResourcePointer?>), leftEmpty.Current);
+        right.SetResourcePointer(4, null);
+        Assert.False(leftEmpty.MoveNext());
+        Assert.Throws<InvalidOperationException>(() => rightEmpty.MoveNext());
+        left.SetResourcePointer(8, new(null, 0x12345678));
+        Assert.Throws<InvalidOperationException>(() => leftEmpty.MoveNext());
+        leftEmpty.Dispose();
+        rightEmpty.Dispose();
+        using var current = right.EnumerateResourcePointers();
+        Assert.True(current.MoveNext());
+        Assert.Equal(4, current.Current.Key);
+        Assert.Null(current.Current.Value);
+        Assert.False(current.MoveNext());
+        left.Revoke();
+        Assert.Throws<ObjectDisposedException>(() => left.EnumerateResourcePointers());
+    }
+
+    [Fact]
+    public void First_pointer_failure_and_nested_overlap_rollback_preserve_empty_and_explicit_null_owners()
+    {
+        using NativeBattleWorkingMemory memory = new(32, initialCapacity: 32);
+        memory.BeginCheckpoint();
+        using (NativeBattleTelemetry.BeginScope(new ThrowingTrafficSink(NativeBattleTrafficKind.CpuCopyPayload, new OutOfMemoryException("Injected first-pointer journal failure."))))
+        {
+            Assert.Throws<OutOfMemoryException>(() => memory.SetResourcePointer(4, new(null, 0x12345678)));
+        }
+        memory.RollbackCheckpoint();
+        Assert.Equal(0, memory.ResourcePointerCount);
+        Assert.Equal(0u, memory.ReadUInt32(4));
+        Assert.Empty(memory.Capture().ResourcePointers);
+        memory.BeginCheckpoint();
+        memory.SetResourcePointer(4, null);
+        Assert.True(memory.TryGetResourcePointer(4, out NativeBattleResourcePointer? explicitNull));
+        Assert.Null(explicitNull);
+        Assert.False(memory.IsKnown(4, 4));
+        memory.BeginNestedCheckpoint();
+        memory.WriteByte(5, 9);
+        Assert.False(memory.TryGetResourcePointer(4, out _));
+        memory.RollbackNestedCheckpoint();
+        Assert.True(memory.TryGetResourcePointer(4, out explicitNull));
+        Assert.Null(explicitNull);
+        Assert.False(memory.IsKnown(4, 4));
+        memory.RollbackCheckpoint();
+        Assert.Equal(0, memory.ResourcePointerCount);
+        Assert.Equal(0u, memory.ReadUInt32(4));
+        memory.SetResourcePointer(4, null);
+        NativeBattleWorkingMemorySnapshot snapshot = memory.Capture();
+        using NativeBattleWorkingMemory restored = NativeBattleWorkingMemory.Restore(snapshot);
+        restored.WriteUInt32(4, 7);
+        Assert.True(memory.TryGetResourcePointer(4, out explicitNull));
+        Assert.Null(explicitNull);
+        Assert.False(restored.TryGetResourcePointer(4, out _));
+        using NativeBattleWorkingMemory empty = NativeBattleWorkingMemory.Restore(new(32, true, 0, [], [], ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty));
+        Assert.Equal(0, empty.ResourcePointerCount);
+        Assert.Empty(empty.Capture().ResourcePointers);
+    }
+
+    [Fact]
     public void Escaped_fresh_owners_do_not_allocate_unused_checkpoint_bookkeeping()
     {
         Assert.SkipUnless(Environment.Is64BitProcess, "The allocation bound covers the supported 64-bit hosts.");
