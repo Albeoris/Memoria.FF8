@@ -37,7 +37,8 @@ internal sealed partial class TripleTriadElementView
         }
         Frame(canvas, new UiRect(board.X - 8, board.Y - 8, board.Width + 16, board.Height + 16), Ink, 3);
         Frame(canvas, new UiRect(board.X - 12, board.Y - 12, board.Width + 24, board.Height + 24), Gold, 1);
-        canvas.OutlinedText("Triple Triad", 25, new UiRect(340, 8, 280, 30), Ink, new UiColor(221, 180, 116), 0.7f);
+        float titleWidth = canvas.MeasureText("Triple Triad", 25, float.PositiveInfinity).Width;
+        canvas.OutlinedText("Triple Triad", 25, new UiRect(480 - titleWidth / 2, 8, titleWidth, 30), Ink, new UiColor(221, 180, 116), 0.7f);
     }
 
     private static void Frame(IUiCanvas canvas, UiRect bounds, UiColor color, float thickness)

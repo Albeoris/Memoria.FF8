@@ -61,6 +61,49 @@ public sealed class TripleTriadControllerTests
         Assert.Equal(modified, controller.Match.UseModifiedSamePlus);
     }
 
+    [Theory]
+    [InlineData(0, UiKey.Right, 6)]
+    [InlineData(6, UiKey.Left, 0)]
+    [InlineData(5, UiKey.Right, 7)]
+    [InlineData(7, UiKey.Left, 1)]
+    [InlineData(0, UiKey.Left, 6)]
+    [InlineData(6, UiKey.Right, 0)]
+    public void HorizontalHandNavigationMovesBetweenVisualColumns(int selected, UiKey key, int expected)
+    {
+        TripleTriadSettings options = new() { Width = 4, Height = 4, HandSize = 8 };
+        TripleTriadController controller = new(Cards, Enumerable.Range(0, 8).ToDictionary(id => id, _ => 1), Enumerable.Range(20, 8).ToArray(), id => id.ToString(), options: options);
+        foreach (int id in Enumerable.Range(0, 8))
+        {
+            controller.ChooseCard(id);
+        }
+        controller.SelectHand(selected);
+        controller.Navigate(UiKey.Cancel);
+        controller.Navigate(key);
+        Assert.Equal(expected, controller.SelectedHand);
+        Assert.False(controller.ChoosingCell);
+        Assert.Empty(controller.Message);
+    }
+
+    [Fact]
+    public void HorizontalHandNavigationSkipsPlayedCardsAndEmptyColumns()
+    {
+        TripleTriadSettings options = new() { Width = 4, Height = 4, HandSize = 8 };
+        TripleTriadController controller = new(Cards, Enumerable.Range(0, 8).ToDictionary(id => id, _ => 1), Enumerable.Range(20, 8).ToArray(), id => id.ToString(), options: options);
+        TripleTriadMatch match = TripleTriadMatch.Create(Cards, Enumerable.Range(0, 8).ToArray(), Enumerable.Range(20, 8).ToArray(), TripleTriadRules.Open, width: 4, height: 4);
+        match.Play(6, 0);
+        match.Play(0, 1);
+        controller.RestoreMatch(match);
+        controller.Navigate(UiKey.Right);
+        Assert.Equal(7, controller.SelectedHand);
+        match.Play(7, 2);
+        match.Play(1, 3);
+        controller.RestoreMatch(match);
+        controller.Navigate(UiKey.Right);
+        Assert.Equal(0, controller.SelectedHand);
+        controller.Navigate(UiKey.Down);
+        Assert.Equal(1, controller.SelectedHand);
+    }
+
     [Fact]
     public void ExpandedHandsSelectNavigateTradeAndFilterHistoryBySize()
     {

@@ -77,7 +77,7 @@ public sealed partial class TripleTriadController
         RedrawsRemaining--;
         ChoosingCell = false;
         ResetTurnSelection();
-        SetSystemMessage(() => SystemText("card.ui.completedeckselection.choose.a.card.then.a.square", "Choose a card, then a square."));
+        SetSystemMessage(() => "");
         DeckConfirmed?.Invoke(deck.ToArray());
         RequestSound(TripleTriadSound.Confirm);
         Changed?.Invoke();
@@ -191,7 +191,7 @@ public sealed partial class TripleTriadController
         {
             Match = CreateMatch?.Invoke(deck) ?? TripleTriadMatch.Create(definitions, deck, opponent, Rules, width: Options.Width, height: Options.Height, useModifiedSamePlus: Options.UseModifiedSamePlus, blockedCells: Enumerable.Range(0, Options.BlockedCellCount).ToArray());
             ResetTurnSelection();
-            SetSystemMessage(() => SystemText("card.ui.completedeckselection.choose.a.card.then.a.square", "Choose a card, then a square."));
+            SetSystemMessage(() => "");
             DeckConfirmed?.Invoke(deck.ToArray());
         }
         else if (completingRecentDeck)
@@ -226,7 +226,7 @@ public sealed partial class TripleTriadController
         Match = TripleTriadMatch.Restore(definitions, match.CaptureSnapshot());
         ChoosingCell = false;
         ResetTurnSelection();
-        SetSystemMessage(() => Match.Outcome != TripleTriadOutcome.InProgress ? ResultText() : Match.CurrentPlayer == 0 ? SystemText("card.ui.restorematch.choose.a.card.then.a.square", "Choose a card, then a square.") : SystemText("card.ui.restorematch.opponent.is.thinking", "Opponent is thinking\u2026"));
+        SetSystemMessage(() => Match.Outcome != TripleTriadOutcome.InProgress ? ResultText() : Match.CurrentPlayer == 0 ? "" : SystemText("card.ui.restorematch.opponent.is.thinking", "Opponent is thinking\u2026"));
     }
 
     public void RestoreDeck(IReadOnlyList<int> selected)
@@ -442,6 +442,25 @@ public sealed partial class TripleTriadController
                 }
             }
         }
+        else if (key is UiKey.Left or UiKey.Right && new TripleTriadLayout(Match.Width, Match.Height, Match.HandSize).HandColumns > 1)
+        {
+            TripleTriadLayout layout = new(Match.Width, Match.Height, Match.HandSize);
+            int column = SelectedHand / layout.HandRows;
+            int row = SelectedHand % layout.HandRows;
+            for (int offset = 1; offset < layout.HandColumns; offset++)
+            {
+                int targetColumn = (column + direction * offset + layout.HandColumns) % layout.HandColumns;
+                int candidate = Enumerable.Range(targetColumn * layout.HandRows, Math.Min(layout.HandRows, Match.HandSize - targetColumn * layout.HandRows))
+                    .Where(index => Match.Hands[0][index] is not null)
+                    .OrderBy(index => Math.Abs(index % layout.HandRows - row))
+                    .FirstOrDefault(-1);
+                if (candidate >= 0)
+                {
+                    SelectedHand = candidate;
+                    return;
+                }
+            }
+        }
         else
         {
             do
@@ -488,7 +507,7 @@ public sealed partial class TripleTriadController
         TripleTriadMoveResult result = Match.Play(move.HandIndex, move.CellIndex);
         PresentMove(result, before);
         ResetTurnSelection();
-        SetSystemMessage(() => Match.Outcome == TripleTriadOutcome.InProgress ? SystemText("card.ui.advanceopponent.choose.a.card.then.a.square", "Choose a card, then a square.") : ResultText());
+        SetSystemMessage(() => Match.Outcome == TripleTriadOutcome.InProgress ? "" : ResultText());
         Changed?.Invoke();
         return true;
     }

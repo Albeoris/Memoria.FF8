@@ -11,6 +11,15 @@ namespace Memoria.FF8.App.Tests;
 public sealed class TripleTriadSelectionViewTests
 {
     [Fact]
+    public void BoardTitleIsCenteredUsingItsMeasuredWidth()
+    {
+        RecordingCanvas canvas = Draw(Create().BuildView());
+        UiRect title = Assert.Single(canvas.Texts, entry => entry.Text == "Triple Triad").Bounds;
+        Assert.Equal(480, title.X + title.Width / 2);
+        Assert.Equal(canvas.MeasureText("Triple Triad", 25, float.PositiveInfinity).Width, title.Width);
+    }
+
+    [Fact]
     public void SelectionListsOwnedCardsInDescendingOrderAndWrapsWithinNineRowPage()
     {
         TripleTriadController controller = Create();
@@ -542,6 +551,8 @@ public sealed class TripleTriadSelectionViewTests
         public List<(string Text, UiColor Color)> TextColors { get; } = [];
         public List<UiRect> Pointers { get; } = [];
         public List<string> Operations { get; } = [];
+
+        public UiSize MeasureText(string text, float fontSize, float maximumWidth) => new(Math.Min(maximumWidth, text.Length * fontSize * 0.5f), fontSize);
 
         public void Fill(UiRect bounds, UiColor color)
         {
