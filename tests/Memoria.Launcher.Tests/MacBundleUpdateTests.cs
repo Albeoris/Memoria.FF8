@@ -9,6 +9,7 @@ namespace Memoria.Launcher.Tests;
 public sealed class MacBundleUpdateTests : IDisposable
 {
     private readonly string directory = DistributionPaths.GetFullPath(Path.Combine(Path.GetTempPath(), "Memoria Mac bundle tests", Guid.NewGuid().ToString("N")));
+    private static string HostMacRid => OperatingSystem.IsMacOS() ? ReleaseClient.CurrentRuntimeIdentifier : "osx-x64";
     private string Root => Path.Combine(directory, "Memoria.FF8.app");
 
     [Fact]
@@ -36,10 +37,18 @@ public sealed class MacBundleUpdateTests : IDisposable
         Assert.Null(UpdateResume.TryDelete(Root));
     }
 
-    [Fact]
-    public void WholeBundleSwapRetainsOriginalAndKeepsTransactionOutsideTheBundle()
+    [Theory]
+    [InlineData("osx-x64")]
+    [InlineData("osx-arm64")]
+    public void WholeBundleSwapRetainsOriginalAndKeepsTransactionOutsideTheBundle(string rid)
     {
-        Prepare();
+        Prepare(rid);
+        if (OperatingSystem.IsMacOS() && rid != HostMacRid)
+        {
+            Assert.Throws<InvalidDataException>(() => UpdateInstaller.Apply(Root));
+            Assert.Equal("old", PackageManifest.Read(Root).BuildId);
+            return;
+        }
         UpdateInstaller.Apply(Root);
         Assert.Equal("new", PackageManifest.Read(Root).BuildId);
         string backup = Path.Combine(MacBundleUpdate.WorkPath(Root), "backup.app");
@@ -170,20 +179,54 @@ public sealed class MacBundleUpdateTests : IDisposable
             }
         }
         string destination = Path.Combine(directory, "extracted.app");
-        PackageManifest.Extract(archive, destination, "osx-x64");
+        PackageManifest.Extract(archive, destination, HostMacRid);
         MacBundleUpdate.VerifyExact(destination, PackageManifest.Read(destination));
         Assert.Equal("archive", PackageManifest.Read(destination).BuildId);
         Assert.Throws<InvalidDataException>(() => PackageManifest.Extract(archive, Path.Combine(directory, "wrong"), "linux-x64"));
     }
 
-    private void Prepare()
+    [Theory]
+    [InlineData("osx-x64")]
+    [InlineData("osx-arm64")]
+    public void MacArchitecturesKeepMatchingBundlesAndRejectCrossArchitectureBeforeMoving(string rid)
     {
-        WriteBundle(Root, "old");
-        UpdateInstaller.Prepare(Root);
-        WriteBundle(MacBundleUpdate.StagingPath(Root), "new");
+        WriteBundle(Root, "old", rid);
+        string stage = MacBundleUpdate.StagingPath(Root);
+        Directory.CreateDirectory(MacBundleUpdate.WorkPath(Root));
+        WriteBundle(stage, "new", rid);
+        if (OperatingSystem.IsMacOS() && rid != HostMacRid)
+        {
+            Assert.Throws<InvalidDataException>(() => MacBundleUpdate.ValidatePrepared(Root, PackageManifest.Read(stage)));
+        }
+        else
+        {
+            MacBundleUpdate.ValidatePrepared(Root, PackageManifest.Read(stage));
+            MacBundleUpdate.VerifyExact(Root, PackageManifest.Read(Root));
+        }
+        string otherRid = rid == "osx-arm64" ? "osx-x64" : "osx-arm64";
+        PackageManifest incoming = PackageManifest.Read(stage) with { RuntimeIdentifier = otherRid };
+        File.WriteAllText(Path.Combine(stage, PackageManifest.MacManifestPath), JsonSerializer.Serialize(incoming));
+        Assert.Throws<InvalidDataException>(() => UpdateInstaller.Apply(Root));
+        Assert.Equal("old", PackageManifest.Read(Root).BuildId);
+        Assert.Equal("new", PackageManifest.Read(stage).BuildId);
+        Assert.False(File.Exists(Path.Combine(MacBundleUpdate.WorkPath(Root), "bundle-journal.json")));
     }
 
-    private static void WriteBundle(string root, string build)
+    [Fact]
+    public void NativeHostReleaseSelectionAndUpdateCapabilityShareTheSupportedArchitectureContract()
+    {
+        Assert.Equal(Memoria.FF8.Platform.HostPlatforms.RuntimeIdentifier(Memoria.FF8.Platform.HostPlatforms.Current), ReleaseClient.CurrentRuntimeIdentifier);
+        Assert.Equal(LauncherCapabilities.CanLaunchGame, LauncherCapabilities.CanUpdate);
+    }
+
+    private void Prepare(string? rid = null)
+    {
+        WriteBundle(Root, "old", rid);
+        UpdateInstaller.Prepare(Root);
+        WriteBundle(MacBundleUpdate.StagingPath(Root), "new", rid);
+    }
+
+    private static void WriteBundle(string root, string build, string? runtimeIdentifier = null)
     {
         Dictionary<string, string> files = new()
         {
@@ -207,7 +250,7 @@ public sealed class MacBundleUpdateTests : IDisposable
             }
             inventory.Add(new PackageFile(relative, content.Length, Convert.ToHexString(SHA256.HashData(content)), mode));
         }
-        PackageManifest manifest = new(2, build, "1.0", DateTimeOffset.UtcNow, inventory.ToArray()) { RuntimeIdentifier = "osx-x64" };
+        PackageManifest manifest = new(2, build, "1.0", DateTimeOffset.UtcNow, inventory.ToArray()) { RuntimeIdentifier = runtimeIdentifier ?? HostMacRid };
         File.WriteAllText(Path.Combine(root, PackageManifest.MacManifestPath), JsonSerializer.Serialize(manifest));
     }
 

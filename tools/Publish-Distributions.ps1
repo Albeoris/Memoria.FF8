@@ -13,7 +13,7 @@ function Invoke-Gh([string[]]$Arguments) {
     }
 }
 $archives = @()
-foreach ($rid in @('win-x64', 'linux-x64', 'osx-x64')) {
+foreach ($rid in @('win-x64', 'linux-x64', 'osx-x64', 'osx-arm64')) {
     $receipt = Get-Content -LiteralPath (Join-Path $Directory "receipt-$rid.json") -Raw | ConvertFrom-Json
     if ($receipt.source -ne $Source -or $receipt.rid -ne $rid -or $receipt.recipe -notmatch '^[0-9a-f]{64}$') {
         throw "The validated $rid receipt does not match the release source."
@@ -66,6 +66,7 @@ $labels = @{
     'Memoria-FF8-win-x64.zip' = 'Windows_x64_'
     'Memoria-FF8-linux-x64.tar.gz' = 'Linux_x64_'
     'Memoria-FF8-osx-x64.tar.gz' = 'macOS_Intel_x64_'
+    'Memoria-FF8-osx-arm64.tar.gz' = 'macOS_Apple_Silicon_arm64_'
 }
 $upload = @('release', 'upload', $tag, '--repo', $env:GITHUB_REPOSITORY, '--clobber') + @($archives | ForEach-Object { $_ + '#' + $labels[[IO.Path]::GetFileName($_)] + $Source }) + @((Join-Path $Directory 'release-artifacts.json'))
 Invoke-Gh $upload

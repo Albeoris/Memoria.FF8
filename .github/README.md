@@ -1,10 +1,10 @@
 # Desktop validation and publication
 
 The [desktop workflow](workflows/build.yml) has one validation matrix: Windows x64,
-Linux x64 and Intel macOS. Pull requests run these three jobs. Each job builds and
+Linux x64, Intel macOS and Apple Silicon macOS. Pull requests run these four jobs. Each job builds and
 checks the complete distribution and runs the selected portable tests. The
 portable tests exclude the battle-effect suite. There is no second launcher or
-portable build matrix.
+portable build matrix. Both macOS jobs use macOS 26 runners matching their native architecture (`macos-26-intel` and `macos-26`), as documented in [GitHub’s runner announcement](https://github.blog/changelog/2026-02-26-macos-26-is-now-generally-available-for-github-hosted-runners/).
 
 A new PR revision cancels its obsolete validation run automatically. Main and
 tag publication are not cancelled by PR updates.
@@ -17,7 +17,7 @@ the repository's **Settings > Actions > General > Approval for running fork pull
 request workflows from contributors**. Workflow YAML cannot override that policy.
 See [GitHub's approval documentation](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/approve-runs-from-forks).
 
-A push to `main` uses the same three validation jobs, followed by publication of
+A push to `main` uses the same four validation jobs, followed by publication of
 the complete platform set to the `nightly` prerelease. A version tag such as
 `v1.2.3` publishes a release from that tag's source. Only the publication job has
 write permission. Manual runs follow the selected branch or tag's publication

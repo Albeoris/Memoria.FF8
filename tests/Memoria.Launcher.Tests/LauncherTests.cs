@@ -52,7 +52,7 @@ public sealed class LauncherTests : IDisposable
         System.Runtime.InteropServices.Architecture architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture;
         bool x64 = desktop && architecture == System.Runtime.InteropServices.Architecture.X64;
         bool appleSilicon = OperatingSystem.IsMacOS() && architecture == System.Runtime.InteropServices.Architecture.Arm64;
-        Assert.Equal(x64, LauncherCapabilities.CanUpdate);
+        Assert.Equal(x64 || appleSilicon, LauncherCapabilities.CanUpdate);
         Assert.Equal(x64 || appleSilicon, LauncherCapabilities.CanLaunchGame);
         Assert.Contains("x64", LauncherCapabilities.GameStatus);
         Assert.Contains("another operating system cannot be installed", LauncherCapabilities.UpdateStatus);

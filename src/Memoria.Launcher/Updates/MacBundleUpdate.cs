@@ -66,9 +66,9 @@ internal static class MacBundleUpdate
     internal static void ValidatePrepared(string root, PackageManifest incoming)
     {
         root = RequireBundle(root);
-        incoming.ValidateTarget("osx-x64");
         PackageManifest installed = PackageManifest.Read(root);
-        installed.ValidateTarget("osx-x64");
+        ValidateBundleTarget(installed);
+        incoming.ValidateTarget(installed.RuntimeIdentifier);
         VerifyExact(root, installed);
         VerifyExact(Stage(root), incoming);
     }
@@ -163,7 +163,7 @@ internal static class MacBundleUpdate
 
     internal static void VerifyExact(string root, PackageManifest manifest)
     {
-        manifest.ValidateTarget("osx-x64");
+        ValidateBundleTarget(manifest);
         ValidateTree(root);
         HashSet<string> expected = new(manifest.Files.Select(file => file.Path), StringComparer.Ordinal) { PackageManifest.MacManifestPath };
         HashSet<string> actual = new(Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Select(path => Path.GetRelativePath(root, path).Replace('\\', '/')), StringComparer.Ordinal);
@@ -172,6 +172,19 @@ internal static class MacBundleUpdate
             throw new IOException("The application contains unowned or missing files. Move custom files outside the bundle before updating; the current bundle has been retained.");
         }
         PackageManifest.Verify(root, manifest);
+    }
+
+    private static void ValidateBundleTarget(PackageManifest manifest)
+    {
+        manifest.ValidatePaths();
+        if (!Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(manifest.RuntimeIdentifier))
+        {
+            throw new InvalidDataException("Bundle updates require a macOS runtime inventory.");
+        }
+        if (OperatingSystem.IsMacOS())
+        {
+            manifest.ValidateTarget(ReleaseClient.CurrentRuntimeIdentifier);
+        }
     }
 
     private static void ValidateTree(string root)

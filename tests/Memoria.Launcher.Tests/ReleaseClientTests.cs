@@ -34,6 +34,8 @@ public sealed class ReleaseClientTests
     [InlineData("win-x64", "Windows_x64_", 40)]
     [InlineData("linux-x64", "Linux_x64_", 40)]
     [InlineData("osx-x64", "macOS_Intel_x64_", 40)]
+    [InlineData("osx-arm64", "macOS_Apple_Silicon_arm64_", 40)]
+    [InlineData("osx-arm64", "macOS_Apple_Silicon_arm64_", 64)]
     [InlineData("linux-x64", "Linux_x64_", 64)]
     [InlineData("win-x64", "build:", 40)]
     [InlineData("win-x64", "", 64)]
@@ -61,6 +63,16 @@ public sealed class ReleaseClientTests
 
         Assert.Null(release.BuildId);
         Assert.Equal(Digest[7..], release.Sha256);
+    }
+
+    [Theory]
+    [InlineData("osx-arm64", "osx-x64")]
+    [InlineData("osx-x64", "osx-arm64")]
+    public async Task MacReleaseSelectionNeverFallsBackToTheOtherArchitecture(string requested, string available)
+    {
+        string metadata = Metadata("nightly").Replace(ReleaseClient.AssetNameFor("win-x64"), ReleaseClient.AssetNameFor(available), StringComparison.Ordinal);
+        using HttpClient http = new(new Handler(_ => JsonResponse(metadata)));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, requested).GetAsync(UpdateChannel.Nightly, TestContext.Current.CancellationToken));
     }
 
     [Fact]

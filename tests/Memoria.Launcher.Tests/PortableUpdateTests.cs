@@ -14,6 +14,7 @@ public sealed class PortableUpdateTests : IDisposable
     [InlineData("win-x64", "Memoria-FF8-win-x64.zip")]
     [InlineData("linux-x64", "Memoria-FF8-linux-x64.tar.gz")]
     [InlineData("osx-x64", "Memoria-FF8-osx-x64.tar.gz")]
+    [InlineData("osx-arm64", "Memoria-FF8-osx-arm64.tar.gz")]
     public void ReleaseAssetSelectionIsRidSpecific(string rid, string asset)
     {
         Assert.Equal(asset, ReleaseClient.AssetNameFor(rid));

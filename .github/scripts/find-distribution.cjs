@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 module.exports = async function findDistribution({ github, context, core, rid }) {
-    if (!['win-x64', 'linux-x64', 'osx-x64'].includes(rid)) {
+    if (!['win-x64', 'linux-x64', 'osx-x64', 'osx-arm64'].includes(rid)) {
         throw new Error('A supported RID is required for distribution reuse.');
     }
     const recipe = crypto.createHash('sha256');

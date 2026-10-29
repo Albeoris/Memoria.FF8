@@ -23,7 +23,7 @@ static class ArchiveVersion
         document["Version"] = version;
         if (mac)
         {
-            if (document["RuntimeIdentifier"]?.GetValue<string>() != "osx-x64" || !metadata.TryGetValue(MacInfo, out byte[]? originalInfo))
+            if (!Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(document["RuntimeIdentifier"]?.GetValue<string>() ?? "") || !metadata.TryGetValue(MacInfo, out byte[]? originalInfo))
             {
                 throw new InvalidDataException("The macOS archive has no complete bundle metadata.");
             }

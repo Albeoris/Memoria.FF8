@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) / [Build and test](building-and-testing.md)
 
-Windows DX11, Vulkan and DX12 share portable services, presentation, launcher and audio. Linux and macOS (released Intel packages and local Apple Silicon builds) package the same Native game host with Vulkan. See [graphics hosts](graphics-backends.md) for selection and isolated payloads. A successful cross-publish is not evidence of desktop, audio-device or gameplay acceptance on that OS.
+Windows DX11, Vulkan and DX12 share portable services, presentation, launcher and audio. Linux and macOS (Intel and Apple Silicon packages) package the same Native game host with Vulkan. See [graphics hosts](graphics-backends.md) for selection and isolated payloads. A successful cross-publish is not evidence of desktop, audio-device or gameplay acceptance on that OS.
 
 ## Build surfaces
 
@@ -20,7 +20,7 @@ Use PowerShell 7 and the SDK selected by `global.json`:
 
 `Portable` compiles `Memoria.FF8.Portable.slnx` against plain `net10.0`, including portable tool and test roots. Its test selection excludes unrelated battle effects. `Launcher` produces a launcher payload under `artifacts/launcher/<RID>`. `Distribution` compiles the complete Native solution graph and packages the launcher, bootstrap, applicable engines and common x64 music worker under `artifacts/package/<RID>`. Windows retains its released layout and immutable updater gate. The [build guide](building-and-testing.md) gives full Native graph commands.
 
-The workflows use Windows x64, Ubuntu 24.04 x64 and an explicitly Intel macOS runner. PR validation has read-only permissions. The release matrix creates all three complete artifacts, validates their extracted inventories/native closure and runs selected portable tests. GPU, audio and gameplay acceptance still require the actual target.
+The workflows use Windows x64, Ubuntu 24.04 x64 and native macOS 26 runners for Intel and Apple Silicon. PR validation has read-only permissions. The release matrix creates all four complete artifacts, validates their extracted inventories/native closure and runs selected portable tests. GPU, audio and gameplay acceptance still require the actual target.
 
 ## Project coverage
 
@@ -29,8 +29,8 @@ Run `./tools/Get-PlatformInventory.ps1` for a project-level JSON inventory, or a
 | Projects | Current build/validation surface |
 | --- | --- |
 | Platform, Runtime, Resources, Assets, Mods, Ui, Events, Rendering, Media, Diagnostics | Portable solution; focused tests on the affected contracts |
-| Launcher | Avalonia `net10.0`; separate self-contained win-x64/linux-x64/osx-x64 publishes; local-only osx-arm64 |
-| Audio and Music | Shared managed parser, sequencer, synthesizer and PCM mixer; native SDL3 device adapter; x64 worker |
+| Launcher | Avalonia `net10.0`; separate self-contained win-x64/linux-x64/osx-x64/osx-arm64 publishes |
+| Audio and Music | Shared managed parser, sequencer, synthesizer and PCM mixer; native SDL3 device adapter; worker matching the selected architecture |
 | TitleScene | Shared Native GPU renderer under `net10.0`; WindowsDX remains a separate build family |
 | TitleScene.Preview | Portable `--crest` output and Native Vulkan animated GPU preview |
 | Localization, Distribution.Check, Updater.Compatibility | Portable build; per-RID archive/native checks; immutable Windows updater fixture |
@@ -68,13 +68,13 @@ FFmpeg and FFprobe are optional separately installed tools. Windows uses the exi
 
 Selection validates an explicitly configured directory first, then a valid managed installation, then a paired installation in a local absolute PATH directory. Discovery and executable validation run asynchronously; no PATH or system installation is modified. Both tools must have the current native x64 ABI and report their build configuration. GPL and nonfree configurations are rejected. An invalid managed pair does not hide a valid PATH pair; automatic repair writes only to the managed destination.
 
-Portable CI, package ABI checks and software-rendered output are separate from real-target acceptance. Linux GPU/window/fullscreen, controllers, audio synchronization and gameplay stability require native Linux hardware. Intel macOS startup, audio and graphics require an Intel Mac; the local Apple Silicon build requires an Apple Silicon Mac. WSL2 testing is a development convenience and cannot close those gates.
+Portable CI, package ABI checks and software-rendered output are separate from real-target acceptance. Linux GPU/window/fullscreen, controllers, audio synchronization and gameplay stability require native Linux hardware. Intel macOS startup, audio and graphics require an Intel Mac; Apple Silicon startup, audio and graphics require an Apple Silicon Mac. WSL2 testing is a development convenience and cannot close those gates.
 
 ## Distribution layouts and prerequisites
 
 Windows preserves Memoria.Launcher.exe, Data/Memoria.FF8.exe and the real x64 worker at Data/audio-host/Memoria.FF8.Music.exe. Data/Game/dx11, vulkan and dx12 have separate runtime families and matching shaders. Linux uses corresponding extensionless executables and only Data/Game/vulkan. Extract Memoria-FF8-linux-x64.tar.gz with a mode-preserving archive tool and start ./Memoria.Launcher. A separately installed .NET runtime is unnecessary. Ubuntu 24.04 x64 is the CI baseline. A Vulkan-capable driver, desktop session, font/fontconfig, X11/Wayland dependencies and working audio are required; [Linux testing](linux-testing.md) gives explicit dependency setup and diagnostics.
 
-Intel macOS requires macOS 26.0 and a Metal-capable Intel Mac compatible with MoltenVK. Extract Memoria-FF8-osx-x64.tar.gz and move Memoria.FF8.app to a writable location. Its executable root is Contents/MacOS, with bootstrap/game/audio under Data; Contents/Info.plist declares the deployment baseline. A local `osx-arm64` build uses the same bundle layout with native Apple Silicon executables; it is not released and cannot update itself. Builds include official [MoltenVK 1.4.2](https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2), verified against a pinned SHA-256, and its license. The app selects that bundled library explicitly; no Vulkan SDK or Homebrew installation is required. Artifacts are unsigned and not notarized; Gatekeeper approval remains a user action. Signing credentials must stay outside the repository and PR jobs.
+macOS requires macOS 26.0 and a Metal-capable Intel or Apple Silicon Mac compatible with MoltenVK. Extract `Memoria-FF8-osx-x64.tar.gz` on Intel or `Memoria-FF8-osx-arm64.tar.gz` on Apple Silicon and move Memoria.FF8.app to a writable location. Its executable root is Contents/MacOS, with bootstrap/game/audio under Data; Contents/Info.plist declares the deployment baseline. Both architectures use the same bundle layout with matching native executables and support updates from their matching release archive. Builds include official [MoltenVK 1.4.2](https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2), verified against a pinned SHA-256, and its license. The app selects that bundled library explicitly; no Vulkan SDK or Homebrew installation is required. Artifacts are unsigned and not notarized; Gatekeeper approval remains a user action. Signing credentials must stay outside the repository and PR jobs.
 
 Descriptors record RID, layout, entry points, complete SHA-256 inventory and Unix modes. Windows retains schema 1 for released-updater compatibility; Unix uses schema 2. The music worker and every offered graphics host are mandatory inventory entries. Validation rejects links, traversal, duplicate/colliding entries, excessive expansion and foreign native architecture. macOS static validation checks bundled Mach-O imports and LC_RPATH, rejects developer-machine paths, verifies the Vulkan/Metal provider and compares native deployment versions with Info.plist.
 

@@ -21,13 +21,14 @@ internal sealed record UpdateRelease(UpdateChannel Channel, string Tag, string N
 internal sealed class ReleaseClient(HttpClient client, string? runtimeIdentifier = null)
 {
     private const string RepositoryApi = "https://api.github.com/repos/Albeoris/Memoria.FF8";
-    internal static string CurrentRuntimeIdentifier => OperatingSystem.IsWindows() ? "win-x64" : OperatingSystem.IsLinux() ? "linux-x64" : OperatingSystem.IsMacOS() ? "osx-x64" : throw new PlatformNotSupportedException();
+    internal static string CurrentRuntimeIdentifier => Memoria.FF8.Platform.HostPlatforms.RuntimeIdentifier(Memoria.FF8.Platform.HostPlatforms.Current);
     private readonly string rid = runtimeIdentifier ?? CurrentRuntimeIdentifier;
     internal static string AssetNameFor(string rid) => rid switch
     {
         "win-x64" => "Memoria-FF8-win-x64.zip",
         "linux-x64" => "Memoria-FF8-linux-x64.tar.gz",
         "osx-x64" => "Memoria-FF8-osx-x64.tar.gz",
+        "osx-arm64" => "Memoria-FF8-osx-arm64.tar.gz",
         _ => throw new ArgumentOutOfRangeException(nameof(rid))
     };
 
@@ -36,6 +37,7 @@ internal sealed class ReleaseClient(HttpClient client, string? runtimeIdentifier
         "win-x64" => "Windows_x64_",
         "linux-x64" => "Linux_x64_",
         "osx-x64" => "macOS_Intel_x64_",
+        "osx-arm64" => "macOS_Apple_Silicon_arm64_",
         _ => throw new ArgumentOutOfRangeException(nameof(rid))
     };
 

@@ -30,8 +30,10 @@ jobs:
           - os: ubuntu-24.04
             rid: linux-x64
             native-path: artifacts/native-vulkan/linux-x64
-          - os: macos-15-intel
+          - os: macos-26-intel
             rid: osx-x64
+          - os: macos-26
+            rid: osx-arm64
     concurrency:
       group: desktop-distribution-${{ github.sha }}-${{ matrix.rid }}
       cancel-in-progress: false
@@ -95,10 +97,19 @@ jobs:
           node --test .github/scripts/*.test.cjs
           ./tools/linux-testing/tests/Orchestration.Tests.ps1
           ./tools/packaging/tests/Packaging.Tests.ps1
+          ./tools/packaging/tests/Publication.Tests.ps1
           ./tools/Get-PlatformInventory.ps1 -Check
       - name: Install Linux build and font dependencies
         if: runner.os == 'Linux' && steps.distribution.outputs.reuse != 'true'
         run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-cjk build-essential cmake git curl unzip openssl binutils libsdl2-dev
+      - name: Verify the native macOS build host
+        if: runner.os == 'macOS' && steps.distribution.outputs.reuse != 'true'
+        shell: pwsh
+        run: |
+          $expected = if ('${{ matrix.rid }}' -eq 'osx-arm64') { 'Arm64' } else { 'X64' }
+          if ([Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString() -ne $expected -or ![OperatingSystem]::IsMacOSVersionAtLeast(26)) {
+            throw 'macOS distributions require a matching native macOS 26 build host.'
+          }
       - name: Compile complete distribution
         if: steps.distribution.outputs.reuse != 'true'
         shell: pwsh

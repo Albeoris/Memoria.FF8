@@ -4,7 +4,7 @@
 
 ## A clean checkout
 
-Use PowerShell 7 and the .NET 10 SDK pinned by `global.json`. Complete self-contained distributions target Windows x64, Linux x64 and Intel macOS, and Apple Silicon Macs can build a local `osx-arm64` distribution; see [Cross-platform desktop migration](cross-platform.md) and [Linux testing from Windows](linux-testing.md). Run commands from the directory containing `Build.ps1` and `Memoria.FF8.slnx`. Package restore needs access to the configured public NuGet feeds.
+Use PowerShell 7 and the .NET 10 SDK pinned by `global.json`. Complete self-contained distributions target Windows x64, Linux x64, Intel macOS and Apple Silicon macOS; see [Cross-platform desktop migration](cross-platform.md) and [Linux testing from Windows](linux-testing.md). Run commands from the directory containing `Build.ps1` and `Memoria.FF8.slnx`. Package restore needs access to the configured public NuGet feeds.
 
 Game hosts also build the standalone PSF codec with CMake 3.20+ and a native C compiler (Visual Studio C++ tools on Windows). Its GPL source, build recipe and notices ship beside every host in `licenses/psf-decoder-source/`; no BIOS is bundled. For a cross-publish, supply a target-native codec directory through `MEMORIA_FF8_PSF_DECODER_DIRECTORY`; the publisher validates its target ABI. Otherwise build on the target OS. Ordinary C# audio-library and launcher-only builds do not require this codec build.
 
@@ -17,9 +17,9 @@ The codec's incremental CMake build lives under `artifacts/native/psf/<key>`, ke
 ./Build.ps1 -RuntimeIdentifier osx-arm64
 ```
 
-The script publishes a self-contained x64 launcher, dispatcher and isolated Windows DX11/Vulkan/DX12 engines built from the same source, plus the common x64 music worker. Linux and macOS offer Vulkan. It checks the actual published dependency assemblies, native ABI and backend-specific embedded shaders before packaging, including embedded codepage and menu resources. Original game data, media tool binaries, saves and fixture inputs are not bundled. See [graphics host selection](graphics-backends.md) and [shader generation](shaders.md).
+The script publishes a self-contained launcher and dispatcher for the selected architecture, and and isolated Windows DX11/Vulkan/DX12 engines built from the same source, plus the matching music worker. Linux and macOS offer Vulkan. It checks the actual published dependency assemblies, native ABI and backend-specific embedded shaders before packaging, including embedded codepage and menu resources. Original game data, media tool binaries, saves and fixture inputs are not bundled. See [graphics host selection](graphics-backends.md) and [shader generation](shaders.md).
 
-Generated directories live under `artifacts/package/<RID>`. Linux produces `Memoria-FF8-linux-x64.tar.gz`; Intel macOS produces `Memoria-FF8-osx-x64.tar.gz` containing `Memoria.FF8.app`. The pinned MonoGame Mac runtime requires **macOS 26.0**. An older Intel CI runner can build and statically inspect this payload; that does not establish a runtime pass. Unix archives preserve executable modes even when cross-published from Windows.
+Generated directories live under `artifacts/package/<RID>`. Linux produces `Memoria-FF8-linux-x64.tar.gz`; Intel macOS produces `Memoria-FF8-osx-x64.tar.gz`; Apple Silicon produces `Memoria-FF8-osx-arm64.tar.gz`. Both contain `Memoria.FF8.app`. The pinned MonoGame Mac runtime requires **macOS 26.0**. CI uses macOS 26 runners for both native architectures. Unix archives preserve executable modes even when cross-published from Windows.
 
 ### macOS toolchain
 
@@ -72,7 +72,7 @@ For the complete Native graph, including all tool and test assemblies without ex
 dotnet build Memoria.FF8.Native.slnx -c Release -p:MemoriaTargetRuntime=linux-x64 -p:MemoriaGraphicsBackend=Vulkan -p:TargetFramework=net10.0 -p:SkipMusicHost=true -m:1 --artifacts-path artifacts/native-linux
 ```
 
-Use `osx-x64` for Intel Mac and `osx-arm64` for a local Apple Silicon build. `MemoriaTargetRuntime` chooses native packages at solution level; individual publishes use `-r`. Compilation includes battle-effect test assemblies; execution still requires an authorized affected-effect selection.
+Use `osx-x64` for Intel Mac and `osx-arm64` for Apple Silicon. `MemoriaTargetRuntime` chooses native packages at solution level; individual publishes use `-r`. Compilation includes battle-effect test assemblies; execution still requires an authorized affected-effect selection.
 
 The distribution script builds a complete RID-specific, self-contained graph with its final debug settings, then publishes Vulkan, dispatcher, music and launcher payloads with `--no-build` from that graph. DX11 and DX12 use their own backend outputs. The portable test step uses the same graph properties and binaries. This differs from the framework-dependent manual graph above: `MemoriaBuildRuntimeIdentifier` applies the selected RID during project evaluation, because the SDK rejects a solution-level `RuntimeIdentifier`. Run `Build.ps1` for the complete packaging contract; each `dotnet` call reports its elapsed time.
 
@@ -88,11 +88,11 @@ Ordinary builds use the checked-in compiled title shader. Shader regeneration an
 ./Build.ps1
 ```
 
-This compiles the complete Native graph, publishes every applicable process, creates the target archive, extracts it into a fresh directory and validates inventory hashes, x64 native ABI and Unix modes. Windows additionally passes the immutable first-updater gate. macOS checks Info.plist, native imports/search paths and its bundled Vulkan/Metal provider.
+This compiles the complete Native graph, publishes every applicable process, creates the target archive, extracts it into a fresh directory and validates inventory hashes, target-native ABI and Unix modes. Windows additionally passes the immutable first-updater gate. macOS checks Info.plist, native imports/search paths and its bundled Vulkan/Metal provider.
 
 The optional `-Test` switch adds Remastered, launcher, selected App, UI, field pose/render interpolation and the entire Runtime.Tests project. The App selection includes portable actor sampling regressions and the optional installed-resource opening presentation check at 30 and 60 FPS. Runtime.Tests includes battle-effect tests, so this switch is a broad test run rather than the default check for a focused change. Run focused tests separately when only part of that selection is relevant or authorized. It does not run every optional integration or gameplay acceptance check.
 
-GitHub Actions uses one matrix with three platform jobs on pull requests, `main`, actual version tags and manual runs. Each job validates a complete package and selected portable tests; PRs have read-only permissions and never publish a release. The publication job runs only for `main` or an actual version tag and waits for the complete RID set from one source commit. CI never invokes distribution `-Test`. Receipts/artifact reuse are specific to source, RID and build recipe/toolchain identity. Expired or deleted tested payloads require restoration instead of silently rebuilding. A stale main commit cannot replace current nightly. Tag version changes retain verified non-manifest payload hashes/modes and record the resulting archive digest. See [CI lifecycle and caches](../../.github/README.md).
+GitHub Actions uses one matrix with four platform jobs on pull requests, `main`, actual version tags and manual runs. Each job validates a complete package and selected portable tests; PRs have read-only permissions and never publish a release. The publication job runs only for `main` or an actual version tag and waits for the complete RID set from one source commit. CI never invokes distribution `-Test`. Receipts/artifact reuse are specific to source, RID and build recipe/toolchain identity. Expired or deleted tested payloads require restoration instead of silently rebuilding. A stale main commit cannot replace current nightly. Tag version changes retain verified non-manifest payload hashes/modes and record the resulting archive digest. See [CI lifecycle and caches](../../.github/README.md).
 
 ## Focused tests
 

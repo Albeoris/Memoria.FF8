@@ -49,3 +49,30 @@ test('successful platform receipt with failed artifact upload requires recovery'
     const input = fixture({ runs: [{ id: 7 }], jobs: { 7: [{ steps: [{ name: 'Validated package receipt linux-x64', conclusion: 'success' }] }] } });
     await assert.rejects(find({ ...input, rid: 'linux-x64' }), /refusing to rebuild/);
 });
+
+
+test('Apple Silicon receipts are distinct from Intel and reusable independently', async () => {
+    const intel = await identity('osx-x64');
+    const arm = await identity('osx-arm64');
+    assert.match(arm, /^Memoria-FF8-osx-arm64-[0-9a-f]{16}$/);
+    assert.notEqual(arm, intel);
+    const input = fixture({ runs: [{ id: 7 }], artifacts: { 7: [{ name: intel, expired: false }] } });
+    await find({ ...input, rid: 'osx-arm64' });
+    assert.equal(input.outputs.reuse, 'false');
+    const matching = fixture({ runs: [{ id: 8 }], artifacts: { 8: [{ name: arm, expired: false }] } });
+    await find({ ...matching, rid: 'osx-arm64' });
+    assert.equal(matching.outputs.reuse, 'true');
+    assert.equal(matching.outputs['run-id'], '8');
+});
+
+
+test('publication matrix covers four native RIDs with macOS 26 architecture-specific hosts', () => {
+    const fs = require('node:fs');
+    const workflow = fs.readFileSync('.github/workflows/build.yml', 'utf8');
+    const rows = [...workflow.matchAll(/- os: ([^\r\n]+)\r?\n +rid: ([^\r\n]+)/g)];
+    assert.deepEqual(rows.map(row => row[2]).sort(), ['linux-x64', 'osx-arm64', 'osx-x64', 'win-x64']);
+    assert.equal(rows.find(row => row[2] === 'osx-arm64')[1], 'macos-26');
+    assert.equal(rows.find(row => row[2] === 'osx-x64')[1], 'macos-26-intel');
+    assert.match(workflow, /Verify the native macOS build host/);
+    assert.match(workflow, /Publication\.Tests\.ps1/);
+});
