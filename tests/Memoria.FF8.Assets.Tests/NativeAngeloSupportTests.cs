@@ -104,6 +104,7 @@ public sealed class NativeAngeloSupportTests
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         BattleNativePlayerStatRules rules = assets.ReadPlayerNativeStatRules(vitals, 0) with { NativeStatusPassiveFlags = 0 };
         BattleNativeCharacterGrowth growth = new(0, ImmutableArray.Create<byte>(0, 0, 0, 0, 0, 0));
+        ushort maximumHp = rules.Project(vitals.Records[0].MagicInventory, growth).MaximumHp;
         // Explicit fixed-damage fixture isolates the callback's RNG draw from physical hit/critical/formula draws.
         BattleNativeAction attack = assets.NativeActions.First(action => action.Command == 8) with { ActionId = 1000, AttackType = lethal ? (byte)27 : (byte)35, Power = 1, Hit = 0, HitCount = 1, AttackFlags = 0, Statuses0 = 0, Statuses1 = 0, Element = 0 };
         BattleSession battle = new(new BattleDefinition
@@ -121,7 +122,7 @@ public sealed class NativeAngeloSupportTests
             LimitProgress = game.ReadNewGameLimitProgress() with { AngeloFlags = learned },
             Combatants =
             [
-                new() { Id = "rinoa", Name = "Rinoa", ModelId = 4, IsPlayer = true, MaximumHp = 100, CurrentHp = 10, InitialAtb = 1234, NativePlayerStatRules = rules, NativeGrowth = growth, NativeDeathCount = 0, Speed = 1, NativeStatusResistances = new byte[40] },
+                new() { Id = "rinoa", Name = "Rinoa", ModelId = 4, IsPlayer = true, MaximumHp = maximumHp, CurrentHp = 10, InitialAtb = 1234, NativePlayerStatRules = rules, NativeGrowth = growth, NativeDeathCount = 0, Speed = 1, NativeStatusResistances = new byte[40] },
                 new() { Id = "enemy", Name = "Enemy", MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeStatusResistances = new byte[40] }
             ]
         }, BattleAtbMode.TurnBased);

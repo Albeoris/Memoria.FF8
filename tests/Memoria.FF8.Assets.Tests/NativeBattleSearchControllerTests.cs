@@ -73,7 +73,7 @@ public sealed class NativeBattleSearchControllerTests
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         var fixture = Fixture(resources);
         NativeBattleSearchFrame normal = fixture.Frame;
-        NativeBattleSearchFrame flagged = fixture.Frame;
+        NativeBattleSearchFrame flagged = NativeBattleSnapshotJson.Deserialize<NativeBattleSearchFrame>(NativeBattleSnapshotJson.Serialize(fixture.Frame))!;
         NativeBattleSearchInputs inputs = Inputs(resources, rules, fixture.Packets);
         for (int callback = 0; callback < 200; callback++)
         {

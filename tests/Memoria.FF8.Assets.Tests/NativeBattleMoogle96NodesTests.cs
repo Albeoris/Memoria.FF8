@@ -58,7 +58,7 @@ public sealed class NativeBattleMoogle96NodesTests
                 Assert.Throws<NotSupportedException>(() => NativeBattleMoogle96Nodes.AdvanceContext(frame, addresses[1], Model, projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!));
             }
             bool complete = false;
-            int privatePackets = 0;
+            int commonSprites = 0;
             int nativeMeshPackets = 0;
             for (int callback = 0; callback < 600 && !complete; callback++)
             {
@@ -72,13 +72,14 @@ public sealed class NativeBattleMoogle96NodesTests
                 Assert.Equal(0u, step.Frame.State.Work.InitializationFlag);
                 Assert.Equal(0x20000 + step.PrivateSprites.Sum(batch => batch.AllocationBytes), step.Frame.State.Work.PrivateDrawCursor);
                 Assert.Equal(step.CommonMeshes.Sum(batch => batch.AllocationBytes), step.Frame.Memory.PrimitiveProcess!.ByteCursor);
-                privatePackets += step.PrivateSprites.Sum(batch => batch.Attempts.Count(attempt => attempt.Primitive is not null));
+                Assert.Empty(step.PrivateSprites);
+                commonSprites += step.CommonMeshes.Sum(batch => batch.Attempts.Count(attempt => attempt.Primitive is { } primitive && primitive.Words.Length == 10 && (primitive.Words[1] >> 24 & 0xFC) == 0x2C));
                 nativeMeshPackets += step.CommonMeshes.Sum(batch => batch.Attempts.Count(attempt => attempt.Primitive is { } primitive && primitive.Words.Length == (sourceIndex == 0 ? 8 : 10)));
                 frame = step.Frame;
                 complete = step.Complete;
             }
             Assert.True(complete, "The bounded original node-only diagnostic did not drain; this does not admit the whole Moogle effect.");
-            Assert.True(privatePackets > 0);
+            Assert.True(commonSprites > 0);
             Assert.True(nativeMeshPackets > 0);
             Assert.Equal((ushort)0, frame.State.Work.PassEmitterCount);
             Assert.Equal((ushort)0, frame.State.Work.PassGeometryCount);

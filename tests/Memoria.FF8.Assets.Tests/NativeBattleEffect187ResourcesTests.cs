@@ -46,8 +46,14 @@ public sealed class NativeBattleEffect187ResourcesTests
         Assert.Equal(decoded.Translation, physical.Translation);
         Assert.Equal(decoded.HasScale, physical.HasScale);
         Assert.Equal(decoded.Bones.ToArray(), physical.Bones.ToArray());
-        _ = NativeBattleArenaPose.ReadMatrix(current, skeleton + 32 + 59 * 48);
-        Assert.Throws<NotSupportedException>(() => current.Read(skeleton + 32 + 59 * 48, 32));
+        int lastMatrix = skeleton + 32 + 59 * 48;
+        _ = NativeBattleArenaPose.ReadMatrix(current, lastMatrix);
+        short parent = BinaryPrimitives.ReadInt16LittleEndian(current.Read(skeleton + 16 + 59 * 48, 2));
+        short expectedPadding = decoded.HasScale
+            ? BinaryPrimitives.ReadInt16LittleEndian(resources.Files[1].Data.AsSpan(lastMatrix + 18, 2))
+            : parent < 0 ? NativeBattleBoneMatrixPadding.Euler56CE30(decoded.Bones[59].Rotation) : NativeBattleBoneMatrixPadding.UnscaledChild508C90(decoded.Bones[59].Rotation);
+        Assert.Equal(expectedPadding, BinaryPrimitives.ReadInt16LittleEndian(current.Read(lastMatrix + 18, 2)));
+        Assert.Equal(32, current.Read(lastMatrix, 32).Length);
         NativeBattleCactuarRawModelStep step = NativeBattleEffect187Model.Advance64A260(model, resources.OwnedModel);
         memory = NativeBattleEffect187Model.PublishPose508C90(memory, step.State, resources.OwnedModel);
         NativeBattleEffectArena advanced = Assert.IsType<NativeBattleEffectArena>(memory.Arena);

@@ -76,7 +76,7 @@ public sealed class NativeBattleChoco98CameraResourcesTests
         Assert.Equal(resources.Sources.Select(source => source.Address).ToArray(), sourceTransitions.ToArray());
         Assert.Equal(3, doublePublications);
         Assert.Equal((byte)8, task.ReadByte(0x29));
-        NativeBattleChoco98CameraTaskStep held = Advance(task.WriteByte(0x28, 1), camera);
+        NativeBattleChoco98CameraTaskStep held = Advance(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(task)).WriteByte(0x28, 1), camera);
         Assert.False(held.ReadyToComplete);
         Assert.Empty(held.Publications);
         Assert.True(Advance(task, camera).ReadyToComplete);

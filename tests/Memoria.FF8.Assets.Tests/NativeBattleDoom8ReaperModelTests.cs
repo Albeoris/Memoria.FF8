@@ -66,10 +66,11 @@ public sealed class NativeBattleDoom8ReaperModelTests
             {
                 frame = frame with { State = frame.State.WriteWord(NativeBattleDoom8ReaperAppearance.ScratchAddress + 0x54, unchecked((ushort)(frame.State.ReadWord(NativeBattleDoom8ReaperAppearance.ScratchAddress + 0x54) - 72))) };
             }
+            NativeBattleDoom8Frame? resumed = callback is 0 or 17 or 18 or 32 ? Cold(frame) : null;
             NativeBattleDoom8ModelDrawStep drawn = component.AdvanceAppearance(frame);
-            if (callback is 0 or 17 or 18 or 32)
+            if (resumed is not null)
             {
-                NativeBattleDoom8ModelDrawStep coldNext = component.AdvanceAppearance(Cold(frame));
+                NativeBattleDoom8ModelDrawStep coldNext = component.AdvanceAppearance(resumed);
                 Assert.Equal(NativeBattleSnapshotJson.Serialize(drawn), NativeBattleSnapshotJson.Serialize(coldNext));
             }
             customPackets += BodyPackets(drawn.Batch).Length;

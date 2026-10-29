@@ -32,20 +32,21 @@ public sealed class NativeBattleChoco99MovingProgramTests
         {
             int phase = current.Task.ReadByte(0x29);
             short mode = small ? (short)(call >= 8 ? 8 : 0) : (short)(phase == 3 && current.Task.ReadWord(0x84) >= 8 ? 10 : 0);
-            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(current))!;
-            StepResult next = Step(current, mode, 0);
+            Saved checkpoint = NativeBattleStorageSnapshots.Capture(current);
+            Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(checkpoint))!;
+            StepResult next = Step(NativeBattleStorageSnapshots.Restore(checkpoint), mode, 0);
             Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored, mode, 0)));
             Assert.Equal((ushort)0x1234, next.Draw.Draw.Task.ReadWord(0x22));
             Assert.Equal((ushort)3, next.Draw.Draw.Task.ReadWord(0x6C));
             if (phase == 1 || !small && phase == 3)
             {
-                Assert.Equal(current.Task.ReadDword(0x1C), next.Draw.Draw.Task.ReadDword(0x540));
-                Assert.Equal(current.Task.ReadDword(0x20), next.Draw.Draw.Task.ReadDword(0x544));
+                Assert.Equal(checkpoint.Task.ReadDword(0x1C), next.Draw.Draw.Task.ReadDword(0x540));
+                Assert.Equal(checkpoint.Task.ReadDword(0x20), next.Draw.Draw.Task.ReadDword(0x544));
                 if (!testedFrozenMotion)
                 {
-                    StepResult frozen = Step(current, 0, 1);
-                    Assert.Equal(current.Task.ReadDword(0x98), frozen.Draw.Draw.Task.ReadDword(0x98));
-                    Assert.NotEqual(current.Task.ReadWord(0x1C), frozen.Draw.Draw.Task.ReadWord(0x1C));
+                    StepResult frozen = Step(NativeBattleStorageSnapshots.Restore(checkpoint), 0, 1);
+                    Assert.Equal(checkpoint.Task.ReadDword(0x98), frozen.Draw.Draw.Task.ReadDword(0x98));
+                    Assert.NotEqual(checkpoint.Task.ReadWord(0x1C), frozen.Draw.Draw.Task.ReadWord(0x1C));
                     Assert.NotEmpty(frozen.Emissions);
                     testedFrozenMotion = true;
                 }
@@ -55,24 +56,24 @@ public sealed class NativeBattleChoco99MovingProgramTests
                 pauseCalls++;
                 Assert.Null(next.Draw.Draw.Remaining);
                 Assert.Empty(next.Emissions);
-                Assert.Equal(current.Task.ReadDword(0x98), next.Draw.Draw.Task.ReadDword(0x98));
-                Assert.Equal(current.Task.ReadDword(0x540), next.Draw.Draw.Task.ReadDword(0x540));
+                Assert.Equal(checkpoint.Task.ReadDword(0x98), next.Draw.Draw.Task.ReadDword(0x98));
+                Assert.Equal(checkpoint.Task.ReadDword(0x540), next.Draw.Draw.Task.ReadDword(0x540));
                 if (next.Draw.Draw.Task.ReadByte(0x29) == 3)
                 {
                     Assert.Equal((ushort)1920, next.Draw.Draw.Task.ReadWord(0x1C));
                     Assert.Equal(unchecked((ushort)-1024), next.Draw.Draw.Task.ReadWord(0x1E));
                 }
             }
-            if (!small && phase == 3 && current.Task.ReadWord(0x84) == 3)
+            if (!small && phase == 3 && checkpoint.Task.ReadWord(0x84) == 3)
             {
-                StepResult terminal = Step(current, 10, 0);
+                StepResult terminal = Step(NativeBattleStorageSnapshots.Restore(checkpoint), 10, 0);
                 Emission emitted = Assert.Single(terminal.Emissions);
                 Assert.Equal(NativeBattleChoco99EmissionKind.Radial, emitted.Kind);
-                Assert.Equal(current.Task.ReadDword(0x1C), emitted.Position0);
-                Assert.Equal(current.Task.ReadDword(0x20), emitted.Position1);
+                Assert.Equal(checkpoint.Task.ReadDword(0x1C), emitted.Position0);
+                Assert.Equal(checkpoint.Task.ReadDword(0x20), emitted.Position1);
                 Assert.Null(terminal.Draw.Draw.Remaining);
                 Assert.Empty(terminal.Draw.Draw.Packets.Attempts);
-                Assert.Equal(current.Task.ReadDword(0x98), terminal.Draw.Draw.Task.ReadDword(0x98));
+                Assert.Equal(checkpoint.Task.ReadDword(0x98), terminal.Draw.Draw.Task.ReadDword(0x98));
                 Assert.False(terminal.Draw.Draw.ReadyToComplete);
                 testedTerminalRadial = true;
             }
@@ -88,8 +89,8 @@ public sealed class NativeBattleChoco99MovingProgramTests
                 else
                 {
                     radials++;
-                    Assert.Equal(current.Task.ReadDword(0x1C), emission.Position0);
-                    Assert.Equal(current.Task.ReadDword(0x20), emission.Position1);
+                    Assert.Equal(checkpoint.Task.ReadDword(0x1C), emission.Position0);
+                    Assert.Equal(checkpoint.Task.ReadDword(0x20), emission.Position1);
                 }
             }
             accepted += next.Draw.Draw.Packets.Attempts.Count(attempt => attempt.Primitive is not null);

@@ -182,7 +182,7 @@ public sealed class NativeAllocationDescriptorTests
         model = model with { Flags8 = 0x800000, Flags2 = (ushort)(model.Flags2!.Value | 4), Sequence = 19, SequenceState = model.SequenceState! with { Pending3 = 2 } };
         graphics = graphics with { Models = graphics.Models.SetItem(0, model), Descriptors = graphics.Descriptors.Enqueue(114, 128, 240, 0).State };
         battle = BattleSession.Restore(snapshot with { NativeGraphics = graphics });
-        battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(333_334));
+        battle.AdvanceNativeGraphicsPresentation(NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1));
         Assert.Equal(0u, battle.NativeGraphics!.Models[0].Flags8!.Value & 0x800000u);
         Assert.Equal((byte)1, battle.NativeGraphics.Models[0].Sequence);
         Assert.Equal((byte)0, battle.NativeGraphics.Models[0].SequenceState!.Pending3);

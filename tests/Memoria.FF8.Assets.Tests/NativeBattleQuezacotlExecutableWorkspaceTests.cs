@@ -21,10 +21,10 @@ public sealed class NativeBattleQuezacotlExecutableWorkspaceTests
         //6C4C4B queues521/type5 to1298C68 before212; its bytes end exactly at workspace129F4E8.
         memory = memory with { QuezacotlExecutableMemory = memory.QuezacotlExecutableMemory!.Write(NativeBattleQuezacotlExecutableMemory.Address, NativeBattleStorageSnapshots.Capture(currentModel).Data.AsSpan()) };
         NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(memory, 0x129CD84);
-        int table = BinaryPrimitives.ReadInt32LittleEndian(NativeBattleStorageSnapshots.Capture(source).Data.AsSpan().Slice(4));
+        int table = BinaryPrimitives.ReadInt32LittleEndian(ReadSource(source, 4, 4));
         Assert.Equal(0x18C0, table);
-        Assert.Equal(16, BinaryPrimitives.ReadInt32LittleEndian(NativeBattleStorageSnapshots.Capture(source).Data.AsSpan().Slice(table)));
-        Assert.Equal(26, BinaryPrimitives.ReadInt32LittleEndian(NativeBattleStorageSnapshots.Capture(source).Data.AsSpan().Slice(table + 4)));
+        Assert.Equal(16, BinaryPrimitives.ReadInt32LittleEndian(ReadSource(source, table, 4)));
+        Assert.Equal(26, BinaryPrimitives.ReadInt32LittleEndian(ReadSource(source, table + 4, 4)));
         NativeBattleGfAnimationSource childSource = NativeBattleQuezacotlWorkspace.Source(memory, 0x1299718);
         NativeBattleGfAnimationWorkspace childWorkspace = new(new byte[NativeBattleQuezacotlWorkspace.SeventhLength].ToImmutableArray());
         childWorkspace = childWorkspace.Initialize7016B0(childSource, NativeBattleQuezacotlWorkspace.SeventhLength);
@@ -73,4 +73,10 @@ public sealed class NativeBattleQuezacotlExecutableWorkspaceTests
         Assert.Equal(new int?[] { 0x2C6A4, 0x348C4, 0x38AE4 }, completed.Memory.Textures.Slots.Take(3).Select(slot => slot!.ArenaOffset));
         Assert.NotEmpty(completed.Memory.Textures.Drain505D20(completed.Memory.Arena).Uploads);
     }
+    private static byte[] ReadSource(NativeBattleGfAnimationSource source, int offset, int length)
+    {
+        using NativeBattleGfSourceReader reader = source.OpenReader();
+        return reader.ReadBytes(offset, length);
+    }
+
 }

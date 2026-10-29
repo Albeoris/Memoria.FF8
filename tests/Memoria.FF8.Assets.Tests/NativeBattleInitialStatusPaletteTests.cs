@@ -54,7 +54,7 @@ public sealed class NativeBattleInitialStatusPaletteTests
         byte[] original = session.NativeModelCpuResources!.Palettes.Read(0, 1024);
         byte[] expected = NativeBattleStatusPalette.Transform509E00(original, model.Flags8.Value).ToArray();
         Assert.False(original.AsSpan().SequenceEqual(expected));
-        NativeBattleEffectTextureState textures = session.NativeEffectMemory!.Textures!;
+        NativeBattleEffectTextureState textures = NativeBattleStorageSnapshots.Capture(session.NativeEffectMemory!.Textures!);
         Assert.Equal(0, textures.Count);
         NativeBattleEffectArena vram = new(textures.VramRegions);
         Assert.Equal(expected[..512], vram.Read(224 * 2048, 512));
@@ -63,7 +63,7 @@ public sealed class NativeBattleInitialStatusPaletteTests
         string json = JsonSerializer.Serialize(session.Capture());
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
         Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
-        Assert.Equal(expected[..512], new NativeBattleEffectArena(restored.NativeEffectMemory!.Textures!.VramRegions).Read(224 * 2048, 512));
-        Assert.Equal(expected[512..], new NativeBattleEffectArena(restored.NativeEffectMemory.Textures.VramRegions).Read(225 * 2048, 512));
+        Assert.Equal(expected[..512], new NativeBattleEffectArena(restored.Capture().NativeEffectMemory!.Textures!.VramRegions).Read(224 * 2048, 512));
+        Assert.Equal(expected[512..], new NativeBattleEffectArena(restored.Capture().NativeEffectMemory!.Textures!.VramRegions).Read(225 * 2048, 512));
     }
 }

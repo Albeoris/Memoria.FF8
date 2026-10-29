@@ -35,7 +35,8 @@ public sealed class NativeBattleGilgameshCommonParticleResourcesTests
             Assert.Equal(NativeBattleSnapshotJson.Serialize(expected), NativeBattleSnapshotJson.Serialize(actual));
         }
         NativeBattleModulePoolTask nested = new NativeBattleModulePoolTask(1, 0, null, 0x593D20, new byte[24].ToImmutableArray()).WriteWord(12, 18).WriteWord(28, 4096).WriteWord(32, 4096).WriteWord(34, 186);
-        Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshCommonParticles.Step593D20(nested, resources, view, projection, 0)), NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshCommonParticles.Step593D20(nested, restored, view, projection, 0)));
+        NativeBattleModulePoolTask coldNested = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(nested))!;
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshCommonParticles.Step593D20(nested, resources, view, projection, 0)), NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshCommonParticles.Step593D20(coldNested, restored, view, projection, 0)));
         Assert.Throws<InvalidDataException>(() => (resources with { Sprite = resources.Sprite with { Bytes = resources.Sprite.Bytes.RemoveAt(0) } }).Validate());
         Assert.Throws<InvalidDataException>(() => (resources with { NestedMesh = resources.NestedMesh with { Bytes = resources.NestedMesh.Bytes.RemoveAt(0) } }).Validate());
     }

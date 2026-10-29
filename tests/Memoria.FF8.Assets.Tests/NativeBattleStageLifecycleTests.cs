@@ -77,8 +77,10 @@ public sealed class NativeBattleStageLifecycleTests
             Assert.Equal(source.NativeSource!.ModelColors!.Color40, model.Color40);
             Assert.Equal(source.NativeSource.ModelColors.Color44, model.Color44);
         });
-        NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(battle.Capture(), NativeFieldRuntimeProfile.FF8EnExecutableHash);
-        Assert.Same(battle.NativeStage, retained.Stage);
+        BattleSnapshot completed = battle.Capture();
+        NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(completed, NativeFieldRuntimeProfile.FF8EnExecutableHash);
+        Assert.Same(completed.NativeStage, retained.Stage);
+        Assert.NotSame(battle.NativeStage, retained.Stage);
         BattleSession unknown = BattleSession.Restore(boundary with { NativeStage = null });
         Assert.Throws<NotSupportedException>(() => unknown.Tick());
     }
@@ -138,8 +140,10 @@ public sealed class NativeBattleStageLifecycleTests
         Assert.True(battle.NativeEntryReady);
         Assert.NotEmpty(battle.NativeGraphics!.PrimitiveFrame!.LastCommands);
         AssertResumesNextCallback(battle);
-        NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(battle.Capture(), NativeFieldRuntimeProfile.FF8EnExecutableHash);
-        Assert.Same(battle.NativeStage, retained.Stage);
+        BattleSnapshot completed = battle.Capture();
+        NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(completed, NativeFieldRuntimeProfile.FF8EnExecutableHash);
+        Assert.Same(completed.NativeStage, retained.Stage);
+        Assert.NotSame(battle.NativeStage, retained.Stage);
     }
 
     [Theory]

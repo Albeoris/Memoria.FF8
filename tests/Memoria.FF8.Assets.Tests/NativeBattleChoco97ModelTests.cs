@@ -159,6 +159,7 @@ public sealed class NativeBattleChoco97ModelTests
             NativeBattleModulePoolTask scaled = initialized.Task.WriteDword(0x114, 0x1800).WriteDword(0x118, 0x1800).WriteDword(0x11C, 0x1800);
             NativeBattleEffectOwnedModelStep selected = NativeBattleEffectOwnedModel.Select8DD190(scaled, initialized.State, resources.Model, 5);
             int predicates = 0;
+            NativeBattleEffectOwnedModelStep checkpoint = NativeBattleStorageSnapshots.Capture(selected);
             NativeBattleChoco97ModelInputs inputs = new([], AtLeast, _ => throw new InvalidDataException("Terminal phase must not request a mode."), (_, _) => throw new InvalidDataException("Terminal phase must not append or emit sound."), step => Draw(step, Scratch(), resources, rules));
             NativeBattleChoco97ModelAdvance next = Advance(selected.Task.WriteByte(0x29, 8).WriteWord(0x136, 19), selected.State, resources, inputs, choco98);
             Assert.Equal((byte)(choco98 ? 9 : 8), next.Task.ReadByte(0x29));
@@ -167,10 +168,12 @@ public sealed class NativeBattleChoco97ModelTests
             Assert.Equal(choco98, next.ReadyToComplete);
             if (choco98)
             {
-                NativeBattleChoco97ModelAdvance beforeThreshold = Advance(selected.Task.WriteByte(0x29, 8).WriteWord(0x136, 18), selected.State, resources, inputs, true);
+                NativeBattleEffectOwnedModelStep thresholdInput = NativeBattleStorageSnapshots.Restore(checkpoint);
+                NativeBattleChoco97ModelAdvance beforeThreshold = Advance(thresholdInput.Task.WriteByte(0x29, 8).WriteWord(0x136, 18), thresholdInput.State, resources, inputs, true);
                 Assert.Equal((byte)8, beforeThreshold.Task.ReadByte(0x29));
                 Assert.NotNull(beforeThreshold.Drawing);
-                NativeBattleChoco97ModelAdvance signedWrap = Advance(selected.Task.WriteByte(0x29, 8).WriteWord(0x136, 0x7FFF), selected.State, resources, inputs, true);
+                NativeBattleEffectOwnedModelStep signedInput = NativeBattleStorageSnapshots.Restore(checkpoint);
+                NativeBattleChoco97ModelAdvance signedWrap = Advance(signedInput.Task.WriteByte(0x29, 8).WriteWord(0x136, 0x7FFF), signedInput.State, resources, inputs, true);
                 Assert.Equal((ushort)0x8000, signedWrap.Task.ReadWord(0x136));
                 Assert.Equal((byte)8, signedWrap.Task.ReadByte(0x29));
                 Assert.NotNull(signedWrap.Drawing);

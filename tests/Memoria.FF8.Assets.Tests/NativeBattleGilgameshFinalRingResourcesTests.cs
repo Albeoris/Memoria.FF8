@@ -23,11 +23,12 @@ public sealed class NativeBattleGilgameshFinalRingResourcesTests
         NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, 0x591F50, new byte[24].ToImmutableArray()).WriteWord(12, 15).WriteWord(28, 4096).WriteWord(32, 4096);
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 30000, 4096);
         NativeBattleCameraProjection projection = new(null, 288, 160, 108);
+        NativeBattleModulePoolTask restoredTask = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
         NativeBattleGilgameshFinalRingStep step = NativeBattleGilgameshFinalRing.Step591F50(task, mesh, view, projection, 0);
         Assert.Equal(24, step.Batch.Attempts.Length);
         Assert.Equal(2, step.Result);
         NativeBattleStaticMeshResource restored = NativeBattleSnapshotJson.Deserialize<NativeBattleStaticMeshResource>(NativeBattleSnapshotJson.Serialize(mesh))!;
-        Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshFinalRing.Step591F50(task, restored, view, projection, 0)));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshFinalRing.Step591F50(restoredTask, restored, view, projection, 0)));
         Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshFinalRingResourcesReader.Read(new byte[128]));
     }
 }

@@ -36,10 +36,12 @@ public sealed class NativeBattleChoco97LoadedProgramTests
             Saved saved = new(task, source, scratch);
             Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(saved))!;
             ImmutableArray<byte> sourceBefore = NativeBattleStorageSnapshots.Capture(source).Data;
+            Saved? initialInput = calls == 0 ? NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(saved)) : null;
             NativeBattleChoco97LoadedProgramDraw next = Step(saved);
             Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored)));
             if (calls == 0)
             {
+                Saved initialComparison = initialInput!;
                 Assert.Equal(unchecked((ushort)originY), next.Task.ReadWord(0x1E));
                 Assert.Equal(unchecked((ushort)originZ), next.Task.ReadWord(0x20));
                 Assert.Equal((ushort)originW, next.Task.ReadWord(0x22));
@@ -47,9 +49,9 @@ public sealed class NativeBattleChoco97LoadedProgramTests
                 Assert.All(NativeBattleStorageSnapshots.Capture(next.Task).Payload.Skip(0x94 - 12 + definition.Clear), value => Assert.Equal((byte)0xA5, value));
                 if (profile != NativeBattleChoco97LoadedProgram.File449)
                 {
-                    NativeBattleModulePoolTask initialized = NativeBattleChoco97ProgramDrawing.InitializeWorkspace72A6C0(task, source, profile == NativeBattleChoco97LoadedProgram.File450 ? target : actor);
+                    NativeBattleModulePoolTask initialized = NativeBattleChoco97ProgramDrawing.InitializeWorkspace72A6C0(initialComparison.Task, initialComparison.Source, profile == NativeBattleChoco97LoadedProgram.File450 ? target : actor);
                     initialized = initialized.WriteWord(0x1E, next.Task.ReadWord(0x1E)).WriteWord(0x20, next.Task.ReadWord(0x20));
-                    NativeBattleChoco97ProgramDraw beforeMutation = NativeBattleChoco97ProgramDrawing.Advance72A720(initialized, source, scratch, view, projection, colors, 0);
+                    NativeBattleChoco97ProgramDraw beforeMutation = NativeBattleChoco97ProgramDrawing.Advance72A720(initialized, initialComparison.Source, initialComparison.Scratch, view, projection, colors, 0);
                     Assert.Equal(NativeBattleSnapshotJson.Serialize(beforeMutation.Packets), NativeBattleSnapshotJson.Serialize(next.Packets));
                 }
                 else

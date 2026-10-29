@@ -90,6 +90,7 @@ public sealed class NativeBattleMoogle96ControllerTests
         NativeBattleMoogle96Resources resources = game.ReadNativeMoogle96Resources();
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         Fixture fixture = Create(resources);
+        Run initialCheckpoint = NativeBattleStorageSnapshots.Capture(fixture.Run);
         NativeBattleMoogle96Frame initial = fixture.Run.Frame;
         Assert.Throws<NotSupportedException>(() => NativeBattleMoogle96Controller.Initialize731DE0(initial.Memory with { Moogle96 = null }, initial.Effect, fixture.Packets, resources, initial.Random));
         Assert.Throws<NotSupportedException>(() => NativeBattleMoogle96Controller.Initialize731DE0(initial.Memory with { Moogle96 = initial.Memory.Moogle96! with { ProgramSource = null, ProgramSourceKnownCold = false } }, initial.Effect, fixture.Packets, resources, initial.Random));
@@ -101,13 +102,13 @@ public sealed class NativeBattleMoogle96ControllerTests
         Assert.NotNull(current.Frame.Memory.Moogle96!.Io);
         NativeBattleMoogle96State retained = current.Frame.Memory.Moogle96;
         NativeBattleMoogle96Frame restored = NativeBattleSnapshotJson.Deserialize<NativeBattleMoogle96Frame>(NativeBattleSnapshotJson.Serialize(current.Frame))!;
-        NativeBattleMoogle96Frame nextCast = NativeBattleMoogle96Controller.Initialize731DE0(restored.Memory, initial.Effect, fixture.Packets, resources, restored.Random);
+        NativeBattleMoogle96Frame nextCast = NativeBattleMoogle96Controller.Initialize731DE0(restored.Memory, NativeBattleStorageSnapshots.Restore(initialCheckpoint).Frame.Effect, fixture.Packets, resources, restored.Random);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(retained.ProgramSource), NativeBattleSnapshotJson.Serialize(nextCast.Memory.Moogle96!.ProgramSource));
         Assert.Equal(retained.Io!.Script.ToArray(), nextCast.Memory.Moogle96.Io!.Script.ToArray());
         Assert.False(nextCast.Memory.Moogle96.ProgramSourceKnownCold);
         Assert.False(nextCast.Memory.Moogle96.IoScriptKnownCold);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(retained.Nodes), NativeBattleSnapshotJson.Serialize(nextCast.Memory.Moogle96.Nodes));
-        Run first = Step(fixture.Run, fixture.Packets, resources, rules);
+        Run first = Step(NativeBattleStorageSnapshots.Restore(initialCheckpoint), fixture.Packets, resources, rules);
         Assert.Equal(0x2000, first.Frame.Memory.Moogle96!.PrivateBufferAliasOffset);
         Run second = Step(first, fixture.Packets, resources, rules);
         Assert.Equal(0x1000, second.Frame.Memory.Moogle96!.PrivateBufferAliasOffset);

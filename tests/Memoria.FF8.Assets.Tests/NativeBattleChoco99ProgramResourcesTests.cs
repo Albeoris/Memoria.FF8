@@ -71,11 +71,12 @@ public sealed class NativeBattleChoco99ProgramResourcesTests
         Assert.Equal(file == 474 ? duration + 1 : duration, calls);
         Assert.Equal((uint)duration, task.ReadDword(0x98));
         Assert.Equal(file == 0 ? new uint[] { 0x1529FA4 } : [], sounds.ToArray());
+        ImmutableArray<byte> heldSourceBefore = NativeBattleStorageSnapshots.Capture(source).Data;
         NativeBattleChoco99ProgramDraw held = Step(new(task.WriteByte(0x28, 1), source, scratch));
         Assert.False(held.Draw.ReadyToComplete);
         Assert.Empty(held.Draw.Packets.Attempts);
         Assert.Null(held.SoundDescriptor);
-        Assert.Equal(file == 0, NativeBattleStorageSnapshots.Capture(source).Data.AsSpan().SequenceEqual(NativeBattleStorageSnapshots.Capture(held.Draw.Source).Data.AsSpan()));
+        Assert.Equal(file == 0, heldSourceBefore.AsSpan().SequenceEqual(NativeBattleStorageSnapshots.Capture(held.Draw.Source).Data.AsSpan()));
         Assert.Throws<NotSupportedException>(() => Step(new(task, source, new byte[0x3C0].ToImmutableArray())));
 
         NativeBattleChoco99ProgramDraw Step(Saved saved) => file == 0 ? NativeBattleChoco99ProgramDrawing.AdvanceInitial(saved.Task, saved.Source, Actor, saved.Scratch, View, Projection, colors, 0) : NativeBattleChoco99ProgramDrawing.AdvanceLoaded(profile, saved.Task, saved.Source, Actor, saved.Scratch, View, Projection, colors, 0);

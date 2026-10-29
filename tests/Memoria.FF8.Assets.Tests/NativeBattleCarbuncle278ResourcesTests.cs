@@ -116,7 +116,9 @@ public sealed class NativeBattleCarbuncle278ResourcesTests
         NativeBattleCarbuncle278ChildDraw rays = NativeBattleCarbuncle278ChildDrawing.Draw683760(childMemory, child, recipientTask, resources, new(identity, 288, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
         Assert.Equal(4, rays.Packets.Attempts.Length);
         Assert.Equal<uint?>(0u, rays.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
-        NativeBattleCarbuncle278ChildDraw shards = NativeBattleCarbuncle278ChildDrawing.Draw683330(childMemory, child with { Callback = 0x683330 }, recipientTask, resources, new(identity, 288, 160, 108));
+        NativeBattleModulePoolTask shardTask = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(child));
+        shardTask.UpdateHeader(shardTask.Flags, shardTask.State, shardTask.Next, 0x683330);
+        NativeBattleCarbuncle278ChildDraw shards = NativeBattleCarbuncle278ChildDrawing.Draw683330(childMemory, shardTask, recipientTask, resources, new(identity, 288, 160, 108));
         Assert.Single(shards.Packets.Attempts);
         Assert.Equal(0x10BF480u, resources.RecipientRingMesh!.Address);
         Assert.Equal(1672, resources.RecipientRingMesh.Bytes.Length);

@@ -23,7 +23,7 @@ public sealed class NativeBattleShellResourcesTests
         Assert.Throws<NotSupportedException>(() => NativeBattleShellController.Initialize(memory with { Shell33 = null }, effect, packets, resources, new(1)));
         NativeBattleShellFrame frame = NativeBattleShellController.Initialize(memory, effect, packets, resources, new(1));
         Assert.False(frame.Memory.Shell33!.PendingColdActorBank);
-        Assert.Equal(resources.ActorBank, frame.Memory.Shell33.ActorBank);
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(resources.ActorBank), NativeBattleSnapshotJson.Serialize(frame.Memory.Shell33.ActorBank));
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096), 216, 160, 108);
         byte[] skeleton = new byte[64];
         skeleton[0] = 1;

@@ -35,7 +35,8 @@ public sealed class NativeBattleQuezacotlRig86Tests
         Assert.Equal(new short[] { 93, 33, 696, 562, 578, 450, 9, 240, 388, 408, 265 }, resources.AnchorVertexIndices11!.Value.ToArray());
         int[] selectedBones = [22, 4, 1, 21, 33, 39, 4, 14, 34, 36, 40];
         NativeBattleVector[] selectedLocals = [new(-25, 0, -1543), new(-2, -720, -2153), new(1589, -1034, -3168), new(-172, -411, -323), new(-81, -501, -1974), new(48, -673, -1615), new(204, 604, -2112), new(265, -365, -1220), new(-309, -442, -462), new(92, -439, -313), new(-47, -673, -1615)];
-        NativeBattleQuezacotlRigWrite anchorWorld = NativeBattleQuezacotlRig86.Compose5095B0(initialized.Memory, initialized.Effect);
+        NativeBattleQuezacotlRigWrite worldInput = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(initialized));
+        NativeBattleQuezacotlRigWrite anchorWorld = NativeBattleQuezacotlRig86.Compose5095B0(worldInput.Memory, worldInput.Effect);
         for (int index = 0; index < selectedBones.Length; index++)
         {
             NativeBattleActionMatrix expectedBone = NativeBattleQuezacotlRig86.ReadBoneMatrix(anchorWorld.Memory, selectedBones[index]);
@@ -51,10 +52,11 @@ public sealed class NativeBattleQuezacotlRig86Tests
         NativeBattleDecodedPose expected = original.Sample(0, 2, 0);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(NativeBattlePoseMatrices.StageBoneMatrices(original, expected)[1]), NativeBattleSnapshotJson.Serialize(NativeBattleQuezacotlRig86.ReadBoneMatrix(advanced.Memory, 1)));
         NativeBattleActionMatrix before = NativeBattleQuezacotlRig86.ReadBoneMatrix(advanced.Memory, 0);
+        NativeBattleQuezacotlRigWrite pathInput = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(advanced));
         NativeBattleQuezacotlRigWrite composed = NativeBattleQuezacotlRig86.Compose5095B0(advanced.Memory, advanced.Effect);
         Assert.Equal(before.Z + 3690, NativeBattleQuezacotlRig86.ReadBoneMatrix(composed.Memory, 0).Z);
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
-        NativeBattleQuezacotlRigWrite pathBones = NativeBattleQuezacotlRig86.ComposePathModel5095B0(advanced.Memory, advanced.Effect, identity);
+        NativeBattleQuezacotlRigWrite pathBones = NativeBattleQuezacotlRig86.ComposePathModel5095B0(pathInput.Memory, pathInput.Effect, identity);
         NativeBattleQuezacotlPathModelBatch pathModel = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(NativeBattleStorageSnapshots.Capture(file).Data.AsSpan().Slice(0x8F8, 0x6DF0 - 0x8F8).ToArray().ToImmutableArray(), selector => NativeBattleQuezacotlRig86.ReadBoneMatrix(pathBones.Memory, selector), new(identity, 216, 160, 108), 0x808080, 1);
         Assert.NotEmpty(pathModel.VertexScratchWrites);
         Assert.All(pathModel.VertexScratchWrites, write => Assert.Equal(8, NativeBattleStorageSnapshots.Capture(write).Data.Length));

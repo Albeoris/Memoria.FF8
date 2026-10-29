@@ -97,7 +97,8 @@ public sealed class NativeBattleChoco100LoadedModelResourcesTests
         Assert.Equal((ushort)0x1000, current.Task.ReadWord(0x13C));
         Assert.Equal(0x02000000u, current.Task.ReadDword(0x58));
         Assert.Equal(resources.DefaultColor44 & 0xFF000000u, current.Task.ReadDword(0x5C));
-        Assert.False(Step(current with { Task = current.Task.WriteByte(0x28, 1) }).Advance.ReadyToComplete);
+        Saved heldInput = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(current));
+        Assert.False(Step(heldInput with { Task = heldInput.Task.WriteByte(0x28, 1) }).Advance.ReadyToComplete);
         Assert.True(Step(current).Advance.ReadyToComplete);
         NativeBattleChoco97ModelAdvance waiting = NativeBattleChoco100LoadedModel.Advance7175F0(current.Task.WriteByte(0x29, 3).WriteByte(0x26, 4).WriteWord(0x13E, 0x2400).WriteWord(0x13C, 0x1000), current.State, resources, new([10, 0, 20, 0, 30, 0, 40, 0], _ => false, _ => false, _ => throw new InvalidOperationException()));
         Assert.Equal((byte)3, waiting.Task.ReadByte(0x29));

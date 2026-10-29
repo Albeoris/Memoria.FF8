@@ -15,7 +15,7 @@ public sealed class NativeModelResourceRehydrationTests
     {
         using Inputs input = new(autoAnimation);
         NativeFieldRegistrationResources changed = WithValidatedTrailingPadding(input.Source);
-        NativeFieldRegistrationStep old = input.Initial;
+        NativeFieldRegistrationStep old = NativeBattleStorageSnapshots.Capture(input.Initial);
         string retainedBefore = NativeBattleSnapshotJson.Serialize(old.Memory);
         NativeFieldRetainedPresentation presentation = input.Presentation[0];
         NativeCrtRandomState random = new(12345);

@@ -130,7 +130,7 @@ public sealed class NativeShopTests
     }
 
     [Fact]
-    public void ShopAbilitiesUseAll128LearnedBitsButOnlyFirst22PerAcquiredGf()
+    public void ShopAbilitiesUseAll128LearnedBitsWithoutAnEarlierAbilityCapacityLimit()
     {
         using GameAssets assets = new(GameDirectory);
         NativeCharacterVitals original = assets.ReadNewGameCharacterVitals();
@@ -138,9 +138,9 @@ public sealed class NativeShopTests
         rows[0] = rows[0] with { Flags = 1, LearnedBank = new(0, 1UL << (92 - 64)) };
         Assert.Equal(1u, (original with { GuardianForces = rows }).ShopAbilityMask());
         rows[0] = rows[0] with { LearnedBank = new((1UL << 22) - 1, 1UL << (92 - 64)) };
-        Assert.Equal(0u, (original with { GuardianForces = rows }).ShopAbilityMask());
+        Assert.Equal(1u, (original with { GuardianForces = rows }).ShopAbilityMask());
         rows[1] = rows[1] with { Flags = 1, LearnedBank = new(0, 1UL << (115 - 64)) };
-        Assert.Equal(1u << 23, (original with { GuardianForces = rows }).ShopAbilityMask());
+        Assert.Equal((1u << 23) | 1u, (original with { GuardianForces = rows }).ShopAbilityMask());
         Assert.Equal(original.GuardianForces[0].LearnedBank, JsonSerializer.Deserialize<NativeCharacterVitals>(JsonSerializer.Serialize(original))!.GuardianForces[0].LearnedBank);
     }
 

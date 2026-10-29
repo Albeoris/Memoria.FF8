@@ -90,7 +90,7 @@ public sealed class NativeBattleQuezacotlResourcesTests
         NativeBattleEffectIoCompletion complete = NativeBattleEffectIo.Complete6C3580(loaded, (_, _) => throw new InvalidOperationException("Arena TIM must retain its mutable native pointer."));
         Assert.Equal(0x28E9C, complete.Memory.Textures!.Slots[1]!.ArenaOffset);
         Assert.Equal(new byte[] { 0, 1, 1, 3, 1 }, complete.Memory.Arena!.Read(0x28E54, 5));
-        Assert.Equal(4, complete.Memory.Textures.Drain505D20(complete.Memory.Arena).Uploads.Length);
+        Assert.Equal(4, NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(complete.Memory.Textures)).Drain505D20(complete.Memory.Arena).Uploads.Length);
         Assert.Contains("7016B0", Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlChild.AdvanceFirst6C3940(complete.Memory, childZero.Effect)).Message);
         NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(complete.Memory);
         NativeBattleGfAnimationWorkspace workspace = NativeBattleQuezacotlWorkspace.Read(complete.Memory).Initialize7016B0(source, NativeBattleQuezacotlWorkspace.Length);

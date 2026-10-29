@@ -19,8 +19,9 @@ public sealed class NativeBattleDiablos325ResourcesTests
         Assert.Equal(new byte[] { 0x30, 0x30, 0x30, 0x30 }, resources.TextureKinds);
         Assert.Equal(new byte[] { 0x31 }, resources.ParticlePrimitiveKinds!.Value);
         Assert.Equal(new byte[] { 0x30 }, resources.ParticleTextureKinds!.Value);
-        Assert.Equal(Enumerable.Range(727, 8).Select(id => (short)id), resources.Files.Select(file => file.FileId));
-        Assert.Equal(new[] { "MAG324_H.00", "MAG324_H.01", "MAG324_H.02", "MAG324_H.03", "MAG324_H.04", "MAG324_H.05", "MAG324_H.06", "MAG324_H.07" }, resources.Files.Select(file => file.Name));
+        // The late callback resources also consume native directory rows735/736 and shared rows360..362.
+        Assert.Equal(Enumerable.Range(727, 10).Concat(new[] { 360, 361, 362 }).Select(id => (short)id), resources.Files.Select(file => file.FileId));
+        Assert.Equal(new[] { "MAG324_H.00", "MAG324_H.01", "MAG324_H.02", "MAG324_H.03", "MAG324_H.04", "MAG324_H.05", "MAG324_H.06", "MAG324_H.07" }, resources.Files.Take(8).Select(file => file.Name));
         Assert.All(resources.Files, file => Assert.NotEmpty(file.Data));
         Assert.Equal(new uint[] { 240248, 240251, 240254, 240257, 240260, 240263 }, resources.Sounds);
         Assert.Equal(0xFD8584u, resources.OpeningProgramme.Address);

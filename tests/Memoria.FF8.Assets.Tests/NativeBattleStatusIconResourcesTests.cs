@@ -103,7 +103,9 @@ public sealed class NativeBattleStatusIconResourcesTests
         Assert.Equal(game.ReadColdProcessNativeBattleMemory().ModelStatusTimers!.Value[0][6], before.Models[0].StatusTimers[6]);
         string saved = NativeBattleSnapshotJson.Serialize(session.Capture());
         BattleSession clone = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(saved)!);
-        TimeSpan callbackStep = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
+        // Admit exactly one31/2Hz native callback from the retained rational clock remainder.
+        long remainingUnits = 2 * (TimeSpan.TicksPerSecond - before.PresentationSubticks) - (before.PresentationHalfSubtick ? 1 : 0);
+        TimeSpan callbackStep = TimeSpan.FromTicks((remainingUnits + 30) / 31);
         session.AdvanceNativeGraphicsPresentation(callbackStep);
         clone.AdvanceNativeGraphicsPresentation(callbackStep);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(session.Capture()), NativeBattleSnapshotJson.Serialize(clone.Capture()));

@@ -59,11 +59,13 @@ public sealed class NativeBattleCactuar199ControllerTests
             {
                 current = current with { Frame = current.Frame with { Effect = NativeBattleCactuar199Controller.WriteCompletionByte(current.Frame.Effect, address, 1) } };
             }
-            Run next = Step(current, fixture.Packets, resources, colors, 0);
             int body = current.Frame.Effect.Pools[1].Slots.Where(task => (task.Flags & 1) != 0 && task.Callback == 0x5A8C20).Select(task => (int)task.ReadWord(0xC)).DefaultIfEmpty(-1).First();
-            if (body is 0 or 5 or 40 or 43 or 87 or 116 && restoredAt.Add(body))
+            bool compare = body is 0 or 5 or 40 or 43 or 87 or 116 && restoredAt.Add(body);
+            string? checkpoint = compare ? NativeBattleSnapshotJson.Serialize(current) : null;
+            Run next = Step(current, fixture.Packets, resources, colors, 0);
+            if (compare)
             {
-                Run restored = NativeBattleSnapshotJson.Deserialize<Run>(NativeBattleSnapshotJson.Serialize(current))!;
+                Run restored = NativeBattleSnapshotJson.Deserialize<Run>(checkpoint!)!;
                 Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored, fixture.Packets, resources, colors, 0)));
             }
             observedParticles |= next.ParticleDraws > 0;

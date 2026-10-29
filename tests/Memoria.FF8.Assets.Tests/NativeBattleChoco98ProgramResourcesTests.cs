@@ -70,10 +70,12 @@ public sealed class NativeBattleChoco98ProgramResourcesTests
         {
             Saved saved = new(task, source, scratch);
             Saved restored = NativeBattleSnapshotJson.Deserialize<Saved>(NativeBattleSnapshotJson.Serialize(saved))!;
+            Saved? initialInput = calls == 0 ? NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(saved)) : null;
             NativeBattleChoco98LoadedProgramDraw next = Step(saved, 0);
             Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(Step(restored, 0)));
             if (calls == 0)
             {
+                Saved initialComparison = initialInput!;
                 Assert.Equal(unchecked((ushort)y), next.Draw.Task.ReadWord(0x1E));
                 Assert.Equal(unchecked((ushort)z), next.Draw.Task.ReadWord(0x20));
                 Assert.Equal((ushort)fourth, next.Draw.Task.ReadWord(0x22));
@@ -100,8 +102,8 @@ public sealed class NativeBattleChoco98ProgramResourcesTests
                 }
                 else
                 {
-                    NativeBattleModulePoolTask initialized = NativeBattleChoco98ProgramDrawing.InitializeWorkspace7224C0(task, source, profile is NativeBattleChoco98LoadedProgram.File462 or NativeBattleChoco98LoadedProgram.File463 ? Target : Actor).WriteWord(0x1E, next.Draw.Task.ReadWord(0x1E)).WriteWord(0x20, next.Draw.Task.ReadWord(0x20));
-                    NativeBattleChoco97ProgramDraw beforeV = NativeBattleChoco98ProgramDrawing.Advance722520(initialized, source, scratch, View, Projection, colors, 0);
+                    NativeBattleModulePoolTask initialized = NativeBattleChoco98ProgramDrawing.InitializeWorkspace7224C0(initialComparison.Task, initialComparison.Source, profile is NativeBattleChoco98LoadedProgram.File462 or NativeBattleChoco98LoadedProgram.File463 ? Target : Actor).WriteWord(0x1E, next.Draw.Task.ReadWord(0x1E)).WriteWord(0x20, next.Draw.Task.ReadWord(0x20));
+                    NativeBattleChoco97ProgramDraw beforeV = NativeBattleChoco98ProgramDrawing.Advance722520(initialized, initialComparison.Source, initialComparison.Scratch, View, Projection, colors, 0);
                     Assert.Equal(NativeBattleSnapshotJson.Serialize(beforeV.Packets), NativeBattleSnapshotJson.Serialize(next.Draw.Packets));
                 }
             }

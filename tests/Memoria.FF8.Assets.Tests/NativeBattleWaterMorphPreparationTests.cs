@@ -93,7 +93,8 @@ public sealed class NativeBattleWaterMorphPreparationTests
         Assert.Equal(resources.Files[0].Data.AsSpan().Slice(0x5048 + 0x30, 6).ToArray(), frame.Arena.Read(work, 6));
         int firstSource = file0 + 0x5048 + 0x30;
         short changedX = unchecked((short)(Signed(frame.Arena, firstSource) + 123));
-        NativeBattleWaterExecutionFrame changed = frame with { Arena = Word(frame.Arena, firstSource, unchecked((ushort)changedX)) };
+        NativeBattleWaterExecutionFrame changed = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
+        changed = changed with { Arena = Word(changed.Arena, firstSource, unchecked((ushort)changedX)) };
         changed = changed.WriteTemporaryDword(0x4C, arenaBase + (uint)(file0 + tuples[3] + 2));
         NativeBattleWaterExecutionFrame observed = NativeBattleWaterMeshPreparation.MorphSelected(changed, bank, 0, resources, map, selected.VertexCount);
         Assert.Equal(changedX, Signed(observed.Arena, work));

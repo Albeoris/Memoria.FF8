@@ -69,6 +69,7 @@ public sealed class NativeBattleChoco100ModelTests
         Assert.Equal((0x715AB0u, 0x70, 0x255ECB8u), (auxiliary.Callback, auxiliary.TaskBytes, auxiliary.PoolAddress));
         Assert.Equal(0x15297F8u, Assert.Single(operations.OfType<NativeBattleChoco97ModelSound>()).DescriptorAddress);
         current = current with { Task = current.Task.WriteWord(0x136, 14).WriteByte(0xA2, current.Task.ReadByte(0xA3)) };
+        Saved phaseSeven = NativeBattleStorageSnapshots.Capture(current);
         StepResult held = Step(current, false, false);
         Assert.Equal((byte)7, held.Next.Task.ReadByte(0x29));
         Assert.Equal((ushort)15, held.Next.Task.ReadWord(0x136));
@@ -92,7 +93,8 @@ public sealed class NativeBattleChoco100ModelTests
         Assert.False(terminal.Advance.ReadyToComplete);
         Assert.True(Step(terminal.Next with { Task = terminal.Next.Task.WriteByte(0x28, 0) }, true, true).Advance.ReadyToComplete);
         Assert.Throws<NotSupportedException>(() => Step(terminal.Next with { Task = terminal.Next.Task.WriteByte(0x29, 11) }, true, true));
-        StepResult wrapped = Step(current with { Task = current.Task.WriteWord(0x136, 0x7FFF) }, false, false);
+        Saved wrappedInput = NativeBattleStorageSnapshots.Restore(phaseSeven);
+        StepResult wrapped = Step(wrappedInput with { Task = wrappedInput.Task.WriteWord(0x136, 0x7FFF) }, false, false);
         Assert.Equal((byte)7, wrapped.Next.Task.ReadByte(0x29));
         Assert.Equal((ushort)0x8000, wrapped.Next.Task.ReadWord(0x136));
 

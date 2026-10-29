@@ -94,7 +94,7 @@ public sealed class NativeBattleChoco99CameraResourcesTests
         Assert.True(manualNoAdvance);
         Assert.True(phase8Double);
         Assert.Equal((byte)9, task.ReadByte(0x29));
-        Assert.False(Advance(task.WriteByte(0x28, 1), camera).ReadyToComplete);
+        Assert.False(Advance(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(task)).WriteByte(0x28, 1), camera).ReadyToComplete);
         Assert.True(Advance(task, camera).ReadyToComplete);
 
         NativeBattleChoco99CameraTaskStep Advance(NativeBattleModulePoolTask currentTask, NativeBattleMoogleCameraState? currentCamera) => NativeBattleChoco99CameraTask.Advance71DC40(currentTask, currentCamera, resources, 11, [10, 0, 20, 0, 30, 0, 40, 0], [50, 0, 60, 0, 70, 0, 80, 0]);

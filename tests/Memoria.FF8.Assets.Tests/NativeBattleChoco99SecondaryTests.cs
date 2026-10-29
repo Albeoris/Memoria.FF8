@@ -41,7 +41,7 @@ public sealed class NativeBattleChoco99SecondaryTests
                 Assert.Equal(timed ? (ushort)300 : (ushort)8192, step.Task.ReadWord(0x20));
                 Assert.Equal(timed ? (ushort)16 : (ushort)0x5678, step.Task.ReadWord(0x54));
             }
-            NativeBattleGfGeometryBatch changedLifetime = NativeBattleChoco99Secondary.Draw721230(step.Task.WriteWord(0x52, 0xFFFF).WriteWord(0x54, 0x8000), mesh, view, projection, colors);
+            NativeBattleGfGeometryBatch changedLifetime = NativeBattleChoco99Secondary.Draw721230(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(step.Task)).WriteWord(0x52, 0xFFFF).WriteWord(0x54, 0x8000), mesh, view, projection, colors);
             Assert.Equal(NativeBattleSnapshotJson.Serialize(step.Packets), NativeBattleSnapshotJson.Serialize(changedLifetime));
             Assert.Equal(timed ? 108 : 160, step.Packets.Attempts.Length);
             accepted += step.Packets.Attempts.Count(attempt => attempt.Primitive is not null);

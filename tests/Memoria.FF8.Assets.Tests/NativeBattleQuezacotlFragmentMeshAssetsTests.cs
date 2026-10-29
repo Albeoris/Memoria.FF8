@@ -48,7 +48,8 @@ public sealed class NativeBattleQuezacotlFragmentMeshAssetsTests
         uint changedColor = BinaryPrimitives.ReadUInt32LittleEndian(mesh[0x6C..]) ^ 0x00010101u;
         byte[] color = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(color, changedColor);
-        NativeBattleEffectMemory changed = memory with { QuezacotlExecutableMemory = memory.QuezacotlExecutableMemory!.Write(address + 0x6C, color) };
+        NativeBattleEffectMemory changedInput = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(memory));
+        NativeBattleEffectMemory changed = changedInput with { QuezacotlExecutableMemory = changedInput.QuezacotlExecutableMemory!.Write(address + 0x6C, color) };
         NativeBattleGfGeometryBatch changedBatch = NativeBattleQuezacotlFragmentPackets.Emit6C6660(changed, task, projection);
         Assert.Equal(changedColor, BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(changedBatch.Attempts[0]).Data.AsSpan().Slice(4, 4)));
         Assert.NotEqual(NativeBattleSnapshotJson.Serialize(batch), NativeBattleSnapshotJson.Serialize(changedBatch));

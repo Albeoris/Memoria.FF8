@@ -21,10 +21,10 @@ public sealed class NativeBattleGilgameshOpeningResourcesTests
         foreach (NativeBattleModulePoolTask original in initial.Pool.Slots.Take(5))
         {
             NativeBattleModulePoolTask task = original.WriteWord(12, 67);
+            NativeBattleModulePoolTask restoredTask = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
             NativeBattleGilgameshOpeningStep step = NativeBattleGilgameshOpening.Step(task, resources, view, projection, 0);
             Assert.Equal(2, step.Result);
             Assert.NotEmpty(step.Batch.Attempts);
-            NativeBattleModulePoolTask restoredTask = NativeBattleSnapshotJson.Deserialize<NativeBattleModulePoolTask>(NativeBattleSnapshotJson.Serialize(task))!;
             Assert.Equal(NativeBattleSnapshotJson.Serialize(step), NativeBattleSnapshotJson.Serialize(NativeBattleGilgameshOpening.Step(restoredTask, restored, view, projection, 0)));
         }
         Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshOpeningResourcesReader.Read(new byte[128]));

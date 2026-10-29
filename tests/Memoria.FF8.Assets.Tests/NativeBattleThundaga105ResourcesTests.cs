@@ -83,11 +83,11 @@ public sealed class NativeBattleThundaga105ResourcesTests
         int nodes = 0;
         for (int frame = 0; frame < 64; frame++)
         {
+            NativeBattleGfAnimationWorkspace? cold = frame == 31 ? NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace)) : null;
             NativeBattleGfAnimationAdvance next = workspace.Advance701970(source, 0, (current, _) => current);
             Assert.Equal(63 - frame, next.Remaining);
-            if (frame == 31)
+            if (cold is not null)
             {
-                NativeBattleGfAnimationWorkspace cold = NativeBattleSnapshotJson.Deserialize<NativeBattleGfAnimationWorkspace>(NativeBattleSnapshotJson.Serialize(workspace))!;
                 Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(cold.Advance701970(source, 0, (current, _) => current)));
             }
             nodes += next.EmittedNodes;
@@ -137,12 +137,12 @@ public sealed class NativeBattleThundaga105ResourcesTests
         bool scratchChanged = false;
         for (int frame = 0; frame < 64; frame++)
         {
+            PrimaryState? restored = frame == 31 ? NativeBattleSnapshotJson.Deserialize<PrimaryState>(NativeBattleSnapshotJson.Serialize(new PrimaryState(memory, task))) : null;
             NativeBattleThundaga105ProgramDraw next = NativeBattleThundaga105ProgramDrawing.Advance6D43B0(memory, task, resources.ProgramSource, resources.NodeSelector.Data, anchor, view, view, projection, colors);
             Assert.Equal(63 - frame, next.Remaining);
             Assert.Equal((uint)(frame + 1), next.Task.ReadDword(0x20));
-            if (frame == 31)
+            if (restored is not null)
             {
-                PrimaryState restored = NativeBattleSnapshotJson.Deserialize<PrimaryState>(NativeBattleSnapshotJson.Serialize(new PrimaryState(memory, task)))!;
                 NativeBattleThundaga105ProgramDraw cold = NativeBattleThundaga105ProgramDrawing.Advance6D43B0(restored.Memory, restored.Task, resources.ProgramSource, resources.NodeSelector.Data, anchor, view, view, projection, colors);
                 Assert.Equal(NativeBattleSnapshotJson.Serialize(next), NativeBattleSnapshotJson.Serialize(cold));
             }

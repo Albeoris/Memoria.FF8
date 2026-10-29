@@ -45,7 +45,19 @@ public sealed class NativeCharacterStatTests
         NativeCharacterVital[] records = source.Records.ToArray();
         records[0] = records[0] with { HitPoints = new NativeHpWord(100, 9999) };
         NativeCharacterVitals acquired = (source with { Records = records, CombatParty = [0, 255, 255] }).AcquireGuardianForce(15);
-        Assert.Equal(source.GuardianForces[15] with { Flags = (byte)(source.GuardianForces[15].Flags | 1) }, acquired.GuardianForces[15]);
+        NativeGuardianForceVital acquiredGuardian = acquired.GuardianForces[15];
+        GuardianForceProgression progression = Assert.IsType<GuardianForceProgression>(acquiredGuardian.Progression);
+        Assert.True(progression.Initialized);
+        Assert.All(source.MenuDefinitions.Templates[15], template => Assert.Contains(progression.Abilities, entry => entry.Ability == template.Ability && entry.Active));
+        GuardianForceCompatibilityProjection projection = Assert.IsType<GuardianForceCompatibilityProjection>(acquiredGuardian.LastProjection);
+        Assert.Equal(acquiredGuardian.LearnedBank, projection.LearnedBank);
+        Assert.Equal(acquiredGuardian.AbilityProgress.ToArray(), projection.AbilityProgress.ToArray());
+        Assert.Equal(acquiredGuardian.Learning, projection.Learning);
+        Assert.Equal(acquiredGuardian.ForgottenAbilities, projection.ForgottenAbilities);
+        Assert.Equal(source.MenuDefinitions.Learning[15].ToArray(), projection.LearningRules.ToArray());
+        NativeGuardianForceVital expectedGuardian = source.GuardianForces[15] with { Flags = (byte)(source.GuardianForces[15].Flags | 1), Progression = progression, LastProjection = projection };
+        // Acquisition adds typed authority while every original native compatibility field remains exact.
+        Assert.Equal(JsonSerializer.Serialize(expectedGuardian), JsonSerializer.Serialize(acquiredGuardian));
         NativeCharacterVitals rebuilt = acquired.RebuildParty();
         Assert.Equal(new NativeHpWord(100, 486), rebuilt.Records[0].HitPoints);
         Assert.Equal(new NativeHpWord(100, 9999), acquired.Records[0].HitPoints);

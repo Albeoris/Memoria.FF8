@@ -47,8 +47,9 @@ public sealed class NativeBattleGilgameshOpeningFlareResourcesTests
             Assert.Equal(new int[] { 0, 0, 0, 0 }, allocation.Primitive.VertexPayload4.ToArray());
         }
         NativeBattleGilgameshOpeningFlareStep first = NativeBattleGilgameshOpeningFlare.Step593250(task, imported, resources, new(1000, 2000, -3000), view, projection, -256, 0x1000000, 0);
+        NativeBattleGilgameshOpeningFlareStep restoredFirst = RoundTrip(first);
         NativeBattleGilgameshOpeningFlareStep expected = NativeBattleGilgameshOpeningFlare.Step593250(first.UpdatedTask, first.State, resources, new(1000, 2000, -3000), view, projection, -256, 0x1000000, 0);
-        NativeBattleGilgameshOpeningFlareStep actual = NativeBattleGilgameshOpeningFlare.Step593250(RoundTrip(first.UpdatedTask), RoundTrip(first.State), restoredResources, new(1000, 2000, -3000), view, projection, -256, 0x1000000, 0);
+        NativeBattleGilgameshOpeningFlareStep actual = NativeBattleGilgameshOpeningFlare.Step593250(restoredFirst.UpdatedTask, restoredFirst.State, restoredResources, new(1000, 2000, -3000), view, projection, -256, 0x1000000, 0);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(expected), NativeBattleSnapshotJson.Serialize(actual));
         Assert.Throws<InvalidDataException>(() => (resources with { Rows = resources.Rows.RemoveAt(7) }).Validate());
         Assert.Throws<InvalidDataException>(() => (resources with { Rows = resources.Rows.SetItem(5, resources.Rows[5] with { Weight = 512 }) }).Validate());

@@ -180,7 +180,7 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
         BattleSnapshot snapshot = battle.Capture();
         BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(snapshot))!);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(snapshot), NativeBattleSnapshotJson.Serialize(restored.Capture()));
-        TimeSpan callbackDuration = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
+        TimeSpan callbackDuration = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
         battle.AdvanceNativeGraphicsPresentation(callbackDuration);
         restored.AdvanceNativeGraphicsPresentation(callbackDuration);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(battle.Capture()), NativeBattleSnapshotJson.Serialize(restored.Capture()));
@@ -188,10 +188,10 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
         Assert.Equal(0, enemy.Flags2!.Value & 4);
         foreach ((uint soundFlags, int loadCount, bool cleared) in new (uint, int, bool)[] { (0, 1, true), (1, 0, false), (0x80000000, 0, false), (uint.MaxValue, 1, false) })
         {
-            NativeBattleGraphicsModel removing = NativeBattleGraphicsModels.StartRemoval(enemy, 5) with { Phase6 = 1 };
+            NativeBattleGraphicsModel removing = NativeBattleGraphicsModels.StartRemoval(snapshot.NativeGraphics!.Models[3], 5) with { Phase6 = 1 };
             BattleSession removal = BattleSession.Restore(snapshot with
             {
-                NativeGraphics = graphics with { Models = graphics.Models.SetItem(3, removing), ModelLoadCount = loadCount },
+                NativeGraphics = snapshot.NativeGraphics with { Models = snapshot.NativeGraphics.Models.SetItem(3, removing), ModelLoadCount = loadCount },
                 NativeEffectMemory = snapshot.NativeEffectMemory! with { SoundPublishedFlags = soundFlags }
             });
             removal.AdvanceNativeGraphicsPresentation(callbackDuration);

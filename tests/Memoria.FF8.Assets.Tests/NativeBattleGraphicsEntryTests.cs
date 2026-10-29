@@ -115,14 +115,16 @@ public sealed class NativeBattleGraphicsEntryTests
         battle.Tick();
         Assert.Equal(12000, battle.Combatants[0].NativeAtb!.Current);
         Assert.All(battle.Combatants.Skip(1), actor => Assert.Equal(186, actor.NativeAtb!.Current));
-        Assert.Equal(beforeFrame, battle.Frame);
+        // The automatic logical ATB step owns one Frame increment before the waiting decision.
+        long readyFrame = beforeFrame + 1;
+        Assert.Equal(readyFrame, battle.Frame);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         for (int frame = 0; frame < 4; frame++)
         {
             battle.Tick();
             restored.Tick();
         }
-        Assert.Equal(beforeFrame, battle.Frame);
+        Assert.Equal(readyFrame, battle.Frame);
         Assert.Equal(beforeGraphics + 5, battle.NativeGraphics.Callback);
         Assert.All(battle.Combatants.Skip(1), actor => Assert.Equal(186, actor.NativeAtb!.Current));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));

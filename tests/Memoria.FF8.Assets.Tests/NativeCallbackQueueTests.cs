@@ -92,7 +92,11 @@ public sealed class NativeCallbackQueueTests
         Assert.Equal(12, queued.ActionId);
         Assert.Equal((ushort)1, queued.NativeTargetMask);
         Assert.Equal(BattleNativePlayerReaction.AngeloPeriodic, queued.NativePlayerReaction);
-        Assert.Equal(JsonSerializer.Serialize(random), JsonSerializer.Serialize(battle.Capture().Random));
+        BattleNativeAction installedAction = Assert.Single(assets.NativeActions, action => action.Command == 240 && action.ActionId == 12);
+        Assert.Equal((byte)32, installedAction.AttackType);
+        // The saved selector is reused; preparing the native healing formula consumes hit and status draws.
+        NativeBattleRandomState preparedRandom = random.Draw(out _).Draw(out _);
+        Assert.Equal(JsonSerializer.Serialize(preparedRandom), JsonSerializer.Serialize(battle.Capture().Random));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 

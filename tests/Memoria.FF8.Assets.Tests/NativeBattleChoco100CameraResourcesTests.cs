@@ -106,7 +106,7 @@ public sealed class NativeBattleChoco100CameraResourcesTests
         Assert.Equal(9, holdCallbacks);
         Assert.Equal(1, soundCalls);
         Assert.Equal((byte)13, task.ReadByte(0x29));
-        Assert.False(NativeBattleChoco100CameraTask.Advance7148C0(task.WriteByte(0x28, 1), camera, resources, context).ReadyToComplete);
+        Assert.False(NativeBattleChoco100CameraTask.Advance7148C0(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(task)).WriteByte(0x28, 1), camera, resources, context).ReadyToComplete);
         Assert.True(NativeBattleChoco100CameraTask.Advance7148C0(task, camera, resources, context).ReadyToComplete);
     }
 
