@@ -119,19 +119,17 @@ internal sealed partial class BattleScenePresentation
         weapons.Add(actor.Id, weapon);
     }
 
-    internal static float NativePilotAlpha(long subticks, bool halfSubtick, TimeSpan renderElapsed)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(renderElapsed.Ticks);
-        double phase = subticks + (halfSubtick ? 0.5 : 0) + renderElapsed.Ticks * NativeBattleGraphicsPresentationClock.CallbacksPerSecond;
-        return (float)Math.Clamp(phase / TimeSpan.TicksPerSecond, 0, 1);
-    }
-
     public byte[] Render(BattleSession session, int width, int height, ITriangleRenderer? triangleRenderer = null)
     {
-        return Render(session, width, height, triangleRenderer, TimeSpan.Zero);
+        return RenderCore(session, width, height, triangleRenderer, null);
     }
 
-    public byte[] Render(BattleSession session, int width, int height, ITriangleRenderer? triangleRenderer, TimeSpan renderElapsed)
+    public byte[] Render(BattleSession session, int width, int height, ITriangleRenderer? triangleRenderer, float presentationPhase)
+    {
+        return RenderCore(session, width, height, triangleRenderer, presentationPhase);
+    }
+
+    private byte[] RenderCore(BattleSession session, int width, int height, ITriangleRenderer? triangleRenderer, float? presentationPhase)
     {
         if (renderer?.Width != width || renderer.Height != height)
         {
@@ -148,8 +146,7 @@ internal sealed partial class BattleScenePresentation
         bool pilotInterval = false;
         if (prepared is not null)
         {
-            float alpha = session.NativeGraphics is { } clock ? NativePilotAlpha(clock.PresentationSubticks, clock.PresentationHalfSubtick, renderElapsed) : 0;
-            (prepared, pilotNext, pilotAlpha) = pilotTimeline.Select(prepared, SmoothCompatibleMotion, alpha, session);
+            (prepared, pilotNext, pilotAlpha) = pilotTimeline.Select(prepared, SmoothCompatibleMotion && presentationPhase.HasValue, presentationPhase ?? 0, session);
             pilotInterval = pilotNext is not null;
             if (pilotNext is not null && !renderer.CanSampleNativePilotInterval(prepared, pilotNext))
             {

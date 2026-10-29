@@ -1,4 +1,5 @@
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
@@ -10,11 +11,14 @@ internal sealed class PresentationTiming
     private readonly Queue<(long Completed, TimeSpan Duration)> recentUpdateCosts = [];
     private TimeProvider? costClock;
     private TimeProvider presentationClock = TimeProvider.System;
-    private long presentationFrameStarted;
     private object? presentationOwner;
     private object? presentationFrameOwner;
     private bool presentationFrameCanAdvance;
-    private bool presentationFrameEnabled;
+    private (long Callback, long Generation, ushort? Effect)? presentationSource;
+    private long presentationAnchor;
+    private bool presentationRunning;
+    private double presentationPhase;
+    private float lastSampledPhase;
     private double presentationSpeed = 1;
 
     public TimeSpan SimulationTotal { get; private set; }
@@ -27,53 +31,96 @@ internal sealed class PresentationTiming
 
     public void BeginPresentationFrame(object? owner, bool advancing, TimeProvider? timeProvider = null)
     {
-        presentationClock = timeProvider ?? TimeProvider.System;
-        presentationFrameStarted = presentationClock.GetTimestamp();
+        TimeProvider clock = timeProvider ?? TimeProvider.System;
+        if (!ReferenceEquals(clock, presentationClock) || !ReferenceEquals(owner, presentationFrameOwner))
+        {
+            ResetPresentationSource();
+        }
+        presentationClock = clock;
         presentationFrameOwner = owner;
         presentationFrameCanAdvance = advancing && owner is not null;
-        presentationFrameEnabled = presentationFrameCanAdvance && ReferenceEquals(owner, presentationOwner);
-        if (!presentationFrameEnabled)
+        if (!presentationFrameCanAdvance)
         {
-            presentationOwner = null;
+            FreezePresentationFrame();
         }
     }
 
-    public void AdmitPresentationOwner(object owner, double speed = 1)
+    public void ObservePresentationSource(object owner, NativeBattlePreparedPresentation? source, double speed = 1)
     {
         ArgumentNullException.ThrowIfNull(owner);
-        if (!double.IsFinite(speed) || speed <= 0)
+        if (!double.IsFinite(speed) || speed < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(speed));
         }
-        if (presentationFrameCanAdvance && ReferenceEquals(owner, presentationFrameOwner))
+        if (speed == 0)
         {
-            // A newly admitted session starts carrying time on the next host frame.
-            presentationOwner = owner;
-            presentationSpeed = speed;
+            FreezePresentationFrame();
+            return;
         }
+        if (source is null || source.PilotEffect is not (2 or 3 or 144))
+        {
+            ResetPresentationSource();
+            return;
+        }
+        if (!presentationFrameCanAdvance || !ReferenceEquals(owner, presentationFrameOwner))
+        {
+            return;
+        }
+        var key = (source.Callback, source.PilotGeneration, source.PilotEffect);
+        if (!ReferenceEquals(owner, presentationOwner) || presentationSource != key)
+        {
+            // The completed source becomes available here, after its native producer returns.
+            // Work done before publication is not playback progress for this interval.
+            presentationOwner = owner;
+            presentationSource = key;
+            presentationPhase = 0;
+            lastSampledPhase = 0;
+        }
+        else
+        {
+            presentationPhase = CurrentPresentationPhase();
+        }
+        presentationAnchor = presentationClock.GetTimestamp();
+        presentationSpeed = speed;
+        presentationRunning = true;
     }
 
     public void FreezePresentationFrame()
     {
+        // Freeze the last actually drawn phase, excluding unsampled work and blocked time.
+        presentationPhase = lastSampledPhase;
+        presentationRunning = false;
         presentationFrameCanAdvance = false;
-        presentationFrameEnabled = false;
-        presentationOwner = null;
     }
 
-    public TimeSpan RenderElapsed(object owner, bool advancing)
+    public float SamplePresentationPhase(object owner, NativeBattlePreparedPresentation? source, bool advancing, bool smooth = true)
     {
+        if (!smooth || source is null || !ReferenceEquals(owner, presentationOwner) || presentationSource != (source.Callback, source.PilotGeneration, source.PilotEffect))
+        {
+            ResetPresentationSource();
+            return 0;
+        }
         if (!advancing)
         {
             FreezePresentationFrame();
-            return TimeSpan.Zero;
         }
-        if (!presentationFrameEnabled || !ReferenceEquals(owner, presentationFrameOwner) || !ReferenceEquals(owner, presentationOwner))
-        {
-            return TimeSpan.Zero;
-        }
-        TimeSpan work = presentationClock.GetElapsedTime(presentationFrameStarted);
-        TimeSpan elapsed = accumulated + (work > TimeSpan.Zero ? work : TimeSpan.Zero);
-        return TimeSpan.FromTicks((long)Math.Min(elapsed.Ticks * presentationSpeed, MaximumElapsed.Ticks));
+        lastSampledPhase = (float)CurrentPresentationPhase();
+        return lastSampledPhase;
+    }
+
+    private double CurrentPresentationPhase()
+    {
+        double elapsed = presentationRunning ? Math.Max(0, presentationClock.GetElapsedTime(presentationAnchor).TotalSeconds) : 0;
+        return Math.Clamp(presentationPhase + elapsed * NativeBattleGraphicsPresentationClock.CallbacksPerSecond * presentationSpeed, 0, 1);
+    }
+
+    private void ResetPresentationSource()
+    {
+        presentationOwner = null;
+        presentationSource = null;
+        presentationRunning = false;
+        presentationPhase = 0;
+        lastSampledPhase = 0;
     }
 
     public static int FrameLimit(UiPreferences preferences, bool menu, bool battle, bool worldMap = false)

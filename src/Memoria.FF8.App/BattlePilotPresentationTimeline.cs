@@ -36,8 +36,8 @@ internal sealed class BattlePilotPresentationTimeline
         {
             return (current, null, 0);
         }
-        // Pausing can discard the host carry while retaining the same completed interval.
-        // Hold its last sampled phase until native time catches up; new intervals reset it.
+        // The explicit live phase belongs only to this completed interval.
+        // Keep repeated submissions monotonic; source and ownership boundaries reset it.
         sampledAlpha = Math.Max(sampledAlpha, float.IsFinite(alpha) ? Math.Clamp(alpha, 0, 1) : 0);
         return (earlier, current, sampledAlpha);
     }

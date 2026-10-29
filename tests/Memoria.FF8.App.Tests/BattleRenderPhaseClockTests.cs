@@ -7,161 +7,213 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleRenderPhaseClockTests
 {
-    [Fact]
-    public void Repeated_draws_sample_distinct_phases_without_another_fixed_update()
+    [Theory]
+    [InlineData(2, true)]
+    [InlineData(3, true)]
+    [InlineData(144, true)]
+    [InlineData(202, false)]
+    [InlineData(319, false)]
+    public void Completion_clock_is_enabled_only_for_the_three_pilot_spells(ushort effect, bool supported)
     {
         PresentationTiming timing = new();
         ManualTimeProvider clock = new();
         object owner = new();
-        Admit(timing, clock, owner);
-        timing.Accumulate(TimeSpan.FromMilliseconds(5));
-        Assert.False(timing.TryStep());
-        float first = BattleScenePresentation.NativePilotAlpha(2_000_000, false, timing.RenderElapsed(owner, true));
-        clock.Advance(TimeSpan.FromMilliseconds(4));
-        float second = BattleScenePresentation.NativePilotAlpha(2_000_000, false, timing.RenderElapsed(owner, true));
-        clock.Advance(TimeSpan.FromMilliseconds(4));
-        float third = BattleScenePresentation.NativePilotAlpha(2_000_000, false, timing.RenderElapsed(owner, true));
-        Assert.Equal(0.2775f, first, 6);
-        Assert.Equal(0.3395f, second, 6);
-        Assert.Equal(0.4015f, third, 6);
-        Assert.Equal(TimeSpan.Zero, timing.SimulationTotal);
-        Assert.False(timing.TryStep());
-    }
-
-    [Fact]
-    public void Pending_remainder_and_pacer_update_work_are_included_once_and_rebased_at_the_next_host_tick()
-    {
-        PresentationTiming timing = new();
-        ManualTimeProvider clock = new();
-        object owner = new();
-        Admit(timing, clock, owner);
-        timing.Accumulate(TimeSpan.FromMilliseconds(20));
-        clock.Advance(TimeSpan.FromMilliseconds(4));
-        timing.RunUpdates(PresentationTiming.SimulationStep, () => PresentationTiming.SimulationStep, _ =>
-        {
-            clock.Advance(TimeSpan.FromMilliseconds(3));
-            timing.AdmitPresentationOwner(owner);
-            return true;
-        }, clock);
-        TimeSpan first = TimeSpan.FromMilliseconds(20) - PresentationTiming.SimulationStep + TimeSpan.FromMilliseconds(7);
-        Assert.Equal(first, timing.RenderElapsed(owner, true));
-        Assert.Equal(PresentationTiming.SimulationStep, timing.SimulationTotal);
+        NativeBattlePreparedPresentation source = Frame(2, 10) with { PilotEffect = effect };
         timing.BeginPresentationFrame(owner, true, clock);
-        timing.Accumulate(TimeSpan.FromMilliseconds(7));
-        Assert.Equal(first, timing.RenderElapsed(owner, true));
-        clock.Advance(TimeSpan.FromMilliseconds(2));
-        Assert.Equal(first + TimeSpan.FromMilliseconds(2), timing.RenderElapsed(owner, true));
+        timing.ObservePresentationSource(owner, source);
+        clock.Advance(TimeSpan.FromMilliseconds(10));
+        Assert.Equal(supported ? 0.155f : 0, timing.SamplePresentationPhase(owner, source, true), 6);
     }
 
     [Fact]
-    public void Native_half_tick_and_default_phase_are_preserved_and_unproduced_callbacks_are_clamped_not_wrapped()
+    public void Producer_work_and_fixed_step_debt_before_publication_do_not_consume_the_new_interval()
     {
-        Assert.Equal(0.25f, BattleScenePresentation.NativePilotAlpha(2_500_000, false, TimeSpan.Zero));
-        Assert.Equal(0.00000005f, BattleScenePresentation.NativePilotAlpha(0, true, TimeSpan.Zero));
-        Assert.Equal(1f, BattleScenePresentation.NativePilotAlpha(9_000_000, true, TimeSpan.FromMilliseconds(20)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => BattleScenePresentation.NativePilotAlpha(0, false, TimeSpan.FromTicks(-1)));
         PresentationTiming timing = new();
         ManualTimeProvider clock = new();
         object owner = new();
-        Admit(timing, clock, owner);
-        clock.Advance(TimeSpan.FromSeconds(1));
-        Assert.Equal(PresentationTiming.MaximumElapsed, timing.RenderElapsed(owner, true));
+        timing.BeginPresentationFrame(owner, true, clock);
+        timing.ObservePresentationSource(owner, Frame(1, 0));
+        timing.Accumulate(TimeSpan.FromMilliseconds(90));
+        clock.Advance(TimeSpan.FromMilliseconds(49));
+        NativeBattlePreparedPresentation next = Frame(2, 10);
+        timing.ObservePresentationSource(owner, next);
+        Assert.Equal(0, timing.SamplePresentationPhase(owner, next, true));
+        for (int draw = 1; draw <= 3; draw++)
+        {
+            clock.Advance(TimeSpan.FromMilliseconds(16));
+            Assert.Equal(draw * 0.248f, timing.SamplePresentationPhase(owner, next, true), 6);
+        }
+        Assert.Equal(TimeSpan.Zero, timing.SimulationTotal);
+        Assert.True(timing.TryStep());
+        Assert.Equal(PresentationTiming.SimulationStep, timing.SimulationTotal);
+        Assert.Equal(0.744f, timing.SamplePresentationPhase(owner, next, true), 6);
+        timing.BeginPresentationFrame(owner, true, clock);
+        clock.Advance(TimeSpan.FromMilliseconds(4));
+        Assert.Equal(0.806f, timing.SamplePresentationPhase(owner, next, true), 6);
+    }
+
+    [Fact]
+    public void Unproduced_endpoints_clamp_without_advancing_callbacks_and_new_sources_publish_immediately()
+    {
+        PresentationTiming timing = new();
+        ManualTimeProvider clock = new();
+        object owner = new();
+        NativeBattlePreparedPresentation frame = Frame(2, 10);
+        timing.BeginPresentationFrame(owner, true, clock);
+        timing.ObservePresentationSource(owner, frame);
+        clock.Advance(TimeSpan.FromSeconds(2));
+        Assert.Equal(1, timing.SamplePresentationPhase(owner, frame, true));
+        timing.ObservePresentationSource(owner, Frame(3, 20));
+        Assert.Equal(0, timing.SamplePresentationPhase(owner, Frame(3, 20), true));
+        timing.ObservePresentationSource(owner, null);
+        Assert.Equal(0, timing.SamplePresentationPhase(owner, frame, true));
         Assert.Equal(TimeSpan.Zero, timing.SimulationTotal);
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Pause_at_host_entry_or_during_update_excludes_wait_and_resumes_only_after_native_presentation_is_readmitted(bool pausedAtHostEntry)
+    [InlineData("pause")]
+    [InlineData("capture")]
+    [InlineData("focus")]
+    public void Pauses_hold_the_last_drawn_pose_and_resume_without_rewind_or_blocked_wall_time(string boundary)
     {
         PresentationTiming timing = new();
         ManualTimeProvider clock = new();
         object owner = new();
-        Admit(timing, clock, owner);
-        timing.Accumulate(TimeSpan.FromMilliseconds(5));
-        clock.Advance(TimeSpan.FromMilliseconds(2));
-        Assert.Equal(TimeSpan.FromMilliseconds(7), timing.RenderElapsed(owner, true));
-        timing.BeginPresentationFrame(owner, !pausedAtHostEntry, clock);
+        NativeBattlePreparedPresentation first = Frame(1, 0);
+        NativeBattlePreparedPresentation second = Frame(2, 10);
+        timing.BeginPresentationFrame(owner, true, clock);
+        timing.ObservePresentationSource(owner, second);
+        BattlePilotPresentationTimeline timeline = new();
+        timeline.Select(first, true, 0, owner);
+        Capture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        clock.Advance(TimeSpan.FromMilliseconds(47));
+        float visible = timing.SamplePresentationPhase(owner, second, true);
+        Assert.Equal(0.7285f, visible, 6);
+        TriangleVertex[] before = Draw(visible);
+        clock.Advance(TimeSpan.FromMilliseconds(5));
+        switch (boundary)
+        {
+            case "pause":
+                timing.BeginPresentationFrame(owner, false, clock);
+                break;
+            case "capture":
+                timing.FreezePresentationFrame();
+                break;
+            case "focus":
+                timing.DiscardPendingTime();
+                break;
+        }
         clock.Advance(TimeSpan.FromSeconds(10));
-        timing.AdmitPresentationOwner(owner);
-        Assert.Equal(TimeSpan.Zero, timing.RenderElapsed(owner, false));
+        Assert.Equal(visible, timing.SamplePresentationPhase(owner, second, false));
+        Assert.Equal(before, Draw(visible));
         timing.BeginPresentationFrame(owner, true, clock);
-        Assert.Equal(TimeSpan.Zero, timing.RenderElapsed(owner, true));
-        timing.AdmitPresentationOwner(owner);
-        Assert.Equal(TimeSpan.Zero, timing.RenderElapsed(owner, true));
-        timing.BeginPresentationFrame(owner, true, clock);
-        clock.Advance(TimeSpan.FromMilliseconds(3));
-        Assert.Equal(TimeSpan.FromMilliseconds(8), timing.RenderElapsed(owner, true));
+        Assert.Equal(visible, timing.SamplePresentationPhase(owner, second, true));
+        timing.ObservePresentationSource(owner, second);
+        Assert.Equal(visible, timing.SamplePresentationPhase(owner, second, true));
+        clock.Advance(TimeSpan.FromMilliseconds(2));
+        float resumed = timing.SamplePresentationPhase(owner, second, true);
+        Assert.Equal(visible + 0.031f, resumed, 6);
+        Assert.True(Draw(resumed)[0].Position.X > before[0].Position.X);
+        Assert.Equal(TimeSpan.Zero, timing.SimulationTotal);
+
+        TriangleVertex[] Draw(float alpha)
+        {
+            var selected = timeline.Select(second, true, alpha, owner);
+            renderer.RenderNativePilotPrimitiveFrame(selected.Frame, selected.Next!, selected.Alpha);
+            Assert.Equal(0, renderer.LastPilotFallbackCount);
+            return capture.Vertices.ToArray();
+        }
     }
 
-    [Fact]
-    public void Capture_fence_or_focus_discard_cancels_current_carry_and_a_new_session_cannot_inherit_it()
+    [Theory]
+    [InlineData("session")]
+    [InlineData("generation")]
+    [InlineData("effect")]
+    [InlineData("mode")]
+    [InlineData("gap")]
+    public void Completion_clock_cannot_retain_phase_across_source_or_mode_boundaries(string boundary)
     {
         PresentationTiming timing = new();
         ManualTimeProvider clock = new();
-        object first = new();
-        object second = new();
-        Admit(timing, clock, first);
-        timing.Accumulate(TimeSpan.FromMilliseconds(5));
-        clock.Advance(TimeSpan.FromMilliseconds(2));
+        object owner = new();
+        NativeBattlePreparedPresentation source = Frame(2, 10);
+        timing.BeginPresentationFrame(owner, true, clock);
+        timing.ObservePresentationSource(owner, source);
+        clock.Advance(TimeSpan.FromMilliseconds(47));
+        Assert.True(timing.SamplePresentationPhase(owner, source, true) > 0.7f);
         timing.FreezePresentationFrame();
-        Assert.Equal(TimeSpan.Zero, timing.RenderElapsed(first, true));
-        timing.BeginPresentationFrame(first, true, clock);
-        timing.AdmitPresentationOwner(first);
-        timing.BeginPresentationFrame(first, true, clock);
-        Assert.Equal(TimeSpan.FromMilliseconds(5), timing.RenderElapsed(first, true));
-        Assert.Equal(TimeSpan.Zero, timing.RenderElapsed(second, true));
-        timing.BeginPresentationFrame(second, true, clock);
-        Assert.Equal(TimeSpan.Zero, timing.RenderElapsed(second, true));
-        timing.AdmitPresentationOwner(second);
-        timing.BeginPresentationFrame(second, true, clock);
-        timing.DiscardPendingTime();
-        clock.Advance(TimeSpan.FromSeconds(1));
-        Assert.Equal(TimeSpan.Zero, timing.RenderElapsed(second, true));
-        timing.BeginPresentationFrame(second, true, clock);
-        timing.AdmitPresentationOwner(second);
-        timing.BeginPresentationFrame(second, true, clock);
-        clock.Advance(TimeSpan.FromMilliseconds(3));
-        Assert.Equal(TimeSpan.FromMilliseconds(3), timing.RenderElapsed(second, true));
+        if (boundary == "session")
+        {
+            owner = new();
+        }
+        else if (boundary == "generation")
+        {
+            source = source with { PilotGeneration = 2 };
+        }
+        else if (boundary == "effect")
+        {
+            source = source with { PilotEffect = 3 };
+        }
+        else if (boundary == "gap")
+        {
+            source = source with { Callback = 4 };
+        }
+        else
+        {
+            Assert.Equal(0, timing.SamplePresentationPhase(owner, source, true, false));
+        }
+        timing.BeginPresentationFrame(owner, true, clock);
+        timing.ObservePresentationSource(owner, source);
+        Assert.Equal(0, timing.SamplePresentationPhase(owner, source, true));
     }
 
     [Fact]
-    public void Persistent_field_triple_speed_does_not_accelerate_render_phase_when_admitted_native_elapsed_is_unscaled()
+    public void Observed_native_elapsed_ratio_preserves_effective_speed_and_mid_interval_rate_changes()
     {
         GameplayClock gameplay = new();
         gameplay.ToggleSpeed();
         Assert.Equal(3, gameplay.SpeedMultiplier);
-        TimeSpan real = TimeSpan.FromMilliseconds(10);
-        Assert.Equal(real * 3, gameplay.Advance(real, SceneKind.Field));
-        TimeSpan battle = gameplay.Advance(real, SceneKind.Field, scriptedInterface: true);
-        Assert.Equal(real, battle);
-        NativeBattleGraphicsPresentationStep native = NativeBattleGraphicsPresentationClock.Advance(0, false, battle);
+        TimeSpan elapsed = TimeSpan.FromMilliseconds(10);
+        TimeSpan scripted = gameplay.Advance(elapsed, SceneKind.Field, scriptedInterface: true);
+        Assert.Equal(elapsed, scripted);
         PresentationTiming timing = new();
         ManualTimeProvider clock = new();
         object owner = new();
-        Admit(timing, clock, owner);
-        timing.Accumulate(real);
-        timing.AdmitPresentationOwner(owner, battle.Ticks / (double)real.Ticks);
-        Assert.Equal(0.155f, BattleScenePresentation.NativePilotAlpha(0, false, timing.RenderElapsed(owner, true)), 6);
-        Assert.Equal(0.155f, BattleScenePresentation.NativePilotAlpha(native.Subticks, native.HalfSubtick, TimeSpan.Zero), 6);
-        Assert.Equal(0, native.Callbacks);
+        NativeBattlePreparedPresentation source = Frame(2, 10);
+        timing.BeginPresentationFrame(owner, true, clock);
+        timing.ObservePresentationSource(owner, source, scripted.Ticks / (double)elapsed.Ticks);
+        clock.Advance(elapsed);
+        Assert.Equal(0.155f, timing.SamplePresentationPhase(owner, source, true), 6);
+        TimeSpan accelerated = gameplay.Advance(elapsed, SceneKind.Field);
+        Assert.Equal(elapsed * 3, accelerated);
+        timing.ObservePresentationSource(owner, source, accelerated.Ticks / (double)elapsed.Ticks);
+        Assert.Equal(0.155f, timing.SamplePresentationPhase(owner, source, true), 6);
+        clock.Advance(elapsed);
+        Assert.Equal(0.62f, timing.SamplePresentationPhase(owner, source, true), 6);
+        Assert.Equal(TimeSpan.Zero, timing.SimulationTotal);
     }
 
     [Fact]
-    public void Render_carry_uses_the_actual_admitted_native_elapsed_ratio_when_battle_updates_are_accelerated()
+    public void Zero_observed_elapsed_holds_the_drawn_phase_until_a_positive_native_update_resumes_it()
     {
         PresentationTiming timing = new();
         ManualTimeProvider clock = new();
         object owner = new();
-        Admit(timing, clock, owner);
-        timing.AdmitPresentationOwner(owner, 3);
-        timing.Accumulate(TimeSpan.FromMilliseconds(5));
-        clock.Advance(TimeSpan.FromMilliseconds(2));
-        Assert.Equal(TimeSpan.FromMilliseconds(21), timing.RenderElapsed(owner, true));
-        Assert.Equal(0.3255f, BattleScenePresentation.NativePilotAlpha(0, false, timing.RenderElapsed(owner, true)), 6);
-        timing.AdmitPresentationOwner(owner, 1);
-        Assert.Equal(TimeSpan.FromMilliseconds(7), timing.RenderElapsed(owner, true));
-        Assert.Equal(TimeSpan.Zero, timing.SimulationTotal);
+        NativeBattlePreparedPresentation source = Frame(2, 10);
+        timing.BeginPresentationFrame(owner, true, clock);
+        timing.ObservePresentationSource(owner, source);
+        clock.Advance(TimeSpan.FromMilliseconds(10));
+        float drawn = timing.SamplePresentationPhase(owner, source, true);
+        timing.ObservePresentationSource(owner, source, 0);
+        clock.Advance(TimeSpan.FromSeconds(10));
+        Assert.Equal(drawn, timing.SamplePresentationPhase(owner, source, true));
+        timing.BeginPresentationFrame(owner, true, clock);
+        timing.ObservePresentationSource(owner, source);
+        clock.Advance(TimeSpan.FromMilliseconds(10));
+        Assert.Equal(drawn + 0.155f, timing.SamplePresentationPhase(owner, source, true), 6);
+        Assert.Throws<ArgumentOutOfRangeException>(() => timing.ObservePresentationSource(owner, source, double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(() => timing.ObservePresentationSource(owner, source, -1));
     }
 
     [Fact]
@@ -174,16 +226,17 @@ public sealed class BattleRenderPhaseClockTests
         string serialized = JsonSerializer.Serialize(before);
         PresentationTiming timing = new();
         ManualTimeProvider clock = new();
-        Admit(timing, clock, battle);
+        timing.BeginPresentationFrame(battle, true, clock);
         Capture capture = new();
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
         NativeBattlePreparedPresentation first = Frame(1, 0);
         NativeBattlePreparedPresentation second = Frame(2, 10);
+        timing.ObservePresentationSource(battle, second);
         List<float> x = [];
         for (int draw = 0; draw < 3; draw++)
         {
             clock.Advance(TimeSpan.FromMilliseconds(4));
-            float alpha = BattleScenePresentation.NativePilotAlpha(2_000_000, false, timing.RenderElapsed(battle, true));
+            float alpha = timing.SamplePresentationPhase(battle, second, true);
             renderer.RenderNativePilotPrimitiveFrame(first, second, alpha);
             x.Add(capture.Vertices[0].Position.X);
         }
@@ -196,68 +249,6 @@ public sealed class BattleRenderPhaseClockTests
         Assert.Equal(1, first.Callback);
         Assert.Equal(2, second.Callback);
         Assert.Equal(TimeSpan.Zero, timing.SimulationTotal);
-    }
-
-    [Theory]
-    [InlineData("pause")]
-    [InlineData("capture")]
-    [InlineData("focus")]
-    public void Pause_capture_and_focus_boundaries_hold_the_last_visible_pose_until_same_pair_time_catches_up(string boundary)
-    {
-        PresentationTiming timing = new();
-        ManualTimeProvider clock = new();
-        object owner = new();
-        Admit(timing, clock, owner);
-        NativeBattlePreparedPresentation first = Frame(1, 0);
-        NativeBattlePreparedPresentation second = Frame(2, 10);
-        BattlePilotPresentationTimeline timeline = new();
-        Assert.Null(timeline.Select(first, true, 0, owner).Next);
-        Capture capture = new();
-        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
-        clock.Advance(TimeSpan.FromMilliseconds(17));
-        float visibleAlpha = BattleScenePresentation.NativePilotAlpha(4_700_000, false, timing.RenderElapsed(owner, true));
-        TriangleVertex[] visible = Draw(visibleAlpha);
-        Assert.Equal(0.7335f, visibleAlpha, 6);
-        switch (boundary)
-        {
-            case "pause":
-                timing.BeginPresentationFrame(owner, false, clock);
-                break;
-            case "capture":
-                timing.FreezePresentationFrame();
-                break;
-            case "focus":
-                timing.DiscardPendingTime();
-                break;
-            default:
-                throw new InvalidOperationException();
-        }
-        clock.Advance(TimeSpan.FromSeconds(10));
-        float nativeOnly = BattleScenePresentation.NativePilotAlpha(4_700_000, false, timing.RenderElapsed(owner, false));
-        Assert.Equal(0.47f, nativeOnly, 6);
-        Assert.Equal(visible, Draw(nativeOnly));
-        timing.BeginPresentationFrame(owner, true, clock);
-        timing.AdmitPresentationOwner(owner);
-        timing.BeginPresentationFrame(owner, true, clock);
-        clock.Advance(TimeSpan.FromMilliseconds(2));
-        Assert.Equal(visible, Draw(BattleScenePresentation.NativePilotAlpha(4_700_000, false, timing.RenderElapsed(owner, true))));
-        clock.Advance(TimeSpan.FromMilliseconds(20));
-        TriangleVertex[] caughtUp = Draw(BattleScenePresentation.NativePilotAlpha(4_700_000, false, timing.RenderElapsed(owner, true)));
-        Assert.True(caughtUp[0].Position.X > visible[0].Position.X);
-        var nextPair = timeline.Select(Frame(3, 20), true, 0.05f, owner);
-        Assert.Equal(0.05f, nextPair.Alpha);
-        Assert.Same(second, nextPair.Frame);
-        Assert.Equal(3, nextPair.Next!.Callback);
-        Assert.Equal(TimeSpan.Zero, timing.SimulationTotal);
-
-        TriangleVertex[] Draw(float alpha)
-        {
-            var selected = timeline.Select(second, true, alpha, owner);
-            Assert.NotNull(selected.Next);
-            renderer.RenderNativePilotPrimitiveFrame(selected.Frame, selected.Next!, selected.Alpha);
-            Assert.Equal(0, renderer.LastPilotFallbackCount);
-            return capture.Vertices.ToArray();
-        }
     }
 
     [Theory]
@@ -305,13 +296,6 @@ public sealed class BattleRenderPhaseClockTests
         var resumed = timeline.Select(next with { Callback = next.Callback + 1 }, true, 0.05f, owner);
         Assert.NotNull(resumed.Next);
         Assert.Equal(0.05f, resumed.Alpha);
-    }
-
-    private static void Admit(PresentationTiming timing, ManualTimeProvider clock, object owner)
-    {
-        timing.BeginPresentationFrame(owner, true, clock);
-        timing.AdmitPresentationOwner(owner);
-        timing.BeginPresentationFrame(owner, true, clock);
     }
 
     private static NativeBattlePreparedPresentation Frame(long callback, float x)
