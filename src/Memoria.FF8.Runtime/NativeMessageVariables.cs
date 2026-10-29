@@ -4,6 +4,8 @@ using System.Text.RegularExpressions;
 
 namespace Memoria.FF8.Runtime;
 
+public sealed record NativeMessageExpansionSegment(int SourceStart, int SourceLength, string Text, bool IsReplacement);
+
 /// <summary>The eight process-owned DWORDs at native1D2B530. Null is unknown history, never zero.</summary>
 public sealed partial record NativeMessageVariables([property: JsonRequired] int? Slot0, [property: JsonRequired] int? Slot1, [property: JsonRequired] int? Slot2, [property: JsonRequired] int? Slot3, [property: JsonRequired] int? Slot4, [property: JsonRequired] int? Slot5, [property: JsonRequired] int? Slot6, [property: JsonRequired] int? Slot7)
 {
@@ -52,15 +54,37 @@ public sealed partial record NativeMessageVariables([property: JsonRequired] int
 
     public static string Expand(string template, NativeMessageVariables? bank)
     {
-        return VariableTag().Replace(template, match =>
+        return VariableTag().Replace(template, match => ExpandVariable(match, bank));
+    }
+
+    public static IReadOnlyList<NativeMessageExpansionSegment> ExpandSegments(string template, NativeMessageVariables? bank)
+    {
+        List<NativeMessageExpansionSegment> segments = [];
+        int cursor = 0;
+        foreach (Match match in VariableTag().Matches(template))
         {
-            string digits = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
-            if (!byte.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out byte parameter))
+            if (match.Index > cursor)
             {
-                throw new NotSupportedException("Message variable tag requires its original BYTE parameter.");
+                segments.Add(new(cursor, match.Index - cursor, template[cursor..match.Index], false));
             }
-            return Format(parameter, bank);
-        });
+            segments.Add(new(match.Index, match.Length, ExpandVariable(match, bank), true));
+            cursor = match.Index + match.Length;
+        }
+        if (cursor < template.Length)
+        {
+            segments.Add(new(cursor, template.Length - cursor, template[cursor..], false));
+        }
+        return segments;
+    }
+
+    private static string ExpandVariable(Match match, NativeMessageVariables? bank)
+    {
+        string digits = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+        if (!byte.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out byte parameter))
+        {
+            throw new NotSupportedException("Message variable tag requires its original BYTE parameter.");
+        }
+        return Format(parameter, bank);
     }
 
     [GeneratedRegex(@"\{Var(?:\s+(\d+)|(\d+))\}")]

@@ -42,7 +42,8 @@ internal static class ButtonPrompt
         ControllerPresentation presentation = Presentation(label);
         bool vector = HasVectorArtwork(label);
         label = Label(label);
-        float textWidth = SystemTextLayout.MeasureAdvance(label, size, family);
+        INativeButtonTextMetrics? native = canvas is INativeButtonTextMetrics { UsesNativeButtonMetrics: true } metrics ? metrics : null;
+        float textWidth = native?.NativeButtonAdvance(label, size) ?? SystemTextLayout.MeasureAdvance(label, size, family);
         float width = vector ? lineHeight : Advance(textWidth, lineHeight) - lineHeight * 0.24f;
         float inset = Math.Max(1, lineHeight * 0.055f);
         float top = position.Y + lineHeight * 0.04f;
@@ -53,6 +54,20 @@ internal static class ButtonPrompt
         }
         DrawShape(position.X, top, width, height, inset, Fill);
         float labelSize = size * 0.82f;
+        if (native is not null && canvas is not null)
+        {
+            UiSize nativeBounds = native.NativeButtonMetrics(label, labelSize);
+            canvas.PushClip(new(clip.X, clip.Y, clip.Width, clip.Height));
+            try
+            {
+                canvas.Text(label, labelSize, new UiRect(position.X + (width - nativeBounds.Width) / 2, top + (height - nativeBounds.Height) / 2, width, nativeBounds.Height), new UiColor(255, 255, 255, (byte)(255 * opacity)), family);
+            }
+            finally
+            {
+                canvas.PopClip();
+            }
+            return;
+        }
         Vector2 labelBounds = text.MeasureWrapped(label, labelSize, float.PositiveInfinity, family);
         text.DrawWrappedClipped(batch, label, labelSize, new Vector2(position.X + (width - labelBounds.X) / 2, top + (height - labelBounds.Y) / 2), float.PositiveInfinity, Color.White * opacity, clip, family);
 
@@ -74,7 +89,8 @@ internal static class ButtonPrompt
         ControllerPresentation presentation = Presentation(label);
         bool vector = HasVectorArtwork(label);
         label = Label(label);
-        float textWidth = SystemTextLayout.MeasureAdvance(label, size, family);
+        INativeButtonTextMetrics? native = canvas is INativeButtonTextMetrics { UsesNativeButtonMetrics: true } metrics ? metrics : null;
+        float textWidth = native?.NativeButtonAdvance(label, size) ?? SystemTextLayout.MeasureAdvance(label, size, family);
         float width = vector ? lineHeight : Advance(textWidth, lineHeight) - lineHeight * 0.24f;
         float inset = Math.Max(1, lineHeight * 0.055f);
         float top = bounds.Y + lineHeight * 0.04f;
@@ -85,6 +101,12 @@ internal static class ButtonPrompt
         }
         DrawShape(bounds.X, top, width, height, inset, (x, y, w, h, color) => canvas.Fill(new UiRect(x, y, w, h), new UiColor(color.R, color.G, color.B, (byte)(255 * opacity))));
         float labelSize = size * 0.82f;
+        if (native is not null)
+        {
+            UiSize nativeBounds = native.NativeButtonMetrics(label, labelSize);
+            canvas.Text(label, labelSize, new UiRect(bounds.X + (width - nativeBounds.Width) / 2, top + (height - nativeBounds.Height) / 2, width, nativeBounds.Height), new UiColor(255, 255, 255, (byte)(255 * opacity)), family);
+            return;
+        }
         using SystemTextMeasurer measurer = SystemTextLayout.CreateMeasurer(labelSize, family);
         using var labelRaster = SystemTextLayout.Rasterize(label, labelSize, float.PositiveInfinity, family);
         float labelHeight = labelRaster.Height / (float)SystemTextLayout.RasterScale;
@@ -95,7 +117,15 @@ internal static class ButtonPrompt
 
     internal static ControllerPresentation Presentation(string label) => label.Length > 1 && label[1] is >= '\uF180' and <= '\uF184' ? (ControllerPresentation)(label[1] - '\uF180') : ControllerPresentation.Generic;
 
-    internal static string Label(string label) => ControllerIcon(label) is null ? label : label[(label.Length > 1 && label[1] is >= '\uF180' and <= '\uF184' ? 2 : 1)..];
+    internal static string Label(string label)
+    {
+        if (ControllerIcon(label) is null)
+        {
+            return label;
+        }
+        int start = label.Length > 1 && label[1] is >= '\uF180' and <= '\uF184' ? 2 : 1;
+        return Memoria.FF8.Resources.Localization.LocalizationTextComposition.Slice(label, start, label.Length - start);
+    }
 
     private static void DrawShape(float x, float top, float width, float height, float inset, Action<float, float, float, float, Color> fill)
     {

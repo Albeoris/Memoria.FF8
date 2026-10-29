@@ -14,7 +14,7 @@ internal sealed record DialogueRun(string Text, Color Color, bool Blink = false,
 
 internal sealed record DialogueLine(IReadOnlyList<DialogueRun> Runs, int SourceLineIndex, string HangingIndent = "", bool IsQuoteStart = false, bool IsSpeaker = false, bool IsThought = false)
 {
-    public string Text => ButtonPromptText.PlainText(string.Concat(Runs.Select(run => run.Text)));
+    public string Text => ButtonPromptText.PlainText(LocalizationTextComposition.Concat(Runs.Select(run => run.Text).ToArray()));
 }
 
 internal sealed record DialoguePage(IReadOnlyList<DialogueLine> Lines, string? Speaker = null, DialoguePageBoundary Boundary = DialoguePageBoundary.Initial);
@@ -26,7 +26,7 @@ internal sealed record DialogueDocument(IReadOnlyList<DialoguePage> Pages)
     {
         get
         {
-            string text = string.Join('\n', Pages.SelectMany(page => page.Lines).Select(line => line.Text));
+            string text = LocalizationTextComposition.Join("\n", Pages.SelectMany(page => page.Lines).Select(line => line.Text));
             return Binding is null ? text : LocalizationTextTrace.Attach(text, Binding with { Text = text });
         }
     }

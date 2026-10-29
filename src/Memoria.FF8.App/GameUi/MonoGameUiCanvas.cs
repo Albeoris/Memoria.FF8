@@ -259,6 +259,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             return new UiSize(measured.X, measured.Y);
         }, UiTextFlow.SingleLine);
         Rectangle clip = Rectangle.Intersect(RectangleFor(new UiRect(bounds.X - thickness, bounds.Y - thickness, bounds.Width + thickness * 2, bounds.Height + thickness * 2)), CurrentClip);
+        Inspect(value, new Vector2(bounds.X - layout.OffsetX, bounds.Y + bounds.Height / 2), size, layout.WrapWidth, clip, text.FontFamily, verticallyCentered: true);
         text.DrawOutlinedClipped(batch, value, size, new Vector2(bounds.X - layout.OffsetX, bounds.Y + bounds.Height / 2), layout.WrapWidth, ColorFor(color), ColorFor(outline), thickness, clip);
     }
 
@@ -300,6 +301,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         {
             position.Y += Math.Max(0, bounds.Height - layout.Content.Height) * (verticalAlignment == UiAlignment.Center ? 0.5f : 1);
         }
+        Inspect(value, position, size, layout.WrapWidth, Rectangle.Intersect(RectangleFor(bounds), CurrentClip), fontFamily);
         text.DrawWrappedClipped(batch, value, size, position, layout.WrapWidth, ColorFor(color), Rectangle.Intersect(RectangleFor(bounds), CurrentClip), fontFamily);
     }
 

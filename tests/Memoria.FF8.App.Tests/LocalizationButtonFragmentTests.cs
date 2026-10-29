@@ -1,11 +1,28 @@
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Ui;
+using Memoria.FF8.Resources.Text;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class LocalizationButtonFragmentTests
 {
+    [Fact]
+    public void NativePromptLayoutUsesTheSyntheticAtlasAdvancesAndNeverLooksUpPrivateMarkers()
+    {
+        Trace(() =>
+        {
+            string text = LocalizationTextComposition.Concat(Bound("first", "A"), ButtonPromptText.Mark(Bound("key", "K")), Bound("last", "B"));
+            NativeCanvas canvas = new();
+            ButtonPromptText.Draw(canvas, text, 16, new(0, 0, 25, 100), new(255, 255, 255), "Arial", UiAlignment.Start, new UiTextOverflow(), UiTextFlow.Wrap);
+            Assert.Contains(canvas.Texts, item => item.Text == "A" && item.Bounds.Y == 0);
+            Assert.Contains(canvas.Texts, item => item.Text == "B" && item.Bounds.Y == 16);
+            Assert.Contains(canvas.Texts, item => item.Text == "K" && item.Keys.Contains("key"));
+            Assert.Equal(3, Assert.Single(canvas.Buttons).Bounds.X);
+            Assert.DoesNotContain(canvas.Requests, ButtonPromptText.Contains);
+        });
+    }
+
     [Fact]
     public void SliceClipsCanonicalLeafRangesAndDoesNotOwnUnboundSeparators()
     {
@@ -94,7 +111,7 @@ public sealed class LocalizationButtonFragmentTests
     }
 
     private sealed record Drawn(string Text, string[] Keys, UiRect Bounds);
-    private sealed class Canvas : IUiCanvas, IUiTextFragmentInspector
+    private class Canvas : IUiCanvas, IUiTextFragmentInspector
     {
         public List<Drawn> Texts { get; } = [];
         public List<Drawn> Buttons { get; } = [];
@@ -116,5 +133,33 @@ public sealed class LocalizationButtonFragmentTests
         }
         public void PushClip(UiRect bounds) => clips.Push(clips.Count == 0 ? bounds : bounds.Intersect(clips.Peek()));
         public void PopClip() => clips.Pop();
+    }
+
+    private sealed class NativeCanvas : Canvas, INativeButtonTextMetrics
+    {
+        private readonly NativeFontProfile profile = new()
+        {
+            Id = "synthetic",
+            DisplayName = "Synthetic native prompt",
+            LineHeight = 16,
+            Atlases = [new("atlas", "atlas.png", 32, 16)],
+            Images = [new(1, "atlas", 0, 0, 5, 8, 3), new(2, "atlas", 5, 0, 8, 8, 7), new(3, "atlas", 13, 0, 4, 8, 4)],
+            Glyphs = [new("A", 1), new("K", 2), new("B", 3)]
+        };
+        public List<string> Requests { get; } = [];
+        public bool UsesNativeButtonMetrics => true;
+        public float NativeButtonAdvance(string value, float size) => Layout(value).FinalAdvance * size / 16;
+        public UiSize NativeButtonMetrics(string value, float size)
+        {
+            NativeFontLayoutResult layout = Layout(value);
+            return new(layout.Width * size / 16, layout.Height * size / 16);
+        }
+        private NativeFontLayoutResult Layout(string value)
+        {
+            Requests.Add(value);
+            NativeFontLayoutResult layout = NativeFontLayout.Layout(profile, value, new("Classic", "System"));
+            Assert.True(layout.Success, string.Join("; ", layout.Diagnostics.Select(diagnostic => diagnostic.Message)));
+            return layout;
+        }
     }
 }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using Memoria.FF8.Events;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8;
 
@@ -126,7 +127,8 @@ internal static class DialogueLayout
             var enumerator = StringInfo.GetTextElementEnumerator(run.Text);
             while (enumerator.MoveNext())
             {
-                elements.Add(run with { Text = enumerator.GetTextElement() });
+                string element = enumerator.GetTextElement();
+                elements.Add(run with { Text = LocalizationTextTrace.Enabled ? LocalizationTextComposition.Slice(run.Text, enumerator.ElementIndex, element.Length) : element });
             }
         }
         int position = 0;
@@ -170,7 +172,8 @@ internal static class DialogueLayout
                 var run = elements[cursor++];
                 while (!run.IsButton && cursor < end && !elements[cursor].IsButton && elements[cursor].Color == run.Color && elements[cursor].Blink == run.Blink)
                 {
-                    run = run with { Text = run.Text + elements[cursor++].Text };
+                    string next = elements[cursor++].Text;
+                    run = run with { Text = LocalizationTextTrace.Enabled ? LocalizationTextComposition.Concat(run.Text, next) : run.Text + next };
                 }
                 placed.Add(new DialoguePlacedRun(run, x));
                 x += MeasureRun(run, measure, lineHeight);
@@ -196,7 +199,7 @@ internal static class DialogueLayout
         // Preserve any additional spaces and other whitespace as intentional content.
         DialogueRun[] runs = source.Runs.ToArray();
         int first = Array.FindIndex(runs, run => run.Text.Length > 0);
-        runs[first] = runs[first] with { Text = runs[first].Text[1..] };
+        runs[first] = runs[first] with { Text = LocalizationTextComposition.Slice(runs[first].Text, 1, runs[first].Text.Length - 1) };
         return source with { Runs = runs.Where(run => run.Text.Length > 0).ToArray() };
     }
 }

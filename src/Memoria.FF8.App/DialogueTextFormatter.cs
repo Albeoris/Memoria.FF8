@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.TextEncoding.Tags;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Resources.Localization;
 using Microsoft.Xna.Framework;
 
 namespace Memoria.FF8;
@@ -19,12 +20,24 @@ internal static partial class DialogueTextFormatter
     internal static string FormatWithPrompts(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null, ITextTermSource? terms = null)
     {
         DialogueDocument document = Parse(encoded, names, messageVariables, buttonBindingHint, terms);
-        return string.Join('\n', document.Pages.SelectMany(page => page.Lines).Select(line => string.Concat(line.Runs.Select(run => run.IsButton ? ButtonPromptText.Mark(run.Text) : run.Text))));
+        string formatted = LocalizationTextComposition.Join("\n", document.Pages.SelectMany(page => page.Lines).Select(line => LocalizationTextComposition.Concat(line.Runs.Select(run => run.IsButton ? ButtonPromptText.Mark(run.Text) : run.Text).ToArray())));
+        return document.Binding is null ? formatted : LocalizationTextTrace.Attach(formatted, document.Binding with { Text = formatted, Fragments = (LocalizationTextTrace.Find(formatted)?.Fragments ?? []).Select(fragment => fragment with { Binding = fragment.Binding with { Names = document.Binding.Names, MessageVariables = document.Binding.MessageVariables } }).ToArray() });
     }
 
-    public static DialogueDocument Parse(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null, ITextTermSource? terms = null)
+    public static DialogueDocument Parse(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null, ITextTermSource? terms = null, bool originalCompatible = false)
     {
-        string expanded = NativeMessageVariables.Expand(encoded, messageVariables);
+        LocalizationTextBinding? textBinding = LocalizationTextTrace.Find(encoded);
+        DialogueDocument Bind(DialogueDocument document)
+        {
+            if (textBinding is null)
+            {
+                return document;
+            }
+            string rendered = document.Text;
+            LocalizationTextBinding Capture(LocalizationTextBinding binding) => binding with { Names = names?.ToDictionary(pair => pair.Key, pair => pair.Value) ?? binding.Names, MessageVariables = messageVariables is null ? binding.MessageVariables : Enumerable.Range(0, 8).ToDictionary(slot => slot, slot => messageVariables.At(slot)), Arguments = names is null ? binding.Arguments : binding.Arguments.Append(names.ToDictionary(pair => pair.Key, pair => pair.Value)).ToArray() };
+            return document with { Binding = Capture(textBinding) with { Text = rendered, Fragments = (LocalizationTextTrace.Find(rendered)?.Fragments ?? []).Select(fragment => fragment with { Binding = Capture(fragment.Binding) }).ToArray() } };
+        }
+        string expanded = ExpandVariablesWithSourceSpans(encoded, messageVariables);
         List<DialoguePage> pages = [];
         List<DialogueLine> lines = [];
         List<DialogueRun> runs = [];
@@ -37,9 +50,8 @@ internal static partial class DialogueTextFormatter
 
         void Append(string text)
         {
-            string normalized = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
-            string[] pieces = normalized.Split('\n');
-            for (int index = 0; index < pieces.Length; index++)
+            IReadOnlyList<string> pieces = ButtonPromptText.SplitLines(text);
+            for (int index = 0; index < pieces.Count; index++)
             {
                 foreach (DialogueRun run in ButtonPromptText.Runs(pieces[index]))
                 {
@@ -52,7 +64,7 @@ internal static partial class DialogueTextFormatter
                         AddRun(runs, run.Text, color, blink);
                     }
                 }
-                if (index < pieces.Length - 1)
+                if (index < pieces.Count - 1)
                 {
                     FinishLine();
                 }
@@ -61,7 +73,7 @@ internal static partial class DialogueTextFormatter
 
         void FinishLine()
         {
-            lines.Add(new DialogueLine(runs.ToArray(), sourceLine++, IsSpeaker: speakerMarker));
+            lines.Add(new DialogueLine(runs.ToArray(), sourceLine++, IsSpeaker: speakerMarker && !originalCompatible));
             runs.Clear();
             speakerMarker = false;
         }
@@ -76,7 +88,8 @@ internal static partial class DialogueTextFormatter
 
         foreach (Match match in InlineTag().Matches(expanded))
         {
-            Append(expanded[cursor..match.Index]);
+            Append(LocalizationTextComposition.Slice(expanded, cursor, match.Index - cursor));
+            string sourceToken = LocalizationTextComposition.Slice(expanded, match.Index, match.Length);
             string kind = match.Groups[1].Value;
             string parameter = match.Groups[2].Value;
             switch (kind)
@@ -98,7 +111,7 @@ internal static partial class DialogueTextFormatter
                     if (speed == 0)
                     {
                         FinishPage(DialoguePageBoundary.Initial);
-                        return Decorate(pages);
+                        return Bind(originalCompatible ? new DialogueDocument(pages) : Decorate(pages));
                     }
                     break;
                 case "End":
@@ -111,10 +124,10 @@ internal static partial class DialogueTextFormatter
                     (color, blink) = ResolveColor(ParseEnum<TextTagColor>(parameter, kind));
                     break;
                 case "Char":
-                    Append(CharacterName(ParseEnum<TextTagCharacter>(parameter, kind), names));
+                    Append(ExpandSourceToken(sourceToken, CharacterName(ParseEnum<TextTagCharacter>(parameter, kind), names)));
                     break;
                 case "Name":
-                    Append(MiscName(ParseEnum<TextTagName>(parameter, kind), names));
+                    Append(ExpandSourceToken(sourceToken, MiscName(ParseEnum<TextTagName>(parameter, kind), names)));
                     break;
                 case string termKind when termKind.StartsWith("Term", StringComparison.Ordinal):
                     if (terms is null)
@@ -129,17 +142,17 @@ internal static partial class DialogueTextFormatter
                     {
                         throw new InvalidDataException("Native term language differs from its source dictionary.");
                     }
-                    Append(terms.Resolve(unchecked((byte)(term - 32))));
+                    Append(ExpandSourceToken(sourceToken, terms.Resolve(unchecked((byte)(term - 32)))));
                     break;
                 case "Key" when Enum.TryParse(parameter, out TextTagKey key) && key == TextTagKey.JunctionMarker:
                     // Native common message4 uses key65 for the junctioned-magic J marker.
-                    Append("J");
+                    Append(ExpandSourceToken(sourceToken, "J"));
                     break;
                 case "Key":
                     ushort buttons = ResolveButton(parameter);
                     if (buttons != 0)
                     {
-                        string binding = (buttonBindingHint ?? DefaultButtonBindingHint)(buttons);
+                        string binding = ExpandSourceToken(sourceToken, (buttonBindingHint ?? DefaultButtonBindingHint)(buttons));
                         if (ButtonPromptText.Contains(binding))
                         {
                             runs.AddRange(ButtonPromptText.Runs(binding).Select(run => run with { Color = color, Blink = blink }));
@@ -151,19 +164,19 @@ internal static partial class DialogueTextFormatter
                     }
                     else
                     {
-                        Append(match.Value);
+                        Append(sourceToken);
                     }
                     break;
                 default:
                     // Preserve unrelated placeholders until their owning UI supplies a presentation contract.
-                    Append(match.Value);
+                    Append(sourceToken);
                     break;
             }
             cursor = match.Index + match.Length;
         }
-        Append(expanded[cursor..]);
+        Append(LocalizationTextComposition.Slice(expanded, cursor, expanded.Length - cursor));
         FinishPage(DialoguePageBoundary.Initial);
-        return Decorate(pages);
+        return Bind(originalCompatible ? new DialogueDocument(pages) : Decorate(pages));
     }
 
     private static T ParseEnum<T>(string value, string tag) where T : struct, Enum
@@ -177,7 +190,8 @@ internal static partial class DialogueTextFormatter
 
     public static string ExpandButtonBindings(string encoded, Func<ushort, string>? buttonBindingHint = null)
     {
-        return InlineTag().Replace(encoded, match =>
+        LocalizationTextBinding? binding = LocalizationTextTrace.Find(encoded);
+        string Replacement(Match match)
         {
             if (match.Groups[1].Value != "Key")
             {
@@ -185,7 +199,24 @@ internal static partial class DialogueTextFormatter
             }
             ushort buttons = ResolveButton(match.Groups[2].Value);
             return buttons == 0 ? match.Value : (buttonBindingHint ?? DefaultButtonBindingHint)(buttons);
-        });
+        }
+        if (binding is null)
+        {
+            return InlineTag().Replace(encoded, match => Replacement(match));
+        }
+        List<string> pieces = [];
+        int cursor = 0;
+        foreach (Match match in InlineTag().Matches(encoded))
+        {
+            pieces.Add(LocalizationTextComposition.Slice(encoded, cursor, match.Index - cursor));
+            string token = LocalizationTextComposition.Slice(encoded, match.Index, match.Length);
+            bool replaces = match.Groups[1].Value == "Key" && ResolveButton(match.Groups[2].Value) != 0;
+            pieces.Add(replaces ? ExpandSourceToken(token, Replacement(match)) : token);
+            cursor = match.Index + match.Length;
+        }
+        pieces.Add(LocalizationTextComposition.Slice(encoded, cursor, encoded.Length - cursor));
+        string expanded = LocalizationTextComposition.Concat(pieces.ToArray());
+        return LocalizationTextTrace.Attach(expanded, binding with { Fragments = LocalizationTextTrace.Find(expanded)?.Fragments ?? [] });
     }
 
     private static ushort ResolveButton(string parameter)
@@ -319,13 +350,14 @@ internal static partial class DialogueTextFormatter
                             thoughtRuns.Add(run);
                             continue;
                         }
-                        foreach (char character in run.Text)
+                        for (int characterIndex = 0; characterIndex < run.Text.Length; characterIndex++)
                         {
+                            char character = run.Text[characterIndex];
                             if (character is '(' or '（')
                             {
                                 thoughtDepth++;
                             }
-                            AddRun(thoughtRuns, character.ToString(), thoughtDepth > 0 ? GreyTextColor : run.Color, run.Blink);
+                            AddRun(thoughtRuns, LocalizationTextTrace.Enabled ? LocalizationTextComposition.Slice(run.Text, characterIndex, 1) : character.ToString(), thoughtDepth > 0 ? GreyTextColor : run.Color, run.Blink);
                             if (character is ')' or '）' && thoughtDepth > 0)
                             {
                                 thoughtDepth--;
@@ -434,7 +466,7 @@ internal static partial class DialogueTextFormatter
         }
         if (runs.Count > 0 && !runs[^1].IsButton && runs[^1].Color == color && runs[^1].Blink == blink)
         {
-            runs[^1] = runs[^1] with { Text = runs[^1].Text + text };
+            runs[^1] = runs[^1] with { Text = LocalizationTextTrace.Enabled ? LocalizationTextComposition.Concat(runs[^1].Text, text) : runs[^1].Text + text };
         }
         else
         {
