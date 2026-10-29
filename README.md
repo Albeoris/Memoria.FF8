@@ -1,14 +1,17 @@
-<h1 align="center">Memoria FF8</h1>
+<h1 align="center">Memoria for Final Fantasy VIII</h1>
 
 <p align="center">
   <strong>A from-scratch recreation of the <em>FINAL FANTASY VIII</em> engine in C#, built to bring the original game to life through an independent, readable implementation.</strong>
 </p>
 
 <p align="center">
-  <a href="#about"><img src="https://img.shields.io/badge/status-experimental-orange" alt="Status: experimental"></a>
+  <a href="#about"><img src="https://img.shields.io/badge/status-playable-green" alt="Status: playable"></a>
   <a href="https://github.com/Albeoris/Memoria.FF8/actions/workflows/build.yml"><img src="https://github.com/Albeoris/Memoria.FF8/actions/workflows/build.yml/badge.svg" alt="Desktop distributions"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
-  <a href="#play"><img src="https://img.shields.io/badge/playable-Windows_x64-blue" alt="Playable: Windows x64"></a>
+  <br/>
+  <a href="#play"><img src="https://img.shields.io/badge/Windows_x64-blue" alt="Windows x64"></a>
+  <a href="#play"><img src="https://img.shields.io/badge/Linux_x64-blue" alt="Linux x64"></a>
+  <a href="#play"><img src="https://img.shields.io/badge/MacOS_x64-blue" alt="MacOS x64"></a>
 </p>
 
 <p align="center">
@@ -21,7 +24,7 @@
 
 <p align="center">
   <a href="https://www.patreon.com/Albeoris/join"><img src="https://img.shields.io/badge/Support_on-Patreon-FF424D?style=for-the-badge" alt="Support on Patreon"></a>
-  <a href="https://boosty.to/albeoris"><img src="https://img.shields.io/badge/Support_on-Boosty-F15F2C?style=for-the-badge" alt="Support on Boosty"></a>
+  <a href="https://boosty.to/albeoris"><img src="https://img.shields.io/badge/Boosty-F15F2C?style=for-the-badge" alt="Support on Boosty"></a>
 </p>
 
 > [!IMPORTANT]
