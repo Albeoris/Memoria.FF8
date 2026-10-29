@@ -21,6 +21,7 @@
     <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary.csproj" />
     <ProjectReference Include="../Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
     <ProjectReference Include="../Memoria.FF8.Resources/Memoria.FF8.Resources.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Mods/Memoria.FF8.Mods.csproj" />
     <InternalsVisibleTo Include="Memoria.Launcher.Tests" />
   </ItemGroup>
 </Project>

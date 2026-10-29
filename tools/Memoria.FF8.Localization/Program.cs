@@ -1,6 +1,11 @@
 using Memoria.FF8.Localization;
 using System.Text.Json;
 
+if (args.FirstOrDefault() == "encoding")
+{
+    return EncodingCommands.Run(args);
+}
+
 if (args.FirstOrDefault() is "export" or "convert" or "patch" or "validate" or "languages")
 {
     return LocalizationCommands.Run(args);
@@ -19,6 +24,8 @@ if (!audit && !refine && !renumber)
     Console.Error.WriteLine("       Memoria.FF8.Localization patch --input <base package> --output <new package> --name <patch name> [--format json|xlsx --layout single|split]");
     Console.Error.WriteLine("       Memoria.FF8.Localization validate --input <package>");
     Console.Error.WriteLine("       Memoria.FF8.Localization languages --game-dir <installation>");
+    Console.Error.WriteLine("       Memoria.FF8.Localization encoding validate --input <profile.json> [--text <sample> --edition <id> --resource <family> --field <name> --dictionary <language>]");
+    Console.Error.WriteLine("       Memoria.FF8.Localization encoding export --input <profile.json> --output <mod root> --name <profile folder>");
     Console.Error.WriteLine("Export references are ordered reading columns; legacy --source <language> prepends a reference.");
     return 2;
 }

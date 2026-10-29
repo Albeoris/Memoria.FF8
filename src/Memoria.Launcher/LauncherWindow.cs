@@ -97,6 +97,9 @@ internal sealed partial class LauncherWindow : Window
         mediaSection.Children.Add(languageSelection);
         mediaSection.Children.Add(new TextBlock { Text = "Auto uses the installed resource language. Choose the language of your game text and matching mod resources. Applies on the next start.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray, Margin = new Thickness(0, 6, 0, 0) });
         mediaSection.Children.Add(CreateModelSourceSelection());
+        Button encodingEditor = new() { Content = "Tools: Encoding Editor…", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
+        encodingEditor.Click += (_, _) => new EncodingProfiles.EncodingEditorWindow().Show(this);
+        mediaSection.Children.Add(encodingEditor);
         Add(layout, mediaSection, 3);
         Add(layout, CreateUpdatePanel(), 4);
         Add(layout, status, 5);
