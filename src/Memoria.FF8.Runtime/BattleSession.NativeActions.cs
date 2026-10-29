@@ -246,6 +246,10 @@ public sealed partial class BattleSession
             return;
         }
         //4922B0 removes Sleep/Confuse before its formula dispatch, including special attack types.
+        if (nativeContactWorking is { } formulaContact)
+        {
+            formulaContact.FormulaStarted = true;
+        }
         if (nativeContactWorking is { AttackClass: 0 })
         {
             RemoveNativeStatuses(recipient, 0, 0x4001);

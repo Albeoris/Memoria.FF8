@@ -12,6 +12,7 @@ public sealed partial class BattleSession
         public byte HitFlags { get; set; }
         public int Magnitude { get; set; }
         public bool Finalized { get; set; }
+        public bool FormulaStarted { get; set; }
         public bool PrimaryCommitted { get; set; }
         public bool DiagnosticPreliminary { get; init; }
         public (int Before, int After)? DiagnosticHp { get; set; }
@@ -190,6 +191,11 @@ public sealed partial class BattleSession
         if (nativeContactWorking is not { Finalized: false } contact)
         {
             return;
+        }
+        //4922B0 clears rear-facing after its formula (including misses), before494410 captures the contact statuses.
+        if (contact.FormulaStarted && contact.AttackClass == 0)
+        {
+            RemoveNativeStatuses(contact.Recipient, 0, 0x800000);
         }
         NativeBattleContactPresentation result = NativeBattleContactPresentations.Complete(contact.Sequence, contact.Flags, contact.HitFlags, contact.AttackClass, contact.SpecialSource);
         contact.Sequence = result.Sequence;
