@@ -23,6 +23,24 @@ public sealed class LocalizationWorkbenchTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void PastedCompleteControlDoesNotConsumeThePreviewConfirmation()
+    {
+        FakeStore store = new("old");
+        LocalizationEditingSession session = new(store, new PlainSyntax(), store.Snapshot);
+        using LocalizationWorkbenchController ui = new();
+        ui.Open(session, [new("target", "Target", "old", true)], "Test mod");
+        ui.HandleCommand(UiEditCommand.SelectAll);
+        ui.TextInput("日本語 😀\r\n{Line}Complete{End}");
+        Assert.Equal("日本語 😀\n{Line}Complete{End}", session.Draft.Text);
+        Assert.Empty(ui.CompletionItems);
+        ui.ConfirmReleased();
+        ui.HandleCommand(UiEditCommand.Confirm);
+        Assert.Equal(LocalizationSessionMode.Preview, session.Mode);
+        Assert.Equal(0, store.Writes);
+        Assert.NotEmpty(LocalizationWorkbenchSyntax.Complete("{Li"));
+    }
+
+    [Fact]
     public async Task ConfirmRequiresReleaseBeforePreviewAndBeforeSave()
     {
         FakeStore store = new("old");

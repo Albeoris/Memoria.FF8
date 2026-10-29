@@ -293,6 +293,11 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             }
             async Task Preview()
             {
+                JsonElement state = (await Request("ui-status")).GetProperty("Localization");
+                if (state.GetProperty("Completions").GetArrayLength() != 0)
+                {
+                    await Request("ui-input", new(Release: true, Edit: UiEditCommand.Cancel));
+                }
                 await Request("ui-input", new(Release: true));
                 await Request("ui-input", new(Edit: UiEditCommand.Confirm));
                 await WaitLocalization(state => state.GetProperty("Mode").GetString() == "Preview");

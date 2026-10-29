@@ -189,6 +189,8 @@ internal sealed partial class RecreateGame
             Notice = authoringNotice,
             InputProblem = authoringTextInput?.PlatformProblem,
             IsComposing = authoringTextInput?.IsComposing ?? false,
+            EditorComposition = localizationWorkbench.Editor.Composition,
+            Completions = localizationWorkbench.CompletionItems,
             SavePending = localizationWorkbench.PendingSave is { IsCompleted: false },
             Changes = localizationWorkbench.ReadHistory().Select(change => new { change.Id, change.Before.ProjectId, change.Before.Identity, change.Summary, change.Fields }).ToArray(),
             Conflict = session?.Conflict is { } conflict ? new { Base = conflict.Base.Target, conflict.Ours, Theirs = conflict.Theirs.Target, Candidates = conflict.Candidates } : null,

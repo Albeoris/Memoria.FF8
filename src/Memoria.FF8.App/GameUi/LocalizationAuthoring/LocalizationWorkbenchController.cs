@@ -426,7 +426,8 @@ public sealed class LocalizationWorkbenchController : IDisposable
             searchEditor.Insert(text);
             return;
         }
-        if (!IsEditing || Session!.Mode == LocalizationSessionMode.Saving || text.Any(char.IsControl))
+        text = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+        if (!IsEditing || Session!.Mode == LocalizationSessionMode.Saving || text.Any(character => char.IsControl(character) && character != '\n'))
         {
             return;
         }

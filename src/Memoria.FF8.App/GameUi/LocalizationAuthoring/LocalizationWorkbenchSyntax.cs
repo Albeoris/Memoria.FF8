@@ -10,6 +10,10 @@ public static class LocalizationWorkbenchSyntax
     public static IReadOnlyList<string> Complete(string prefix, bool systemTemplate = false, string nativeLanguage = "en")
     {
         int open = prefix.LastIndexOf('{');
+        if (open >= 0 && prefix.AsSpan(open).Contains('}'))
+        {
+            return [];
+        }
         string fragment = open < 0 ? "" : prefix[(open + 1)..];
         IEnumerable<string> values = systemTemplate ? Enumerable.Range(0, 10).Select(value => "{" + value + "}") : Enum.GetValues<TextTagCode>().Where(code => code != TextTagCode.Term).SelectMany(Controls).Concat(DictionaryControls(nativeLanguage));
         return values.Where(value => value.AsSpan(1).StartsWith(fragment, StringComparison.OrdinalIgnoreCase)).Take(32).ToArray();

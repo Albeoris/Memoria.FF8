@@ -33,10 +33,10 @@ public sealed class LocalizationAuthoringTextInput : IDisposable
         }
         ProcessCharacter(character);
     }
-    private void ProcessCharacter(char character, Action<string>? output = null)
+    private void ProcessCharacter(char character, Action<string>? output = null, bool allowLineBreaks = false)
     {
         Action<string> emit = output ?? Emit;
-        if (char.IsControl(character))
+        if (char.IsControl(character) && !(allowLineBreaks && character is '\r' or '\n'))
         {
             return;
         }
@@ -69,7 +69,7 @@ public sealed class LocalizationAuthoringTextInput : IDisposable
         System.Text.StringBuilder batch = new();
         foreach (char character in value)
         {
-            ProcessCharacter(character, text => batch.Append(text));
+            ProcessCharacter(character, text => batch.Append(text), allowLineBreaks: true);
         }
         if (batch.Length != 0)
         {

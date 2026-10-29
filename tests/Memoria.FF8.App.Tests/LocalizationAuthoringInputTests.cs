@@ -22,6 +22,20 @@ public sealed class LocalizationAuthoringInputTests
     }
 
     [Fact]
+    public void FullCommittedTextPreservesMultilineWhileCharacterEnterRemainsACommand()
+    {
+        List<string> committed = [];
+        using LocalizationAuthoringTextInput input = new(committed.Add, _ => { });
+        input.ReceiveCharacter('\r');
+        input.ReceiveCharacter('\n');
+        Assert.Empty(committed);
+        input.ReceiveComposition("に");
+        input.ReceiveText("日😀\r\nSecond\nThird");
+        Assert.Equal("日😀\r\nSecond\nThird", Assert.Single(committed));
+        Assert.False(input.IsComposing);
+    }
+
+    [Fact]
     public void CompositionCommitDrainsClosingKeysUntilBothAreReleased()
     {
         List<string> committed = [];
