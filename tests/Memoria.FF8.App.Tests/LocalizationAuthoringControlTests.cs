@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -207,12 +208,19 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             Assert.Equal("Niveau {0}", LocalizationProjectIO.Read(package).Entries.Single(row => row.Key == systemKey).Target);
             await Request("ui-input", new(Release: true, Edit: UiEditCommand.Cancel));
             await Request("ui-open", new(Screen: "main", Demo: true));
-            await WaitLocalization(state => Hits(state).Any(hit => hit.GetProperty("Key").GetString() == systemKey && hit.GetProperty("Text").GetString()!.StartsWith("Niveau ", StringComparison.Ordinal)));
+            HashSet<string> expectedLevels = MenuDemoData.Create().Characters.Select(character => character.Level!.Value.ToString(CultureInfo.InvariantCulture)).ToHashSet(StringComparer.Ordinal);
+            HashSet<string> PublishedLevels(JsonElement state) => Hits(state)
+                .Where(hit => hit.GetProperty("Key").GetString() == systemKey && hit.GetProperty("Arguments").GetArrayLength() == 1)
+                .Where(hit => hit.GetProperty("Text").GetString() == "Niveau " + hit.GetProperty("Arguments")[0].GetString())
+                .Select(hit => hit.GetProperty("Arguments")[0].GetString()!)
+                .ToHashSet(StringComparer.Ordinal);
+            JsonElement published = await WaitLocalization(state => PublishedLevels(state).IsSupersetOf(expectedLevels));
+            Assert.Equal(expectedLevels.Order(StringComparer.Ordinal), PublishedLevels(published).Order(StringComparer.Ordinal));
             string capture = await Capture("workbench");
             Assert.True(File.Exists(capture));
             Assert.Equal(originalHash, SHA256.HashData(File.ReadAllBytes(standalone)));
             Assert.Contains("enabled=0", File.ReadAllText(Path.Combine(package, "mod.ini")));
-            PreserveEvidence(evidence, capture, new { Presentation = native ? "NativeOriginal" : "SystemAdaptive", FieldKey = fieldKey, SystemKey = systemKey, OriginalSaveUnchanged = true, NativeSimulationUnchanged = true, PackageStayedDisabled = true });
+            PreserveEvidence(evidence, capture, new { Presentation = native ? "NativeOriginal" : "SystemAdaptive", FieldKey = fieldKey, SystemKey = systemKey, PublishedLevels = PublishedLevels(published).Order(StringComparer.Ordinal).ToArray(), OriginalSaveUnchanged = true, NativeSimulationUnchanged = true, PackageStayedDisabled = true });
             await Request("quit");
             await process.WaitForExitAsync(timeout.Token);
             Assert.Equal(0, process.ExitCode);
