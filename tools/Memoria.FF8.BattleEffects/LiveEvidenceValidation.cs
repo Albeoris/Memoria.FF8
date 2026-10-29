@@ -330,7 +330,7 @@ public static class LiveEvidenceValidation
                 {
                     errors.Add("INTEGRITY_CHECK_FAILED");
                 }
-                BattleDiagnosticRepairReceipt[] attemptRepairs = counterCycle is null ? [] : counterCycles[index - 1].Attempts.Skip(1).Where(attempt => attempt.PreparationRepair is not null).Select(attempt => attempt.PreparationRepair!).ToArray();
+                BattleDiagnosticRepairReceipt[]? attemptRepairs = counterCycle is null ? null : counterCycles[index - 1].Attempts.Skip(1).Where(attempt => attempt.PreparationRepair is not null).Select(attempt => attempt.PreparationRepair!).ToArray();
                 ValidateSemantics(execution, actor, target, ability, action, nativeAction, effect, startCallback, endCallback, errors, attemptRepairs);
             }
             if (counterCycle is null)
@@ -787,6 +787,7 @@ public static class LiveEvidenceValidation
         Dictionary<string, long> deltas = [];
         BattleDiagnosticRepairReceipt[] pendingRepairs = counterRepairs ?? [];
         int repairIndex = 0;
+        HashSet<(Guid Lifecycle, long Frame, long Callback, string Actor)> repairProjections = [];
         void ApplyRepairsBefore(long callback, bool includeBoundary)
         {
             while (repairIndex < pendingRepairs.Length && (pendingRepairs[repairIndex].CallbackBefore < callback || includeBoundary && pendingRepairs[repairIndex].CallbackBefore == callback))
@@ -817,6 +818,27 @@ public static class LiveEvidenceValidation
             bool nativeWord = resolution.TryGetProperty("native_hp_word", out JsonElement hpReceipt) && hpReceipt.ValueKind != JsonValueKind.Null;
             bool nativeContact = resolution.TryGetProperty("native_contact", out JsonElement contactReceipt) && contactReceipt.ValueKind != JsonValueKind.Null;
             bool nativeRemoval = resolution.TryGetProperty("native_status_removal", out JsonElement removalReceipt) && removalReceipt.ValueKind != JsonValueKind.Null;
+            if (resolution.TryGetProperty("diagnostic_repair", out JsonElement repairProjection) && repairProjection.ValueKind != JsonValueKind.Null)
+            {
+                if (counterRepairs is null)
+                {
+                    throw new InvalidDataException("An in-execution diagnostic repair projection requires its typed counter preparation role.");
+                }
+                _ = Number(resolution, "frame");
+                if (resolution.GetProperty("actor_id").ValueKind != JsonValueKind.Null)
+                {
+                    throw new InvalidDataException("Diagnostic repair projection cannot invent a native action actor.");
+                }
+                BattleDiagnosticResolution typed = resolution.Deserialize<BattleDiagnosticResolution>(Json) ?? throw new InvalidDataException("Diagnostic repair projection is absent.");
+                DiagnosticCounterCycleValidation.ValidateRepairProjection(typed, counterRepairs);
+                BattleDiagnosticRepairProjection source = typed.DiagnosticRepair!;
+                if (!repairProjections.Add((source.LifecycleId, source.Frame, source.Callback, source.Request.ActorId)))
+                {
+                    throw new InvalidDataException("Diagnostic repair projection duplicated its actual completed preparation owner.");
+                }
+                ApplyRepairsBefore(callback, true);
+                continue;
+            }
             bool validNativeRemoval = nativeRemoval && !periodic && !nativeWord && !nativeContact && HasNativeStatusRemovalProvenance(execution, resolution, beforeStates, afterStates);
             string originalTarget = Text(resolution, "original_target_id");
             if (!beforeStates.ContainsKey(originalTarget) && !afterStates.ContainsKey(originalTarget))
@@ -856,6 +878,16 @@ public static class LiveEvidenceValidation
             }
             observedHp[target] = after;
             deltas[target] = checked(deltas.GetValueOrDefault(target) + delta);
+        }
+        foreach (BattleDiagnosticRepairReceipt repair in pendingRepairs)
+        {
+            foreach (BattleDiagnosticRepairChange change in repair.Changes)
+            {
+                if (!repairProjections.Contains((repair.LifecycleId, repair.Frame, repair.CallbackBefore, change.Request.ActorId)))
+                {
+                    throw new InvalidDataException("Counter preparation lacks its actual synchronous diagnostic HP projection.");
+                }
+            }
         }
         ApplyRepairsBefore(endCallback, true);
         if (repairIndex != pendingRepairs.Length)

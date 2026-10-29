@@ -38,6 +38,7 @@ public sealed record BattleDiagnosticResolution(long Frame, long Callback, strin
     public BattleDiagnosticPeriodicStatus? PeriodicStatus { get; init; }
     public BattleDiagnosticNativeHpWord? NativeHpWord { get; init; }
     public BattleDiagnosticNativeStatusRemoval? NativeStatusRemoval { get; init; }
+    public BattleDiagnosticRepairProjection? DiagnosticRepair { get; init; }
 }
 public sealed record BattleDiagnosticStock(int MagicId, int Quantity);
 public sealed record BattleDiagnosticCombatant(string Id, int CurrentHp, int MaximumHp, ushort Statuses0, uint Statuses1, BattleDiagnosticStock[] MagicStocks)
@@ -137,7 +138,8 @@ public sealed partial class BattleSession
             {
                 removal = new(0x494410, checked((byte)actor.NativeIndex), checked((byte)target.NativeIndex), action.NativeQueuedCommand ?? native.Command, native.ActionId, native.Statuses1, NativeBattleStatusBits(target));
             }
-            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, periodic is null ? action?.TargetId ?? target.Id : target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { NativeContact = periodic is null ? contact : null, PeriodicStatus = periodic, NativeStatusRemoval = removal });
+            BattleDiagnosticRepairProjection? repair = diagnosticRepairProjection is { } projection && projection.Request.ActorId == target.Id && projection.RecipientIndex == target.NativeIndex && projection.Frame == Frame && projection.Callback == (NativeHostCallbacks ?? Frame) && nativeContactWorking is null && periodic is null ? projection : null;
+            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, periodic is null ? action?.TargetId ?? target.Id : target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { NativeContact = periodic is null ? contact : null, PeriodicStatus = periodic, NativeStatusRemoval = removal, DiagnosticRepair = repair });
         }
     }
 

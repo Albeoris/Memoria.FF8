@@ -137,16 +137,25 @@ public sealed partial class BattleSession
             return;
         }
         int before = actor.CurrentHp;
-        if (repair.HitPoints >= before)
+        BattleDiagnosticRepairProjection? previousProjection = diagnosticRepairProjection;
+        diagnosticRepairProjection = DiagnosticResolution is null ? null : new(DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? Frame, repair, checked((byte)actor.NativeIndex));
+        try
         {
-            ApplyHealing(actor, repair.HitPoints - before, "Declared diagnostic repair");
+            if (repair.HitPoints >= before)
+            {
+                ApplyHealing(actor, repair.HitPoints - before, "Declared diagnostic repair");
+            }
+            else
+            {
+                // Lowering initial HP for a declared crisis/recovery precondition is an
+                // explicit fixture intervention, not a fake damage action or reaction.
+                actor.CurrentHp = repair.HitPoints;
+                ObserveDiagnosticResolution("diagnostic_repair_hp", null, actor, before - repair.HitPoints, before, actor.CurrentHp);
+            }
         }
-        else
+        finally
         {
-            // Lowering initial HP for a declared crisis/recovery precondition is an
-            // explicit fixture intervention, not a fake damage action or reaction.
-            actor.CurrentHp = repair.HitPoints;
-            ObserveDiagnosticResolution("diagnostic_repair_hp", null, actor, before - repair.HitPoints, before, actor.CurrentHp);
+            diagnosticRepairProjection = previousProjection;
         }
         RefreshNativePresentationStatus(actor);
         NativeBattlePartyPresentedVital presented = RequireNativePartyPresentedRow(actor.NativeIndex);

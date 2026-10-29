@@ -311,6 +311,29 @@ public static class DiagnosticCounterCycleValidation
         }
     }
 
+    public static BattleDiagnosticRepairChange ValidateRepairProjection(BattleDiagnosticResolution resolution, IReadOnlyList<BattleDiagnosticRepairReceipt> repairs)
+    {
+        BattleDiagnosticRepairProjection projection = resolution.DiagnosticRepair ?? throw new InvalidDataException("Counter repair projection lacks its actual synchronous writer provenance.");
+        if (projection.Request is null || projection.LifecycleId == Guid.Empty || projection.Frame != resolution.Frame || projection.Callback != resolution.Callback || projection.RecipientIndex >= 3 || resolution.ActorId is not null || resolution.OriginalTargetId != projection.Request.ActorId || resolution.ActualTargetId != projection.Request.ActorId || resolution.HpOwner != "character" || resolution.NativeContact is not null || resolution.PeriodicStatus is not null || resolution.NativeHpWord is not null || resolution.NativeStatusRemoval is not null)
+        {
+            throw new InvalidDataException("Counter repair projection changed its actual diagnostic writer, target or native proof namespace.");
+        }
+        var matches = repairs.SelectMany(receipt => receipt.Changes.Select(change => (Receipt: receipt, Change: change))).Where(match => match.Receipt.LifecycleId == projection.LifecycleId && match.Receipt.Frame == projection.Frame && match.Receipt.CallbackBefore == projection.Callback && match.Receipt.CallbackAfter == projection.Callback && match.Change.Request == projection.Request && match.Change.Before.NativeIndex == projection.RecipientIndex && match.Change.After.NativeIndex == projection.RecipientIndex).ToArray();
+        if (matches.Length != 1)
+        {
+            throw new InvalidDataException("Counter repair projection must match exactly one completed typed preparation change.");
+        }
+        ValidatePreparationRepair(matches[0].Receipt);
+        BattleDiagnosticRepairChange change = matches[0].Change;
+        int amount = Math.Abs(change.After.CurrentHp - change.Before.CurrentHp);
+        string kind = change.After.CurrentHp >= change.Before.CurrentHp ? "healing" : "diagnostic_repair_hp";
+        if (resolution.Kind != kind || resolution.BeforeHp != change.Before.CurrentHp || resolution.AfterHp != change.After.CurrentHp || resolution.ResolvedAmount != amount || resolution.ActualAmount != amount)
+        {
+            throw new InvalidDataException("Counter repair projection differs from its exact completed diagnostic HP writer.");
+        }
+        return change;
+    }
+
     public static void ValidatePreparationRepair(BattleDiagnosticRepairReceipt repair)
     {
         if (repair.LifecycleId == Guid.Empty || repair.Frame < 0 || repair.CallbackBefore <= 0 || repair.CallbackBefore != repair.CallbackAfter || repair.RestoreCount != 0 || repair.ResetCount != 0 || repair.RandomBefore is null || repair.RandomAfter is null || repair.ItemsBefore is null || repair.ItemsAfter is null || repair.Changes is null || repair.Changes.Length is < 1 or > 3 || string.IsNullOrWhiteSpace(repair.Scope) || !SameJson(repair.RandomBefore, repair.RandomAfter) || !SameJson(repair.ItemsBefore, repair.ItemsAfter))
