@@ -14,6 +14,44 @@ public sealed class EncodingProfileTests : IDisposable
     private static readonly NativeTextContext Context = new("synthetic", "field", "map", "en");
 
     [Fact]
+    public void DuplicatedProfileOwnsItsAssignmentsAndExportsWithoutTheOriginalNamespace()
+    {
+        NativeFontProfile original = PackageProfile() with { Assignments = [new("Target", "ru", "package", Context)] };
+        NativeFontProfile copy = NativeFontProfileOperations.Duplicate(original);
+        Assert.NotEqual(original.Id, copy.Id);
+        Assert.True(Guid.TryParse(copy.Id, out _));
+        Assert.Equal(original.DisplayName + " copy", copy.DisplayName);
+        Assert.Equal(original.Id, Assert.Single(original.Assignments).ProfileId);
+        Assert.Equal(copy.Id, Assert.Single(copy.Assignments).ProfileId);
+        NativeFontProfileCatalog catalog = new([new(copy, new Dictionary<string, PixelImage>(), "copy")], null, "catalog");
+        Assert.Equal(copy.Id, catalog.Resolve("Auto", Context, "Target", "ru").Entry!.Profile.Id);
+        string path = WriteProfile("copy", copy);
+        string mod = Path.Combine(root, "copy-mod");
+        EncodingProfilePackage.Export([new(path, "Copy")], mod);
+        NativeFontProfile exported = NativeFontProfileIO.Load(Path.Combine(mod, "Encoding", "Copy", "profile.json"));
+        Assert.Equal(copy.Id, exported.Id);
+        Assert.Equal(copy.Id, Assert.Single(exported.Assignments).ProfileId);
+    }
+
+    [Fact]
+    public void DuplicatingPreservesExternalAssignmentsWithoutMaterializingTheirNamespaces()
+    {
+        NativeFontProfile original = PackageProfile() with
+        {
+            Assignments = [new("Target", "ru", "package", Context), new("Reference", "en", "external", Context)]
+        };
+        NativeFontProfile copy = NativeFontProfileOperations.Duplicate(original);
+        Assert.Equal("external", copy.Assignments[1].ProfileId);
+        Assert.Equal("package", original.Assignments[0].ProfileId);
+        Assert.Equal("external", original.Assignments[1].ProfileId);
+        string path = WriteProfile("external-copy", copy);
+        Assert.Throws<InvalidDataException>(() => EncodingProfilePackage.Export([new(path, "Copy")], Path.Combine(root, "missing-external")));
+        NativeFontProfile external = PackageProfile() with { Id = "external" };
+        NativeFontProfileCatalog catalog = new([new(copy, new Dictionary<string, PixelImage>(), "copy"), new(external, new Dictionary<string, PixelImage>(), "external")], null, "catalog");
+        Assert.Equal("external", catalog.Resolve("Auto", Context, "Reference", "en").Entry!.Profile.Id);
+    }
+
+    [Fact]
     public void MixedScriptsUseIndependentImageAndNativeByteIdentities()
     {
         NativeFontProfile profile = Profile();

@@ -194,7 +194,7 @@ internal sealed class EncodingEditorWindow : Window
     {
         if (Current is Document current)
         {
-            Document copy = new(current.Profile with { Id = Guid.NewGuid().ToString("D"), DisplayName = current.Profile.DisplayName + " copy" }, current.Path) { Dirty = true };
+            Document copy = new(NativeFontProfileOperations.Duplicate(current.Profile), current.Path) { Dirty = true };
             documents.Add(copy);
             RefreshProfiles(copy);
         }
