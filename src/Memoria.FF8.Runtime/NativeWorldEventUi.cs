@@ -34,6 +34,19 @@ public sealed record NativeWorldEventUi([property: JsonRequired] byte ScriptMode
     public ImmutableArray<NativeWorldMessage> AliasedWindows { get; init; } = [];
     public ImmutableArray<NativeWorldChannelReadiness> RetainedChannelReadiness { get; init; } = [];
 
+    private NativeWorldEventUi(NativeWorldEventUi original)
+    {
+        ScriptMode = original.ScriptMode;
+        CloseSuppressedThisCallback = original.CloseSuppressedThisCallback;
+        Windows = original.Windows;
+        ClosingChannels = original.ClosingChannels;
+        AliasedWindows = original.AliasedWindows;
+        RetainedChannelReadiness = original.RetainedChannelReadiness;
+        NativeWorldUiOccurrences.Copy(original, this);
+    }
+
+    public long PresentationOccurrenceId(int windowId) => NativeWorldUiOccurrences.Read(this, windowId);
+
     public static NativeWorldEventUi Create() => new(0, false, []);
 
     public void Validate()
@@ -112,7 +125,7 @@ public sealed record NativeWorldEventUi([property: JsonRequired] byte ScriptMode
         {
             aliases = aliases.Add(physical with { Text = null, TextComplete = null });
         }
-        return this with { ClosingChannels = ClosingChannels.Where(channel => channel.Channel != message.Channel).ToImmutableArray(), RetainedChannelReadiness = RetainedChannelReadiness.Where(channel => channel.Channel != message.Channel).ToImmutableArray(), AliasedWindows = aliases.OrderBy(window => window.WindowId).ToImmutableArray(), Windows = Windows.Where(window => window.WindowId != message.WindowId && window.Channel != message.Channel).Append(message with { TextComplete = false }).OrderBy(window => window.WindowId).ToImmutableArray() };
+        return NativeWorldUiOccurrences.Open(this with { ClosingChannels = ClosingChannels.Where(channel => channel.Channel != message.Channel).ToImmutableArray(), RetainedChannelReadiness = RetainedChannelReadiness.Where(channel => channel.Channel != message.Channel).ToImmutableArray(), AliasedWindows = aliases.OrderBy(window => window.WindowId).ToImmutableArray(), Windows = Windows.Where(window => window.WindowId != message.WindowId && window.Channel != message.Channel).Append(message with { TextComplete = false }).OrderBy(window => window.WindowId).ToImmutableArray() }, message.WindowId);
     }
 
     public NativeWorldEventUi Close(ushort windowId)

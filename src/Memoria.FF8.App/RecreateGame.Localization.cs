@@ -59,17 +59,21 @@ internal sealed partial class RecreateGame
 
     private DialogueState LocalizedDialogue(DialogueState native)
     {
-        if (resourceHost is null || native.IsNamePrompt || native.MessageId < 0)
+        if (resourceHost is null || native.IsNamePrompt)
         {
             return native;
+        }
+        if (native.MessageId < 0)
+        {
+            return TryGeneratedAuthoringDialogue(native, out GeneratedAuthoringDialogue? generated) ? AuthoringDialoguePreview(native, generated!.Project(native)) : native;
         }
         if (session.State.Scene == Runtime.SceneKind.WorldMap)
         {
             string key = LocalizationSourceExporter.IndexedKey(resourceHost.Resources.Source.Language, "messages_world", native.MessageId);
             string text = resourceHost.Resources.Localize(key, native.Text);
-            return text == native.Text ? native : native with { Text = text };
+            return AuthoringDialoguePreview(native, text == native.Text ? native : native with { Text = text });
         }
-        return ProjectLocalizedDialogue(native, ResolveLocalizedField(native));
+        return AuthoringDialoguePreview(native, ProjectLocalizedDialogue(native, ResolveLocalizedField(native)));
     }
 
     internal static DialogueState ProjectLocalizedDialogue(DialogueState native, LocalizationFieldText? presentation)

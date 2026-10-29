@@ -144,7 +144,7 @@ internal sealed class NativeFontPresentation(GraphicsDevice device) : IDisposabl
         {
             try
             {
-                tdw = resources.Read(new("menu/sysfnt.tdw"));
+                tdw = resources.Read(new("main/sysfnt.tdw"));
                 texture = resources.Read(new("menu/sysfnt.tex"));
                 catalogHash.AppendData(SHA256.HashData(tdw));
                 catalogHash.AppendData(SHA256.HashData(texture));
@@ -182,7 +182,7 @@ internal sealed class NativeFontPresentation(GraphicsDevice device) : IDisposabl
         {
             PixelImage image = NativeInstalledFontProfile.DecodeAtlas(texture, "sysfnt.tex");
             NativeFontProfile font = NativeInstalledFontProfile.CreateEuropean("installed:" + resources.ResourceLanguage, "Installed native font", resources.ResourceLanguage, new(resources.Source.Edition.ToString(), "Fields", DictionaryLanguage: resources.ResourceLanguage), "sysfnt.tex", image, tdw);
-            font = font with { Domains = new[] { "Fields", "System", "Menus", "Battle" }.Select(family => new NativeTextDomain(resources.Source.Edition.ToString(), family, DictionaryLanguage: resources.ResourceLanguage)).ToArray() };
+            font = font with { Domains = new[] { "Fields", "World", "System", "Menus", "Battle" }.Select(family => new NativeTextDomain(resources.Source.Edition.ToString(), family, DictionaryLanguage: resources.ResourceLanguage)).ToArray() };
             installed = new(font, new Dictionary<string, PixelImage> { ["native"] = image }, catalogRevision);
         }
         return new(entries, installed, catalogRevision, installedFailure);
@@ -254,5 +254,20 @@ internal sealed class NativeFontPresentation(GraphicsDevice device) : IDisposabl
         textures.Clear();
     }
 
-    public void Dispose() => ClearTextures();
+    public void Dispose()
+    {
+        if (loading is { } pending)
+        {
+            try
+            {
+                pending.GetAwaiter().GetResult();
+            }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+            {
+                Diagnostic = exception.Message;
+            }
+            loading = null;
+        }
+        ClearTextures();
+    }
 }

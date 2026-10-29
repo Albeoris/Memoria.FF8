@@ -9,6 +9,41 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameResourceHost
 {
+    private LocalizationCatalog? authoringLocalizationPreview;
+    private KeyValuePair<string, LocalizationValue>? authoringDraftValue;
+    private (string Package, string Key)? authoringRemovedContribution;
+    internal void SetAuthoringDraftPreview(string? key, string? target, string? packageId, string? projectId)
+    {
+        authoringRemovedContribution = key is not null && target is { Length: 0 } && packageId is not null ? (packageId, key) : null;
+        authoringDraftValue = key is not null && target is { Length: > 0 } ? new(key, new LocalizationValue(target, packageId ?? "", projectId ?? "")) : null;
+        Resources.PrepareLocalization(ComposeAuthoringLocalization(CommittedLocalizations?.Catalog ?? LocalizationCatalog.Empty)).Commit("Localization draft preview changed");
+    }
+    internal void SetAuthoringLocalizationPreview(LocalizationCatalog? preview)
+    {
+        authoringLocalizationPreview = preview;
+        LocalizationCatalog catalog = ComposeAuthoringLocalization(CommittedLocalizations?.Catalog ?? LocalizationCatalog.Empty);
+        Resources.PrepareLocalization(catalog).Commit("Localization authoring preview changed");
+    }
+
+    private LocalizationCatalog ComposeAuthoringLocalization(LocalizationCatalog normal)
+    {
+        LocalizationCatalog combined = normal;
+        if (authoringLocalizationPreview is { } preview)
+        {
+            combined = normal.WithOverlay(preview);
+        }
+        if (authoringRemovedContribution is { } removed)
+        {
+            combined = combined.WithoutContribution(removed.Package, removed.Key);
+        }
+        if (authoringDraftValue is { } draft)
+        {
+            var overlay = new Dictionary<string, LocalizationValue>(StringComparer.Ordinal) { [draft.Key] = draft.Value };
+            combined = combined.WithOverlay(new LocalizationCatalog(overlay));
+        }
+        return combined;
+    }
+
     private readonly CancellationTokenSource localizationCancellation = new();
     private readonly LocalizationProjectReadCache localizationReadCache = new();
     private Task<LocalizationPreparation>? localizationTask;
@@ -40,8 +75,9 @@ internal sealed partial class GameResourceHost
     private ModPreparationResult PrepareLocalizationPublication(LocalizationPreparation localization)
     {
         var previous = Resources.Localization;
-        bool changed = previous.Fingerprint != localization.Catalog.Fingerprint;
-        var prepared = changed ? Resources.PrepareLocalization(localization.Catalog) : null;
+        LocalizationCatalog visible = ComposeAuthoringLocalization(localization.Catalog);
+        bool changed = previous.Fingerprint != visible.Fingerprint;
+        var prepared = changed ? Resources.PrepareLocalization(visible) : null;
         return new(true, Mods.Catalog.Packages.Where(package => package.Status == ModEffectiveStatus.Active && !package.LocalizationOnly).Select(package => package.Id).Concat(localization.Layers.Select(layer => layer.PackageId)).ToArray(), Commit: () =>
         {
             Stopwatch clock = Stopwatch.StartNew();

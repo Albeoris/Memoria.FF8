@@ -29,15 +29,41 @@ internal sealed partial class RecreateGame
         }
         // Names, message variables and input bindings can change while a window retains its native identity.
         var terms = world!.TextTerms;
-        string key = expanded + "\u0002" + display.X + "," + display.Y + "," + display.FirstChoice + "," + display.LastChoice + "\u0003" + terms.Generation + "\u0005" + window?.Width + "," + window?.Height;
-        var presentation = dialoguePages.Get(dialogue, window, uiPreferences.DialogueFontFamily, uiPreferences.DialogueFontSize, key, session.State.Scene == SceneKind.WorldMap, () =>
+        string key = expanded + "\u0002" + display.X + "," + display.Y + "," + display.FirstChoice + "," + display.LastChoice + "\u0003" + terms.Generation + "\u0004" + uiPreferences.TextFontMode + ":" + uiPreferences.TextLayoutMode + ":" + nativeTextFont?.ProfileFor(NativeDialogueContext)?.Id + ":" + nativeTextFont?.Revision + "\u0005" + window?.Width + "," + window?.Height;
+        IReadOnlyList<DialogueVisualPage> CreatePresentation()
         {
-            var document = DialogueTextFormatter.Parse(display.Text, events.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingPrompt, terms);
+            var document = authoringDraftPreview is not null && IsEditingAuthoringOccurrence(dialogue) && authoringDraftPreview.Length > 0 ? ParseAuthoringPreview(authoringDraftPreview, OriginalTextLayout) : DialogueTextFormatter.Parse(display.Text, events.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingPrompt, terms, originalCompatible: OriginalTextLayout);
             float size = uiPreferences.DialogueFontSize;
             string font = uiPreferences.DialogueFontFamily;
+            if (NativeGameFonts)
+            {
+                float nativeLineHeight = NativeDialogueLineHeight;
+                float MeasureNative(string value) => nativeTextFont?.Measure(value, NativeDialogueContext) ?? 0;
+                return OriginalTextLayout ? DialogueLayout.CreateNative(document, display, window, nativeLineHeight, MeasureNative) : DialogueLayout.Create(document, display, window, nativeLineHeight, MeasureNative);
+            }
             using var measurer = SystemTextLayout.CreateMeasurer(size, font);
             return DialogueLayout.Create(document, display, window, measurer.LineHeight, measurer.Measure);
-        }, retainPosition: true);
+        }
+        (IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager) presentation;
+        if (authoringDraftPreview is not null && IsEditingAuthoringOccurrence(dialogue))
+        {
+            if (authoringPreviewPagesKey != key || authoringPreviewPages is null)
+            {
+                authoringPreviewPages = CreatePresentation();
+                authoringPreviewPagesKey = key;
+                if (dialoguePages.ReadPager(dialogue.Channel) is { } baseline)
+                {
+                    authoringPreviewPager.ReflowFrom(baseline, authoringPreviewPages);
+                }
+                authoringPreviewPager.RevealCurrentPage(authoringPreviewPages[authoringPreviewPager.PageIndex]);
+            }
+            localizationWorkbench.SetPreviewPages(authoringPreviewPages.Count, authoringPreviewPages[authoringPreviewPager.PageIndex].Lines.Where(line => line.IsChoice).GroupBy(line => line.SourceLineIndex).Select(group => string.Concat(group.SelectMany(line => line.Runs).Select(run => run.Run.Text))).ToArray());
+            presentation = (authoringPreviewPages, authoringPreviewPager);
+        }
+        else
+        {
+            presentation = dialoguePages.Get(dialogue, window, uiPreferences.DialogueFontFamily, uiPreferences.DialogueFontSize, key, session.State.Scene == SceneKind.WorldMap, CreatePresentation, retainPosition: true);
+        }
         if (dialogue.IsNamePrompt)
         {
             presentation.Pager.UpdateReveal(TimeSpan.Zero, presentation.Pages[presentation.Pager.PageIndex], uiPreferences.FieldMessageSpeed, instant: true);
@@ -133,6 +159,14 @@ internal sealed partial class RecreateGame
         DialogueWindow? window = dialogue.X == 0 && dialogue.Y == 0 ? events!.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
         window = LocalizedWindow(dialogue, window);
         PixelBounds panelBounds = DialoguePresentation.Bounds(display, window, viewport, page.Width * scale, page.Height * scale);
+        PixelBounds nativeOrigin = panelBounds;
+        if (localizationWorkbench.Enabled && nativeTextFont?.Ready == true)
+        {
+            DialogueDocument nativeDocument = DialogueTextFormatter.Parse(display.Text, events!.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingPrompt, world!.TextTerms, originalCompatible: true);
+            DialogueVisualPage nativePage = DialogueLayout.CreateNative(nativeDocument, display, window, NativeDialogueLineHeight, value => nativeTextFont.Measure(value, NativeDialogueContext))[0];
+            nativeOrigin = DialoguePresentation.Bounds(display, window, viewport, nativePage.Width * scale, nativePage.Height * scale);
+        }
+        ObserveAuthoringDialogue(dialogue, panelBounds, viewport, nativeOrigin);
         DialogueChannelStyle style = events?.Scene.MessageChannelStyles.GetValueOrDefault(dialogue.Channel) ?? DialogueChannelStyle.Default;
         if (style.HasPanel)
         {
@@ -151,13 +185,17 @@ internal sealed partial class RecreateGame
             // TODO(TD-003): Match the complete native UI material and device profile.
             cached.View.Draw(uiCanvas!, CreateUiTheme(8, style.BackgroundAlpha));
         }
-        float fontSize = uiPreferences.DialogueFontSize * scale;
+        float fontSize = (NativeGameFonts ? NativeDialogueLineHeight : uiPreferences.DialogueFontSize) * scale;
         string family = uiPreferences.DialogueFontFamily;
-        float lineHeight = SystemTextLayout.LineHeight(uiPreferences.DialogueFontSize, family) * scale;
+        float lineHeight = (NativeGameFonts ? NativeDialogueLineHeight : SystemTextLayout.LineHeight(uiPreferences.DialogueFontSize, family)) * scale;
+        Rectangle textClip = Rectangle.Intersect(bounds, new Rectangle(panelBounds.X, panelBounds.Y, panelBounds.Width, panelBounds.Height));
         var position = new Vector2(panelBounds.X + DialoguePresentation.Padding * scale, panelBounds.Y + DialoguePresentation.Padding * scale);
         if (page.Speaker is string speaker)
         {
-            text.DrawLine(batch, speaker, fontSize * page.SpeakerScale, position, new Color(148, 213, 255), family);
+            if (!DrawNativeDialogueText(speaker, position, scale * page.SpeakerScale, new Color(148, 213, 255), textClip))
+            {
+                text.DrawLine(batch, speaker, fontSize * page.SpeakerScale, position, new Color(148, 213, 255), family);
+            }
             position.Y += lineHeight * page.SpeakerScale + DialogueLayout.SpeakerGap * scale;
         }
         int remaining = presentation.Pager.VisibleCharacters;
@@ -183,7 +221,10 @@ internal sealed partial class RecreateGame
                 }
                 else
                 {
-                    text.DrawLine(batch, visibleText, fontSize, runPosition, run.Run.Color * alpha, family);
+                    if (!DrawNativeDialogueText(visibleText, runPosition, scale, run.Run.Color * alpha, textClip))
+                    {
+                        text.DrawLine(batch, visibleText, fontSize, runPosition, run.Run.Color * alpha, family);
+                    }
                 }
             }
             position.Y += lineHeight;

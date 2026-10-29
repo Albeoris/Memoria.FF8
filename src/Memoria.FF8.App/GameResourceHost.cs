@@ -344,7 +344,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         ResourceService.PreparedResources prepared;
         try
         {
-            prepared = Resources.Prepare(resolver, textResources, encodedResources, localization!.Catalog);
+            prepared = Resources.Prepare(resolver, textResources, encodedResources, ComposeAuthoringLocalization(localization!.Catalog));
         }
         catch (ResourceReloadRequiredException exception)
         {

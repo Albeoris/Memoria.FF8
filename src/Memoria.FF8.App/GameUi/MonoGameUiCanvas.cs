@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Ui;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Resources;
@@ -18,6 +19,8 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     private long artworkGeneration = -1;
     private readonly Dictionary<(int Icon, ControllerPresentation Presentation, int Size), Texture2D> controllerButtons = [];
     private readonly Dictionary<(string Text, float Size, float Width, string Family), UiSize> textMeasurements = [];
+
+    internal void ClearTextMeasurements() => textMeasurements.Clear();
 
     public void BeginFrame(TimeSpan time)
     {
@@ -222,6 +225,15 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public UiSize MeasureText(string value, float size, float maximumWidth, string? fontFamily)
     {
+        if (UseNativeFonts)
+        {
+            if (ButtonPromptText.Contains(value))
+            {
+                return ButtonPromptText.Measure(value, size, maximumWidth, fontFamily, text => NativeButtonAdvance(text, size), NativeButtonMetrics("", size).Height);
+            }
+            return MeasureNativeText(value, size, maximumWidth);
+        }
+
         fontFamily ??= text.FontFamily;
         var key = (value, size, maximumWidth, fontFamily);
         if (textMeasurements.TryGetValue(key, out UiSize result))
@@ -252,6 +264,15 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             return;
         }
 
+        if (UseNativeFonts && ButtonPromptText.Contains(value))
+        {
+            ButtonPromptText.Draw(this, value, size, bounds, color, text.FontFamily, UiAlignment.Center, textOverflow, UiTextFlow.SingleLine);
+            return;
+        }
+        if (DrawNativeText(value, size, bounds, color, UiAlignment.Center))
+        {
+            return;
+        }
         size = UiTextOverflow.FitFontSize(size, bounds.Height, MeasureText("Mg", size, float.PositiveInfinity).Height);
         UiTextViewport layout = textOverflow.Layout(value, size, bounds, text.FontFamily, width =>
         {
@@ -281,6 +302,15 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     public void Text(string value, float size, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment, UiTextFlow flow = UiTextFlow.Auto)
     {
         if (bounds.Width <= 0 || bounds.Height <= 0 || size <= 0 || string.IsNullOrEmpty(value))
+        {
+            return;
+        }
+        if (UseNativeFonts && ButtonPromptText.Contains(value))
+        {
+            ButtonPromptText.Draw(this, value, size, bounds, color, fontFamily ?? text.FontFamily, verticalAlignment, textOverflow, flow);
+            return;
+        }
+        if (DrawNativeText(value, size, bounds, color, verticalAlignment))
         {
             return;
         }

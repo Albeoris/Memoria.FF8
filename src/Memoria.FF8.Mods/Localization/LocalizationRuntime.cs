@@ -18,7 +18,7 @@ public sealed record LocalizationPreparation(LocalizationCatalog Catalog, IReadO
 public static class LocalizationRuntime
 {
     /// <summary>Validates an authoring destination and its declared base chain, then exposes only the selected contribution as a temporary overlay.</summary>
-    public static LocalizationPreparation PrepareAuthoringProject(ModCatalogSnapshot catalog, string selectedPackageId, ResourceSourceDescriptor source, CancellationToken cancellation = default)
+    public static LocalizationPreparation PrepareAuthoringProject(ModCatalogSnapshot catalog, string selectedPackageId, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool watchForPublication = false)
     {
         ModPackage selected = catalog.Packages.Single(package => package.Id.Equals(selectedPackageId, StringComparison.OrdinalIgnoreCase) && package.HasLocalization);
         Dictionary<string, LocalizationManifest> manifests = new(StringComparer.OrdinalIgnoreCase);
@@ -61,7 +61,7 @@ public static class LocalizationRuntime
             visiting.Remove(manifest.ProjectId);
         }
         Add(selected);
-        LocalizationPreparation prepared = Prepare(new ModCatalogSnapshot(catalog.Generation, chain, [], catalog.Diagnostics), chain.Select(package => package.Id).ToArray(), source, cancellation);
+        LocalizationPreparation prepared = Prepare(new ModCatalogSnapshot(catalog.Generation, chain, [], catalog.Diagnostics), chain.Select(package => package.Id).ToArray(), source, cancellation, watchForPublication: watchForPublication);
         try
         {
             Dictionary<string, LocalizationValue> values = prepared.Catalog.Values.Where(pair => pair.Value.PackageId.Equals(selected.Id, StringComparison.OrdinalIgnoreCase)).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
@@ -148,7 +148,7 @@ public static class LocalizationRuntime
                     continue;
                 }
                 ValidateTarget(row);
-                LocalizationValue value = new(row.Target, layer.PackageId, layer.Project.Manifest.ProjectId) { Field = row.Category == "Fields" ? LocalizationFieldPreparation.Prepare(row) : null };
+                LocalizationValue value = new(row.Target, layer.PackageId, layer.Project.Manifest.ProjectId) { Category = row.Category, File = row.File, Field = row.Category == "Fields" ? LocalizationFieldPreparation.Prepare(row) : null };
                 if (row.Category == "Fields" && value.Field is null)
                 {
                     dormant.Add(row.Key);
@@ -171,7 +171,7 @@ public static class LocalizationRuntime
                 {
                     reboundMetadata["Choice Line Map"] = authoredLineMap;
                 }
-                LocalizationValue rebound = new(row.Target!, layer.PackageId, layer.Project.Manifest.ProjectId) { Field = LocalizationFieldPreparation.Prepare(nativeRow with { Target = row.Target, ExtensionData = reboundMetadata }) };
+                LocalizationValue rebound = new(row.Target!, layer.PackageId, layer.Project.Manifest.ProjectId) { Category = nativeRow.Category, File = nativeRow.File, Field = LocalizationFieldPreparation.Prepare(nativeRow with { Target = row.Target, ExtensionData = reboundMetadata }) };
                 if (contribution.TryGetValue(nativeRow.Key, out LocalizationValue? previous) && previous.Text != rebound.Text)
                 {
                     throw new InvalidDataException($"{nativeRow.Key}: conflicting translations in a shared correspondence group require an explicit native-key translation.");

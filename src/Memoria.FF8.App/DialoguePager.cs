@@ -10,6 +10,12 @@ internal sealed class DialoguePager
     private readonly UiTextReveal reveal = new();
 
     public int VisibleCharacters => reveal.VisibleCharacters;
+    internal void SelectPreviewPage(int page, IReadOnlyList<DialogueVisualPage> pages)
+    {
+        PageIndex = Math.Clamp(page, 0, Math.Max(0, pages.Count - 1));
+        reveal.RevealAll(CharacterCount(pages[PageIndex]));
+    }
+
 
     public void ReflowFrom(DialoguePager previous, IReadOnlyList<DialogueVisualPage> pages)
     {

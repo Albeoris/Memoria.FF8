@@ -58,6 +58,10 @@ public sealed partial class EventEngine
     // Native4767B0 forwards held directional input to4789A0 independently of
     // plain-text window masks. Choices/naming retain their host input ownership.
     public bool IsMovementBlockedByDialogue => dialogues.Values.Any(dialogue => dialogue.FirstChoice is not null || dialogue.IsNamePrompt);
+    private long dialogueOccurrenceSequence;
+    private readonly Dictionary<int, long> dialogueOccurrences = [];
+    public long DialogueOccurrenceId(int channel) => dialogueOccurrences.GetValueOrDefault(channel);
+
     public IReadOnlyCollection<DialogueState> Dialogues => dialogues.Values.Select(ExpandMessageVariables).ToArray();
     public bool CanConfirmDialogue => Scene.NativeDialogueFocus is not null ? CurrentDialogue is { CanConfirm: true, FirstChoice: null, IsNamePrompt: false } : dialogues.Values.Any(dialogue => dialogue.CanConfirm && dialogue.FirstChoice is null && !dialogue.IsNamePrompt);
     public int? PendingNameSubject => CurrentDialogue?.IsNamePrompt == true ? nameEntity : null;
@@ -898,6 +902,7 @@ public sealed partial class EventEngine
             }
         }
         dialogues[dialogue.Channel] = dialogue;
+        dialogueOccurrences[dialogue.Channel] = ++dialogueOccurrenceSequence;
         RefreshCurrentDialogue();
         if (wait)
         {
@@ -909,6 +914,7 @@ public sealed partial class EventEngine
     private void CloseDialogue(int channel)
     {
         dialogues.Remove(channel);
+        dialogueOccurrences.Remove(channel);
         RefreshCurrentDialogue();
     }
 

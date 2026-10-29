@@ -45,6 +45,8 @@ internal sealed class DialoguePageCache
         }
     }
 
+    internal DialoguePager? ReadPager(int channel) => entries.GetValueOrDefault(channel)?.Pager;
+
     public void Clear()
     {
         entries.Clear();

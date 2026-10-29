@@ -7,6 +7,8 @@ namespace Memoria.FF8.Resources.Localization;
 public sealed record LocalizationValue(string Text, string PackageId, string ProjectId)
 {
     public LocalizationFieldText? Field { get; init; }
+    public string? Category { get; init; }
+    public string? File { get; init; }
 }
 
 public sealed record LocalizationCallBinding(int Operation, int? MessageId, bool Dynamic, int? FirstChoice, int? LastChoice, int? InitialChoice, int? CancelChoice)
@@ -66,7 +68,7 @@ public sealed class LocalizationCatalog
             hash.AppendData(new byte[] { 0xFF });
             foreach ((string key, LocalizationValue value) in layer.Values.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             {
-                foreach (string part in new[] { key, value.Text, value.Field is null ? "" : System.Text.Json.JsonSerializer.Serialize(value.Field) })
+                foreach (string part in new[] { key, value.Text, value.PackageId, value.ProjectId, value.Category ?? "", value.File ?? "", value.Field is null ? "" : System.Text.Json.JsonSerializer.Serialize(value.Field) })
                 {
                     byte[] bytes = Encoding.UTF8.GetBytes(part);
                     hash.AppendData(BitConverter.GetBytes(bytes.Length));
@@ -99,6 +101,64 @@ public sealed class LocalizationCatalog
     }
 
     public TextureReplacement? ResolveArtwork(TextureBuildContext context) => Artwork.TryGetValue(context.Key, out LocalizationArtworkValue? value) ? value.CreateReplacement(context) : null;
+
+    /// <summary>Adds a temporary or committed higher-priority catalog without flattening scoped field resolution.</summary>
+    public LocalizationCatalog WithOverlay(LocalizationCatalog overlay)
+    {
+        return new(Values.SetItems(overlay.Values), layers.Select(layer => (IReadOnlyDictionary<string, LocalizationValue>)layer.Values).Concat(overlay.layers.Select(layer => (IReadOnlyDictionary<string, LocalizationValue>)layer.Values)), Artwork.SetItems(overlay.Artwork));
+    }
+
+    public LocalizationCatalog WithoutContribution(string packageId, string key)
+    {
+        IReadOnlyDictionary<string, LocalizationValue>[] retained = layers.Select(layer => (IReadOnlyDictionary<string, LocalizationValue>)layer.Values.Where(pair => pair.Key != key || pair.Value.PackageId != packageId).ToImmutableDictionary(StringComparer.Ordinal)).ToArray();
+        Dictionary<string, LocalizationValue> values = new(StringComparer.Ordinal);
+        foreach (IReadOnlyDictionary<string, LocalizationValue> layer in retained)
+        {
+            foreach (var pair in layer)
+            {
+                values[pair.Key] = pair.Value;
+            }
+        }
+        return new(values, retained, Artwork);
+    }
+
+    public BoundLocalizationText ResolveText(string key, string original)
+    {
+        string resolvedKey = key;
+        LocalizationValue? contributor = null;
+        if (SystemTextCatalog.KeysForCatalogKey(key) is { } aliases)
+        {
+            foreach (var layer in layers.Reverse())
+            {
+                foreach (string alias in aliases)
+                {
+                    if (layer.Values.TryGetValue(alias, out LocalizationValue? candidate) && !string.IsNullOrEmpty(candidate.Text))
+                    {
+                        contributor = candidate;
+                        resolvedKey = alias;
+                        break;
+                    }
+                }
+                if (contributor is not null)
+                {
+                    break;
+                }
+            }
+        }
+        else
+        {
+            contributor = Values.GetValueOrDefault(key);
+        }
+        string value = contributor?.Text ?? original;
+        return new(value, new(resolvedKey, original, value, value)
+        {
+            PackageId = contributor?.PackageId,
+            ProjectId = contributor?.ProjectId,
+            Category = contributor?.Category ?? (resolvedKey.StartsWith("$en_" + SystemTextCatalog.File + "_", StringComparison.Ordinal) ? "System" : null),
+            File = contributor?.File ?? (resolvedKey.StartsWith("$en_" + SystemTextCatalog.File + "_", StringComparison.Ordinal) ? SystemTextCatalog.File : null),
+            ResourceFingerprint = Fingerprint
+        });
+    }
 
     public string Resolve(string key, string original) => Values.TryGetValue(key, out LocalizationValue? value) ? value.Text : original;
 

@@ -34,7 +34,17 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     public T? GetSource<T>() where T : class => (source as IResourceSourceProvider)?.GetSource(typeof(T), this) as T ?? source as T;
     public bool HasEncodedReplacement(ResourceKey key) => Volatile.Read(ref published).Encoded.ContainsKey(key);
     public LocalizationCatalog Localization => Volatile.Read(ref published).Localization;
-    public string Localize(string key, string original) => SystemTextCatalog.KeysForCatalogKey(key) is { } aliases ? Localization.ResolveAliases(aliases, original) : Localization.Resolve(key, original);
+    public BoundLocalizationText ResolveText(string key, string original) => Localization.ResolveText(key, original);
+
+    public string Localize(string key, string original)
+    {
+        if (!LocalizationTextTrace.Enabled)
+        {
+            return SystemTextCatalog.KeysForCatalogKey(key) is { } aliases ? Localization.ResolveAliases(aliases, original) : Localization.Resolve(key, original);
+        }
+        BoundLocalizationText resolved = ResolveText(key, original);
+        return LocalizationTextTrace.Attach(resolved.Text, resolved.Binding);
+    }
     public PreparedResources PrepareLocalization(LocalizationCatalog localization)
     {
         if (notifying)

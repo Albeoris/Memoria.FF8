@@ -18,6 +18,8 @@ internal sealed partial class RecreateGame
         {
             LocalizationBattlePresentation localization = new(resourceHost.Resources);
             gameMenus!.ConfigureNativeTutorialLocalization(localization.Table, localization.BoundTable);
+            string occurrenceScope = Guid.NewGuid().ToString("N");
+            gameMenus.TutorialDialoguePresented += (binding, channel, id, rendered) => ObserveBoundAuthoringDialogue(binding, channel, occurrenceScope + ":" + id, rendered);
         }
         using GameAssets assets = new(options.GameDirectory);
         NativeTutorialCatalog nativeTutorialCatalog = assets.ReadNativeTutorialCatalog();
@@ -108,6 +110,8 @@ internal sealed partial class RecreateGame
         {
             LocalizationBattlePresentation localization = new(resourceHost.Resources);
             gameMenus.ConfigureNativeTutorialLocalization(localization.Table, localization.BoundTable);
+            string occurrenceScope = Guid.NewGuid().ToString("N");
+            gameMenus.TutorialDialoguePresented += (binding, channel, id, rendered) => ObserveBoundAuthoringDialogue(binding, channel, occurrenceScope + ":" + id, rendered);
             gameMenus.ConnectLocalizationText(resourceHost.Resources.Localize);
         }
         gameMenus.ConnectReadOnlyTutorialControls(() => keyboard.Profile, () => keyboard.ControllerPresentation, () => keyboard.LastInputDevice);

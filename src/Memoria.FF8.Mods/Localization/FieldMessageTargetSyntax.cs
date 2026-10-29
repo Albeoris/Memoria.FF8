@@ -1,10 +1,28 @@
 using Albeoris.Games.FF8.Jsm.Messages;
 using Memoria.FF8.Localization.Authoring;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.Mods.Localization;
 
 public sealed class FieldMessageTargetSyntax : ILocalizationTargetSyntax
 {
+    public IReadOnlyList<string> ValidateCandidate(LocalizationRecord row)
+    {
+        try
+        {
+            LocalizationTextValidation.Validate(row);
+            if (row.Category == "Fields" && !string.IsNullOrEmpty(row.Target))
+            {
+                _ = LocalizationFieldPreparation.Prepare(row);
+            }
+            return [];
+        }
+        catch (Exception exception) when (exception is InvalidDataException or ArgumentException or FormatException or NotSupportedException)
+        {
+            return [exception.Message];
+        }
+    }
+
     public LocalizationTargetParts Parse(string? text)
     {
         text ??= "";

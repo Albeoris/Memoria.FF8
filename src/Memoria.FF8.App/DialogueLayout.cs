@@ -11,6 +11,32 @@ internal sealed record DialogueVisualPage(string? Speaker, IReadOnlyList<Dialogu
 /// <summary>Presentation pages never alter native line numbers, dialogue text or script completion.</summary>
 internal static class DialogueLayout
 {
+    internal static IReadOnlyList<DialogueVisualPage> CreateNative(DialogueDocument document, DialogueState dialogue, DialogueWindow? window, float lineHeight, Func<string, float> measure)
+    {
+        List<DialogueVisualPage> result = [];
+        for (int pageIndex = 0; pageIndex < document.Pages.Count; pageIndex++)
+        {
+            DialoguePage page = document.Pages[pageIndex];
+            List<DialogueVisualLine> lines = [];
+            foreach (DialogueLine line in page.Lines)
+            {
+                bool choice = dialogue.FirstChoice is int first && dialogue.LastChoice is int last && line.SourceLineIndex >= first && line.SourceLineIndex <= last;
+                float x = choice ? ChoiceIndent(lineHeight) : 0;
+                List<DialoguePlacedRun> runs = [];
+                foreach (DialogueRun run in line.Runs)
+                {
+                    runs.Add(new(run, x));
+                    x += MeasureRun(run, measure, lineHeight);
+                }
+                lines.Add(new(runs, x, line.SourceLineIndex, choice));
+            }
+            float width = window is { Width: > 0 } ? Math.Max(0, window.Width - DialoguePresentation.Padding * 2) : lines.Select(line => line.Width).DefaultIfEmpty(0).Max();
+            float height = window is { Height: > 0 } ? Math.Max(0, window.Height - DialoguePresentation.Padding * 2) : lines.Count * lineHeight;
+            result.Add(new(null, lines, width, height, lines.Any(line => line.IsChoice), SourcePageIndex: pageIndex));
+        }
+        return result;
+    }
+
     internal const float ScreenPadding = 8;
     internal const float SpeakerGap = 3;
     internal const float ChoicePointerGap = 2;

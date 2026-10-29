@@ -96,6 +96,7 @@ internal sealed partial class RecreateGame
         }, field => world?.GameplayTuningUnavailableReason(field) ?? resourceHost.GameplayPolicy.UnavailableReason(field), () => world?.GameplayTuningStatus ?? "Changes apply to this playthrough.");
         ConnectGuardianAbilityEditor();
         ConnectLocalizationTools();
+        ConnectLocalizationWorkbench();
         gameMenus.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);
         gameMenus.ConnectQuickSaveRetention(playerSaves.PreviewQuickSaveCount, CommitQuickSaveRetention);
         gameMenus.ConnectNaming(ReadDebugNames, (subject, name) => world!.Rename(subject, name));
@@ -148,6 +149,9 @@ internal sealed partial class RecreateGame
         data.Settings["Text scale"] = uiPreferences.TextScale + "%";
         data.Settings["UI font"] = uiPreferences.UiFontFamily;
         data.Settings["UI font size"] = uiPreferences.UiFontSize.ToString();
+        data.Settings["Text fonts"] = uiPreferences.TextFontMode.ToString();
+        data.Settings["Text layout"] = uiPreferences.TextLayoutMode == GameTextLayoutMode.OriginalCompatible ? "Original-compatible" : "Adaptive";
+        data.Settings["Native font profile"] = uiPreferences.NativeFontProfileId;
         data.Settings["Dialogue font"] = uiPreferences.DialogueFontFamily;
         data.Settings["Dialogue font size"] = uiPreferences.DialogueFontSize.ToString();
         GameplayPreferences magicPreferences = session.State.Scene == SceneKind.Title ? newGameMagicPreferences : session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
@@ -203,6 +207,9 @@ internal sealed partial class RecreateGame
         data.SupportedActions.Add("config:Text scale");
         data.SupportedActions.Add("config:UI font");
         data.SupportedActions.Add("config:UI font size");
+        data.SupportedActions.Add("config:Text fonts");
+        data.SupportedActions.Add("config:Text layout");
+        data.SupportedActions.Add("config:Native font profile");
         data.SupportedActions.Add("config:Dialogue font");
         data.SupportedActions.Add("config:Dialogue font size");
         data.SupportedActions.Add("config:Battle ATB mode");
@@ -828,7 +835,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeUiMoviePause()
     {
-        bool pause = focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null;
+        bool pause = focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null || localizationWorkbench.CapturesSimulation || authoringCandidates is not null;
         fieldAudio?.SetVoicePresentationPaused(pause);
         if (pause && !uiMovieSuspended)
         {

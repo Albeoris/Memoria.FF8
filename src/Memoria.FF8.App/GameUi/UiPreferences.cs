@@ -67,6 +67,10 @@ internal sealed record UiPreferences
     public int UiFontSize { get; init; } = 24;
     public string DialogueFontFamily { get; init; } = SystemFontCatalog.DefaultFamily;
     public int DialogueFontSize { get; init; } = 10;
+    public GameTextFontMode TextFontMode { get; init; } = GameTextFontMode.System;
+    public GameTextLayoutMode TextLayoutMode { get; init; } = GameTextLayoutMode.Adaptive;
+    public string NativeFontProfileId { get; init; } = "Auto";
+
     public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
     public bool LimitOncePerTurn { get; init; }
     public bool SelphieCardSlots { get; init; }
@@ -252,6 +256,21 @@ internal sealed record UiPreferences
             }
             return this with { FieldMessageSpeed = speed };
         }
+        if (key == "Text fonts")
+        {
+            GameTextFontMode mode = Enum.Parse<GameTextFontMode>(value);
+            return this with { TextFontMode = mode, TextLayoutMode = mode == GameTextFontMode.System ? GameTextLayoutMode.Adaptive : TextLayoutMode };
+        }
+        if (key == "Text layout")
+        {
+            GameTextLayoutMode mode = value == "Original-compatible" ? GameTextLayoutMode.OriginalCompatible : value == "Adaptive" ? GameTextLayoutMode.Adaptive : throw new ArgumentException("Unknown text presentation policy.");
+            return this with { TextLayoutMode = mode, TextFontMode = mode == GameTextLayoutMode.OriginalCompatible ? GameTextFontMode.Native : TextFontMode };
+        }
+        if (key == "Native font profile")
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(value);
+            return this with { NativeFontProfileId = value };
+        }
         if (key is "UI font" or "Dialogue font")
         {
             string family = SystemFontCatalog.Families.FirstOrDefault(family => string.Equals(family, value, StringComparison.OrdinalIgnoreCase)) ?? throw new ArgumentException("Choose an installed OS font family.");
@@ -436,6 +455,10 @@ internal sealed record UiPreferences
             throw new InvalidDataException("Triple Triad settings are missing.");
         }
         TripleTriad.Validate(Difficulty);
+        if (!Enum.IsDefined(TextFontMode) || !Enum.IsDefined(TextLayoutMode) || string.IsNullOrWhiteSpace(NativeFontProfileId) || TextLayoutMode == GameTextLayoutMode.OriginalCompatible && TextFontMode != GameTextFontMode.Native)
+        {
+            throw new InvalidDataException("Text presentation requires a valid font mode/profile and native fonts for original-compatible layout.");
+        }
         if (!Enum.IsDefined(BattleMotion))
         {
             throw new InvalidDataException("Battle motion mode is unsupported.");
@@ -449,4 +472,16 @@ internal sealed record UiPreferences
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }
     }
+}
+
+public enum GameTextFontMode
+{
+    System,
+    Native
+}
+
+public enum GameTextLayoutMode
+{
+    Adaptive,
+    OriginalCompatible
 }

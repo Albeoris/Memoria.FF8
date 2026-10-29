@@ -33,6 +33,18 @@ public sealed class NativeTextTerms : ITextTermSource
         return new(resources, NamedicBin.ReadStrings(resources.Read(new ResourceKey("main/namedic.bin")), NativeTextEncoding.Create(resources.Source.Language)));
     }
 
+    public static NativeTextTerms Capture(ResourceService resources)
+    {
+        long generation = resources.Generation;
+        NativeTextTerms source = Read(resources);
+        string[] values = Enumerable.Range(0, source.entries.Length).Select(source.Resolve).ToArray();
+        if (resources.Generation != generation)
+        {
+            throw new IOException("The text dictionary changed while its preview context was being captured.");
+        }
+        return new(source.Language, values);
+    }
+
     public static ITextTermSource FromResources(ResourceService resources)
     {
         ArgumentNullException.ThrowIfNull(resources);

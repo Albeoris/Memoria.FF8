@@ -326,6 +326,14 @@ internal sealed partial class RecreateGame : Game
         {
             fieldAudio?.PlayTitleMusic();
         }
+        UpdateNativeFontPresentation();
+        if (UpdateLocalizationAuthoring(gameTime.ElapsedGameTime))
+        {
+            fieldAudio?.Update();
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
         if (!BattleModalBlocksGameplay && gameMenus?.IsNamePrompt != true && (UpdateModelBrowserUi(input, gameTime.ElapsedGameTime) || UpdateSceneInspectorUi(input) || UpdateBattleDebugUi(input)))
         {
             movieSkipGesture.Reset();
@@ -630,6 +638,15 @@ internal sealed partial class RecreateGame : Game
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
+        if (IsActive && localizationWorkbench.Enabled && localizationWorkbench.OwnsKeyboard)
+        {
+            if (!char.IsControl(args.Character))
+            {
+                authoringTextInput?.ReceiveCharacter(args.Character);
+            }
+            return;
+        }
+
         if (DuelOwnsInput)
         {
             return;
@@ -1223,6 +1240,8 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        authoringHits.Clear();
+        authoringDrawGroup = 0;
         uiCanvas?.BeginFrame(gameTime.TotalGameTime);
         if (modelBrowser is not null)
         {
@@ -1398,6 +1417,7 @@ internal sealed partial class RecreateGame : Game
         }
         DrawBattleDebugUi(bounds);
         DrawSceneInspectorUi(bounds);
+        DrawLocalizationAuthoring(bounds);
         DrawModelBrowserUi(bounds);
         DrawFps(bounds);
         DrawGameConfirmation(bounds);
@@ -1470,6 +1490,25 @@ internal sealed partial class RecreateGame : Game
             DisposeDiagnosticBattleImage();
             diagnosticTelemetry?.Dispose();
             presentationPacer.Dispose();
+            authoringTextInput?.Dispose();
+            authoringClipboard.Dispose();
+            localizationWorkbench.Dispose();
+            authoringSelection?.Inputs?.Dispose();
+            authoringCancellation.Cancel();
+            authoringCancellation.Dispose();
+            Memoria.FF8.Resources.Localization.LocalizationTextTrace.Enabled = false;
+            if (authoringTermsLoading is { } pendingTerms)
+            {
+                try
+                {
+                    pendingTerms.GetAwaiter().GetResult();
+                }
+                catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException)
+                {
+                    authoringNotice = exception.Message;
+                }
+            }
+            nativeTextFont?.Dispose();
             resourceHost?.Dispose();
             DisposeBattlePresentation();
             DisposeFrameRate();

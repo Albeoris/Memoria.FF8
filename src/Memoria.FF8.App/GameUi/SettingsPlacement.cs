@@ -32,7 +32,7 @@ internal static class SettingsPlacement
         ["config-interface"] = new("Interface", "Interface style, fonts and battle cursor memory.",
             ["UI presentation", "config-text", "Cursor"]),
         ["config-text"] = new("Text and fonts", "Menus: design pixels multiplied by text scale. Dialogue: field pixels.",
-            ["Text scale", "UI font", "UI font size", "Dialogue font", "Dialogue font size", "Field message"]),
+            ["Text fonts", "Text layout", "Native font profile", "Text scale", "UI font", "UI font size", "Dialogue font", "Dialogue font size", "Field message"]),
         ["config-gameplay"] = new("Gameplay", "Game rules apply to the current game; save normally to retain them. Title edits new-game defaults or session choices.",
             ["config-combat", "config-magic", "config-exploration", "config-chocobo"]),
         ["config-chocobo"] = new("Chocobo World", "Choose a reward provider; acquired rewards remain recorded when switching modes.", ["Chocobo World"]),
@@ -105,6 +105,9 @@ internal static class SettingsPlacement
             ["Text scale"] = "menu-scale",
             ["UI font"] = "menu-font",
             ["UI font size"] = "menu-font-size",
+            ["Text fonts"] = "text-font-source",
+            ["Text layout"] = "text-layout",
+            ["Native font profile"] = "native-font-profile",
             ["Dialogue font"] = "dialogue-font",
             ["Dialogue font size"] = "dialogue-font-size"
         };
@@ -182,6 +185,9 @@ internal static class SettingsPlacement
                 "Text scale" => "UiPreferences.TextScale",
                 "UI font" => "UiPreferences.CurrentPresentationFont",
                 "UI font size" => "UiPreferences.UiFontSize",
+                "Text fonts" => "UiPreferences.TextFontMode",
+                "Text layout" => "UiPreferences.TextLayoutMode",
+                "Native font profile" => "UiPreferences.NativeFontProfileId",
                 "Dialogue font" => "UiPreferences.DialogueFontFamily",
                 "Dialogue font size" => "UiPreferences.DialogueFontSize",
                 _ when audience is SettingsAudience.Fixture or SettingsAudience.Excluded => "Fixture." + identity,

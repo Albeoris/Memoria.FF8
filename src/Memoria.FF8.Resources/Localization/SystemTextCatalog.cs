@@ -124,14 +124,14 @@ public static partial class SystemTextCatalog
                 return translated;
             }
         }
-        return original;
+        return LocalizationTextTrace.Attach(original, new(Key(id), original, original, original));
     }
 
     public static string Format(string template, string original, params object?[] arguments)
     {
         try
         {
-            return string.Format(System.Globalization.CultureInfo.CurrentCulture, template, arguments);
+            return LocalizationTextTrace.Formatted(template, string.Format(System.Globalization.CultureInfo.CurrentCulture, template, arguments), arguments);
         }
         catch (FormatException)
         {

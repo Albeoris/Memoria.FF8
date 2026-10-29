@@ -114,6 +114,11 @@ public sealed partial class MenuController
 
     private MenuSetting ResolveConfigSetting(MenuSetting setting)
     {
+        if (setting.Id == "Native font profile")
+        {
+            return setting with { Values = ReadNativeFontProfiles?.Invoke().ToArray() ?? ["Auto"] };
+        }
+
         if (!UiPreferences.TripleTriadSettingKeys.Contains(setting.Id))
         {
             return setting;
