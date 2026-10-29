@@ -193,6 +193,8 @@ public sealed class LocalizationWorkbenchController : IDisposable
     public LocalizationEditingSession? Session { get; private set; }
     public bool IsEditing => Session is not null && Session!.Mode != LocalizationSessionMode.Closed;
     public bool CapturesSimulation => IsEditing;
+    public bool OwnsKeyboard => IsEditing || journalFocus && JournalExpanded;
+    public void BlurJournal() => journalFocus = false;
     public UiMultilineEditor Editor { get; } = new();
     public Task? PendingSave { get; private set; }
     public Func<string, string, string>? Localize { get; set; }
@@ -205,22 +207,55 @@ public sealed class LocalizationWorkbenchController : IDisposable
     public Func<string, IReadOnlyList<string>>? Completions { get; set; }
     public IReadOnlyList<string> CompletionItems { get; private set; } = [];
     public int CompletionIndex { get; private set; }
+    private Action<string>? copyText;
+    private Func<string>? pasteText;
+    public string? ClipboardProblem { get; private set; }
     public Action<string>? CopyText
     {
-        get => Editor.WriteClipboard;
+        get => copyText is null ? null : CopyClipboard;
         set
         {
-            Editor.WriteClipboard = value;
-            searchEditor.WriteClipboard = value;
+            copyText = value;
+            Editor.WriteClipboard = CopyClipboard;
+            searchEditor.WriteClipboard = CopyClipboard;
         }
     }
     public Func<string>? PasteText
     {
-        get => Editor.ReadClipboard;
+        get => pasteText is null ? null : PasteClipboard;
         set
         {
-            Editor.ReadClipboard = value;
-            searchEditor.ReadClipboard = value;
+            pasteText = value;
+            Editor.ReadClipboard = PasteClipboard;
+            searchEditor.ReadClipboard = PasteClipboard;
+        }
+    }
+    private void CopyClipboard(string text)
+    {
+        try
+        {
+            copyText?.Invoke(text);
+            ClipboardProblem = null;
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException or DllNotFoundException or EntryPointNotFoundException)
+        {
+            ClipboardProblem = exception.Message;
+            status = T("clipboard.failed", "Clipboard unavailable: ") + exception.Message;
+        }
+    }
+    private string PasteClipboard()
+    {
+        try
+        {
+            string text = pasteText?.Invoke() ?? "";
+            ClipboardProblem = null;
+            return text;
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException or DllNotFoundException or EntryPointNotFoundException)
+        {
+            ClipboardProblem = exception.Message;
+            status = T("clipboard.failed", "Clipboard unavailable: ") + exception.Message;
+            return "";
         }
     }
     public void Open(LocalizationEditingSession session, IReadOnlyList<LocalizationWorkbenchLanguage> tabs, string selectedProject, Func<string, IReadOnlyList<string>>? validator = null)
@@ -402,6 +437,11 @@ public sealed class LocalizationWorkbenchController : IDisposable
     public void ConfirmReleased() => confirmArmed = true;
     public bool HandleCommand(UiEditCommand command, bool shift = false, bool control = false)
     {
+        if (Enabled && command == UiEditCommand.TogglePicking)
+        {
+            PickText = !PickText;
+            return true;
+        }
         if (journalFocus && JournalExpanded)
         {
             searchEditor.Command(command, shift, control);
@@ -619,8 +659,15 @@ public sealed class LocalizationWorkbenchController : IDisposable
             status = result.Message ?? T("save." + result.Status, result.Status.ToString());
             if (result.Status == LocalizationCommitStatus.Saved)
             {
-                changes.Add(completion.Session!.Changes[^1]);
-                journalRevision++;
+                if (completion.Session.RecordChanges && completion.Session.Changes.Count > 0)
+                {
+                    LocalizationChange change = completion.Session.Changes[^1];
+                    if (changes.All(existing => existing.Id != change.Id))
+                    {
+                        changes.Add(change);
+                        journalRevision++;
+                    }
+                }
                 PreviewChanged?.Invoke(null);
                 if (DisableRequested)
                 {

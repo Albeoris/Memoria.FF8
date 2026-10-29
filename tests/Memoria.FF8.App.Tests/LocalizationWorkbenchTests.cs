@@ -172,6 +172,26 @@ public sealed class LocalizationWorkbenchTests(ITestOutputHelper output)
         ui.Dispose();
     }
 
+    [Fact]
+    public async Task SuccessfulIndependentReplayDoesNotAppendAnotherHistoryEntry()
+    {
+        FakeStore store = new("old");
+        LocalizationChange historical = new(Guid.NewGuid(), store.Snapshot, new(true, "original edit"), LocalizationEditFields.Body, "Earlier edit");
+        LocalizationEditingSession session = new(store, new PlainSyntax(), store.Snapshot) { RecordChanges = false };
+        session.SetDraft(new(true, "replayed"));
+        using LocalizationWorkbenchController ui = new();
+        ui.LoadHistory([historical]);
+        ui.Open(session, [new("target", "Target", "old", true)], "Test mod");
+        ui.Preview();
+        ui.ConfirmReleased();
+        ui.HandleCommand(UiEditCommand.Confirm);
+        await ui.PendingSave!;
+        ui.Poll();
+        Assert.Equal(1, store.Writes);
+        Assert.Empty(session.Changes);
+        Assert.Equal(historical.Id, Assert.Single(ui.ReadHistory()).Id);
+    }
+
     private sealed class PlainSyntax : ILocalizationTargetSyntax
     {
         public LocalizationTargetParts Parse(string? value) => new(value ?? "", null, null, null);

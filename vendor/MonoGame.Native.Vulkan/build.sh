@@ -41,6 +41,8 @@ git -C "$source" diff --cached --exit-code
 # Require precisely the checked patch, including when a previous build populated the cache.
 git -C "$source" diff --binary --full-index -- native/monogame/vulkan/MGG_Vulkan.cpp > "$build/applied.patch"
 cmp "$patch" "$build/applied.patch"
+cp "$recipe/../MonoGame.Native.TextInput/Smoke.cpp" "$source/MemoriaTextInputSmoke.cpp"
+cp "$recipe/../MonoGame.Native.TextInput/TextInput.cpp" "$source/MemoriaTextInput.cpp"
 cp "$recipe/CMakeLists.txt" "$source/CMakeLists.txt"
 mkdir -p "$source/.config"
 cp "$recipe/../../.config/dotnet-tools.json" "$source/.config/dotnet-tools.json"
@@ -72,6 +74,7 @@ for name in candidate reference; do
 done
 [[ -s "$build/candidate-exports.txt" ]]
 cmp "$build/reference-exports.txt" "$build/candidate-exports.txt"
+[[ $(nm -D --defined-only "$candidate" | awk '{ print $3 }' | grep '^Memoria_') == 'Memoria_TextInput_SetCallback' ]]
 cmp "$build/reference-needed.txt" "$build/candidate-needed.txt"
 reference_glibc=$(cat "$build/reference-glibc.txt")
 candidate_glibc=$(cat "$build/candidate-glibc.txt")

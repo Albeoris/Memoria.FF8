@@ -4,7 +4,7 @@ namespace Memoria.FF8.Ui;
 
 public enum UiEditCommand
 {
-    Left, Right, Up, Down, Home, End, Backspace, Delete, SelectAll, Copy, Cut, Paste, Undo, Redo, Confirm, Cancel, LineBreak, PageBreak, Complete, AcceptCompletion, PreviewPreviousPage, PreviewNextPage, PreviewPreviousChoice, PreviewNextChoice
+    Left, Right, Up, Down, Home, End, Backspace, Delete, SelectAll, Copy, Cut, Paste, Undo, Redo, Confirm, Cancel, LineBreak, PageBreak, Complete, AcceptCompletion, PreviewPreviousPage, PreviewNextPage, PreviewPreviousChoice, PreviewNextChoice, TogglePicking
 }
 
 public sealed record UiEditorState(string Text, int Caret, int Anchor, (string Text, int Caret, int Anchor)[] Undo, (string Text, int Caret, int Anchor)[] Redo);

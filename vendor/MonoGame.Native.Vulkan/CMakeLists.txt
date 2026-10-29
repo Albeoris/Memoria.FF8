@@ -15,9 +15,15 @@ set(SDL2_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/native/monogame/external/sdl2/sdl/inc
 set(SDL2_LIBRARIES SDL2-static)
 add_subdirectory(native/monogame/external/faudio faudio EXCLUDE_FROM_ALL)
 file(GLOB SOURCES CONFIGURE_DEPENDS native/monogame/common/*.cpp native/monogame/sdl/*.cpp native/monogame/vulkan/*.cpp native/monogame/faudio/*.cpp)
-add_library(mgruntime SHARED ${SOURCES})
+add_library(mgruntime SHARED ${SOURCES} MemoriaTextInput.cpp)
 target_compile_features(mgruntime PRIVATE cxx_std_17)
 target_compile_definitions(mgruntime PRIVATE DLL_EXPORT MG_SDL2 MG_VULKAN MG_FAUDIO)
 target_include_directories(mgruntime PRIVATE native/monogame/include external/stb native/monogame/external/sdl2/sdl/include native/monogame/external/faudio/include native/monogame/external/vulkan-headers/include native/monogame/external/volk native/monogame/external/vma/include)
 target_link_libraries(mgruntime PRIVATE FAudio-static SDL2-static dl pthread m rt)
 
+
+add_executable(memoria_text_input_smoke EXCLUDE_FROM_ALL MemoriaTextInputSmoke.cpp MemoriaTextInput.cpp)
+target_compile_features(memoria_text_input_smoke PRIVATE cxx_std_17)
+target_compile_definitions(memoria_text_input_smoke PRIVATE DLL_EXPORT)
+target_include_directories(memoria_text_input_smoke PRIVATE native/monogame/include)
+target_link_libraries(memoria_text_input_smoke PRIVATE SDL2-static)

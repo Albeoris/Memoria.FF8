@@ -4,6 +4,7 @@ public static partial class SystemTextCatalog
 {
     private static void AddWorkbenchDefaults(Dictionary<string, string> defaults)
     {
+        defaults.Add("localization.workbench.clipboard.failed", "Clipboard unavailable: ");
         defaults.Add("localization.workbench.cancel", "Cancel");
         defaults.Add("localization.workbench.cancel.disable", "Cancel closing");
         defaults.Add("localization.workbench.search.budget", "Search time limit reached; narrow the search.");

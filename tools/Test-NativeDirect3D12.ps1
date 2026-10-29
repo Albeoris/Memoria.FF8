@@ -17,6 +17,9 @@ function Get-Hash([string]$Path) {
 if ($receipt.schemaVersion -ne 1 -or $receipt.runtimeIdentifier -cne 'win-x64' -or $receipt.backend -cne 'Direct3D12' -or $receipt.package -cne $lock.package -or $receipt.version -cne $lock.version -or $receipt.upstream.commit -cne $lock.upstream.commit -or $receipt.patchSha256 -cne $lock.patchSha256) {
     throw 'The prepared Direct3D 12 runtime does not match the pinned runtime recipe.'
 }
+if ($receipt.textInputBridgeSha256 -cne (Get-Hash (Join-Path $recipe '../MonoGame.Native.TextInput/TextInput.cpp'))) {
+    throw 'The prepared runtime has a different Unicode/IME text input bridge.'
+}
 if ($receipt.recipeSha256 -cne (Get-Hash (Join-Path $recipe 'CMakeLists.txt')) -or $receipt.buildScriptSha256 -cne (Get-Hash (Join-Path $PSScriptRoot 'Build-NativeDirect3D12.ps1'))) {
     throw 'The prepared Direct3D 12 runtime was built with a different build recipe.'
 }
@@ -29,7 +32,7 @@ foreach ($dependency in $lock.dependencies) {
         throw 'The prepared runtime has an unexpected source dependency identity.'
     }
 }
-if ($receipt.shaderCompiler.package -cne $lock.shaderCompiler.package -or $receipt.shaderCompiler.version -cne $lock.shaderCompiler.version -or $receipt.shaderCompiler.profile -cne $lock.shaderCompiler.profile -or $receipt.configuration -cne 'Release' -or $receipt.exportedSymbols -ne 140) {
+if ($receipt.shaderCompiler.package -cne $lock.shaderCompiler.package -or $receipt.shaderCompiler.version -cne $lock.shaderCompiler.version -or $receipt.shaderCompiler.profile -cne $lock.shaderCompiler.profile -or $receipt.configuration -cne 'Release' -or $receipt.exportedSymbols -ne 141) {
     throw 'The prepared runtime compiler, configuration or exported ABI differs from the pinned contract.'
 }
 if (@($receipt.files).Count -ne 1 -or $receipt.files[0].path -cne 'mgruntime.dll' -or $receipt.files[0].sha256 -cne (Get-Hash (Join-Path $OutputDirectory 'mgruntime.dll'))) {

@@ -1,6 +1,6 @@
 # MonoGame Linux Vulkan backbuffer readback
 
-This narrow patch applies to MonoGame 3.8.5.1 at its exact NuGet repository commit, pinned together with all native dependency revisions in [native-runtime-lock.json](native-runtime-lock.json). It changes internal synchronization only; the managed framework, exported MonoGame C API and shared-library dependencies remain unchanged.
+This narrow patch applies to MonoGame 3.8.5.1 at its exact NuGet repository commit, pinned together with all native dependency revisions in [native-runtime-lock.json](native-runtime-lock.json). It changes internal synchronization only; the managed framework, original exported MonoGame C API and shared-library dependencies remain unchanged. The recipe also adds the single [Unicode/IME text-input bridge](../MonoGame.Native.TextInput/README.md) export.
 
 Upstream backbuffer readback waits on the binary swapchain-acquisition semaphore and signals rendering completion. The subsequent Present submits another wait on that already-consumed acquisition semaphore and another signal of completion. A screenshot can therefore succeed while the next presentation blocks indefinitely. The patch tracks whether acquisition still needs consumption, waits once across readback and presentation submissions, and signals rendering completion only in Present. Repeated reads of the same frame work with the same protocol.
 
