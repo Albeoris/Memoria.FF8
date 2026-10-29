@@ -16,6 +16,9 @@ public sealed class NativeBattleCavernAttackTests
         BattleSnapshot snapshot = state.Battle!;
         BattleSession battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        using GameAssets game = new(TestResources.GameDirectory);
+        battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+        restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         long callback = battle.NativeGraphics!.Callback;
         battle.Tick();
         restored.Tick();
@@ -91,6 +94,7 @@ public sealed class NativeBattleCavernAttackTests
             }
             Assert.True(battle.NativeEntryReady);
             battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+            battle.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             BattleCombatant actor = battle.Combatants.Single(actor => actor.IsPlayer && actor.ModelId == character);
             for (int turn = 0; turn < 16 && !actor.IsReady; turn++)
             {
@@ -115,6 +119,7 @@ public sealed class NativeBattleCavernAttackTests
             session.SetLiveBattle(battle);
             NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"cavern-{formation}-actor-{character}-after", session.State);
             BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(after))!);
+            restored.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             battle.Tick();
             restored.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));

@@ -46,15 +46,15 @@ public sealed class NativeBattleCuragaNodeRenderingTests
             peak = Math.Max(peak, changed);
             if (counter >= 12 && changed > 0 && !restoredPixels)
             {
-                NativeBattlePrimitiveFrame clone = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(primitive))!;
-                NativeBattleEffectTextureState textureClone = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(frame.Memory.Textures))!;
-                NativeBattlePcTextureWindowCache cacheClone = JsonSerializer.Deserialize<NativeBattlePcTextureWindowCache>(JsonSerializer.Serialize(process.TextureWindowCache))!;
+                NativeBattlePrimitiveFrame clone = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(primitive)))!);
+                NativeBattleEffectTextureState textureClone = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Memory.Textures)))!);
+                NativeBattlePcTextureWindowCache cacheClone = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePcTextureWindowCache>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(process.TextureWindowCache)))!);
                 byte[] restored = new BattleRenderer(320, 216).RenderNativePrimitiveFrame(clone, textureClone, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8(), textureWindowCache: cacheClone).ToArray();
                 Assert.Equal(pixels, restored);
-                NativeBattleCuragaFrame independent = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
+                NativeBattleCuragaFrame independent = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
                 NativeBattleCuragaNodeDrawStep first = NativeBattleCuragaNodeKinematics.DrawNodes880390And87ED10(frame, fixture.Task, projection, 0, NativeBattleLogicalOrdering.Clear(), colors);
                 NativeBattleCuragaNodeDrawStep second = NativeBattleCuragaNodeKinematics.DrawNodes880390And87ED10(independent, fixture.Task, projection, 0, NativeBattleLogicalOrdering.Clear(), colors);
-                Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+                Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(second)));
                 restoredPixels = true;
             }
             task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(fixture.Task);

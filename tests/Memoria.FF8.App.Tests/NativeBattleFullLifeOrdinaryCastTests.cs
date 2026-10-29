@@ -27,6 +27,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1, MaximumHp = 9999, CurrentHp = 9999 }
         ];
         //Explicit fresh installed-resource component; all contacts and descriptors must be produced by the ordinary command.
+        NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -58,7 +59,9 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([27]),
-            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeSavedOptions = input.Options,
+            NativeInputButtonMap = input.ButtonMap,
+            LimitProgress = game.ReadNewGameLimitProgress(),
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
@@ -145,7 +148,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                 {
                     byte[] visible = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                    BattleSession background = BattleSession.Restore(current with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } });
+                    BattleSession background = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(current with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } }));
                     byte[] plain = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
                     changedRgbPixels = CountRgbChanges(visible, plain);
                     if (changedRgbPixels > 0)

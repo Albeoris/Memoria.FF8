@@ -18,7 +18,7 @@ public sealed class NativeBattlePointRenderingTests
         byte[] pixels = new BattleRenderer(320, 216).RenderNativePrimitiveFrame(frame, null).ToArray();
         Assert.Equal(new byte[] { 255, 0, 0, 255 }, pixels.AsSpan(4 * (20 * 320 + 10), 4).ToArray());
         Assert.Equal(1, Enumerable.Range(0, 320 * 216).Count(index => pixels[index * 4] != 0));
-        NativeBattlePrimitiveFrame restored = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattlePrimitiveFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         Assert.Equal(pixels, new BattleRenderer(320, 216).RenderNativePrimitiveFrame(restored, null));
     }
 

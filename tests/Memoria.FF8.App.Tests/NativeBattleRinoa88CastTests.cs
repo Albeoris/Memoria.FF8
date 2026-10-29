@@ -59,7 +59,7 @@ public sealed class NativeBattleRinoa88CastTests
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame withoutEffect = graphics.PrimitiveFrame with { LastCommands = graphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                        BattleSession background = BattleSession.Restore(battle.Capture() with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } });
+                        BattleSession background = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture() with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition, true).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }

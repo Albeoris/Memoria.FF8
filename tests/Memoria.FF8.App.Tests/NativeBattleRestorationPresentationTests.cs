@@ -387,7 +387,8 @@ public sealed class NativeBattleRestorationPresentationTests
         }
         Directory.CreateDirectory(directory);
         using FileStream stream = new(Path.Combine(directory, name + ".json"), FileMode.CreateNew);
-        JsonSerializer.Serialize(stream, value, value.GetType());
+        object captured = NativeBattleStorageSnapshots.Capture(value);
+        JsonSerializer.Serialize(stream, captured, captured.GetType());
     }
 
     internal static void Publish(string? directory, string name, BattleSnapshot snapshot, byte[]? pixels)

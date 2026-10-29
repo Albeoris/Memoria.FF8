@@ -374,31 +374,6 @@ public sealed class AutoPlayAcceptanceTests
         }
     }
 
-    [Fact]
-    public void ClosingNativeDialogueContinuesReceivingHostCallbacksWithoutAnotherConfirmation()
-    {
-        using InstalledRun run = new(TestResources.GameDirectory);
-        run.Controller.Start();
-        int observedCallbacks = 0;
-        for (int step = 0; step < 512 && observedCallbacks < 3; step++)
-        {
-            run.Pump();
-            bool closing = run.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false, NativeWindow: { Delta: < 0, Progress: > 0 } };
-            int field = run.Events.FieldId;
-            long frame = run.Events.Frame;
-            run.Controller.Advance(1);
-            Assert.Null(run.Controller.Error);
-            Assert.Null(run.Events.LastFault);
-            if (closing)
-            {
-                Assert.Equal(field, run.Events.FieldId);
-                Assert.Equal(frame + 1, run.Events.Frame);
-                observedCallbacks++;
-            }
-        }
-        Assert.Equal(3, observedCallbacks);
-    }
-
     private sealed class ManualClock : TimeProvider
     {
         private long timestamp;
@@ -428,7 +403,6 @@ public sealed class AutoPlayAcceptanceTests
         }
 
         public AutoPlayController Controller { get; }
-        public Memoria.FF8.Events.EventEngine Events => GetWorld().Events;
         public IReadOnlyList<Memoria.FF8.Events.DialogueOutcome> DialogueOutcomes => GetWorld().Events.DialogueOutcomes;
         public IReadOnlyList<BranchDecision> Branches => GetWorld().Events.Decisions;
         public IReadOnlyDictionary<int, int> Variables => GetWorld().Events.Variables;

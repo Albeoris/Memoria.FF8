@@ -13,7 +13,7 @@ internal static partial class Program
         byte[] content = BattleModeCallbackProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
         GameSession session = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0), WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame() });
         EventEngine engine = new(session);
-        engine.LoadField(999, content, []);
+        engine.LoadField(999, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();
         Require(engine.Frame == 1 && session.ExamTimer!.ClockCalls == 0, "Scalar fixture initialization advanced its timer clock.");
         engine.Step();
@@ -30,7 +30,7 @@ internal static partial class Program
         Require(heldMain.GetProperty("Position").GetInt32() == 10 && heldMain.GetProperty("Stack")[1].GetProperty("Values").GetArrayLength() == 2, "Uncertain command refusal did not preserve its PC and typed stack.");
         GameSession resumedSession = new(new GameState());
         EventEngine resumed = new(resumedSession);
-        resumed.LoadField(999, content, []);
+        resumed.LoadField(999, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         resumed.Restore(held);
         Require(JsonElement.DeepEquals(held, resumed.Capture()), "Typed stack/result restore changed its native alternatives.");
 
@@ -45,7 +45,7 @@ internal static partial class Program
                 write = command;
             }
         };
-        stored.LoadField(999, storeContent, []);
+        stored.LoadField(999, storeContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         stored.Step();
         Require(stored.Frame == 1 && storeSession.ExamTimer!.ClockCalls == 0, "Scalar store fixture initialization advanced its timer clock.");
         stored.Step();
@@ -54,7 +54,7 @@ internal static partial class Program
         Require(!storeSession.State.Variables.ContainsKey(432) && entry.Width == 2 && entry.Value.Values.SequenceEqual([599, 600]) && write!.Arguments.Count == 0 && write.ScalarArguments![0].Values.SequenceEqual([599, 600]), "POPM_W fabricated a scalar or lost its original argument alternatives.");
         GameSession restoredSession = new(new GameState());
         EventEngine restored = new(restoredSession);
-        restored.LoadField(999, storeContent, []);
+        restored.LoadField(999, storeContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         JsonElement saved = stored.Capture();
         restored.Restore(saved);
         Require(JsonElement.DeepEquals(saved, restored.Capture()), "Independent typed memory restore lost the read snapshot or width.");
@@ -79,7 +79,7 @@ internal static partial class Program
         reentry.Restore(reentered);
         Require(JsonElement.DeepEquals(reentered, reentry.Capture()) && reentrySession.State.NativeVariableValues![432].Value.Values.SequenceEqual([599, 600]), "Same-field reentry compared a previous read's frame with the reset current frame.");
         byte[] copy = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHM_W, 432), (Jsm.Opcode.POPM_W, 434), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.RET, 0));
-        stored.LoadField(998, copy, []);
+        stored.LoadField(998, copy, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         stored.Step();
         Require(storeSession.State.Variables[432] == 7 && storeSession.State.NativeVariableValues!.Count == 1 && storeSession.State.NativeVariableValues[434].Value.Values.SequenceEqual([599, 600]), "Cross-field typed copy or exact overwrite did not preserve native memory semantics.");
         Console.WriteLine("Native scalar memory: uncertain GETTIMER, result/stack/WORD transfer, cross-field copy, exact overwrite, source validation and preserved unsupported operands verified.");

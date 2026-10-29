@@ -591,12 +591,6 @@ internal sealed partial class AutoPlayController
             run.SettleFrames = 0;
             return;
         }
-        if (session.State.Scene == SceneKind.Field && world.Events.PartyMenu is null && world.Events.PendingHostedBattle is null && world.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
-        {
-            run.SettleFrames = 0;
-            AdvanceInputFrame(world);
-            return;
-        }
         if (world.Events.PartyMenu is not null)
         {
             run.SettleFrames = 0;

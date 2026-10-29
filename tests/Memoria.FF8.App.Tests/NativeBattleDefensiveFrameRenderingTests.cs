@@ -35,9 +35,9 @@ public sealed class NativeBattleDefensiveFrameRenderingTests
             LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(),
             LastColorState = NativeBattlePrimitiveColorState.FromColdProcess()
         };
-        string json = JsonSerializer.Serialize(frame);
-        NativeBattlePrimitiveFrame first = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(json)!;
-        NativeBattlePrimitiveFrame second = JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame));
+        NativeBattlePrimitiveFrame first = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(json)!);
+        NativeBattlePrimitiveFrame second = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePrimitiveFrame>(json)!);
         BattleRenderer firstRenderer = new(320, 216);
         BattleRenderer secondRenderer = new(320, 216);
 
@@ -47,6 +47,6 @@ public sealed class NativeBattleDefensiveFrameRenderingTests
         Assert.True(firstRenderer.DrawnTriangles > 0);
         Assert.Contains(Enumerable.Range(0, 320 * 216), index => firstPixels[index * 4] != 0 || firstPixels[index * 4 + 1] != 0 || firstPixels[index * 4 + 2] != 0);
         Assert.Equal(firstPixels, secondPixels);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(second)));
     }
 }

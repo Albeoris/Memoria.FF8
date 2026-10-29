@@ -39,7 +39,7 @@ public sealed class NativeBattleActorTextureTests
         BinaryPrimitives.WriteUInt16LittleEndian(red, 0x801F);
         BinaryPrimitives.WriteUInt16LittleEndian(blue, 0xFC00);
         NativeBattleEffectArena bank = NativeBattleEffectArena.Clear().Write(2 * (16 * 1024 + 656), red).Write(2 * (16 * 1024 + 700), blue);
-        NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = bank.Regions };
+        NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = NativeBattleStorageSnapshots.Capture(bank).Regions };
         NativeBattleModelTextureBinding binding = new(ImmutableArray.CreateRange(new byte?[16]).SetItem(0, 0));
         BattleActorDraw actor = new(model, Vector3.Zero) { NativeTextureBinding = binding, NativeTextures = textures };
         BattleRenderer renderer = new(64, 64);
@@ -48,7 +48,7 @@ public sealed class NativeBattleActorTextureTests
         Assert.Throws<NotSupportedException>(() => renderer.Render(new BattleStage(0, [], []), [actor with { NativeTextureBinding = null }], camera));
         byte[] first = renderer.Render(new BattleStage(0, [], []), [actor], camera).ToArray();
         Assert.Contains(Enumerable.Range(0, 64 * 64), index => first[index * 4] == 255 && first[index * 4 + 2] == 0);
-        NativeBattleEffectTextureState copied = textures.EnqueueCopy505EB0(700, 16, 1, 1, 656, 16).Drain505D20().State;
+        NativeBattleEffectTextureState copied = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(textures)).EnqueueCopy505EB0(700, 16, 1, 1, 656, 16).Drain505D20().State;
         byte[] second = renderer.Render(new BattleStage(0, [], []), [actor with { NativeTextures = copied }], camera).ToArray();
         Assert.Contains(Enumerable.Range(0, 64 * 64), index => second[index * 4] == 0 && second[index * 4 + 2] == 255);
         Assert.NotEqual(first, second);

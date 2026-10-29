@@ -93,7 +93,7 @@ public sealed class BattleTurnBasedTimeTests
     }
 
     [Fact]
-    public void LogicalSkipWaitsForQueuedRegenThenDispatchesPoisonAndNativeDoomBeforeNextReadiness()
+    public void LogicalSkipPresentsProducedRegenThenDispatchesPoisonAndNativeDoomBeforeNextReadiness()
     {
         BattleCombatantDefinition doomed = Actor("doomed", true, 1000) with { NativeStatus1 = 0x400, NativeDeathCount = 0 };
         BattleCombatantDefinition ally = Actor("ally", true, 500) with
@@ -118,11 +118,16 @@ public sealed class BattleTurnBasedTimeTests
         restored.Tick();
 
         Assert.Equal(1, battle.Frame);
-        Assert.Equal(500, battle.Combatants[1].CurrentHp);
+        BattleAttackCommand regen = Assert.Single(battle.QueuedActions, command => command.NativeAction is { Command: 0, ActionId: 4 });
+        Assert.Equal("ally", regen.ActorId);
+        Assert.Equal("ally", regen.TargetId);
+        Assert.NotNull(regen.NativeHeaderIndex);
+        Assert.True(regen.NativeAction is { Command: 0, ActionId: 4 });
+        // Header production commits the contact before this graphicsless command's presentation completes.
+        Assert.Equal(550, battle.Combatants[1].CurrentHp);
         Assert.Equal(58, battle.Capture().Combatants[1].NativeStatus!.Timers[4]);
         Assert.False(battle.Combatants[1].IsReady);
-        Assert.Contains(battle.QueuedActions, command => command.NativeAction is { Command: 0, ActionId: 4 });
-        Assert.DoesNotContain(battle.Events, item => item.Kind == "Healing" && item.Message.StartsWith("Regen:"));
+        Assert.Contains(battle.Events, item => item.Kind == "Healing" && item.Message.StartsWith("Regen:") && item.Amount == 50);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         for (int callback = 0; callback < 100 && !battle.Combatants[1].IsReady; callback++)
         {
