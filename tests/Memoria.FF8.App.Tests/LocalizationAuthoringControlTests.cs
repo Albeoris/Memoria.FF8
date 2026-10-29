@@ -206,6 +206,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             await Save();
             Assert.Equal("Niveau {0}", LocalizationProjectIO.Read(package).Entries.Single(row => row.Key == systemKey).Target);
             await Request("ui-input", new(Release: true, Edit: UiEditCommand.Cancel));
+            await Request("ui-open", new(Screen: "main", Demo: true));
             await WaitLocalization(state => Hits(state).Any(hit => hit.GetProperty("Key").GetString() == systemKey && hit.GetProperty("Text").GetString()!.StartsWith("Niveau ", StringComparison.Ordinal)));
             string capture = await Capture("workbench");
             Assert.True(File.Exists(capture));

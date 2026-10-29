@@ -885,9 +885,25 @@ public sealed class LocalizationWorkbenchController : IDisposable
         {
             return;
         }
-        void Label(string value, UiRect area, bool muted = false) => canvas.Text(value, 14, area, muted ? theme.Muted : theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
+        UiRect chromeClip = viewport;
+        void Label(string value, UiRect area, bool muted = false, bool wrap = false)
+        {
+            area = area.Intersect(chromeClip);
+            if (area.IsEmpty)
+            {
+                return;
+            }
+            canvas.PushClip(area);
+            canvas.Text(value, 14, area, muted ? theme.Muted : theme.Foreground, UiAlignment.Start, wrap ? UiTextFlow.Wrap : UiTextFlow.SingleLine);
+            canvas.PopClip();
+        }
         void Button(string id, string fallback, UiRect area, Action click)
         {
+            area = area.Intersect(chromeClip);
+            if (area.IsEmpty)
+            {
+                return;
+            }
             canvas.Fill(area.Inset(1), theme.BorderDark);
             Label(T(id, fallback), area.Inset(4));
             buttons.Add((area, click));
@@ -895,25 +911,29 @@ public sealed class LocalizationWorkbenchController : IDisposable
         }
         if (IsEditing)
         {
-            float width = Math.Min(700, viewport.Width - 24);
-            float height = Math.Min(430, viewport.Height - 50);
-            editorBounds = new(viewport.X + 12, viewport.Y + 36, width, height);
+            float width = Math.Max(0, Math.Min(700, viewport.Width - 24));
+            float height = Math.Max(0, Math.Min(600, viewport.Height - 24));
+            editorBounds = new(viewport.X + 12, viewport.Y + 12, width, height);
             theme.Panel(canvas, editorBounds);
+            chromeClip = editorBounds.Inset(2);
+            canvas.PushClip(chromeClip);
             float x = editorBounds.X + 10;
             float y = editorBounds.Y + 8;
-            Button("project", projectLabel + " · " + SourceRoleBadge, new(x, y, width - 20, 22), () => SelectProjectRequested?.Invoke());
-            Button("copy.key", Session!.Base.Identity.Key, new(x, y + 23, width - 20, 26), () => CopyText?.Invoke(Session!.Base.Identity.Key));
+            string projectCaption = projectLabel.Split('·', 2)[0].Trim();
+            Button("project", projectCaption, new(x, y, width - 20, 22), () => SelectProjectRequested?.Invoke());
+            Label(SourceRoleBadge, new(x, y + 26, width - 20, 36), true, wrap: true);
+            Button("copy.key", Session!.Base.Identity.Key, new(x, y + 65, width - 20, 26), () => CopyText?.Invoke(Session!.Base.Identity.Key));
             float tabWidth = Math.Min(160, (width - 20) / Math.Max(1, languages.Count));
             for (int index = 0; index < languages.Count; index++)
             {
                 int slot = index;
-                Button("language." + languages[index].Id, (index == language ? "● " : "") + languages[index].Label + (index < 3 ? " Alt+" + (index + 1) : ""), new(x + index * tabWidth, y + 52, tabWidth, 28), () => SelectLanguage(slot));
+                Button("language." + languages[index].Id, (index == language ? "● " : "") + languages[index].Label + (index < 3 ? " Alt+" + (index + 1) : ""), new(x + index * tabWidth, y + 94, tabWidth, 28), () => SelectLanguage(slot));
             }
             if (Session!.Mode == LocalizationSessionMode.Preview)
             {
-                Button("preview.page.previous", "← Page", new(x + width - 238, y + 82, 72, 23), () => BrowsePreviewPage(-1));
-                Label((PreviewPage + 1) + "/" + PreviewPageCount, new(x + width - 164, y + 82, 50, 23));
-                Button("preview.page.next", "Page →", new(x + width - 112, y + 82, 82, 23), () => BrowsePreviewPage(1));
+                Button("preview.page.previous", "← Page", new(x + width - 238, y + 126, 72, 23), () => BrowsePreviewPage(-1));
+                Label((PreviewPage + 1) + "/" + PreviewPageCount, new(x + width - 164, y + 126, 50, 23));
+                Button("preview.page.next", "Page →", new(x + width - 112, y + 126, 82, 23), () => BrowsePreviewPage(1));
             }
             string roleLabel;
             if (language != 0)
@@ -928,8 +948,12 @@ public sealed class LocalizationWorkbenchController : IDisposable
             {
                 roleLabel = TargetView().Length == 0 ? T("no.text", "No text available") : T("inherited", "Inherited text — Target remains empty until edited and saved");
             }
-            Label(roleLabel, new(x, y + 82, Session!.Mode == LocalizationSessionMode.Preview ? Math.Max(0, width - 250) : width - 20, 22), true);
-            Editor.Arrange(new(x, y + 106, width - 20, Math.Max(55, height - 290)));
+            if (Session!.Mode != LocalizationSessionMode.Conflict)
+            {
+                Label(roleLabel, new(x, y + 126, Session!.Mode == LocalizationSessionMode.Preview ? Math.Max(0, width - 250) : width - 20, 22), true);
+            }
+            float actionsY = editorBounds.Bottom - 148;
+            Editor.Arrange(new(x, y + 152, width - 20, Math.Max(24, actionsY - 120 - y - 152)));
             Editor.Draw(canvas, theme);
             if (Session!.Mode == LocalizationSessionMode.Preview && PreviewChoices.Count != 0)
             {
@@ -938,16 +962,15 @@ public sealed class LocalizationWorkbenchController : IDisposable
                 Label(PreviewChoices[PreviewChoice], new(x + 88, choiceY, Math.Max(0, width - 198), 25));
                 Button("preview.choice.next", "Choice →", new(editorBounds.Right - 100, choiceY, 88, 25), () => BrowsePreviewChoice(1));
             }
-            float actionsY = editorBounds.Bottom - 108;
             if (CompatibilityReport is { } compatibility)
             {
                 string mode = T(compatibility.PresentationMode == "Native" ? "compatibility.native" : "compatibility.system", compatibility.PresentationMode);
                 string layout = T(compatibility.LayoutMode == "Original" ? "compatibility.original" : "compatibility.modern", compatibility.LayoutMode);
                 string presentation = compatibility.CanPreview ? T("compatibility.renderable", "renderable") : string.Join("; ", compatibility.PresentationDiagnostics.Select(error => error.Message));
-                Label(T("compatibility.presentation", "Presentation") + ": " + mode + " / " + layout + " · " + compatibility.Role + " " + compatibility.Dataset + " · " + (compatibility.ProfileId ?? "—") + " · " + presentation, new(x, actionsY - 60, width - 20, 19));
+                Label(T("compatibility.presentation", "Presentation") + ": " + mode + " / " + layout + " · " + compatibility.Role + " " + compatibility.Dataset + " · " + (compatibility.ProfileId ?? "—") + " · " + presentation, new(x, actionsY - 112, width - 20, 36), wrap: true);
                 string encoding = compatibility.NativeEncodingCompatible ? T("compatibility.compatible", "compatible (byte encoding only)") : T("compatibility.incompatible", "incompatible") + ": " + string.Join("; ", compatibility.EncodingDiagnostics.Select(error => error.Position < 0 ? error.Message : "[" + error.Position + ":" + error.Length + "] " + error.Message));
-                Label(T("compatibility.encoding", "Native encoding (advisory)") + ": " + encoding, new(x, actionsY - 40, width - 20, 19));
-                Label(T("compatibility.deployment", "Original deployment") + ": " + (compatibility.Deployment == "MemoriaOnly" ? T("compatibility.memoria", "Memoria-only UI") : T("compatibility.unverified", "unverified — resource limits and offsets have not been checked")), new(x, actionsY - 20, width - 20, 19), true);
+                Label(T("compatibility.encoding", "Native encoding (advisory)") + ": " + encoding, new(x, actionsY - 74, width - 20, 36), wrap: true);
+                Label(T("compatibility.deployment", "Original deployment") + ": " + (compatibility.Deployment == "MemoriaOnly" ? T("compatibility.memoria", "Memoria-only UI") : T("compatibility.unverified", "unverified — resource limits and offsets have not been checked")), new(x, actionsY - 36, width - 20, 34), true, wrap: true);
             }
             Button("preview", "Preview", new(x, actionsY, 90, 29), Preview);
             if (Session!.Mode == LocalizationSessionMode.Preview)
@@ -973,35 +996,43 @@ public sealed class LocalizationWorkbenchController : IDisposable
                 Button("origin.up", "Y−", new(x + 208, actionsY + 32, 46, 24), () => AdjustOriginRequested?.Invoke(0, -1));
                 Button("origin.down", "Y+", new(x + 256, actionsY + 32, 46, 24), () => AdjustOriginRequested?.Invoke(0, 1));
                 Button("origin.reset", "Reset origin", new(x + 304, actionsY + 32, 110, 24), () => ResetOriginRequested?.Invoke());
-                Label(status, new(x + 418, actionsY + 32, Math.Max(0, width - 438), 24));
             }
             else
             {
-                Label(status, new(x, actionsY + 32, width - 20, 24));
+                Label(status, new(x, actionsY + 32, width - 20, 36), wrap: true);
+            }
+            if (PositionSupported)
+            {
+                Label(status, new(x, actionsY + 60, width - 20, 36), wrap: true);
             }
             if (DisableRequested)
             {
-                Button("discard.disable", "Discard and close", new(x + 310, actionsY + 60, 150, 25), DiscardAndDisable);
-                Button("cancel.disable", "Cancel closing", new(x + 462, actionsY + 60, 130, 25), CancelDisable);
+                Button("discard.disable", "Discard and close", new(x, actionsY + 102, 150, 25), DiscardAndDisable);
+                Button("cancel.disable", "Cancel closing", new(x + 154, actionsY + 102, 130, 25), CancelDisable);
             }
-            Label(T("shortcuts", "Enter: Preview / Save · Shift+Enter: line · Ctrl+Enter: page · Ctrl+Space: tags · Tab/Enter: accept tag"), new(x, actionsY + 60, width - 20, 24), true);
+            else if (Session!.Mode != LocalizationSessionMode.Conflict)
+            {
+                Label(T("shortcuts", "Enter: Preview / Save · Shift+Enter: line · Ctrl+Enter: page · Ctrl+Space: tags · Tab/Enter: accept tag"), new(x, actionsY + 102, width - 20, 36), true, wrap: true);
+            }
             if (Session!.Mode == LocalizationSessionMode.Conflict && Session!.Conflict is not null)
             {
                 float paneWidth = (width - 20) / 3;
                 foreach (LocalizationConflictPane pane in Enum.GetValues<LocalizationConflictPane>())
                 {
                     int index = (int)pane;
-                    Button("conflict." + pane, "Edit " + pane, new(x + index * paneWidth, y + 82, paneWidth, 24), () => EditConflict(pane));
+                    Button("conflict." + pane, "Edit " + pane, new(x + index * paneWidth, y + 126, paneWidth, 24), () => EditConflict(pane));
                 }
-                Button("conflict.use", "Preview selected candidate", new(x, actionsY + 60, 220, 25), PreviewConflict);
-                Button("conflict.reset", "Reset candidate", new(x + 225, actionsY + 60, 150, 25), ResetConflict);
+                Button("conflict.use", "Preview selected candidate", new(x, actionsY + 102, 220, 25), PreviewConflict);
+                Button("conflict.reset", "Reset candidate", new(x + 225, actionsY + 102, 150, 25), ResetConflict);
             }
             for (int index = 0; index < Math.Min(5, CompletionItems.Count); index++)
             {
                 int item = Math.Max(0, CompletionIndex - 4) + index;
                 Button("completion." + item, (item == CompletionIndex ? "● " : "") + CompletionItems[item], new(x + 20, Editor.Bounds.Y + index * 26, Math.Min(320, width - 40), 26), () => AcceptCompletion(item));
             }
+            canvas.PopClip();
         }
+        chromeClip = viewport;
         float journalWidth = Math.Min(viewport.Width - 16, JournalWidth);
         float journalHeight = JournalExpanded ? Math.Min(viewport.Height - 16, JournalHeight) : 32;
         journalBounds = new(Math.Clamp(viewport.Right - journalWidth - 8 + journalOffsetX, viewport.X, Math.Max(viewport.X, viewport.Right - journalWidth)), Math.Clamp(viewport.Bottom - journalHeight - 8 + journalOffsetY, viewport.Y, Math.Max(viewport.Y, viewport.Bottom - journalHeight)), journalWidth, journalHeight);

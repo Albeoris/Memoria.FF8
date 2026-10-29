@@ -1,6 +1,7 @@
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Localization.Authoring;
 using Memoria.FF8.Resources.Localization;
+using Memoria.FF8.Resources.Text;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
@@ -264,6 +265,79 @@ public sealed class LocalizationWorkbenchTests(ITestOutputHelper output)
         Assert.False(ui.RequestDisable());
         ui.Open(new(store, new PlainSyntax(), store.Snapshot), [new("target", "Target", "old", true)], "Another row");
         Assert.Same(session, ui.Session);
+    }
+
+    [Theory]
+    [InlineData(1280, 768, false)]
+    [InlineData(640, 480, false)]
+    [InlineData(1280, 768, true)]
+    public async Task EditorChromeSeparatesRoleKeyAndConflictRowsAndClipsWrappedReports(int width, int height, bool conflict)
+    {
+        FakeStore store = new("old") { ConflictOnCommit = conflict };
+        LocalizationEditingSession session = new(store, new PlainSyntax(), store.Snapshot);
+        using LocalizationWorkbenchController ui = new() { Enabled = true, PositionSupported = true, SourceRoleBadge = "Source Reference: Japanese · Script Base: English · Target: translated text" };
+        ui.Open(session, [new("target", "Target", "old", true), new("en", "English reference", "Source", IsSourceReference: true)], "Example package · full project location");
+        ui.CompatibilityReporter = (_, _, _) => new("System", "Modern", null, "Target", "translated text", new("Classic", "Field"), [], [new("unsupported", "The selected native encoding does not represent these characters. This remains advisory for Memoria rendering.")], "Unverified");
+        if (conflict)
+        {
+            ui.Preview();
+            ui.ConfirmReleased();
+            ui.HandleCommand(UiEditCommand.Confirm);
+            await ui.PendingSave!;
+            ui.Poll();
+        }
+        ClipCanvas canvas = new(new(0, 0, width, height));
+        ui.Draw(canvas, canvas.Viewport, new UiTheme());
+        Assert.Empty(canvas.Clips);
+        Assert.Equal("Example package", ui.ControlHits.Single(hit => hit.Id == "project").Text);
+        var roles = Assert.Single(canvas.Texts, text => text.Text == ui.SourceRoleBadge);
+        UiRect key = ui.ControlHits.Single(hit => hit.Id == "copy.key").Bounds;
+        Assert.True(roles.Bounds.Bottom <= key.Y);
+        Assert.Equal(UiTextFlow.Wrap, roles.Flow);
+        var reports = canvas.Texts.Where(text => text.Text.StartsWith("Presentation:", StringComparison.Ordinal) || text.Text.StartsWith("Native encoding", StringComparison.Ordinal) || text.Text.StartsWith("Original deployment:", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(3, reports.Length);
+        Assert.All(reports, text =>
+        {
+            Assert.Equal(UiTextFlow.Wrap, text.Flow);
+            Assert.Equal(text.Bounds, text.Clip);
+            Assert.True(text.Bounds.Height >= 34);
+        });
+        Assert.True(reports[0].Bounds.Bottom <= reports[1].Bounds.Y);
+        Assert.True(reports[1].Bounds.Bottom <= reports[2].Bounds.Y);
+        Assert.All(canvas.Texts, text => Assert.Equal(text.Clip, text.Clip.Intersect(canvas.Viewport)));
+        Assert.All(ui.ControlHits, hit => Assert.Equal(hit.Bounds, hit.Bounds.Intersect(canvas.Viewport)));
+        if (conflict)
+        {
+            UiRect pane = ui.ControlHits.Single(hit => hit.Id == "conflict.Ours").Bounds;
+            Assert.True(pane.Y >= key.Bottom);
+            Assert.True(pane.Bottom <= ui.Editor.Bounds.Y);
+            Assert.DoesNotContain(canvas.Texts, text => text.Text.StartsWith("Enter: Preview", StringComparison.Ordinal));
+        }
+    }
+
+    private sealed class ClipCanvas(UiRect viewport) : IUiCanvas
+    {
+        public UiRect Viewport { get; } = viewport;
+        public Stack<UiRect> Clips { get; } = new();
+        public List<(string Text, UiRect Bounds, UiRect Clip, UiTextFlow Flow)> Texts { get; } = [];
+        public UiSize MeasureText(string text, float fontSize, float maximumWidth) => new(Math.Min(maximumWidth, text.Length * fontSize / 2), fontSize * 1.5f);
+        public void Text(string text, float fontSize, UiRect bounds, UiColor color) => Text(text, fontSize, bounds, color, UiAlignment.Start, UiTextFlow.SingleLine);
+        public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment alignment) => Text(text, fontSize, bounds, color, alignment, UiTextFlow.SingleLine);
+        public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment alignment, UiTextFlow flow) => Texts.Add((text, bounds, Clips.TryPeek(out UiRect clip) ? clip : Viewport, flow));
+        public void Fill(UiRect bounds, UiColor color)
+        {
+        }
+        public void MenuPointer(UiRect bounds)
+        {
+        }
+        public void Image(UiImageSource source, UiRect bounds)
+        {
+        }
+        public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness)
+        {
+        }
+        public void PushClip(UiRect bounds) => Clips.Push(bounds.Intersect(Clips.TryPeek(out UiRect clip) ? clip : Viewport));
+        public void PopClip() => Clips.Pop();
     }
 
     private sealed class PlainSyntax : ILocalizationTargetSyntax
