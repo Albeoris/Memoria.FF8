@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -24,4 +24,8 @@ public sealed record NativeBattleSandStorm176Sprite(NativeBattleModulePacketBatc
 public sealed record NativeBattleSandStorm176Sound(uint Sound) : NativeBattleSandStorm176Operation;
 public sealed record NativeBattleSandStorm176Contact(int Index) : NativeBattleSandStorm176Operation;
 public sealed record NativeBattleSandStorm176Actor(int Index, NativeBattleGraphicsModel Model) : NativeBattleSandStorm176Operation;
-public sealed record NativeBattleSandStorm176Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, bool DrawOnly, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleSandStorm176Frame, NativeBattleSandStorm176Operation, NativeBattleSandStorm176Frame> Execute);
+public sealed record NativeBattleSandStorm176Inputs(NativeBattleActionPacketsState Packets, NativeBattleCameraProjection Projection, short CameraRoll, bool DrawOnly, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleSandStorm176Frame, NativeBattleSandStorm176Operation, NativeBattleSandStorm176Frame> Execute)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+}

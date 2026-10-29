@@ -56,12 +56,12 @@ public static partial class NativeBattleBlaster186Controller
                 }
                 frame = PublishContext(frame, scratch, context, 72);
                 frame = frame with { Memory = frame.Memory with { GeometryRegisters = frame.Memory.GeometryRegisters! with { Translation = mac.Select(value => (int?)value).ToImmutableArray() } } };
-                frame = inputs.Execute(frame, new NativeBattleBlaster186DrawCommonSprite180(temporary, 0xD1E128));
+                frame = inputs.Execute(frame, new NativeBattleBlaster186DrawCommonSprite180(temporary, 0xD1E128) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(186, Read(frame, address), 100 + index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(186, frame.State.Globals, row, 0).Generation } });
             }
             else
             {
                 frame = SetupSprite186(frame, point, size, unchecked((short)-(size >> 4)), inputs);
-                frame = inputs.Execute(frame, new NativeBattleBlaster186DrawSprite180(temporary, 0xD1DF7C));
+                frame = inputs.Execute(frame, new NativeBattleBlaster186DrawSprite180(temporary, 0xD1DF7C) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(186, Read(frame, address), index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(186, frame.State.Globals, row, 0).Generation } });
             }
             if (paused)
             {
@@ -137,6 +137,7 @@ public static partial class NativeBattleBlaster186Controller
                         frame = frame with { State = frame.State.WriteWord(at, unchecked((ushort)(Word186(frame, at) + (birth == 0 ? jitter % 320 - 160 : jitter % 520 - 260)))) };
                     }
                 }
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, row, 0);
             }
         }
         if (local)

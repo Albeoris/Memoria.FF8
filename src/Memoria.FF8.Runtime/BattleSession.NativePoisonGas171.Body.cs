@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattlePoisonGas171Frame Frame, NativeBattleGraphicsState Graphics) DrawNativePoisonGas171Body(NativeBattlePoisonGas171Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress)
+    private (NativeBattlePoisonGas171Frame Frame, NativeBattleGraphicsState Graphics) DrawNativePoisonGas171Body(NativeBattlePoisonGas171Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Poison Gas171 target requires its current skeleton.");
@@ -25,7 +25,7 @@ public sealed partial class BattleSession
 
         NativeBattlePoisonGas171ModelFrame Shadow(NativeBattlePoisonGas171ModelFrame current)
         {
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Poison Gas171 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Poison Gas171 shadow requires its current GTE data.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Poison Gas171 shadow requires its depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Poison Gas171 shadow requires its original template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Poison Gas171 shadow requires its primitive capabilities."), 4121, 16);
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Poison Gas171 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Poison Gas171 shadow requires its current GTE data.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Poison Gas171 shadow requires its depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Poison Gas171 shadow requires its original template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Poison Gas171 shadow requires its primitive capabilities."), 4121, 16, pilotIdentity: pilotIdentity is { } shadowIdentity ? shadowIdentity with { Primitive = -1 } : null);
             current = current with { Memory = current.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors }, Staging = shadow.Staging };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78) };
             current = AppendCommon(current, shadow.Batch);
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Poison Gas171 target requires its physical geometry address.");
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativePoisonGas171View(current.Staging, scratchAddress, scratchLength);
-            NativeBattlePoisonGas171ModelStep drawn = NativeBattlePoisonGas171ModelDrawing.DrawBody(current.Memory, current.Temporary176, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Poison Gas171 target requires its current depth controls."), scratchAddress, scratchLength);
+            NativeBattlePoisonGas171ModelStep drawn = NativeBattlePoisonGas171ModelDrawing.DrawBody(current.Memory, current.Temporary176, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Poison Gas171 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = sourceAddress } : null);
             current = current with { Memory = drawn.Memory, Temporary176 = drawn.Temporary176, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, temporaryAddress, current.Temporary176, 176) };
             return AppendCommon(current, drawn.Batch);
@@ -98,7 +98,7 @@ public sealed partial class BattleSession
             uint color = current.Model.Color40 ?? throw new NotSupportedException("Poison Gas171 linked body requires its actual full color.");
             process = process.PublishModelColor(color);
             (byte[] retained, _) = current.Staging.ReadSnapshot(scratchAddress, scratchLength);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, matrices, projection, color, uint.MaxValue, retained.ToImmutableArray(), rules.Rules.SummonColors ?? throw new NotSupportedException("Poison Gas171 linked body requires its current color arithmetic."), 4, new(0, 0, 320, 216), 17, null);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, matrices, projection, color, uint.MaxValue, retained.ToImmutableArray(), rules.Rules.SummonColors ?? throw new NotSupportedException("Poison Gas171 linked body requires its current color arithmetic."), 4, new(0, 0, 320, 216), 17, null, pilotIdentity: pilotIdentity is { } linkedIdentity ? linkedIdentity with { Primitive = unchecked(linkedIdentity.Primitive * 397 + 1), ResourceGeneration = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Poison Gas linked capture requires its actual source.") } : null);
             if (drawn.ProjectedBytesWritten != 0)
             {
                 current = current with { Staging = current.Staging.Write(scratchAddress, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)) };

@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         NativeBattleStatusCureItemResources resources = effect.Binding.StatusCureItemResources ?? throw new NotSupportedException("Native status-cure item callback requires its original ACT resources.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native status-cure item requires its current projection registers.");
         NativeBattleStatusCureItemFrame frame = new(NativeEffectMemory ?? throw new NotSupportedException("Native status-cure item requires its current effect memory."), effect, effect.StatusCureItem ?? throw new NotSupportedException("Native status-cure item requires its executed setup."));
-        NativeBattleStatusCureItemInputs inputs = new(nativeActionPackets, projection.View ?? throw new NotSupportedException("Native status-cure item requires its published camera matrix."), ReadAnchor, ReadModelY, Draw);
+        NativeBattleStatusCureItemInputs inputs = new(nativeActionPackets, projection.View ?? throw new NotSupportedException("Native status-cure item requires its published camera matrix."), ReadAnchor, ReadModelY, Draw) { DrawWithPilotIdentity = resources.Effect is 292 or 293 or 294 ? DrawWithIdentity : null };
         NativeBattleStatusCureItemStep step = NativeBattleStatusCureItemController.Advance(frame, resources, inputs);
         NativeEffectMemory = step.Frame.Memory;
         foreach (int contact in step.Contacts)
@@ -55,9 +55,11 @@ public sealed partial class BattleSession
             return NativeBattleStatusCureItemGeometry.Anchor(resources.Effect, position, ReadModelY(index), height);
         }
 
-        NativeBattleStatusCureItemFrame Draw(NativeBattleStatusCureItemFrame current, NativeBattleGfAnimationNode node, NativeBattleVector anchor)
+        NativeBattleStatusCureItemFrame Draw(NativeBattleStatusCureItemFrame current, NativeBattleGfAnimationNode node, NativeBattleVector anchor) => DrawWithIdentity(current, node, anchor, null);
+
+        NativeBattleStatusCureItemFrame DrawWithIdentity(NativeBattleStatusCureItemFrame current, NativeBattleGfAnimationNode node, NativeBattleVector anchor, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
-            NativeBattleStatusCureItemGeometryStep geometry = NativeBattleStatusCureItemGeometry.Emit(current, resources, node, anchor, projection, definition.NativeGraphics!.Rules.SummonColors);
+            NativeBattleStatusCureItemGeometryStep geometry = NativeBattleStatusCureItemGeometry.Emit(current, resources, node, anchor, projection, definition.NativeGraphics!.Rules.SummonColors, pilotIdentity);
             if (geometry.Batch.Attempts.IsEmpty)
             {
                 return geometry.Frame;

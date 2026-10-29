@@ -46,7 +46,7 @@ public static class NativeBattleEffect183Children
         }
         context = context.Write(0x24, BitConverter.GetBytes(second ? resources.Colors[age % 10] : 0x808080u));
         frame = PublishContext(frame, temporary, context, 144);
-        frame = inputs.Execute(frame, new NativeBattleEffect183DrawWindowed144(temporary, source));
+        frame = inputs.Execute(frame, new NativeBattleEffect183DrawWindowed144(temporary, source) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(183, task, second ? 1 : 0) with { ResourceGeneration = source } : null });
         frame = Release(frame, 144);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

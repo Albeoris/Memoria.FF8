@@ -11,7 +11,11 @@ public sealed record NativeBattleStatusCureItemExecution([property: JsonRequired
 }
 public sealed record NativeBattleStatusCureItemFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleStatusCureItemExecution Execution);
 public sealed record NativeBattleStatusCureItemStep(NativeBattleStatusCureItemFrame Frame, ImmutableArray<int> Contacts, ImmutableArray<NativeBattleModuleSound> Sounds);
-public sealed record NativeBattleStatusCureItemInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix View, Func<int, NativeBattleVector> ReadTargetAnchor, Func<int, short> ReadModelY, Func<NativeBattleStatusCureItemFrame, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattleStatusCureItemFrame> Draw);
+public sealed record NativeBattleStatusCureItemInputs(NativeBattleActionPacketsState Packets, NativeBattleActionMatrix View, Func<int, NativeBattleVector> ReadTargetAnchor, Func<int, short> ReadModelY, Func<NativeBattleStatusCureItemFrame, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattleStatusCureItemFrame> Draw)
+{
+    [JsonIgnore]
+    public Func<NativeBattleStatusCureItemFrame, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattlePilotVisualIdentity?, NativeBattleStatusCureItemFrame>? DrawWithPilotIdentity { get; init; }
+}
 
 public sealed partial record NativeBattleOriginalEffectState
 {
@@ -110,7 +114,15 @@ public static class NativeBattleStatusCureItemController
                     NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(child, 12 + (8), profile.WorkspaceBytes);
                     NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Layout, 0, (current, node) =>
                     {
-                        frame = inputs.Draw(frame, node, anchor);
+                        if (profile.Effect is 292 or 293 or 294 && inputs.DrawWithPilotIdentity is { } drawWithIdentity)
+                        {
+                            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(profile.Effect, child, node.ResourceOffset) with { ResourceGeneration = ((long)resources.Layout.Address << 32) | 20u };
+                            frame = drawWithIdentity(frame, node, anchor, identity);
+                        }
+                        else
+                        {
+                            frame = inputs.Draw(frame, node, anchor);
+                        }
                         return current;
                     });
                     child = StoreWorkspace(child, advance.Workspace);

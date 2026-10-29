@@ -59,7 +59,7 @@ public static partial class NativeBattleBlaster186Controller
             context = context.Write(12, BitConverter.GetBytes(cue));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleBlaster186DrawStatic88(temporary, source));
+        frame = inputs.Execute(frame, new NativeBattleBlaster186DrawStatic88(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(186, task) with { ResourceGeneration = source } });
         frame = Release(frame, 88);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -128,7 +128,7 @@ public static partial class NativeBattleBlaster186Controller
             context = context.Write(0x1C, [tint, tint, tint]);
         }
         frame = PublishContext(frame, temporary, context, 180);
-        frame = inputs.Execute(frame, new NativeBattleBlaster186DrawSprite180(temporary, source));
+        frame = inputs.Execute(frame, new NativeBattleBlaster186DrawSprite180(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(186, task) with { ResourceGeneration = source } });
         frame = Release(frame, 180);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

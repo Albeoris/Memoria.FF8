@@ -169,7 +169,7 @@ public sealed partial class BattleSession
                     }
                     short width = unchecked((short)(NativeBattleCameraMath.Sine(ease.Width >> 1) >> 3));
                     matrix = NativeBattleGfMatrices.Multiply56C090(matrix, new([width, 0, 0, 0, width, 0, 0, 0, unchecked((short)length)], 0, 0, 0, 4096)) with { X = origin.X, Y = origin.Y, Z = origin.Z };
-                    Append(NativeBattleModulePackets.EmitBatch572200(resources.Beam, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, matrix), projection, new(ease.Fade == 0 ? 0x30u : 0xF0u, ease.Fade == 0 ? null : 0u, ease.Fade == 0 ? null : ease.Fade, null, null, null, 17, 2), colors));
+                    Append(NativeBattleModulePackets.EmitBatch572200(resources.Beam, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, matrix), projection, new(ease.Fade == 0 ? 0x30u : 0xF0u, ease.Fade == 0 ? null : 0u, ease.Fade == 0 ? null : ease.Fade, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(277, task, 0x60000) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resources) }));
                 }
             }
             if ((uint)(counter - 33) < 24)
@@ -208,7 +208,7 @@ public sealed partial class BattleSession
         int Glow(ref NativeBattleModulePoolTask task)
         {
             int counter = LaserWord(task, 0x12);
-            Sprite(resources.Glow, counter, LaserVector(task, 12), 0xAF0, -0x400);
+            Sprite(resources.Glow, counter, LaserVector(task, 12), 0xAF0, -0x400, NativeBattlePilotVisualLifetimes.Identity(277, task) with { ResourceGeneration = resources.Glow.Address });
             task = task.WriteWord(0x12, unchecked((ushort)(counter + 1)));
             return counter + 1 >= 16 ? 2 : 0;
         }
@@ -216,7 +216,7 @@ public sealed partial class BattleSession
         int Spark(ref NativeBattleModulePoolTask task)
         {
             int counter = LaserWord(task, 0x12);
-            Sprite(resources.Spark, counter, LaserVector(task, 12), 0xC00, -0x300);
+            Sprite(resources.Spark, counter, LaserVector(task, 12), 0xC00, -0x300, NativeBattlePilotVisualLifetimes.Identity(277, task) with { ResourceGeneration = resources.Spark.Address });
             task = task.WriteWord(0x12, unchecked((ushort)(counter + 1)));
             if (counter + 1 >= 16)
             {
@@ -258,6 +258,7 @@ public sealed partial class BattleSession
 
         int Play(ref NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleActionMatrix context, int depth)
         {
+            NativeBattlePilotVisualIdentity owner = NativeBattlePilotVisualLifetimes.Identity(277, task);
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size);
             NativeBattleGfAnimationAdvance advance = workspace.Advance701970(source, 0, (current, node) =>
             {
@@ -288,7 +289,7 @@ public sealed partial class BattleSession
                 BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(4), node.Header & ~0x1000u);
                 NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose6C53A0(node with { Data = record.ToImmutableArray() }, context, null);
                 bool cue = node.Scalar36 != 0;
-                Append(NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, vertices, matrix, projection, new(cue ? 0x20F0u : 0x2030u, cue ? node.Color32 : 0, node.Scalar36, null, null, depth, 17, 2), colors));
+                Append(NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, vertices, matrix, projection, new(cue ? 0x20F0u : 0x2030u, cue ? node.Color32 : 0, node.Scalar36, null, null, depth, 17, 2), colors, pilotIdentity: owner with { Primitive = node.ResourceOffset, ResourceGeneration = ((long)source.Address << 32) | (uint)offset }));
                 return current;
             });
             task = PublishWorkspace(task, offset, advance.Workspace);
@@ -307,9 +308,9 @@ public sealed partial class BattleSession
             effect = effect with { DrawArenaOffset = written.Cursor };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
         }
-        void Sprite(NativeBattleModuleResource resource, int frame, NativeBattleVector point, int scale, int depth)
+        void Sprite(NativeBattleModuleResource resource, int frame, NativeBattleVector point, int scale, int depth, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = depth, SpriteFlags = 0 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = depth, SpriteFlags = 0, PilotIdentity = pilotIdentity };
             NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch, NativeBattleEffectGouraudWrites.RgbBytes);
             NativeEffectMemory = written.Memory;

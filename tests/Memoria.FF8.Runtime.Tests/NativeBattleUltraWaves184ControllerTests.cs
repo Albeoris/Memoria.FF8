@@ -67,7 +67,16 @@ public sealed class NativeBattleUltraWaves184ControllerTests
     {
         Fixture fixture = new(WarpCallback, 0);
         NativeBattleUltraWaves184Frame result = NativeBattleUltraWaves184Controller.Advance(fixture.Frame, fixture.Resources, fixture.Inputs(0x201));
-        Assert.Collection(fixture.Operations, operation => Assert.IsType<NativeBattleUltraWaves184CaptureStage>(operation), operation => Assert.Equal(new NativeBattleUltraWaves184DrawGrid(0, 0x400000), operation));
+        NativeBattleModulePoolTask task = NativeBattleUltraWaves184Controller.Read(result, ChildBank);
+        NativeBattleUltraWaves184CaptureStage capture = Assert.IsType<NativeBattleUltraWaves184CaptureStage>(fixture.Operations[0]);
+        NativeBattleUltraWaves184DrawGrid grid = Assert.IsType<NativeBattleUltraWaves184DrawGrid>(fixture.Operations[1]);
+        Assert.Equal(2, fixture.Operations.Count);
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(184, task, 1), capture.PilotIdentity);
+        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(184, task, 2), grid.PilotIdentity);
+        Assert.NotEqual(capture.PilotIdentity, grid.PilotIdentity);
+        Assert.Equal(new NativeBattleUltraWaves184DrawGrid(0, 0x400000), grid with { PilotIdentity = null });
+        Assert.Equal(NativeBattleTestSnapshots.Json(capture with { PilotIdentity = null }), NativeBattleTestSnapshots.Json(capture));
+        Assert.Equal(NativeBattleTestSnapshots.Json(grid with { PilotIdentity = null }), NativeBattleTestSnapshots.Json(grid));
         Assert.Equal((ushort)0, NativeBattleUltraWaves184Controller.Read(result, ChildBank).ReadWord(12));
         Assert.Equal(123u, result.State.ReadDword(0x22BD108));
     }

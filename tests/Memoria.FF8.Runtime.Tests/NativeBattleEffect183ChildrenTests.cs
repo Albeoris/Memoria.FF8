@@ -10,6 +10,38 @@ public sealed class NativeBattleEffect183ChildrenTests
     private static readonly NativeBattleEffect183Resources Resources = new(null!, null!, [0x808080, 0x608080, 0x408080, 0x406080, 0x404080, 0x604080, 0x804080, 0x804060, 0x804040, 0x806060], 0x49490);
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Windowed_source_capture_forwards_actual_task_source_and_preserves_native_writes(bool second)
+    {
+        NativeBattleEffect183Frame Run(bool capture, out NativeBattlePilotVisualIdentity? received)
+        {
+            NativeBattleEffect183Frame frame = Frame(second, 4);
+            NativeBattlePilotVisualIdentity? identity = null;
+            NativeBattleEffect183Inputs input = Inputs(0x201, (current, operation) =>
+            {
+                NativeBattleEffect183DrawWindowed144 draw = Assert.IsType<NativeBattleEffect183DrawWindowed144>(operation);
+                identity = draw.PilotIdentity;
+                Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(draw));
+                if (capture)
+                {
+                    Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(183, Read(current, Address), second ? 1 : 0) with { ResourceGeneration = second ? 0xD34CE4u : 0xD348C4u }, identity);
+                }
+                return current;
+            }) with { CapturePresentation = capture };
+            NativeBattleEffect183Frame result = Advance(frame, second, input).Frame;
+            received = identity;
+            return result;
+        }
+        NativeBattleEffect183Frame native = Run(false, out var absent);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattleEffect183Frame captured = Run(true, out var identity);
+        Assert.Null(absent);
+        Assert.NotNull(identity);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+    }
+
+    [Theory]
     [InlineData(false, 0, 0xF3u, 4096)]
     [InlineData(false, 3, 0xF3u, 1024)]
     [InlineData(false, 4, 0x33u, null)]

@@ -38,10 +38,10 @@ public static partial class NativeBattleChainGun190Controller
             context = context.Write(12, BitConverter.GetBytes(cue));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleChainGun190DrawStatic88(temporary, source));
+        frame = inputs.Execute(frame, new NativeBattleChainGun190DrawStatic88(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(190, task, 0) with { ResourceGeneration = source } });
         if (kind == 0)
         {
-            frame = inputs.Execute(frame, new NativeBattleChainGun190DrawStatic88(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleChainGun190DrawStatic88(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(190, task, 1) with { ResourceGeneration = source } });
         }
         frame = Release(frame, 88);
         if ((inputs.GraphicsFlags & 0x201) != 0)
@@ -69,7 +69,7 @@ public static partial class NativeBattleChainGun190Controller
         frame = SetupSprite190(frame, inputs.ReadView(frame), TaskView(task, 0x10, 8), size, unchecked((short)-(size >> 3)));
         (frame, uint temporary) = Allocate(frame, 180);
         frame = PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(0xD187A0u)).Write(4, BitConverter.GetBytes(task.ReadWord(12))).Write(0x24, new byte[2]), 180);
-        frame = inputs.Execute(frame, new NativeBattleChainGun190DrawSprite180(temporary, 0xD187A0));
+        frame = inputs.Execute(frame, new NativeBattleChainGun190DrawSprite180(temporary, 0xD187A0) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(190, task) with { ResourceGeneration = 0xD187A0 } });
         frame = Release(frame, 180);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

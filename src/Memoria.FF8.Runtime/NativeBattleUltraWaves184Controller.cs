@@ -158,8 +158,8 @@ public static class NativeBattleUltraWaves184Controller
         short age = Signed(Read(frame, address), 12);
         if (age < 35)
         {
-            frame = inputs.Execute(frame, new NativeBattleUltraWaves184CaptureStage());
-            frame = inputs.Execute(frame, new NativeBattleUltraWaves184DrawGrid(age, resources.WarpColors[age]));
+            frame = inputs.Execute(frame, new NativeBattleUltraWaves184CaptureStage() { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(184, Read(frame, address), 1) });
+            frame = inputs.Execute(frame, new NativeBattleUltraWaves184DrawGrid(age, resources.WarpColors[age]) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(184, Read(frame, address), 2) });
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

@@ -68,7 +68,7 @@ public static class NativeBattleStatusCureItemGeometry
         return rotation with { X = unchecked(x + view.X), Y = unchecked(y + view.Y), Z = unchecked(z + view.Z) };
     }
 
-    public static NativeBattleStatusCureItemGeometryStep Emit(NativeBattleStatusCureItemFrame frame, NativeBattleStatusCureItemResources resources, NativeBattleGfAnimationNode node, NativeBattleVector anchor, NativeBattleCameraProjection projection, NativeBattleSummonColors? colors = null)
+    public static NativeBattleStatusCureItemGeometryStep Emit(NativeBattleStatusCureItemFrame frame, NativeBattleStatusCureItemResources resources, NativeBattleGfAnimationNode node, NativeBattleVector anchor, NativeBattleCameraProjection projection, NativeBattleSummonColors? colors = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
         {
@@ -94,7 +94,7 @@ public static class NativeBattleStatusCureItemGeometry
         }
         NativeBattleActionMatrix matrix = Compose(resources.Effect, node, anchor, projection.View ?? throw new NotSupportedException("Native status-cure item requires its current camera matrix."), frame.Execution.Billboard);
         uint flags = node.Scalar36 == 0 ? 0x2030u : 0x20F0u;
-        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(data, geometry, vertices, matrix, projection, new(flags, node.Color32, node.Scalar36, null, null, -128, 17, 2), colors);
+        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(data, geometry, vertices, matrix, projection, new(flags, node.Color32, node.Scalar36, null, null, -128, 17, 2), colors, pilotIdentity: pilotIdentity);
         return new(frame, batch);
     }
 }

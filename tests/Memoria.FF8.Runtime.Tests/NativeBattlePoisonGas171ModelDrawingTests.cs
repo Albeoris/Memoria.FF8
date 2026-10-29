@@ -6,6 +6,58 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattlePoisonGas171ModelDrawingTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Selected_post_skin_geometry_keeps_native_base_overlay_depth_and_deferred_fourth(bool quad, bool nearFourth)
+    {
+        NativeBattlePoisonGas171ModelStep Run(bool capture)
+        {
+            byte[] geometry = Geometry(quad);
+            if (nearFourth)
+            {
+                BinaryPrimitives.WriteInt16LittleEndian(geometry.AsSpan(36), -1999);
+            }
+            return Draw(geometry, Context(0).Write(0x84, BitConverter.GetBytes(80)), 2000, pilotIdentity: capture ? new(171, 1, 2, 3, 4) { ResourceGeneration = 0x1000000 } : null, projection: new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108));
+        }
+        NativeBattlePoisonGas171ModelStep native = Run(false);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattlePoisonGas171ModelStep captured = Run(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(quad ? 4 : 2, captured.Batch.Attempts.Length);
+        Assert.Equal(captured.Batch.Attempts.Length, captured.Batch.Attempts.Select(a => a.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+        for (int index = 0; index < captured.Batch.Attempts.Length; index += 2)
+        {
+            NativeBattleGeometryPrimitive source = captured.Batch.Attempts[index].Primitive!;
+            NativeBattleGeometryPrimitive overlay = captured.Batch.Attempts[index + 1].Primitive!;
+            NativeBattlePilotVisualGeometry shape = Assert.IsType<NativeBattlePilotVisualGeometry>(source.PilotGeometry);
+            NativeBattlePilotVisualGeometry layer = Assert.IsType<NativeBattlePilotVisualGeometry>(overlay.PilotGeometry);
+            Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), shape.A);
+            Assert.Equal(shape.A, layer.A);
+            Assert.Equal(shape.C, layer.C);
+            Assert.Equal(new System.Numerics.Vector4(source.VertexPayload4[0], source.VertexPayload4[1], source.VertexPayload4[2], source.VertexPayload4[3]), shape.SourceDepths);
+            Assert.Equal(System.Numerics.Vector4.Zero, layer.SourceDepths);
+            Assert.True(shape.UseSourceDepths);
+            Assert.True(layer.UseSourceDepths);
+            Assert.NotEqual(shape.Identity, layer.Identity);
+        }
+        if (quad)
+        {
+            Assert.Equal(new System.Numerics.Vector3(400, 400, nearFourth ? 1 : 2000), captured.Batch.Attempts[2].Primitive!.PilotGeometry!.D);
+        }
+    }
+
+    [Fact]
+    public void Capture_near_rejection_keeps_exact_native_prefix_without_overlay()
+    {
+        NativeBattlePoisonGas171ModelStep native = Draw(Geometry(true), Context(0).MarkUnknown(0x84, 12), 0);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattlePoisonGas171ModelStep captured = Draw(Geometry(true), Context(0).MarkUnknown(0x84, 12), 0, pilotIdentity: new(171, 1, 2, 3, 4), projection: new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108));
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+    }
+
     [Fact]
     public void Raw_skin_publishes_current_bone_IR_XYZ_and_zero_W_with_actual_bounds()
     {
@@ -127,10 +179,10 @@ public sealed class NativeBattlePoisonGas171ModelDrawingTests
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess() with { Zsf3 = 0x155, Zsf4 = 0x100 } };
 
-    private static NativeBattlePoisonGas171ModelStep Draw(byte[] geometry, NativeBattleEffectArena context, int boneZ, int length = 32, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? scratch = null)
+    private static NativeBattlePoisonGas171ModelStep Draw(byte[] geometry, NativeBattleEffectArena context, int boneZ, int length = 32, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? scratch = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null)
     {
         memory ??= Memory();
-        return NativeBattlePoisonGas171ModelDrawing.DrawBody(memory, context, scratch ?? NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xCC, 40).ToArray()), (offset, count) => geometry.AsSpan(offset, count).ToArray(), 0x1000000, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = boneZ }, null)], NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), Projection, memory.ScriptedGraphics!, 0x196B000, length);
+        return NativeBattlePoisonGas171ModelDrawing.DrawBody(memory, context, scratch ?? NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xCC, 40).ToArray()), (offset, count) => geometry.AsSpan(offset, count).ToArray(), 0x1000000, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = boneZ }, null)], NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), projection ?? Projection, memory.ScriptedGraphics!, 0x196B000, length, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleEffectArena Context(int blend)

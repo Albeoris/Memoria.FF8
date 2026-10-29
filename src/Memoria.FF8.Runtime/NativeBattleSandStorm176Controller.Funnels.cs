@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -156,7 +156,7 @@ public static partial class NativeBattleSandStorm176Controller
             NativeBattleActionMatrix funnelMatrix = State.FunnelMatrix ?? throw new NotSupportedException("Native Sand Storm requires its retained funnel matrix.");
             funnelMatrix = funnelMatrix with { X = x, Y = 0, Z = z };
             current = current with { Memory = current.Memory with { SandStorm176 = State with { FunnelMatrix = funnelMatrix } } };
-            DrawFunnel(rings, second ? 0x236E3C8u : 0x23693C8u, second ? -age * 100 : age * 100, age < 16 ? age * 8 : age >= 80 ? (88 - age) << 4 : 128, NativeBattleGfMatrices.Compose56C2F0(inputs.Projection.View ?? throw new NotSupportedException("Native Sand Storm requires its published camera."), funnelMatrix));
+            DrawFunnel(task, rings, second ? 0x236E3C8u : 0x23693C8u, second ? -age * 100 : age * 100, age < 16 ? age * 8 : age >= 80 ? (88 - age) << 4 : 128, NativeBattleGfMatrices.Compose56C2F0(inputs.Projection.View ?? throw new NotSupportedException("Native Sand Storm requires its published camera."), funnelMatrix));
             if (inputs.DrawOnly)
             {
                 return 0;
@@ -165,7 +165,7 @@ public static partial class NativeBattleSandStorm176Controller
             return age + 1 >= 88 ? 2 : 0;
         }
 
-        private void DrawFunnel(uint rings, uint packets, int angle, int alpha, NativeBattleActionMatrix matrix)
+        private void DrawFunnel(NativeBattleModulePoolTask task, uint rings, uint packets, int angle, int alpha, NativeBattleActionMatrix matrix)
         {
             ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
             NativeBattleVector[] previous = RingVertices(rings, angle);
@@ -193,7 +193,14 @@ public static partial class NativeBattleSandStorm176Controller
                         }
                         int bucket = 17 + (projected.Sum(vertex => (int)vertex.Depth) >> 6);
                         ImmutableArray<uint> words = Enumerable.Range(0, 10).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4))).ToImmutableArray();
-                        primitive = new(bucket, words, projected.Select(vertex => (int)vertex.Depth).ToImmutableArray());
+                        NativeBattlePilotVisualGeometry? geometry = null;
+                        if (inputs.CapturePresentation)
+                        {
+                            System.Numerics.Vector3 World(NativeBattleVector vertex) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex), inputs.Projection);
+                            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(176, task, checked((ring - 1) * 8 + segment)) with { ResourceGeneration = rings };
+                            geometry = new(identity, World(vertices[segment]), World(vertices[segment + 1]), World(previous[segment]), World(previous[segment + 1]), 4) { UseSourceDepths = true, SourceDepths = new(projected[0].Depth, projected[1].Depth, projected[2].Depth, projected[3].Depth) };
+                        }
+                        primitive = new(bucket, words, projected.Select(vertex => (int)vertex.Depth).ToImmutableArray()) { PilotGeometry = geometry };
                     }
                     attempts.Add(new(checked((int)(address - ModuleBase)), data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
                 }

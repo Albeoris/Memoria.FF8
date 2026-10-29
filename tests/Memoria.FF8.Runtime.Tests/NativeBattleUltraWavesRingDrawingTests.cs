@@ -6,14 +6,17 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleUltraWavesRingDrawingTests
 {
-    [Fact]
-    public void Actual_ring_capture_retains_loaded_source_corners_and_full_native_ledger()
+    [Theory]
+    [InlineData((ushort)154)]
+    [InlineData((ushort)184)]
+    public void Actual_ring_capture_retains_loaded_source_corners_and_full_native_ledger(ushort effect)
     {
-        NativeBattlePilotVisualIdentity owner = new(154, 1, 2, 3, 4);
+        NativeBattlePilotVisualIdentity owner = new(effect, 1, 2, 3, 4);
         NativeBattleUltraWavesRingDraw native = Draw(Mesh(2000), Context(false));
         NativeBattleUltraWavesRingDraw captured = Draw(Mesh(2000), Context(false), pilotIdentity: owner);
         Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
         NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(owner.Effect, geometry.Identity.Effect);
         Assert.Equal(owner.Generation, geometry.Identity.Generation);
         Assert.Equal(new System.Numerics.Vector3(-100, -100, 2000), geometry.A);
         Assert.Equal(new System.Numerics.Vector3(100, 100, 2000), geometry.D);

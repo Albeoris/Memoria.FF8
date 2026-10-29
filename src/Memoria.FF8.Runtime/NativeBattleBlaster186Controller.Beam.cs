@@ -85,6 +85,6 @@ public static partial class NativeBattleBlaster186Controller
             return (frame, 0);
         }
         frame = Write(frame, address, task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1))));
-        return value < 0 ? (frame, 2) : (inputs.Execute(frame, new NativeBattleBlaster186DrawCommonRectangle571250(value, value >> 2, value >> 2)), 0);
+        return value < 0 ? (frame, 2) : (inputs.Execute(frame, new NativeBattleBlaster186DrawCommonRectangle571250(value, value >> 2, value >> 2) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(186, task) }), 0);
     }
 }

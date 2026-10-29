@@ -85,24 +85,29 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleBlaster186DrawCommonRectangle571250 rectangle:
                     Publish(current);
-                    graphics = AppendNativeModulePacketBatch(graphics, NativeBattleFlashPackets.Emit571250(rectangle.Red, rectangle.Green, rectangle.Blue), null, null);
+                    NativeBattleModulePacketBatch rectangleBatch = NativeBattleFlashPackets.Emit571250(rectangle.Red, rectangle.Green, rectangle.Blue);
+                    if (rectangle.PilotIdentity is { } identity)
+                    {
+                        rectangleBatch = rectangleBatch with { Primitives = rectangleBatch.Primitives.Select(allocation => allocation with { Primitive = allocation.Primitive with { PilotGeometry = allocation.Primitive.PilotGeometry is { } geometry ? geometry with { Identity = identity } : null } }).ToImmutableArray() };
+                    }
+                    graphics = AppendNativeModulePacketBatch(graphics, rectangleBatch, null, null);
                     return Import(current);
                 case NativeBattleBlaster186ReleaseCommon release:
                     (NativeBattleAuxiliaryState auxiliary, _) = graphics.Auxiliary.AppendCommonTextureLoad508630(release.SourceAddress, checked(release.TaskAddress + 14), (address, value) => current = current with { Effect = NativeBattleBlaster186Controller.WriteCompletionByte(current.Effect, address, value) });
                     graphics = graphics with { Auxiliary = auxiliary };
                     return current;
                 case NativeBattleBlaster186DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)));
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)), pilotIdentity: sprite.PilotIdentity);
                 case NativeBattleBlaster186DrawStatic88 mesh:
-                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)));
+                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)), pilotIdentity: mesh.PilotIdentity);
                 case NativeBattleBlaster186DrawCommonSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)), true);
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)), true, pilotIdentity: sprite.PilotIdentity);
                 default:
                     throw new NotSupportedException("Blaster emitted an unsupported native operation.");
             }
         }
 
-        NativeBattleBlaster186Frame DrawSprite(NativeBattleBlaster186Frame current, uint address, uint sourceAddress, int bucket, byte shift, bool common = false)
+        NativeBattleBlaster186Frame DrawSprite(NativeBattleBlaster186Frame current, uint address, uint sourceAddress, int bucket, byte shift, bool common = false, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Blaster sprite requires its actual temporary memory.");
@@ -111,7 +116,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Blaster sprite arguments differ from its physical temporary.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Blaster sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Blaster sprite requires its projection."), Camera().Roll, bucket, shift);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Blaster sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Blaster sprite requires its projection."), Camera().Roll, bucket, shift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
             if (!common)
             {
@@ -123,14 +128,14 @@ public sealed partial class BattleSession
             return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
         }
 
-        NativeBattleBlaster186Frame DrawMesh(NativeBattleBlaster186Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleBlaster186Frame DrawMesh(NativeBattleBlaster186Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleStaticMeshResource mesh = resources.ReadMesh(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Blaster mesh requires its actual temporary memory.");
             NativeBattleEffectArena temporary = Temporary(staging, address, 88);
             uint flags = BinaryPrimitives.ReadUInt32LittleEndian(temporary.Read(0x1C, 4));
             uint? selected = (flags & 0x2000) != 0 ? BinaryPrimitives.ReadUInt32LittleEndian(temporary.Read(4, 4)) : null;
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Blaster requires its current projection."), temporary, colors, bucket, shift, selected, selected is uint vertexAddress ? offset => SelectedVertex(current, vertexAddress, offset) : null);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Blaster requires its current projection."), temporary, colors, bucket, shift, selected, selected is uint vertexAddress ? offset => SelectedVertex(current, vertexAddress, offset) : null, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context, 88) };
             return Deliver(current, drawn.Batch);
         }

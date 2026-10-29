@@ -7,7 +7,7 @@ public sealed record NativeBattlePoisonGas171ModelStep(NativeBattleEffectMemory 
 
 public static partial class NativeBattlePoisonGas171ModelDrawing
 {
-    public static NativeBattlePoisonGas171ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary176, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattlePoisonGas171ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary176, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (scratchLength < 0 || depthShift > 31 || U32(temporary176, 4) != scratchAddress)
         {
@@ -78,7 +78,7 @@ public static partial class NativeBattlePoisonGas171ModelDrawing
                 for (int face = 0; face < faces; face++)
                 {
                     byte[] source = Read(cursor, quad ? 20 : 16);
-                    var drawn = DrawBaseFace171(source, quad, vertexScratch, count, temporary176, registers, projection, controls, tableBaseBucket, depthShift, allocated);
+                    var drawn = DrawBaseFace171(source, quad, vertexScratch, count, temporary176, registers, projection, controls, tableBaseBucket, depthShift, allocated, pilotIdentity is { } identity ? identity with { Primitive = unchecked((identity.Primitive * 397 + index) * 65537 + cursor) } : null);
                     temporary176 = drawn.Temporary;
                     registers = drawn.Registers;
                     NativeBattleGfGeometryAttempt attempt = drawn.Attempt;

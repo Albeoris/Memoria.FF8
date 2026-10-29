@@ -35,7 +35,7 @@ public static partial class NativeBattleChainGun190Controller
             }
             frame = PublishContext(frame, temporary, context, 180);
             frame = SetupSprite190(frame, inputs.ReadView(frame), frame.State.ReadView(row + 8, 8), size, unchecked((short)-(size >> 4)));
-            frame = inputs.Execute(frame, new NativeBattleChainGun190DrawSprite180(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleChainGun190DrawSprite180(temporary, source) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(190, task, kind * 100 + index) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(190, frame.State.Globals, row, 0).Generation } });
             if ((inputs.GraphicsFlags & 0x201) != 0)
             {
                 continue;
@@ -137,6 +137,7 @@ public static partial class NativeBattleChainGun190Controller
                         frame = PutParticle190(frame, row + 22, angle & 2047);
                     }
                 }
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, row, 0);
             }
         }
         task = Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)));

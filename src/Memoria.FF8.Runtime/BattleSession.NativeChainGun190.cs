@@ -68,15 +68,15 @@ public sealed partial class BattleSession
                     graphics = ApplyNativeHeaderContacts(graphics, contacts.HeaderIndex);
                     return Import(current);
                 case NativeBattleChainGun190DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)));
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)), pilotIdentity: sprite.PilotIdentity);
                 case NativeBattleChainGun190DrawStatic88 mesh:
-                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)));
+                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)), pilotIdentity: mesh.PilotIdentity);
                 default:
                     throw new NotSupportedException("Chain Gun emitted an unsupported native operation.");
             }
         }
 
-        NativeBattleChainGun190Frame DrawSprite(NativeBattleChainGun190Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleChainGun190Frame DrawSprite(NativeBattleChainGun190Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Chain Gun sprite requires its actual temporary memory.");
@@ -85,17 +85,17 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Chain Gun sprite arguments differ from its physical temporary.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Chain Gun sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Chain Gun sprite requires its projection."), Camera().Roll, bucket, shift);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Chain Gun sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Chain Gun sprite requires its projection."), Camera().Roll, bucket, shift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }
 
-        NativeBattleChainGun190Frame DrawMesh(NativeBattleChainGun190Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleChainGun190Frame DrawMesh(NativeBattleChainGun190Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleStaticMeshResource mesh = resources.ReadMesh(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Chain Gun mesh requires its actual temporary memory.");
             NativeBattleEffectArena temporary = Temporary(staging, address, 88);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Chain Gun requires its current projection."), temporary, colors, bucket, shift);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Chain Gun requires its current projection."), temporary, colors, bucket, shift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context, 88) };
             return Deliver(current, drawn.Batch);
         }

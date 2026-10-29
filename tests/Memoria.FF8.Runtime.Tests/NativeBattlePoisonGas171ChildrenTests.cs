@@ -11,6 +11,93 @@ public sealed class NativeBattlePoisonGas171ChildrenTests
     private static readonly NativeBattlePoisonGas171Resources Resources = new(null!, null!, null!, Emitters(), null!, 0);
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Body_and_static_operations_capture_actual_child_allocation_without_changing_native_draw_state(bool mesh)
+    {
+        NativeBattlePoisonGas171Frame Run(bool capture, out NativeBattlePilotVisualIdentity? received)
+        {
+            NativeBattlePoisonGas171Frame frame = Frame(mesh ? 0x5DC5B0u : 0x5DB620u, 0);
+            NativeBattlePilotVisualIdentity? identity = null;
+            NativeBattlePoisonGas171Inputs input = Inputs((current, operation) =>
+            {
+                if (operation is NativeBattlePoisonGas171DrawBody176 or NativeBattlePoisonGas171DrawStatic88)
+                {
+                    identity = operation.PilotIdentity;
+                    Assert.DoesNotContain("PilotIdentity", NativeBattleTestSnapshots.Json(operation));
+                    if (capture)
+                    {
+                        Assert.Equal(NativeBattlePilotVisualLifetimes.Identity(171, Read(current, ChildBank)) with { ResourceGeneration = mesh ? 0xD65A4CL : 0 }, identity);
+                    }
+                }
+                return current;
+            }, 0x201) with { CapturePresentation = capture };
+            var result = mesh ? AdvanceMesh(frame, ChildBank, Resources, input) : AdvanceBody(frame, ChildBank, Resources, input);
+            received = identity;
+            return result.Frame;
+        }
+        NativeBattlePoisonGas171Frame native = Run(false, out var absent);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattlePoisonGas171Frame captured = Run(true, out var identity);
+        Assert.Null(absent);
+        Assert.NotNull(identity);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+    }
+
+    [Theory]
+    [InlineData(0x5DBED0u, 0x23AE088u, 0)]
+    [InlineData(0x5DC270u, 0x23AD728u, 1)]
+    [InlineData(0x5DC700u, 0x23AE088u, 2)]
+    public void Actual_native_particle_births_register_bank_lifetimes_without_changing_state_or_random(uint callback, uint bank, int kind)
+    {
+        NativeBattlePoisonGas171Frame Run(bool capture, out NativeBattlePilotVisualIdentity before, out NativeBattlePilotVisualIdentity after)
+        {
+            NativeBattlePoisonGas171Frame frame = Frame(callback, 0);
+            NativeBattleModulePoolTask task = Read(frame, ChildBank);
+            uint source = kind == 2 ? 0xD656F4u : 0xD658A0u;
+            before = NativeBattlePoisonGas171VisualLifetimes.Identity(task, bank, 0, kind, source);
+            NativeBattlePoisonGas171Frame result = AdvanceSlots(frame, ChildBank, Resources, Inputs() with { CapturePresentation = capture }).Frame;
+            after = NativeBattlePoisonGas171VisualLifetimes.Identity(Read(result, ChildBank), bank, 0, kind, source);
+            Assert.Equal(1u, result.State.ReadDword(bank));
+            Assert.Equal(kind == 2 ? 0u : 1u, result.State.ReadDword(bank + 24));
+            return result;
+        }
+        NativeBattlePoisonGas171Frame native = Run(false, out _, out _);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattlePoisonGas171Frame captured = Run(true, out var before, out var after);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(before.Generation, after.Generation);
+        Assert.NotEqual(before.ResourceGeneration, after.ResourceGeneration);
+    }
+
+    [Theory]
+    [InlineData(0x23AE088u, 0)]
+    [InlineData(0x23AD728u, 1)]
+    [InlineData(0x23AE088u, 2)]
+    public void Last_particle_row_retains_real_bank_owner_and_rebirth_discrimination(uint bank, int kind)
+    {
+        uint callback = kind == 0 ? 0x5DBED0u : kind == 1 ? 0x5DC270u : 0x5DC700u;
+        NativeBattlePoisonGas171Frame frame = Frame(callback, 20);
+        uint row = bank + 99 * 24;
+        frame = frame with { State = frame.State.WriteDword(row, 1).WriteWord(row + 4, 0).WriteWord(row + 6, 1024).WriteView(row + 8, NativeBattleEffectArena.Clear().Write(0, new byte[8]), 8) };
+        NativeBattleModulePoolTask task = Read(frame, ChildBank);
+        NativeBattlePilotVisualIdentity before = NativeBattlePoisonGas171VisualLifetimes.Identity(task, bank, 99, kind, kind == 2 ? 0xD656F4u : 0xD658A0u);
+        string baseline = NativeBattleTestSnapshots.Json(frame.State);
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        NativeBattlePoisonGas171Inputs input = Inputs((current, operation) =>
+        {
+            NativeBattlePoisonGas171DrawSprite180 draw = Assert.IsType<NativeBattlePoisonGas171DrawSprite180>(operation);
+            identities.Add(Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity));
+            return Feedback(current, draw.TemporaryAddress, 0);
+        }, 0x201) with { CapturePresentation = true };
+        NativeBattlePoisonGas171Frame result = AdvanceSlots(frame, ChildBank, Resources, input).Frame;
+        Assert.Equal(before, Assert.Single(identities));
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(result.State));
+        NativeBattlePoisonGas171VisualLifetimes.Allocated(task, bank, 99);
+        Assert.NotEqual(before, NativeBattlePoisonGas171VisualLifetimes.Identity(task, bank, 99, kind, kind == 2 ? 0xD656F4u : 0xD658A0u));
+    }
+
+    [Theory]
     [InlineData(0, 0)]
     [InlineData(3, 96)]
     [InlineData(4, 128)]

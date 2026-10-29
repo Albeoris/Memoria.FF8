@@ -24,7 +24,7 @@ public static partial class NativeBattlePoisonGas171Controller
             short size = ParticleWord171(frame, row + 6);
             frame = PublishContext(frame, temporary, Context(frame, temporary, 180).Write(4, BitConverter.GetBytes(unchecked((ushort)(kind == 0 ? age >> 1 : age)))), 180);
             frame = SetupSprite171(frame, inputs, frame.State.ReadView(row + 8, 8), size);
-            frame = inputs.Execute(frame, new NativeBattlePoisonGas171DrawSprite180(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattlePoisonGas171DrawSprite180(temporary, source) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePoisonGas171VisualLifetimes.Identity(task, bank, index, kind, source) : null });
             if ((inputs.GraphicsFlags & 0x201) != 0)
             {
                 continue;
@@ -106,6 +106,10 @@ public static partial class NativeBattlePoisonGas171Controller
                         int width = kind == 0 ? 40 : axis == 1 ? 60 : 80;
                         frame = PutParticle171(frame, row + 16 + (uint)(axis * 2), (unchecked(speed * direction[axis]) >> 12) + jitter % width - width / 2);
                     }
+                }
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattlePoisonGas171VisualLifetimes.Allocated(task, bank, checked((int)((row - bank) / 24)));
                 }
             }
         }

@@ -7,15 +7,19 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleUltraWavesGridTests
 {
     [Theory]
-    [InlineData((byte)0)]
-    [InlineData((byte)1)]
-    public void All_authored_cells_capture_exact_final_SXY_in_both_native_buffers_without_write_changes(byte buffer)
+    [InlineData((ushort)154, (byte)0)]
+    [InlineData((ushort)154, (byte)1)]
+    [InlineData((ushort)184, (byte)0)]
+    [InlineData((ushort)184, (byte)1)]
+    public void All_authored_cells_capture_exact_final_SXY_in_both_native_buffers_without_write_changes(ushort effect, byte buffer)
     {
-        NativeBattlePilotVisualIdentity owner = new(154, 1, 2, 3, 4);
+        NativeBattlePilotVisualIdentity owner = new(effect, 1, 2, 3, 2);
+        uint actualGrid = effect == 184 ? NativeBattleUltraWaves184Profile.GridAddress : GridAddress;
+        uint actualQuads = effect == 184 ? NativeBattleUltraWaves184Profile.QuadsAddress : QuadsAddress;
         NativeBattleUltraWavesGridDraw Run(NativeBattlePilotVisualIdentity? identity)
         {
-            NativeBattleUltraWavesGridInitialization initialized = Initialize(true);
-            return NativeBattleUltraWavesGrid.Draw(Memory(), NativeBattleUltraWavesGrid.Wave(initialized.Grid, 11), initialized.Quads, GridAddress, QuadsAddress, NativeBattleLogicalOrdering.Clear(), Projection, 512, buffer, 0x123456, identity);
+            NativeBattleUltraWavesGridInitialization initialized = NativeBattleUltraWavesGrid.Initialize(NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleUltraWavesGrid.GridLength), NativeBattleEffectArena.Clear(), actualGrid);
+            return NativeBattleUltraWavesGrid.Draw(Memory(), NativeBattleUltraWavesGrid.Wave(initialized.Grid, 11), initialized.Quads, actualGrid, actualQuads, NativeBattleLogicalOrdering.Clear(), Projection, 512, buffer, 0x123456, identity);
         }
         NativeBattleUltraWavesGridDraw native = Run(null);
         NativeBattleUltraWavesGridDraw captured = Run(owner);
@@ -25,6 +29,8 @@ public sealed class NativeBattleUltraWavesGridTests
         foreach (NativeBattleLogicalPacket packet in captured.Ordering.Packets)
         {
             NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(packet.PilotGeometry);
+            Assert.Equal(effect, geometry.Identity.Effect);
+            Assert.Equal((long)actualQuads, geometry.Identity.ResourceGeneration);
             Assert.True(identities.Add(geometry.Identity));
             Assert.True(geometry.ScreenSpace);
             Assert.Equal(1, geometry.ScreenScale);
@@ -102,7 +108,7 @@ public sealed class NativeBattleUltraWavesGridTests
 
     private const uint GridAddress = 0x2000000;
     private const uint QuadsAddress = 0x2010000;
-    private static readonly NativeBattleCameraProjection Projection = new(null, 100, 160, 108);
+    private static readonly NativeBattleCameraProjection Projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
     private static NativeBattleUltraWavesGridDraw Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena grid, NativeBattleEffectArena quads) => NativeBattleUltraWavesGrid.Draw(memory, grid, quads, GridAddress, QuadsAddress, NativeBattleLogicalOrdering.Clear(), Projection, 512, 0, 0x123456);
     private static NativeBattleUltraWavesGridInitialization Initialize(bool knownPackets) => NativeBattleUltraWavesGrid.Initialize(NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleUltraWavesGrid.GridLength), knownPackets ? NativeBattleEffectArena.Clear() : NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleUltraWavesGrid.QuadsLength), GridAddress);
     private static short Word(NativeBattleEffectArena arena, int at) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(at, 2));

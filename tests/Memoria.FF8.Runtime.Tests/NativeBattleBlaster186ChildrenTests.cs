@@ -21,7 +21,13 @@ public sealed class NativeBattleBlaster186ChildrenTests
         var actual = AdvanceMesh(frame, ChildBank, Resources, Inputs((current, operation) =>
         {
             var draw = Assert.IsType<NativeBattleBlaster186DrawStatic88>(operation);
+            Assert.DoesNotContain("PilotIdentity", JsonSerializer.Serialize(draw));
             Assert.Equal(source, draw.SourceAddress);
+            NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity);
+            Assert.Equal((ushort)186, identity.Effect);
+            Assert.Equal(ChildDescriptor, identity.Bank);
+            Assert.Equal((long)source, identity.ResourceGeneration);
+            Assert.Equal(0, identity.Primitive);
             NativeBattleEffectArena context = Context(current, draw.TemporaryAddress, 88);
             Assert.Equal(flags, Dword(context, 0x1C));
             Assert.Equal(cue, unchecked((int)Dword(context, 12)));
@@ -54,6 +60,8 @@ public sealed class NativeBattleBlaster186ChildrenTests
         {
             var draw = Assert.IsType<NativeBattleBlaster186DrawSprite180>(operation);
             Assert.Equal(source, draw.SourceAddress);
+            Assert.Equal((ushort)186, draw.PilotIdentity!.Value.Effect);
+            Assert.Equal((long)source, draw.PilotIdentity.Value.ResourceGeneration);
             NativeBattleEffectArena context = Context(current, draw.TemporaryAddress, 180);
             Assert.Equal(flags, BinaryPrimitives.ReadUInt16LittleEndian(context.Read(0x24, 2)));
             Assert.Equal(phase, BinaryPrimitives.ReadUInt16LittleEndian(context.Read(4, 2)));
@@ -149,6 +157,9 @@ public sealed class NativeBattleBlaster186ChildrenTests
         var actual = AdvanceSlots(frame, ChildBank, Resources, Inputs((current, operation) =>
         {
             var draw = Assert.IsType<NativeBattleBlaster186DrawCommonSprite180>(operation);
+            Assert.Equal((ushort)186, draw.PilotIdentity!.Value.Effect);
+            Assert.Equal(100, draw.PilotIdentity.Value.Primitive);
+            Assert.Equal(ChildDescriptor, draw.PilotIdentity.Value.Bank);
             Assert.Equal(NativeBattleTemporaryMemory.Address, draw.TemporaryAddress);
             Assert.Equal(NativeBattleTemporaryMemory.Address + 252, Cursor(current));
             Assert.Equal(60000, current.Memory.ScriptedColorRegisters!.Mac[0]);
@@ -185,6 +196,37 @@ public sealed class NativeBattleBlaster186ChildrenTests
         Assert.Equal(2, retired.Result);
         Assert.Equal(0u, retired.Frame.State.ReadDword(ParticleBase));
         Assert.Equal((ushort)1, retired.Frame.State.ReadWord(ParticleBase + 4));
+    }
+
+    [Theory]
+    [InlineData(0x5C0410u)]
+    [InlineData(0x5C0900u)]
+    public void Particle_identity_survives_temporary_reuse_and_changes_on_actual_row_rebirth(uint callback)
+    {
+        NativeBattleBlaster186Frame born = AdvanceSlots(Frame(callback, 0), ChildBank, Resources, Inputs()).Frame;
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        NativeBattleBlaster186Frame Observe(NativeBattleBlaster186Frame current, NativeBattleBlaster186Operation operation)
+        {
+            identities.Add(operation.PilotIdentity!.Value);
+            uint temporary = operation is NativeBattleBlaster186DrawCommonSprite180 common ? common.TemporaryAddress : Assert.IsType<NativeBattleBlaster186DrawSprite180>(operation).TemporaryAddress;
+            return Feedback(current, temporary, -1);
+        }
+        born = AdvanceSlots(born, ChildBank, Resources, Inputs(Observe, 0x201)).Frame;
+        NativeBattlePilotVisualIdentity first = identities[0];
+        identities.Clear();
+        born = AdvanceSlots(born, ChildBank, Resources, Inputs(Observe, 0x201)).Frame;
+        Assert.Equal(first, identities[0]);
+        born = Write(born, ChildBank, Read(born, ChildBank).WriteWord(12, 17));
+        born = AdvanceSlots(born, ChildBank, Resources, Inputs(Observe)).Frame;
+        born = Write(born, ChildBank, Read(born, ChildBank).WriteWord(12, 0));
+        born = AdvanceSlots(born, ChildBank, Resources, Inputs()).Frame;
+        identities.Clear();
+        AdvanceSlots(born, ChildBank, Resources, Inputs(Observe, 0x201));
+        Assert.Equal(first.Bank, identities[0].Bank);
+        Assert.Equal(first.Slot, identities[0].Slot);
+        Assert.Equal(first.Generation, identities[0].Generation);
+        Assert.Equal(first.Primitive, identities[0].Primitive);
+        Assert.NotEqual(first.ResourceGeneration, identities[0].ResourceGeneration);
     }
 
     private static NativeBattleBlaster186Frame Frame(uint callback, ushort age)

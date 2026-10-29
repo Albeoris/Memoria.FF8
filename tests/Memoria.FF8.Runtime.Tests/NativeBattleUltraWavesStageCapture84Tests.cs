@@ -7,16 +7,18 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleUltraWavesStageCapture84Tests
 {
     private static NativeBattleActionMatrix Matrix => NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 };
-    private static NativeBattleCameraProjection Projection => new(null, 256, 160, 108);
+    private static NativeBattleCameraProjection Projection => new(NativeBattleCuragaMatrices.Identity8DD770(), 256, 160, 108);
     private static NativeBattleSummonColors Constants => new(0, 0, 1f / 4096f, BitConverter.Int64BitsToDouble(0x4330000080000000L));
 
-    [Fact]
-    public void Every_capture_group_forwards_distinct_source_identity_and_retains_snapshot_screen_geometry()
+    [Theory]
+    [InlineData((ushort)154)]
+    [InlineData((ushort)184)]
+    public void Every_capture_group_forwards_distinct_source_identity_and_retains_snapshot_screen_geometry(ushort effect)
     {
         HashSet<NativeBattlePilotVisualIdentity> identities = [];
         for (int group = 0; group < 4; group++)
         {
-            NativeBattlePilotVisualIdentity owner = new(154, 1, 2, 3, group) { ResourceGeneration = 0x1939C30 };
+            NativeBattlePilotVisualIdentity owner = new(effect, 1, 2, 3, group) { ResourceGeneration = 0x1939C30 };
             NativeBattleUltraWavesStageCapture84Step native = Draw(Memory(), Geometry(false), Temporary(), 4096);
             NativeBattleUltraWavesStageCapture84Step captured = Draw(Memory(), Geometry(false), Temporary(), 4096, pilotIdentity: owner);
             Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
@@ -27,6 +29,7 @@ public sealed class NativeBattleUltraWavesStageCapture84Tests
                     continue;
                 }
                 NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+                Assert.Equal(effect, geometry.Identity.Effect);
                 Assert.True(geometry.ScreenSpace);
                 Assert.False(geometry.Continuous);
                 Assert.Equal(owner.ResourceGeneration, geometry.Identity.ResourceGeneration);

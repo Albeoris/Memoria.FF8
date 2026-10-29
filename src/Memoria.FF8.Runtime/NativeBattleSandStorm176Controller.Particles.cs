@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleSandStorm176Controller
 {
@@ -20,7 +20,7 @@ public static partial class NativeBattleSandStorm176Controller
                 {
                     short scale = W(particle + 6);
                     NativeBattleVector position = Position(particle + 8);
-                    NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Sand, SpriteFrame = sprite, Phase = unchecked((ushort)frame), Anchor = new(position.X, position.Y, position.Z, 0), Scale = unchecked((ushort)scale), Direction = 4096, DepthOffset = -(scale >> 4), SpriteFlags = 0 };
+                    NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Sand, SpriteFrame = sprite, Phase = unchecked((ushort)frame), Anchor = new(position.X, position.Y, position.Z, 0), Scale = unchecked((ushort)scale), Direction = 4096, DepthOffset = -(scale >> 4), SpriteFlags = 0, PilotIdentity = inputs.CapturePresentation ? NativeBattleSandStorm176VisualLifetimes.Identity(task, checked((int)((particle - 0x23685B8) / 24)), landing, resources.Sand.Address) : null };
                     Emit(new NativeBattleSandStorm176Sprite(NativeBattleModulePackets.EmitSprite571DC0(draw, inputs.Projection, inputs.CameraRoll, 17, 2)));
                 }
                 if (inputs.DrawOnly)
@@ -80,6 +80,10 @@ public static partial class NativeBattleSandStorm176Controller
                     W(particle + 18, -10 - Roll() % 10);
                 }
                 W(particle + 20, unchecked(sine * speed) >> 12);
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattleSandStorm176VisualLifetimes.Allocated(task, checked((int)((particle - 0x23685B8) / 24)));
+                }
             }
             if (landing && age == 2)
             {

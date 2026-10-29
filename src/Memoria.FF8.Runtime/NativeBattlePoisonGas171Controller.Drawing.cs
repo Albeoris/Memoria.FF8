@@ -21,7 +21,7 @@ public static partial class NativeBattlePoisonGas171Controller
             NativeBattleEffectArena context = Context(frame, temporary, 176).Write(0x34, new byte[4]).Write(0x38, BitConverter.GetBytes((ushort)128)).Write(0x3A, BitConverter.GetBytes((ushort)128)).Write(0x2C, new byte[4]).Write(0x30, BitConverter.GetBytes(age << 2)).Write(0x6C, BitConverter.GetBytes(color));
             frame = PublishContext(frame, temporary, context, 176);
             frame = inputs.Execute(frame, new NativeBattlePoisonGas171ActorFlags(actor, 0, 4));
-            frame = inputs.Execute(frame, new NativeBattlePoisonGas171DrawBody176(actor, temporary));
+            frame = inputs.Execute(frame, new NativeBattlePoisonGas171DrawBody176(actor, temporary) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(171, task) : null });
             frame = Release(frame, 176);
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)
@@ -52,7 +52,7 @@ public static partial class NativeBattlePoisonGas171Controller
         int cue = age < 12 ? 4096 - age * 170 : age >= 42 ? age * 170 - 5092 : 2048;
         (frame, uint temporary) = Allocate(frame, 88);
         frame = PublishContext(frame, temporary, Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0xD65A4Cu)).Write(8, new byte[4]).Write(12, BitConverter.GetBytes(cue)).Write(0x1C, BitConverter.GetBytes(0xC3u)), 88);
-        frame = inputs.Execute(frame, new NativeBattlePoisonGas171DrawStatic88(temporary, 0xD65A4C, 17, 4));
+        frame = inputs.Execute(frame, new NativeBattlePoisonGas171DrawStatic88(temporary, 0xD65A4C, 17, 4) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(171, task) with { ResourceGeneration = 0xD65A4C } : null });
         frame = Release(frame, 88);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

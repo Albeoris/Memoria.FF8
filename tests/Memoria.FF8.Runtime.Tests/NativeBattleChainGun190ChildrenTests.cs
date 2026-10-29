@@ -23,7 +23,13 @@ public sealed class NativeBattleChainGun190ChildrenTests
         var actual = AdvanceMesh(frame, ChildBank, Resources, Inputs((current, operation) =>
         {
             var draw = Assert.IsType<NativeBattleChainGun190DrawStatic88>(operation);
+            Assert.DoesNotContain("PilotIdentity", JsonSerializer.Serialize(draw));
             Assert.Equal(source, draw.SourceAddress);
+            NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity);
+            Assert.Equal((ushort)190, identity.Effect);
+            Assert.Equal(ChildDescriptor, identity.Bank);
+            Assert.Equal((long)source, identity.ResourceGeneration);
+            Assert.Equal(draws, identity.Primitive);
             var context = Context(current, draw.TemporaryAddress, 88);
             Assert.Equal(flags, Dword(context, 0x1C));
             Assert.Equal(0u, Dword(context, 8));
@@ -54,6 +60,8 @@ public sealed class NativeBattleChainGun190ChildrenTests
         var actual = AdvanceMesh(frame, ChildBank, Resources, Inputs((current, operation) =>
         {
             var draw = Assert.IsType<NativeBattleChainGun190DrawStatic88>(operation);
+            Assert.Equal(draws, draw.PilotIdentity!.Value.Primitive);
+            Assert.Equal((ushort)190, draw.PilotIdentity.Value.Effect);
             draws++;
             if (draws == 1)
             {
