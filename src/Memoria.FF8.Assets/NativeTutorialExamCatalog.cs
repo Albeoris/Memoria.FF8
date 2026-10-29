@@ -124,7 +124,7 @@ public sealed class NativeTutorialExamCatalog
                 }
                 else if (visible)
                 {
-                    Append(ReadInformationNumber(operand, progress)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "â€”");
+                    Append(ReadInformationNumber(operand, progress)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—");
                 }
                 continue;
             }

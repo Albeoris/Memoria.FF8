@@ -44,6 +44,7 @@ public static class LiveMenuData
             foreach (NativeItemStock item in economy.Items.Where(item => item.ItemId != 0 && item.Count != 0))
             {
                 result.Items.Add(new MenuItem { Id = $"item-{item.ItemId}", Icon = catalog?.ItemIcon(item.ItemId), Name = catalog?.ItemName(item.ItemId) ?? Format("fallback.item.name", "Item {0}", item.ItemId), Quantity = item.Count, NativeMagazinePages = state.Scene is SceneKind.Field or SceneKind.WorldMap ? catalog?.MagazinePages(item.ItemId) ?? [] : [], NativeMagazinePageUnavailableReasons = catalog?.MagazineUnavailableReasons(item.ItemId, state) ?? [], Description = catalog?.ItemDescription(item.ItemId) ?? Text("projection.item.effect-unavailable", "Item effect unavailable; using, discarding and refining are unsupported."), NativeFieldUseSupported = state.Scene is SceneKind.Field or SceneKind.WorldMap && catalog?.FieldItem(item.ItemId) is { } definition && (definition.SupportsNameUse && (definition.Type != 13 || state.PocketStation?.ChocoboName is not null || names?.ContainsKey(GameNames.BokoSubject) == true || SavedName(state, GameNames.BokoSubject) is not null) || definition.SupportsBattleUse && state.CharacterVitals?.DreamEnabled == false && !MenuBattleTimerBlocked(state) || definition.SupportsCharacterUse || definition.SupportsGuardianForceUse || definition.SupportsInventoryUse || definition.SupportsRestUse && state.Scene == SceneKind.Field && (state.WorldControls?.Menu209 & 1) != 0 || definition.SupportsBlueMagicUse && state.LimitProgress is not null && state.CharacterVitals?.DreamEnabled == false), NativeFieldBattleUse = catalog?.FieldItem(item.ItemId)?.SupportsBattleUse == true, NativeFieldNameConfirmation = catalog?.FieldItem(item.ItemId)?.Type is 12 or 13, NativeFieldNameSubject = catalog?.FieldItem(item.ItemId)?.Type switch { 12 => 2, 13 => GameNames.BokoSubject, _ => null }, NativeFieldTargetsGuardianForce = catalog?.FieldItem(item.ItemId) is { } targetItem && (targetItem.SupportsGuardianForceUse || targetItem.Type == 11), NativeFieldQuistisOnly = catalog?.FieldItem(item.ItemId)?.SupportsBlueMagicUse == true, NativeFieldForgetsAbility = catalog?.FieldItem(item.ItemId)?.Type == 18, NativeFieldInventoryTarget = catalog?.FieldItem(item.ItemId) is { } inventoryItem && (inventoryItem.SupportsInventoryUse || inventoryItem.SupportsRestUse) });
+                result.Items[^1].RecoveryTargetScores = catalog?.ItemRecoveryTargetScores(state, item.ItemId) ?? new(StringComparer.Ordinal);
             }
         }
         if (state.Scene is SceneKind.Field or SceneKind.WorldMap && state.CharacterVitals is not null && result.Items.Any(item => item.NativeFieldUseSupported))
@@ -100,9 +101,13 @@ public static class LiveMenuData
                     Weapon = catalog?.WeaponName(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon) ?? Format("fallback.weapon.name", "Weapon {0}", (vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon))
                 };
                 catalog?.ProjectLimit(character, native.Weapon, state, textNames);
-                if (native.Status != 0)
+                (int Mask, string Key, string Name)[] savedConditions = [(1, "ko", "KO"), (2, "poison", "Poison"), (4, "petrify", "Petrify"), (8, "blind", "Blind"), (16, "silence", "Silence"), (32, "berserk", "Berserk"), (64, "zombie", "Zombie")];
+                foreach (var condition in savedConditions)
                 {
-                    character.Conditions.Add(Format("projection.status.native", "Native status 0x{0:X4}", native.Status));
+                    if ((native.Status & condition.Mask) != 0)
+                    {
+                        character.Conditions.Add(Text("battle.status." + condition.Key, condition.Name));
+                    }
                 }
                 foreach (int id in native.Junction.GuardianForceAssignments)
                 {
@@ -190,6 +195,7 @@ public static class LiveMenuData
                     string availability = catalog is null ? "" : caster is null ? owner is not null && owner != row ? Text("magic.UnavailableOwner", MagicUiText.Get("UnavailableOwner")) : Text("magic.StatusRestricted", MagicUiText.Get("StatusRestricted")) : !quote.Allowed ? Text("magic.Exhausted", MagicUiText.Get("Exhausted")) : "";
                     MenuMagic magic = new()
                     {
+                        RecoveryTargetScores = catalog?.MagicRecoveryTargetScores(state, stock.SpellId) ?? new(StringComparer.Ordinal),
                         Id = magicId,
                         Icon = owner is not null ? new UiImageSource(UiImageKind.Icon, 192) : null,
                         CharacterId = character.Id,
@@ -205,7 +211,7 @@ public static class LiveMenuData
                         Caster = caster is int casterRow && vitals.MagicSystem.SharedMagicStock ? Format("magic.Caster", MagicUiText.Get("Caster"), CharacterName(state, vitals.Records[casterRow].CharacterId, names, catalog)) : "",
                         JunctionAvailable = owner is null || owner == row
                     };
-                    magic.Description = string.Join(" Ã‚Â· ", new[] { magic.Description, magic.AccessPresentation }.Where(value => value.Length > 0));
+                    magic.Description = string.Join(" · ", new[] { magic.Description, magic.AccessPresentation }.Where(value => value.Length > 0));
                     result.Magic.Add(magic);
                     if (state.Scene is SceneKind.Field or SceneKind.WorldMap && character.CurrentHp is not null && catalog?.IsFieldMagic(stock.SpellId) == true && caster is not null && quote.Allowed)
                     {

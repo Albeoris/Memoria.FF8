@@ -317,10 +317,19 @@ internal sealed partial class RecreateGame
         }
         if (NativeMagicMenuProjection.IsAction(action))
         {
-            PlayerActionResult result = world!.Apply(NativeMagicMenuProjection.PlayerAction(action));
+            PlayerAction magicAction = NativeMagicMenuProjection.PlayerAction(action);
+            (int Source, int Spell, int Target)? magicUse = action.Kind == "magic-use" ? NativeMagicMenuInput.Validate(magicAction) : null;
+            NativeCharacterVital? targetBefore = magicUse is { } selection ? session.State.CharacterVitals!.Records[selection.Target] : null;
+            PlayerActionResult result = world!.Apply(magicAction);
             if (!result.Accepted)
             {
                 throw new NotSupportedException(result.Detail ?? "The current game state cannot accept a magic action.");
+            }
+            if (magicUse is { } use)
+            {
+                NativeCharacterVital targetAfter = session.State.CharacterVitals!.Records[use.Target];
+                bool changed = targetBefore!.HitPoints != targetAfter.HitPoints || targetBefore.Status != targetAfter.Status;
+                gameMenus!.SetActionSound(liveMenuCatalog!.FieldMagicUseSound(use.Spell, changed));
             }
             fieldSeconds = 0;
             return;
@@ -389,10 +398,16 @@ internal sealed partial class RecreateGame
         {
             int itemId = int.Parse(action.SubjectId.AsSpan("item-".Length), System.Globalization.CultureInfo.InvariantCulture);
             int row = action.Kind == "item-battle" ? 0 : int.Parse(action.TargetId.AsSpan(action.TargetId.StartsWith("item-target-", StringComparison.Ordinal) ? "item-target-".Length : "character-".Length), System.Globalization.CultureInfo.InvariantCulture);
+            int countBefore = session.State.Economy!.Items.Where(item => item.ItemId == itemId).Sum(item => item.Count);
             PlayerActionResult result = world!.Apply(new PlayerAction(PlayerActionKind.UseFieldItem, itemId, Text: string.IsNullOrEmpty(action.Value) ? null : action.Value, Quantity: row));
             if (!result.Accepted)
             {
                 throw new NotSupportedException(result.Detail ?? "The current field cannot accept item use.");
+            }
+            int countAfter = session.State.Economy!.Items.Where(item => item.ItemId == itemId).Sum(item => item.Count);
+            if (liveMenuCatalog?.FieldItem(itemId) is { } itemDefinition && NativeMenuUseFeedback.Item(itemDefinition.Type, countAfter < countBefore) is { } sound)
+            {
+                gameMenus!.SetActionSound(sound);
             }
             if (action.Kind == "item-battle")
             {

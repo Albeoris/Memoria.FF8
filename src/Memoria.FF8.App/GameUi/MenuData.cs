@@ -131,6 +131,7 @@ public sealed record MenuAbilityChoice(string Id, string Name, bool Learned = fa
 
 public sealed class MenuItem
 {
+    public Dictionary<string, int> RecoveryTargetScores { get; set; } = new(StringComparer.Ordinal);
     public Memoria.FF8.Runtime.NativeMagazinePage[] NativeMagazinePages { get; set; } = [];
     public Dictionary<byte, string> NativeMagazinePageUnavailableReasons { get; set; } = [];
     public bool NativeFieldUseSupported { get; set; }
@@ -156,6 +157,7 @@ public sealed record MenuMaterial(string Name, UiImageSource? Icon, int Owned, i
 
 public sealed class MenuMagic
 {
+    public Dictionary<string, int> RecoveryTargetScores { get; set; } = new(StringComparer.Ordinal);
     public string Id { get; set; } = "";
     public UiImageSource? Icon { get; set; }
     public string Name { get; set; } = "";

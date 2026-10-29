@@ -6,5 +6,8 @@ public enum MenuSound
     Move = 1,
     Confirm = 2,
     Cancel = 3,
-    Error = 5
+    Error = 5,
+    ItemUsed = 8,
+    Recovery = 10,
+    StatusRecovery = 11
 }

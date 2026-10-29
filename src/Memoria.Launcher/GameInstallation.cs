@@ -9,7 +9,7 @@ internal sealed record GameInstallation(string Directory, string Release)
 {
     public GamePlatformContext ResolvePlatformContext(bool localOnly = false) => GamePlatformContextResolver.Resolve(Directory, localOnly);
 
-    public override string ToString() => $"{Release} � {Directory}";
+    public override string ToString() => $"{Release} · {Directory}";
 }
 
 internal static class GameInstallationSelection

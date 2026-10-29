@@ -12,6 +12,7 @@ public sealed partial class MenuController
     private MenuData? _demo;
     private MenuData? _liveData;
     private bool sortMagicByName;
+    private MenuSound? actionSound;
     private string _characterId = "";
     private string _gfId = "";
     private string _itemId = "";
@@ -48,6 +49,11 @@ public sealed partial class MenuController
     public event Action? BattleDebugRequested;
     public event Action<string>? ScreenOpened;
     public event Action<MenuSound>? SoundRequested;
+    public void SetActionSound(MenuSound sound)
+    {
+        actionSound = sound;
+    }
+
     public bool BattleDebugAvailable => BattleDebugRequested is not null;
     public bool IsDemo { get; private set; }
     public bool IsFixtureContext { get; private set; }
@@ -641,6 +647,7 @@ public sealed partial class MenuController
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
         }
+        actionSound = null;
         if (entry.Action != null)
         {
             Execute(entry.Action);
@@ -655,7 +662,7 @@ public sealed partial class MenuController
         }
         if (entry.Action?.Kind is not ("menu-back" or "name-save"))
         {
-            SoundRequested?.Invoke(MenuSound.Confirm);
+            SoundRequested?.Invoke(actionSound ?? MenuSound.Confirm);
         }
         _view = null;
     }

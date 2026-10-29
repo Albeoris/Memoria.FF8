@@ -8,6 +8,8 @@ Press **F7** to switch between **Vector** (default) and **Classic** presentation
 
 ## Keyboard and controller
 
+When selecting a single target for status-curing magic or items, menus and battle initially choose the eligible ally who benefits most. Revival takes priority, followed by the severity and number of conditions the selected action can remove. Equal scores keep character order. If no condition can be removed, the usual cursor default applies. You can move the cursor manually before confirming; group targeting keeps its existing behavior.
+
 Controller names below use physical positions. The button-label setting can display Generic, Xbox, PlayStation or Nintendo names; changing labels does not exchange button positions.
 
 On-screen hints follow the last device you use. A keyboard press shows keyboard bindings; controller buttons or stick movement show controller bindings. Mouse movement, clicks and scrolling do not change this choice. If an action has no controller binding, its assigned keyboard binding can still appear while using a controller. Keyboard hints never substitute a controller-only binding. PlayStation and Xbox hints use scalable vector button artwork in their traditional shapes and colors, including remapped buttons and button combinations.

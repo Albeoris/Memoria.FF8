@@ -72,7 +72,7 @@ public sealed partial class BattleHudController
     {
         CursorSelection? memory = RememberedAction();
         string? target = drawSource ? memory?.Source : memory?.ActionId == SelectedAction?.Id ? memory?.Target : null;
-        selectedTargetId = target is not null && SelectableTargets.Any(candidate => candidate.Id == target) ? target : null;
+        selectedTargetId = SmartRecoveryTarget(drawSource) ?? (target is not null && SelectableTargets.Any(candidate => candidate.Id == target) ? target : null);
     }
 
     private void RestoreDrawModeCursor()

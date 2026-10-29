@@ -298,7 +298,7 @@ public sealed partial class MenuController
         Place(body, right, 0, 1);
         UiElement characters = targetPage ? Commands(47, 25) : InventoryParty();
         Place(right, Panel(SystemText("ui.builditempage.panel.name.hp", "NAME                 HP"), characters), 0);
-        string[] conditions = targetPage ? Character?.Conditions.ToArray() ?? [] : [];
+        string[] conditions = targetPage && SelectedEntry is { } target ? CommandTargetCharacter(target)?.Conditions.ToArray() ?? [] : [];
         Place(right, Panel(SystemText("ui.builditempage.panel.status", "STATUS"), Lines(conditions, 22)), 1);
         return page;
     }
