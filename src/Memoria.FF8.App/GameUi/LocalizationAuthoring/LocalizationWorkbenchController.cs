@@ -8,6 +8,7 @@ using Memoria.FF8.Resources.Localization;
 namespace Memoria.FF8.GameUi;
 
 public sealed record LocalizationWorkbenchLanguage(string Id, string Label, string? Text, bool IsTarget = false, bool IsSourceReference = false, bool IsScriptBase = false);
+public sealed record LocalizationWorkbenchControlHit(string Id, string Text, UiRect Bounds);
 public sealed record LocalizationWorkbenchWorkspace(float Width, float Height, bool Expanded, float OffsetX = 0, float OffsetY = 0, int Language = 0);
 public enum LocalizationJournalTab { Dialogues, Changes }
 public enum LocalizationSearchMode { Substring, Wildcard, Regex }
@@ -45,6 +46,7 @@ public sealed class LocalizationWorkbenchController : IDisposable
     public Action? Disabled { get; set; }
     public Action? DisableCancelled { get; set; }
     public Action? SelectProjectRequested { get; set; }
+    public Action? BeginOriginAdjustmentRequested { get; set; }
     public Action<int, int>? AdjustOriginRequested { get; set; }
     public Action? ResetOriginRequested { get; set; }
     public string SourceRoleBadge { get; set; } = "";
@@ -58,7 +60,7 @@ public sealed class LocalizationWorkbenchController : IDisposable
             status = T("saving", "Saving Target — wait for the transaction to finish.");
             return false;
         }
-        if (IsEditing && Session!.IsDirty)
+        if (IsEditing && (Session!.IsDirty || Session.Conflict is not null))
         {
             DisableRequested = true;
             status = T("disable.dirty", "Unsaved Target: Preview/Save, Discard, or Cancel closing.");
@@ -195,6 +197,13 @@ public sealed class LocalizationWorkbenchController : IDisposable
     public bool CapturesSimulation => IsEditing;
     public bool OwnsKeyboard => IsEditing || journalFocus && JournalExpanded;
     public void BlurJournal() => journalFocus = false;
+    public UiRect EditorBounds => editorBounds;
+    public UiRect JournalBounds => journalBounds;
+    public int EditorLanguage => language;
+    public IReadOnlyList<LocalizationWorkbenchLanguage> EditorLanguages => languages;
+    public string Status => status;
+    public IReadOnlyList<LocalizationWorkbenchControlHit> ControlHits => controlHits;
+    private readonly List<LocalizationWorkbenchControlHit> controlHits = [];
     public UiMultilineEditor Editor { get; } = new();
     public Task? PendingSave { get; private set; }
     public Func<string, string, string>? Localize { get; set; }
@@ -260,7 +269,7 @@ public sealed class LocalizationWorkbenchController : IDisposable
     }
     public void Open(LocalizationEditingSession session, IReadOnlyList<LocalizationWorkbenchLanguage> tabs, string selectedProject, Func<string, IReadOnlyList<string>>? validator = null)
     {
-        if (IsEditing && Session!.IsDirty)
+        if (IsEditing && (Session!.IsDirty || Session.Conflict is not null))
         {
             status = T("dirty", "Preview/Save, Discard or Cancel the current draft before switching rows.");
             return;
@@ -844,6 +853,7 @@ public sealed class LocalizationWorkbenchController : IDisposable
     public void Draw(IUiCanvas canvas, UiRect viewport, UiTheme theme)
     {
         buttons.Clear();
+        controlHits.Clear();
         if (!Enabled)
         {
             return;
@@ -854,6 +864,7 @@ public sealed class LocalizationWorkbenchController : IDisposable
             canvas.Fill(area.Inset(1), theme.BorderDark);
             Label(T(id, fallback), area.Inset(4));
             buttons.Add((area, click));
+            controlHits.Add(new(id, fallback, area));
         }
         if (IsEditing)
         {
@@ -919,12 +930,13 @@ public sealed class LocalizationWorkbenchController : IDisposable
             }
             if (PositionSupported)
             {
-                Button("origin.left", "X−", new(x, actionsY + 32, 46, 24), () => AdjustOriginRequested?.Invoke(-1, 0));
-                Button("origin.right", "X+", new(x + 48, actionsY + 32, 46, 24), () => AdjustOriginRequested?.Invoke(1, 0));
-                Button("origin.up", "Y−", new(x + 96, actionsY + 32, 46, 24), () => AdjustOriginRequested?.Invoke(0, -1));
-                Button("origin.down", "Y+", new(x + 144, actionsY + 32, 46, 24), () => AdjustOriginRequested?.Invoke(0, 1));
-                Button("origin.reset", "Reset origin", new(x + 192, actionsY + 32, 110, 24), () => ResetOriginRequested?.Invoke());
-                Label(status, new(x + 306, actionsY + 32, width - 326, 24));
+                Button("origin.begin", "Adjust origin", new(x, actionsY + 32, 110, 24), () => BeginOriginAdjustmentRequested?.Invoke());
+                Button("origin.left", "X−", new(x + 112, actionsY + 32, 46, 24), () => AdjustOriginRequested?.Invoke(-1, 0));
+                Button("origin.right", "X+", new(x + 160, actionsY + 32, 46, 24), () => AdjustOriginRequested?.Invoke(1, 0));
+                Button("origin.up", "Y−", new(x + 208, actionsY + 32, 46, 24), () => AdjustOriginRequested?.Invoke(0, -1));
+                Button("origin.down", "Y+", new(x + 256, actionsY + 32, 46, 24), () => AdjustOriginRequested?.Invoke(0, 1));
+                Button("origin.reset", "Reset origin", new(x + 304, actionsY + 32, 110, 24), () => ResetOriginRequested?.Invoke());
+                Label(status, new(x + 418, actionsY + 32, Math.Max(0, width - 438), 24));
             }
             else
             {

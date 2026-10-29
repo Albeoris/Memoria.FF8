@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
-internal sealed record UiControlCommand(string? Screen = null, bool Demo = true, MenuInput? Input = null, float? X = null, float? Y = null, bool Pressed = false, string? Search = null, int? Variant = null);
+internal sealed record UiControlCommand(string? Screen = null, bool Demo = true, MenuInput? Input = null, float? X = null, float? Y = null, bool Pressed = false, string? Search = null, int? Variant = null, UiEditCommand? Edit = null, string? Text = null, int? Language = null, bool? Release = null, string? AuthoringKey = null, bool Shift = false, bool Control = false);
 
 internal sealed partial class RecreateGame
 {
@@ -888,7 +888,7 @@ internal sealed partial class RecreateGame
         }
         SynchronizeNativeNamePrompt();
         UiControlCommand command = request.Ui ?? new UiControlCommand();
-        if (TryDispatchModelBrowserControl(request, command) || TryDispatchSceneInspectorControl(request, command))
+        if (TryDispatchLocalizationAuthoringControl(request, command) || TryDispatchModelBrowserControl(request, command) || TryDispatchSceneInspectorControl(request, command))
         {
             SynchronizeUiMoviePause();
             return GameUiStatus()!;
@@ -953,6 +953,6 @@ internal sealed partial class RecreateGame
 
     private object? GameUiStatus()
     {
-        return gameMenus is null ? null : new { gameMenus.IsOpen, gameMenus.IsDemo, gameMenus.ScreenId, gameMenus.Message, gameMenus.ScreenIds, Entries = gameMenus.Entries.Select(entry => new { entry.Id, entry.Label, entry.Enabled }).ToArray(), gameMenus.SelectedIndex, AutomaticPlay = ReadAutoPlayMenuState(), Tutorial = world?.Tutorial?.Status, SceneInspector = SceneInspectorUiStatus(), ModelBrowser = ModelBrowserUiStatus() };
+        return gameMenus is null ? null : new { gameMenus.IsOpen, gameMenus.IsDemo, gameMenus.ScreenId, gameMenus.Message, gameMenus.ScreenIds, Entries = gameMenus.Entries.Select(entry => new { entry.Id, entry.Label, entry.Enabled }).ToArray(), gameMenus.SelectedIndex, AutomaticPlay = ReadAutoPlayMenuState(), Tutorial = world?.Tutorial?.Status, SceneInspector = SceneInspectorUiStatus(), ModelBrowser = ModelBrowserUiStatus(), Localization = LocalizationAuthoringControlStatus() };
     }
 }

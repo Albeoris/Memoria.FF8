@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Albeoris.Games.FF8.Jsm.Messages;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Events;
@@ -104,11 +105,19 @@ internal sealed partial class RecreateGame
     private DialogueWindow? LocalizedWindow(DialogueState native, DialogueWindow? window)
     {
         LocalizationFieldText? presentation = ResolveLocalizedField(native);
-        if (presentation is null || window is null && presentation.Width is null)
+        DialogueWindow? selected = presentation is null || window is null && presentation.Width is null
+            ? window
+            : new(native.Channel, presentation.X ?? window?.X ?? native.X, presentation.Y ?? window?.Y ?? native.Y, presentation.Width ?? window!.Width, presentation.Height ?? window!.Height);
+        return authoringDraftPreview is not null && IsEditingAuthoringOccurrence(native) ? ProjectAuthoringWindow(native, selected, authoringDraftPreview) : selected;
+    }
+
+    internal static DialogueWindow? ProjectAuthoringWindow(DialogueState native, DialogueWindow? window, string target)
+    {
+        if (!FieldMessageContext.TryParseTag(0, target, out FieldMessageContext? context, out _) || context is null || context.Position is null && context.Size is null || window is null && context.Size is null)
         {
             return window;
         }
-        return new(native.Channel, presentation.X ?? window?.X ?? native.X, presentation.Y ?? window?.Y ?? native.Y, presentation.Width ?? window!.Width, presentation.Height ?? window!.Height);
+        return new(native.Channel, context.Position?.X ?? window?.X ?? native.X, context.Position?.Y ?? window?.Y ?? native.Y, context.Size?.Width ?? window!.Width, context.Size?.Height ?? window!.Height);
     }
 
     private int LocalizedChoiceLine(DialogueState native, int nativeLine)

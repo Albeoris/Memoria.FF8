@@ -33,6 +33,10 @@ Patches use a separate project identity and declare their base relationship. Use
 
 New projects read the original installed archives for every selected language. Installed mods and the active localization stack do not supply exported text or artwork. References expand native dictionary terms using that reference language's own dictionary; symbolic English term names are not translations.
 
+## In-game editing
+
+Use [Debug Room → Localization](localization-workbench.md) to pick displayed text, edit Target, preview, save and review the journal. The workbench keeps reference roles read-only and uses the same package validation/publication contracts.
+
 ## Convert and edit
 
 **Mods → Create Mods → Convert localization** reads an existing package and writes a new one with the selected JSON/XLSX format and single/split layout. Conversion does not require installed game resources and preserves project identity, translation values and retained metadata. It creates a disabled output package and leaves the input unchanged.

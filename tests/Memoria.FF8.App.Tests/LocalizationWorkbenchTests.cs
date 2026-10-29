@@ -192,6 +192,25 @@ public sealed class LocalizationWorkbenchTests(ITestOutputHelper output)
         Assert.Equal(historical.Id, Assert.Single(ui.ReadHistory()).Id);
     }
 
+    [Fact]
+    public async Task ConflictWithUnchangedOursStillBlocksClosingAndOpeningAnotherRow()
+    {
+        FakeStore store = new("old") { ConflictOnCommit = true };
+        LocalizationEditingSession session = new(store, new PlainSyntax(), store.Snapshot);
+        using LocalizationWorkbenchController ui = new() { Enabled = true };
+        ui.Open(session, [new("target", "Target", "old", true)], "Test mod");
+        ui.Preview();
+        ui.ConfirmReleased();
+        ui.HandleCommand(UiEditCommand.Confirm);
+        await ui.PendingSave!;
+        ui.Poll();
+        Assert.False(session.IsDirty);
+        Assert.NotNull(session.Conflict);
+        Assert.False(ui.RequestDisable());
+        ui.Open(new(store, new PlainSyntax(), store.Snapshot), [new("target", "Target", "old", true)], "Another row");
+        Assert.Same(session, ui.Session);
+    }
+
     private sealed class PlainSyntax : ILocalizationTargetSyntax
     {
         public LocalizationTargetParts Parse(string? value) => new(value ?? "", null, null, null);
@@ -202,9 +221,14 @@ public sealed class LocalizationWorkbenchTests(ITestOutputHelper output)
     {
         public LocalizationRowSnapshot Snapshot { get; private set; } = new("project", new("Field", "test", "key"), new LocalizationRecord { Key = "key", Target = target }, new(true, target), "one");
         public int Writes { get; private set; }
+        public bool ConflictOnCommit { get; init; }
         public Task<LocalizationRowSnapshot> ReadRowAsync(LocalizationRowIdentity identity, CancellationToken cancellation = default) => Task.FromResult(Snapshot);
         public Task<LocalizationCommitResult> CommitAsync(LocalizationRowSnapshot expected, LocalizationTargetValue value, CancellationToken cancellation = default)
         {
+            if (ConflictOnCommit)
+            {
+                return Task.FromResult(new LocalizationCommitResult(LocalizationCommitStatus.Conflict, Snapshot with { Revision = "external", Target = new(true, "External") }));
+            }
             Writes++;
             Snapshot = Snapshot with { Target = value, Revision = "two" };
             return Task.FromResult(new LocalizationCommitResult(LocalizationCommitStatus.Saved, Snapshot));

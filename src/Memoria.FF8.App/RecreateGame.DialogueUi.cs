@@ -29,7 +29,7 @@ internal sealed partial class RecreateGame
         }
         // Names, message variables and input bindings can change while a window retains its native identity.
         var terms = world!.TextTerms;
-        string key = expanded + "\u0002" + display.X + "," + display.Y + "," + display.FirstChoice + "," + display.LastChoice + "\u0003" + terms.Generation;
+        string key = expanded + "\u0002" + display.X + "," + display.Y + "," + display.FirstChoice + "," + display.LastChoice + "\u0003" + terms.Generation + "\u0005" + window?.Width + "," + window?.Height;
         var presentation = dialoguePages.Get(dialogue, window, uiPreferences.DialogueFontFamily, uiPreferences.DialogueFontSize, key, session.State.Scene == SceneKind.WorldMap, () =>
         {
             var document = DialogueTextFormatter.Parse(display.Text, events.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingPrompt, terms);
@@ -118,6 +118,12 @@ internal sealed partial class RecreateGame
         return revealed || DialoguePager.AdvanceConfirmable(channels.Select(channel => (channel.Dialogue, channel.Pager, channel.Pages.Count)));
     }
 
+    internal static int AuthoringPreviewChoiceLine(DialogueVisualPage page, int choice, int fallback)
+    {
+        int[] lines = page.Lines.Where(line => line.IsChoice).Select(line => line.SourceLineIndex).Distinct().ToArray();
+        return lines.Length == 0 ? fallback : lines[Math.Clamp(choice, 0, lines.Length - 1)];
+    }
+
     private void DrawDialogueUi(Rectangle bounds, PixelBounds viewport, DialogueState dialogue, double seconds)
     {
         DialogueState display = LocalizedDialogue(dialogue);
@@ -155,9 +161,14 @@ internal sealed partial class RecreateGame
             position.Y += lineHeight * page.SpeakerScale + DialogueLayout.SpeakerGap * scale;
         }
         int remaining = presentation.Pager.VisibleCharacters;
+        int choiceLine = LocalizedChoiceLine(dialogue, selectedChoice);
+        if (authoringDraftPreview is not null && IsEditingAuthoringOccurrence(dialogue) && localizationWorkbench.Session?.Mode == Localization.Authoring.LocalizationSessionMode.Preview)
+        {
+            choiceLine = AuthoringPreviewChoiceLine(page, localizationWorkbench.PreviewChoice, choiceLine);
+        }
         foreach (var line in page.Lines)
         {
-            if (remaining > 0 && line.IsChoice && line.SourceLineIndex == LocalizedChoiceLine(dialogue, selectedChoice))
+            if (remaining > 0 && line.IsChoice && line.SourceLineIndex == choiceLine)
             {
                 uiCanvas!.MenuPointer(new UiRect(position.X, position.Y, DialogueLayout.ChoiceIndent(lineHeight) - DialogueLayout.ChoicePointerGap, lineHeight));
             }

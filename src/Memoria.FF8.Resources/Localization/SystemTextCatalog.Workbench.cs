@@ -32,6 +32,7 @@ public static partial class SystemTextCatalog
         defaults.Add("localization.workbench.inherited", "Inherited text — Target remains empty until edited and saved");
         defaults.Add("localization.workbench.journal.collapsed", "Journal ▴");
         defaults.Add("localization.workbench.journal.expanded", "Journal ▾");
+        defaults.Add("localization.workbench.origin.begin", "Adjust origin");
         defaults.Add("localization.workbench.origin.down", "Y+");
         defaults.Add("localization.workbench.origin.left", "X−");
         defaults.Add("localization.workbench.origin.reset", "Reset origin");
