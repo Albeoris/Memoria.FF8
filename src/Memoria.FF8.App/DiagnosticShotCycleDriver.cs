@@ -31,16 +31,21 @@ internal sealed class DiagnosticShotCycleDriver
         Receipt = Receipt with { Opening = observation };
     }
 
-    internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch)
+    internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch, DiagnosticShotDispatchPackets? packetProof)
     {
         int index = Receipt.Dispatches.Length;
         byte[] commands = [14, 237, 238];
         ushort[] effects = [Receipt.Declaration.OpeningEffect, Receipt.FiringEffect, Receipt.Declaration.EndingEffect];
-        if (index > 2 || Receipt.Opening is null || index == 1 && Receipt.Triggered is null || index == 2 && Receipt.Ending is null || dispatch.Reflection is not null || dispatch.ActorId != Receipt.ActorId || dispatch.Ability != BattleAbility.LimitBreak || dispatch.ActionId != Receipt.Declaration.ExpectedHeaderAction(commands[index]) || dispatch.NativeCommand != commands[index] || dispatch.RequestedEffect != effects[index] || dispatch.ExecutedEffect != effects[index] || dispatch.NativeActorIndex != Receipt.ActorIndex || dispatch.NativeTargetMask != (index == 2 ? 0x80F8 : Receipt.Opening.Shot!.TargetMask) || dispatch.NativeHeaderIndex is null || dispatch.NativeHeaderGeneration is not > 0 || index > 0 && (dispatch.Serial <= Receipt.Dispatches[^1].Serial || dispatch.Callback < Receipt.Dispatches[^1].Callback) || Receipt.Dispatches.Any(previous => previous.NativeHeaderIndex == dispatch.NativeHeaderIndex && previous.NativeHeaderGeneration == dispatch.NativeHeaderGeneration))
+        if (index > 2 || Receipt.Opening is null || index == 1 && Receipt.Triggered is null || index == 2 && Receipt.Ending is null || dispatch.Reflection is not null || dispatch.ActorId != Receipt.ActorId || dispatch.Ability != Receipt.Declaration.ExpectedDispatchAbility(commands[index]) || dispatch.ActionId != Receipt.Declaration.ExpectedHeaderAction(commands[index]) || dispatch.NativeCommand != commands[index] || dispatch.RequestedEffect != effects[index] || dispatch.ExecutedEffect != effects[index] || dispatch.NativeActorIndex != Receipt.ActorIndex || dispatch.NativeHeaderIndex is null || dispatch.NativeHeaderGeneration is not > 0 || index > 0 && (dispatch.Serial <= Receipt.Dispatches[^1].Serial || dispatch.Callback < Receipt.Dispatches[^1].Callback) || Receipt.Dispatches.Any(previous => previous.NativeHeaderIndex == dispatch.NativeHeaderIndex && previous.NativeHeaderGeneration == dispatch.NativeHeaderGeneration))
         {
             throw new InvalidDataException("Shot dispatched an unrequested stage or changed its native invocation lineage.");
         }
-        Receipt = Receipt with { Dispatches = [.. Receipt.Dispatches, dispatch] };
+        if (packetProof is null)
+        {
+            throw new InvalidDataException("Shot dispatch requires its synchronous canonical header/contact packet proof.");
+        }
+        packetProof.NormalizeTargetMask(dispatch, Receipt.Declaration, commands[index], effects[index], Receipt.ActorIndex);
+        Receipt = Receipt with { Dispatches = [.. Receipt.Dispatches, dispatch], DispatchPackets = [.. Receipt.DispatchPackets, packetProof] };
     }
 
     internal DiagnosticShotOperation Observe(DiagnosticShotObservation observation, bool drained)

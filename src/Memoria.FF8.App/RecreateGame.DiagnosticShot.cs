@@ -7,6 +7,38 @@ internal sealed partial class RecreateGame
 {
     private byte diagnosticShotInitialLearnedFlags;
 
+    private void ObserveDiagnosticDriverDispatch(BattleDiagnosticEffectDispatch dispatch)
+    {
+        DiagnosticBattleDriver driver = diagnosticDriver!;
+        if (diagnosticDriverRecipe!.ShotCycle is null || dispatch.ActorId != diagnosticDriverRecipe.Input.ActorId)
+        {
+            driver.ObserveDispatch(dispatch);
+            return;
+        }
+        if (driver.Finished)
+        {
+            return;
+        }
+        try
+        {
+            if (driver.ShotCycle is not { } cycle || cycle.Receipt.Dispatches.Length >= 3 || dispatch.NativeHeaderIndex is not int header || dispatch.NativeHeaderGeneration is not long generation)
+            {
+                throw new InvalidDataException("Shot packet observation is bounded to its three owned dispatches per execution.");
+            }
+            BattleSnapshot snapshot = diagnosticDriverBattle!.Capture();
+            if (snapshot.NativeHostCallbacks != dispatch.Callback)
+            {
+                throw new InvalidDataException("Shot packet observation crossed its actual native dispatch callback.");
+            }
+            NativeBattleActionPacketsState packets = snapshot.NativeActionPackets ?? throw new NotSupportedException("Shot dispatch lost its canonical native packet owner.");
+            driver.ObserveDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, header, generation, packets));
+        }
+        catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or InvalidOperationException or ArgumentException)
+        {
+            driver.Fail("SHOT_PACKET_PROOF_INVALID: " + exception.Message);
+        }
+    }
+
     private void BeginDiagnosticShot(BattleSession active, DiagnosticBattleDriver driver, BattleDiagnosticLimitSelectionReceipt selection)
     {
         DiagnosticShotCycleDeclaration declaration = diagnosticDriverRecipe!.ShotCycle!;

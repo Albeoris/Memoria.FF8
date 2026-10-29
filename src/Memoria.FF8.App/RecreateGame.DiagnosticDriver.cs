@@ -41,7 +41,7 @@ internal sealed partial class RecreateGame
         diagnosticEnemySubmissions.Clear();
         diagnosticDriver = new(recipe, Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds);
         diagnosticTelemetry = new(diagnosticDriverBattle, world!.DiagnosticReceipt!.BattleInstanceId, recipe.ExpectedEffect, recipe.ShotCycle is null ? null : (byte)237);
-        diagnosticDriverBattle.DiagnosticEffectDispatched += diagnosticDriver.ObserveDispatch;
+        diagnosticDriverBattle.DiagnosticEffectDispatched += ObserveDiagnosticDriverDispatch;
         PublishDiagnosticDriverProgress();
     }
 
@@ -193,7 +193,7 @@ internal sealed partial class RecreateGame
         PublishDiagnosticCandidate();
         WriteDiagnosticFinalizationStage("candidate-published");
         diagnosticTelemetry.Dispose();
-        diagnosticDriverBattle!.DiagnosticEffectDispatched -= driver.ObserveDispatch;
+        diagnosticDriverBattle!.DiagnosticEffectDispatched -= ObserveDiagnosticDriverDispatch;
         if (world?.IsDiagnosticBattle == true)
         {
             world.EndDiagnosticBattle();

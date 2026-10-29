@@ -21,7 +21,7 @@ public sealed class ShotLiveEvidenceValidationTests
         DiagnosticShotObservation Point(long cb, int stock, BattleNativeShotPhase? phase, byte learned) => new(cb, stock, learned, phase is { } value ? new(ammo, 8, 120, value == BattleNativeShotPhase.Ending ? (short)-1 : value == BattleNativeShotPhase.Opening ? (short)120 : (short)100, (byte)stock, value) : null);
         byte learned = index == 0 ? (byte)0 : learnedAfter;
         byte[] commands = [14, 237, 238];
-        BattleDiagnosticEffectDispatch[] dispatches = commands.Select((command, stage) => new BattleDiagnosticEffectDispatch(index * 3 + stage + 1, callback + stage + 1, "party0", BattleAbility.LimitBreak, command == 14 ? 101 + ammo : ammo, effect, effect, command) { NativeActorIndex = 0, NativeTargetMask = command == 238 ? (ushort)0x80F8 : (ushort)8, NativeHeaderIndex = 0, NativeHeaderGeneration = index * 3 + stage + 1 }).ToArray();
+        BattleDiagnosticEffectDispatch[] dispatches = commands.Select((command, stage) => new BattleDiagnosticEffectDispatch(index * 3 + stage + 1, callback + stage + 1, "party0", command == 14 ? BattleAbility.LimitBreak : BattleAbility.NativeCommand, command == 14 ? 101 + ammo : ammo, effect, effect, command) { NativeActorIndex = 0, NativeTargetMask = 8, NativeHeaderIndex = 0, NativeHeaderGeneration = index * 3 + stage + 1 }).ToArray();
         return new(index + 1, "party0", "enemy0", 0, 3, declaration, effect, new("party0", 2, 14, true, [1], NativeBattleRandomState.Initialize(0), NativeBattleRandomState.Initialize(0)), Point(callback, inventory, null, learned))
         {
             Opening = Point(callback, inventory, BattleNativeShotPhase.Opening, learned),
@@ -30,8 +30,19 @@ public sealed class ShotLiveEvidenceValidationTests
             ReadyToEnd = Point(callback + 2, inventory - 1, BattleNativeShotPhase.Ready, learnedAfter),
             Ending = Point(callback + 2, inventory - 1, BattleNativeShotPhase.Ending, learnedAfter),
             Completed = Point(callback + 4, inventory - 1, null, learnedAfter),
-            Dispatches = dispatches
+            Dispatches = dispatches,
+            DispatchPackets = dispatches.Select(PacketProof).ToArray()
         };
+    }
+
+    private static DiagnosticShotDispatchPackets PacketProof(BattleDiagnosticEffectDispatch dispatch)
+    {
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
+        (packets, _) = packets.Prepare(new(dispatch.NativeActorIndex!.Value, dispatch.NativeCommand!.Value, 0, -1, checked((ushort)dispatch.ActionId!.Value), dispatch.RequestedEffect, null));
+        (packets, _) = packets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+        (packets, _) = packets.Publish(1);
+        packets = packets.WritePlayerRepeatMode(0, 1).ActivateHeader(0);
+        return new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex!.Value, dispatch.NativeHeaderGeneration!.Value, packets);
     }
 
     private static JsonObject Report(byte ammo = 0)
@@ -117,6 +128,67 @@ public sealed class ShotLiveEvidenceValidationTests
         JsonObject report = Report(ammo);
         report["executions"]![0]!["dispatches"]![stage]!["action_id"] = forged;
         report["shot_cycles"]![0]!["dispatches"]![stage]!["action_id"] = forged;
+        Assert.NotEqual("PASS", Validate(report).Verdict);
+    }
+
+    [Theory]
+    [InlineData(0, "NativeCommand")]
+    [InlineData(1, "LimitBreak")]
+    [InlineData(2, "LimitBreak")]
+    public void Typed_shot_semantics_reject_ability_aliases_in_each_native_stage(int stage, string ability)
+    {
+        JsonObject report = Report();
+        report["executions"]![0]!["dispatches"]![stage]!["ability"] = ability;
+        report["shot_cycles"]![0]!["dispatches"]![stage]!["ability"] = ability;
+        Assert.NotEqual("PASS", Validate(report).Verdict);
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("generation")]
+    [InlineData("header_action")]
+    [InlineData("contact_index")]
+    [InlineData("contact_bounds")]
+    [InlineData("recipient_subset")]
+    [InlineData("queued_mask_alias")]
+    [InlineData("actor_ledger")]
+    [InlineData("target_ledger")]
+    public void Typed_shot_requires_exact_canonical_contact_header_and_generation_proof(string forgery)
+    {
+        JsonObject report = Report();
+        JsonNode proof = report["shot_cycles"]![0]!["dispatch_packets"]![2]!;
+        switch (forgery)
+        {
+            case "missing":
+                report["shot_cycles"]![0]!["dispatch_packets"] = new JsonArray();
+                break;
+            case "generation":
+                proof["header_generation"] = 1;
+                break;
+            case "header_action":
+                proof["packets"]!["headers"]![0]!["payload"]![4] = 1;
+                break;
+            case "contact_index":
+                proof["packets"]!["contacts"]![0]!["primary"]!["actor_index"] = 4;
+                break;
+            case "contact_bounds":
+                proof["packets"]!["contacts"]![0]!["primary"]!["actor_index"] = 7;
+                break;
+            case "actor_ledger":
+                report["executions"]![0]!["before"]![0]!["native_index"] = 1;
+                break;
+            case "target_ledger":
+                report["executions"]![0]!["after"]![1]!["native_index"] = 4;
+                break;
+            case "recipient_subset":
+                report["executions"]![0]!["dispatches"]![2]!["native_target_mask"] = 0;
+                report["shot_cycles"]![0]!["dispatches"]![2]!["native_target_mask"] = 0;
+                break;
+            default:
+                report["executions"]![0]!["dispatches"]![2]!["native_target_mask"] = 0x80F8;
+                report["shot_cycles"]![0]!["dispatches"]![2]!["native_target_mask"] = 0x80F8;
+                break;
+        }
         Assert.NotEqual("PASS", Validate(report).Verdict);
     }
 

@@ -136,7 +136,9 @@ internal sealed class DiagnosticBattleDriver
     internal bool Finished => Stage is DiagnosticDriverStage.Completed or DiagnosticDriverStage.Blocked;
     internal string CampaignStage => Stage == DiagnosticDriverStage.Blocked ? blockedCampaignStage ?? "initialization" : Stage == DiagnosticDriverStage.Completed ? "teardown" : Execution == 1 ? Stage is DiagnosticDriverStage.Readiness or DiagnosticDriverStage.Baseline ? "initialization" : "action_one" : Stage is DiagnosticDriverStage.Readiness ? "cleanup_rearm" : "action_two";
 
-    internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch)
+    internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch) => ObserveDispatch(dispatch, null);
+
+    internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch, DiagnosticShotDispatchPackets? packetProof)
     {
         if (Finished || Stage is not (DiagnosticDriverStage.AwaitDispatch or DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail))
         {
@@ -157,7 +159,7 @@ internal sealed class DiagnosticBattleDriver
             try
             {
                 DiagnosticShotCycleDriver cycle = ShotCycle ?? throw new InvalidDataException("Shot dispatched before its real opening admission.");
-                cycle.ObserveDispatch(dispatch);
+                cycle.ObserveDispatch(dispatch, packetProof);
                 if (dispatch.NativeCommand == 237)
                 {
                     if (Stage != DiagnosticDriverStage.AwaitDispatch)

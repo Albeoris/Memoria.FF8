@@ -180,7 +180,18 @@ public static class LiveEvidenceValidation
                 if (shotCycle is not null)
                 {
                     BattleInput submitted = input.Deserialize<BattleInput>(Json) ?? throw new InvalidDataException("Shot input is absent.");
-                    DiagnosticShotCycleValidation.ValidateReceipt(shotCycles[index - 1], submitted, checked((ushort)effect), typedDispatches, startCallback, endCallback);
+                    DiagnosticShotCycleReceipt cycle = shotCycles[index - 1];
+                    DiagnosticShotCycleValidation.ValidateReceipt(cycle, submitted, checked((ushort)effect), typedDispatches, startCallback, endCallback);
+                    foreach (string boundary in new[] { "before", "after" })
+                    {
+                        JsonElement[] states = execution.GetProperty(boundary).EnumerateArray().ToArray();
+                        JsonElement[] actorStates = states.Where(state => Text(state, "id") == actor).ToArray();
+                        JsonElement[] targetStates = states.Where(state => Text(state, "id") == target).ToArray();
+                        if (actorStates.Length != 1 || targetStates.Length != 1 || OptionalNumber(actorStates[0], "native_index") != cycle.ActorIndex || OptionalNumber(targetStates[0], "native_index") != cycle.TargetIndex)
+                        {
+                            throw new InvalidDataException("Shot packet/recipient identities differ from the actual execution combatant ledger.");
+                        }
+                    }
                 }
                 if (typedDispatches.Count(dispatch => dispatch.RequestedEffect == effect && dispatch.Reflection is null && (shotCycle is null || dispatch.NativeCommand == 237)) != 1)
                 {
