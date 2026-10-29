@@ -292,6 +292,7 @@ public static partial class ScenarioDiscovery
             prepared = PrepareEnemyRepeatParty(result, initial, experienceDefinition, petrifyParty, selectedLevel);
         }
         DeclareEnemyPartyKnockoutRearm(result, native, selectorProof.TargetSelector!.Value, preparedParty ?? initial.CombatParty, row => prepared.GetMagicMaximumHitPoints(row));
+        DeclareEnemyPartyStatusRearm(result, native, selectorProof.TargetSelector!.Value, preparedParty ?? initial.CombatParty, row => prepared.GetMagicMaximumHitPoints(row));
         if (selectedPrelude is not null)
         {
             if (result["fixture"]!["combat_party"] is null)
