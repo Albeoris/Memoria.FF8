@@ -8,6 +8,14 @@ public sealed partial class ClassicGameDataSource : IResourcePrefixSource
 {
     public ResourcePrefix? ReadPrefix(ResourceKey key, int maximumBytes)
     {
+        lock (archiveGate)
+        {
+            return ReadPrefixCore(key, maximumBytes);
+        }
+    }
+
+    private ResourcePrefix? ReadPrefixCore(ResourceKey key, int maximumBytes)
+    {
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentOutOfRangeException.ThrowIfNegative(maximumBytes);
         string[] parts = key.Path.Split('/');

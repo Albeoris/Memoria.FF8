@@ -9,6 +9,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
 {
     private readonly string gameDirectory;
     private readonly string language;
+    private readonly object archiveGate = new();
     private readonly ZzzArchive main;
     private readonly ZzzArchive other;
     private readonly Dictionary<string, IFlArchive> archives = new(StringComparer.OrdinalIgnoreCase);
@@ -41,6 +42,14 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
 
     public IFlArchive OpenArchive(string family)
     {
+        lock (archiveGate)
+        {
+            return OpenArchiveCore(family);
+        }
+    }
+
+    private IFlArchive OpenArchiveCore(string family)
+    {
         ObjectDisposedException.ThrowIf(disposed, this);
         string name = new ResourceKey(family).Path;
         if (name.Contains('/'))
@@ -70,6 +79,14 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
     }
 
     public ResourceContent? Find(ResourceKey key)
+    {
+        lock (archiveGate)
+        {
+            return FindCached(key);
+        }
+    }
+
+    private ResourceContent? FindCached(ResourceKey key)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (catalog.TryGetValue(key, out ResourceContent? cached))
@@ -135,7 +152,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
             string localized = Path.GetFileNameWithoutExtension(basename) + "_" + language + extension;
             if (Entry(archive, localized) is { } translated)
             {
-                return new ResourceContent(key, extension.TrimStart('.'), 1, $"{Descriptor.Id}:{key}", translated.OpenForRead);
+                return new ResourceContent(key, extension.TrimStart('.'), 1, $"{Descriptor.Id}:{key}", () => OpenEntrySnapshot(translated));
             }
             if (extension is ".jsm" or ".msd")
             {
@@ -143,7 +160,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
             }
         }
         IFlArchiveEntry? entry = Entry(archive, basename);
-        return entry is null ? null : new ResourceContent(key, Path.GetExtension(parts[^1]).TrimStart('.'), 1, $"{Descriptor.Id}:{key}", entry.OpenForRead);
+        return entry is null ? null : new ResourceContent(key, Path.GetExtension(parts[^1]).TrimStart('.'), 1, $"{Descriptor.Id}:{key}", () => OpenEntrySnapshot(entry));
     }
 
     private ResourceContent Content(ResourceKey key, string path)
@@ -181,6 +198,15 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
         return Read(stream);
     }
 
+    private Stream OpenEntrySnapshot(IFlArchiveEntry entry)
+    {
+        lock (archiveGate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            return new MemoryStream(Read(entry), false);
+        }
+    }
+
     private static byte[] Read(Stream stream)
     {
         using MemoryStream result = new();
@@ -189,6 +215,14 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
     }
 
     public string ResolveFile(string relativeDataPath)
+    {
+        lock (archiveGate)
+        {
+            return ResolveFileCore(relativeDataPath);
+        }
+    }
+
+    private string ResolveFileCore(string relativeDataPath)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         string relative = new ResourceKey(relativeDataPath).Path;
@@ -223,6 +257,14 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
     }
 
     public void Dispose()
+    {
+        lock (archiveGate)
+        {
+            DisposeCore();
+        }
+    }
+
+    private void DisposeCore()
     {
         if (disposed)
         {

@@ -8,6 +8,7 @@ namespace Memoria.FF8.Assets;
 public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiveSource, IGameFileSource
 {
     private readonly string gameDirectory;
+    private readonly object archiveGate = new();
     private readonly Dictionary<string, IFlArchive> archives = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ResourceContent?> catalog = new(StringComparer.OrdinalIgnoreCase);
     private bool disposed;
@@ -46,6 +47,14 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
     }
 
     public ResourceContent? Find(ResourceKey key)
+    {
+        lock (archiveGate)
+        {
+            return FindCore(key);
+        }
+    }
+
+    private ResourceContent? FindCore(ResourceKey key)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (catalog.TryGetValue(key.Path, out ResourceContent? cached))
@@ -109,7 +118,7 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
         {
             throw new InvalidDataException($"Ambiguous Classic resource {key}.");
         }
-        ResourceContent? result = entries.Length == 0 ? null : new ResourceContent(key, Path.GetExtension(basename).TrimStart('.'), 1, $"classic:{key}", entries[0].OpenForRead);
+        ResourceContent? result = entries.Length == 0 ? null : new ResourceContent(key, Path.GetExtension(basename).TrimStart('.'), 1, $"classic:{key}", () => OpenEntrySnapshot(entries[0]));
         catalog.Add(key.Path, result);
         return result;
     }
@@ -117,6 +126,20 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
     private static byte[] ReadEntry(IFlArchive archive, string basename)
     {
         IFlArchiveEntry entry = archive.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(basename, StringComparison.OrdinalIgnoreCase));
+        return ReadEntry(entry);
+    }
+
+    private Stream OpenEntrySnapshot(IFlArchiveEntry entry)
+    {
+        lock (archiveGate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            return new MemoryStream(ReadEntry(entry), false);
+        }
+    }
+
+    private static byte[] ReadEntry(IFlArchiveEntry entry)
+    {
         using Stream stream = entry.OpenForRead();
         using MemoryStream result = ResourceTrafficTelemetry.CreateStagingStream();
         stream.CopyTo(result);
@@ -126,6 +149,14 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
     private static bool HasEntry(IFlArchive archive, string basename) => archive.Entries.Any(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(basename, StringComparison.OrdinalIgnoreCase));
 
     public void Dispose()
+    {
+        lock (archiveGate)
+        {
+            DisposeCore();
+        }
+    }
+
+    private void DisposeCore()
     {
         if (disposed)
         {
