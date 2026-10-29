@@ -83,4 +83,3 @@ public sealed class NativeInstalledFontProfileTests(ITestOutputHelper output)
 
     private static NativeFontProfile Create(byte[] widths, int width, int height) => NativeInstalledFontProfile.CreateEuropean("synthetic", "Synthetic", "en", Context, "font.tex", new PixelImage(width, height), new TdwFile(widths, null).Write());
 }
-
