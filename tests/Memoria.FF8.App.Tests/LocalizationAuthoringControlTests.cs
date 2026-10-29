@@ -162,6 +162,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             Assert.True((await Request("ui-status")).GetProperty("Localization").GetProperty("ReferenceReadOnly").GetBoolean());
             await Request("ui-input", new(Text: translation));
             await Preview();
+            await Capture("field-preview");
             Assert.True(string.IsNullOrEmpty(LocalizationProjectIO.Read(package).Entries.Single(row => row.Key == fieldKey).Target));
             await Request("ui-input", new(Edit: UiEditCommand.Confirm));
             Assert.Equal("Preview", (await Request("ui-status")).GetProperty("Localization").GetProperty("Mode").GetString());
@@ -183,6 +184,7 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             await WaitLocalization(state => state.GetProperty("Mode").GetString() == "Conflict");
             await ClickControl("conflict.Ours");
             await Replace(merged);
+            await Capture("conflict-ours");
             await ClickControl("conflict.use");
             await WaitLocalization(state => state.GetProperty("Mode").GetString() == "Preview");
             Assert.Equal(theirs, LocalizationProjectIO.Read(package).Entries.Single(row => row.Key == fieldKey).Target);
@@ -296,6 +298,19 @@ public sealed class LocalizationAuthoringControlTests(ITestOutputHelper output)
             {
                 await Request("ui-input", new(Edit: UiEditCommand.SelectAll));
                 await Request("ui-input", new(Text: text));
+            }
+            async Task Capture(string name)
+            {
+                string path = Path.Combine(root, name + ".png");
+                await Request("capture", path: path);
+                while (!File.Exists(path))
+                {
+                    await Task.Delay(20, timeout.Token);
+                }
+                if (!string.IsNullOrWhiteSpace(evidence))
+                {
+                    File.Copy(path, Path.Combine(evidence, name + ".png"));
+                }
             }
             async Task Preview()
             {
