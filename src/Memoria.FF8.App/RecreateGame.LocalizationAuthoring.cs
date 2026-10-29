@@ -979,7 +979,13 @@ internal sealed partial class RecreateGame
             DrawDetachedAuthoringPreview(bounds);
             if (authoringNotice.Length != 0)
             {
-                uiCanvas.Text(authoringNotice, 14, new(bounds.X + 12, bounds.Y + 48, Math.Max(0, bounds.Width - 24), 24), new UiColor(255, 220, 235));
+                float noticeY = localizationWorkbench.IsEditing ? localizationWorkbench.EditorBounds.Bottom + 8 : bounds.Y + 48;
+                float noticeWidth = localizationWorkbench.IsEditing ? localizationWorkbench.EditorBounds.Width : bounds.Width - 24;
+                UiRect noticeBounds = new(bounds.X + 12, noticeY, Math.Max(0, noticeWidth), Math.Max(0, Math.Min(64, bounds.Bottom - noticeY - 8)));
+                if (!noticeBounds.IsEmpty)
+                {
+                    uiCanvas.Text(authoringNotice, 14, noticeBounds, new UiColor(255, 220, 235), UiAlignment.Start, UiTextFlow.Wrap);
+                }
             }
         }
         finally
