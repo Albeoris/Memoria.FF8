@@ -44,7 +44,7 @@ The editor and journal select languages independently. **Alt+1**, **Alt+2** and 
 3. Review every preview page and choice. Browsing choices does not select a gameplay answer, advance a dialogue, replay events/audio or add journal occurrences.
 4. Release Enter, then press Enter again, or click **Save**. The update-existing transaction checks the captured revision, validates the candidate and writes the selected project. A held key or one repeat sequence cannot both preview and save.
 
-Esc in Preview returns to Edit with the draft intact. Esc in Edit cancels the draft and restores committed presentation. Completion handles its own Enter/Esc first. While an IME composition owns input, Enter/Esc commit/cancel composition; they do not preview, save or close the editor. Closing composition input is drained until release.
+Esc in Preview returns to Edit with the draft intact. Esc in Edit cancels the draft and restores committed presentation. Completion handles its own Enter/Esc first. Input uses ordinary MonoGame text events; the editor does not observe IME composition or reserve its Enter/Esc. For IME text or characters unavailable through the host, compose in an external editor and paste the result. Switch to Preview to inspect the formatted result.
 
 Changing the selected project, turning the mode off or closing with an unfinished draft offers Preview/Save, Discard or Cancel. Moving focus does not save it. A successful save triggers the existing validated publication path and reflows presentation without changing script results or native choice identities.
 
@@ -99,7 +99,7 @@ Open **Config → Interface → Text and fonts** for text presentation. System f
 
 The Windows launcher's **Tools: Encoding Editor** manages named profiles externally. Glyph images, Unicode aliases and atlas metrics are separate from native byte mappings. One profile may use several atlas pages, while several enabled profiles retain independent namespaces. Edition, resource family, field, dictionary language and Target/reference role select the applicable mappings; codepages are not merged. Export each enabled profile with its dependencies into a mod and retain its notices. Other hosts can use profile files and the localization CLI. See [font and encoding profiles](../modding/encoding-profiles.md) for format, import/export and validation details.
 
-Windows uses its owning native window's Unicode/IMM lifecycle. The patched Linux graphics runtime uses the actual SDL2 window event queue, including complete UTF-8 commits. SDL3 clipboard/dialog services are independent of that graphics queue. The stock macOS native runtime currently lacks the required IME composition bridge and reports that exact unsupported capability. A synthetic input/smoke pass does not establish live IME candidate-window acceptance on every desktop.
+The editor accepts ordinary typed text and Unicode clipboard paste. Direct typing depends on the host; paste text from an external editor when its input method or characters are unavailable. The workbench does not display intermediate IME composition or manage candidate windows.
 
 Automatic import of installed Japanese native font images is not supported. Supply explicit atlas-page and field-table assignments through a profile; Unicode mappings and native byte compatibility are separate contracts. Profile support does not establish deployment into an unmodified original game.
 
@@ -107,4 +107,4 @@ Automatic import of installed Japanese native font images is not supported. Supp
 
 Installed System and Native workflows passed field picking, preview/save, external conflict review and formatted-menu publication. Final Native captures were inspected with names, all level labels, HP, time, rank and footer visible. Those checks preserve the source save and native simulation and can edit a package that remains disabled.
 
-Live desktop IME candidate-window behavior, actual Excel GUI coexistence and runtime acceptance on other desktop platforms remain unverified. Historical journal browsing after live state changes and complete live clearing/project-switch interaction have separate acceptance boundaries. The final Windows package rerun after the last font fix is pending; see the [current audit status](../developers/localization-workbench-audit.md#final-delivery-status).
+Actual Excel GUI coexistence and runtime acceptance on other desktop platforms remain unverified. Historical journal browsing after live state changes and complete live clearing/project-switch interaction have separate acceptance boundaries. The final Windows package rerun after the last font fix is pending; see the [current audit status](../developers/localization-workbench-audit.md#final-delivery-status).

@@ -105,8 +105,6 @@ $changed = @(& git -C $source diff --name-only)
 if ($LASTEXITCODE -ne 0 -or @($changed | Where-Object { $_ -notin $expectedChanges }).Count -ne 0) {
     throw 'Unexpected modified upstream source files.'
 }
-Copy-Item -LiteralPath (Join-Path $recipe '../MonoGame.Native.TextInput/Smoke.cpp') -Destination (Join-Path $source 'MemoriaTextInputSmoke.cpp') -Force
-Copy-Item -LiteralPath (Join-Path $recipe '../MonoGame.Native.TextInput/TextInput.cpp') -Destination (Join-Path $source 'MemoriaTextInput.cpp') -Force
 Copy-Item -LiteralPath (Join-Path $recipe 'CMakeLists.txt') -Destination (Join-Path $source 'CMakeLists.txt') -Force
 New-Item -ItemType Directory -Force (Join-Path $source '.config') | Out-Null
 Copy-Item -LiteralPath (Join-Path $productRoot '.config/dotnet-tools.json') -Destination (Join-Path $source '.config/dotnet-tools.json') -Force
@@ -164,8 +162,8 @@ function Get-Exports([string]$Path) {
 }
 $exports = @(Get-Exports $dll)
 $referenceExports = @(Get-Exports (Join-Path $referenceDirectory 'runtimes/win-x64/native/mgruntime.dll'))
-if ($exports.Count -eq 0 -or (Compare-Object $exports @($referenceExports + 'Memoria_TextInput_SetCallback' | Sort-Object))) {
-    throw 'The native ABI differs from MonoGame 3.8.5.1 plus its additive text input bridge.'
+if ($exports.Count -eq 0 -or (Compare-Object $exports $referenceExports)) {
+    throw 'The native ABI differs from MonoGame 3.8.5.1.'
 }
 $imports = @(& $dumpbin /dependents $dll | ForEach-Object {
     if ($_ -match '^\s*(\S+\.dll)\s*$') {
@@ -186,7 +184,6 @@ $receipt = [ordered]@{
     dependencies = $lock.dependencies
     shaderCompiler = $lock.shaderCompiler
     patchSha256 = $lock.patchSha256
-    textInputBridgeSha256 = Get-Hash (Join-Path $recipe '../MonoGame.Native.TextInput/TextInput.cpp')
     recipeSha256 = Get-Hash (Join-Path $recipe 'CMakeLists.txt')
     buildScriptSha256 = Get-Hash $PSCommandPath
     toolchain = [ordered]@{
@@ -203,4 +200,4 @@ $receipt = [ordered]@{
 Copy-Item -LiteralPath $dll -Destination (Join-Path $OutputDirectory 'mgruntime.dll') -Force
 Copy-Item -LiteralPath (Join-Path $recipe 'licenses') -Destination $OutputDirectory -Recurse -Force
 $receipt | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'native-runtime.json') -Encoding utf8
-Write-Host "Built patched Direct3D 12 runtime with $($exports.Count) exports including the additive text input bridge."
+Write-Host "Built patched Direct3D 12 runtime with $($exports.Count) exports."

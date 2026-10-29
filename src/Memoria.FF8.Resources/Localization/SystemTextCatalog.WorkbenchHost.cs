@@ -26,7 +26,7 @@ public static partial class SystemTextCatalog
             ("create.label", "Create a localization project"),
             ("create.help", "Create a project first; disabled projects can be edited."),
             ("shortcut.binding", "{0} · {1}"),
-            ("shortcut.help", "Editor-only shortcut. Completion/IME owns its Enter and Escape before preview/save."),
+            ("shortcut.help", "Editor-only shortcut. Completion handles Enter and Escape before preview/save."),
             ("shortcut.capture", "Release the current key, then press the shortcut for {0}. Escape cancels."),
             ("catalog.label", "Inspect translation catalog"),
             ("catalog.entry.help", "Edit verified canonical rows, including the workbench's own labels."),

@@ -58,7 +58,6 @@ internal sealed partial class RecreateGame
     private readonly LocalizationAuthoringClipboard authoringClipboard = new();
     private UiEditCommand? authoringRebinding;
     private bool authoringRebindingWaitForRelease;
-    private string? authoringInputProblem;
     private bool authoringPreviousMouse;
     private bool authoringOriginActive;
     private bool authoringOriginDragging;
@@ -79,7 +78,7 @@ internal sealed partial class RecreateGame
         gameMenus!.ConnectLocalizationWorkbench(AuthoringEntries, AuthoringAction);
         gameMenus.ReadNativeFontProfiles = () => nativeTextFont?.AvailableProfileIds ?? ["Auto"];
         InitializeAuthoringWorkspace();
-        authoringTextInput = new(localizationWorkbench.TextInput, localizationWorkbench.SetComposition);
+        authoringTextInput = new(localizationWorkbench.TextInput);
         gameMenus.Register(new MenuScreenDefinition { Id = "localization-catalog", Title = "Localization · Canonical catalog", Help = "Inspect exact rows without picking workbench chrome. Reference data remains read-only.", TitleText = _ => AuthoringHostText("catalog.title", "Localization · Canonical catalog"), HelpText = _ => AuthoringHostText("catalog.help", "Inspect exact rows without picking workbench chrome. Reference data remains read-only."), Entries = _ => AuthoringCatalogEntries(), GalleryEligible = false });
         gameMenus.Register(new MenuScreenDefinition { Id = "localization-shortcuts", Title = "Localization · Editor shortcuts", Help = "Choose a command, release the current key, then press its new shortcut. Escape cancels capture.", TitleText = _ => AuthoringHostText("shortcuts.title", "Localization · Editor shortcuts"), HelpText = _ => AuthoringHostText("shortcuts.help", "Choose a command, release the current key, then press its new shortcut. Escape cancels capture."), Entries = _ => AuthoringShortcutEntries(), GalleryEligible = false });
         localizationWorkbench.ObservationText = AuthoringObservationText;
@@ -198,7 +197,7 @@ internal sealed partial class RecreateGame
 
     private IReadOnlyList<MenuEntry> AuthoringShortcutEntries()
     {
-        return authoringKeyboard.Settings.Bindings.Select(binding => new MenuEntry("shortcut-" + binding.Key, FormatAuthoringHostText("shortcut.binding", "{0} · {1}", AuthoringShortcutLabel(binding.Key), binding.Value), AuthoringHostText("shortcut.help", "Editor-only shortcut. Completion/IME owns its Enter and Escape before preview/save."), Action: new MenuAction("localization-workbench", "shortcut:" + binding.Key))).ToArray();
+        return authoringKeyboard.Settings.Bindings.Select(binding => new MenuEntry("shortcut-" + binding.Key, FormatAuthoringHostText("shortcut.binding", "{0} · {1}", AuthoringShortcutLabel(binding.Key), binding.Value), AuthoringHostText("shortcut.help", "Editor-only shortcut. Completion handles Enter and Escape before preview/save."), Action: new MenuAction("localization-workbench", "shortcut:" + binding.Key))).ToArray();
     }
 
     private string AuthoringHostText(string id, string original) => LocalizeUiText(SystemTextCatalog.Key("localization.workbench.host." + id), original);
@@ -581,10 +580,6 @@ internal sealed partial class RecreateGame
                     return AuthoringCompatibilityReport.Evaluate(NativeGameFonts, OriginalTextLayout, profile, context, role, dataset, value, [], [new("presentation", exception.Message)]);
                 }
             };
-            if (authoringTextInput?.PlatformProblem is { } inputProblem)
-            {
-                return [inputProblem];
-            }
             if (target.Length == 0 && !localizationWorkbench.Session.IsDirty && localizationWorkbench.Session.RecordChanges)
             {
                 target = AuthoringGhostPreview(original);
@@ -700,21 +695,17 @@ internal sealed partial class RecreateGame
             }
             return true;
         }
-        authoringTextInput?.PollPlatform(Window.Handle, IsActive && localizationWorkbench.Enabled && localizationWorkbench.OwnsKeyboard);
+        if (!IsActive || !localizationWorkbench.Enabled || !localizationWorkbench.OwnsKeyboard)
+        {
+            authoringTextInput?.Reset();
+        }
         if (!localizationWorkbench.Enabled)
         {
             authoringKeyboard.Reset(keys);
             return false;
         }
-        if (authoringTextInput?.PlatformProblem is { } inputProblem && inputProblem != authoringInputProblem)
-        {
-            authoringInputProblem = inputProblem;
-            authoringNotice = inputProblem;
-        }
         bool confirmHeld = keys.IsKeyDown(Keys.Enter) || authoringKeyboard.IsHeld(UiEditCommand.Confirm, keys);
-        bool cancelHeld = keys.IsKeyDown(Keys.Escape) || authoringKeyboard.IsHeld(UiEditCommand.Cancel, keys);
-        authoringTextInput?.ObserveCommandKeys(confirmHeld, cancelHeld);
-        if (!confirmHeld && authoringTextInput?.IsComposing != true)
+        if (!confirmHeld)
         {
             localizationWorkbench.ConfirmReleased();
         }
@@ -732,7 +723,7 @@ internal sealed partial class RecreateGame
             {
                 HandleAuthoringCandidateCommand(command.Command);
             }
-            else if ((localizationWorkbench.OwnsKeyboard || command.Command == UiEditCommand.TogglePicking) && authoringTextInput?.ShouldSuppressCommand(command.Command) != true)
+            else if (localizationWorkbench.OwnsKeyboard || command.Command == UiEditCommand.TogglePicking)
             {
                 localizationWorkbench.HandleCommand(command.Command, command.Shift, command.Control);
             }

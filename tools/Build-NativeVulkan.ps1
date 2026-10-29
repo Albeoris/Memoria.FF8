@@ -28,7 +28,6 @@ $recipeHashes = [ordered]@{}
 foreach ($file in $recipeFiles) {
     $recipeHashes[$file] = Get-TextHash (Join-Path $recipe $file)
 }
-$recipeHashes['TextInput.cpp'] = Get-TextHash (Join-Path $recipe '../MonoGame.Native.TextInput/TextInput.cpp')
 $recipeHashes['Build-NativeVulkan.ps1'] = Get-TextHash $PSCommandPath
 $recipeHashes['dotnet-tools.json'] = Get-TextHash (Join-Path $productRoot '.config/dotnet-tools.json')
 if ($recipeHashes['BackBufferReadback.patch'] -cne $lock.patchSha256) {

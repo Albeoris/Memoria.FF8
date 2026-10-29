@@ -88,14 +88,16 @@ The backend also now validates System composite templates with the BCL parser an
 
 ## Final delivery status
 
+Input simplification: custom SDL2/Win32 IME observers and the extra native export are removed. Ordinary MonoGame text events and Unicode paste remain. The current Windows package passed `Build.ps1` with the stock 140-export DX12 ABI; the focused authoring/workbench selection passed 51 tests with two external-resource cases skipped, and all four multiline-editor tests passed. These checks do not establish live desktop typing or other-platform runtime acceptance.
+
 The [architecture and ownership contracts](localization-authoring.md#dependency-and-ownership-audit) describe the acyclic portable core, current provider transactions and production context adapters. The implemented workbench and the reproduced A11–A13 crashes/rendering defects have passing bounded checks plus the installed host evidence described above.
 
 | Boundary | Status |
 | --- | --- |
-| Windows package | The final full `Build.ps1` run after rebasing onto the current local main passed ABI, inventory, containment, extraction, updater installation/rollback and retained-user-file gates. The Windows native runtime built and verified its additive text-input export. The distribution does not include original game assets. |
+| Windows package | The final full `Build.ps1` run after rebasing onto the current local main passed ABI, inventory, containment, extraction, updater installation/rollback and retained-user-file gates. That historical run included an additive text-input export, which the current input simplification removes. The distribution does not include original game assets. |
 | Installed authoring | System and Native workflows passed, including inspected final Native output. Full historical-state browsing, live clearing/project switching and every renderer family are not established by these cases. |
-| Desktop input/workbook coexistence | Portable input and workbook-lock/conflict tests pass. Live desktop IME candidate-window behavior and actual Excel GUI coexistence remain unverified. |
-| Other platform runtimes | Runtime acceptance was unavailable on the other target desktops. The macOS IME composition bridge is explicitly missing; compilation or synthetic input does not close that gap. |
+| Desktop input/workbook coexistence | Portable input and workbook-lock/conflict tests pass. The workbench uses ordinary MonoGame character events and clipboard paste; custom native IME observers have been removed. Actual Excel GUI coexistence remains unverified. |
+| Other platform runtimes | Runtime acceptance was unavailable on the other target desktops. Native IME composition integration is outside the current workbench input contract; compilation or synthetic input does not establish desktop typing acceptance. |
 | Font import/deployment | Automatic Japanese native font-image import is unsupported; supply explicit page/field/profile assignments. Original-game native deployment remains unverified. |
 
 The available Windows implementation, end-to-end workflow and distribution checks are complete. M5 does not establish the unavailable desktop/platform checks or every historical-state workflow listed above; those remain explicit validation limits.

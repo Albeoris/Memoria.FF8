@@ -41,7 +41,6 @@ internal sealed partial class RecreateGame
         if (command.Release == true)
         {
             authoringControlConfirmHeld = authoringControlCancelHeld = false;
-            authoringTextInput?.ObserveCommandKeys(false, false);
             localizationWorkbench.ConfirmReleased();
         }
         if (command.AuthoringKey is string key)
@@ -82,7 +81,7 @@ internal sealed partial class RecreateGame
             {
                 authoringControlCancelHeld = true;
             }
-            if (!held && authoringTextInput?.ShouldSuppressCommand(edit) != true)
+            if (!held)
             {
                 if (authoringCandidates is not null)
                 {
@@ -199,8 +198,6 @@ internal sealed partial class RecreateGame
             localizationWorkbench.Status,
             localizationWorkbench.CompatibilityReport,
             Notice = authoringNotice,
-            InputProblem = authoringTextInput?.PlatformProblem,
-            IsComposing = authoringTextInput?.IsComposing ?? false,
             EditorComposition = localizationWorkbench.Editor.Composition,
             Completions = localizationWorkbench.CompletionItems,
             SavePending = localizationWorkbench.PendingSave is { IsCompleted: false },
