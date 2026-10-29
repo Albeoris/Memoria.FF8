@@ -18,7 +18,7 @@ public static class NativeBattleConfuse36Lifecycle
         using NativeBattleEffectNodeBank bank = new(0x15D97FC, nodeSource, resources.ReadConstantChannel);
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, readModel, AllocateEmitter, AllocateGeometry);
         NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
-        NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh);
+        NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(36, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)), preparePilotMesh: PreparePilotMesh);
         NativeBattleConfuse36Frame result = memory.Flush();
         bank.Publish();
         result = result with { Memory = result.Memory with { Confuse36Executable = bank.Source } };
@@ -49,6 +49,12 @@ public static class NativeBattleConfuse36Lifecycle
 
         NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] source)
         {
+            NativeBattleEffectNodePilotMeshInstance prepared = PreparePilotMesh(node, source);
+            return (bytes, matrix) => prepared(bytes, matrix, default);
+        }
+
+        NativeBattleEffectNodePilotMeshInstance PreparePilotMesh(int node, byte[] source)
+        {
             short sourceFlags = BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A));
             short fade = unchecked((short)memory.Word(node + 0x1CE));
             uint? farColor = fade == 0 ? null : memory.Dword(node + 0x16C);
@@ -58,7 +64,7 @@ public static class NativeBattleConfuse36Lifecycle
                 flags |= 0xC0;
             }
             NativeBattleFullLifeMeshContext context = new(flags, farColor, fade == 0 ? null : fade, null, null, null, 17, 2);
-            return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch884370(bytes, matrix, projection, context, colors);
+            return (bytes, matrix, identity) => NativeBattleRestorationMeshPackets.EmitBatch884370(bytes, matrix, projection, context, colors, pilotIdentity: identity);
         }
     }
 }

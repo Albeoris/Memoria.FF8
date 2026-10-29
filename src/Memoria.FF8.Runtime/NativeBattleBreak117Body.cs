@@ -16,7 +16,7 @@ public static class NativeBattleBreak117Body
         return elapsed < 9 ? (elapsed << 15) / 9 : elapsed >= 48 ? (0x1E0000 - (elapsed << 15)) / 12 : 32768;
     }
 
-    public static NativeBattleBreak117BodyResult Draw(ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint mask, ImmutableArray<byte> dither, int level, NativeBattleModelTextureBinding? binding, byte ditherIndex)
+    public static NativeBattleBreak117BodyResult Draw(ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint mask, ImmutableArray<byte> dither, int level, NativeBattleModelTextureBinding? binding, byte ditherIndex, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (meshes.IsDefault || bones.IsDefault || dither.IsDefault || dither.Length != 512 || (uint)level > 32768)
         {
@@ -52,14 +52,25 @@ public static class NativeBattleBreak117Body
                 BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(vertex * 8 + 4), projected[vertex].DepthAndClip);
             }
             lastProjected = bytes.ToImmutableArray();
-            foreach (NativeBattleRawPolygon polygon in mesh.Polygons)
+            for (int polygonIndex = 0; polygonIndex < mesh.Polygons.Length; polygonIndex++)
             {
+                NativeBattleRawPolygon polygon = mesh.Polygons[polygonIndex];
                 ImmutableArray<byte> source = binding is null ? polygon.Bytes : NativeBattleRawGeometryPackets.Relocate507550(polygon, binding);
                 bool stone = BinaryPrimitives.ReadUInt16LittleEndian(dither.AsSpan().Slice(ditherIndex * 2)) <= level;
                 ditherIndex = unchecked((byte)(ditherIndex + 1));
                 NativeBattleGeometryPrimitive? packet = Polygon(source, polygon.Quad, projected, color, stone);
                 if (packet is not null)
                 {
+                    if (pilotIdentity is { } identity)
+                    {
+                        System.Numerics.Vector3 World(int corner)
+                        {
+                            int selector = BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan().Slice(corner * 2)) & 4095;
+                            NativeBattleRawVertex vertex = mesh.Vertices[selector];
+                            return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(bones[vertex.Bone], vertex.Position), projection);
+                        }
+                        packet = packet with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 257 + index) * 65537 + polygonIndex) }, World(0), World(1), World(2), polygon.Quad ? World(3) : default, (byte)(polygon.Quad ? 4 : 3)) { DepthQuantum = 4 } };
+                    }
                     result.Add(packet);
                 }
             }

@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattlePain34PlayerInputs(Func<int, NativeBattleVector> ReadBoneF1, Func<NativeBattlePain34Frame, NativeBattleGfAnimationSource, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattlePain34Frame> DrawNode);
+public sealed record NativeBattlePain34PlayerInputs(Func<int, NativeBattleVector> ReadBoneF1, Func<NativeBattlePain34Frame, NativeBattleGfAnimationSource, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattlePain34Frame> DrawNode)
+{
+    public Func<NativeBattlePain34Frame, NativeBattleGfAnimationSource, NativeBattleGfAnimationNode, NativeBattleVector, NativeBattlePilotVisualIdentity, NativeBattlePain34Frame>? DrawVisualNode { get; init; }
+}
 
 public static class NativeBattlePain34Players
 {
@@ -36,7 +39,8 @@ public static class NativeBattlePain34Players
                 }
                 NativeBattleGfAnimationAdvance advanced = Workspace(task).Advance701970(source, 0, (current, node) =>
                 {
-                    frame = inputs.DrawNode(frame, source, node, anchor);
+                    NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(34, task, node.ResourceOffset) with { ResourceGeneration = source.Address };
+                    frame = inputs.DrawVisualNode is { } drawVisual ? drawVisual(frame, source, node, anchor, identity) : inputs.DrawNode(frame, source, node, anchor);
                     return current;
                 });
                 task = WithWorkspace(task, advanced.Workspace);

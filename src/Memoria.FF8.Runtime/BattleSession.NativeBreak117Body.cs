@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState DrawNativeBreak117Body(NativeBattleGraphicsState graphics, int index, int level, ImmutableArray<byte> dither)
+    private NativeBattleGraphicsState DrawNativeBreak117Body(NativeBattleGraphicsState graphics, int index, int level, ImmutableArray<byte> dither, NativeBattlePilotVisualIdentity identity)
     {
         NativeBattleGraphicsModel model = graphics.Models[index];
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
@@ -34,23 +34,23 @@ public sealed partial class BattleSession
             }
             NativeBattleRawMesh mesh = shared && meshIndex == 1 ? linked[0] : geometry[meshIndex];
             NativeBattleModelTextureBinding binding = shared && meshIndex == 1 ? model.LinkedTextureSlots ?? throw new NotSupportedException("Native Break requires its weapon material relocation.") : bodyBinding;
-            Submit(mesh, matrices, resource.GeometryRelocated507550 ? null : binding);
+            Submit(mesh, matrices, resource.GeometryRelocated507550 ? null : binding, meshIndex);
         }
         if (!shared && !linked.IsEmpty)
         {
             ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(model, resource.LinkedPoseSource ?? throw new NotSupportedException("Native Break requires its extra skeleton."), view);
             NativeBattleModelTextureBinding binding = model.LinkedTextureSlots ?? throw new NotSupportedException("Native Break requires its extra material relocation.");
-            foreach (NativeBattleRawMesh mesh in linked)
+            for (int meshIndex = 0; meshIndex < linked.Length; meshIndex++)
             {
-                Submit(mesh, linkedMatrices, binding);
+                Submit(linked[meshIndex], linkedMatrices, binding, 0x10000 + meshIndex);
             }
         }
         graphics = graphics with { Models = graphics.Models.SetItem(index, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source)) };
         return graphics;
 
-        void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding)
+        void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding, int visualMesh)
         {
-            NativeBattleBreak117BodyResult batch = NativeBattleBreak117Body.Draw([mesh], bones, projection, color, 1, dither, level, binding, ditherIndex);
+            NativeBattleBreak117BodyResult batch = NativeBattleBreak117Body.Draw([mesh], bones, projection, color, 1, dither, level, binding, ditherIndex, identity with { Primitive = unchecked(0x40000000 + visualMesh) });
             ditherIndex = batch.DitherIndex;
             int capacity = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Break requires its current physical projection capacity.")) * 8);
             if (batch.Projected.Length > capacity)

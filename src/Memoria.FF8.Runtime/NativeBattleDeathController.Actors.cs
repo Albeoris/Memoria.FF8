@@ -58,7 +58,7 @@ public static partial class NativeBattleDeathController
                 NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, nodeInputs);
                 NativeCrtRandomState random = current.Random;
                 bool releaseMesh = false;
-                _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver);
+                _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver, current.Effect.Binding.Effect == 14 ? NativeBattlePilotVisualLifetimes.Identity(14, Read(address)) : null, PreparePilotMesh);
                 NativeBattleEffectNodeMemoryWrite flushed = memory.FlushStorage();
                 current = current with { Memory = flushed.Memory, Effect = flushed.Effect, Random = random };
                 hierarchy = new(current.Effect.Pools);
@@ -67,6 +67,12 @@ public static partial class NativeBattleDeathController
                 SetState(State with { EmitterScan = emitterScan, GeometryScan = geometryScan });
 
                 NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] descriptor)
+                {
+                    NativeBattleEffectNodePilotMeshInstance emit = PreparePilotMesh(node, descriptor);
+                    return (bytes, matrix) => emit(bytes, matrix, default);
+                }
+
+                NativeBattleEffectNodePilotMeshInstance PreparePilotMesh(int node, byte[] descriptor)
                 {
                     current = current with { Memory = memory.CaptureProcessMemory() };
                     short fade = unchecked((short)memory.Word(node + 0x1CE));
@@ -80,12 +86,12 @@ public static partial class NativeBattleDeathController
                         current = NativeBattleDeathNodeDrawing.End(current);
                         memory.PublishProcessMemory(current.Memory);
                     }
-                    return (bytes, matrix) =>
+                    return (bytes, matrix, identity) =>
                     {
                         NativeBattleEffectNodeMemoryWrite live = memory.FlushStorage();
                         (byte[] padding, bool[] known) = live.Memory.Arena!.ReadSnapshot(node + 0xAC + 18, 2);
                         short? matrixPadding = known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(padding) : null;
-                        NativeBattleDeathNodeMeshStep emitted = NativeBattleDeathNodeDrawing.Emit(current with { Memory = memory.CaptureProcessMemory() }, bytes, meshAddress, matrix, inputs.Projection, inputs.Colors, matrixPadding);
+                        NativeBattleDeathNodeMeshStep emitted = NativeBattleDeathNodeDrawing.Emit(current with { Memory = memory.CaptureProcessMemory() }, bytes, meshAddress, matrix, inputs.Projection, inputs.Colors, matrixPadding, current.Effect.Binding.Effect == 14 ? identity : null);
                         current = emitted.Frame;
                         releaseMesh = ++instance == count;
                         memory.PublishProcessMemory(current.Memory);

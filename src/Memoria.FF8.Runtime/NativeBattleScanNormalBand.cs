@@ -69,11 +69,11 @@ public static class NativeBattleScanNormalBand
 
         void Draw()
         {
-            frame = draw(frame, Draw84F0B0(task.ReadWord(0x24), task.ReadByte(0x6E)));
+            frame = draw(frame, Draw84F0B0(task.ReadWord(0x24), task.ReadByte(0x6E), NativeBattlePilotVisualLifetimes.Identity(40, task)));
         }
     }
 
-    public static NativeBattleModulePacketBatch Draw84F0B0(ushort counter, byte intensity)
+    public static NativeBattleModulePacketBatch Draw84F0B0(ushort counter, byte intensity, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<NativeBattleAllocatedPrimitive>.Builder packets = ImmutableArray.CreateBuilder<NativeBattleAllocatedPrimitive>(15);
         int y = (counter & 63) - 64;
@@ -84,6 +84,10 @@ public static class NativeBattleScanNormalBand
             {
                 int x = column * 128;
                 NativeBattleGeometryPrimitive primitive = new(4381, [0x09000000, color, XY(x, y), 0x3C940080, XY(x + 128, y), 0x00BA0000, XY(x, y + 64), 0x00004080, XY(x + 128, y + 64), 0x00004000], [0, 0, 0, 0]);
+                if (pilotIdentity is { } identity)
+                {
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + row * 3 + column), ResourceGeneration = counter >> 6 }, new(x, y, 0), new(x + 128, y, 0), new(x, y + 64, 0), new(x + 128, y + 64, 0), 4) { ScreenSpace = true } };
+                }
                 packets.Add(new(primitive, packets.Count * 40, 1));
             }
             y += 64;

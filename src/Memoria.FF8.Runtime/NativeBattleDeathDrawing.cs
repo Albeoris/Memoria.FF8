@@ -16,7 +16,7 @@ public static class NativeBattleDeathDrawing
         uint packet = checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)(state.Cursor ?? throw new NotSupportedException("Native Death normal drawing requires its current private cursor.")));
         uint far = BinaryPrimitives.ReadUInt32LittleEndian(state.Module.Read(profile.ModuleOffset(0x273AFE4), 4));
         NativeBattleEffectOwnedModelRenderFrame current = new(frame.Memory, task, model, resources.Model, projected, profile.ModuleAddress(0x27419F0), length, far, packet);
-        NativeBattleEffectOwnedModelRenderStep drawn = NativeBattleEffectOwnedModelRendering.DrawNormal(current, frame.Staging ?? throw new NotSupportedException("Native Death normal drawing requires its actual addressed model and temporary memory."), new(camera, projection, shadow, capabilities, colors));
+        NativeBattleEffectOwnedModelRenderStep drawn = NativeBattleEffectOwnedModelRendering.DrawNormal(current, frame.Staging ?? throw new NotSupportedException("Native Death normal drawing requires its actual addressed model and temporary memory."), new(camera, projection, shadow, capabilities, colors), frame.Effect.Binding.Effect == 14 ? NativeBattlePilotVisualLifetimes.Identity(14, task) : null);
         state = state with { Module = NativeBattleEffectNodeContextMemory.Copy(drawn.Frame.ProjectedScratch, 0, state.Module, offset, length) };
         return new(frame with { Memory = profile.WithState(drawn.Frame.Memory, state), Staging = drawn.Staging }, drawn.Frame.Task, drawn.Batch);
     }

@@ -6,12 +6,14 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Shared plain actor faces followed by a per-corner radial tint at the adjacent ordering bucket.</summary>
 public static class NativeBattleActorTintPackets
 {
-    public static NativeBattleGfGeometryBatch Emit(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> worldVertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint modelColor, uint tint, NativeBattleSummonColors colors, Func<IReadOnlyList<NativeBattleVector>, short[], bool> writeFactors, short zsf3 = 0x155, short zsf4 = 0x100)
+    public static NativeBattleGfGeometryBatch Emit(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> worldVertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint modelColor, uint tint, NativeBattleSummonColors colors, Func<IReadOnlyList<NativeBattleVector>, short[], bool> writeFactors, short zsf3 = 0x155, short zsf4 = 0x100, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
+        int polygonIndex = -1;
         foreach (NativeBattleRawPolygon polygon in polygons)
         {
+            polygonIndex++;
             int count = polygon.Quad ? 4 : 3;
             if (polygon.Bytes.Length != (polygon.Quad ? 20 : 16))
             {
@@ -62,7 +64,7 @@ public static class NativeBattleActorTintPackets
             uint average = unchecked((uint)projected.Sum(corner => (int)corner.Depth) * unchecked((uint)(polygon.Quad ? zsf4 : zsf3))) >> 12;
             int bucket = checked(17 + (int)(average >> 2));
             ImmutableArray<int> depths = polygon.Quad ? projected.Select(corner => (int)corner.Depth).ToImmutableArray() : [projected[0].Depth, projected[1].Depth, projected[2].Depth, 0];
-            attempts.Add(packet.Attempt(new(bucket, packet.Words(), depths)));
+            attempts.Add(packet.Attempt(Capture(new(bucket, packet.Words(), depths), 0)));
             allocated += length;
             bool near = writeFactors(positions, ratios);
             if (!near)
@@ -78,8 +80,19 @@ public static class NativeBattleActorTintPackets
                 glow.Word(4 + corner * 8, colors.Interpolate(command, ratios[corner], tint));
                 glow.Word(8 + corner * 8, projected[corner].Screen);
             }
-            attempts.Add(glow.Attempt(new(bucket - 1, glow.Words(), depths)));
+            attempts.Add(glow.Attempt(Capture(new(bucket - 1, glow.Words(), depths), 1)));
             allocated += glowLength;
+
+            NativeBattleGeometryPrimitive Capture(NativeBattleGeometryPrimitive primitive, int layer)
+            {
+                if (pilotIdentity is not { } identity)
+                {
+                    return primitive;
+                }
+                System.Numerics.Vector3 Point(int corner) => new(positions[corner].X, positions[corner].Y, positions[corner].Z);
+                NativeBattlePilotVisualGeometry geometry = new(identity with { Primitive = unchecked((identity.Primitive * 397 + polygonIndex) * 2 + layer) }, Point(0), Point(1), Point(2), count == 4 ? Point(3) : default, (byte)count) { SourceDepths = new(depths[0], depths[1], depths[2], depths[3]), UseSourceDepths = true };
+                return primitive with { PilotGeometry = geometry };
+            }
         }
         return new(attempts.ToImmutable(), allocated);
     }

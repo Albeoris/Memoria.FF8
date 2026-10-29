@@ -7,7 +7,7 @@ public sealed record NativeBattlePain34DrawingStep(NativeBattlePain34Frame Frame
 
 public static class NativeBattlePain34Drawing
 {
-    public static NativeBattlePain34DrawingStep Draw865AE0(NativeBattlePain34Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleVector anchor, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattlePain34DrawingStep Draw865AE0(NativeBattlePain34Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleVector anchor, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
         {
@@ -72,8 +72,8 @@ public static class NativeBattlePain34Drawing
             ObserveAverageDepth = value => Store(44, value)
         };
         NativeBattleGfGeometryBatch packets = glow
-            ? Emit8DE9D0(source.Data, geometry, vertices, matrix, projection, flags, color, node.Scalar36, colors, observations.ObserveFlags, observations.ObserveArea, observations.ObserveAverageDepth, value => Store(32, checked(source.Address + (uint)value)))
-            : NativeBattleGfGeometryPackets.EmitBatch(source.Data, geometry, vertices, matrix, projection, new(flags, color, node.Scalar36, null, null, 0, 0, 17, 2), colors, observeSourceCursor: value => Store(32, checked(source.Address + (uint)value)), variant: observations);
+            ? Emit8DE9D0(source.Data, geometry, vertices, matrix, projection, flags, color, node.Scalar36, colors, observations.ObserveFlags, observations.ObserveArea, observations.ObserveAverageDepth, value => Store(32, checked(source.Address + (uint)value)), pilotIdentity)
+            : NativeBattleGfGeometryPackets.EmitBatch(source.Data, geometry, vertices, matrix, projection, new(flags, color, node.Scalar36, null, null, 0, 0, 17, 2), colors, observeSourceCursor: value => Store(32, checked(source.Address + (uint)value)), variant: observations, pilotIdentity: pilotIdentity);
         staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88);
         frame = frame with { Memory = frame.Memory with { Pain34 = state, PrimitiveProcess = process }, Staging = staging };
         return new(frame, packets, glow ? 0xE1000220u : null);
@@ -108,7 +108,7 @@ public static class NativeBattlePain34Drawing
         return matrix with { X = unchecked(x + camera.X), Y = unchecked(y + camera.Y), Z = unchecked(z + camera.Z) };
     }
 
-    public static NativeBattleGfGeometryBatch Emit8DE9D0(ImmutableArray<byte> source, int geometry, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, uint farColor, short fade, NativeBattleSummonColors colors, Action<uint>? observeFlags = null, Action<int>? observeArea = null, Action<uint>? observeAverageDepth = null, Action<int>? observeSourceCursor = null)
+    public static NativeBattleGfGeometryBatch Emit8DE9D0(ImmutableArray<byte> source, int geometry, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, uint farColor, short fade, NativeBattleSummonColors colors, Action<uint>? observeFlags = null, Action<int>? observeArea = null, Action<uint>? observeAverageDepth = null, Action<int>? observeSourceCursor = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int cursor = checked(geometry + BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan().Slice(geometry)));
         int allocation = 0;
@@ -146,6 +146,16 @@ public static class NativeBattlePain34Drawing
                         mask = mask.SetItem(offset, NativeBattleGfPacketByteState.Known);
                     }
                     accepted = linked with { Words = linked.Words.SetItem(0, unchecked(linked.Words[0] + 0x01000000)).Add(0xE1000220) };
+                    if (pilotIdentity is { } identity)
+                    {
+                        System.Numerics.Vector3 World(int corner)
+                        {
+                            ReadOnlySpan<byte> vertex = selectedVertices.AsSpan().Slice(indices[corner] * 4, 6);
+                            NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..]));
+                            return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+                        }
+                        accepted = accepted with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, World(0), World(1), World(2), corners == 4 ? World(3) : default, (byte)corners) };
+                    }
                     allocation = checked(allocation + bytes.Length);
                 }
                 attempts.Add(new(ordinary.ByteOffsetRelative, bytes.ToImmutableArray(), mask, accepted));

@@ -35,13 +35,13 @@ public static class NativeBattleActorWaveMesh
         return context;
     }
 
-    public static NativeBattleActorWaveMeshStep EmitBatch(ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context104, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
+    public static NativeBattleActorWaveMeshStep EmitBatch(ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context104, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader reader = new(mesh);
-        return EmitBatch(reader, meshAddress, matrix, projection, context104, registers, farControls, dqa, dqb, zsf4, constants, matrixPadding18, zsf3, readVertexW, selectedVerticesAddress, readSelectedVertex);
+        return EmitBatch(reader, meshAddress, matrix, projection, context104, registers, farControls, dqa, dqb, zsf4, constants, matrixPadding18, zsf3, readVertexW, selectedVerticesAddress, readSelectedVertex, pilotIdentity);
     }
 
-    internal static NativeBattleActorWaveMeshStep EmitBatch(NativeBattleGfSourceReader mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context104, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
+    internal static NativeBattleActorWaveMeshStep EmitBatch(NativeBattleGfSourceReader mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context104, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ValidateContext(context104);
         matrix.Validate();
@@ -88,9 +88,14 @@ public static class NativeBattleActorWaveMesh
             {
                 byte[] face = Read(cursor, faceBytes).ToArray();
                 NativeBattleModuleProjectedVertex[] corners = new NativeBattleModuleProjectedVertex[4];
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     (NativeBattleVector vertex, short? w) = Vertex(face, corner);
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex), projection);
+                    }
                     registers = NativeBattleGeometry.LoadVector(registers, corner, vertex, w);
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, dqa, dqb);
@@ -116,6 +121,10 @@ public static class NativeBattleActorWaveMesh
                         return corners[corner];
                     }
                     (NativeBattleVector vertex, short? w) = Vertex(face, 3);
+                    if (world is not null)
+                    {
+                        world[3] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex), projection);
+                    }
                     registers = NativeBattleGeometry.LoadVector(registers, 0, vertex, w);
                     registers = NativeBattleGeometry.ProjectSingle(registers, projection, dqa, dqb);
                     corners[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
@@ -161,7 +170,16 @@ public static class NativeBattleActorWaveMesh
                     }
                     foreach (NativeBattleGfGeometryAttempt attempt in faceBatch.Attempts)
                     {
-                        attempts.Add(attempt.Primitive is null ? attempt : attempt with { Primitive = attempt.Primitive with { Bucket = bucket } });
+                        NativeBattleGeometryPrimitive? primitive = attempt.Primitive;
+                        if (primitive is not null)
+                        {
+                            primitive = primitive with { Bucket = bucket };
+                            if (pilotIdentity is { } identity && primitive.Words.Length > 1 && ((primitive.Words[1] >> 24) & 0xE0) == 0x20)
+                            {
+                                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, world![0], world[1], world[2], quad ? world[3] : default, (byte)(quad ? 4 : 3)) };
+                            }
+                        }
+                        attempts.Add(attempt with { Primitive = primitive });
                     }
                 }
                 else

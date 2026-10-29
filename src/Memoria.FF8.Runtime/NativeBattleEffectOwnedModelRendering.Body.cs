@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffectOwnedModelRendering
 {
-    private static NativeBattleEffectOwnedModelRenderStep DrawBody(NativeBattleEffectOwnedModelRenderFrame frame, NativeBattleFileStaging staging, NativeBattleEffectOwnedModelResource resource, NativeBattleEffectArena temporary, uint temporaryAddress, NativeBattleEffectOwnedModelRenderInputs inputs, uint packetAddress)
+    private static NativeBattleEffectOwnedModelRenderStep DrawBody(NativeBattleEffectOwnedModelRenderFrame frame, NativeBattleFileStaging staging, NativeBattleEffectOwnedModelResource resource, NativeBattleEffectArena temporary, uint temporaryAddress, NativeBattleEffectOwnedModelRenderInputs inputs, uint packetAddress, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect-owned model body requires its current renderer process.");
         var gate = process.Enter5099D0(inputs.Capabilities.HardwareEnabled ?? throw new NotSupportedException("Effect-owned model body requires its actual hardware capability."));
@@ -48,7 +48,7 @@ public static partial class NativeBattleEffectOwnedModelRendering
                     temporary = Word(temporary, 0x28 + group * 2, layout.Counts[group]);
                 }
                 (byte[] previous, _) = frame.ProjectedScratch.ReadSnapshot(0, frame.ProjectedLength);
-                NativeBattleRawModelBodyDraw body = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones, inputs.Projection, color, 1, previous.ToImmutableArray(), inputs.Colors, 4, new(0, 0, 320, 216), 17, 0);
+                NativeBattleRawModelBodyDraw body = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones, inputs.Projection, color, 1, previous.ToImmutableArray(), inputs.Colors, 4, new(0, 0, 320, 216), 17, 0, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + objectIndex) } : null);
                 if (body.ProjectedBytesWritten != 0)
                 {
                     frame = frame with { ProjectedScratch = frame.ProjectedScratch.Write(0, body.ProjectedScratch.AsSpan().Slice(0, body.ProjectedBytesWritten)) };

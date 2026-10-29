@@ -31,10 +31,10 @@ public sealed partial class BattleSession
         NativeFileStaging = advanced.Staging;
         return graphics with { OriginalEffect = advanced.Effect };
 
-        NativeBattlePain34LeafStep Player(NativeBattlePain34Frame current, uint address) => NativeBattlePain34Players.Advance(current, address, resources, new(actor => ReadNativeGraphicsBone(graphics, actor, 241, 0), Draw));
-        NativeBattlePain34Frame Draw(NativeBattlePain34Frame current, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleVector anchor)
+        NativeBattlePain34LeafStep Player(NativeBattlePain34Frame current, uint address) => NativeBattlePain34Players.Advance(current, address, resources, new(actor => ReadNativeGraphicsBone(graphics, actor, 241, 0), (drawing, source, node, anchor) => Draw(drawing, source, node, anchor, null)) { DrawVisualNode = (drawing, source, node, anchor, identity) => Draw(drawing, source, node, anchor, identity) });
+        NativeBattlePain34Frame Draw(NativeBattlePain34Frame current, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleVector anchor, NativeBattlePilotVisualIdentity? identity)
         {
-            NativeBattlePain34DrawingStep drawn = NativeBattlePain34Drawing.Draw865AE0(current, source, node, anchor, projection, colors);
+            NativeBattlePain34DrawingStep drawn = NativeBattlePain34Drawing.Draw865AE0(current, source, node, anchor, projection, colors, identity);
             current = drawn.Frame;
             if (drawn.DrawMode2795BD0 is uint mode)
             {

@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleZombiePart
 {
-    public static NativeBattleZombieDraw Draw(NativeBattleEffectMemory memory, NativeBattleFileStaging staging, NativeBattleZombieResources resources, NativeBattleGfAnimationNode node, NativeBattleVector anchor, int reach, int depth, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleZombieDraw Draw(NativeBattleEffectMemory memory, NativeBattleFileStaging staging, NativeBattleZombieResources resources, NativeBattleGfAnimationNode node, NativeBattleVector anchor, int reach, int depth, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
         {
@@ -54,11 +54,11 @@ public static class NativeBattleZombiePart
         NativeBattleGfGeometryBatch batch;
         if (node.GeometryIndex is 2 or 3)
         {
-            batch = NativeBattleAdditiveQuadPackets.Emit(data, geometry, selected, matrix, projection, node.Scalar36, node.Color32, colors, false, depth, 2);
+            batch = NativeBattleAdditiveQuadPackets.Emit(data, geometry, selected, matrix, projection, node.Scalar36, node.Color32, colors, false, depth, 2, pilotIdentity);
         }
         else
         {
-            batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(data, geometry, selected, matrix, projection, new(node.Scalar36 == 0 ? 0x2030u : 0x20F0u, node.Color32, node.Scalar36, null, null, depth, 17, 2), colors);
+            batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(data, geometry, selected, matrix, projection, new(node.Scalar36 == 0 ? 0x2030u : 0x20F0u, node.Color32, node.Scalar36, null, null, depth, 17, 2), colors, pilotIdentity: pilotIdentity);
         }
         if (node.Scalar36 != 0)
         {

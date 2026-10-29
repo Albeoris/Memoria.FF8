@@ -137,7 +137,7 @@ public sealed partial class BattleSession
         NativeBattleScanPairMorphFrame DrawAlternateSpinner(NativeBattleScanPairMorphFrame f, NativeBattleScanMeshDraw draw)
         {
             NativeBattleScriptedGraphicsMemory registers = f.Scan.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Scan alternate spinner requires its actual GTE registers.");
-            NativeBattleGfGeometryBatch batch = NativeBattleScanAltMeshPackets.Emit8DE9D0(resources.MeshesByAddress[draw.ResourceAddress], draw.Matrix, Camera().Projection!, new(0xF0, draw.Color, draw.Fade, null, null, 0, 17, 2), registers.Zsf4 ?? throw new NotSupportedException("Native Scan requires initialized ZSF4."), registers.Dqa, registers.Dqb, definition.NativeGraphics!.Rules.SummonColors);
+            NativeBattleGfGeometryBatch batch = NativeBattleScanAltMeshPackets.Emit8DE9D0(resources.MeshesByAddress[draw.ResourceAddress], draw.Matrix, Camera().Projection!, new(0xF0, draw.Color, draw.Fade, null, null, 0, 17, 2), registers.Zsf4 ?? throw new NotSupportedException("Native Scan requires initialized ZSF4."), registers.Dqa, registers.Dqb, definition.NativeGraphics!.Rules.SummonColors, pilotIdentity: draw.PilotIdentity);
             return f with { Scan = SubmitNativeScanGeometry(f.Scan, batch, ref graphics) };
         }
         NativeBattleScanPairMorphInputs VisualInputs() => new(resources, (f, draw) => DrawNativeScanMesh(f, draw, resources, ref graphics));

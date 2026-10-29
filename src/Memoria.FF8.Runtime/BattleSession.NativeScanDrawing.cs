@@ -52,13 +52,13 @@ public sealed partial class BattleSession
 
     private NativeBattleScanReticleFrame DrawNativeScanRing(NativeBattleScanReticleFrame current, NativeBattleModulePoolTask task, short radius, short angle, short count, ref NativeBattleGraphicsState graphics)
     {
-        NativeBattleScanReticleRing ring = NativeBattleScanReticleLines.Ring84D6D0(unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)), radius, angle, count);
+        NativeBattleScanReticleRing ring = NativeBattleScanReticleLines.Ring84D6D0(unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)), radius, angle, count, NativeBattlePilotVisualLifetimes.Identity(40, task));
         return current with { Scan = SubmitNativeScanPackets(current.Scan, ring.Packets, ref graphics) };
     }
 
     private NativeBattleScanReticleFrame DrawNativeScanFourLines(NativeBattleScanReticleFrame current, NativeBattleModulePoolTask task, ref NativeBattleGraphicsState graphics)
     {
-        NativeBattleModulePacketBatch lines = NativeBattleScanReticleLines.FourLines84E1F0(unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)));
+        NativeBattleModulePacketBatch lines = NativeBattleScanReticleLines.FourLines84E1F0(unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)), NativeBattlePilotVisualLifetimes.Identity(40, task, 100));
         return current with { Scan = SubmitNativeScanPackets(current.Scan, lines, ref graphics) };
     }
 
@@ -84,7 +84,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Scan mesh drawing requires its current projection registers.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Scan mesh drawing requires its original interpolation constants.");
         NativeBattleModuleMeshContext context = new(0xF0, draw.Color, draw.Fade, null, null, null, 17, 2);
-        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(source, 0, default, draw.Matrix, projection, context, colors);
+        NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(source, 0, default, draw.Matrix, projection, context, colors, pilotIdentity: draw.PilotIdentity);
         return current with { Scan = SubmitNativeScanGeometry(current.Scan, batch, ref graphics) };
     }
 

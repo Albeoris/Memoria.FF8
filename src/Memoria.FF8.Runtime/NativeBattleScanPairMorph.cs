@@ -4,7 +4,10 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanPairMorphFrame(NativeBattleScanFrame Scan, ushort Highlight269AA90, ImmutableDictionary<uint, NativeBattleScanByteOwner> MutableMeshes);
-public sealed record NativeBattleScanMeshDraw(uint ResourceAddress, NativeBattleActionMatrix Matrix, uint Color, short Fade);
+public sealed record NativeBattleScanMeshDraw(uint ResourceAddress, NativeBattleActionMatrix Matrix, uint Color, short Fade)
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleScanPairMorphInputs(NativeBattleScanVisualResources Resources, Func<NativeBattleScanPairMorphFrame, NativeBattleScanMeshDraw, NativeBattleScanPairMorphFrame> Draw);
 public sealed record NativeBattleScanPairMorphStep(NativeBattleScanPairMorphFrame Frame, int Result);
 
@@ -170,7 +173,7 @@ public static class NativeBattleScanPairMorph
         matrix = NativeBattleCuragaMatrices.RotateX8DD7E0(matrix, Word(task, 0x44));
         matrix = NativeBattleCuragaMatrices.RotateZ8DD960(matrix, Word(task, 0x48));
         matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, unchecked((int)task.ReadDword(0x30)), unchecked((int)task.ReadDword(0x34)), unchecked((int)task.ReadDword(0x38))) with { X = Word(task, 0x1C), Y = Word(task, 0x1E), Z = Word(task, 0x20) };
-        return draw(frame, new(task.ReadDword(0x4C), matrix, task.ReadDword(0x40), Word(task, 0x50)));
+        return draw(frame, new(task.ReadDword(0x4C), matrix, task.ReadDword(0x40), Word(task, 0x50)) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(40, task, unchecked((int)task.ReadDword(0x4C))) });
     }
 
     private static NativeBattleScanPairMorphStep Finish(NativeBattleScanPairMorphFrame frame, NativeBattleEffectHierarchy hierarchy, uint address, NativeBattleModulePoolTask task)

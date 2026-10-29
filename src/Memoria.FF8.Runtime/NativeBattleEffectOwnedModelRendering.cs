@@ -10,7 +10,7 @@ public sealed record NativeBattleEffectOwnedModelRenderStep(NativeBattleEffectOw
 public static partial class NativeBattleEffectOwnedModelRendering
 {
 
-    public static NativeBattleEffectOwnedModelRenderStep DrawNormal(NativeBattleEffectOwnedModelRenderFrame frame, NativeBattleFileStaging staging, NativeBattleEffectOwnedModelRenderInputs inputs)
+    public static NativeBattleEffectOwnedModelRenderStep DrawNormal(NativeBattleEffectOwnedModelRenderFrame frame, NativeBattleFileStaging staging, NativeBattleEffectOwnedModelRenderInputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleModulePoolTask task = frame.Task;
         NativeBattleEffectOwnedModelState model = frame.Model;
@@ -42,7 +42,7 @@ public static partial class NativeBattleEffectOwnedModelRendering
         temporary = Word(temporary, 0x44, 0);
         byte alpha = task.ReadByte(0x37);
         temporary = temporary.Write(0x48, [alpha, alpha, alpha]);
-        NativeBattleEffectOwnedModelRenderStep body = DrawBody(frame, staging, resource, temporary, allocation.Address, inputs, firstPacket);
+        NativeBattleEffectOwnedModelRenderStep body = DrawBody(frame, staging, resource, temporary, allocation.Address, pilotIdentity.HasValue ? inputs with { Projection = inputs.Projection with { View = inputs.Camera.ReadMatrix() } } : inputs, firstPacket, pilotIdentity);
         frame = body.Frame;
         staging = body.Staging;
         temporary = NativeBattleTemporaryMemory.ReadView(staging, allocation.Address, 0x4C);
@@ -53,7 +53,7 @@ public static partial class NativeBattleEffectOwnedModelRendering
         frame = frame with { Task = task };
         if ((task.ReadByte(0x30) & 0x20) == 0)
         {
-            NativeBattleEffectOwnedModelRenderStep shadow = DrawShadow(frame, staging, task, world, bounds, inputs, 4121);
+            NativeBattleEffectOwnedModelRenderStep shadow = DrawShadow(frame, staging, task, world, bounds, inputs, 4121, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + 0x5088A0) } : null);
             frame = shadow.Frame;
             staging = shadow.Staging;
             packets = Combine(packets, shadow.Batch);
@@ -63,9 +63,9 @@ public static partial class NativeBattleEffectOwnedModelRendering
         return new(frame, staging, packets);
     }
 
-    private static NativeBattleEffectOwnedModelRenderStep DrawShadow(NativeBattleEffectOwnedModelRenderFrame frame, NativeBattleFileStaging staging, NativeBattleModulePoolTask task, NativeBattleActionMatrix world, NativeBattleEffectLocalBounds bounds, NativeBattleEffectOwnedModelRenderInputs inputs, int bucket)
+    private static NativeBattleEffectOwnedModelRenderStep DrawShadow(NativeBattleEffectOwnedModelRenderFrame frame, NativeBattleFileStaging staging, NativeBattleModulePoolTask task, NativeBattleActionMatrix world, NativeBattleEffectLocalBounds bounds, NativeBattleEffectOwnedModelRenderInputs inputs, int bucket, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
-        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(staging, Registers(frame.Memory), world, Signed(task, 0x54), bounds, task.ReadDword(0x5C), inputs.Projection with { View = inputs.Camera.ReadMatrix() }, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect-owned model shadow requires its current depth controls."), inputs.Shadow, inputs.Capabilities.GouraudAlpha, bucket, 16);
+        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(staging, Registers(frame.Memory), world, Signed(task, 0x54), bounds, task.ReadDword(0x5C), inputs.Projection with { View = inputs.Camera.ReadMatrix() }, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect-owned model shadow requires its current depth controls."), inputs.Shadow, inputs.Capabilities.GouraudAlpha, bucket, 16, pilotIdentity);
         staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78);
         staging = NativeBattleTemporaryMemory.Release5082D0(staging, 0x78);
         uint cursor = frame.PacketAddress;

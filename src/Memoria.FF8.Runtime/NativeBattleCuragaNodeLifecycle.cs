@@ -61,41 +61,47 @@ public static partial class NativeBattleCuragaNodeKinematics
             }
             if (memory.Profile.Effect is 19 or 23 or 60 or 73 or 78 or 81 or 82)
             {
-                uint meshAddress = memory.Dword(node + 0x170);
-                short waveFade = unchecked((short)memory.Word(node + 0x1CE));
-                NativeBattleEffectMemory process = memory.CaptureProcessMemory();
-                NativeBattleEffectArena view = NativeBattleEffectNodeContextMemory.Capture(process);
-                NativeBattleEffectArena waveContext = NativeBattleEffectNodeContextMemory.Copy(view, NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleActorWaveMesh.ContextLength), 0, NativeBattleActorWaveMesh.ContextLength);
-                waveContext = NativeBattleActorWaveMesh.PrepareContext(waveContext, meshAddress, System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A)), waveFade, waveFade != 0 ? memory.Dword(node + 0x16C) : null);
-                if (memory.Profile.Effect is 73 or 78)
-                {
-                    sbyte sourceIndex = unchecked((sbyte)memory.Byte(node + 0x1D6));
-                    NativeBattleEsunaMeshOperands prepared = NativeBattleMightyGuardMeshPackets.Prepare(memory.ContextWord(0x28), sourceIndex, System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A)), waveFade, waveFade != 0 ? memory.Dword(node + 0x16C) : null);
-                    if (sourceIndex is 4 or 5)
-                    {
-                        memory.ContextWord(0x28, prepared.NextUvCounter);
-                        waveContext = WriteWaveWord(waveContext, 0x18, prepared.Context.UOffset);
-                        waveContext = WriteWaveWord(waveContext, 0x28, 128);
-                    }
-                }
-                view = NativeBattleEffectNodeContextMemory.Copy(waveContext, 0, view, NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleActorWaveMesh.ContextLength);
-                memory.PublishProcessMemory(NativeBattleEffectNodeContextMemory.Publish(process, view));
-                return (NativeBattleGfSourceReader bytes, NativeBattleActionMatrix matrix) =>
-                {
-                    NativeBattleEffectMemory current = memory.CaptureProcessMemory();
-                    NativeBattleEffectArena currentView = NativeBattleEffectNodeContextMemory.Capture(current);
-                    NativeBattleEffectArena currentContext = NativeBattleEffectNodeContextMemory.Copy(currentView, NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleActorWaveMesh.ContextLength), 0, NativeBattleActorWaveMesh.ContextLength);
-                    NativeBattlePrimitiveProcess primitive = current.PrimitiveProcess ?? throw new NotSupportedException("The actor wave mesh requires its retained renderer process.");
-                    NativeBattleScriptedGraphicsMemory controls = current.ScriptedGraphics ?? throw new NotSupportedException("The actor wave mesh requires its retained projection controls.");
-                    NativeBattleActorWaveMeshStep emitted = NativeBattleActorWaveMesh.EmitBatch(bytes, meshAddress, matrix, projection, currentContext, new(current.GeometryRegisters ?? throw new NotSupportedException("The actor wave mesh requires its retained geometry registers."), current.ScriptedColorRegisters ?? throw new NotSupportedException("The actor wave mesh requires its retained color registers.")), primitive.ModelRendererRegisters ?? throw new NotSupportedException("The actor wave mesh requires its retained far controls."), controls.Dqa, controls.Dqb, controls.Zsf4, colors ?? throw new NotSupportedException("The actor wave mesh requires its original geometry constants."), unchecked((short)memory.Word(node + 0xAC + 18)), zsf3: controls.Zsf3);
-                    currentView = NativeBattleEffectNodeContextMemory.Copy(emitted.Context104, 0, currentView, NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleActorWaveMesh.ContextLength);
-                    current = NativeBattleEffectNodeContextMemory.Publish(current, currentView);
-                    memory.PublishProcessMemory(current with { GeometryRegisters = emitted.Registers.Geometry, ScriptedColorRegisters = emitted.Registers.Colors, PrimitiveProcess = primitive with { ModelRendererRegisters = emitted.FarControls } });
-                    return emitted.Batch;
-                };
+                NativeBattleEffectNodePilotMeshInstance waveMesh = PrepareWaveMesh(memory, node, source, projection, colors, false);
+                return (bytes, matrix) => waveMesh(bytes, matrix, default);
             }
             NativeBattleEffectNodePilotMeshInstance curagaMesh = PrepareCuragaMesh(memory, node, source, projection, colors, false);
             return (bytes, matrix) => curagaMesh(bytes, matrix, default);
+        };
+    }
+
+    private static NativeBattleEffectNodePilotMeshInstance PrepareWaveMesh(NativeBattleCuragaNodeMemory memory, int node, byte[] source, NativeBattleCameraProjection projection, NativeBattleSummonColors? colors, bool captureVisual = true)
+    {
+        uint meshAddress = memory.Dword(node + 0x170);
+        short waveFade = unchecked((short)memory.Word(node + 0x1CE));
+        NativeBattleEffectMemory process = memory.CaptureProcessMemory();
+        NativeBattleEffectArena view = NativeBattleEffectNodeContextMemory.Capture(process);
+        NativeBattleEffectArena waveContext = NativeBattleEffectNodeContextMemory.Copy(view, NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleActorWaveMesh.ContextLength), 0, NativeBattleActorWaveMesh.ContextLength);
+        waveContext = NativeBattleActorWaveMesh.PrepareContext(waveContext, meshAddress, System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A)), waveFade, waveFade != 0 ? memory.Dword(node + 0x16C) : null);
+        if (memory.Profile.Effect is 73 or 78)
+        {
+            sbyte sourceIndex = unchecked((sbyte)memory.Byte(node + 0x1D6));
+            NativeBattleEsunaMeshOperands prepared = NativeBattleMightyGuardMeshPackets.Prepare(memory.ContextWord(0x28), sourceIndex, System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A)), waveFade, waveFade != 0 ? memory.Dword(node + 0x16C) : null);
+            if (sourceIndex is 4 or 5)
+            {
+                memory.ContextWord(0x28, prepared.NextUvCounter);
+                waveContext = WriteWaveWord(waveContext, 0x18, prepared.Context.UOffset);
+                waveContext = WriteWaveWord(waveContext, 0x28, 128);
+            }
+        }
+        view = NativeBattleEffectNodeContextMemory.Copy(waveContext, 0, view, NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleActorWaveMesh.ContextLength);
+        memory.PublishProcessMemory(NativeBattleEffectNodeContextMemory.Publish(process, view));
+        return (NativeBattleGfSourceReader bytes, NativeBattleActionMatrix matrix, NativeBattlePilotVisualIdentity identity) =>
+        {
+            NativeBattleEffectMemory current = memory.CaptureProcessMemory();
+            NativeBattleEffectArena currentView = NativeBattleEffectNodeContextMemory.Capture(current);
+            NativeBattleEffectArena currentContext = NativeBattleEffectNodeContextMemory.Copy(currentView, NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleActorWaveMesh.ContextLength), 0, NativeBattleActorWaveMesh.ContextLength);
+            NativeBattlePrimitiveProcess primitive = current.PrimitiveProcess ?? throw new NotSupportedException("The actor wave mesh requires its retained renderer process.");
+            NativeBattleScriptedGraphicsMemory controls = current.ScriptedGraphics ?? throw new NotSupportedException("The actor wave mesh requires its retained projection controls.");
+            NativeBattleActorWaveMeshStep emitted = NativeBattleActorWaveMesh.EmitBatch(bytes, meshAddress, matrix, projection, currentContext, new(current.GeometryRegisters ?? throw new NotSupportedException("The actor wave mesh requires its retained geometry registers."), current.ScriptedColorRegisters ?? throw new NotSupportedException("The actor wave mesh requires its retained color registers.")), primitive.ModelRendererRegisters ?? throw new NotSupportedException("The actor wave mesh requires its retained far controls."), controls.Dqa, controls.Dqb, controls.Zsf4, colors ?? throw new NotSupportedException("The actor wave mesh requires its original geometry constants."), unchecked((short)memory.Word(node + 0xAC + 18)), zsf3: controls.Zsf3, pilotIdentity: captureVisual ? identity : null);
+            currentView = NativeBattleEffectNodeContextMemory.Copy(emitted.Context104, 0, currentView, NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleActorWaveMesh.ContextLength);
+            current = NativeBattleEffectNodeContextMemory.Publish(current, currentView);
+            memory.PublishProcessMemory(current with { GeometryRegisters = emitted.Registers.Geometry, ScriptedColorRegisters = emitted.Registers.Colors, PrimitiveProcess = primitive with { ModelRendererRegisters = emitted.FarControls } });
+            return emitted.Batch;
         };
     }
 

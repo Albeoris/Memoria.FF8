@@ -60,7 +60,7 @@ public static class NativeBattleDeathModelDark
         frame = frame with { Memory = prepared.Memory };
         scratch = prepared.Scratch;
         NativeBattleEffectLocalBounds bounds = new(new(Signed(task, 0x64), Signed(task, 0x66), Signed(task, 0x68)), new(Signed(task, 0x6A), Signed(task, 0x6C), Signed(task, 0x6E)));
-        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(staging, Registers(frame.Memory), world, Signed(task, 0x54), bounds, task.ReadDword(0x5C), projection with { View = camera.ReadMatrix() }, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Death dark drawing requires its actual depth controls."), shadowSource, capabilities.GouraudAlpha, 4112, 16);
+        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(staging, Registers(frame.Memory), world, Signed(task, 0x54), bounds, task.ReadDword(0x5C), projection with { View = camera.ReadMatrix() }, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Death dark drawing requires its actual depth controls."), shadowSource, capabilities.GouraudAlpha, 4112, 16, frame.Effect.Binding.Effect == 14 ? NativeBattlePilotVisualLifetimes.Identity(14, task, 0x5088A0) : null);
         staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78);
         staging = NativeBattleTemporaryMemory.Release5082D0(staging, 0x78);
         frame = frame with { Memory = frame.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors } };
@@ -113,8 +113,9 @@ public static class NativeBattleDeathModelDark
                 }
             }
             currentVertexCount = vertexOffset / 8;
-            foreach (NativeBattleRawPolygon face in mesh.Polygons)
+            for (int polygonIndex = 0; polygonIndex < mesh.Polygons.Length; polygonIndex++)
             {
+                NativeBattleRawPolygon face = mesh.Polygons[polygonIndex];
                 if (face.Bytes.Length != (face.Quad ? 20 : 16))
                 {
                     throw new NotSupportedException("Native Death dark drawing requires original FT3 or FT4 source records.");
@@ -160,6 +161,19 @@ public static class NativeBattleDeathModelDark
                 temporary = Dword(temporary, 0x58, depth);
                 memory = Publish(memory, registers);
                 NativeBattleGfGeometryAttempt packet = Packet(face, color, registers, screen, allocationBytes, checked(17 + (int)depth));
+                if (frame.Effect.Binding.Effect == 14 && packet.Primitive is { } primitive)
+                {
+                    System.Numerics.Vector3 World(int corner)
+                    {
+                        ImmutableArray<byte?> row = ReadVector(indices[corner]);
+                        byte[] bytes = row.Take(6).Select(value => value ?? throw new NotSupportedException("Death presentation requires its consumed transformed vertex lanes.")).ToArray();
+                        NativeBattleVector vertex = new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4)));
+                        NativeBattleCameraProjection effective = projection with { View = camera.ReadMatrix() };
+                        return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(composed.ReadMatrix(), vertex), effective);
+                    }
+                    NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(14, task, unchecked(0x40000000 + objectIndex * 65537 + polygonIndex));
+                    packet = packet with { Primitive = primitive with { PilotGeometry = new(identity, World(0), World(1), World(2), face.Quad ? World(3) : default, (byte)(face.Quad ? 4 : 3)) } };
+                }
                 attempts.Add(packet);
                 allocationBytes += packet.PacketLength;
             }

@@ -73,6 +73,36 @@ public sealed class NativeBattleZombieOverlayBatchTests
     }
 
     [Fact]
+    public void PresentationCapturesPostProjectionWarpWithoutChangingNativeStoresOrPackets()
+    {
+        uint workspace = NativeBattleFileStaging.Address + 64;
+        byte[] face = new byte[20];
+        for (int index = 0; index < 4; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(index * 2), (ushort)index);
+        }
+        NativeBattleRawMesh mesh = new([new(new(-100, -100, 18748), 0), new(new(100, -100, 18748), 0), new(new(-100, 100, 18748), 0), new(new(100, 100, 18748), 0)], [new(true, face.ToImmutableArray())]);
+        ImmutableArray<short> wave = Enumerable.Repeat((short)1024, 4096).ToImmutableArray();
+        NativeBattleFileStaging source = NativeBattleFileStaging.Unknown();
+        NativeBattleZombieOverlayDraw native = NativeBattleZombieOverlay.Draw([mesh], [Identity], Projection, 0, 1, null, workspace, 32, source, wave, 0, 0, 1024, 0, 0);
+        NativeBattlePilotVisualIdentity identity = new(114, 100, 1, 2, 3);
+        NativeBattleZombieOverlayDraw smooth = NativeBattleZombieOverlay.Draw([mesh], [Identity], Projection, 0, 1, null, workspace, 32, source, wave, 0, 0, 1024, 0, 0, identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Staging), NativeBattleTestSnapshots.Json(smooth.Staging));
+        NativeBattleGeometryPrimitive original = Assert.IsType<NativeBattleGeometryPrimitive>(Assert.Single(native.Packets.Attempts).Primitive);
+        NativeBattleGeometryPrimitive annotated = Assert.IsType<NativeBattleGeometryPrimitive>(Assert.Single(smooth.Packets.Attempts).Primitive);
+        Assert.Equal(original.Words, annotated.Words);
+        Assert.Equal(original.Bucket, annotated.Bucket);
+        NativeBattlePilotVisualGeometry captured = Assert.IsType<NativeBattlePilotVisualGeometry>(annotated.PilotGeometry);
+        NativeBattleModuleDepthCueVertex vertex = NativeBattleModuleProjection.ProjectWithCue45FAA0(Identity, mesh.Vertices[0].Position, Projection, 0, 0);
+        NativeBattleProjectedVertex warped = NativeBattleZombieOverlay.Project(vertex, 0, wave, 0, 1024);
+        Assert.True(captured.ScreenSpace);
+        Assert.Equal(114, captured.Identity.Effect);
+        Assert.Equal(unchecked((short)warped.Screen), captured.A.X);
+        Assert.NotEqual(unchecked((short)vertex.Projected.Screen), captured.A.X);
+        Assert.Equal(native.Packets.AllocationBytes, smooth.Packets.AllocationBytes);
+    }
+
+    [Fact]
     public void ProjectionCopiesTheRetainedStagingRegionOncePerContiguousMesh()
     {
         uint workspace = NativeBattleFileStaging.Address + 64;

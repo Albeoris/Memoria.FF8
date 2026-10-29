@@ -25,6 +25,9 @@ public sealed class NativeBattleScanPairMorphTests
             Assert.Equal(-50, draw.Matrix.X);
             Assert.Equal(80, draw.Matrix.Y);
             Assert.Equal(0x480, draw.Matrix.Z);
+            NativeBattlePilotVisualIdentity identity = Assert.IsType<NativeBattlePilotVisualIdentity>(draw.PilotIdentity);
+            Assert.Equal((ushort)40, identity.Effect);
+            Assert.Equal(unchecked((int)draw.ResourceAddress), identity.Primitive);
         });
         Assert.Equal(new short[] { -1, 2048 }, draws.Select(draw => draw.Fade));
         Assert.Equal(0xFFFFF000u, Task(frame, fixture.Address).ReadDword(0x30));

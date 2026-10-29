@@ -33,6 +33,7 @@ public static class NativeBattleScanOpeningChildren
             uint second = Pack(x + unchecked(BinaryPrimitives.ReadInt16LittleEndian(record[8..]) * scale) / 4096 + 160, y + unchecked(BinaryPrimitives.ReadInt16LittleEndian(record[10..]) * scale) / 4096 + 108);
             uint color = 0x40000000u | record[12] | (uint)record[13] << 8 | (uint)record[14] << 16;
             NativeBattleGeometryPrimitive primitive = new(5, [0x03000000, color, first, second], [0, 0, 0, 0]);
+            primitive = primitive with { PilotGeometry = new(NativeBattlePilotVisualLifetimes.Identity(40, task, offset / 16), new(unchecked((short)first), unchecked((short)(first >> 16)), 0), new(unchecked((short)second), unchecked((short)(second >> 16)), 0), default, default, 2) { ScreenSpace = true } };
             packets.Add(new(primitive, packets.Count * 16, 0));
         }
         throw new NotSupportedException("Native Scan line records have no reached original sentinel.");
@@ -47,8 +48,9 @@ public static class NativeBattleScanOpeningChildren
         NativeBattleActionMatrix direct = new([scale, 0, 0, 0, scale, 0, 0, 0, scale], unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)), unchecked((short)task.ReadWord(0x20)), 4096);
         NativeBattleActionMatrix origin = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], direct.X, direct.Y, direct.Z, 4096);
         int frame = unchecked((short)task.ReadWord(0x50));
-        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(0, 0, 0, 0), SpriteFlags = 0, SpriteWorldRotation = direct.Rotation };
-        return NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = origin }, cameraRoll, 17, 2);
+        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(0, 0, 0, 0), SpriteFlags = 0, SpriteWorldRotation = direct.Rotation, PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(40, task, unchecked((int)task.ReadDword(0x4C))) };
+        NativeBattleActionMatrix camera = NativeBattlePoseMatrices.ModuleSpriteCamera(draw, origin, cameraRoll);
+        return NativeBattleModulePackets.EmitSprite571DC0(draw, projection, cameraRoll, 17, 2, currentMatrix: camera);
     }
 
     private static NativeBattleScanReticleStep Advance(NativeBattleScanReticleFrame frame, uint address, NativeBattleScanOpeningInputs inputs, uint callback)
@@ -226,16 +228,16 @@ public static class NativeBattleScanOpeningChildren
         void DrawLines() => Submit(Lines84DF00(task, inputs.ReadLineRecords(task.ReadDword(0x50))));
         void DrawRing(bool diagonal, bool horizontal)
         {
-            NativeBattleScanReticleRing ring = NativeBattleScanReticleLines.Ring84D6D0(unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)), 48, 0x600, unchecked((short)task.ReadWord(0x66)));
+            NativeBattleScanReticleRing ring = NativeBattleScanReticleLines.Ring84D6D0(unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)), 48, 0x600, unchecked((short)task.ReadWord(0x66)), NativeBattlePilotVisualLifetimes.Identity(40, task));
             Submit(ring.Packets);
             if (diagonal)
             {
                 NativeBattleScanReticlePoint start = ring.FinalPoint ?? throw new NotSupportedException("Native Scan ring diagonal requires its actual final ring endpoint.");
                 NativeBattleScanReticlePoint end = new(unchecked((short)(start.X + 24)), unchecked((short)(start.Y + 24)));
-                Submit(new([new(NativeBattleScanReticleLines.Line84E290(start, end), 0, 1)], 16));
+                Submit(new([new(NativeBattleScanReticleLines.Line84E290(start, end, NativeBattlePilotVisualLifetimes.Identity(40, task, 100)), 0, 1)], 16));
                 if (horizontal)
                 {
-                    Submit(new([new(NativeBattleScanReticleLines.Line84E290(end, new(unchecked((short)(end.X + 88)), end.Y)), 0, 1)], 16));
+                    Submit(new([new(NativeBattleScanReticleLines.Line84E290(end, new(unchecked((short)(end.X + 88)), end.Y), NativeBattlePilotVisualLifetimes.Identity(40, task, 101)), 0, 1)], 16));
                 }
             }
         }

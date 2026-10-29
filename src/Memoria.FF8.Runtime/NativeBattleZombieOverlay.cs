@@ -29,7 +29,7 @@ public static class NativeBattleZombieOverlay
         return new(unchecked((ushort)shifted) | unchecked((uint)y << 16), depth | flags << 16);
     }
 
-    public static NativeBattleZombieOverlayDraw Draw(ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint mask, NativeBattleModelTextureBinding? binding, uint workspace, int capacity, NativeBattleFileStaging staging, ImmutableArray<short> wave, short originX, short phase, short amplitude, short dqa, int dqb)
+    public static NativeBattleZombieOverlayDraw Draw(ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint mask, NativeBattleModelTextureBinding? binding, uint workspace, int capacity, NativeBattleFileStaging staging, ImmutableArray<short> wave, short originX, short phase, short amplitude, short dqa, int dqb, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
@@ -69,7 +69,7 @@ public static class NativeBattleZombieOverlay
                 }
             }
             Flush(projected.Length);
-            NativeBattleGfGeometryBatch body = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, vertices, color | 0x02000000, binding, 17, 0);
+            NativeBattleGfGeometryBatch body = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, vertices, color | 0x02000000, binding, 17, 0, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + meshIndex) } : null);
             attempts.AddRange(body.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
             allocated = checked(allocated + body.AllocationBytes);
 

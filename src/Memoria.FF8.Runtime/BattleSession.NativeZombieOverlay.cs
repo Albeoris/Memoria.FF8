@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleOriginalEffectState Effect) DrawNativeZombieOverlay(NativeBattleGraphicsState graphics, int index, int age, int reach, NativeBattleZombieResources resources, NativeBattleCameraProjection projection, NativeBattleOriginalEffectState effect)
+    private (NativeBattleGraphicsState Graphics, NativeBattleOriginalEffectState Effect) DrawNativeZombieOverlay(NativeBattleGraphicsState graphics, int index, int age, int reach, NativeBattleZombieResources resources, NativeBattleCameraProjection projection, NativeBattleOriginalEffectState effect, NativeBattlePilotVisualIdentity identity)
     {
         var parameters = NativeBattleZombieDrawing.OverlayParameters(age, reach);
         NativeBattleGraphicsModel model = graphics.Models[index];
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             model = NativeBattleBodyBoneMatrices.Compose5095B0(model, matrix);
             graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
             NativeFileStaging = staging;
-            DrawSource(Pointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, mask);
+            DrawSource(Pointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, mask, 0);
             model = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source);
             graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
             if (model.LinkedStagedResourceRow is not null || model.LinkedTextureResourceIndex is not null)
@@ -64,7 +64,7 @@ public sealed partial class BattleSession
                 staging = NativeFileStaging!;
                 Dword(0x40, uint.MaxValue);
                 NativeFileStaging = staging;
-                DrawSource(Pointer(model.LinkedTextureResourceIndex, model.LinkedStagedResourceRow), prepared, linked.BoneCount, uint.MaxValue);
+                DrawSource(Pointer(model.LinkedTextureResourceIndex, model.LinkedStagedResourceRow), prepared, linked.BoneCount, uint.MaxValue, 1);
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Zombie overlay requires its current linked pose.");
                 graphics = graphics with { Models = graphics.Models.SetItem(index, model with { CurrentLinkedBoneMatrices = bones with { Matrices = NativeBattlePoseMatrices.StageBoneMatrices(linked, NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, linked)) } }) };
             }
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
         NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(NativeFileStaging ?? staging, 0x8C);
         return (graphics, effect);
 
-        void DrawSource(NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> bones, int boneCount, uint mask)
+        void DrawSource(NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> bones, int boneCount, uint mask, int part)
         {
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Zombie overlay requires its actual retained memory.");
             NativeBattleFileStaging current = NativeFileStaging ?? throw new NotSupportedException("Native Zombie overlay requires its physical CPU geometry.");
@@ -83,7 +83,7 @@ public sealed partial class BattleSession
             int capacity = checked(maximum * 8);
             uint workspace = checked(0x196B018u - (uint)capacity);
             uint tint = NativeBattleDuelSharedPackets.InterpolateColor56CC00(resources.Black, model.Color40 ?? throw new NotSupportedException("Native Zombie overlay requires its target color."), parameters.Weight, 4096 - parameters.Weight, 0);
-            NativeBattleZombieOverlayDraw drawn = NativeBattleZombieOverlay.Draw(meshes, bones, projection, tint, mask, null, workspace, capacity, current, resources.Wave, unchecked((short)origin.Screen), parameters.Phase, unchecked((short)(parameters.Amplitude >> 2)), registers.Dqa, registers.Dqb);
+            NativeBattleZombieOverlayDraw drawn = NativeBattleZombieOverlay.Draw(meshes, bones, projection, tint, mask, null, workspace, capacity, current, resources.Wave, unchecked((short)origin.Screen), parameters.Phase, unchecked((short)(parameters.Amplitude >> 2)), registers.Dqa, registers.Dqb, identity with { Primitive = unchecked(identity.Primitive * 397 + part) });
             NativeFileStaging = drawn.Staging;
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, effect.DrawArenaOffset ?? throw new NotSupportedException("Native Zombie overlay lost its selected packet cursor."), graphics.PrimitiveFrame!.Pending, drawn.Packets);
             NativeEffectMemory = written.Memory;

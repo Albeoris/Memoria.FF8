@@ -12,8 +12,8 @@ public static partial class NativeBattleCuragaNodeKinematics
         ordering = orderingOperation?.View ?? ordering;
         using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         using NativeBattleEffectNodeBank bank = CurrentBank(memory);
-        NativeBattlePilotVisualIdentity? identity = memory.Profile.Effect == 28 ? NativeBattlePilotVisualLifetimes.Identity(28, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)) : null;
-        NativeBattleEffectNodePreparePilotMesh? preparePilot = identity.HasValue ? (node, source) => PrepareCuragaMesh(memory, node, source, projection, colors) : null;
+        NativeBattlePilotVisualIdentity? identity = memory.Profile.Effect is 28 or 73 ? NativeBattlePilotVisualLifetimes.Identity(memory.Profile.Effect, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)) : null;
+        NativeBattleEffectNodePreparePilotMesh? preparePilot = identity.HasValue ? (node, source) => memory.Profile.Effect == 73 ? PrepareWaveMesh(memory, node, source, projection, colors) : PrepareCuragaMesh(memory, node, source, projection, colors) : null;
         NativeBattleEffectNodeLifecycle core = CreateLifecycle(memory, bank, readModel);
         if (memory.Profile.StreamsPacketProducers)
         {
@@ -32,8 +32,8 @@ public static partial class NativeBattleCuragaNodeKinematics
         ordering = orderingOperation?.View ?? ordering;
         using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         using NativeBattleEffectNodeBank bank = CurrentBank(memory);
-        NativeBattlePilotVisualIdentity? identity = memory.Profile.Effect == 28 ? NativeBattlePilotVisualLifetimes.Identity(28, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)) : null;
-        NativeBattleEffectNodePreparePilotMesh? preparePilot = identity.HasValue ? (node, source) => PrepareCuragaMesh(memory, node, source, projection, colors) : null;
+        NativeBattlePilotVisualIdentity? identity = memory.Profile.Effect is 28 or 73 ? NativeBattlePilotVisualLifetimes.Identity(memory.Profile.Effect, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)) : null;
+        NativeBattleEffectNodePreparePilotMesh? preparePilot = identity.HasValue ? (node, source) => memory.Profile.Effect == 73 ? PrepareWaveMesh(memory, node, source, projection, colors) : PrepareCuragaMesh(memory, node, source, projection, colors) : null;
         if (memory.Profile.StreamsPacketProducers)
         {
             NativeBattleGfGeometryBatch streamed = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors), (meshes, packetBatch) => ordering = StreamBatch(memory, frame, ordering, packetBatch, meshes), identity, preparePilot);

@@ -56,10 +56,12 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = NativeCamera!.Projection!;
         NativeBattleActionMatrix view = projection.View!;
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors!;
+        NativeBattlePilotVisualIdentity visualIdentity = NativeBattlePilotVisualLifetimes.Identity(145, root);
         NativeBattleEffectTaskStep advanced = children.Advance((pool, slot) =>
         {
             children = pool;
             NativeBattleModulePoolTask task = pool.Slots[slot];
+            visualIdentity = NativeBattlePilotVisualLifetimes.Identity(145, task);
             int result = task.Callback switch
             {
                 0x6186A0 => Director(ref task),
@@ -81,7 +83,7 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            Sprite(resources.Zzz, frame, SleepRawVector(zzz, offset + 4), SleepRawWord(zzz, offset + 2), 1, unchecked((short)(SleepRawWord(zzz, offset + 10) << 2)));
+            Sprite(resources.Zzz, frame, SleepRawVector(zzz, offset + 4), SleepRawWord(zzz, offset + 2), 1, unchecked((short)(SleepRawWord(zzz, offset + 10) << 2)), NativeBattleSleep145Presentation.Identity(root, index));
             if (!paused)
             {
                 SleepPutWord(zzz, offset, (short)(frame + 1 >= 16 ? -1 : frame + 1));
@@ -144,6 +146,7 @@ public sealed partial class BattleSession
                 {
                     NativeBattleVector point = ReadNativeDefaultPosition571400(graphics, target);
                     int offset = free * 12;
+                    NativeBattleSleep145Presentation.Allocated(root, free);
                     SleepPutWord(zzz, offset, 0);
                     SleepPutWord(zzz, offset + 2, (short)(Roll() % 1792 + 2560));
                     SleepPutVector(zzz, offset + 4, new(unchecked((short)(Roll() % 1400 + point.X - 700)), unchecked((short)(Roll() % 1400 + point.Y - 700)), unchecked((short)(Roll() % 1400 + point.Z - 700))));
@@ -182,9 +185,9 @@ public sealed partial class BattleSession
             NativeBattleFullMacVertex point = new(origin.X + orbit.X, origin.Y, origin.Z + orbit.Z, 0);
             NativeBattleVector drawn = new(unchecked((short)point.X), unchecked((short)point.Y), unchecked((short)point.Z));
             int fade = counter < 8 ? (8 - counter) << 9 : 0;
-            DrawBubble(point, SleepWord(task, 24), 864, fade, counter < 8, false);
+            DrawBubble(point, SleepWord(task, 24), 864, fade, counter < 8, false, 0);
             int flatFade = fade == 0 ? NativeBattleSleep145.GroundFade(origin.Y) : fade;
-            DrawBubble(point, SleepWord(task, 24), 864, flatFade, true, true);
+            DrawBubble(point, SleepWord(task, 24), 864, flatFade, true, true, 1);
             DrawTrails(mainTrails, trailOffset, counter, 864, true, flatFade);
             NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C + action];
             int contact = header.FirstContactIndex ?? throw new NotSupportedException("Native Sleep requires its selected target contact.");
@@ -192,7 +195,7 @@ public sealed partial class BattleSession
             if (counter < 26)
             {
                 graphics = graphics with { Models = graphics.Models.SetItem(target, graphics.Models[target] with { Flags0 = (ushort)(graphics.Models[target].Flags0 | 4) }) };
-                graphics = DrawNativeSleep145Tint(graphics, target, drawn, fade);
+                graphics = DrawNativeSleep145Tint(graphics, target, drawn, fade, visualIdentity with { Primitive = 32 });
             }
             if (paused)
             {
@@ -230,7 +233,7 @@ public sealed partial class BattleSession
             int trailOffset = (SleepWord(task, 14) * 6 + SleepWord(task, 22)) * 36;
             NativeBattleVector drawn = SleepVector(task, 16);
             int scale = SleepWord(task, 32);
-            DrawBubble(new(drawn.X, drawn.Y, drawn.Z, 0), SleepWord(task, 34), scale, counter >= 14 ? (counter - 14) << 10 : 0, counter >= 14, false);
+            DrawBubble(new(drawn.X, drawn.Y, drawn.Z, 0), SleepWord(task, 34), scale, counter >= 14 ? (counter - 14) << 10 : 0, counter >= 14, false, 0);
             DrawTrails(bubbleTrails, trailOffset, counter, scale, false, 0);
             if (paused)
             {
@@ -293,7 +296,7 @@ public sealed partial class BattleSession
             Put(slot, particle);
         }
 
-        void DrawBubble(NativeBattleFullMacVertex point, short angle, int scale, int fade, bool cue, bool ground)
+        void DrawBubble(NativeBattleFullMacVertex point, short angle, int scale, int fade, bool cue, bool ground, int primitive, long trailGeneration = 0)
         {
             NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CD50(new(0, angle, 0)), scale, scale, scale) with { X = point.X, Y = point.Y, Z = point.Z };
             if (ground)
@@ -301,7 +304,7 @@ public sealed partial class BattleSession
                 matrix = matrix with { Rotation = matrix.Rotation.Select((value, index) => index % 3 == 1 ? (short)0 : value).ToImmutableArray(), Y = 0 };
             }
             matrix = NativeBattleGfMatrices.Compose56C2F0(view, matrix);
-            NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(resources.Bubble, 0, default, matrix, projection, new(cue ? 0xC0u : 0u, 0, fade, null, null, 0, 17, 2), colors);
+            NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(resources.Bubble, 0, default, matrix, projection, new(cue ? 0xC0u : 0u, 0, fade, null, null, 0, 17, 2), colors, pilotIdentity: visualIdentity with { Primitive = primitive, ResourceGeneration = trailGeneration });
             Append(batch);
         }
 
@@ -316,18 +319,18 @@ public sealed partial class BattleSession
                     break;
                 }
                 NativeBattleVector point = SleepRawVector(trails, entry + 4);
-                DrawBubble(new(point.X, point.Y, point.Z, 0), SleepRawWord(trails, entry + 10), scale, fade, true, false);
+                DrawBubble(new(point.X, point.Y, point.Z, 0), SleepRawWord(trails, entry + 10), scale, fade, true, false, 2 + index * 2, counter - 1 - (fade - 1408) / 512);
                 if (ground)
                 {
-                    DrawBubble(new(point.X, point.Y, point.Z, 0), SleepRawWord(trails, entry + 10), scale, flatFade, true, true);
+                    DrawBubble(new(point.X, point.Y, point.Z, 0), SleepRawWord(trails, entry + 10), scale, flatFade, true, true, 3 + index * 2, counter - 1 - (fade - 1408) / 512);
                 }
                 index = index == 0 ? 2 : index - 1;
             }
         }
 
-        void Sprite(NativeBattleModuleResource resource, int frame, NativeBattleVector point, int scale, ushort flags, short rotation)
+        void Sprite(NativeBattleModuleResource resource, int frame, NativeBattleVector point, int scale, ushort flags, short rotation, NativeBattlePilotVisualIdentity? identity = null)
         {
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(frame), Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = -(scale >> 3), SpriteFlags = flags, Rotation = rotation };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.SpriteFrame(frame), Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = -(scale >> 3), SpriteFlags = flags, Rotation = rotation, PilotIdentity = identity ?? visualIdentity };
             NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch, NativeBattleEffectGouraudWrites.RgbBytes);
             NativeEffectMemory = written.Memory;

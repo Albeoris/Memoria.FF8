@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Numerics;
 
 namespace Memoria.FF8.Runtime;
 
@@ -60,6 +61,7 @@ public static class NativeBattleBerserk108Swirl
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
+        Vector3[] points = new Vector3[count * 2];
         if (count >= 2)
         {
             for (int index = 0; index < count; index++)
@@ -96,6 +98,9 @@ public static class NativeBattleBerserk108Swirl
                 uint colorB = unchecked((uint)R(b + 24) * 0x10101);
                 ImmutableArray<uint> words = [0x0C000000, 0x3E000000 | colorA, a0, u | 0x3D94C000, colorA, a1, u | 0xB9FF00, colorB, swap ? b1 : b0, end | (swap ? 0xFF00u : 0xC000u), colorB, swap ? b0 : b1, end | (swap ? 0xC000u : 0xFF00u)];
                 NativeBattleGfGeometryAttempt stores = NativeBattleBerserk108Geometry.Packet(words, allocated, 17 + (depth.Sum() >> 4));
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(108, task, (Math.Min(counter, 6) * 4 + 3 - index) * 2 + (swap ? 1 : 0));
+                NativeBattlePilotVisualGeometry geometry = new(identity, points[index * 2], points[index * 2 + 1], points[(index + 1) * 2 + (swap ? 1 : 0)], points[(index + 1) * 2 + (swap ? 0 : 1)], 4) { SourceDepths = new(depth[0], depth[1], swap ? depth[3] : depth[2], swap ? depth[2] : depth[3]), UseSourceDepths = true };
+                stores = stores with { Primitive = stores.Primitive! with { PilotGeometry = geometry } };
                 NativeBattleGfGeometryBatch bracket = NativeBattleEffectTextureWindows.Bracket(stores, stores.Primitive!, Rectangle(0), Rectangle(8));
                 attempts.AddRange(bracket.Attempts);
                 allocated += bracket.AllocationBytes;
@@ -116,6 +121,7 @@ public static class NativeBattleBerserk108Swirl
             int radius = R(entry + 4);
             int height = R(entry + 2);
             NativeBattleVector point = new(unchecked((short)(NativeBattleCameraMath.Cosine(angle) * radius >> 14)), unchecked((short)(NativeBattleCameraMath.Sine(angle) * radius >> 14)), unchecked((short)((height >> 2) - height)));
+            points[(entry - 0x20) / 32 * 2 + (screenOffset == 8 ? 0 : 1)] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(basis, point), projection);
             NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(basis, point, projection);
             D(entry + screenOffset, projected.Screen);
             D(entry + depthOffset, projected.Depth);

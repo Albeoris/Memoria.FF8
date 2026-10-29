@@ -95,10 +95,11 @@ public sealed partial class BattleSession
                 short size = model.Transform?.Scale38 ?? throw new NotSupportedException("Native Zombie requires its current signed target size WORD.");
                 int reach = (size >> 1) + 2048;
                 int depth = unchecked(-2048 - size) >> 3;
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(114, task);
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (16), 0x6F4);
                 NativeBattleGfAnimationAdvance played = workspace.Advance701970(resources.Layout, 0, (owner, node) =>
                 {
-                    NativeBattleZombieDraw draw = NativeBattleZombiePart.Draw(NativeEffectMemory ?? throw new NotSupportedException("Native Zombie requires its current magic memory."), NativeFileStaging ?? throw new NotSupportedException("Native Zombie requires its current temporary memory."), resources, node, new(anchor.X, anchor.Y, anchor.Z), reach, depth, projection, colors);
+                    NativeBattleZombieDraw draw = NativeBattleZombiePart.Draw(NativeEffectMemory ?? throw new NotSupportedException("Native Zombie requires its current magic memory."), NativeFileStaging ?? throw new NotSupportedException("Native Zombie requires its current temporary memory."), resources, node, new(anchor.X, anchor.Y, anchor.Z), reach, depth, projection, colors, identity with { Primitive = node.NodeIndex });
                     NativeEffectMemory = draw.Memory;
                     NativeFileStaging = draw.Staging;
                     Append(draw.Packets);
@@ -107,7 +108,7 @@ public sealed partial class BattleSession
                 task = Workspace(task, played.Workspace);
                 if ((uint)(age - 30) < 30 && (parameters.Flags79 & 2) == 0)
                 {
-                    (graphics, effect) = DrawNativeZombieOverlay(graphics, actor, age, reach, resources, projection, effect);
+                    (graphics, effect) = DrawNativeZombieOverlay(graphics, actor, age, reach, resources, projection, effect, identity with { Primitive = 0x10000000 });
                 }
                 if (age == 0)
                 {

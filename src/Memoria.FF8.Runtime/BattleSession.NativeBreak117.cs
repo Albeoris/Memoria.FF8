@@ -141,7 +141,7 @@ public sealed partial class BattleSession
             {
                 model = graphics.Models[actor];
                 graphics = graphics with { Models = graphics.Models.SetItem(actor, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
-                graphics = DrawNativeBreak117Body(graphics, actor, NativeBattleBreak117Body.StoneLevel(age - 24), NativeEffectMemory!.Arena!.Read(buffer + 0x5CF0, 512).ToImmutableArray());
+                graphics = DrawNativeBreak117Body(graphics, actor, NativeBattleBreak117Body.StoneLevel(age - 24), NativeEffectMemory!.Arena!.Read(buffer + 0x5CF0, 512).ToImmutableArray(), NativeBattlePilotVisualLifetimes.Identity(117, task));
             }
             if (age == 0)
             {
@@ -195,7 +195,7 @@ public sealed partial class BattleSession
         {
             NativeBattleVector position = WindVector(task, 16);
             NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Euler56CD50(WindVector(task, 32)) with { X = position.X, Y = position.Y, Z = position.Z };
-            Append(NativeBattleModulePackets.EmitBatch572200(resources.Debris, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, matrix), projection, new(0, null, null, null, null, null, 17, 2), colors));
+            Append(NativeBattleModulePackets.EmitBatch572200(resources.Debris, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, matrix), projection, new(0, null, null, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(117, task)));
             task = NativeBattleBreak117Geometry.DebrisMove(task);
             int age = WindWord(task, 12) + 1;
             task = task.WriteWord(12, unchecked((ushort)age));
@@ -206,7 +206,7 @@ public sealed partial class BattleSession
         {
             NativeBattleVector position = WindVector(task, 16);
             int frame = WindWord(task, 12);
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Spark, SpriteFrame = resources.Spark.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(position.X, position.Y, position.Z, 0), Scale = 4096, DepthOffset = -1024, SpriteFlags = 0 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(117, task), Resource = resources.Spark, SpriteFrame = resources.Spark.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(position.X, position.Y, position.Z, 0), Scale = 4096, DepthOffset = -1024, SpriteFlags = 0 };
             NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging!, 0xB4);
             NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(temporary.Staging, temporary.Address, resources.Spark.Address, 0).Write(temporary.Address + 4, BitConverter.GetBytes((ushort)frame));
             NativeBattleModuleSpriteTemporaryResult drawn = NativeBattleModuleSpriteTemporary.Emit571C80(staging, temporary.Address, draw, projection, NativeCamera.Roll, 17, 2);
@@ -230,6 +230,7 @@ public sealed partial class BattleSession
             NativeBattleGfAnimationSource source = resources.Shell;
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x1C - 12), 0x1554);
             int frame = workspace.Frame;
+            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(117, task);
             NativeBattleGfAnimationAdvance step = workspace.Advance701970(source, 0, (current, node) =>
             {
                 if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -257,7 +258,7 @@ public sealed partial class BattleSession
                 NativeBattleActionMatrix matrix = NativeBattleBreak117Geometry.Compose(node, anchor, scale, view, effectCamera);
                 if (node.NodeIndex <= 27 && frame < 50)
                 {
-                    NativeBattleBreak117CutResult drawn = NativeBattleBreak117Cut.Draw(source.Data, geometry, selected, matrix, projection, -(node.Vector8.Y / 2), NativeEffectMemory!.Arena!.Read(buffer + 0x4CF0, 4096).ToImmutableArray());
+                    NativeBattleBreak117CutResult drawn = NativeBattleBreak117Cut.Draw(source.Data, geometry, selected, matrix, projection, -(node.Vector8.Y / 2), NativeEffectMemory!.Arena!.Read(buffer + 0x4CF0, 4096).ToImmutableArray(), identity with { Primitive = node.ResourceOffset });
                     NativeEffectMemory = NativeEffectMemory! with { Arena = NativeEffectMemory.Arena!.Write(buffer + 0x4CF0, drawn.Projected.AsSpan()) };
                     Append(drawn.Packets);
                 }
@@ -266,7 +267,7 @@ public sealed partial class BattleSession
                     uint flags = (node.Header & 0x4000) != 0 ? 0x2000u : 0x2030u;
                     flags |= (node.Header & 0x2000) != 0 ? 12u : 0;
                     flags |= node.Scalar36 != 0 ? 0xC0u : 0;
-                    Append(NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, selected, matrix, projection, new(flags, node.Scalar36 == 0 ? null : node.Color32, node.Scalar36, null, null, null, 17, 2), colors));
+                    Append(NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, selected, matrix, projection, new(flags, node.Scalar36 == 0 ? null : node.Color32, node.Scalar36, null, null, null, 17, 2), colors, pilotIdentity: identity with { Primitive = node.ResourceOffset }));
                 }
                 return current;
             });

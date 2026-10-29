@@ -49,20 +49,20 @@ public static class NativeBattleDeathNodeDrawing
         return frame with { Memory = NativeBattleEffectNodeContextMemory.Publish(frame.Memory, view) };
     }
 
-    public static NativeBattleDeathNodeMeshStep Emit(NativeBattleDeathFrame frame, ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, short? matrixPadding18)
+    public static NativeBattleDeathNodeMeshStep Emit(NativeBattleDeathFrame frame, ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, short? matrixPadding18, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader reader = new(mesh);
-        return Emit(frame, reader, meshAddress, matrix, projection, constants, matrixPadding18);
+        return Emit(frame, reader, meshAddress, matrix, projection, constants, matrixPadding18, pilotIdentity);
     }
 
-    internal static NativeBattleDeathNodeMeshStep Emit(NativeBattleDeathFrame frame, NativeBattleGfSourceReader mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, short? matrixPadding18)
+    internal static NativeBattleDeathNodeMeshStep Emit(NativeBattleDeathFrame frame, NativeBattleGfSourceReader mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, short? matrixPadding18, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         RequireReserved(frame);
         NativeBattleEffectMemory memory = frame.Memory;
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Death mesh requires its actual COMMON renderer process.");
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Death mesh requires its current projection controls.");
         NativeBattleEffectArena view = NativeBattleEffectNodeContextMemory.Capture(memory);
-        NativeBattleActorWaveMeshStep emitted = NativeBattleActorWaveMesh.EmitBatch(mesh, meshAddress, matrix, projection, ReadContext(view), new(memory.GeometryRegisters ?? throw new NotSupportedException("Death mesh requires its canonical geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Death mesh requires its canonical color registers.")), process.ModelRendererRegisters ?? throw new NotSupportedException("Death mesh requires its retained FAR controls."), controls.Dqa, controls.Dqb, controls.Zsf4, constants, matrixPadding18, controls.Zsf3, offset => ReadVertexW(mesh, offset));
+        NativeBattleActorWaveMeshStep emitted = NativeBattleActorWaveMesh.EmitBatch(mesh, meshAddress, matrix, projection, ReadContext(view), new(memory.GeometryRegisters ?? throw new NotSupportedException("Death mesh requires its canonical geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Death mesh requires its canonical color registers.")), process.ModelRendererRegisters ?? throw new NotSupportedException("Death mesh requires its retained FAR controls."), controls.Dqa, controls.Dqb, controls.Zsf4, constants, matrixPadding18, controls.Zsf3, offset => ReadVertexW(mesh, offset), pilotIdentity: pilotIdentity);
         view = NativeBattleEffectNodeContextMemory.Copy(emitted.Context104, 0, view, NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleActorWaveMesh.ContextLength);
         memory = NativeBattleEffectNodeContextMemory.Publish(memory, view);
         memory = memory with { GeometryRegisters = emitted.Registers.Geometry, ScriptedColorRegisters = emitted.Registers.Colors, PrimitiveProcess = process with { ModelRendererRegisters = emitted.FarControls } };

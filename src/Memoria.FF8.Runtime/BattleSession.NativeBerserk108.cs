@@ -139,7 +139,7 @@ public sealed partial class BattleSession
             int elapsed = counter - 17;
             if ((uint)elapsed < 6)
             {
-                Sprite(0, elapsed, anchor, 0x2000, -0x800);
+                Sprite(0, elapsed, anchor, 0x2000, -0x800, NativeBattlePilotVisualLifetimes.Identity(108, task, 0));
             }
             if ((uint)elapsed < 15)
             {
@@ -147,7 +147,7 @@ public sealed partial class BattleSession
                 int fade = 2048 + (elapsed << 11) / 15;
                 (int x, int y, int z) = NativeBattleGfMatrices.Rotate56C3D0(view, anchor);
                 NativeBattleActionMatrix matrix = new([unchecked((short)scale), 0, 0, 0, unchecked((short)scale), 0, 0, 0, unchecked((short)scale)], unchecked(x + view.X), unchecked(y + view.Y), unchecked(z + view.Z), 4096);
-                Append(NativeBattleModulePackets.EmitBatch572200(resources.Glow, 0, ImmutableArray<byte>.Empty, matrix, projection, new(0xF0, 0, fade, null, null, null, 17, 2), colors));
+                Append(NativeBattleModulePackets.EmitBatch572200(resources.Glow, 0, ImmutableArray<byte>.Empty, matrix, projection, new(0xF0, 0, fade, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(108, task, 1)));
                 int angle = Random();
                 for (int index = 0; index < 3; index++)
                 {
@@ -187,6 +187,7 @@ public sealed partial class BattleSession
                     {
                         break;
                     }
+                    NativeBattlePilotVisualLifetimes.Allocated(NativeEffectMemory!.Arena!, Address(slot * 0x8C4 + ray), 0);
                     task = task.WriteWord(ray + 2, Random()).WriteWord(ray + 4, unchecked((ushort)((Random() & 0x7FF) - 0x400))).WriteWord(ray + 6, 1);
                     task = task.WriteWord(ray + 32, (Random() & 1) != 0 ? (ushort)100 : unchecked((ushort)-100));
                     for (int color = 0; color < 4; color++)
@@ -206,7 +207,8 @@ public sealed partial class BattleSession
             }
             (int tx, int ty, int tz) = NativeBattleGfMatrices.Rotate56C3D0(view, anchor);
             NativeBattleActionMatrix rayMatrix = view with { X = unchecked(tx + view.X), Y = unchecked(ty + view.Y), Z = unchecked(tz + view.Z) };
-            NativeBattleBerserk108RayStep rays = NativeBattleBerserk108Geometry.Rays(task.ReadRawPayloadSpan().Slice(0x28 - 12, 32 * 48), point => NativeBattleModuleProjection.Project45FE10(rayMatrix, point, projection));
+            NativeBattlePilotVisualIdentity rayIdentity = NativeBattlePilotVisualLifetimes.Identity(108, task);
+            NativeBattleBerserk108RayStep rays = NativeBattleBerserk108Geometry.Rays(task.ReadRawPayloadSpan().Slice(0x28 - 12, 32 * 48), point => NativeBattleModuleProjection.Project45FE10(rayMatrix, point, projection), index => rayIdentity with { Primitive = 16 + index, ResourceGeneration = NativeBattlePilotVisualLifetimes.Identity(108, NativeEffectMemory!.Arena!, Address(slot * 0x8C4 + 0x28 + index * 48), 0).Generation }, rayMatrix, projection);
             task = task.WriteRetainedBytes(0x28, rays.Rays.AsSpan());
             Append(rays.Packets, 1);
             if (counter == 0)
@@ -236,7 +238,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native Berserk particle lost its original flipbook.");
             }
-            Sprite(ember ? 1 : 2, frame, WindVector(task, 16), WindWord(task, 14), -(WindWord(task, 14) >> 2));
+            Sprite(ember ? 1 : 2, frame, WindVector(task, 16), WindWord(task, 14), -(WindWord(task, 14) >> 2), NativeBattlePilotVisualLifetimes.Identity(108, task));
             if (ember)
             {
                 short velocity = unchecked((short)(WindWord(task, 22) + unchecked((sbyte)task.ReadByte(13))));
@@ -292,7 +294,7 @@ public sealed partial class BattleSession
                 matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, node.Vector24.X, node.Vector24.Y, node.Vector24.Z);
                 uint flags = (part & 0xDFFF) | 0x2000u;
                 flags |= node.Scalar36 != 0 ? 0xC0u : 0;
-                Append(NativeBattleModulePackets.EmitBatch572200(resources.Burst.Data, geometry, vertices, matrix, projection, new(flags, node.Scalar36 != 0 ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2), colors));
+                Append(NativeBattleModulePackets.EmitBatch572200(resources.Burst.Data, geometry, vertices, matrix, projection, new(flags, node.Scalar36 != 0 ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(108, task, 64 + node.NodeIndex)));
                 return current;
             });
             return PublishWorkspace(task, 0x628, advance.Workspace);
@@ -330,10 +332,10 @@ public sealed partial class BattleSession
             effect = effect with { DrawArenaOffset = written.Cursor };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
         }
-        void Sprite(int index, int frame, NativeBattleVector point, int scale, int depth)
+        void Sprite(int index, int frame, NativeBattleVector point, int scale, int depth, NativeBattlePilotVisualIdentity identity)
         {
             NativeBattleModuleResource resource = resources.Sprites[index];
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = depth, SpriteFlags = 0 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = depth, SpriteFlags = 0, PilotIdentity = identity };
             NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch, NativeBattleEffectGouraudWrites.RgbBytes);
             NativeEffectMemory = written.Memory;

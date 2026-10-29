@@ -30,7 +30,7 @@ public static class NativeBattleBreak117Cut
         return new(point, p.Screen, 0, 0, uv, color);
     }
 
-    public static NativeBattleBreak117CutResult Draw(ImmutableArray<byte> source, int geometry, ImmutableArray<byte> selected, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int cut, ImmutableArray<byte> retainedProjected)
+    public static NativeBattleBreak117CutResult Draw(ImmutableArray<byte> source, int geometry, ImmutableArray<byte> selected, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int cut, ImmutableArray<byte> retainedProjected, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int count = I32(geometry + 4);
         if (selected.IsDefault || count < 0 || count > 512 || selected.Length < count * 8)
@@ -140,6 +140,16 @@ public static class NativeBattleBreak117Cut
                         uint average = unchecked((uint)corners.Sum(vertex => (int)vertex.Depth) * 341u) >> 12;
                         ImmutableArray<int> depth = gouraud ? [corners[0].Depth, corners[1].Depth, corners[2].Depth, quad ? corners[0].Depth : 0] : [corners[0].Depth * 4, corners[1].Depth * 4, corners[2].Depth * 4, quad ? corners[0].Depth * 4 : 0];
                         NativeBattleGeometryPrimitive primitive = new(checked(17 + (int)average), writes.Words(), depth);
+                        if (pilotIdentity is { } identity)
+                        {
+                            System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, emitted[corner].Position), projection);
+                            int topology = 0;
+                            for (int corner = 0; corner < 3; corner++)
+                            {
+                                topology |= (corners[corner].Position.Y <= cut ? 1 : 0) << corner;
+                            }
+                            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 65537 + cursor) * 17 + topology) }, World(0), World(1), World(2), quad ? World(3) : default, (byte)emitted.Length) { SourceDepths = new(depth[0], depth[1], depth[2], depth[3]), UseSourceDepths = true } };
+                        }
                         NativeBattleGfGeometryAttempt attempt = writes.Attempt(primitive);
                         attempts.Add(attempt);
                         allocated += attempt.PacketLength;

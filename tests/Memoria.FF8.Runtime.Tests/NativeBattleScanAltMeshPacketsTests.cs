@@ -69,6 +69,24 @@ public sealed class NativeBattleScanAltMeshPacketsTests
         Assert.Equal(allocation, batch.AllocationBytes);
         Assert.Equal(2, batch.Attempts.Length);
         Assert.Equal(secondOffset, batch.Attempts[1].ByteOffsetRelative);
+        NativeBattlePilotVisualIdentity identity = new(40, 4, 2, 10, 123);
+        NativeBattleGfGeometryBatch captured = NativeBattleScanAltMeshPackets.Emit8DE9D0(new(0, 0x15CF674, bytes.ToImmutableArray()), matrix, projection, Context(), 256, 0, 0, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: identity);
+        Assert.Equal(batch.AllocationBytes, captured.AllocationBytes);
+        for (int index = 0; index < 2; index++)
+        {
+            Assert.Equal(batch.Attempts[index].Data, captured.Attempts[index].Data);
+            if (captured.Attempts[index].Primitive is { } primitive)
+            {
+                NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+                Assert.Equal(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, geometry.Identity);
+                Assert.Equal(new System.Numerics.Vector3(-100, -100, 0), geometry.A);
+                Assert.Equal(new System.Numerics.Vector3(100, 100, 0), geometry.D);
+            }
+            else
+            {
+                Assert.Null(batch.Attempts[index].Primitive);
+            }
+        }
     }
 
     [Fact]

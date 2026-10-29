@@ -161,7 +161,17 @@ public sealed class NativeBattleScanOpeningChildrenTests
         NativeBattleModuleResource resource = Sprite(0x15D07D4);
         NativeBattleModulePacketBatch expected = NativeBattleScanOpeningChildren.Sprite84E580(task, resource, first, 0, 1024);
         Assert.NotEmpty(expected.Primitives);
-        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(NativeBattleScanOpeningChildren.Sprite84E580(task, resource, differentView, 0, 1024)));
+        NativeBattleModulePacketBatch changedView = NativeBattleScanOpeningChildren.Sprite84E580(task, resource, differentView, 0, 1024);
+        Assert.Equal(expected.AllocationBytes, changedView.AllocationBytes);
+        for (int index = 0; index < expected.Primitives.Length; index++)
+        {
+            Assert.Equal(expected.Primitives[index].Primitive.Words, changedView.Primitives[index].Primitive.Words);
+            if (expected.Primitives[index].Primitive.PilotGeometry is { } geometry)
+            {
+                NativeBattlePilotVisualGeometry changed = Assert.IsType<NativeBattlePilotVisualGeometry>(changedView.Primitives[index].Primitive.PilotGeometry);
+                Assert.Equal(NativeBattlePilotVisualGeometry.Project(geometry.A, first), NativeBattlePilotVisualGeometry.Project(changed.A, differentView));
+            }
+        }
         Assert.NotEqual(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(NativeBattleScanOpeningChildren.Sprite84E580(task, resource, first, 1024, 1024)));
     }
 

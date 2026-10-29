@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Numerics;
 
 namespace Memoria.FF8.Runtime;
 
@@ -49,7 +50,7 @@ public static class NativeBattleBerserk108Geometry
         void W(int offset, int value) => BinaryPrimitives.WriteInt16LittleEndian(next.AsSpan(offset), unchecked((short)value));
     }
 
-    public static NativeBattleGfGeometryBatch RayPackets(ImmutableArray<byte> ray, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project)
+    public static NativeBattleGfGeometryBatch RayPackets(ImmutableArray<byte> ray, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleActionMatrix? matrix = null, NativeBattleCameraProjection? projection = null)
     {
         if (ray.Length != 48)
         {
@@ -67,7 +68,8 @@ public static class NativeBattleBerserk108Geometry
             return new([partial.Attempt(null)], 0);
         }
         int length = R(34) >> 3;
-        NativeBattleModuleProjectedVertex b = project(new(unchecked((short)(direction.X * length >> 12)), unchecked((short)(direction.Y * length >> 12)), unchecked((short)(direction.Z * length >> 12))));
+        NativeBattleVector tip = new(unchecked((short)(direction.X * length >> 12)), unchecked((short)(direction.Y * length >> 12)), unchecked((short)(direction.Z * length >> 12)));
+        NativeBattleModuleProjectedVertex b = project(tip);
         partial.Word(16, b.Screen);
         int dx = unchecked((short)b.Screen) - unchecked((short)a.Screen);
         int dy = unchecked((short)(a.Screen >> 16)) - unchecked((short)(b.Screen >> 16));
@@ -93,18 +95,42 @@ public static class NativeBattleBerserk108Geometry
         int bucket = 17 + (((a.Depth + b.Depth) / 2) >> 2);
         ImmutableArray<uint> triangle = [0x06000000, 0x32000000 | (color0 & 0xFFFFFF), a.Screen, color1, halfA, color1, halfB];
         ImmutableArray<uint> quad = [0x08000000, 0x3A000000 | (color1 & 0xFFFFFF), halfA, color1, halfB, color2, tipA, color2, tipB];
-        return new([Packet(triangle, 0, bucket), Packet(quad, 28, bucket)], 64);
+        return new([Capture(Packet(triangle, 0, bucket), 0, [a.Screen, halfA, halfB]), Capture(Packet(quad, 28, bucket), 1, [halfA, halfB, tipA, tipB])], 64);
+
+        NativeBattleGfGeometryAttempt Capture(NativeBattleGfGeometryAttempt attempt, int part, uint[] corners)
+        {
+            if (pilotIdentity is not { } identity || matrix is null || projection is null)
+            {
+                return attempt;
+            }
+            Vector3 origin = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, new(0, 0, 0)), projection);
+            Vector3 endPoint = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, tip), projection);
+            Vector3[] points = part == 0 ? [origin, Vector3.Lerp(origin, endPoint, 0.5f), Vector3.Lerp(origin, endPoint, 0.5f)] : [Vector3.Lerp(origin, endPoint, 0.5f), Vector3.Lerp(origin, endPoint, 0.5f), endPoint, endPoint];
+            Vector2[] centers = points.Select(point =>
+            {
+                Vector3 screen = NativeBattlePilotVisualGeometry.Project(point, projection);
+                return new Vector2(screen.X, screen.Y);
+            }).ToArray();
+            NativeBattlePilotVisualGeometry geometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + part) }, points[0], points[1], points[2], part == 1 ? points[3] : default, (byte)points.Length)
+            {
+                ScreenOffsets = corners.Select((corner, index) => Center(corner) - centers[index]).ToImmutableArray(),
+                SourceDepths = new(a.Depth, b.Depth, b.Depth, b.Depth),
+                UseSourceDepths = true
+            };
+            return attempt with { Primitive = attempt.Primitive! with { PilotGeometry = geometry } };
+        }
+        Vector2 Center(uint screen) => new(unchecked((short)screen), unchecked((short)(screen >> 16)));
 
         short R(int offset) => BinaryPrimitives.ReadInt16LittleEndian(ray.AsSpan().Slice(offset));
         uint U(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(ray.AsSpan().Slice(offset));
     }
 
-    public static NativeBattleBerserk108RayStep Rays(ImmutableArray<byte> source, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project)
+    public static NativeBattleBerserk108RayStep Rays(ImmutableArray<byte> source, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, Func<int, NativeBattlePilotVisualIdentity>? pilotIdentity = null, NativeBattleActionMatrix? matrix = null, NativeBattleCameraProjection? projection = null)
     {
-        return Rays(source.AsSpan(), project);
+        return Rays(source.AsSpan(), project, pilotIdentity, matrix, projection);
     }
 
-    internal static NativeBattleBerserk108RayStep Rays(ReadOnlySpan<byte> source, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project)
+    internal static NativeBattleBerserk108RayStep Rays(ReadOnlySpan<byte> source, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, Func<int, NativeBattlePilotVisualIdentity>? pilotIdentity = null, NativeBattleActionMatrix? matrix = null, NativeBattleCameraProjection? projection = null)
     {
         if (source.Length != 32 * 48)
         {
@@ -124,7 +150,7 @@ public static class NativeBattleBerserk108Geometry
             }
             alive++;
             ImmutableArray<byte> ray = next.AsSpan(offset, 48).ToArray().ToImmutableArray();
-            NativeBattleGfGeometryBatch batch = RayPackets(ray, project);
+            NativeBattleGfGeometryBatch batch = RayPackets(ray, project, pilotIdentity?.Invoke(index), matrix, projection);
             attempts.AddRange(batch.Attempts.Select(attempt => attempt with { ByteOffsetRelative = attempt.ByteOffsetRelative + allocated }));
             allocated += batch.AllocationBytes;
             UpdateRay(ray).AsSpan().CopyTo(next.AsSpan(offset));
