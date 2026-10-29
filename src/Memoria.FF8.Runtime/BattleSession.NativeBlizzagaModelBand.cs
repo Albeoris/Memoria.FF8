@@ -35,23 +35,23 @@ public sealed partial class BattleSession
             }
             NativeBattleRawMesh mesh = shared && meshIndex == 1 ? linked[0] : geometry[meshIndex];
             NativeBattleModelTextureBinding binding = shared && meshIndex == 1 ? model.LinkedTextureSlots ?? throw new NotSupportedException("Native Blizzaga requires its weapon material relocation.") : bodyBinding;
-            Submit(mesh, matrices, resource.GeometryRelocated507550 ? null : binding);
+            Submit(mesh, matrices, resource.GeometryRelocated507550 ? null : binding, meshIndex);
         }
         if (!shared && !linked.IsEmpty)
         {
             ImmutableArray<NativeBattleActionMatrix> linkedMatrices = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(model, resource.LinkedPoseSource ?? throw new NotSupportedException("Native Blizzaga requires its extra skeleton."), view);
             NativeBattleModelTextureBinding binding = model.LinkedTextureSlots ?? throw new NotSupportedException("Native Blizzaga requires its extra material relocation.");
-            foreach (NativeBattleRawMesh mesh in linked)
+            for (int linkedIndex = 0; linkedIndex < linked.Length; linkedIndex++)
             {
-                Submit(mesh, linkedMatrices, binding);
+                Submit(linked[linkedIndex], linkedMatrices, binding, geometry.Length + linkedIndex);
             }
         }
         graphics = graphics with { Models = graphics.Models.SetItem(index, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[index], source)) };
         return (graphics, minimum, maximum);
 
-        void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding)
+        void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleModelTextureBinding? binding, int meshIdentity)
         {
-            NativeBattleBlizzagaModelBandResult batch = NativeBattleBlizzagaModelBand.Emit6D8D80([mesh], bones, projection, color, 1, low, high, binding, minimum, maximum);
+            NativeBattleBlizzagaModelBandResult batch = NativeBattleBlizzagaModelBand.Emit6D8D80([mesh], bones, projection, color, 1, low, high, binding, minimum, maximum, NativePilotSceneIdentity(0x6D8D80, model.Index, meshIdentity));
             minimum = batch.Minimum;
             maximum = batch.Maximum;
             graphics = AppendNativePrimitivePackets(graphics, batch.Primitives);

@@ -33,7 +33,7 @@ public static class NativeBattleTonberry90ProgramDrawing
                 uint table = actual.ReadDword(0x25A4C04);
                 bias = services.ReadWord(frame, unchecked(table + (uint)(2 * unchecked((short)node.GeometryIndex))));
             }
-            NativeBattleTonberry90PreparedNode prepared = Prepare764260(source, node, context, bias, projection, colors);
+            NativeBattleTonberry90PreparedNode prepared = Prepare764260(source, node, context, bias, projection, colors, NativeBattlePilotVisualLifetimes.Identity(90, task, node.NodeIndex));
             if (!prepared.Morph.IsEmpty)
             {
                 NativeBattleTonberry90State actual = frame.Memory.Tonberry90 ?? throw new NotSupportedException("Native Tonberry morph requires its actual shared scratch owner.");
@@ -61,7 +61,7 @@ public static class NativeBattleTonberry90ProgramDrawing
         return new(frame, advanced.Remaining);
     }
 
-    public static NativeBattleTonberry90PreparedNode Prepare764260(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, short depthBias, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleTonberry90PreparedNode Prepare764260(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, short depthBias, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Data.IsDefault || node.Data.Length != 44)
         {
@@ -117,7 +117,7 @@ public static class NativeBattleTonberry90ProgramDrawing
             }
             ReadOnlySpan<byte> xyz = Read(checked(selected + offset), 6);
             return new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.Slice(4)));
-        });
+        }, pilotIdentity: pilotIdentity);
         return new(packets, morph, cue ? node.Color32 : null);
 
         int Int(int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(offset, 4));

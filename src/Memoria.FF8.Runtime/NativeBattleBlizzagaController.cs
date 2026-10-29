@@ -476,6 +476,7 @@ public static class NativeBattleBlizzagaController
     }
     private static NativeBattleModulePoolTask Insert(NativeBattleModulePoolTask task, int countOffset, int nodeOffset, ImmutableArray<byte> first, ImmutableArray<byte> last, sbyte velocity, byte u)
     {
+        NativeBattleBlizzagaRibbon.RecordInsertion(task, nodeOffset, checked((int)Dword(task, countOffset)));
         NativeBattleBlizzagaRibbonNodes inserted = NativeBattleBlizzagaRibbon.Insert6D99D0(checked((int)Dword(task, countOffset)), Slice(task, nodeOffset, 30 * 36), first, last, 16, velocity, u);
         return WriteDword(WriteBytes(task, nodeOffset, inserted.Nodes), countOffset, (uint)inserted.Count);
     }

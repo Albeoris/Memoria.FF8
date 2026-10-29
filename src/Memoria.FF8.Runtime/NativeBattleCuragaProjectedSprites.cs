@@ -27,13 +27,13 @@ public static class NativeBattleCuragaProjectedSprites
         return new(batch.Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => new NativeBattleAllocatedPrimitive(attempt.Primitive!, attempt.ByteOffsetRelative, 0)).ToImmutableArray(), batch.AllocationBytes);
     }
 
-    public static NativeBattleGfGeometryBatch EmitBatch8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0, Action<NativeBattleActionMatrix>? observeRolledMatrix = null, Action<NativeBattleActionMatrix>? observeQuadMatrix = null, INativeBattleCuragaSpriteGeometry? geometry = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleGfGeometryBatch EmitBatch8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0, Action<NativeBattleActionMatrix>? observeRolledMatrix = null, Action<NativeBattleActionMatrix>? observeQuadMatrix = null, INativeBattleCuragaSpriteGeometry? geometry = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false)
     {
         using NativeBattleGfSourceReader reader = new(resource);
-        return EmitBatch8DD260(reader, phase, matrix, projection, cameraRoll, tableBaseBucket, depthShift, depthBias, observeRolledMatrix, observeQuadMatrix, geometry, pilotIdentity);
+        return EmitBatch8DD260(reader, phase, matrix, projection, cameraRoll, tableBaseBucket, depthShift, depthBias, observeRolledMatrix, observeQuadMatrix, geometry, pilotIdentity, pilotScreenSpace);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch8DD260(NativeBattleGfSourceReader resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0, Action<NativeBattleActionMatrix>? observeRolledMatrix = null, Action<NativeBattleActionMatrix>? observeQuadMatrix = null, INativeBattleCuragaSpriteGeometry? geometry = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    internal static NativeBattleGfGeometryBatch EmitBatch8DD260(NativeBattleGfSourceReader resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0, Action<NativeBattleActionMatrix>? observeRolledMatrix = null, Action<NativeBattleActionMatrix>? observeQuadMatrix = null, INativeBattleCuragaSpriteGeometry? geometry = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, bool pilotScreenSpace = false)
     {
         if (resource.IsDefault || depthShift > 31)
         {
@@ -105,8 +105,11 @@ public static class NativeBattleCuragaProjectedSprites
             {
                 NativeBattleActionMatrix pilotMatrix = geometry is INativeBattleCuragaSpriteSourceGeometry sourceGeometry ? sourceGeometry.PilotMatrix : current;
                 System.Numerics.Vector3 World(int x, int y) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix, new(unchecked((short)x), unchecked((short)y), 0)), projection);
+                System.Numerics.Vector3 Screen(NativeBattleModuleProjectedVertex vertex) => new(unchecked((short)vertex.Screen), unchecked((short)(vertex.Screen >> 16)), vertex.Depth);
                 NativeBattlePilotVisualIdentity currentIdentity = identity with { Primitive = unchecked(identity.Primitive * 397 + index) };
-                NativeBattlePilotVisualGeometry capture = new(currentIdentity, World(-width, -height), World(width, -height), World(-width, height), World(width, height), 4);
+                NativeBattlePilotVisualGeometry capture = pilotScreenSpace
+                    ? new(currentIdentity, Screen(a), Screen(b), Screen(c), Screen(d), 4) { ScreenSpace = true }
+                    : new(currentIdentity, World(-width, -height), World(width, -height), World(-width, height), World(width, height), 4);
                 primitive = primitive with { PilotGeometry = capture };
             }
             bool firstExtended = retainedBucket is null && extended;

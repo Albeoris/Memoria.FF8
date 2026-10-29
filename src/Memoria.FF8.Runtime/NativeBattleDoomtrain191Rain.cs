@@ -80,7 +80,7 @@ public static class NativeBattleDoomtrain191Rain
                     BinaryPrimitives.WriteInt16LittleEndian(v0.AsSpan(2), -256);
                     registers = registers with { Mac = [mac.X, mac.Y, mac.Z], Ir = [Math.Clamp(mac.X, short.MinValue, short.MaxValue), Math.Clamp(mac.Y, short.MinValue, short.MaxValue), Math.Clamp(mac.Z, short.MinValue, short.MaxValue)], Flags = flags, NormalInput = v0.ToImmutableArray(), NormalInputKnown = [true, true, true, true, true, true, false, false] };
                     frame = frame with { Memory = frame.Memory with { ScriptedColorRegisters = registers } };
-                });
+                }, NativeBattlePilotVisualLifetimes.Identity(191, arena, state.WorkPointers[5], index));
                 attempts.Add(attempt);
                 if (attempt.Primitive is not null)
                 {
@@ -115,6 +115,7 @@ public static class NativeBattleDoomtrain191Rain
                 }
                 int record = checked(start + index * 24);
                 arena = arena.Write(record, BitConverter.GetBytes(1u));
+                NativeBattlePilotVisualLifetimes.Allocated(arena, state.WorkPointers[5], index);
                 Store(4, 0);
                 Store(6, Random() % 1536 + 1536);
                 Store(8, 2 * (Random() % 20000) - 20000);
@@ -140,7 +141,7 @@ public static class NativeBattleDoomtrain191Rain
         }
     }
 
-    public static NativeBattleGfGeometryAttempt Emit(NativeBattleActionMatrix camera, NativeBattleVector position, short size, uint color, NativeBattleCameraProjection projection, byte depthShift, int allocation = 0, short dqa = 0, int dqb = 0, Action<NativeBattleFullMacVertex, uint>? observeRegisters = null)
+    public static NativeBattleGfGeometryAttempt Emit(NativeBattleActionMatrix camera, NativeBattleVector position, short size, uint color, NativeBattleCameraProjection projection, byte depthShift, int allocation = 0, short dqa = 0, int dqb = 0, Action<NativeBattleFullMacVertex, uint>? observeRegisters = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleFullMacVertex mac = NativeBattleGfMatrices.TransformMac460840(camera, position);
         NativeBattleActionMatrix billboard = new([size, 0, 0, 0, size, 0, 0, 0, size], mac.X, mac.Y, mac.Z, 4096);
@@ -173,6 +174,11 @@ public static class NativeBattleDoomtrain191Rain
             Mark(24, 4);
             Mark(32, 4);
             primitive = new(17 + (third.Depth >> depthShift), words.ToImmutableArray(), []) { PhysicalWriteMask = mask.ToImmutableArray() };
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 World(short x, short y) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(billboard, new(x, y, 0)), projection);
+                primitive = primitive with { PilotGeometry = new(identity, World(-256, -256), World(256, -256), World(-256, 256), World(256, 256), 4) { Sprite = NativeBattlePilotSpriteGeometry.Capture(billboard, new byte[20], 256, 256, projection) } };
+            }
         }
         byte[] data = new byte[40];
         for (int index = 0; index < words.Length; index++)

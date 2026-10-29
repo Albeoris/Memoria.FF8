@@ -8,7 +8,7 @@ public sealed record NativeBattleCactuarNeedleDraw(NativeBattleActionMatrix Came
 /// <summary>5A9C10's saturated camera preparation and two ordered crossed FT4 attempts.</summary>
 public static class NativeBattleCactuarNeedleDrawing
 {
-    public static NativeBattleCactuarNeedleDraw Emit5A9C10(NativeBattleActionMatrix nodeMatrix, NativeBattleVector position, uint color, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
+    public static NativeBattleCactuarNeedleDraw Emit5A9C10(NativeBattleActionMatrix nodeMatrix, NativeBattleVector position, uint color, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         nodeMatrix.Validate();
         view.Validate();
@@ -70,7 +70,13 @@ public static class NativeBattleCactuarNeedleDrawing
                 bucket = 17 + (int)(otz >> 14);
             }
             ImmutableArray<NativeBattleGfPacketByteState> immutableMask = mask.ToImmutableArray();
-            Finish(new(bucket, words.ToImmutableArray(), projected.Select(vertex => (int)vertex.Depth).ToImmutableArray()) { PhysicalWriteMask = immutableMask });
+            NativeBattleGeometryPrimitive primitive = new(bucket, words.ToImmutableArray(), projected.Select(vertex => (int)vertex.Depth).ToImmutableArray()) { PhysicalWriteMask = immutableMask };
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(camera, corners[corner]), projection);
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + (first ? 0 : 1)) }, World(0), World(1), World(2), World(3), 4) };
+            }
+            Finish(primitive);
             allocated += 40;
             return true;
 

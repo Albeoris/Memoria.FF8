@@ -9,7 +9,7 @@ public sealed record NativeBattleCactuarMeshDraw(NativeBattleStaticMeshResource 
 /// <summary>Cactuar's retained particle and three ordinary mesh submissions into the common packet bank.</summary>
 public static class NativeBattleCactuarAuxiliaryDrawing
 {
-    public static NativeBattleCactuarParticleDraw? Particle5A9290(ImmutableArray<byte> particle, NativeBattleCactuar199SpriteResource sprite, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
+    public static NativeBattleCactuarParticleDraw? Particle5A9290(ImmutableArray<byte> particle, NativeBattleCactuar199SpriteResource sprite, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (particle.IsDefault || particle.Length < 0x12)
         {
@@ -28,6 +28,7 @@ public static class NativeBattleCactuarAuxiliaryDrawing
         NativeBattleModuleSpriteFrame frame = resource.ProjectedFrame571C80(frameIndex);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
+            PilotIdentity = pilotIdentity,
             Resource = resource,
             SpriteFrame = frame,
             Phase = unchecked((ushort)frameIndex),
@@ -36,7 +37,7 @@ public static class NativeBattleCactuarAuxiliaryDrawing
             SpriteFlags = 0
         };
         NativeBattleActionMatrix spriteView = camera with { Rotation = [4096, 0, 0, 0, 4096, 0, 0, 0, 4096] };
-        return new(camera, frame.NextOffset, NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = spriteView }, 0, 17, 2));
+        return new(camera, frame.NextOffset, NativeBattleModulePackets.EmitSprite571DC0(draw, projection, 0, 17, 2, NativeBattlePoseMatrices.ModuleSpriteCamera(draw, spriteView, 0)));
 
         short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(particle.AsSpan().Slice(offset));
     }
@@ -51,7 +52,7 @@ public static class NativeBattleCactuarAuxiliaryDrawing
             _ => throw new NotSupportedException("Native Cactuar mesh requires its actual drawing callback.")
         };
         NativeBattleCactuarMeshDraw draw = DescribeMesh(task, resource, modelY, view);
-        return NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, draw.Matrix, projection, draw.Context, colors);
+        return NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, draw.Matrix, projection, draw.Context, colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(199, task));
     }
 
     public static NativeBattleCactuarMeshDraw DescribeMesh(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource resource, int modelY, NativeBattleActionMatrix view)

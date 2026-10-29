@@ -95,6 +95,6 @@ public static class NativeBattleTonberry90ScreenSprites
         {
             return new([], 0);
         }
-        return NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, task.ReadWord(0x50), Matrix766830(task, scale), projection, cameraRoll, 17, 2, unchecked((short)task.ReadWord(0x56)));
+        return NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, task.ReadWord(0x50), Matrix766830(task, scale), projection, cameraRoll, 17, 2, unchecked((short)task.ReadWord(0x56)), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(90, task), pilotScreenSpace: true);
     }
 }

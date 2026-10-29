@@ -17,7 +17,7 @@ public static class NativeBattleFiragaDrawing
             return new([NativeBattleModulePackets.EmitSprite571DC0(billboard, camera, cameraRoll, 17, 2), NativeBattleModulePackets.EmitSprite571DC0(ground, camera, cameraRoll, 17, 2)], null);
         }
         NativeBattleFiragaMeshDraw mesh = Mesh(task, state, resources, view);
-        return new([], NativeBattleModulePackets.EmitBatch572200(mesh.Resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors));
+        return new([], NativeBattleModulePackets.EmitBatch572200(mesh.Resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(143, task)));
     }
 
     internal static (NativeBattleModuleDraw Billboard, NativeBattleModuleDraw Ground) Surface(NativeBattleModulePoolTask task, NativeBattleFiragaResources resources)
@@ -30,6 +30,7 @@ public static class NativeBattleFiragaDrawing
         int frame = Word(task, 12);
         NativeBattleModuleDraw billboard = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
+            PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(143, task),
             Resource = resources.Sprite16,
             SpriteFrame = resources.Sprite16.SpriteFrame(frame),
             Phase = unchecked((ushort)frame),
@@ -45,6 +46,7 @@ public static class NativeBattleFiragaDrawing
         NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Euler56CD50(new(1024, 0, 0));
         NativeBattleModuleDraw ground = billboard with
         {
+            PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(143, task, 1),
             Anchor = new(Word(task, 16), Word(task, 22), Word(task, 20), 0),
             DepthOffset = 0,
             SpriteWorldRotation = NativeBattlePoseMatrices.Scale56BEF0(rotation, scale, scale, 4096).Rotation,

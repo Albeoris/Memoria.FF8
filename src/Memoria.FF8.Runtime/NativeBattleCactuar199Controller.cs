@@ -343,6 +343,7 @@ public static class NativeBattleCactuar199Controller
                         break;
                     }
                     int offset = index * 0x1C;
+                    NativeBattlePilotVisualLifetimes.Allocated(Arena(), NativeBattleEffectNodeMemory.ArenaAddress + ParticleOffset, index);
                     D(bank, offset, 1);
                     W(bank, offset + 4, 0);
                     W(bank, offset + 6, Rand() % 1536 + 2048);
@@ -369,7 +370,7 @@ public static class NativeBattleCactuar199Controller
                 }
                 WriteArena(ParticleOffset + offset, bank.AsSpan(offset, 0x1C).ToArray());
                 Sync();
-                NativeBattleCactuar199ParticleStep draw = inputs.DrawParticle(frame, bank.AsSpan(offset, 0x1C).ToArray().ToImmutableArray());
+                NativeBattleCactuar199ParticleStep draw = inputs.DrawParticle(frame with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(199, Arena(), NativeBattleEffectNodeMemory.ArenaAddress + ParticleOffset, index) }, bank.AsSpan(offset, 0x1C).ToArray().ToImmutableArray());
                 frame = draw.Frame;
                 Reload();
                 if (!paused)
@@ -498,6 +499,7 @@ public static class NativeBattleCactuar199Controller
                         break;
                     }
                     int offset = index * 0x3C;
+                    NativeBattlePilotVisualLifetimes.Allocated(Arena(), NativeBattleEffectNodeMemory.ArenaAddress + NeedleOffset, index);
                     D(bank, offset, 1);
                     W(bank, offset + 4, 0);
                     int scale = Rand() % 5120 + 2560;
@@ -568,7 +570,7 @@ public static class NativeBattleCactuar199Controller
                 }
                 WriteArena(NeedleOffset + offset, bank.AsSpan(offset, 0x3C).ToArray());
                 Sync();
-                NativeBattleCactuar199NeedleStep draw = inputs.DrawNeedle(frame, matrix, position, color);
+                NativeBattleCactuar199NeedleStep draw = inputs.DrawNeedle(frame with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(199, Arena(), NativeBattleEffectNodeMemory.ArenaAddress + NeedleOffset, index) }, matrix, position, color);
                 frame = draw.Frame;
                 Reload();
                 if (draw.BAccepted)

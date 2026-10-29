@@ -44,7 +44,7 @@ public sealed partial class BattleSession
             int nodesOffset = second ? 64 : 44;
             int count = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(task.ReadRawPayloadSpan().Slice(countOffset - 12)));
             ImmutableArray<byte> nodes = task.ReadRawPayloadSpan().Slice(nodesOffset - 12, 30 * 36).ToArray().ToImmutableArray();
-            NativeBattleBlizzagaRibbonResult ribbon = NativeBattleBlizzagaRibbon.Emit6D9A40(count, nodes, delta, matrix, projection);
+            NativeBattleBlizzagaRibbonResult ribbon = NativeBattleBlizzagaRibbon.Emit6D9A40(count, nodes, delta, matrix, projection, NativeBattlePilotVisualLifetimes.Identity(104, task, second ? 1 : 0), NativeBattleBlizzagaRibbon.NodeBirths(task, nodesOffset, count));
             task.WriteDword(countOffset, (uint)ribbon.Count);
             task.WriteRetainedBytes(nodesOffset, ribbon.Nodes.AsSpan());
             return new(AppendGeometry(current, ribbon.Packets), task);
@@ -70,7 +70,7 @@ public sealed partial class BattleSession
                 case NativeBattleBlizzagaMainDraw draw:
                     NativeBattleActionMatrix local = NativeBattleBlizzagaController.ScaledYaw(unchecked((short)draw.Task.ReadWord(16)), 4096, 4096) with { X = unchecked((short)draw.Task.ReadWord(32)), Y = unchecked((short)draw.Task.ReadWord(34)), Z = unchecked((short)draw.Task.ReadWord(36)) };
                     NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(view, local);
-                    return AppendGeometry(current, NativeBattleBlizzagaDrawing.EmitMainMesh(NativeBattleBlizzagaFaces.ReadPrimaryMesh(current.Memory, draw.Sequence), NativeBattleBlizzagaFaces.Companion(current.Memory), NativeBattleBlizzagaFaces.ExpandedVertices(draw.Task, draw.Phase), draw.Phase, matrix, projection));
+                    return AppendGeometry(current, NativeBattleBlizzagaDrawing.EmitMainMesh(NativeBattleBlizzagaFaces.ReadPrimaryMesh(current.Memory, draw.Sequence), NativeBattleBlizzagaFaces.Companion(current.Memory), NativeBattleBlizzagaFaces.ExpandedVertices(draw.Task, draw.Phase), draw.Phase, matrix, projection, NativeBattlePilotVisualLifetimes.Identity(104, draw.Task)));
                 case NativeBattleBlizzagaAuxiliaryDraw draw:
                     return AppendGeometry(current, draw.First ? NativeBattleBlizzagaDrawing.AuxiliaryA(draw.Task, draw.Phase, resources, projection, view, colors) : NativeBattleBlizzagaDrawing.AuxiliaryB(draw.Task, draw.Phase, resources, projection, view, colors));
                 case NativeBattleBlizzagaSpark spark:

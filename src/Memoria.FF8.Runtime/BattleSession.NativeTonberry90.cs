@@ -131,7 +131,7 @@ public sealed partial class BattleSession
                 ImmutableArray<byte> data = resources.ReadStatic(source, checked(resources.StaticData.Data.Length - (int)offset)).ToArray().ToImmutableArray();
                 NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Tonberry sprites require their current camera owner.");
                 NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Tonberry sprites require their current projection.");
-                NativeBattleGfGeometryBatch batch = task.Callback is 0x766FB0 or 0x7667B0 ? NativeBattleTonberry90ScreenSprites.Draw766830(task, data, projection, camera.Roll) : NativeBattleSearchSprites.Draw7582A0(task, data, camera.CapturePackedView1D97778().ReadMatrix(), projection, camera.Roll);
+                NativeBattleGfGeometryBatch batch = task.Callback is 0x766FB0 or 0x7667B0 ? NativeBattleTonberry90ScreenSprites.Draw766830(task, data, projection, camera.Roll) : NativeBattleSearchSprites.Draw7582A0(task, data, camera.CapturePackedView1D97778().ReadMatrix(), projection, camera.Roll, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(90, task));
                 NativeBattleTonberry90State shared = current.Memory.Tonberry90 ?? throw new NotSupportedException("Native Tonberry sprites require their actual private cursor owner.");
                 int cursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Tonberry sprites require their current private packet cursor.");
                 if (shared.ReadDword(0x259EEA8) != unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)cursor))
@@ -182,7 +182,7 @@ public sealed partial class BattleSession
                 _ = shared.ReadDword(0x259EFB4);
                 NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Tonberry creature requires its canonical renderer process.");
                 bool renderedBody = false;
-                NativeBattleEffectOwnedModelDraw draw = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resource, view, projection, profile.Rules.ShadowSource ?? throw new NotSupportedException("Native Tonberry creature requires its original shadow source."), capabilities, colors, new byte[size].ToImmutableArray(), EnterRenderer);
+                NativeBattleEffectOwnedModelDraw draw = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resource, view, projection, profile.Rules.ShadowSource ?? throw new NotSupportedException("Native Tonberry creature requires its original shadow source."), capabilities, colors, new byte[size].ToImmutableArray(), EnterRenderer, NativeBattlePilotVisualLifetimes.Identity(90, task));
                 current = NativeBattleTonberry90Creature.PublishProjected767610(current, draw.ProjectedScratch, draw.ProjectedBytesWritten);
                 if (renderedBody)
                 {

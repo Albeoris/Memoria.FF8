@@ -25,7 +25,11 @@ public sealed partial record NativeBattleEffectMemory
         init => effectState = effectState with { Cactuar199 = value };
     }
 }
-public sealed record NativeBattleCactuar199Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
+public sealed record NativeBattleCactuar199Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random)
+{
+    [JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public abstract record NativeBattleCactuar199Operation;
 public sealed record NativeBattleCactuar199Sound(uint Descriptor) : NativeBattleCactuar199Operation;
 public sealed record NativeBattleCactuar199StreamStart(uint Descriptor) : NativeBattleCactuar199Operation;

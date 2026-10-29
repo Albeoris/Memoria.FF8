@@ -12,6 +12,10 @@ public sealed class NativeBattleThreePilotPurityTests
     [InlineData((ushort)2, 1)]
     [InlineData((ushort)3, 7)]
     [InlineData((ushort)144, 4)]
+    [InlineData((ushort)142, 2)]
+    [InlineData((ushort)143, 3)]
+    [InlineData((ushort)103, 5)]
+    [InlineData((ushort)104, 6)]
     public void Original_spell_fractional_draws_preserve_full_native_state_and_the_next_callback(ushort effect, int action)
     {
         AssertPurePresentation(effect, action, false);
@@ -28,6 +32,12 @@ public sealed class NativeBattleThreePilotPurityTests
     [InlineData((ushort)6, 7)]
     [InlineData((ushort)291, 8)]
     [InlineData((ushort)203, 9)]
+    [InlineData((ushort)204, 10)]
+    [InlineData((ushort)191, 11)]
+    [InlineData((ushort)202, 12)]
+    [InlineData((ushort)199, 13)]
+    [InlineData((ushort)90, 14)]
+    [InlineData((ushort)206, 15)]
     public void Original_guardian_fractional_draws_preserve_full_native_state_and_the_next_callback(ushort effect, int guardian)
     {
         AssertPurePresentation(effect, guardian, true);

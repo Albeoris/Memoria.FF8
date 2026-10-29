@@ -46,7 +46,7 @@ public sealed partial class BattleSession
         NativeBattleCactuar199Frame DrawBody(NativeBattleCactuar199Frame current)
         {
             NativeBattleCactuar199State shared = current.Memory.Cactuar199!;
-            NativeBattleCactuarRawModelDraw drawn = NativeBattleCactuarRawModel.Draw5A9010(shared.RawModel, resources.Model, shared.BaseView ?? throw new NotSupportedException("Native Cactuar requires its retained base-view matrix."), ReadProjection(), colors);
+            NativeBattleCactuarRawModelDraw drawn = NativeBattleCactuarRawModel.Draw5A9010(shared.RawModel, resources.Model, shared.BaseView ?? throw new NotSupportedException("Native Cactuar requires its retained base-view matrix."), ReadProjection(), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(199, current.Effect.Pools[0].Slots[0]));
             current = current with { Memory = current.Memory with { Cactuar199 = shared with { RawModel = drawn.State } } };
             return AppendCommon(current, drawn.Packets);
         }
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
 
         NativeBattleCactuar199ParticleStep DrawParticle(NativeBattleCactuar199Frame current, ImmutableArray<byte> particle)
         {
-            NativeBattleCactuarParticleDraw drawn = NativeBattleCactuarAuxiliaryDrawing.Particle5A9290(particle, resources.Sprite, current.Memory.Cactuar199!.BaseView ?? throw new NotSupportedException("Native Cactuar requires its retained base-view matrix."), ReadProjection()) ?? throw new InvalidDataException("Native Cactuar submitted an inactive particle for drawing.");
+            NativeBattleCactuarParticleDraw drawn = NativeBattleCactuarAuxiliaryDrawing.Particle5A9290(particle, resources.Sprite, current.Memory.Cactuar199!.BaseView ?? throw new NotSupportedException("Native Cactuar requires its retained base-view matrix."), ReadProjection(), current.PilotIdentity) ?? throw new InvalidDataException("Native Cactuar submitted an inactive particle for drawing.");
             NativeEffectMemory = current.Memory;
             graphics = AppendNativeModulePacketBatch(graphics, drawn.Packets, null, null);
             return new(current with { Memory = NativeEffectMemory! }, drawn.FrameResult);
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
 
         NativeBattleCactuar199NeedleStep DrawNeedle(NativeBattleCactuar199Frame current, NativeBattleActionMatrix matrix, NativeBattleVector position, uint color)
         {
-            NativeBattleCactuarNeedleDraw drawn = NativeBattleCactuarNeedleDrawing.Emit5A9C10(matrix, position, color, ReadView(), ReadProjection());
+            NativeBattleCactuarNeedleDraw drawn = NativeBattleCactuarNeedleDrawing.Emit5A9C10(matrix, position, color, ReadView(), ReadProjection(), current.PilotIdentity);
             bool accepted = drawn.Packets.Attempts.Count(attempt => attempt.Primitive is not null) == 2;
             return new(AppendCommon(current, drawn.Packets), accepted);
         }

@@ -5,10 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleTonberry90MeshPackets
 {
-    public static NativeBattleGfGeometryBatch EmitBatch764540(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<uint>? observeFirstThreeFlags = null)
+    public static NativeBattleGfGeometryBatch EmitBatch764540(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<uint>? observeFirstThreeFlags = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         RequireContext(context);
-        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, readSelectedVertex, (group, face, readCorner, offset) => EmitFace764540(group, face, readCorner, context, colors, offset), observeFirstThreeFlags);
+        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, readSelectedVertex, (group, face, readCorner, offset) => EmitFace764540(group, face, readCorner, context, colors, offset), observeFirstThreeFlags, pilotIdentity: pilotIdentity);
     }
 
     public static NativeBattleGfGeometryBatch EmitFace764540(int group, ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)

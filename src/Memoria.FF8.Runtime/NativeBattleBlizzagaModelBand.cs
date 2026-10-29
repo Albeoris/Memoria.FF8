@@ -8,7 +8,7 @@ public sealed record NativeBattleBlizzagaModelBandResult(short Minimum, short Ma
 /// <summary>Blizzaga's posed body model-band projection and explicit-depth FT3/FT4 packets.</summary>
 public static class NativeBattleBlizzagaModelBand
 {
-    public static NativeBattleBlizzagaModelBandResult Emit6D8D80(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint color40, uint meshMask124, short lowY, short highY, NativeBattleModelTextureBinding? textureBinding = null, short priorMinimum = 32767, short priorMaximum = -32767)
+    public static NativeBattleBlizzagaModelBandResult Emit6D8D80(ImmutableArray<NativeBattleRawMesh> meshes, IReadOnlyList<NativeBattleActionMatrix> matrices, NativeBattleCameraProjection projection, uint color40, uint meshMask124, short lowY, short highY, NativeBattleModelTextureBinding? textureBinding = null, short priorMinimum = 32767, short priorMaximum = -32767, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (meshes.IsDefault)
         {
@@ -27,6 +27,7 @@ public static class NativeBattleBlizzagaModelBand
             NativeBattleRawMesh mesh = meshes[meshIndex];
             mesh.Validate();
             List<NativeBattleProjectedVertex> projected = [];
+            List<System.Numerics.Vector3>? world = pilotIdentity.HasValue ? [] : null;
             foreach (NativeBattleRawVertex vertex in mesh.Vertices)
             {
                 if (vertex.Bone >= matrices.Count)
@@ -35,6 +36,7 @@ public static class NativeBattleBlizzagaModelBand
                 }
                 NativeBattleActionMatrix matrix = matrices[vertex.Bone];
                 NativeBattleModuleProjectedVertex result = NativeBattleModuleProjection.Project45FE10(matrix, vertex.Position, projection);
+                world?.Add(NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, vertex.Position), projection));
                 ushort depth = result.ReadDepth45E250();
                 ushort flags;
                 if (depth == 0)
@@ -65,12 +67,18 @@ public static class NativeBattleBlizzagaModelBand
                 scratch.Add(writes.Attempt(null));
                 projected.Add(stored);
             }
-            foreach (NativeBattleRawPolygon polygon in mesh.Polygons)
+            for (int polygonIndex = 0; polygonIndex < mesh.Polygons.Length; polygonIndex++)
             {
+                NativeBattleRawPolygon polygon = mesh.Polygons[polygonIndex];
                 ImmutableArray<byte> source = textureBinding is null ? polygon.Bytes : NativeBattleRawGeometryPackets.Relocate507550(polygon, textureBinding);
                 NativeBattleGeometryPrimitive? primitive = EmitPolygon(source, polygon.Quad, projected, color40);
                 if (primitive is not null)
                 {
+                    if (pilotIdentity is { } identity && world is not null)
+                    {
+                        System.Numerics.Vector3 Corner(int corner) => world[BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan().Slice(corner * 2)) & 0xFFF];
+                        primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 65537 + meshIndex) * 65537 + polygonIndex) }, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)(polygon.Quad ? 4 : 3)) { DepthQuantum = 4 } };
+                    }
                     primitives.Add(primitive);
                 }
             }

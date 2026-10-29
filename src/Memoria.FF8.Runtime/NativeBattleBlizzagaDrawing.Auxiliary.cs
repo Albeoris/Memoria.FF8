@@ -24,7 +24,7 @@ public static partial class NativeBattleBlizzagaDrawing
             }
             NativeBattleEffectMeshPacketContext context = new(fade == 0 ? 0u : gouraud ? 0x80u : 0x40u, 0, fade, null, null, 0, false, null, 17, 2, window);
             return NativeBattleEffectMeshPackets.EmitTextured(face, project, group != 6, gouraud, context, colors, offset, NativeBattleEffectMeshClip.OutsideScreen);
-        });
+        }, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(104, task, 1));
     }
 
     public static NativeBattleGfGeometryBatch AuxiliaryB(NativeBattleModulePoolTask task, int phase, NativeBattleBlizzagaResources resources, NativeBattleCameraProjection projection, NativeBattleActionMatrix view, NativeBattleSummonColors colors)
@@ -38,11 +38,12 @@ public static partial class NativeBattleBlizzagaDrawing
         NativeBattleActionMatrix local = new([scale, 0, 0, 0, 4096, 0, 0, 0, scale], Word(task, 0x20), Word(task, 0x22), Word(task, 0x24), 4096);
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(view, local);
         int fade = u <= 6 ? 0 : 4096 - ((10 - u) << 10);
-        return NativeBattleModulePackets.EmitBatch572200(resources.Mesh1318490.Bytes, 0, default, matrix, projection, new(0xF0, 0, fade, null, null, null, 17, 2), colors);
+        return NativeBattleModulePackets.EmitBatch572200(resources.Mesh1318490.Bytes, 0, default, matrix, projection, new(0xF0, 0, fade, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(104, task, 2));
     }
 
     public static NativeBattleModulePacketBatch Sprite(NativeBattleModulePoolTask task, NativeBattleBlizzagaResources resources, NativeBattleCameraProjection projection, NativeBattleActionMatrix view, short cameraRoll, NativeBattleActionMatrix? sparkMatrix = null)
     {
+        NativeBattleActionMatrix cameraView = view;
         bool spark = task.Callback == 0x6D9DD0;
         bool sixth = task.Callback == 0x6D96A0;
         if (!spark && !sixth && task.Callback != 0x6D95E0)
@@ -72,6 +73,7 @@ public static partial class NativeBattleBlizzagaDrawing
         }
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
+            PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(104, task),
             Resource = resource,
             SpriteFrame = resource.SpriteFrame(frame),
             Phase = unchecked((ushort)frame),
@@ -81,7 +83,7 @@ public static partial class NativeBattleBlizzagaDrawing
             SpriteFlags = 0,
             Direction = 4096
         };
-        return NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = view }, cameraRoll, 17, 2);
+        return NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = cameraView }, cameraRoll, 17, 2, spark ? NativeBattlePoseMatrices.ModuleSpriteCamera(draw, view, cameraRoll) : null);
     }
 
     private static NativeBattleActionMatrix Oriented(NativeBattleModulePoolTask task, short horizontal, short vertical)

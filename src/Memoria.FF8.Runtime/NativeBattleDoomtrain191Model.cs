@@ -168,7 +168,7 @@ public static class NativeBattleDoomtrain191Model
         return Put(frame, memory with { Anchor = NativeBattleDoomtrain191Controller.Pack(NativeBattleGfMatrices.Compose56C2F0(world, bone), memory.Anchor, true) });
     }
 
-    public static NativeBattleDoomtrain191ModelDraw Render5099D0(NativeBattleDoomtrain191Frame frame, NativeBattleCameraProjection projection, uint clipped, NativeBattleSummonColors colors)
+    public static NativeBattleDoomtrain191ModelDraw Render5099D0(NativeBattleDoomtrain191Frame frame, NativeBattleCameraProjection projection, uint clipped, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleDoomtrain191State state = State(frame);
         NativeBattleDoomtrain191ModelMemory memory = Require(frame);
@@ -184,7 +184,7 @@ public static class NativeBattleDoomtrain191Model
         int length = meshes.IsEmpty ? 0 : checked(meshes.Max(mesh => mesh.Vertices.Length) * 8);
         uint color = BinaryPrimitives.ReadUInt32LittleEndian(memory.Model.Read(0x28, 4));
         uint mask = BinaryPrimitives.ReadUInt32LittleEndian(memory.Model.Read(0x7C, 4)) ^ clipped;
-        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, projection, color, mask, arena.ReadSnapshot(work, length).Data.ToImmutableArray(), colors, 4, new(0, 0, 320, 216));
+        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, projection, color, mask, arena.ReadSnapshot(work, length).Data.ToImmutableArray(), colors, 4, new(0, 0, 320, 216), pilotIdentity: pilotIdentity);
         if (draw.ProjectedBytesWritten != 0)
         {
             arena = arena.Write(work, draw.ProjectedScratch.AsSpan().Slice(0, draw.ProjectedBytesWritten));

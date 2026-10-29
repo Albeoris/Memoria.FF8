@@ -93,7 +93,7 @@ public static class NativeBattleDoomtrain191Sky
         short Word(int offset) => unchecked((short)task.ReadWord(offset));
     }
 
-    public static NativeBattleDoomtrain191SkyPackets Emit640830(NativeBattleDoomtrain191SkyResources resources, NativeBattleEffectArena arena, NativeBattleDoomtrain191SkyDraw draw, NativeBattleCameraProjection projection, NativeBattleEffectNodeScratch scratch, NativeBattleSummonColors colors)
+    public static NativeBattleDoomtrain191SkyPackets Emit640830(NativeBattleDoomtrain191SkyResources resources, NativeBattleEffectArena arena, NativeBattleDoomtrain191SkyDraw draw, NativeBattleCameraProjection projection, NativeBattleEffectNodeScratch scratch, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         scratch = scratch.WritePrefix(0, BitConverter.GetBytes(draw.Flags)).WritePrefix(4, BitConverter.GetBytes(draw.Tint));
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
@@ -125,6 +125,16 @@ public static class NativeBattleDoomtrain191Sky
                 ushort[] offsets = Enumerable.Range(0, (group & 1) == 0 ? 3 : 4).Select(corner => BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + 2 * corner))).ToArray();
                 NativeBattleGfGeometryPackets.ProjectedCorners corners = new(offsets, Project);
                 NativeBattleGfGeometryAttempt attempt = NativeBattleGfGeometryPackets.EmitAttempt(face, corners, group, new(draw.Flags, 0, draw.Fade, null, null, 0, 0, 4126, 6), colors, allocation, variant: variant);
+                if (pilotIdentity is { } identity && attempt.Primitive is { } primitive)
+                {
+                    System.Numerics.Vector3 World(ushort offset)
+                    {
+                        byte[] xyz = arena.Read(checked(0x37000 + offset * 4), 6);
+                        NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
+                        return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(draw.Matrix, point), projection);
+                    }
+                    attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, World(offsets[0]), World(offsets[1]), World(offsets[2]), offsets.Length == 4 ? World(offsets[3]) : default, (byte)offsets.Length) { FocalLengthOverride = projection.FocalLength } } };
+                }
                 attempts.Add(attempt);
                 if (attempt.Primitive is not null)
                 {

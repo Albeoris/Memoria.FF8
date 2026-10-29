@@ -13,6 +13,10 @@ public sealed class NativeBattleSmoothWholeActionTests
     [InlineData((ushort)2, 1)]
     [InlineData((ushort)3, 7)]
     [InlineData((ushort)144, 4)]
+    [InlineData((ushort)142, 2)]
+    [InlineData((ushort)143, 3)]
+    [InlineData((ushort)103, 5)]
+    [InlineData((ushort)104, 6)]
     public void Original_elemental_action_preserves_native_duration_events_and_whole_action_contracts(ushort effect, int action)
     {
         AssertWholeAction(effect, action, false);
@@ -29,6 +33,12 @@ public sealed class NativeBattleSmoothWholeActionTests
     [InlineData((ushort)6, 7)]
     [InlineData((ushort)291, 8)]
     [InlineData((ushort)203, 9)]
+    [InlineData((ushort)204, 10)]
+    [InlineData((ushort)191, 11)]
+    [InlineData((ushort)202, 12)]
+    [InlineData((ushort)199, 13)]
+    [InlineData((ushort)90, 14)]
+    [InlineData((ushort)206, 15)]
     public void Original_guardian_action_preserves_native_duration_events_and_whole_action_contracts(ushort effect, int guardian)
     {
         AssertWholeAction(effect, guardian, true);

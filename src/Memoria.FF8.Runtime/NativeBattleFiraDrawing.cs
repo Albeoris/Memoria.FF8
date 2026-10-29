@@ -18,7 +18,7 @@ public static class NativeBattleFiraDrawing
             return new(NativeBattleModulePackets.EmitSprite571DC0(sprite, projection with { View = view }, cameraRoll, 17, 2), null);
         }
         NativeBattleFiraMeshDraw mesh = Mesh(task, resources, view);
-        return new(null, NativeBattleModulePackets.EmitBatch572200(mesh.Resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors));
+        return new(null, NativeBattleModulePackets.EmitBatch572200(mesh.Resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(142, task)));
     }
 
     internal static NativeBattleModuleDraw Sprite(NativeBattleModulePoolTask task, NativeBattleFiraResources resources, NativeBattleModuleResource commonResource5)
@@ -43,6 +43,7 @@ public static class NativeBattleFiraDrawing
         }
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
+            PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(142, task),
             Resource = resource,
             SpriteFrame = resource.SpriteFrame(frame),
             Phase = unchecked((ushort)frame),

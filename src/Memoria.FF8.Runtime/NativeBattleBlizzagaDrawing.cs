@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleBlizzagaDrawing
 {
-    public static NativeBattleGfGeometryBatch EmitMainMesh(ImmutableArray<byte> clone, ImmutableArray<byte> companion, ImmutableArray<byte> taskVertices, int phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection)
+    public static NativeBattleGfGeometryBatch EmitMainMesh(ImmutableArray<byte> clone, ImmutableArray<byte> companion, ImmutableArray<byte> taskVertices, int phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (clone.IsDefault || clone.Length != 0x2328 || companion.IsDefault || companion.Length != 0x1928 || taskVertices.IsDefault || phase < 28 || phase > 97 || taskVertices.Length != (phase < 33 ? 177 : 960) * 8)
         {
@@ -27,10 +27,11 @@ public static partial class NativeBattleBlizzagaDrawing
             {
                 throw new InvalidDataException("Native Blizzaga main and companion primitive ownership is inconsistent.");
             }
-            ImmutableArray<byte> partner = companion.AsSpan().Slice(partnerStart + faces++ * 20, 20).ToArray().ToImmutableArray();
+            int faceIndex = faces++;
+            ImmutableArray<byte> partner = companion.AsSpan().Slice(partnerStart + faceIndex * 20, 20).ToArray().ToImmutableArray();
             NativeBattleGfGeometryBatch emitted = EmitMainFace(face.ToArray().ToImmutableArray(), partner, [project(0), project(1), project(2)], phase);
             return emitted with { Attempts = emitted.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + offset) }).ToImmutableArray() };
-        });
+        }, pilotIdentity: pilotIdentity);
         if (faces != 320 || partnerCount != 320)
         {
             throw new InvalidDataException("Native Blizzaga requires all320 current main and companion faces.");

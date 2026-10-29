@@ -8,7 +8,7 @@ internal sealed record NativeBattleBlizzaraMeshDraw(NativeBattleStaticMeshResour
 /// <summary>Blizzara's mutable GT3 leaf/overlay and four original child draw submissions.</summary>
 public static class NativeBattleBlizzaraDrawing
 {
-    public static NativeBattleGfGeometryBatch EmitMainMesh(ImmutableArray<byte> clone, ImmutableArray<byte> expandedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint descriptorFlags)
+    public static NativeBattleGfGeometryBatch EmitMainMesh(ImmutableArray<byte> clone, ImmutableArray<byte> expandedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint descriptorFlags, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (clone.IsDefault || clone.Length != 0x1CBC || expandedVertices.IsDefault || expandedVertices.Length != 669 * 8)
         {
@@ -36,7 +36,7 @@ public static class NativeBattleBlizzaraDrawing
             faces++;
             NativeBattleGfGeometryBatch batch = EmitMainFace6DB5D0(face.ToArray().ToImmutableArray(), [project(0), project(1), project(2)], descriptorFlags);
             return batch with { Attempts = batch.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + offset) }).ToImmutableArray() };
-        });
+        }, pilotIdentity: pilotIdentity);
         if (faces != 223)
         {
             throw new InvalidDataException("Native Blizzara main submission lost its223 original GT3 faces.");
@@ -96,6 +96,7 @@ public static class NativeBattleBlizzaraDrawing
         int frame = task.ReadByte(0xC) & 15;
         return new(NativeBattleModuleDrawKind.Sprite, 0)
         {
+            PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(103, task),
             Resource = resources.Sprite16,
             SpriteFrame = resources.Sprite16.SpriteFrame(frame),
             Phase = (ushort)frame,
@@ -110,7 +111,7 @@ public static class NativeBattleBlizzaraDrawing
     public static NativeBattleGfGeometryBatch? Mesh(NativeBattleModulePoolTask task, NativeBattleBlizzaraResources resources, NativeBattleCameraProjection projection, NativeBattleActionMatrix view, NativeBattleSummonColors colors)
     {
         NativeBattleBlizzaraMeshDraw? draw = DescribeMesh(task, resources, view);
-        return draw is null ? null : NativeBattleModulePackets.EmitBatch572200(draw.Resource.Bytes, 0, default, draw.Matrix, projection, draw.Context, colors);
+        return draw is null ? null : NativeBattleModulePackets.EmitBatch572200(draw.Resource.Bytes, 0, default, draw.Matrix, projection, draw.Context, colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(103, task));
     }
 
     internal static NativeBattleBlizzaraMeshDraw? DescribeMesh(NativeBattleModulePoolTask task, NativeBattleBlizzaraResources resources, NativeBattleActionMatrix view)
