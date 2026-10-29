@@ -50,7 +50,11 @@ public sealed class NativeFieldBattleReturnPresentationTests
         Assert.True(world.Battle.CanReturnToField, "Native victory must finish within the bounded combat callbacks.");
         Assert.Equal(fieldFrame, world.Events.Frame);
 
+        long returnStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        long returnAllocated = GC.GetTotalAllocatedBytes();
         world.ApplyBattleInput(new BattleInput(BattleInputKind.Return));
+        double returnMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(returnStarted).TotalMilliseconds;
+        long returnBytes = GC.GetTotalAllocatedBytes() - returnAllocated;
 
         Assert.Null(world.Battle);
         Assert.False(world.HasPendingBattle);
@@ -93,6 +97,8 @@ public sealed class NativeFieldBattleReturnPresentationTests
                 ReturnFrame = returned.GetProperty("Frame").GetInt64(),
                 ContinuedFrame = world.Events.Frame,
                 VictoryCallbacks = callbacks,
+                ReturnMilliseconds = returnMilliseconds,
+                ReturnBytes = returnBytes,
                 SourceSha256 = Convert.ToHexString(SHA256.HashData(original)),
                 BeforeSave = Path.GetFileName(before),
                 AfterSave = Path.GetFileName(after),

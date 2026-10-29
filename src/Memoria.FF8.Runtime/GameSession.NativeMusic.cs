@@ -30,7 +30,7 @@ public sealed partial class GameSession
             // These lifecycle receipts need independent ownership metadata as well as detached bytes.
             NativeBattleRetainedMemory detachedAllowed = NativeBattleStorageSnapshots.Capture(allowed);
             NativeBattleRetainedMemory detachedReloaded = NativeBattleStorageSnapshots.Capture(reloaded);
-            if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(detachedAllowed), System.Text.Json.JsonSerializer.SerializeToElement(detachedReloaded)))
+            if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(detachedAllowed, CompactJsonOptions), System.Text.Json.JsonSerializer.SerializeToElement(detachedReloaded, CompactJsonOptions)))
             {
                 throw new InvalidDataException("Native field resource reload changed an unrelated retained battle owner.");
             }

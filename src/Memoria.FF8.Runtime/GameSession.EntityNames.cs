@@ -22,7 +22,12 @@ public sealed partial class GameSession
     public void EnqueueEntityNames(IEnumerable<PendingEntityName> names)
     {
         ArgumentNullException.ThrowIfNull(names);
-        PendingEntityName[] pending = [.. State.PendingEntityNames ?? [], .. names];
+        PendingEntityName[] added = names.ToArray();
+        if (added.Length == 0)
+        {
+            return;
+        }
+        PendingEntityName[] pending = [.. State.PendingEntityNames ?? [], .. added];
         Change(State with { PendingEntityNames = pending.Length == 0 ? null : pending }, advancePlaytime: false);
     }
 

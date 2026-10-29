@@ -139,6 +139,11 @@ public sealed class NativeBattleMusicReturnTests
         NativeBattleRetainedMemory reloaded = host.State.NativeBattleMemory! with { FileStaging = NativeBattleFileStaging.Unknown().Write(0x18DD018, [1, 2, 3, 4]), FieldTextureAnimations = new(new string('A', 64), []) };
         Assert.Throws<InvalidDataException>(() => host.SetNativeBattleFieldReturn(owners with { ReloadedMemory = reloaded with { EffectIoResult = 19 } }));
         Assert.Same(before, host.State);
+        NativeBattleActionHeaderSlot changedHeader = reloaded.ActionPackets.Headers[0] with { Payload = reloaded.ActionPackets.Headers[0].Payload.SetItem(0, 0xA5) };
+        NativeBattleRetainedMemory changedBytes = reloaded with { ActionPackets = reloaded.ActionPackets with { Headers = reloaded.ActionPackets.Headers.SetItem(0, changedHeader) } };
+        InvalidDataException changedOwner = Assert.Throws<InvalidDataException>(() => host.SetNativeBattleFieldReturn(owners with { ReloadedMemory = changedBytes }));
+        Assert.Contains("unrelated retained battle owner", changedOwner.Message);
+        Assert.Same(before, host.State);
         owners = owners with { ReloadedMemory = reloaded };
         host.SetNativeBattleFieldReturn(owners);
         Assert.Null(host.State.Battle);

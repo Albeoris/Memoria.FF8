@@ -159,6 +159,84 @@ public sealed class NativeFieldRegistrationMemoryTests
         Assert.Throws<InvalidDataException>(() => transaction.View.SetResourcePointerMetadata(Address, new(null, null, -1)));
     }
 
+    [Fact]
+    public void Sparse_registration_allocations_do_not_scale_with_the_retained_extent()
+    {
+        uint distant = Address + 0x4000000;
+        NativeBattleFileStaging source = NativeBattleFileStaging.Unknown().Rebase(Address).Write(distant, [17]);
+        // Warm the transaction lease before measuring the registration's own window allocation.
+        using (NativeFieldRegistrationMemory warmup = new(source, Address, Address + 32))
+        {
+            warmup.Write8(Address, 1);
+        }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        using (NativeFieldRegistrationMemory memory = new(source, Address, Address + 32))
+        {
+            memory.Write8(Address, 9);
+            Assert.Equal((byte)17, memory.Read8(distant));
+            memory.Write8(distant, 19);
+            memory.Finish();
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < 1024 * 1024, $"Sparse registration allocated {allocated} bytes for two accessed pages.");
+        Assert.Equal((byte)9, source.ReadByte(Address));
+        Assert.Equal((byte)19, source.ReadByte(distant));
+    }
+
+    [Theory]
+    [InlineData(0, 3)]
+    [InlineData(3, 0)]
+    public void Overlapping_copies_across_pages_preserve_unknown_backing(int from, int to)
+    {
+        byte[] original = Enumerable.Range(0, 0x9000).Select(index => (byte)index).ToArray();
+        NativeBattleFileStaging source = NativeBattleFileStaging.Unknown().Rebase(Address).Write(Address, original);
+        source.MarkUnknown(Address + 0x3FFF, 4);
+        (byte[] expected, bool[] known) = source.ReadSnapshot(Address, original.Length);
+        expected.AsSpan(from, 0x8000).CopyTo(expected.AsSpan(to, 0x8000));
+        known.AsSpan(from, 0x8000).CopyTo(known.AsSpan(to, 0x8000));
+        using (NativeFieldRegistrationMemory memory = new(source, Address, Address + (uint)original.Length))
+        {
+            memory.Copy(Address + (uint)from, Address + (uint)to, 0x8000);
+            Assert.Null(memory.ReadOptional16(Address + 0x3FFF + (uint)to - (uint)from));
+            memory.Finish();
+        }
+        (byte[] actual, bool[] observed) = source.ReadSnapshot(Address, original.Length);
+        Assert.Equal(expected, actual);
+        Assert.Equal(known, observed);
+    }
+
+    [Fact]
+    public void Observed_cpu_banks_preserve_untouched_pointer_receipts_and_reconcile_only_stores()
+    {
+        const uint bankAddress = 0x196B018;
+        NativeBattleResourcePointer preserved = new(null, 0x12345678, 8);
+        NativeBattleResourcePointer overwritten = new(null, 0x87654321, 16);
+        NativeBattleFileStaging source = NativeBattleFileStaging.Unknown().Rebase(Address);
+        source.WriteResourcePointer(bankAddress + 8, preserved);
+        source.WriteResourcePointer(bankAddress + 16, overwritten);
+        source.WriteByte(bankAddress + 24, 99);
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
+        NativeBattleModelCpuBank bank = cpu.Cpu.Banks[0].Write(8, source.Read(bankAddress + 8, 4)).Write(16, source.Read(bankAddress + 16, 4));
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, bank) } };
+        NativeBattleModelCpuResources? reconciled;
+        using (NativeFieldRegistrationMemory memory = new(source, Address, bankAddress + 3 * NativeBattleModelCpuBank.Length))
+        {
+            memory.ObserveCpuBanks(cpu);
+            Assert.Same(cpu, memory.ReconcileCpuBanks(cpu));
+            Assert.Throws<NotSupportedException>(() => memory.Read8(bankAddress + 24));
+            memory.Write8(bankAddress + 17, 0xCC);
+            memory.Copy(bankAddress + 24, bankAddress + 28, 1);
+            reconciled = memory.ReconcileCpuBanks(cpu);
+            memory.Finish();
+        }
+        Assert.NotNull(reconciled);
+        Assert.Equal((byte)0xCC, reconciled.Cpu.Banks[0].Read(17, 1)[0]);
+        Assert.Equal(preserved, source.ReadResourcePointer(bankAddress + 8));
+        Assert.False(source.TryGetResourcePointerMetadata(bankAddress + 16, out _));
+        Assert.False(AllKnown(source, bankAddress + 24, 1));
+        Assert.Equal((byte)99, source.ReadSnapshot(bankAddress + 24, 1).Data[0]);
+    }
+
     private static bool AllKnown(NativeBattleFileStaging memory, uint address, int length) => memory.ReadSnapshot(address, length).Known.All(value => value);
 
     private static string SnapshotJson(NativeBattleFileStaging source) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(source));
