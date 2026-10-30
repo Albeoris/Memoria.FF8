@@ -17,11 +17,16 @@ public sealed partial class BattleSession
             graphics = graphics with { PrimitiveFrame = primitiveFrame with { Pending = orderingTransaction.View } };
         }
         NativeBattleActionMatrix? matrix = null;
+        long referencedSlotBirth = 0;
         NativeBattleCommonPacketTransaction? commonTransaction = null;
         NativeBattleCinematicGrid28Services services = new((current, texture) => NativeBattleWaterTextureMetadata.SelectTPageB665C0(current, resources, texture), (current, texture) => new(current, NativeBattleWaterTextureMetadata.ReadClutB66640(current, resources, texture)), (current, selector) =>
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
             int selected = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            if (graphics.OriginalEffect!.Binding.Effect == 219)
+            {
+                referencedSlotBirth = NativeBattleCinematicVisualIdentity.Identity(219, current, bank, selected).Generation;
+            }
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, selected));
         }, current =>
         {
@@ -142,6 +147,10 @@ public sealed partial class BattleSession
         });
         NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
         services = services with { PilotIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank)) };
+        if (graphics.OriginalEffect!.Binding.Effect == 219)
+        {
+            services = services with { PilotResourceGeneration = () => referencedSlotBirth };
+        }
         NativeBattleEffectArena? publishedArena = null;
         try
         {

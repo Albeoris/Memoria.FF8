@@ -160,7 +160,7 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveFrame primitiveFrame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic packets require their current ordering table.");
         if (output >= NativeBattleEffectNodeMemory.ArenaAddress && output - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length)
         {
-            if (graphics.OriginalEffect is { Binding.Effect: 208 or 211 } selected)
+            if (graphics.OriginalEffect is { Binding.Effect: 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 } selected)
             {
                 graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, "20DFAB8", 0, checked((int)(output - NativeBattleEffectNodeMemory.ArenaAddress)), batch) } };
             }
@@ -175,7 +175,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native cinematic output disagrees with its COMMON packet cursor.");
             }
-            if (graphics.OriginalEffect is { Binding.Effect: 208 or 211 } selected)
+            if (graphics.OriginalEffect is { Binding.Effect: 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 } selected)
             {
                 graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
             }

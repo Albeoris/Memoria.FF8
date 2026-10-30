@@ -63,6 +63,7 @@ public sealed class NativeBattleEffect227PresentationTests
         byte[]? geometryPlain = null;
         int callbacks = 0;
         int completions = 0;
+        int captured29Frames = 0;
         int changedRgb = 0;
         int geometryChangedRgb = 0;
         bool cameraChanged = false;
@@ -87,6 +88,11 @@ public sealed class NativeBattleEffect227PresentationTests
                     completions++;
                 }
                 observer.Observe(prior, current, ColdNext);
+                if (NativeBattleCinematicCaptureAssertions.AssertFrame(current, Effect) > 0)
+                {
+                    captured29Frames++;
+                }
+                NativeBattleCinematicCaptureAssertions.AssertCommands(current, Effect, observer.CurrentCommands);
                 NativeBattleLogicalCommand[] commands = observer.CurrentCommands;
                 if (commands.Length > 0)
                 {
@@ -120,6 +126,7 @@ public sealed class NativeBattleEffect227PresentationTests
             BattleSnapshot completed = battle.Capture();
             Assert.True(callbacks < 2400, "The original effect227 component did not release its native lifecycle.");
             Assert.Equal(1, completions);
+            Assert.True(captured29Frames > 1);
             Assert.True(cameraChanged);
             Assert.True(changedRgb > 100, "No actual effect227 primitive changed the rendered RGB output.");
             Assert.True(geometryChangedRgb > 100, "No effect227 geometry changed rendered RGB outside its fullviewport fade.");
@@ -158,6 +165,8 @@ public sealed class NativeBattleEffect227PresentationTests
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
             cold.Tick();
             direct.Tick();
+            NativeBattleCinematicCaptureAssertions.AssertFrame(direct.Capture(), Effect);
+            NativeBattleCinematicCaptureAssertions.AssertFrame(cold.Capture(), Effect);
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
             byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
             Assert.Equal(new BattleScenePresentation(assets, source.Definition, true).Render(direct, 320, 224).ToArray(), pixels);
@@ -181,7 +190,7 @@ public sealed class NativeBattleEffect227PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect227State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect227));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect227State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.NativeEffectMemory.Effect227)));
         string casterId = graphics.ActorIds[3] ?? throw new InvalidDataException("Effect227 requires its current caster.");
         string companionId = graphics.ActorIds[4] ?? throw new InvalidDataException("Effect227 requires its original companion.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);

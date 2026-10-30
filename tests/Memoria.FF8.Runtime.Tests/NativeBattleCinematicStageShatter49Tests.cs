@@ -190,6 +190,24 @@ public sealed class NativeBattleCinematicStageShatter49Tests
         Assert.Equal(before, emission.Frame.Arena.Read(RecordOffset, 44));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Selected219_shatter_marks_only_successful_actual_record_capture_and_keeps_native_CRT(bool entered)
+    {
+        NativeBattleWaterExecutionFrame native = Initialize(2);
+        NativeBattleWaterExecutionFrame captured = Initialize(2);
+        long before = NativeBattlePilotVisualLifetimes.Identity(219, captured.Arena, Records, 0).Generation;
+        ImmutableArray<NativeBattleVector> vertices = [new(3, 4, 0), new(3, 4, 0), new(3, 4, 0)];
+        NativeBattleCinematicStageShatter49Capture inputs = new(0, 0, 0, entered ? 26 : 25, 0, 0, 0, 0);
+        native = NativeBattleCinematicStageShatter49.CaptureFace(native, Records, vertices, inputs);
+        captured = NativeBattleCinematicStageShatter49.CaptureFacePresentation(captured, Records, vertices, inputs);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        long after = NativeBattlePilotVisualLifetimes.Identity(219, captured.Arena, Records, 0).Generation;
+        Assert.Equal(entered, after != before);
+        Assert.Equal(native.Random, captured.Random);
+    }
+
     private static NativeBattleWaterExecutionFrame Initialize(short lifetime) => NativeBattleCinematicStageShatter49.InitializeRecords(Fixture(), Records, lifetime);
 
     private static NativeBattleWaterExecutionFrame Fixture()

@@ -14,6 +14,11 @@ internal static class NativeBattleCinematicVisualIdentity
         return NativeBattlePilotVisualLifetimes.Identity(checked((ushort)effect), frame.Arena, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotBaseOffset), index, primitive);
     }
 
+    internal static NativeBattlePilotVisualIdentity? SelectedResource(NativeBattlePilotVisualIdentity? identity, uint resource)
+    {
+        return identity is { Effect: 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 } selected ? selected with { ResourceGeneration = unchecked(selected.ResourceGeneration * 397 ^ resource) } : identity;
+    }
+
     internal static NativeBattleGeometryPrimitive Capture(NativeBattleGeometryPrimitive primitive, IReadOnlyList<System.Numerics.Vector3>? world, NativeBattlePilotVisualIdentity? pilotIdentity, ReadOnlySpan<byte> face, int indices, int corners, int faceIndex, float depthScale = 1)
     {
         if (pilotIdentity is not { } identity || world is null)

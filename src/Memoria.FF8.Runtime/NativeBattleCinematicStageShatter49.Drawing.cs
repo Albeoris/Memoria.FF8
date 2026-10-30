@@ -61,7 +61,8 @@ public static partial class NativeBattleCinematicStageShatter49
                 {
                     RequireRecord(records, captureCursor);
                     int[] indices = VertexIndices(polygon, transformed.Length);
-                    frame = CaptureFace(frame, captureCursor, indices.Select(index => transformed[index]).ToImmutableArray(), capture);
+                    ImmutableArray<NativeBattleVector> capturedVertices = indices.Select(index => transformed[index]).ToImmutableArray();
+                    frame = pilotIdentity is { Effect: 219 } ? CaptureFacePresentation(frame, captureCursor, capturedVertices, capture) : CaptureFace(frame, captureCursor, capturedVertices, capture);
                     captureCursor += RecordSize;
                 }
             }
@@ -87,7 +88,7 @@ public static partial class NativeBattleCinematicStageShatter49
                 {
                     RequireRecord(records, cursor);
                     int[] indices = VertexIndices(polygon, projected.Length);
-                    NativeBattleCinematicStageShatter49Emission emitted = RenderFace(frame, cursor, polygon, indices.Select(index => projected[index]).ToImmutableArray(), camera.Matrix, camera.Projection, frame.ReadTemporaryDword(0x98), pilotIdentity is null ? default : indices.Select(index => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(RequireBone(group, mesh.Vertices[index].Bone), mesh.Vertices[index].Position), camera.Projection)).ToImmutableArray(), pilotIdentity is { } identity ? identity with { Primitive = unchecked((int)cursor) } : null);
+                    NativeBattleCinematicStageShatter49Emission emitted = RenderFace(frame, cursor, polygon, indices.Select(index => projected[index]).ToImmutableArray(), camera.Matrix, camera.Projection, frame.ReadTemporaryDword(0x98), pilotIdentity is null ? default : indices.Select(index => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(RequireBone(group, mesh.Vertices[index].Bone), mesh.Vertices[index].Position), camera.Projection)).ToImmutableArray(), pilotIdentity is { } identity ? identity with { Primitive = unchecked((int)cursor), ResourceGeneration = identity.Effect == 219 ? unchecked((NativeBattlePilotVisualLifetimes.EpochFor(mesh) * 397 ^ NativeBattlePilotVisualLifetimes.Identity(219, frame.Arena, cursor, 0).Generation) * 397 ^ identity.ResourceGeneration) : identity.ResourceGeneration } : null);
                     frame = services.Append(emitted.Frame, output, emitted.OrderingAddress, emitted.Packets);
                     output = unchecked(output + (uint)emitted.Packets.AllocationBytes);
                     cursor += RecordSize;

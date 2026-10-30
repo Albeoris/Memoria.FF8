@@ -43,7 +43,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState AdvanceNativeCinematic(NativeBattleGraphicsState graphics)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
-        if (effect.Binding.Effect is 208 or 211)
+        if (effect.Binding.Effect is 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247)
         {
             effect = effect with { PresentationPackets = [] };
             graphics = graphics with { OriginalEffect = effect };
@@ -114,7 +114,7 @@ public sealed partial class BattleSession
             packetScope = new(process.PacketBank!, process.PacketBuffer, checked((int)input.CommonCursor), checked((int)Read(manager + 0x7C)), Read(manager + 0xD4), Read(manager + 0xD8));
         }
         NativeBattleOriginalEffectState result = advanced.Effect with { Parameters = outputParameters, PresentationPacketScope = packetScope };
-        if (effect.Binding.Effect is 208 or 211)
+        if (effect.Binding.Effect is 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247)
         {
             result = result with { PresentationPackets = graphics.OriginalEffect!.PresentationPackets };
         }

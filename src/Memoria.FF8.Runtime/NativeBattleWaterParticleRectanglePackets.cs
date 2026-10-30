@@ -14,6 +14,7 @@ public static class NativeBattleWaterParticleRectanglePackets
         uint manager = CoreDword(frame, 0x27973EC);
         uint cursor = CoreDword(frame, checked(manager + 0x7C));
         uint source = frame.ReadTemporaryDword(0x90);
+        pilotIdentity = NativeBattleCinematicVisualIdentity.SelectedResource(pilotIdentity, source);
         int count = unchecked((int)BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(source, 4), 4)));
         if (count < 0)
         {

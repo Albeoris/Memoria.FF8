@@ -26,6 +26,7 @@ public static class NativeBattleCinematicCullingMesh31
         }
         uint manager = CoreDword(frame, 0x27973EC);
         uint shape = SlotDword(0xD8);
+        services = services with { PilotIdentity = NativeBattleCinematicVisualIdentity.SelectedResource(services.PilotIdentity, shape) };
         uint groups = unchecked(shape + Dword(shape + 8));
         uint vertices = unchecked(shape + Dword(shape + 0x14));
         int count = unchecked((int)Dword(shape + 0x18));
@@ -82,11 +83,17 @@ public static class NativeBattleCinematicCullingMesh31
                 byte[] packet = new byte[36];
                 packet[3] = 8;
                 int depth = 0;
+                short[]? sourceDepths = services.PilotIdentity is { Effect: 237 } ? new short[4] : null;
                 for (int vertex = 0; vertex < 4; vertex++)
                 {
                     uint projected = unchecked(work + offsets[vertex]);
                     Read(projected, 4).CopyTo(packet, 8 + vertex * 8);
-                    depth = unchecked(depth + SignedWord(unchecked(projected + 4)));
+                    short sourceDepth = SignedWord(unchecked(projected + 4));
+                    depth = unchecked(depth + sourceDepth);
+                    if (sourceDepths is not null)
+                    {
+                        sourceDepths[vertex] = sourceDepth;
+                    }
                 }
                 for (int vertex = 0; vertex < 4; vertex++)
                 {
@@ -102,7 +109,7 @@ public static class NativeBattleCinematicCullingMesh31
                 NativeBattleGfGeometryBatch batch = Batch(packet);
                 if (services.PilotIdentity is { } identity && services.PilotWorld is { } world && offsets.All(offset => world.ContainsKey(unchecked(work + offset))))
                 {
-                    NativeBattlePilotVisualGeometry geometry = new(identity with { Primitive = unchecked((int)face) }, world[work + offsets[0]], world[work + offsets[1]], world[work + offsets[2]], world[work + offsets[3]], 4);
+                    NativeBattlePilotVisualGeometry geometry = new(identity with { Primitive = unchecked((int)face) }, world[work + offsets[0]], world[work + offsets[1]], world[work + offsets[2]], world[work + offsets[3]], 4) { SourceDepths = sourceDepths is null ? null : new(sourceDepths[0], sourceDepths[1], sourceDepths[2], sourceDepths[3]), UseSourceDepths = sourceDepths is not null };
                     batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt with { Primitive = attempt.Primitive! with { PilotGeometry = geometry } }).ToImmutableArray() };
                 }
                 frame = services.Append(frame, output, ordering, batch);

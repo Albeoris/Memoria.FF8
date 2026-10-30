@@ -53,6 +53,8 @@ public sealed partial class BattleSession
                     (byte[] bytes, bool[] known) = arena.ReadSnapshot(index, 1);
                     return (bytes[0], known[0]);
                 });
+                resolved = NativeBattleCinematicCapturePresentation.Depths(resolved);
+                frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, "20DFAB8", 0, cursor, resolved) } };
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, cursor, primitive.Pending, resolved, draw.Flags);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                 return frame with { Memory = written.Memory, State = frame.State.WriteDword(CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };

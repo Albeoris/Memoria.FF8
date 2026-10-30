@@ -76,6 +76,43 @@ public sealed class NativeBattleCinematicRibbon37Tests
         Assert.Equal((ushort)2, ArenaWord(frame, 0x400E));
     }
 
+    [Fact]
+    public void Selected219_ribbon_keeps_parent_and_both_physical_segment_births_without_native_changes()
+    {
+        (NativeBattleWaterExecutionFrame Frame, List<NativeBattleGfGeometryBatch> Batches) Run(bool capture)
+        {
+            List<NativeBattleGfGeometryBatch> batches = [];
+            int count = 0;
+            NativeBattleCinematicRibbon37Services services = Services((current, _) => current, (current, matrix, address) =>
+            {
+                NativeBattleVector point = NativeBattleScriptedMeshPreparation.Vector(current.Arena.Read(checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress)), 6));
+                return new(current, unchecked((uint)(0x10000 + count)), unchecked((uint)(4000 + count++ * 4)), 0x12345678) { PilotWorld = NativeBattlePilotVisualGeometry.Transform(matrix, point) };
+            }, (current, _, _, batch) =>
+            {
+                batches.Add(batch);
+                return current;
+            });
+            return (NativeBattleCinematicRibbon37.Draw(Fixture(), services, capture ? new(219, 1, 2, 3, 4) : null), batches);
+        }
+        var native = Run(false);
+        string frozen = NativeBattleTestSnapshots.Json(native.Frame);
+        var captured = Run(true);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batches), NativeBattleTestSnapshots.Json(captured.Batches));
+        Assert.Equal(8, captured.Batches.Count);
+        foreach (NativeBattleGfGeometryBatch batch in captured.Batches)
+        {
+            NativeBattlePilotVisualGeometry visual = Assert.Single(batch.Attempts).Primitive!.PilotGeometry!;
+            Assert.Equal((ushort)219, visual.Identity.Effect);
+            Assert.Equal(1u, visual.Identity.Bank);
+            Assert.Equal(2, visual.Identity.Slot);
+            Assert.Equal(3L, visual.Identity.Generation);
+            Assert.NotEqual(0, visual.Identity.ResourceGeneration);
+            Assert.True(visual.UseSourceDepths);
+            Assert.Equal(System.Numerics.Vector4.Zero, visual.SourceDepths);
+        }
+    }
+
     private static NativeBattleCinematicRibbon37Services Services(Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> publish, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, uint, NativeBattleCinematicRibbonProjection> project, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> append)
         => new((_, _) => Address(0x2100), publish, (current, first, second, output) => NativeBattleCinematicRibbonWork.BuildColorRamp(current, NativeBattleScriptedColorRegisters.Unknown(), first, second, output).Frame, current => new(current, new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096)), project, append);
 

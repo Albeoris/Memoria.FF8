@@ -63,6 +63,21 @@ public sealed partial class NativeBattleCinematicModelTests
         Assert.Equal(unchecked(123L * 397 ^ (Base + 0x12000u)), visual.Identity.ResourceGeneration);
     }
 
+    [Theory]
+    [InlineData((ushort)219)]
+    [InlineData((ushort)228)]
+    [InlineData((ushort)236)]
+    [InlineData((ushort)237)]
+    [InlineData((ushort)243)]
+    [InlineData((ushort)244)]
+    [InlineData((ushort)245)]
+    [InlineData((ushort)246)]
+    [InlineData((ushort)247)]
+    public void Selected_model_resource_capture_preserves_actual_geometry_pointer_and_all_native_output(ushort effect)
+    {
+        Captured208_211_model_keeps_native_pose_scratch_and_actual_model_geometry_resource(effect);
+    }
+
     private static NativeBattleWaterExecutionFrame RenderFixture()
     {
         NativeBattleWaterExecutionFrame frame = Prepared();

@@ -13,6 +13,7 @@ public sealed record NativeBattleCinematicGridProjection(NativeBattleWaterExecut
 public sealed record NativeBattleCinematicGrid28Services(Func<NativeBattleWaterExecutionFrame, short, NativeBattleWaterExecutionFrame> TexturePage, Func<NativeBattleWaterExecutionFrame, short, NativeBattleCinematicGridValue> TextureClut, Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> PrepareBasis, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SetLighting, Func<NativeBattleWaterExecutionFrame, short, short, int, NativeBattleWaterExecutionFrame> SetDepthCue, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> SetFarColor, Func<NativeBattleWaterExecutionFrame, uint, uint, uint, uint, uint, uint, NativeBattleCinematicGridProjection> ProjectNormal, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> Append)
 {
     public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+    public Func<long>? PilotResourceGeneration { get; init; }
 }
 
 /// <summary>A textured grid with projected normals, interpolated colors and per-cell ordering.</summary>
@@ -48,6 +49,10 @@ public static class NativeBattleCinematicGrid28
         frame = frame.WriteTemporaryDword(0x74, unchecked((uint)firstV));
         frame = frame.WriteTemporaryDword(0x78, unchecked((uint)((columns + 1) * 12)));
         uint reference = services.ResolveSlot(frame, SignedWord(payload));
+        if (services.PilotIdentity is { Effect: 219 } sourceIdentity)
+        {
+            services = services with { PilotIdentity = sourceIdentity with { ResourceGeneration = unchecked(((long)payload * 397 ^ reference) * 397 ^ (services.PilotResourceGeneration?.Invoke() ?? 0)) } };
+        }
         frame = frame.WriteTemporaryDword(0x7C, (ReadSlot(frame, 0xDE, 1)[0] & 0x20) != 0 ? SlotDword(0xC0) : uint.MaxValue);
         ushort savedScale = SlotWord(frame, 0x8E);
         frame = WriteSlotWord(frame, 0x8E, 0x1000);

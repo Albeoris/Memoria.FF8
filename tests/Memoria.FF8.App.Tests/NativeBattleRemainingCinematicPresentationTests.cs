@@ -113,7 +113,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                 NativeBattleOriginalEffectState? before = Selected(prior);
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
-                if (effectId is 208 or 211 && NativeBattleCinematicCaptureAssertions.AssertFrame(current, effectId) > 0)
+                if (effectId is 208 or 211 or 219 && NativeBattleCinematicCaptureAssertions.AssertFrame(current, effectId) > 0)
                 {
                     captured28Frames++;
                 }
@@ -218,7 +218,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             Assert.True(visibleChangedRgb > 0);
             Assert.Equal(contactGate is null && expectedText is null ? 0 : 1, contacts);
             Assert.Equal(1, completions);
-            if (effectId is 208 or 211)
+            if (effectId is 208 or 211 or 219)
             {
                 Assert.True(captured28Frames > 1);
             }
@@ -254,7 +254,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
                 cold.Tick();
                 direct.Tick();
-                if (effectId is 208 or 211)
+                if (effectId is 208 or 211 or 219)
                 {
                     NativeBattleCinematicCaptureAssertions.AssertFrame(direct.Capture(), effectId);
                     NativeBattleCinematicCaptureAssertions.AssertFrame(cold.Capture(), effectId);

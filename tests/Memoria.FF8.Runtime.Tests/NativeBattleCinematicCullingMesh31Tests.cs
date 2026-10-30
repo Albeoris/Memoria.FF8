@@ -151,6 +151,56 @@ public sealed class NativeBattleCinematicCullingMesh31Tests
         Assert.Equal(0, appends);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Selected237_culling_capture_uses_actual_cached_shape_and_never_reads_hidden_face_worlds(bool hidden)
+    {
+        var native = Run(false);
+        string frozen = NativeBattleTestSnapshots.Json(native.Frame);
+        string packets = NativeBattleTestSnapshots.Json(native.Batches);
+        var captured = Run(true);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(packets, NativeBattleTestSnapshots.Json(captured.Batches));
+        if (hidden)
+        {
+            Assert.Empty(captured.Batches);
+            return;
+        }
+        NativeBattlePilotVisualGeometry geometry = captured.Batches[0].Attempts[0].Primitive!.PilotGeometry!;
+        Assert.Equal((long)Address(0x3000), geometry.Identity.ResourceGeneration);
+        Assert.Equal(new System.Numerics.Vector3(0, 0, 100), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(30, 60, 103), geometry.D);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(2, 4, 6, 8), geometry.SourceDepths);
+        Assert.Null(captured.Batches[1].Attempts[0].Primitive!.PilotGeometry);
+
+        (NativeBattleWaterExecutionFrame Frame, List<NativeBattleGfGeometryBatch> Batches) Run(bool capture)
+        {
+            NativeBattleWaterExecutionFrame frame = Quad(hidden ? (short)2048 : (short)0);
+            if (hidden)
+            {
+                frame = frame with { Arena = frame.Arena.MarkUnknown(0x3044, 16) };
+            }
+            Dictionary<uint, System.Numerics.Vector3> world = [];
+            List<NativeBattleGfGeometryBatch> batches = [];
+            NativeBattleCinematicCullingMesh31Services services = Services((current, source, output) =>
+            {
+                int index = checked((int)(source - Address(0x3100)) / 8);
+                if (capture)
+                {
+                    world[output] = new(index * 10, index * 20, 100 + index);
+                }
+                return Project(current, source, output);
+            }) with { PilotIdentity = capture ? new(237, 1, 2, 3, 4) : null, PilotWorld = capture ? world : null, Append = (current, _, _, batch) =>
+            {
+                batches.Add(batch);
+                return current;
+            } };
+            return (NativeBattleCinematicCullingMesh31.Draw(frame, services), batches);
+        }
+    }
+
     private static NativeBattleWaterExecutionFrame Project(NativeBattleWaterExecutionFrame current, uint source, uint output)
     {
         int index = checked((int)(source - Address(0x3100)) / 8);

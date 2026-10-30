@@ -241,6 +241,37 @@ public sealed class NativeBattleCinematicGrid28Tests
         }
     }
 
+    [Fact]
+    public void Selected219_grid_resource_binds_actual_payload_reference_and_referenced_birth_without_native_changes()
+    {
+        (NativeBattleWaterExecutionFrame Frame, List<NativeBattleGfGeometryBatch> Batches) Run(bool capture, long birth)
+        {
+            List<NativeBattleGfGeometryBatch> batches = [];
+            int projected = 0;
+            NativeBattleCinematicGrid28Services services = Services([], (current, _, _, _, screen, color, _) =>
+            {
+                current = ArenaDword(ArenaDword(current, screen, unchecked((uint)(0x10000 + projected))), color, 0x00030201);
+                return new(current, -++projected) { PilotWorld = new(projected, 0, 2000) };
+            }, (current, _, _, batch) =>
+            {
+                batches.Add(batch);
+                return current;
+            }) with { PilotIdentity = capture ? new(219, 1, 2, 3, 4) : null, PilotResourceGeneration = () => birth };
+            return (NativeBattleCinematicGrid28.Draw(Fixture(1, 1), services), batches);
+        }
+        var native = Run(false, 11);
+        var captured = Run(true, 11);
+        var rebound = Run(true, 12);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Frame), NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batches), NativeBattleTestSnapshots.Json(captured.Batches));
+        Assert.Equal(NativeBattleTestSnapshots.Json(captured.Frame), NativeBattleTestSnapshots.Json(rebound.Frame));
+        NativeBattlePilotVisualGeometry a = Assert.Single(Assert.Single(captured.Batches).Attempts).Primitive!.PilotGeometry!;
+        NativeBattlePilotVisualGeometry b = Assert.Single(Assert.Single(rebound.Batches).Attempts).Primitive!.PilotGeometry!;
+        Assert.Equal((ushort)219, a.Identity.Effect);
+        Assert.NotEqual(a.Identity.ResourceGeneration, b.Identity.ResourceGeneration);
+        Assert.Equal(a.A, b.A);
+    }
+
     private static NativeBattleCinematicGrid28Services Services(List<string> calls, Func<NativeBattleWaterExecutionFrame, uint, uint, uint, uint, uint, uint, NativeBattleCinematicGridProjection> project, Func<NativeBattleWaterExecutionFrame, uint, uint, NativeBattleGfGeometryBatch, NativeBattleWaterExecutionFrame> append) => new((frame, index) =>
     {
         calls.Add("page");

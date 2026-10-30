@@ -7,6 +7,12 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleGuestLimitCastTests
 {
+    [Fact]
+    public void Installed_Ice_Strike228_completes_original_graphics_and_independent_standalones()
+    {
+        Installed_guest_limit_completes_original_graphics_and_independent_standalones(7, 228);
+    }
+
     [Theory]
     [InlineData(7, 228)]
     [InlineData(8, 261)]
@@ -28,6 +34,7 @@ public sealed class NativeBattleGuestLimitCastTests
         bool selected = false;
         bool drawn = false;
         bool midpoint = false;
+        int captured228Frames = 0;
         try
         {
             for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
@@ -48,6 +55,10 @@ public sealed class NativeBattleGuestLimitCastTests
                 before = battle.Capture();
                 battle.Tick();
                 NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                if (effectId == 228 && NativeBattleCinematicCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+                {
+                    captured228Frames++;
+                }
                 bool active = graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId;
                 if (active)
                 {
@@ -69,6 +80,10 @@ public sealed class NativeBattleGuestLimitCastTests
                 if (selected && Released(battle))
                 {
                     Assert.True(drawn);
+                    if (effectId == 228)
+                    {
+                        Assert.True(captured228Frames > 1);
+                    }
                     Assert.True(midpoint);
                     Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy");
                     CompareNext("completed", battle);
@@ -99,6 +114,11 @@ public sealed class NativeBattleGuestLimitCastTests
             before = current.Capture();
             current.Tick();
             clone.Tick();
+            if (effectId == 228)
+            {
+                NativeBattleCinematicCaptureAssertions.AssertFrame(current.Capture(), effectId);
+                NativeBattleCinematicCaptureAssertions.AssertFrame(clone.Capture(), effectId);
+            }
             Assert.Equal(JsonSerializer.Serialize(current.Capture()), JsonSerializer.Serialize(clone.Capture()));
             Assert.Equal(scene.Render(current, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
             Publish(name + "-next", current);

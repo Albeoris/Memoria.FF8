@@ -33,6 +33,56 @@ public sealed class NativeBattleWaterParticleRectangleTests
         Assert.NotEqual(identity.Generation, NativeBattlePilotVisualLifetimes.Identity(effect, capturedFrame.Arena, 0x2200000, 3).Generation);
     }
 
+    [Theory]
+    [InlineData((ushort)219)]
+    [InlineData((ushort)228)]
+    [InlineData((ushort)236)]
+    [InlineData((ushort)237)]
+    [InlineData((ushort)243)]
+    [InlineData((ushort)244)]
+    [InlineData((ushort)245)]
+    [InlineData((ushort)246)]
+    [InlineData((ushort)247)]
+    public void Selected_resource_changes_at_one_particle_birth_preserve_detached_native_state_and_previous_geometry(ushort effect)
+    {
+        NativeBattleWaterExecutionFrame nativeFrame = Fixture();
+        NativeBattleWaterExecutionFrame capturedFrame = Fixture();
+        NativeBattlePilotVisualLifetimes.Allocated(capturedFrame.Arena, 0x2200000, 3);
+        NativeBattlePilotVisualIdentity owner = NativeBattlePilotVisualLifetimes.Identity(effect, capturedFrame.Arena, 0x2200000, 3);
+        NativeBattleCameraProjection projection = Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() };
+        NativeBattleWaterParticleRectangleResult native = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(nativeFrame, Registers(Matrix), projection, 1365, 0, 0, Resolve);
+        string firstNative = NativeBattleTestSnapshots.Json(native);
+        NativeBattleWaterParticleRectangleResult captured = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(capturedFrame, Registers(Matrix), projection, 1365, 0, 0, Resolve, Matrix, owner);
+        Assert.Equal(firstNative, NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry previous = Assert.Single(captured.Packets.Attempts).Primitive!.PilotGeometry!;
+        Assert.Equal((long)(ArenaBase + Source), previous.Identity.ResourceGeneration);
+        native = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(Relocate(native.Frame), Registers(Matrix), projection, 1365, 0, 0, Resolve);
+        string nextNative = NativeBattleTestSnapshots.Json(native);
+        captured = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(Relocate(captured.Frame), Registers(Matrix), projection, 1365, 0, 0, Resolve, Matrix, owner);
+        Assert.Equal(nextNative, NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry replacement = Assert.Single(captured.Packets.Attempts).Primitive!.PilotGeometry!;
+        Assert.Equal(previous.Identity.Generation, replacement.Identity.Generation);
+        Assert.NotEqual(previous.Identity.ResourceGeneration, replacement.Identity.ResourceGeneration);
+        Assert.Equal((long)(ArenaBase + Source), previous.Identity.ResourceGeneration);
+        Assert.Equal(previous.A, replacement.A);
+        Assert.Equal(previous.D, replacement.D);
+        Assert.Equal(captured.Packets.Attempts[0].Primitive!.VertexPayload4, native.Packets.Attempts[0].Primitive!.VertexPayload4);
+
+        static NativeBattleWaterExecutionFrame Relocate(NativeBattleWaterExecutionFrame frame)
+        {
+            (byte[] bytes, bool[] known) = frame.Arena.ReadSnapshot(Source, 24);
+            NativeBattleEffectArena arena = frame.Arena.Write(Source + 0x1000, bytes);
+            for (int index = 0; index < known.Length; index++)
+            {
+                if (!known[index])
+                {
+                    arena = arena.MarkUnknown(Source + 0x1000 + index, 1);
+                }
+            }
+            return (frame with { Arena = arena }).WriteTemporaryDword(0x90, ArenaBase + Source + 0x1000);
+        }
+    }
+
     private const uint ArenaBase = 0x20DFAB8;
     private const uint Manager = 0x2797690;
     private const int Source = 0x10000;

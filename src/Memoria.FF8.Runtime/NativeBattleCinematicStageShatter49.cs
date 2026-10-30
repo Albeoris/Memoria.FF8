@@ -25,6 +25,16 @@ public static partial class NativeBattleCinematicStageShatter49
 
     public static NativeBattleWaterExecutionFrame CaptureFace(NativeBattleWaterExecutionFrame frame, uint recordAddress, ImmutableArray<NativeBattleVector> vertices, NativeBattleCinematicStageShatter49Capture inputs)
     {
+        return CaptureFaceCore(frame, recordAddress, vertices, inputs, false);
+    }
+
+    public static NativeBattleWaterExecutionFrame CaptureFacePresentation(NativeBattleWaterExecutionFrame frame, uint recordAddress, ImmutableArray<NativeBattleVector> vertices, NativeBattleCinematicStageShatter49Capture inputs)
+    {
+        return CaptureFaceCore(frame, recordAddress, vertices, inputs, true);
+    }
+
+    private static NativeBattleWaterExecutionFrame CaptureFaceCore(NativeBattleWaterExecutionFrame frame, uint recordAddress, ImmutableArray<NativeBattleVector> vertices, NativeBattleCinematicStageShatter49Capture inputs, bool capturePresentation)
+    {
         if (vertices.IsDefault || vertices.Length is not (3 or 4))
         {
             throw new InvalidDataException("Native stage shatter requires its original triangle or quad vertices.");
@@ -40,6 +50,10 @@ public static partial class NativeBattleCinematicStageShatter49
         if (radius >= inputs.RadiusSquared)
         {
             return frame;
+        }
+        if (capturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Arena, recordAddress, 0);
         }
         frame = StoreVector(frame, recordAddress, new(unchecked((short)x), unchecked((short)y), unchecked((short)z)));
         frame = StoreByte(frame, recordAddress + 6, 1);

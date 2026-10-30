@@ -7,10 +7,10 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState RunNativeEffect227(NativeBattleGraphicsState graphics, bool initialize)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect227 requires its current effect.");
+        NativeBattleOriginalEffectState effect = (graphics.OriginalEffect ?? throw new NotSupportedException("Effect227 requires its current effect.")) with { PresentationPackets = [] };
         NativeBattleEffect227Resources resources = effect.Binding.Effect227Resources ?? throw new NotSupportedException("Effect227 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect227 requires current process memory.");
-        NativeBattleEffect227Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect227 requires its current CRT stream."), memory.Effect227 ?? throw new NotSupportedException("Effect227 requires its retained state.")) { Staging = NativeFileStaging };
+        NativeBattleEffect227Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect227 requires its current CRT stream."), memory.Effect227 ?? throw new NotSupportedException("Effect227 requires its retained state.")) { CapturePresentation = true, Staging = NativeFileStaging };
         NativeBattleEffect227Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect227 requires its color tables."), (_, address) => CaptureNativeEffect210Model(graphics.Models[NativeEffect227Actor(graphics, address)]), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect227 requires its current projection."), _ => Camera().Roll, Point, (current, operation) => ExecuteNativeEffect227Operation(ref graphics, current, operation, resources));
         frame = initialize ? NativeBattleEffect227Controller.Initialize(frame, resources, inputs) : NativeBattleEffect227Controller.Advance(frame, resources, inputs);
         PublishNativeEffect227Frame(frame);

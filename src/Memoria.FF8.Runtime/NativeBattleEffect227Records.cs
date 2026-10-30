@@ -34,6 +34,10 @@ public static class NativeBattleEffect227Records
                 candidate += Stride;
             }
         }
+        if (frame.CapturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, first, checked((int)((candidate - first) / Stride)));
+        }
         uint next = candidate >= first + (Count - 1) * Stride ? first : candidate + Stride;
         return (frame with { State = frame.State.WriteDword(FreeCursorGlobal, next) }, candidate);
     }
@@ -133,7 +137,7 @@ public static class NativeBattleEffect227Records
             }
             temporary = Put(temporary, 0x2C, checked(sourceAddress + (uint)displacement + 4));
             frame = PublishContext(frame, temporaryAddress, temporary, 180);
-            NativeBattleShockwavePulsar260PuffStep draw = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(frame.Memory, temporary, sprite, inputs.ReadProjection(frame));
+            NativeBattleShockwavePulsar260PuffStep draw = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(frame.Memory, temporary, sprite, inputs.ReadProjection(frame), frame.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(227, frame.State.Storage, first, index) with { ResourceGeneration = sourceAddress } : null);
             frame = PublishContext(frame with { Memory = draw.Memory }, temporaryAddress, draw.Temporary180, 180);
             frame = inputs.Execute(frame, new NativeBattleEffect227DrawBatch(draw.Batch, CursorGlobal));
         }

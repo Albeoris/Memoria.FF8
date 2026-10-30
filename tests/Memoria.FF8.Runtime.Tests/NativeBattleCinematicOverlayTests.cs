@@ -7,6 +7,33 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCinematicOverlayTests
 {
     [Theory]
+    [InlineData((ushort)219)]
+    [InlineData((ushort)228)]
+    [InlineData((ushort)236)]
+    [InlineData((ushort)237)]
+    [InlineData((ushort)243)]
+    [InlineData((ushort)244)]
+    [InlineData((ushort)245)]
+    [InlineData((ushort)246)]
+    [InlineData((ushort)247)]
+    public void Selected_fixed_overlay_keeps_native_discrete_screen_operation_and_zero_depth(ushort effect)
+    {
+        var native = NativeBattleCinematicOverlay.Draw(Fixture(-120, 20, 30), _ => 17);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        var captured = NativeBattleCinematicOverlay.Draw(Fixture(-120, 20, 30), _ => 17, new(effect, 1, 2, 3, 4));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        var quad = captured.Packets.Attempts[1].Primitive!;
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(quad.PilotGeometry);
+        Assert.Equal(effect, visual.Identity.Effect);
+        Assert.True(visual.ScreenSpace);
+        Assert.False(visual.Continuous);
+        Assert.True(visual.UseSourceDepths);
+        Assert.Equal(System.Numerics.Vector4.Zero, visual.SourceDepths);
+        Assert.Equal(new System.Numerics.Vector3(320, 256, 0), visual.D);
+        Assert.Null(captured.Packets.Attempts[2].Primitive!.PilotGeometry);
+    }
+
+    [Theory]
     [InlineData((short)0)]
     [InlineData((short)120)]
     public void Group17_overlay_optional238_owner_preserves_native_stores_discrete_extent_and_zero_depth(short red)

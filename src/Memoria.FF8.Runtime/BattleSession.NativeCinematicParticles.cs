@@ -88,6 +88,10 @@ public sealed partial class BattleSession
             uint start = unchecked(cursor - (uint)drawn.Packets.AllocationBytes);
             if ((ReadSlot(current, 0x4C, 1)[0] & 1) != 0)
             {
+                if (graphics.OriginalEffect is { Binding.Effect: 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 } selected)
+                {
+                    graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, "20DFAB8", 0, ArenaOffset(start, 0), drawn.Packets) } };
+                }
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, ArenaOffset(start, 0), primitive.Pending, drawn.Packets);
                 memory = written.Memory;
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
@@ -98,6 +102,10 @@ public sealed partial class BattleSession
                 if (start != common.ByteCursor)
                 {
                     throw new InvalidDataException("Native cinematic particle COMMON cursor disagrees with its physical packet owner.");
+                }
+                if (graphics.OriginalEffect is { Binding.Effect: 208 or 211 or 219 or 228 or 236 or 237 or 243 or 244 or 245 or 246 or 247 } selected)
+                {
+                    graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, common.PacketBank!, common.PacketBuffer, common.ByteCursor!.Value, drawn.Packets) } };
                 }
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(common, primitive.Pending, drawn.Packets);
                 memory = memory with { PrimitiveProcess = written.Process };
