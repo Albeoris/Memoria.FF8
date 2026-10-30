@@ -28,7 +28,11 @@ public static class LiveEvidenceValidation
         return Validate(document.RootElement, recipe);
     }
 
-    public static LiveEvidenceVerdict Validate(JsonElement report, CaseRecipe? recipe = null)
+    public static LiveEvidenceVerdict Validate(JsonElement report, CaseRecipe? recipe = null) => ValidateCore(report, recipe, false);
+
+    public static LiveEvidenceVerdict ValidateFreshEntry(JsonElement report) => ValidateCore(report, null, true);
+
+    private static LiveEvidenceVerdict ValidateCore(JsonElement report, CaseRecipe? recipe, bool freshEntry)
     {
         List<string> errors = [];
         List<string> diagnostics = [];
@@ -41,7 +45,15 @@ public static class LiveEvidenceValidation
         {
             RejectDuplicateProperties(report);
             PreludeEvidenceValidation.ValidateReport(report);
-            SlotsLiveEvidenceValidation.ValidateReport(report);
+            FreshEntryPairValidation.ValidateProtocol(report, freshEntry);
+            if (freshEntry)
+            {
+                SlotsLiveEvidenceValidation.ValidateFreshEntryReport(report);
+            }
+            else
+            {
+                SlotsLiveEvidenceValidation.ValidateReport(report);
+            }
             if (Number(report, "schema_version") != 1 || !Guid.TryParse(Text(report, "battle_instance_id"), out Guid identity) || identity == Guid.Empty)
             {
                 errors.Add("REPORT_IDENTITY_INVALID");
@@ -149,9 +161,9 @@ public static class LiveEvidenceValidation
                 errors.Add("SEALED_CASE_MISMATCH_OR_BLOCKED");
             }
             JsonElement executions = report.GetProperty("executions");
-            if (executions.GetArrayLength() != 2)
+            if (executions.GetArrayLength() != (freshEntry ? 1 : 2))
             {
-                errors.Add("EXACTLY_TWO_EXECUTIONS_REQUIRED");
+                errors.Add(freshEntry ? "EXACTLY_ONE_FRESH_ENTRY_EXECUTION_REQUIRED" : "EXACTLY_TWO_EXECUTIONS_REQUIRED");
             }
             TelemetryContinuityGuard? continuity = null;
             long previousSerial = 0;
@@ -1135,7 +1147,7 @@ public static class LiveEvidenceValidation
     private static string Text(JsonElement value, string name) => value.GetProperty(name).GetString() ?? throw new InvalidDataException($"Missing string {name}.");
     private static bool Flag(JsonElement value, string name) => value.GetProperty(name).GetBoolean();
 
-    private static void RejectDuplicateProperties(JsonElement value)
+    internal static void RejectDuplicateProperties(JsonElement value)
     {
         if (value.ValueKind == JsonValueKind.Object)
         {

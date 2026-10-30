@@ -90,7 +90,7 @@ public sealed partial class BattleSession
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x10), 0x2F4);
                 NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Animation, 0, (current, node) =>
                 {
-                    DrawMesh(node, anchor);
+                    DrawMesh(node, anchor, NativeBattleMadRush273Presentation.MeshIdentity(task, resources.Animation.Address, node.ResourceOffset));
                     return current;
                 });
                 task = PublishWorkspace(task, 0x1C, advance.Workspace);
@@ -144,7 +144,7 @@ public sealed partial class BattleSession
         }
         return graphics with { OriginalEffect = effect with { Pools = targets is null || particles is null ? [roots] : [roots, targets, particles], ReturnedDescriptor = completed ? 0u : 0x2508530u } };
 
-        void DrawMesh(NativeBattleGfAnimationNode node, NativeBattleVector anchor)
+        void DrawMesh(NativeBattleGfAnimationNode node, NativeBattleVector anchor, NativeBattlePilotVisualIdentity identity)
         {
             if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
             {
@@ -188,7 +188,7 @@ public sealed partial class BattleSession
             {
                 Store(8, node.Color32);
             }
-            NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(NativeFileStaging, allocation.Address, meshAddress, source.Data.Slice(geometry, source.Data.Length - geometry), matrix, projection, new(flags, node.Scalar36 != 0 ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2), colors, vertices, vertexAddress);
+            NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(NativeFileStaging, allocation.Address, meshAddress, source.Data.Slice(geometry, source.Data.Length - geometry), matrix, projection, new(flags, node.Scalar36 != 0 ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2), colors, vertices, vertexAddress, pilotIdentity: identity);
             NativeFileStaging = drawn.Staging;
             Append(drawn.Batch);
             NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(NativeFileStaging, 88);
@@ -213,7 +213,7 @@ public sealed partial class BattleSession
             byte[] phase = new byte[2];
             BinaryPrimitives.WriteUInt16LittleEndian(phase, task.ReadWord(12));
             temporary = temporary.Write(4, phase).Write(36, new byte[2]);
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(NativeEffectMemory!, temporary, address => address == resources.Particle.Address ? resources.Particle : throw new NotSupportedException("Mad Rush selected an unsupported particle sprite."), projection, NativeCamera.Roll);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(NativeEffectMemory!, temporary, address => address == resources.Particle.Address ? resources.Particle : throw new NotSupportedException("Mad Rush selected an unsupported particle sprite."), projection, NativeCamera.Roll, pilotIdentity: NativeBattleMadRush273Presentation.ParticleIdentity(task, resources.Particle.Address));
             NativeEffectMemory = drawn.Memory;
             NativeFileStaging = NativeBattleTemporaryMemory.PublishView(NativeFileStaging, allocation.Address, drawn.Temporary180, 180);
             Append(drawn.Batch);
@@ -222,6 +222,7 @@ public sealed partial class BattleSession
 
         void Append(NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleMadRush273Presentation.PreserveNativeDepths(batch);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch);
             NativeEffectMemory = written.Memory;
             effect = effect with { DrawArenaOffset = written.Cursor };

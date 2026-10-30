@@ -8,7 +8,15 @@ public static class SlotsLiveEvidenceValidation
 {
     private static readonly JsonSerializerOptions Json = new(RecordJson.Options) { Converters = { new JsonStringEnumConverter() } };
 
-    public static void ValidateReport(JsonElement report)
+    public static void ValidateReport(JsonElement report) => ValidateCore(report, 2);
+
+    public static void ValidateFreshEntryReport(JsonElement report)
+    {
+        FreshEntryPairValidation.ValidateProtocol(report, true);
+        ValidateCore(report, 1);
+    }
+
+    private static void ValidateCore(JsonElement report, int expectedExecutions)
     {
         bool declared = report.TryGetProperty("slots_admission", out JsonElement value) && value.ValueKind != JsonValueKind.Null;
         JsonElement original = default;
@@ -32,7 +40,7 @@ public static class SlotsLiveEvidenceValidation
         BattleInput input = report.GetProperty("input").Deserialize<BattleInput>(Json) ?? throw new InvalidDataException("Slots semantic input is absent.");
         ushort effect = report.GetProperty("expected_effect").GetUInt16();
         declaration.Validate(input, effect, report.GetProperty("expected_native_action").GetInt32(), report.GetProperty("expected_native_command").GetByte());
-        if (!JsonElement.DeepEquals(report.GetProperty("input"), driver.GetProperty("input")) || driver.GetProperty("expected_effect").GetUInt16() != effect || driver.GetProperty("expected_native_action").GetInt32() != declaration.MagicAction || driver.GetProperty("expected_native_command").GetByte() != 16 || receipts.Length != 2 || report.GetProperty("supporting_effects").GetArrayLength() != 0 || report.GetProperty("supporting_invocations").GetArrayLength() != 0 || report.GetProperty("declared_repairs").GetArrayLength() != 0 || report.GetProperty("declared_terminal_hold").ValueKind != JsonValueKind.Null)
+        if (!JsonElement.DeepEquals(report.GetProperty("input"), driver.GetProperty("input")) || driver.GetProperty("expected_effect").GetUInt16() != effect || driver.GetProperty("expected_native_action").GetInt32() != declaration.MagicAction || driver.GetProperty("expected_native_command").GetByte() != 16 || receipts.Length != expectedExecutions || report.GetProperty("supporting_effects").GetArrayLength() != 0 || report.GetProperty("supporting_invocations").GetArrayLength() != 0 || report.GetProperty("declared_repairs").GetArrayLength() != 0 || report.GetProperty("declared_terminal_hold").ValueKind != JsonValueKind.Null)
         {
             throw new InvalidDataException("Slots evidence requires exactly two genuine independent admissions without substitutions or repairs.");
         }
@@ -56,11 +64,11 @@ public static class SlotsLiveEvidenceValidation
         BattleDiagnosticLimitSelection policy = driver.GetProperty("limit_selection").Deserialize<BattleDiagnosticLimitSelection>(Json) ?? throw new InvalidDataException("Slots Limit policy is absent.");
         BattleDiagnosticLimitSelectionReceipt[] selections = report.GetProperty("limit_selections").Deserialize<BattleDiagnosticLimitSelectionReceipt[]>(Json) ?? throw new InvalidDataException("Slots Limit selections are absent.");
         JsonElement[] executions = report.GetProperty("executions").EnumerateArray().ToArray();
-        if (selections.Length != 2 || executions.Length != 2)
+        if (selections.Length != expectedExecutions || executions.Length != expectedExecutions)
         {
             throw new InvalidDataException("Slots requires exactly two actual Limit selections and scored executions.");
         }
-        for (int index = 0; index < 2; index++)
+        for (int index = 0; index < expectedExecutions; index++)
         {
             JsonElement execution = executions[index];
             DiagnosticSlotsObservation anchor = execution.GetProperty("slots_start").Deserialize<DiagnosticSlotsObservation>(Json) ?? throw new InvalidDataException("Slots independent scored start is absent.");

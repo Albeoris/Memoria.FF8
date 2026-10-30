@@ -26,6 +26,8 @@ internal sealed partial class RecreateGame
     private readonly List<long> diagnosticGunbladeTriggers = [];
     private readonly List<BattleDiagnosticRepairReceipt> diagnosticRepairs = [];
     private readonly List<BattleDiagnosticEnemySubmission> diagnosticEnemySubmissions = [];
+    private bool diagnosticFreshEntryInitializationPublished;
+
     private static readonly string[] DiagnosticCampaignStages = ["initialization", "action_one", "cleanup_rearm", "action_two", "teardown"];
 
     private void StartDiagnosticDriver(DiagnosticBattleDriverRecipe recipe)
@@ -37,6 +39,7 @@ internal sealed partial class RecreateGame
         diagnosticHostWasActive = IsActive;
         diagnosticBattleFault = null;
         diagnosticDriverRecipe = recipe;
+        diagnosticFreshEntryInitializationPublished = false;
         diagnosticDriverBattle = world?.Battle ?? throw new InvalidOperationException("Diagnostic driver requires its published live battle.");
         diagnosticEnemySubmissions.Clear();
         diagnosticSlotsAdmissions.Clear();
@@ -104,6 +107,15 @@ internal sealed partial class RecreateGame
                     blockers = active.NativeEntryReady ? active.ObserveDiagnosticDrainBlockers().ToArray() : ["native-entry"];
                 }
                 bool ready = active.NativeEntryReady && (world!.DiagnosticReceipt?.Preparation.Target is null || diagnosticTargetVerified) && DiagnosticCommandReady(active, diagnosticDriverRecipe!);
+                if (diagnosticDriverRecipe!.FreshEntry is not null && ready && blockers.Length == 0 && driver.Stage == DiagnosticDriverStage.Readiness && !diagnosticFreshEntryInitializationPublished)
+                {
+                    string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_OUTPUT_DIRECTORY") ?? throw new InvalidDataException("Fresh entry requires an owned output directory for its independent initialization receipt.");
+                    if (!WriteDiagnosticJson(Path.Combine(output, "fresh-entry-initialization.json"), world!.DiagnosticReceipt!, false))
+                    {
+                        throw new IOException("Fresh entry could not retain its immutable initialization receipt before admission.");
+                    }
+                    diagnosticFreshEntryInitializationPublished = true;
+                }
                 DiagnosticDriverObservation observation = new(now.TotalSeconds, active.NativeHostCallbacks ?? throw new NotSupportedException("Diagnostic driver requires the live callback ledger."), diagnosticPresentedFrames, ready, blockers.Length == 0, active.Outcome != BattleOutcome.Active, blockers);
                 DiagnosticDriverStage previousStage = driver.Stage;
                 if (driver.Advance(observation))
@@ -311,6 +323,7 @@ internal sealed partial class RecreateGame
             object report = new
             {
                 schema_version = 1,
+                fresh_entry = diagnosticDriverRecipe!.FreshEntry,
                 battle_instance_id = world?.DiagnosticReceipt?.BattleInstanceId,
                 timestamp_frequency = Stopwatch.Frequency,
                 expected_effect = diagnosticDriverRecipe!.ExpectedEffect,

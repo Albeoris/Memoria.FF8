@@ -20,6 +20,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public BattleDiagnosticLimitSelection? LimitSelection { get; init; }
     public DiagnosticShotCycleDeclaration? ShotCycle { get; init; }
     public DiagnosticSlotsDeclaration? SlotsAdmission { get; init; }
+    public DiagnosticFreshEntryDeclaration? FreshEntry { get; init; }
     public DiagnosticCounterCycleDeclaration? CounterCycle { get; init; }
     public int? ExpectedNativeAction { get; init; }
     public byte? ExpectedNativeCommand { get; init; }
@@ -35,6 +36,11 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             throw new InvalidDataException("Diagnostic driver requires a semantic input.");
         }
         Input.Validate();
+        FreshEntry?.Validate();
+        if (FreshEntry is not null && (ShotCycle is not null || CounterCycle is not null || EnemyAbility is not null || SupportingEffects is null || SupportingEffects.Length != 0 || SupportingInvocations is null || SupportingInvocations.Length != 0 || Repairs is null || Repairs.Length != 0 || TerminalHold is not null || ExpectedNativeCommand == 250))
+        {
+            throw new InvalidDataException("Fresh entry requires one ordinary native invocation without repairs, rearm, hold or composed cycle protocols.");
+        }
         EnemyAbility?.Validate();
         LimitSelection?.Validate();
         if (SupportingEffects is null || SupportingEffects.Any(effect => effect == 0 || effect == ExpectedEffect) || SupportingEffects.Distinct().Count() != SupportingEffects.Length || Repairs is null || Repairs.Length > 3 || Repairs.Any(repair => repair is null))
@@ -101,7 +107,7 @@ internal enum DiagnosticDriverStage
 
 internal sealed record DiagnosticDriverObservation(double Seconds, long Callback, long PresentedFrame, bool Ready, bool Drained, bool Terminal, string[] DrainBlockers);
 
-/// <summary>Two submissions on one uninterrupted host; completion is a preparation candidate, never an acceptance verdict.</summary>
+/// <summary>Ordinary two-use diagnostics, with an explicit fresh-entry single-use protocol; completion is a candidate rather than acceptance.</summary>
 internal sealed class DiagnosticBattleDriver
 {
     private readonly DiagnosticBattleDriverRecipe recipe;
@@ -278,7 +284,7 @@ internal sealed class DiagnosticBattleDriver
             return false;
         }
         previousCallback = observation.Callback;
-        if (observation.Terminal)
+        if (observation.Terminal && (recipe.FreshEntry is null || Stage is not (DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) || currentFocalDispatch is null))
         {
             Fail("REPEAT_PRECONDITION_UNSATISFIED");
             return false;
@@ -371,8 +377,11 @@ internal sealed class DiagnosticBattleDriver
             }
             else if (observation.PresentedFrame - tailStarted >= recipe.TailFrames)
             {
-                Stage = Execution == 2 ? DiagnosticDriverStage.Completed : DiagnosticDriverStage.Readiness;
-                Execution = 2;
+                Stage = recipe.FreshEntry is not null || Execution == 2 ? DiagnosticDriverStage.Completed : DiagnosticDriverStage.Readiness;
+                if (recipe.FreshEntry is null)
+                {
+                    Execution = 2;
+                }
                 stageStarted = observation.Seconds;
             }
         }

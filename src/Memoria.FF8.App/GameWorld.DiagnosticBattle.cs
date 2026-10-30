@@ -25,9 +25,9 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
     internal void Validate()
     {
         Driver?.Validate();
-        if ((Driver?.ShotCycle is not null || Driver?.CounterCycle is not null || Driver?.SlotsAdmission is not null) && Prelude is not null)
+        if ((Driver?.ShotCycle is not null || Driver?.CounterCycle is not null || Driver?.SlotsAdmission is not null || Driver?.FreshEntry is not null) && Prelude is not null)
         {
-            throw new NotSupportedException("Timed Limit and Slots diagnostics require ordinary initial admission without a preparation prelude.");
+            throw new NotSupportedException("Timed Limit, Slots and fresh-entry diagnostics require ordinary initial admission without a preparation prelude.");
         }
         Fixture?.Validate();
         Prelude?.Validate(this);
@@ -57,6 +57,7 @@ internal sealed record DiagnosticBattleReceipt(Guid BattleInstanceId, string Ini
     public DiagnosticTargetReceipt? Target { get; init; }
     public DiagnosticEntryPreparationReceipt? EntryPreparation { get; init; }
     public bool InstantGuardianForceCharge { get; init; }
+    public Memoria.FF8.BattleEffects.DiagnosticFreshEntryHostReceipt? FreshEntryHost { get; init; }
     public DiagnosticBattlePreludeReceipt? Prelude { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Memoria.FF8.BattleEffects.DiagnosticSlotsSource? SlotsSource { get; init; }
@@ -180,7 +181,7 @@ internal sealed partial class GameWorld
             battle.DiagnosticEffectDispatched += ObserveDiagnosticOpening;
             battle.DiagnosticEventPublished += ObserveDiagnosticOpeningCompletion;
             DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.EntryStageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "declarative-inventory-preparation", "declarative-limit-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = [.. characters?.Changes ?? [], .. inventory?.Changes ?? [], .. limits?.Changes ?? []] };
-            DiagnosticReceipt = DiagnosticReceipt with { InstantGuardianForceCharge = request.InstantGuardianForceCharge };
+            DiagnosticReceipt = DiagnosticReceipt with { InstantGuardianForceCharge = request.InstantGuardianForceCharge, FreshEntryHost = request.Driver?.FreshEntry is null ? null : DiagnosticFreshEntryHost.Capture(assets.GameDirectory, request.Driver.FreshEntry, retained.EffectMemory?.ExecutionStack, diagnosticBattle.InstanceId, battle.DiagnosticLifecycleId) };
             if (request.Driver?.SlotsAdmission is not null)
             {
                 DiagnosticReceipt = DiagnosticReceipt with { SlotsSource = PrepareDiagnosticSlotsSource(battle, request) };
