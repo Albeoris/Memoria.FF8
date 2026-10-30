@@ -214,7 +214,7 @@ public sealed partial class BattleSession
         for (int visited = 0; next is int slot && visited < Math.Min(graphics.Auxiliary.Slots.Length, 64); visited++)
         {
             NativeBattleAuxiliaryTask task = graphics.Auxiliary.Slots[slot];
-            auxiliary.Add(new { Slot = slot, task.Kind, task.Flags, task.State, task.Next });
+            auxiliary.Add(new { Slot = slot, task.Kind, task.Flags, task.State, task.Next, TextureAnimation = ObserveDiagnosticTextureAnimation(task, graphics) });
             next = task.Next;
         }
         LastDiagnosticInvocationPendingOwners = new
@@ -229,6 +229,35 @@ public sealed partial class BattleSession
             DispatchedCommand = nativeDispatchCommandLocation,
             Auxiliary = auxiliary.ToArray(),
             AuxiliaryTruncated = next is not null
+        };
+    }
+
+    private static object? ObserveDiagnosticTextureAnimation(NativeBattleAuxiliaryTask task, NativeBattleGraphicsState graphics)
+    {
+        if (task.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0)
+        {
+            return null;
+        }
+        bool known = !task.Payload.IsDefault && task.Payload.Length >= 12 && (task.UnknownByteMask & 0x20F) == 0;
+        uint? pointer = known ? System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan()) : null;
+        byte? sequence = known ? task.Payload[9] : null;
+        uint relative = pointer is uint observed ? unchecked(observed - 0x1D972C0u) : uint.MaxValue;
+        int? index = relative % 156 == 0 && relative / 156 < 7 ? (int)(relative / 156) : null;
+        NativeBattleGraphicsModel? model = index is int selected && !graphics.Models.IsDefault && selected < graphics.Models.Length ? graphics.Models[selected] : null;
+        NativeBattleAuxiliaryProgram? program = task.Program;
+        int? sourceLength = program is not null && !program.Source.IsDefault ? program.Source.Length : null;
+        byte? deadline = program is not null && !program.Source.IsDefault && (uint)program.Offset < program.Source.Length ? program.Source[program.Offset] : null;
+        return new
+        {
+            Payload = task.Payload.IsDefault ? null : task.Payload.Take(64).ToArray(),
+            PayloadLength = task.Payload.IsDefault ? (int?)null : task.Payload.Length,
+            PayloadTruncated = !task.Payload.IsDefault && task.Payload.Length > 64,
+            task.UnknownByteMask,
+            PointerAndSequenceKnown = known,
+            ModelPointer = pointer,
+            CapturedSequence = sequence,
+            Program = program is null ? null : new { program.Offset, SourceLength = sourceLength, ActualByteAtOffset = deadline },
+            Model = model is null ? null : new { model.Index, model.Flags0, model.ResourceFlags44, model.Sequence }
         };
     }
 
