@@ -219,7 +219,7 @@ public static class NativeBattleHeroController
                 task = current.Effect.Pools[1].Slots[slot];
                 int row = profile.SpokeOffset + index * 16;
                 NativeBattleVector angles = new(unchecked((short)task.ReadWord(row)), unchecked((short)task.ReadWord(row + 2)), unchecked((short)task.ReadWord(row + 4)));
-                current = Execute(current, inputs, new NativeBattleHeroFan(angles, anchor, radius, fade, -(radius / 8), profile.FanSource, index));
+                current = Execute(current, inputs, new NativeBattleHeroFan(angles, anchor, radius, fade, -(radius / 8), profile.FanSource, index) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(checked((ushort)profile.Effect), current.Effect.Pools[1].Slots[slot], unchecked(0x10000 + index)) with { ResourceGeneration = profile.FanSource } : null });
                 task = current.Effect.Pools[1].Slots[slot];
                 for (int axis = 0; axis < 3; axis++)
                 {
@@ -267,7 +267,7 @@ public static class NativeBattleHeroController
         NativeBattleGfAnimationAdvance step = workspace.Advance701970(source, 0, (state, node) =>
         {
             NativeBattleHeroDrawContext selected = NativeBattleHeroGeometry.IsHidden(node) ? context : context with { ScaleEnabled = inputs.Stack.RequireScale(initialized) };
-            current = Execute(current, inputs, new NativeBattleHeroAct(source, node, selected));
+            current = Execute(current, inputs, new NativeBattleHeroAct(source, node, selected) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(checked((ushort)frame.Profile.Effect), current.Effect.Pools[1].Slots[slot], node.ResourceOffset) with { ResourceGeneration = unchecked((((long)source.Address << 32) | (uint)offset) * 397 ^ node.GeometryIndex) } : null });
             return state;
         });
         task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(current.Effect.Pools[1].Slots[slot], offset, step.Workspace);

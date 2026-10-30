@@ -85,13 +85,13 @@ public static partial class NativeBattleEffect174Lower
                 throw new InvalidDataException("Effect174 leaves its selected material cycle.");
             }
             context = L174Put(context, 0x20, resources.MaterialCycle12[index]);
-            NativeBattleDegenerator306CustomMeshStep drawn = NativeBattleDegenerator306CustomMesh.Draw5A3AC0(frame.Memory, resources.ReadMesh(source), context, inputs.ReadProjection(frame), inputs.Colors, 17, 2);
+            NativeBattleDegenerator306CustomMeshStep drawn = NativeBattleDegenerator306CustomMesh.Draw5A3AC0(frame.Memory, resources.ReadMesh(source), context, inputs.ReadProjection(frame), inputs.Colors, 17, 2, inputs.CapturePresentation ? NativeBattleEffect174Presentation.Task(frame, address, source) : null);
             frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context108, length);
             frame = inputs.Execute(frame, new NativeBattleEffect174DrawBatch(drawn.Batch, L174Cursor));
         }
         else
         {
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, camera ? 4122 : 17, camera ? (byte)14 : (byte)2);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, camera ? 4122 : 17, camera ? (byte)14 : (byte)2, pilotIdentity: inputs.CapturePresentation ? NativeBattleEffect174Presentation.Task(frame, address, source) : null);
             frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context, length);
             frame = inputs.Execute(frame, new NativeBattleEffect174DrawBatch(drawn.Batch, L174Cursor));
         }
@@ -134,7 +134,7 @@ public static partial class NativeBattleEffect174Lower
             frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(local, null));
             (frame, uint temporary) = Allocate(frame, 180);
             NativeBattleEffectArena context = L174Word(L174Word(L174Put(Context(frame, temporary, 180), 0, 0xD59460), 4, 0), 0x24, 0);
-            frame = L174Sprite(frame, temporary, context, resources, inputs, 14);
+            frame = L174Sprite(frame, temporary, context, resources, inputs, 14, inputs.CapturePresentation ? NativeBattleEffect174Presentation.Task(frame, address, 0xD59460) : null);
             frame = Release(frame, 180);
         }
         return L174Age(frame, address, 30, inputs);
@@ -153,15 +153,15 @@ public static partial class NativeBattleEffect174Lower
             NativeBattleEffectArena context = L174Put(Context(frame, temporary, 136), 0x2C, unchecked((uint)((age << 12) / 30)));
             context = CopyBytes(TaskView(task, 0x10, 8), 0, context, 0x60, 8);
             frame = PublishContext(frame, temporary, context, 136);
-            frame = inputs.Execute(frame, new NativeBattleEffect174DrawBody136(temporary, actor));
+            frame = inputs.Execute(frame, new NativeBattleEffect174DrawBody136(temporary, actor) { PilotIdentity = inputs.CapturePresentation ? NativeBattleEffect174Presentation.Task(frame, address, checked((uint)actor)) : null });
             frame = Release(frame, 136);
         }
         return L174Age(frame, address, 31, inputs);
     }
 
-    private static NativeBattleEffect174Frame L174Sprite(NativeBattleEffect174Frame frame, uint temporary, NativeBattleEffectArena context, NativeBattleEffect174Resources resources, NativeBattleEffect174Inputs inputs, byte depthShift = 2)
+    private static NativeBattleEffect174Frame L174Sprite(NativeBattleEffect174Frame frame, uint temporary, NativeBattleEffectArena context, NativeBattleEffect174Resources resources, NativeBattleEffect174Inputs inputs, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, depthShift);
+        NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, depthShift, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Temporary180, 180);
         return inputs.Execute(frame, new NativeBattleEffect174DrawBatch(drawn.Batch, L174Cursor));
     }

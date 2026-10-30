@@ -51,7 +51,7 @@ public static class NativeBattleHeroDrawing
         step = step with { Geometry = NativeBattleGeometry.LoadMatrix(step.Geometry, matrix, true, true, null) };
         frame = frame with { Memory = frame.Memory with { GeometryRegisters = step.Geometry, ScriptedColorRegisters = step.Colors } };
         frame = PublishFarColor(frame, staging, temporary + 8);
-        NativeBattleModuleMeshTemporaryResult result = NativeBattleModulePackets.EmitRetainedBatch7043B0(staging, temporary, mesh, source.Data.Slice(selection.GeometryOffset, source.Data.Length - selection.GeometryOffset), matrix, projection, new(flags, operation.Node.Color32, operation.Node.Scalar36, null, null, operation.Context.Depth, 17, 2), colors, offset => ReadVertex(vertices, offset));
+        NativeBattleModuleMeshTemporaryResult result = NativeBattleModulePackets.EmitRetainedBatch7043B0(staging, temporary, mesh, source.Data.Slice(selection.GeometryOffset, source.Data.Length - selection.GeometryOffset), matrix, projection, new(flags, operation.Node.Color32, operation.Node.Scalar36, null, null, operation.Context.Depth, 17, 2), colors, offset => ReadVertex(vertices, offset), operation.PilotIdentity);
         return Complete(frame, result.Staging, result.Batch);
     }
 
@@ -91,7 +91,7 @@ public static class NativeBattleHeroDrawing
         step = step with { Geometry = NativeBattleGeometry.LoadMatrix(step.Geometry, matrix, true, true, null) };
         frame = frame with { Memory = frame.Memory with { GeometryRegisters = step.Geometry, ScriptedColorRegisters = step.Colors } };
         frame = PublishFarColor(frame, staging, temporary + 0x28);
-        NativeBattleModuleMeshTemporaryResult result = NativeBattleModulePackets.EmitRetainedBatch7043B0(staging, temporary + 0x20, operation.MeshAddress, resources.Fan, matrix, projection, new(0xF0, 0, operation.Fade, null, null, operation.Depth, 17, 2), colors, offset => ReadVertex(resources.Fan, checked(8 + offset)));
+        NativeBattleModuleMeshTemporaryResult result = NativeBattleModulePackets.EmitRetainedBatch7043B0(staging, temporary + 0x20, operation.MeshAddress, resources.Fan, matrix, projection, new(0xF0, 0, operation.Fade, null, null, operation.Depth, 17, 2), colors, offset => ReadVertex(resources.Fan, checked(8 + offset)), operation.PilotIdentity);
         return Complete(frame, result.Staging, result.Batch);
 
         void RequireHeader(uint offset, uint expected)

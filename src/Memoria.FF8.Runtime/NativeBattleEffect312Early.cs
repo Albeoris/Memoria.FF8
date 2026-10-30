@@ -46,7 +46,7 @@ public static partial class NativeBattleEffect312Early
             context = Put(context, 12, unchecked((uint)value));
         }
         frame = NativeBattleEffect312Controller.WriteBytes(frame, temporary, context, 88);
-        frame = NativeBattleEffect312Mesh.Draw572200(frame, temporary, mesh, matrix, resources, inputs);
+        frame = NativeBattleEffect312Mesh.Draw572200(frame, temporary, mesh, matrix, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(312, task) with { ResourceGeneration = mesh } : null);
         frame = NativeBattleEffect312Controller.Release(frame, 88);
         if ((inputs.ReadFlags(frame) & 0x201) != 0)
         {
@@ -169,6 +169,14 @@ public static partial class NativeBattleEffect312Early
             }
             frame = NativeBattleEffect312Controller.WriteBytes(frame, temporary, work, 400);
             frame = NativeBattleEffect312Controller.WriteBytes(frame, group, curve, CurveStride);
+            if (inputs.CapturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, CurveBase, Signed(task, 14));
+                for (int point = 0; point < 48; point++)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, group + 0x38, point);
+                }
+            }
             frame = NativeBattleEffect312Controller.Release(frame, 400);
             (frame, uint first) = NativeBattleEffect312Controller.TrySpawn(frame, ChildDescriptor, 0x59DD30);
             frame = InitializeChild(frame, first, task);
@@ -222,7 +230,7 @@ public static partial class NativeBattleEffect312Early
             context = Put(context, 12, unchecked((uint)value));
         }
         frame = NativeBattleEffect312Controller.WriteBytes(frame, temporary, context, 108);
-        frame = NativeBattleEffect312Mesh.DrawLocal(frame, temporary, 0xCD8FF4, matrix, resources, inputs);
+        frame = NativeBattleEffect312Mesh.DrawLocal(frame, temporary, 0xCD8FF4, matrix, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(312, task) with { ResourceGeneration = 0xCD8FF4 } : null);
         frame = NativeBattleEffect312Controller.Release(frame, 108);
         if ((inputs.ReadFlags(frame) & 0x201) != 0)
         {

@@ -7,7 +7,7 @@ public sealed record NativeBattleDegenerator306ModelStep(NativeBattleEffectMemor
 
 public static partial class NativeBattleDegenerator306ModelDrawing
 {
-    public static NativeBattleDegenerator306ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary136, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleDegenerator306ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary136, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (scratchLength < 0 || depthShift > 31 || U32(temporary136, 4) != scratchAddress)
         {
@@ -80,10 +80,14 @@ public static partial class NativeBattleDegenerator306ModelDrawing
                 for (int face = 0; face < faces; face++)
                 {
                     byte[] source = Read(cursor, quad ? 20 : 16);
-                    var drawn = DrawFace(source, quad, vertexScratch, count, temporary136, registers, projection, controls, tableBaseBucket, depthShift, allocated);
+                    var drawn = DrawFace(source, quad, vertexScratch, count, temporary136, registers, projection, controls, tableBaseBucket, depthShift, allocated, pilotIdentity is { } identity ? identity with { Primitive = unchecked((identity.Primitive * 397 + index) * 397 + cursor) } : null);
                     temporary136 = drawn.Temporary;
                     registers = drawn.Registers;
                     NativeBattleGfGeometryAttempt attempt = drawn.Attempt;
+                    if (pilotIdentity?.Effect == 174 && attempt.Primitive is { } primitive)
+                    {
+                        attempt = attempt with { Primitive = NativeBattleEffect174Presentation.PreserveNativeDepths(primitive) };
+                    }
                     attempts.Add(attempt);
                     if (attempt.Primitive is not null)
                     {

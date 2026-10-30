@@ -18,7 +18,7 @@ public static partial class NativeBattleAcid317Controller
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Acid particles require their physical temporary memory."), 180);
         ushort phase = task.ReadWord(12);
         NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(allocation.Staging, allocation.Address, source, 0).Write(allocation.Address + 4, BitConverter.GetBytes(phase));
-        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleAcid317DrawSprite180(allocation.Address, source, phase));
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleAcid317DrawSprite180(allocation.Address, source, phase) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(317, task) with { ResourceGeneration = source } : null });
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging ?? throw new NotSupportedException("Acid lost its physical particle temporary."), 180) };
         task = Read(frame, address);
         if (callback != 0x660D40)

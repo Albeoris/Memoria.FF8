@@ -7,6 +7,44 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect174LowerTests
 {
+    [Fact]
+    public void Group20_history_stamps_only_existing_native_samples_and_breaks_on_physical_overwrite()
+    {
+        Fixture native = new(0x5D4ED0, 0);
+        Fixture captured = new(0x5D4ED0, 0) { CapturePresentation = true };
+        NativeBattlePilotVisualIdentity? first = null;
+        NativeBattlePilotVisualIdentity? second = null;
+        for (int age = 0; age <= 5; age++)
+        {
+            native.Operations.Clear();
+            captured.Operations.Clear();
+            native.Frame = native.Advance().Frame;
+            string baseline = NativeBattleTestSnapshots.Json(native.Frame);
+            string operations = string.Join("\n", native.Operations.Select(operation => NativeBattleTestSnapshots.Json(operation, operation.GetType())));
+            captured.Frame = captured.Advance().Frame;
+            Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured.Frame));
+            Assert.Equal(operations, string.Join("\n", captured.Operations.Select(operation => NativeBattleTestSnapshots.Json(operation, operation.GetType()))));
+            Assert.All(native.Operations, operation => Assert.Null(operation.PilotIdentity));
+            var draws = captured.Operations.OfType<NativeBattleEffect174DrawModelHistory5120>().ToArray();
+            Assert.NotEmpty(draws);
+            Assert.All(draws, operation => Assert.Equal((ushort)174, operation.PilotIdentity!.Value.Effect));
+            if (age == 0)
+            {
+                first = draws[0].PilotIdentity;
+            }
+            if (age == 1)
+            {
+                second = draws[0].PilotIdentity;
+                Assert.Equal(first, second);
+            }
+            if (age == 5)
+            {
+                var rewritten = Assert.Single(draws, operation => operation.PilotIdentity!.Value.Slot == 0).PilotIdentity!.Value;
+                Assert.NotEqual(first!.Value.Generation, rewritten.Generation);
+            }
+        }
+    }
+
     [Theory]
     [InlineData(29, 0u, 1, 30, 0)]
     [InlineData(30, 0u, 0, 31, 2)]
@@ -172,6 +210,7 @@ public sealed class NativeBattleEffect174LowerTests
         public const uint TaskAddress = 0x2394FB0;
         public NativeBattleEffect174Frame Frame;
         public uint Flags;
+        public bool CapturePresentation;
         public NativeBattleEffectArena Model = NativeBattleEffectArena.Clear().Write(0, [2]).Write(0x28, BitConverter.GetBytes(0x12345678u)).Write(0x7C, BitConverter.GetBytes(0xA5A5A5A5u));
         public ImmutableArray<NativeBattlePackedMatrix32> Bones = [Matrix(700)];
         public List<NativeBattleEffect174Operation> Operations = [];
@@ -223,7 +262,7 @@ public sealed class NativeBattleEffect174LowerTests
                     break;
             }
             return frame;
-        });
+        }) { CapturePresentation = CapturePresentation };
     }
 
     private static NativeBattlePackedMatrix32 Matrix(int x) => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = x }, null);

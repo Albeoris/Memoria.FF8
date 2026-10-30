@@ -109,9 +109,10 @@ public sealed partial class BattleSession
             if (frame < 74)
             {
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (72), 756);
+                NativeBattlePilotVisualIdentity hierarchyIdentity = NativeBattlePilotVisualLifetimes.Identity(311, task);
                 NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Hierarchy, 0, (current, node) =>
                 {
-                    DrawNativeEffect311Hierarchy(ref graphics, ref effect, resources, node, center);
+                    DrawNativeEffect311Hierarchy(ref graphics, ref effect, resources, node, center, hierarchyIdentity with { Primitive = node.ResourceOffset, ResourceGeneration = unchecked((((long)resources.Hierarchy.Address << 32) | 84u) * 397 ^ node.GeometryIndex) });
                     return current;
                 });
                 task = StoreEffect311Workspace(task, advanced.Workspace);
@@ -194,7 +195,7 @@ public sealed partial class BattleSession
                 height = unchecked((short)((uint)(height * phase) >> 3));
             }
             NativeBattleActionMatrix matrix = new([width, 0, 0, 0, height, 0, 0, 0, 0], x, y, 0, 4096);
-            var segments = NativeBattleEffect311Geometry.Emit665D50(effect.Gravija!.Mesh, matrix, (depth >> 2) + 17, NativeBattleEffect311Timing.ScreenColor6657B7(phase), definition.NativeGraphics!.Rules.SummonColors!);
+            var segments = NativeBattleEffect311Geometry.Emit665D50(effect.Gravija!.Mesh, matrix, (depth >> 2) + 17, NativeBattleEffect311Timing.ScreenColor6657B7(phase), definition.NativeGraphics!.Rules.SummonColors!, NativeBattlePilotVisualLifetimes.Identity(311, main, 0x10000) with { ResourceGeneration = 0x101B0E8 });
             foreach (var segment in segments.Segments)
             {
                 Append(segment.Batch, segment.Flags20);
@@ -211,7 +212,7 @@ public sealed partial class BattleSession
             NativeBattleVector origin = Effect107Vector(main, 76);
             NativeBattleVector point = new(unchecked((short)(rotated.X + origin.X)), unchecked((short)(rotated.Y + origin.Y)), unchecked((short)(rotated.Z + origin.Z)));
             NativeBattleModuleResource sprite = resources.Sprite;
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = sprite, SpriteFrame = sprite.ProjectedFrame571C80(1), Phase = 1, Anchor = new(point.X, point.Y, point.Z, 0), Scale = 2048, DepthOffset = -512, Direction = 4096 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = sprite, SpriteFrame = sprite.ProjectedFrame571C80(1), Phase = 1, Anchor = new(point.X, point.Y, point.Z, 0), Scale = 2048, DepthOffset = -512, Direction = 4096, PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(311, task) with { ResourceGeneration = resources.Sprite.Address }, PilotContinuous = true };
             var batch = NativeBattleModulePackets.EmitSprite571DC0(draw, NativeCamera!.Projection!, NativeCamera.Roll, 17, 2);
             NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame!;
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, frame.Pending, batch, NativeBattleEffectGouraudWrites.FullDword);

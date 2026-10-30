@@ -31,7 +31,7 @@ public static partial class NativeBattleAdditional182Controller
             short size = Signed(task, 0x1C);
             frame = SetupParticle182(frame, inputs, TaskView(task, 0x10, 8), size, unchecked((short)-(size >> 3)));
             frame = PublishContext(frame, temporary, Context(frame, temporary, 180).Write(4, BitConverter.GetBytes(task.ReadWord(12))), 180);
-            frame = inputs.Execute(frame, new NativeBattleAdditional182DrawSprite180(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleAdditional182DrawSprite180(temporary, source) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(182, task) with { Primitive = 0x10000, ResourceGeneration = source } : null });
         }
         int survivors = 0;
         for (int index = 0; index < count; index++)
@@ -52,7 +52,7 @@ public static partial class NativeBattleAdditional182Controller
             }
             frame = PublishContext(frame, temporary, context, 180);
             frame = SetupParticle182(frame, inputs, frame.State.ReadView(row + 8, 8), size, unchecked((short)-(size >> 4)));
-            frame = inputs.Execute(frame, new NativeBattleAdditional182DrawSprite180(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleAdditional182DrawSprite180(temporary, source) { PilotIdentity = inputs.CapturePresentation ? NativeBattleAdditional182Visuals.Particle(frame, task, bank, index, source) : null });
             if ((inputs.GraphicsFlags & 0x201) != 0)
             {
                 continue;
@@ -115,6 +115,10 @@ public static partial class NativeBattleAdditional182Controller
                 {
                     frame = DrawRandom(frame, out ushort velocity);
                     frame = PutParticleWord182(frame, row + 18, -60 - velocity % 120);
+                }
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, bank, checked((int)((row - bank) / 24)));
                 }
             }
         }

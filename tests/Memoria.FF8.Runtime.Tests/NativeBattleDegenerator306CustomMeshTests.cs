@@ -6,6 +6,64 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleDegenerator306CustomMeshTests
 {
+    [Fact]
+    public void Group20_effect174_near_rejection_preserves_sparse_writes_and_defers_bad_fourth()
+    {
+        byte[] bytes = Source().Bytes.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(76 + 10), ushort.MaxValue);
+        var source = Source() with { Bytes = bytes.ToImmutableArray() };
+        var view = new NativeBattleCameraProjection(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var native = Draw(source, Context(), 0, projection: view);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = Draw(source, Context(), 0, new(174, 1, 2, 3, 4), view);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(0, captured.Batch.AllocationBytes);
+        Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+        Assert.All(captured.Batch.Attempts, attempt => Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[8]));
+    }
+
+    [Fact]
+    public void Group20_effect174_optin_keeps_306_default_native_packets_registers_and_partial_writes()
+    {
+        var view = new NativeBattleCameraProjection(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var native = Draw(Source(), Context(), 2000, projection: view);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var identity = new NativeBattlePilotVisualIdentity(174, 0x2396000, 1, 123, 7) { ResourceGeneration = 0x1000000 };
+        var captured = Draw(Source(), Context(), 2000, pilotIdentity: identity, projection: view);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.All(native.Batch.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+        var geometry = captured.Batch.Attempts.Where(attempt => attempt.Primitive?.PilotGeometry is not null).Select(attempt => attempt.Primitive!.PilotGeometry!).ToArray();
+        Assert.NotEmpty(geometry);
+        Assert.All(geometry, value =>
+        {
+            Assert.Equal((ushort)174, value.Identity.Effect);
+            Assert.Equal(identity.Generation, value.Identity.Generation);
+            Assert.Equal(identity.ResourceGeneration, value.Identity.ResourceGeneration);
+            Assert.NotEqual(default(System.Numerics.Vector3), value.A);
+        });
+        Assert.Equal(geometry.Length, geometry.Select(value => value.Identity).Distinct().Count());
+    }
+
+    [Fact]
+    public void Group20_effect174_skewed_triangle_and_quad_preserve_exact_native_FIFO_depths()
+    {
+        var matrix = new NativeBattleActionMatrix([4096, 0, 0, 0, 4096, 0, 5, 7, 4096], 0, 0, 2000, 4096);
+        var projection = new NativeBattleCameraProjection(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var native = Draw(Source(), Context(), projection: projection, loadedMatrix: matrix);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = Draw(Source(), Context(), pilotIdentity: new(174, 1, 2, 3, 4), projection: projection, loadedMatrix: matrix);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(new byte[] { 3, 4 }, captured.Batch.Attempts.Select(attempt => attempt.Primitive!.PilotGeometry!.CornerCount));
+        foreach (var attempt in captured.Batch.Attempts)
+        {
+            var primitive = attempt.Primitive!;
+            var geometry = primitive.PilotGeometry!;
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+            Assert.NotEqual(MathF.Truncate(geometry.A.Z), geometry.A.Z);
+        }
+    }
+
     private const uint Address = 0xCE7A2C;
 
     [Fact]
@@ -72,17 +130,17 @@ public sealed class NativeBattleDegenerator306CustomMeshTests
         Assert.Equal(2048u, first.Memory.ScriptedColorRegisters!.Ir0);
     }
 
-    private static NativeBattleDegenerator306CustomMeshStep Draw(NativeBattleStaticMeshResource source, NativeBattleEffectArena context, int depth = 2000)
+    private static NativeBattleDegenerator306CustomMeshStep Draw(NativeBattleStaticMeshResource source, NativeBattleEffectArena context, int depth = 2000, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null, NativeBattleActionMatrix? loadedMatrix = null)
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         memory = memory with
         {
-            GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = depth }, true, true, 0),
+            GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), loadedMatrix ?? (NativeBattleCuragaMatrices.Identity8DD770() with { Z = depth }), true, true, 0),
             ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(),
             ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(),
             PrimitiveProcess = memory.PrimitiveProcess! with { ModelRendererRegisters = new(1, 2, 3, 4, 5) }
         };
-        return NativeBattleDegenerator306CustomMesh.Draw5A3AC0(memory, source, context, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        return NativeBattleDegenerator306CustomMesh.Draw5A3AC0(memory, source, context, projection ?? new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleEffectArena Context()

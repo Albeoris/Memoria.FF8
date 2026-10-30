@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         {
             ResolveCurrentWord = initialized => initialized ? null : ReadNativeCurrentStackOperand().Bytes
         };
-        NativeBattleHeroInputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], Anchor571400, stack, Execute) { ObserveAnchor571400 = ObserveAnchor };
+        NativeBattleHeroInputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], Anchor571400, stack, Execute) { ObserveAnchor571400 = ObserveAnchor, CapturePresentation = true };
         frame = NativeBattleHeroController.Advance(frame, resources, inputs);
         if (fanTemporary is not null || nextFanIndex is not null)
         {

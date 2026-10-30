@@ -53,7 +53,7 @@ public static partial class NativeBattleEffect313Lower
         task = Read(frame, address);
         if (Signed(task, 12) is 24 or 31)
         {
-            frame = BirthActorRecords313(frame, task, Signed(task, 12) == 24);
+            frame = BirthActorRecords313(frame, task, Signed(task, 12) == 24, inputs.CapturePresentation);
             if (Signed(task, 12) == 24 && Signed(task, 26) >= 0)
             {
                 frame = inputs.Execute(frame, new NativeBattleEffect313SelectSequence505C00(model, 6));
@@ -85,7 +85,7 @@ public static partial class NativeBattleEffect313Lower
         return new(frame, 2);
     }
 
-    public static NativeBattleEffect313Frame BirthActorRecords313(NativeBattleEffect313Frame frame, NativeBattleModulePoolTask task, bool firstWave)
+    public static NativeBattleEffect313Frame BirthActorRecords313(NativeBattleEffect313Frame frame, NativeBattleModulePoolTask task, bool firstWave, bool capturePresentation = false)
     {
         int count = firstWave ? 16 : 12;
         for (int attempt = 0; attempt < count; attempt++)
@@ -103,6 +103,10 @@ public static partial class NativeBattleEffect313Lower
             if (row == 0)
             {
                 break;
+            }
+            if (capturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, NativeBattleEffect313Profile.RecordsAddress, checked((int)((row - NativeBattleEffect313Profile.RecordsAddress) / NativeBattleEffect313Profile.RecordStride)));
             }
             NativeBattleEffectArena record = frame.State.ReadView(row, 24);
             record = PutWord313(Put313(record, 0, 1), 4, 0);

@@ -97,7 +97,7 @@ public sealed class NativeBattleEffect312LateTests
         NativeBattleEffect312Step result = NativeBattleEffect312Late.Advance(frame, TaskAddress, null!, harness.Inputs());
         Assert.Equal(0, result.Result);
         Assert.Equal(20, Read(result.Frame, TaskAddress).ReadWord(12));
-        Assert.Single(result.Frame.Effect.Pools[0].Slots.Where(slot => slot.Callback != 0));
+        Assert.Single(result.Frame.Effect.Pools[0].Slots, slot => slot.Callback != 0);
         Assert.Equal(frame.Random, result.Frame.Random);
         Assert.DoesNotContain(harness.Operations, operation => operation is NativeBattleEffect312SetModelAnimation505C00);
     }
@@ -111,7 +111,7 @@ public sealed class NativeBattleEffect312LateTests
         frame = Write(frame, TaskAddress, task);
         NativeCrtRandomState expectedRandom = frame.Random.Draw(out ushort value);
         NativeBattleEffect312Step result = NativeBattleEffect312Late.Advance(frame, TaskAddress, null!, harness.Inputs());
-        NativeBattleModulePoolTask child = Assert.Single(result.Frame.Effect.Pools[0].Slots.Where(slot => slot.Callback == 0x5A0F50));
+        NativeBattleModulePoolTask child = Assert.Single(result.Frame.Effect.Pools[0].Slots, slot => slot.Callback == 0x5A0F50);
         Assert.Equal(expectedRandom, result.Frame.Random);
         Assert.Equal(0, child.ReadWord(12));
         Assert.Equal(0, child.ReadWord(18));
@@ -173,6 +173,81 @@ public sealed class NativeBattleEffect312LateTests
         Assert.Throws<NotSupportedException>(() => result.Frame.Staging!.Read(NativeBattleTemporaryMemory.Address + 12, 4));
         Assert.Equal(24u, BinaryPrimitives.ReadUInt32LittleEndian(result.Frame.Staging!.Read(NativeBattleTemporaryMemory.Address + 20, 4)));
         Assert.Equal(4, Read(result.Frame, TaskAddress).ReadWord(12));
+    }
+
+    [Theory]
+    [InlineData(0x59F7E0u, 28)]
+    [InlineData(0x59FBD0u, 2)]
+    public void Both_native_strip_layouts_capture_reached_corners_FIFO_and_keep_all_writes(uint callback, int packets)
+    {
+        NativeBattleEffect312Frame Prepare()
+        {
+            NativeBattleEffect312Frame frame = GraphicsFrame(callback, callback == 0x59F7E0 ? (ushort)1 : (ushort)0);
+            frame = Write(frame, TaskAddress, Read(frame, TaskAddress).WriteWord(14, 0).WriteWord(24, 1).WriteWord(26, 2));
+            frame = frame with { State = frame.State.WriteDword(0x2240EDC, 0x20DFAB8) };
+            for (int point = 0; point < 48; point++)
+            {
+                frame = PutPoint(frame, 0x223F0C8u + (uint)(point * 8), point * 100, 100, 2000);
+            }
+            frame = frame with { State = frame.State.WriteDword(0x223F248, 1) };
+            frame = PutPoint(frame, 0x223F24C, -100, -100, 2000);
+            frame = PutPoint(frame, 0x223F254, -100, 100, 2000);
+            return PutPoint(frame, 0x2240EC8, 100, -100, 2000);
+        }
+        Harness native = new() { Flags = 0x201 };
+        NativeBattleEffect312Step expected = NativeBattleEffect312Late.Advance(Prepare(), TaskAddress, Resources(), GraphicsInputs(native));
+        Harness captured = new() { Flags = 0x201 };
+        NativeBattleEffect312Step actual = NativeBattleEffect312Late.Advance(Prepare(), TaskAddress, Resources(), GraphicsInputs(captured) with { CapturePresentation = true });
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
+        NativeBattleGfGeometryBatch expectedBatch = Assert.Single(native.Operations.OfType<NativeBattleEffect312DrawBatch>()).Batch;
+        NativeBattleGfGeometryBatch actualBatch = Assert.Single(captured.Operations.OfType<NativeBattleEffect312DrawBatch>()).Batch;
+        Assert.Equal(NativeBattleTestSnapshots.Json(expectedBatch), NativeBattleTestSnapshots.Json(actualBatch));
+        Assert.Equal(packets, actualBatch.Attempts.Length);
+        HashSet<NativeBattlePilotVisualIdentity> identities = [];
+        foreach (NativeBattleGfGeometryAttempt attempt in actualBatch.Attempts)
+        {
+            NativeBattleGeometryPrimitive primitive = Assert.IsType<NativeBattleGeometryPrimitive>(attempt.Primitive);
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            Assert.Equal((byte)4, geometry.CornerCount);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+            Assert.NotEqual(0, geometry.Identity.Generation);
+            Assert.NotEqual(0, geometry.Identity.ResourceGeneration);
+            Assert.True(identities.Add(geometry.Identity));
+        }
+        string before = NativeBattleTestSnapshots.Json(actual.Frame);
+        NativeBattlePilotVisualGeometry earlier = actualBatch.Attempts[0].Primitive!.PilotGeometry!;
+        NativeBattlePilotVisualGeometry sampled = NativeBattlePilotVisualGeometry.Sample(earlier, earlier with { A = earlier.A + System.Numerics.Vector3.UnitX * 4 }, 0.5f);
+        Assert.Equal(earlier.A + System.Numerics.Vector3.UnitX * 2, sampled.A);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(actual.Frame));
+    }
+
+    [Fact]
+    public void Strip_identity_keeps_both_actual_endpoint_births_and_material_passes_distinct()
+    {
+        NativeBattleEffect312Frame frame = GraphicsFrame(0x59FBD0, 0);
+        const uint bank = 0x223F0C8;
+        NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, bank, 0);
+        NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, bank, 1);
+        NativeBattlePilotVisualIdentity first = NativeBattleEffect312Presentation.Segment(frame, bank, 0, 1, 0, 0);
+        Assert.Equal(first, NativeBattleEffect312Presentation.Segment(frame, bank, 0, 1, 0, 0));
+        Assert.NotEqual(first, NativeBattleEffect312Presentation.Segment(frame, bank, 0, 1, 0, 1));
+        NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, bank, 1);
+        NativeBattlePilotVisualIdentity second = NativeBattleEffect312Presentation.Segment(frame, bank, 0, 1, 0, 0);
+        Assert.Equal(first.Generation, second.Generation);
+        Assert.NotEqual(first.ResourceGeneration, second.ResourceGeneration);
+        NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, bank, 0);
+        NativeBattlePilotVisualIdentity third = NativeBattleEffect312Presentation.Segment(frame, bank, 0, 1, 0, 0);
+        Assert.NotEqual(first.Generation, third.Generation);
+        Assert.Equal(second.ResourceGeneration, third.ResourceGeneration);
+        NativeBattlePilotVisualGeometry geometry = new(first, default, default, default, default, 4);
+        Assert.Same(geometry, NativeBattlePilotVisualGeometry.Sample(geometry, geometry with { Identity = second, A = System.Numerics.Vector3.One }, 0.5f));
+    }
+
+    private static NativeBattleEffect312Frame PutPoint(NativeBattleEffect312Frame frame, uint address, int x, int y, int z)
+    {
+        NativeBattleEffectArena point = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(unchecked((short)x))).Write(2, BitConverter.GetBytes(unchecked((short)y))).Write(4, BitConverter.GetBytes(unchecked((short)z))).Write(6, new byte[2]);
+        return WriteBytes(frame, address, point, 8);
     }
 
     private static NativeBattleEffect312Inputs GraphicsInputs(Harness harness)

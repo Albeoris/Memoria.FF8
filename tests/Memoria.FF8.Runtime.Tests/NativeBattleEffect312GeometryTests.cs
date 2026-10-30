@@ -85,6 +85,51 @@ public sealed class NativeBattleEffect312GeometryTests
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect312Mesh.DrawLoaded(Memory(), mesh, new(null, 100, 160, 108), Context(mesh, 0xF3, 108).MarkUnknown(12, 4), NativeBattleGteColorInterpolation.CodeConstants45F270, true));
     }
 
+    [Theory]
+    [InlineData(4, true)]
+    [InlineData(5, true)]
+    [InlineData(2, false)]
+    [InlineData(3, false)]
+    [InlineData(6, false)]
+    [InlineData(7, false)]
+    public void Capture_retains_exact_loaded_corners_FIFO_and_native_write_order(int group, bool local)
+    {
+        NativeBattleEffect312MeshStep native = NativeBattleEffect312Mesh.DrawLoaded(Memory(), Mesh(group), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context(Mesh(group), 0x33, local ? 108 : 88), NativeBattleGteColorInterpolation.CodeConstants45F270, local);
+        NativeBattleEffect312MeshStep captured = NativeBattleEffect312Mesh.DrawLoaded(Memory(), Mesh(group), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context(Mesh(group), 0x33, local ? 108 : 88), NativeBattleGteColorInterpolation.CodeConstants45F270, local, pilotIdentity: new(312, 0x223E1A8, 7, 11, 2));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Context), NativeBattleTestSnapshots.Json(captured.Context));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 2000), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(100, -100, 2000), geometry.B);
+        Assert.Equal(new System.Numerics.Vector3(-100, 100, 2000), geometry.C);
+        Assert.Equal((byte)((group & 1) == 0 ? 3 : 4), geometry.CornerCount);
+        if (geometry.CornerCount == 4)
+        {
+            Assert.Equal(new System.Numerics.Vector3(100, 100, 2000), geometry.D);
+        }
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+        string before = NativeBattleTestSnapshots.Json(captured.Memory);
+        NativeBattlePilotVisualGeometry sampled = NativeBattlePilotVisualGeometry.Sample(geometry, geometry with { A = geometry.A + System.Numerics.Vector3.UnitX * 8 }, 0.5f);
+        Assert.Equal(geometry.A + System.Numerics.Vector3.UnitX * 4, sampled.A);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Null(Assert.Single(native.Batch.Attempts).Primitive!.PilotGeometry);
+    }
+
+    [Fact]
+    public void Capture_near_rejection_does_not_load_the_native_deferred_fourth_corner()
+    {
+        NativeBattleEffect312MeshStep native = NativeBattleEffect312Mesh.DrawLoaded(Memory(z: -2000), Mesh(3), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context(Mesh(3), 0x33, 88), NativeBattleGteColorInterpolation.CodeConstants45F270, false);
+        NativeBattleEffect312MeshStep captured = NativeBattleEffect312Mesh.DrawLoaded(Memory(z: -2000), Mesh(3), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), Context(Mesh(3), 0x33, 88), NativeBattleGteColorInterpolation.CodeConstants45F270, false, pilotIdentity: new(312, 1, 0, 1, 0));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Memory), NativeBattleTestSnapshots.Json(captured.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Context), NativeBattleTestSnapshots.Json(captured.Context));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        Assert.Null(Assert.Single(captured.Batch.Attempts).Primitive);
+        Assert.Equal(3, BinaryPrimitives.ReadInt16LittleEndian(captured.Memory.ScriptedColorRegisters!.NormalInput!.Value.AsSpan().Slice(6)));
+    }
+
     private static NativeBattleEffectMemory Memory(int z = 2000, int x = 0)
     {
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], x, 0, z, 4096);

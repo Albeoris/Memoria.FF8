@@ -7,6 +7,48 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHeroControllerTests
 {
     [Theory]
+    [InlineData((ushort)309)]
+    [InlineData((ushort)310)]
+    public void Group20_actual_profile_children_sources_and_sixteen_spokes_keep_native_lifecycle_and_distinct_stable_owners(ushort effect)
+    {
+        (string State, string Operations, List<NativeBattleHeroOperation> Draws) Run(bool capture)
+        {
+            var fixture = Fixture(effect, effect == 309 ? new byte[] { 3 } : new byte[] { 3, 4 });
+            var frame = fixture.Frame;
+            var inputs = fixture.Inputs with { CapturePresentation = capture };
+            int tick = 0;
+            while (frame.Effect.ReturnedDescriptor != 0 && tick++ < 64)
+            {
+                frame = NativeBattleHeroController.Advance(frame, fixture.Resources, inputs);
+            }
+            Assert.True(tick < 64);
+            return (NativeBattleTestSnapshots.Json(frame), string.Join("\n", fixture.Operations.Select(operation => System.Text.Json.JsonSerializer.Serialize(operation, operation.GetType()))), fixture.Operations);
+        }
+        var native = Run(false);
+        var captured = Run(true);
+        Assert.Equal(native.State, captured.State);
+        Assert.Equal(native.Operations, captured.Operations);
+        Assert.All(native.Draws, operation => Assert.Null(operation.PilotIdentity));
+        var spokes = captured.Draws.OfType<NativeBattleHeroFan>().ToArray();
+        Assert.NotEmpty(spokes);
+        foreach (var child in spokes.GroupBy(operation => operation.PilotIdentity!.Value.Generation))
+        {
+            Assert.Equal(16, child.Select(operation => operation.PilotIdentity!.Value).Distinct().Count());
+            foreach (var phase in child.GroupBy(operation => operation.Index))
+            {
+                Assert.Single(phase.Select(operation => operation.PilotIdentity!.Value).Distinct());
+            }
+            Assert.All(child, operation => Assert.Equal(effect, operation.PilotIdentity!.Value.Effect));
+        }
+        Assert.Equal(effect == 309 ? 1 : 2, spokes.Select(operation => operation.PilotIdentity!.Value.Generation).Distinct().Count());
+        var acts = captured.Draws.OfType<NativeBattleHeroAct>().ToArray();
+        Assert.NotEmpty(acts);
+        Assert.All(acts, operation => Assert.NotNull(operation.PilotIdentity));
+        Assert.Contains(acts, operation => operation.Source.Address == NativeBattleHeroProfile.ForEffect(effect).MainSource);
+        Assert.Contains(acts, operation => operation.Source.Address == NativeBattleHeroProfile.ForEffect(effect).OrbitSource);
+    }
+
+    [Theory]
     [InlineData(309, 0x25074A0, 0x2507490, 0x3CC, 1, 0x3D4)]
     [InlineData(310, 0x2507450, 0x2507440, 0x3D0, 6, 0x16E8)]
     public void Root_yields_once_then_uses_its_actual_arena_bank_and_retained_suffix(int effect, uint main, uint children, int stride, int capacity, int firstDraw)
@@ -133,7 +175,7 @@ public sealed class NativeBattleHeroControllerTests
         Assert.Equal(before, frame.Random);
         Assert.Equal((ushort)2, frame.Effect.Pools[1].Slots[0].ReadWord(12));
         Assert.Equal((ushort)2, frame.Effect.Pools[0].Slots[0].ReadWord(12));
-        Assert.Single(frame.Effect.Pools[1].Slots.Where(task => (task.Flags & 1) != 0));
+        Assert.Single(frame.Effect.Pools[1].Slots, task => (task.Flags & 1) != 0);
     }
 
     [Fact]
@@ -156,7 +198,7 @@ public sealed class NativeBattleHeroControllerTests
             frame = NativeBattleHeroController.Advance(NativeBattleTestSnapshots.Independent(frame), fixture.Resources, inputs);
             if (tick == 6)
             {
-                Assert.Single(frame.Effect.Pools[1].Slots.Where(task => (task.Flags & 1) != 0));
+                Assert.Single(frame.Effect.Pools[1].Slots, task => (task.Flags & 1) != 0);
             }
             if (tick == 7)
             {

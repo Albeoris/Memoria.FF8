@@ -4,11 +4,22 @@ public sealed partial class BattleSession
 {
     private static byte NativeHeaderCommand(BattleActionPresentation command, BattleNativeAction native)
     {
-        return command.NativeDraw is { Failed: true } ? (byte)0 : command.IndependentGuardian?.Action?.Command == 244 && command.NativeQueuedCommand is 4 or 13 ? (byte)244 : command.NativeQueuedCommand ?? native.Command;
+        return command.NativeDraw is { Failed: true } || NativeSpecialInvocationFailed(command, native) ? (byte)0 : command.IndependentGuardian?.Action?.Command == 244 && command.NativeQueuedCommand is 4 or 13 ? (byte)244 : command.NativeQueuedCommand ?? native.Command;
+    }
+
+    private static bool NativeSpecialInvocationFailed(BattleActionPresentation command, BattleNativeAction native)
+    {
+        return native.AttackType is 17 or 19 && command.NativeSpecial is { Failed: true };
     }
 
     private NativeBattleActionHeaderPreparation BuildNativeActionHeaderPreparation(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)
     {
+        if (NativeSpecialInvocationFailed(command, native))
+        {
+            ushort message = native.AttackType == 17 ? (ushort)50 : (ushort)112;
+            NativeBattleActionDataReference title = new(0x47EC70, message) { FormattedText = NativeBattleGlobalText(message) };
+            return new(checked((byte)actor.NativeIndex), 0, 10, -1, 9, 0, title);
+        }
         if (command.IndependentGuardian?.FailureMessage is not null)
         {
             BattleActionDefinition item = FindAction(BattleAbility.Item, command.ActionId);

@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleEffect312Frame Frame) CaptureNativeEffect312Stage(NativeBattleGraphicsState graphics, NativeBattleEffect312Frame frame, NativeBattleEffect312CapturePreparation preparation, NativeBattleEffect312Resources resources, NativeBattleEffect312Inputs inputs)
+    private (NativeBattleGraphicsState Graphics, NativeBattleEffect312Frame Frame) CaptureNativeEffect312Stage(NativeBattleGraphicsState graphics, NativeBattleEffect312Frame frame, NativeBattleEffect312CapturePreparation preparation, NativeBattleEffect312Resources resources, NativeBattleEffect312Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect312 capture requires its current camera.");
         NativeBattleCameraProjection prior = camera.Projection ?? throw new NotSupportedException("Effect312 capture requires its current projection.");
@@ -55,7 +55,7 @@ public sealed partial class BattleSession
             NativeStage = stage with { Groups = stage.Groups.SetItem(index, group) };
             NativeFileStaging = frame.Staging;
             uint geometry = RequireNativeCurrentStageGeometryAddress(index);
-            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, context, group.Matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), (offset, count) => ReadBytes(frame, checked(geometry + (uint)offset), count).Read(0, count), geometry, ReadBytes(frame, scratchAddress, scratchLength), scratchLength, NativeCamera.Projection!, inputs.Colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect312 capture requires its renderer capability."), 17, 16, frame.State.ReadDword(CursorGlobal));
+            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, context, group.Matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), (offset, count) => ReadBytes(frame, checked(geometry + (uint)offset), count).Read(0, count), geometry, ReadBytes(frame, scratchAddress, scratchLength), scratchLength, NativeCamera.Projection!, inputs.Colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect312 capture requires its renderer capability."), 17, 16, frame.State.ReadDword(CursorGlobal), pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + index), ResourceGeneration = geometry } : null, pilotScreenSpace: true, pilotContinuous: false);
             frame = frame with { Memory = drawn.Memory };
             frame = WriteBytes(frame, contextAddress, drawn.Context44, 44);
             frame = WriteBytes(frame, scratchAddress, drawn.ProjectedScratch, scratchLength);
@@ -83,6 +83,7 @@ public sealed partial class BattleSession
 
         void Deliver(NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleEffect312Presentation.PreserveNativeDepths(batch);
             RequirePacketCapacity(frame, batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect312 capture requires its current ordering table.");
             int cursor = NativeBattleWaterExecutionFields.ArenaOffset(frame.State.ReadDword(CursorGlobal), 0);

@@ -35,7 +35,7 @@ public static partial class NativeBattleAdditional182Controller
             context = context.Write(12, BitConverter.GetBytes(cue));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleAdditional182DrawStatic88(temporary, source));
+        frame = inputs.Execute(frame, new NativeBattleAdditional182DrawStatic88(temporary, source) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(182, task) with { ResourceGeneration = source } : null });
         frame = Release(frame, 88);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

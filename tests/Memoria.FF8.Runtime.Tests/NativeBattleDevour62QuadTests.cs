@@ -143,6 +143,31 @@ public sealed class NativeBattleDevour62QuadTests
         Assert.Throws<NotSupportedException>(() => NativeBattleDevour62Quads.Emit(Task().MarkPayloadUnknown(0x50, 2)));
     }
 
+    [Fact]
+    public void Presentation_captures_all_final_wrapped_screen_corners_without_native_packet_changes()
+    {
+        var task = Task().WriteWord(0x1C, 32760);
+        var plain = NativeBattleDevour62Quads.Emit(task);
+        var captured = NativeBattleDevour62Quads.Emit(task, pilotIdentity: new(62, 10, 2, 3, 0));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(4, captured.Attempts.Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+        for (int index = 0; index < 4; index++)
+        {
+            var attempt = captured.Attempts[index];
+            var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(attempt.Primitive!.PilotGeometry);
+            Assert.True(geometry.ScreenSpace);
+            Assert.Equal(8, geometry.ScreenScale);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+            Assert.Equal(new[] { 0, 0, 0, 0 }, attempt.Primitive.VertexPayload4);
+            Assert.Equal(new System.Numerics.Vector3(Half(attempt, 8), Half(attempt, 10), 0), geometry.A);
+            Assert.Equal(new System.Numerics.Vector3(Half(attempt, 16), Half(attempt, 18), 0), geometry.B);
+            Assert.Equal(new System.Numerics.Vector3(Half(attempt, 24), Half(attempt, 26), 0), geometry.C);
+            Assert.Equal(new System.Numerics.Vector3(Half(attempt, 32), Half(attempt, 34), 0), geometry.D);
+        }
+        Assert.All(plain.Attempts, attempt => Assert.Null(attempt.Primitive!.PilotGeometry));
+    }
+
     private static NativeBattleModulePoolTask Task() => new NativeBattleModulePoolTask(1, 0, null, 0x7E4F60, new byte[72].ToImmutableArray()).WriteWord(0x1C, 0).WriteWord(0x50, 128);
     private static NativeBattleGfGeometryAttempt Quad(int x, int y, int width, int height, int u, int v) => NativeBattleDevour62Quads.EmitQuad(x, y, 384, 256, width, height, u, v, 320, 240, 128, 0).Attempts[0];
     private static short Half(NativeBattleGfGeometryAttempt packet, int offset) => BinaryPrimitives.ReadInt16LittleEndian(packet.Data.AsSpan().Slice(offset, 2));

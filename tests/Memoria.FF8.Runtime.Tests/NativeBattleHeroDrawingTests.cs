@@ -7,6 +7,49 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHeroDrawingTests
 {
     [Theory]
+    [InlineData((ushort)309, false)]
+    [InlineData((ushort)310, false)]
+    [InlineData((ushort)309, true)]
+    [InlineData((ushort)310, true)]
+    public void Group20_actual_act_and_sixteen_fan_sources_keep_native_temporary_registers_and_packets(ushort effect, bool fan)
+    {
+        (string Native, NativeBattleGfGeometryBatch[] Batches) Run(bool capture)
+        {
+            var fixture = Fixture(effect);
+            var allocation = Allocate(fan ? 136 : 88);
+            var frame = fixture.Frame;
+            var staging = allocation.Staging;
+            List<NativeBattleGfGeometryBatch> batches = [];
+            for (int index = 0; index < (fan ? 16 : 1); index++)
+            {
+                var identity = new NativeBattlePilotVisualIdentity(effect, frame.Profile.ChildDescriptor, 0, 123, fan ? 0x10000 + index : 12) { ResourceGeneration = fan ? frame.Profile.FanSource : fixture.Resources.Main.Address };
+                NativeBattleHeroDrawResult result;
+                if (fan)
+                {
+                    var operation = Fan(frame.Profile, index) with { PilotIdentity = capture ? identity : null };
+                    result = NativeBattleHeroDrawing.DrawFan(frame, operation, fixture.Resources, fixture.Projection, Colors, fixture.View, staging, allocation.Address);
+                }
+                else
+                {
+                    var operation = new NativeBattleHeroAct(fixture.Resources.Main, Node(0), new(new(100, 200, 300), unchecked((short)0xCAFE), 4096, 4096, 4096, true, -128, 0x1000)) { PilotIdentity = capture ? identity : null };
+                    result = NativeBattleHeroDrawing.DrawAct(frame, operation, fixture.Resources, fixture.Projection, Colors, fixture.View, staging, allocation.Address);
+                }
+                frame = result.Frame;
+                staging = result.Staging;
+                batches.Add(result.Batch);
+            }
+            return (string.Join("\n", new[] { NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(staging) }.Concat(batches.Select(batch => NativeBattleTestSnapshots.Json(batch)))), batches.ToArray());
+        }
+        var native = Run(false);
+        var captured = Run(true);
+        Assert.Equal(native.Native, captured.Native);
+        var geometry = captured.Batches.SelectMany(batch => batch.Attempts).Where(attempt => attempt.Primitive?.PilotGeometry is not null).Select(attempt => attempt.Primitive!.PilotGeometry!).ToArray();
+        Assert.Equal(fan ? 16 : 1, geometry.Length);
+        Assert.Equal(geometry.Length, geometry.Select(value => value.Identity).Distinct().Count());
+        Assert.All(geometry, value => Assert.Equal(effect, value.Identity.Effect));
+    }
+
+    [Theory]
     [InlineData(309)]
     [InlineData(310)]
     public void Act88_retains_unwritten_header_bytes_and_publishes_actual_unknown_farcolor_and_input_padding(ushort effect)

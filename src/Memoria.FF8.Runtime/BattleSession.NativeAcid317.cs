@@ -15,7 +15,8 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Acid requires its actual process memory.");
         NativeBattleAcid317Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Acid requires its CRT stream."), memory.Acid317 ?? throw new NotSupportedException("Acid requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Acid requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Acid requires its original interpolation constants.");
-        NativeBattleAcid317Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Acid requires its current skeleton.")).BoneCount, _ => Camera().CapturePackedView1D97778(), Anchor, Bone, Mouth, Execute) { Colors = colors };
+        Dictionary<uint, System.Numerics.Vector3> pilotTrailWorld = [];
+        NativeBattleAcid317Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Acid requires its current skeleton.")).BoneCount, _ => Camera().CapturePackedView1D97778(), Anchor, Bone, Mouth, Execute) { Colors = colors, CapturePresentation = true };
         frame = initialize ? NativeBattleAcid317Controller.Initialize(frame, resources, inputs) : NativeBattleAcid317Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -135,17 +136,17 @@ public sealed partial class BattleSession
                     (current, graphics) = SnapshotNativeAcid317Body(current, graphics, snapshot.Actor, snapshot.CacheAddress);
                     return current;
                 case NativeBattleAcid317DrawBody132 body:
-                    (current, graphics) = DrawNativeAcid317Body(current, graphics, body.Actor, body.Fraction);
+                    (current, graphics) = DrawNativeAcid317Body(current, graphics, body.Actor, body.Fraction, body.PilotIdentity);
                     return current;
                 case NativeBattleAcid317AdvanceAct act:
                     return AdvanceAct(current, act.TaskAddress);
                 case NativeBattleAcid317ProjectPoints project:
-                    return ProjectPoints(current, project.HeadAddress, project.Count);
+                    return ProjectPoints(current, project.HeadAddress, project.Count, project.PilotIdentity);
                 case NativeBattleAcid317DrawTrail trail:
-                    var strip = NativeBattleAcid317Trail.Draw(current, trail.HeadAddress, trail.Count, resources);
+                    var strip = NativeBattleAcid317Trail.Draw(current, trail.HeadAddress, trail.Count, resources, pilotIdentity: trail.PilotIdentity, pilotWorld: pilotTrailWorld);
                     return Deliver(strip.Frame, strip.Batch);
                 case NativeBattleAcid317DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.Phase, sprite.DepthShift);
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.Phase, sprite.DepthShift, sprite.PilotIdentity);
                 case NativeBattleAcid317Contact contact:
                     Publish(current);
                     ImmutableArray<NativeBattleContactPacket> pending = graphics.PendingContacts;
@@ -166,15 +167,19 @@ public sealed partial class BattleSession
             {
                 NativeBattleEffectArena normalized = current.State.ReadView(NativeBattleAcid317Profile.PackedViewGlobal, 32);
                 (byte[] bytes, bool[] known) = normalized.ReadSnapshot(0, 32);
-                current = NativeBattleAcid317Drawing.EmitNode(current, resources.TargetAct, context, node, Camera().CapturePackedView1D97778(), new(bytes.ToImmutableArray(), known.ToImmutableArray()), Camera().Projection ?? throw new NotSupportedException("Acid requires its projection."), colors, Deliver);
+                current = NativeBattleAcid317Drawing.EmitNode(current, resources.TargetAct, context, node, Camera().CapturePackedView1D97778(), new(bytes.ToImmutableArray(), known.ToImmutableArray()), Camera().Projection ?? throw new NotSupportedException("Acid requires its projection."), colors, Deliver, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(317, task, node.ResourceOffset) with { ResourceGeneration = ((long)resources.TargetAct.Address << 32) | 0x20 });
                 return next;
             });
             return NativeBattleAcid317Controller.Write(current, taskAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleAcid317Controller.Read(current, taskAddress), 0x20, advanced.Workspace));
         }
 
-        NativeBattleAcid317Frame ProjectPoints(NativeBattleAcid317Frame current, uint head, short count) => NativeBattleAcid317PointProjection.Project(current, head, count, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Acid requires its projection."));
+        NativeBattleAcid317Frame ProjectPoints(NativeBattleAcid317Frame current, uint head, short count, NativeBattlePilotVisualIdentity? pilotIdentity)
+        {
+            pilotTrailWorld.Clear();
+            return NativeBattleAcid317PointProjection.Project(current, head, count, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Acid requires its projection."), pilotWorld: pilotIdentity.HasValue ? pilotTrailWorld : null);
+        }
 
-        NativeBattleAcid317Frame DrawSprite(NativeBattleAcid317Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift)
+        NativeBattleAcid317Frame DrawSprite(NativeBattleAcid317Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Acid sprite drawing requires its physical temporary memory.");
@@ -183,9 +188,9 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Acid sprite arguments differ from its current physical frame.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Acid sprite dispatcher selected a different source."), Camera().Projection ?? throw new NotSupportedException("Acid sprite drawing requires its current projection."), Camera().Roll, 17, depthShift);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Acid sprite dispatcher selected a different source."), Camera().Projection ?? throw new NotSupportedException("Acid sprite drawing requires its current projection."), Camera().Roll, 17, depthShift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
-            return Deliver(current, drawn.Batch);
+            return Deliver(current, NativeBattleAcid317ActMesh.PreserveNativeDepths(drawn.Batch));
         }
     }
 }

@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDevour62Quads
 {
-    public static NativeBattleGfGeometryBatch Emit(NativeBattleModulePoolTask task)
+    public static NativeBattleGfGeometryBatch Emit(NativeBattleModulePoolTask task, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (task.Callback != 0x7E4F60 || task.PayloadLength != 72)
         {
@@ -21,12 +21,12 @@ public static class NativeBattleDevour62Quads
 
         void Add(int screenX, int screenY, int textureX, int textureY, int width, int height, int u, int v, int clutX, int clutY, int selector)
         {
-            NativeBattleGfGeometryBatch quad = EmitQuad(screenX, screenY, textureX, textureY, width, height, u, v, clutX, clutY, intensity, selector, attempts.Count * 40);
+            NativeBattleGfGeometryBatch quad = EmitQuad(screenX, screenY, textureX, textureY, width, height, u, v, clutX, clutY, intensity, selector, attempts.Count * 40, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + attempts.Count) } : null);
             attempts.Add(quad.Attempts[0]);
         }
     }
 
-    public static NativeBattleGfGeometryBatch EmitQuad(int screenX, int screenY, int textureX, int textureY, int width, int height, int u, int v, int clutX, int clutY, int intensity, int semitransparentSelector, int byteOffset = 0)
+    public static NativeBattleGfGeometryBatch EmitQuad(int screenX, int screenY, int textureX, int textureY, int width, int height, int u, int v, int clutX, int clutY, int intensity, int semitransparentSelector, int byteOffset = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         SkinWrites packet = new(40, byteOffset);
         packet.Word(0, 0x09000000);
@@ -57,6 +57,11 @@ public static class NativeBattleDevour62Quads
         packet.Byte(5, unchecked((byte)intensity));
         packet.Byte(6, unchecked((byte)intensity));
         NativeBattleGeometryPrimitive primitive = new(5, packet.Words(), [0, 0, 0, 0]);
+        if (pilotIdentity is { } identity)
+        {
+            System.Numerics.Vector3 Point(int word) => new(unchecked((short)primitive.Words[word]), unchecked((short)(primitive.Words[word] >> 16)), 0);
+            primitive = primitive with { PilotGeometry = new(identity, Point(2), Point(4), Point(6), Point(8), 4) { ScreenSpace = true, ScreenScale = 8, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };
+        }
         return new([packet.Attempt(primitive)], 40);
     }
 }

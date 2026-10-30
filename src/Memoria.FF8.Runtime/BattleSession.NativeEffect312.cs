@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffect312Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect312 requires its current CRT stream."), memory.Effect312 ?? throw new NotSupportedException("Effect312 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect312 requires its current addressed memory.") };
         frame = frame with { ReadPhysical = (address, length) => ReadNativeEffect312Physical(graphics, frame, address, length) };
         NativeBattleEffect312Inputs inputs = null!;
-        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect312 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (current, address, length) => ReadNativeEffect312Physical(graphics, current, address, length), (_, address) => CaptureNativeEffect301Model(graphics.Models[NativeBattleEffect312Controller.Actor(address)]), (_, address) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[NativeBattleEffect312Controller.Actor(address)].GeometryWorldMatrix ?? throw new NotSupportedException("Effect312 requires its current world matrix."), null), (current, address, bone) => ReadNativeEffect312Bone(graphics, current, address, bone), TargetCenter, (current, address, retained) => ReadNativeEffect312Anchor(graphics, current, address, retained), (_, address) => ReadNativeEffect312SequenceByte(graphics, address), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect312 requires its current projection."), _ => Camera().Roll, Execute);
+        inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect312 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (current, address, length) => ReadNativeEffect312Physical(graphics, current, address, length), (_, address) => CaptureNativeEffect301Model(graphics.Models[NativeBattleEffect312Controller.Actor(address)]), (_, address) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[NativeBattleEffect312Controller.Actor(address)].GeometryWorldMatrix ?? throw new NotSupportedException("Effect312 requires its current world matrix."), null), (current, address, bone) => ReadNativeEffect312Bone(graphics, current, address, bone), TargetCenter, (current, address, retained) => ReadNativeEffect312Anchor(graphics, current, address, retained), (_, address) => ReadNativeEffect312SequenceByte(graphics, address), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect312 requires its current projection."), _ => Camera().Roll, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect312Controller.Initialize(frame, resources, inputs) : NativeBattleEffect312Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
                     NativeCamera = Camera().RegisterControlResource(textures.Animation);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleEffect312Flash5712C0 flash:
-                    graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(checked((short)flash.Rise), checked((short)flash.Hold), checked((short)flash.Fall), flash.Color) };
+                    graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(checked((short)flash.Rise), checked((short)flash.Hold), checked((short)flash.Fall), flash.Color, pilotIdentity: flash.PilotIdentity) };
                     return current;
                 case NativeBattleEffect312Stage5713E0 intensity:
                     NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Effect312 requires its current stage.");
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { Auxiliary = auxiliary };
                     return current;
                 case NativeBattleEffect312CaptureStage59D400 capture:
-                    (graphics, current) = CaptureNativeEffect312Stage(graphics, current, NativeBattleEffect312Capture.Prepare(NativeBattleEffect312Controller.ReadBytes(current, capture.TargetAddress, 8)), resources, inputs);
+                    (graphics, current) = CaptureNativeEffect312Stage(graphics, current, NativeBattleEffect312Capture.Prepare(NativeBattleEffect312Controller.ReadBytes(current, capture.TargetAddress, 8)), resources, inputs, capture.PilotIdentity);
                     return current;
                 case NativeBattleEffect312DrawBatch draw:
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect312 requires its current ordering table.");

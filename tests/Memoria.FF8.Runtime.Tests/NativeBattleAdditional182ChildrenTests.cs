@@ -8,6 +8,212 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleAdditional182ChildrenTests
 {
+    [Theory]
+    [InlineData(0x5CA6B0u)]
+    [InlineData(0x5CA810u)]
+    [InlineData(0x5CB130u)]
+    [InlineData(0x5CA490u)]
+    [InlineData(0x5CAED0u)]
+    public void Presentation_preserves_complete_native_controller_ledger_for_each_visual_callback(uint callback)
+    {
+        List<NativeBattleAdditional182Operation> plainOperations = [];
+        List<NativeBattleAdditional182Operation> capturedOperations = [];
+        NativeBattleAdditional182Frame Run(bool capture, List<NativeBattleAdditional182Operation> operations)
+        {
+            var frame = Frame(callback, 8);
+            if (callback is 0x5CA490 or 0x5CAED0)
+            {
+                uint bank = callback == 0x5CA490 ? ParticleBBase : ParticleABase;
+                frame = frame with { State = frame.State.WriteDword(bank, 1).WriteWord(bank + 6, 1024) };
+            }
+            var inputs = Inputs((current, operation) =>
+            {
+                operations.Add(operation);
+                return operation is NativeBattleAdditional182DrawSprite180 sprite ? Feedback(current, sprite.TemporaryAddress, 0) : current;
+            }) with { CapturePresentation = capture };
+            return callback is 0x5CA490 or 0x5CAED0 ? AdvanceSlots(frame, ChildBank, Resources, inputs).Frame : AdvanceMesh(frame, ChildBank, Resources, inputs).Frame;
+        }
+        string plain = NativeBattleTestSnapshots.Json(Run(false, plainOperations));
+        string captured = NativeBattleTestSnapshots.Json(Run(true, capturedOperations));
+        Assert.Equal(plain, captured);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plainOperations), NativeBattleTestSnapshots.Json(capturedOperations));
+        Assert.NotEmpty(capturedOperations);
+        Assert.All(plainOperations, operation => Assert.Null(operation.PilotIdentity));
+        Assert.All(capturedOperations, operation => Assert.NotNull(operation.PilotIdentity));
+    }
+
+    [Theory]
+    [InlineData(0x5CA490u, 100)]
+    [InlineData(0x5CAED0u, 120)]
+    public void Presentation_preserves_all_active_particle_rows_and_stable_paused_births(uint callback, int count)
+    {
+        var frame = Frame(callback, 8);
+        uint bank = callback == 0x5CA490 ? ParticleBBase : ParticleABase;
+        for (int index = 0; index < count; index++)
+        {
+            uint row = bank + (uint)(index * 24);
+            frame = frame with { State = frame.State.WriteDword(row, 1).WriteWord(row + 6, 1024) };
+        }
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        var inputs = Inputs((current, operation) =>
+        {
+            identities.Add(Assert.IsType<NativeBattleAdditional182DrawSprite180>(operation).PilotIdentity!.Value);
+            return Feedback(current, ((NativeBattleAdditional182DrawSprite180)operation).TemporaryAddress, 0);
+        }, 0x201) with { CapturePresentation = true };
+        var plainFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional182Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        string plain = NativeBattleTestSnapshots.Json(AdvanceSlots(plainFrame, ChildBank, Resources, Inputs(flags: 0x201)).Frame);
+        frame = AdvanceSlots(frame, ChildBank, Resources, inputs).Frame;
+        Assert.Equal(plain, NativeBattleTestSnapshots.Json(frame));
+        Assert.Equal(count, identities.Count);
+        Assert.Equal(count, identities.Distinct().Count());
+        var first = identities.ToArray();
+        identities.Clear();
+        AdvanceSlots(frame, ChildBank, Resources, inputs);
+        Assert.Equal(first, identities);
+    }
+
+    [Theory]
+    [InlineData(0x5CA490u)]
+    [InlineData(0x5CAED0u)]
+    public void Presentation_particle_generation_changes_only_after_native_row_death_and_rebirth(uint callback)
+    {
+        var frame = Frame(callback, 0);
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        var inputs = Inputs((current, operation) =>
+        {
+            var sprite = Assert.IsType<NativeBattleAdditional182DrawSprite180>(operation);
+            var identity = sprite.PilotIdentity!.Value;
+            if (identity.Primitive != 0x10000)
+            {
+                identities.Add(identity);
+            }
+            return Feedback(current, sprite.TemporaryAddress, -1);
+        }) with { CapturePresentation = true };
+        frame = AdvanceSlots(frame, ChildBank, Resources, inputs).Frame;
+        Assert.Empty(identities);
+        frame = AdvanceSlots(frame, ChildBank, Resources, inputs).Frame;
+        Assert.Equal(3, identities.Count);
+        var first = identities.ToArray();
+        identities.Clear();
+        AdvanceSlots(frame, ChildBank, Resources, inputs);
+        Assert.Equal(3, identities.Count);
+        for (int index = 0; index < 3; index++)
+        {
+            Assert.Equal(first[index].Bank, identities[index].Bank);
+            Assert.Equal(first[index].Slot, identities[index].Slot);
+            Assert.NotEqual(first[index].Generation, identities[index].Generation);
+            Assert.Equal(first[index].ResourceGeneration, identities[index].ResourceGeneration);
+        }
+    }
+
+    [Fact]
+    public void Presentation_history_is_stable_while_paused_and_changes_on_actual_ring_rewrite()
+    {
+        var frame = Frame(0x5CB130, 0);
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        var inputs = Inputs((current, operation) =>
+        {
+            identities.Add(Assert.IsType<NativeBattleAdditional182DrawStatic88>(operation).PilotIdentity!.Value);
+            return current;
+        }, 0x201) with { CapturePresentation = true };
+        frame = AdvanceMesh(frame, ChildBank, Resources, inputs).Frame;
+        var first = identities.ToArray();
+        Assert.Equal(2, first.Length);
+        Assert.NotEqual(first[0], first[1]);
+        identities.Clear();
+        frame = AdvanceMesh(frame, ChildBank, Resources, inputs).Frame;
+        Assert.Equal(first, identities);
+        for (int index = 1; index < 5; index++)
+        {
+            frame = SetHistory(frame, index, 700 + index);
+        }
+        frame = Write(frame, ChildBank, Read(frame, ChildBank).WriteWord(12, 5));
+        identities.Clear();
+        AdvanceMesh(frame, ChildBank, Resources, inputs);
+        Assert.Equal(first[0], identities[0]);
+        Assert.NotEqual(first[1].Generation, identities[^1].Generation);
+    }
+
+    [Fact]
+    public void Presentation_history_draws_actual_loaded_source_corners_and_keeps_full_packet_FIFO_context_parity()
+    {
+        var plain = Draw(false);
+        var captured = Draw(true);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Frame), NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain.Batches), NativeBattleTestSnapshots.Json(captured.Batches));
+        Assert.Equal(2, captured.Batches.Count);
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        foreach (var batch in captured.Batches)
+        {
+            var primitive = Assert.Single(batch.Attempts, attempt => attempt.Primitive is not null).Primitive!;
+            var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            identities.Add(geometry.Identity);
+            Assert.Equal(new System.Numerics.Vector3(-300, -200, 300), geometry.A);
+            Assert.Equal(new System.Numerics.Vector3(500, -200, 300), geometry.B);
+            Assert.Equal(new System.Numerics.Vector3(-300, 600, 300), geometry.C);
+            Assert.Equal(new System.Numerics.Vector3(500, 600, 300), geometry.D);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+        }
+        Assert.Equal(2, identities.Distinct().Count());
+        Assert.All(plain.Batches.SelectMany(batch => batch.Attempts), attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+
+        (NativeBattleAdditional182Frame Frame, List<NativeBattleGfGeometryBatch> Batches) Draw(bool capture)
+        {
+            byte[] bytes = new byte[84];
+            BinaryPrimitives.WriteInt32LittleEndian(bytes, 40);
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 4);
+            short[] points = [-400, -400, 0, 11, 400, -400, 0, 22, -400, 400, 0, 33, 400, 400, 0, 44];
+            for (int index = 0; index < points.Length; index++)
+            {
+                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(8 + index * 2), points[index]);
+            }
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(44), 1);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(48), 0x28112233);
+            for (int corner = 0; corner < 4; corner++)
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(52 + corner * 2), (ushort)(corner * 2));
+            }
+            NativeBattleStaticMeshResource mesh = new(0, 0xD3AE78, bytes.ToImmutableArray());
+            var camera = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 };
+            NativeBattleCameraProjection projection = new(camera, 100, 160, 108);
+            List<NativeBattleGfGeometryBatch> batches = [];
+            var frame = Frame(0x5CB130, 0);
+            frame = frame with { Memory = frame.Memory with { ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() } };
+            var inputs = Inputs((current, operation) =>
+            {
+                var draw = Assert.IsType<NativeBattleAdditional182DrawStatic88>(operation);
+                Assert.Equal(mesh.Address, draw.SourceAddress);
+                var result = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, projection, Context(current, draw.TemporaryAddress, 88), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: draw.PilotIdentity);
+                batches.Add(capture ? NativeBattleAdditional182Visuals.PreserveNativeDepths(result.Batch) : result.Batch);
+                current = current with { Memory = result.Memory };
+                return PublishContext(current, draw.TemporaryAddress, result.Context, 88);
+            }, 0x201) with { CapturePresentation = capture, ReadView = _ => NativeBattlePackedMatrix32.FromMatrix(camera, null), ReadProjection = _ => projection };
+            return (AdvanceMesh(frame, ChildBank, Resources, inputs).Frame, batches);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_depth_finalization_preserves_native_payload_and_all_other_geometry_fields(bool empty)
+    {
+        NativeBattlePilotVisualGeometry geometry = new(new(182, 1, 2, 3, 4), new(1, 2, 3), new(4, 5, 6), new(7, 8, 9), new(10, 11, 12), 4, false) { ScreenSpace = true, ScreenScale = 8 };
+        NativeBattleGeometryPrimitive primitive = new(17, [0x09000000, 0x2C808080], empty ? [] : [3, 5, 7, 11]) { PilotGeometry = geometry };
+        NativeBattleGeometryPrimitive environment = new(17, [0x01000000, 0xE1000200], [0, 0, 0, 0]);
+        NativeBattleGfGeometryBatch batch = new([new(0, [], [], primitive), new(40, [], [], environment), new(48, [], [], null)], 48);
+        NativeBattleGfGeometryBatch captured = NativeBattleAdditional182Visuals.PreserveNativeDepths(batch);
+        Assert.Equal(NativeBattleTestSnapshots.Json(batch), NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry actual = captured.Attempts[0].Primitive!.PilotGeometry!;
+        Assert.Equal(empty ? System.Numerics.Vector4.Zero : new System.Numerics.Vector4(3, 5, 7, 11), actual.SourceDepths);
+        Assert.True(actual.UseSourceDepths);
+        Assert.Equal(geometry, actual with { SourceDepths = geometry.SourceDepths, UseSourceDepths = geometry.UseSourceDepths });
+        Assert.Same(environment, captured.Attempts[1].Primitive);
+        Assert.Null(captured.Attempts[2].Primitive);
+        var invalid = batch with { Attempts = [batch.Attempts[0] with { Primitive = primitive with { VertexPayload4 = [1, 2, 3] } }] };
+        Assert.Throws<NotSupportedException>(() => NativeBattleAdditional182Visuals.PreserveNativeDepths(invalid));
+    }
+
     private static readonly NativeBattleAdditional182Resources Resources = new(null!, null!, MeshVariantAddresses.Select(address => new NativeBattleStaticMeshResource(0, address, [])).ToImmutableArray(), null!, null!, null!, null!, 0x494AB, 0x494C1, [0xC04040, 0xA04060, 0x804080, 0x6040A0, 0x4040C0, 0x6040A0, 0x804080, 0xA04060]);
 
     [Theory]

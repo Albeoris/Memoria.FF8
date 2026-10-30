@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect313Controller;
 
 namespace Memoria.FF8.Runtime;
@@ -48,7 +49,7 @@ public static partial class NativeBattleEffect313Lower
         return address != 0 ? address : throw new InvalidDataException("Effect313 mandatory child allocation exhausted its actual native task bank.");
     }
 
-    private static NativeBattleEffect313Frame DrawMesh313(NativeBattleEffect313Frame frame, NativeBattleActionMatrix local, uint source, uint flags, int? cue, NativeBattleEffect313Resources resources, NativeBattleEffect313Inputs inputs)
+    private static NativeBattleEffect313Frame DrawMesh313(NativeBattleEffect313Frame frame, NativeBattleActionMatrix local, uint source, uint flags, int? cue, NativeBattleEffect313Resources resources, NativeBattleEffect313Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local), null));
         (frame, uint temporary) = Allocate(frame, 88);
@@ -59,19 +60,19 @@ public static partial class NativeBattleEffect313Lower
             context = Put313(context, 12, unchecked((uint)value));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        NativeBattleStaticMeshContext88Step draw = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
+        NativeBattleStaticMeshContext88Step draw = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context, 88);
-        frame = inputs.Execute(frame, new NativeBattleEffect313DrawBatch(draw.Batch, 0x223CC9C));
+        frame = inputs.Execute(frame, new NativeBattleEffect313DrawBatch(PreserveNativeDepths(draw.Batch), 0x223CC9C));
         return Release(frame, 88);
     }
 
     private static NativeBattleActionMatrix AtTask313(NativeBattleActionMatrix rotation, NativeBattleModulePoolTask task) => rotation with { X = Signed(task, 16), Y = Signed(task, 18), Z = Signed(task, 20) };
-    private static NativeBattleEffect313Frame DrawSprite313(NativeBattleEffect313Frame frame, uint temporary, NativeBattleEffectArena context, NativeBattleEffect313Resources resources, NativeBattleEffect313Inputs inputs)
+    private static NativeBattleEffect313Frame DrawSprite313(NativeBattleEffect313Frame frame, uint temporary, NativeBattleEffectArena context, NativeBattleEffect313Resources resources, NativeBattleEffect313Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
-        frame = inputs.Execute(frame, new NativeBattleEffect313DrawBatch(draw.Batch, 0x223CC9C));
+        frame = inputs.Execute(frame, new NativeBattleEffect313DrawBatch(PreserveNativeDepths(draw.Batch), 0x223CC9C));
         return Release(frame, 180);
     }
 
@@ -84,4 +85,23 @@ public static partial class NativeBattleEffect313Lower
         registers = registers with { Colors = registers.Colors with { NormalInput = System.Collections.Immutable.ImmutableArray.Create(packed), NormalInputKnown = System.Collections.Immutable.ImmutableArray.Create(known) } };
         return Publish(frame, registers);
     }
+    internal static NativeBattleGfGeometryBatch PreserveNativeDepths(NativeBattleGfGeometryBatch batch)
+    {
+        if (!batch.Attempts.Any(attempt => attempt.Primitive?.PilotGeometry is { Identity.Effect: 313, UseSourceDepths: false }))
+        {
+            return batch;
+        }
+        return batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { PilotGeometry: { Identity.Effect: 313, UseSourceDepths: false } geometry } primitive && primitive.Words.Length > 2 ? attempt with { Primitive = primitive with { PilotGeometry = geometry with { SourceDepths = Payload(primitive), UseSourceDepths = true } } } : attempt).ToImmutableArray() };
+
+        static System.Numerics.Vector4 Payload(NativeBattleGeometryPrimitive primitive)
+        {
+            return primitive.VertexPayload4.Length switch
+            {
+                0 => System.Numerics.Vector4.Zero,
+                4 => new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]),
+                _ => throw new NotSupportedException("Effect313 capture requires its actual empty or four-lane native depth payload.")
+            };
+        }
+    }
+
 }

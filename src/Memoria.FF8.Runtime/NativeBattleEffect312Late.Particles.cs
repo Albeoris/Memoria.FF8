@@ -39,6 +39,10 @@ public static partial class NativeBattleEffect312Late
                 {
                     break;
                 }
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, NativeBattleEffect312Profile.FirstRecordsAddress, checked((int)((row - NativeBattleEffect312Profile.FirstRecordsAddress) / NativeBattleEffect312Profile.FirstRecordStride)));
+                }
                 NativeBattleEffectArena particle = PutWord(Put(ReadBytes(frame, row, 24), 0, 1), 4, 0);
                 frame = DrawRandom(frame, out int random);
                 particle = PutWord(particle, 6, random % 3072 + 2560);
@@ -75,10 +79,10 @@ public static partial class NativeBattleEffect312Late
             memory = NativeBattleEffect315Gte.SetDiagonal64DE00(memory, unchecked((ushort)Word(particle, 6)));
             memory = NativeBattleEffect315Gte.MacToTranslation64DE40(memory);
             context = PutWord(context, 4, Word(particle, 4));
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(memory, context, resources.ReadSprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(memory, context, resources.ReadSprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(312, frame.State.Storage, NativeBattleEffect312Profile.FirstRecordsAddress, index) with { ResourceGeneration = 0xCD8EBC } : null);
             context = drawn.Temporary180;
             frame = WriteBytes(frame with { Memory = drawn.Memory }, temporary180, context, 180);
-            frame = inputs.Execute(frame, new NativeBattleEffect312DrawBatch(drawn.Batch));
+            frame = inputs.Execute(frame, new NativeBattleEffect312DrawBatch(NativeBattleEffect312Presentation.PreserveNativeDepths(drawn.Batch)));
             if (!Paused(frame, inputs))
             {
                 particle = PutWord(particle, 4, Word(particle, 4) + 1);
@@ -146,7 +150,7 @@ public static partial class NativeBattleEffect312Late
             NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(composed, padding is { } pad ? unchecked((ushort)pad) : null);
             context = CopyBytes(PackedBytes(packed), 0, context, 8, 32);
             frame = WriteBytes(WriteBytes(frame, temporary136, context, 136), temporary88, descriptor, 88);
-            frame = NativeBattleEffect312Mesh.Draw572200(LoadMatrix(frame, packed), temporary88, mesh, packed, resources, inputs);
+            frame = NativeBattleEffect312Mesh.Draw572200(LoadMatrix(frame, packed), temporary88, mesh, packed, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(312, frame.State.Storage, NativeBattleEffect312Profile.SecondRecordsAddress, index) with { ResourceGeneration = mesh } : null);
             descriptor = ReadBytes(frame, temporary88, 88);
             if (Paused(frame, inputs))
             {
@@ -186,6 +190,10 @@ public static partial class NativeBattleEffect312Late
                 if (row == 0)
                 {
                     break;
+                }
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, NativeBattleEffect312Profile.SecondRecordsAddress, checked((int)((row - NativeBattleEffect312Profile.SecondRecordsAddress) / NativeBattleEffect312Profile.SecondRecordStride)));
                 }
                 NativeBattleEffectArena particle = PutWord(Put(ReadBytes(frame, row, 28), 0, 2), 4, 0);
                 frame = DrawRandom(frame, out int random);

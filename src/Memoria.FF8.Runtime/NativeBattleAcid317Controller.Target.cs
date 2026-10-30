@@ -22,7 +22,7 @@ public static partial class NativeBattleAcid317Controller
         {
             frame = inputs.Execute(frame, new NativeBattleAcid317ActorFlags(actor, 0, 4));
             short fraction = unchecked((short)NativeBattleCameraMath.Sine((bodyAge << 11) / 40));
-            frame = inputs.Execute(frame, new NativeBattleAcid317DrawBody132(actor, fraction));
+            frame = inputs.Execute(frame, new NativeBattleAcid317DrawBody132(actor, fraction) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(317, target, 1) : null });
         }
         else
         {
@@ -41,7 +41,7 @@ public static partial class NativeBattleAcid317Controller
                 NativeBattleAcid317AnchorStep caster = inputs.ReadAnchor571400(frame, Actor(frame.State.ReadDword(CasterGlobal)));
                 frame = caster.Frame;
                 frame = RandomBone(frame, actor, inputs, out NativeBattleVector destination);
-                frame = StartTrail(frame, mouth.Position, destination, actor, 0, 160, 150, angle);
+                frame = StartTrail(frame, mouth.Position, destination, actor, 0, 160, 150, angle, inputs.CapturePresentation);
             }
         }
         if ((uint)(age - 18) < 2)

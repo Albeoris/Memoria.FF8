@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect320Lower
 {
-    public static NativeBattleEffect320Frame Draw65C750(NativeBattleEffect320Frame frame, uint temporary, NativeBattleEffect320Resources resources, NativeBattleEffect320Inputs inputs)
+    public static NativeBattleEffect320Frame Draw65C750(NativeBattleEffect320Frame frame, uint temporary, NativeBattleEffect320Resources resources, NativeBattleEffect320Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = Context(frame, temporary, 108);
         uint source = Dword320(context, 0);
@@ -29,7 +29,7 @@ public static partial class NativeBattleEffect320Lower
         }
         int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4));
         uint selected = Dword320(context, 4);
-        NativeBattleWindowedMeshContext108Step drawn = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, count, ReadVertex, readSelectedPackedVertex: ReadPacked);
+        NativeBattleWindowedMeshContext108Step drawn = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, count, ReadVertex, readSelectedPackedVertex: ReadPacked, pilotIdentity: pilotIdentity);
         NativeBattleGfGeometryBatch batch = AddCustomModes(drawn.Batch);
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context108, 108);
         return inputs.Execute(frame, new NativeBattleEffect320DrawBatch(batch, Cursor));

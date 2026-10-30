@@ -36,6 +36,28 @@ public sealed class NativeBattleAcid317PointProjectionTests
         Assert.Throws<InvalidDataException>(() => Project(frame with { Memory = frame.Memory with { Arena = arena } }, head, 1));
     }
 
+    [Fact]
+    public void Capture_receipts_use_actual_point_world_coordinates_without_changing_native_projection_writes()
+    {
+        uint head = NativeBattleAcid317Profile.ArenaAddress + NativeBattleAcid317Profile.PointsOffset;
+        NativeBattleAcid317Frame Prepare()
+        {
+            NativeBattleAcid317Frame frame = Frame();
+            int offset = NativeBattleAcid317Profile.PointsOffset;
+            NativeBattleEffectArena arena = frame.Memory.Arena!.Write(offset, new byte[40]).Write(offset + 0, BitConverter.GetBytes((short)100)).Write(offset + 2, BitConverter.GetBytes((short)200)).Write(offset + 4, BitConverter.GetBytes((short)400));
+            return frame with { Memory = frame.Memory with { Arena = arena } };
+        }
+        NativeBattlePackedMatrix32 view = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null);
+        NativeBattleCameraProjection projection = new(view.ReadMatrix(), 100, 160, 108);
+        NativeBattleAcid317Frame native = NativeBattleAcid317PointProjection.Project(Prepare(), head, 1, view, projection);
+        Dictionary<uint, System.Numerics.Vector3> world = [];
+        NativeBattleAcid317Frame captured = NativeBattleAcid317PointProjection.Project(Prepare(), head, 1, view, projection, world);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(new System.Numerics.Vector3(100, 200, 400), world[head]);
+        Assert.Equal(600u, BinaryPrimitives.ReadUInt32LittleEndian(captured.Memory.Arena!.Read(NativeBattleAcid317Profile.PointsOffset + 0x14, 4)));
+        Assert.Single(world);
+    }
+
     private static NativeBattleAcid317Frame Project(NativeBattleAcid317Frame frame, uint head, short count) => NativeBattleAcid317PointProjection.Project(frame, head, count, NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), new(null, 100, 160, 108));
 
     private static NativeBattleAcid317Frame Frame()

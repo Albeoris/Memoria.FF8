@@ -30,7 +30,7 @@ public static partial class NativeBattleEffect320Controller
             int factor = InterpolationFactor(elapsed);
             if (elapsed == 0)
             {
-                frame = NativeBattleEffect320Lower.Flash65D900(frame, 0x808080, inputs);
+                frame = NativeBattleEffect320Lower.Flash65D900(frame, 0x808080, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(320, Read(frame, address), 1) : null);
             }
             (frame, NativeBattleVector blended) = Blend(frame, address, factor, 4096 - factor, inputs);
             frame = SetMainTranslation(frame, address, blended);
@@ -46,18 +46,18 @@ public static partial class NativeBattleEffect320Controller
         {
             if (finalElapsed == 1)
             {
-                frame = NativeBattleEffect320Lower.Flash65D970(frame, 0x808080, inputs);
+                frame = NativeBattleEffect320Lower.Flash65D970(frame, 0x808080, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(320, Read(frame, address), 2) : null);
             }
             else if (finalElapsed >= 2 && finalElapsed <= 4)
             {
                 uint color = finalElapsed == 2 ? 0xF0F0F0u : finalElapsed == 3 ? 0xA0A0A0u : 0x505050u;
-                frame = NativeBattleEffect320Lower.Flash65D900(frame, color, inputs);
+                frame = NativeBattleEffect320Lower.Flash65D900(frame, color, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(320, Read(frame, address), 1) : null);
             }
             NativeBattleVector center = Vector(TaskView(Read(frame, address), 0x38, 8));
             NativeBattleActionMatrix centered = NativeBattlePandemona291Restoration.Rotation701270(0) with { X = center.X, Y = center.Y, Z = center.Z };
             NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), centered);
             NativeBattleEffectArena caller = BuildCaller(frame, composed, 0xFF12C8, 0xFF12BC, -512, unchecked((ushort)(finalElapsed << 4)));
-            frame = NativeBattleEffect320Programme.Advance(frame, address + 0x340, caller, resources, inputs).Frame;
+            frame = NativeBattleEffect320Programme.Advance(frame, address + 0x340, caller, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(320, Read(frame, address)) : null).Frame;
         }
         if (phase == 0)
         {
@@ -103,7 +103,7 @@ public static partial class NativeBattleEffect320Controller
         NativeBattleActionMatrix current = PackedMatrix(TaskView(Read(frame, address), 0x10, 32)).ReadMatrix();
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), current);
         NativeBattleEffectArena caller = BuildCaller(frame, composed, material, shader, depth, phase);
-        return NativeBattleEffect320Programme.Advance(frame, checked(address + (uint)cacheOffset), caller, resources, inputs).Frame;
+        return NativeBattleEffect320Programme.Advance(frame, checked(address + (uint)cacheOffset), caller, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(320, Read(frame, address)) : null).Frame;
     }
 
     public static NativeBattleEffectArena BuildCaller(NativeBattleEffect320Frame frame, NativeBattleActionMatrix matrix, uint material, uint shader, short depth, ushort? phase)

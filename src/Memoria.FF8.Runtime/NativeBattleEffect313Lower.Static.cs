@@ -14,7 +14,7 @@ public static partial class NativeBattleEffect313Lower
         int life = Signed(task, 14);
         bool fade = age >= life - 8;
         uint source = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(0xCD8D40u + (uint)Signed(task, 24) * 4), 4));
-        frame = DrawMesh313(frame, local, source, fade ? 0xC3u : 0u, fade ? unchecked((age - life + 8) << 9) : null, resources, inputs);
+        frame = DrawMesh313(frame, local, source, fade ? 0xC3u : 0u, fade ? unchecked((age - life + 8) << 9) : null, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(313, task) with { ResourceGeneration = source } : null);
         if (Paused313(frame, inputs))
         {
             return new(frame, 0);
@@ -32,7 +32,7 @@ public static partial class NativeBattleEffect313Lower
         NativeBattleActionMatrix local = AtTask313(NativeBattleGfMatrices.Euler56CD50(new(0, 0, 0)), task);
         local = NativeBattlePoseMatrices.Scale56BEF0(local, Signed(task, 28), Signed(task, 32), Signed(task, 28));
         int age = Signed(task, 12);
-        frame = DrawMesh313(frame, local, 0xCD6038, age >= 10 ? 0xF0u : 0x30u, age >= 10 ? unchecked((age - 10) * 292) : null, resources, inputs);
+        frame = DrawMesh313(frame, local, 0xCD6038, age >= 10 ? 0xF0u : 0x30u, age >= 10 ? unchecked((age - 10) * 292) : null, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(313, task) with { ResourceGeneration = 0xCD6038 } : null);
         if (Paused313(frame, inputs))
         {
             return new(frame, 0);
@@ -59,7 +59,7 @@ public static partial class NativeBattleEffect313Lower
         int quotient = 128 / Signed(task, 32);
         byte tint = unchecked((byte)(128 - unchecked((sbyte)quotient) * unchecked((sbyte)task.ReadByte(12))));
         context = context.Write(28, [tint, tint, tint]);
-        frame = DrawSprite313(frame, temporary, context, resources, inputs);
+        frame = DrawSprite313(frame, temporary, context, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(313, task) with { ResourceGeneration = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(0, 4)) } : null);
         if (Paused313(frame, inputs))
         {
             return new(frame, 0);
@@ -76,7 +76,7 @@ public static partial class NativeBattleEffect313Lower
         frame = SetupSprite313(frame, TaskView(task, 16, 8), scale, -(scale >> 3), inputs);
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = PutWord313(PutWord313(Put313(Context(frame, temporary, 180), 0, 0xCD5CE0), 4, task.ReadWord(12)), 36, 0);
-        frame = DrawSprite313(frame, temporary, context, resources, inputs);
+        frame = DrawSprite313(frame, temporary, context, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(313, task) with { ResourceGeneration = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(0, 4)) } : null);
         if (Paused313(frame, inputs))
         {
             return new(frame, 0);
@@ -101,9 +101,9 @@ public static partial class NativeBattleEffect313Lower
             context = Put313(context, 12, unchecked((uint)depthCue));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        NativeBattleStaticMeshContext88Step draw = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(0xCD7C38), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
+        NativeBattleStaticMeshContext88Step draw = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(0xCD7C38), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(313, task) with { ResourceGeneration = 0xCD7C38 } : null);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context, 88);
-        frame = inputs.Execute(frame, new NativeBattleEffect313DrawBatch(draw.Batch, 0x223CC9C));
+        frame = inputs.Execute(frame, new NativeBattleEffect313DrawBatch(PreserveNativeDepths(draw.Batch), 0x223CC9C));
         frame = Release(frame, 88);
         if (Paused313(frame, inputs))
         {
@@ -136,7 +136,7 @@ public static partial class NativeBattleEffect313Lower
             byte tint = unchecked((byte)(age < 8 ? age << 4 : 224 - (unchecked((byte)age) << 4)));
             context = PutWord313(context.Write(28, [tint, tint, tint]), 36, 5);
         }
-        frame = DrawSprite313(frame, temporary, context, resources, inputs);
+        frame = DrawSprite313(frame, temporary, context, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(313, task) with { ResourceGeneration = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(0, 4)) } : null);
         if (Paused313(frame, inputs))
         {
             return new(frame, 0);

@@ -108,6 +108,73 @@ public sealed class NativeBattleEffect320LowerTests
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(result.Frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
     }
 
+    [Theory]
+    [InlineData(2, false)]
+    [InlineData(3, false)]
+    [InlineData(6, false)]
+    [InlineData(7, false)]
+    [InlineData(3, true)]
+    [InlineData(7, true)]
+    public void Capture_survives_custom_mode_links_without_changing_native_context_or_packets(int group, bool window)
+    {
+        Fixture Prepare()
+        {
+            Fixture fixture = new();
+            NativeBattleStaticMeshResource mesh = Mesh(0x1000000, group, 2000);
+            fixture.Resources = fixture.Resources with { Geometry = fixture.Resources.Geometry.Add(mesh.Address, mesh), Programmes = fixture.Resources.Programmes.Add(mesh.Address, new(mesh.Address, mesh.Bytes)) };
+            (fixture.Frame, uint temporary) = Allocate(fixture.Frame, 108);
+            NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 108).Write(0, BitConverter.GetBytes(mesh.Address)).Write(4, BitConverter.GetBytes(mesh.Address + 12)).Write(8, new byte[3]).Write(12, BitConverter.GetBytes(1024)).Write(0x18, BitConverter.GetBytes(-128)).Write(0x1C, BitConverter.GetBytes(0x20F0u)).Write(0x20, new byte[4]);
+            if (window)
+            {
+                context = context.Write(0x22, BitConverter.GetBytes((ushort)112)).Write(0x24, new byte[4]).Write(0x28, BitConverter.GetBytes((ushort)256)).Write(0x2A, BitConverter.GetBytes((ushort)256)).Write(0x2C, new byte[4]).Write(0x30, BitConverter.GetBytes((ushort)256)).Write(0x32, BitConverter.GetBytes((ushort)128));
+            }
+            fixture.Frame = PublishContext(fixture.Frame, temporary, context, 108);
+            return fixture;
+        }
+        Fixture native = Prepare();
+        NativeBattleEffect320Frame expected = NativeBattleEffect320Lower.Draw65C750(native.Frame, NativeBattleTemporaryMemory.Address, native.Resources, native.Inputs() with { ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108) });
+        Fixture captured = Prepare();
+        NativeBattleEffect320Frame actual = NativeBattleEffect320Lower.Draw65C750(captured.Frame, NativeBattleTemporaryMemory.Address, captured.Resources, captured.Inputs() with { ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108) }, pilotIdentity: new(320, 0x25050A0, 2, 7, 3));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
+        NativeBattleGfGeometryBatch expectedBatch = Assert.Single(native.Deliveries).Batch;
+        NativeBattleGfGeometryBatch actualBatch = Assert.Single(captured.Deliveries).Batch;
+        Assert.Equal(NativeBattleTestSnapshots.Json(expectedBatch), NativeBattleTestSnapshots.Json(actualBatch));
+        NativeBattleGeometryPrimitive body = Assert.Single(actualBatch.Attempts, attempt => attempt.Primitive is { Words.Length: > 3 }).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(body.PilotGeometry);
+        Assert.Equal((ushort)320, geometry.Identity.Effect);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(body.VertexPayload4[0], body.VertexPayload4[1], body.VertexPayload4[2], body.VertexPayload4[3]), geometry.SourceDepths);
+        Assert.All(actualBatch.Attempts.Where(attempt => attempt.Primitive is { Words.Length: 2 }), attempt => Assert.Null(attempt.Primitive!.PilotGeometry));
+        Assert.All(expectedBatch.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+        string before = NativeBattleTestSnapshots.Json(actual);
+        NativeBattlePilotVisualGeometry sampled = NativeBattlePilotVisualGeometry.Sample(geometry, geometry with { A = geometry.A + System.Numerics.Vector3.UnitY * 4 }, 0.5f);
+        Assert.Equal(geometry.A + System.Numerics.Vector3.UnitY * 2, sampled.A);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(actual));
+    }
+
+    [Fact]
+    public void Captured_flash_keeps_native_mode_brackets_and_exact_zero_depth_discrete_screen_rectangle()
+    {
+        Fixture native = new();
+        Fixture captured = new();
+        NativeBattleEffect320Frame expected = NativeBattleEffect320Lower.Flash65D970(native.Frame, 0x808080, native.Inputs());
+        NativeBattleEffect320Frame actual = NativeBattleEffect320Lower.Flash65D970(captured.Frame, 0x808080, captured.Inputs(), new(320, 1, 2, 3, 2));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
+        NativeBattleGfGeometryBatch expectedBatch = Assert.Single(native.Deliveries).Batch;
+        NativeBattleGfGeometryBatch actualBatch = Assert.Single(captured.Deliveries).Batch;
+        Assert.Equal(NativeBattleTestSnapshots.Json(expectedBatch), NativeBattleTestSnapshots.Json(actualBatch));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(actualBatch.Attempts[1].Primitive!.PilotGeometry);
+        Assert.True(geometry.ScreenSpace);
+        Assert.Equal(1, geometry.ScreenScale);
+        Assert.False(geometry.Continuous);
+        Assert.Equal(new System.Numerics.Vector3(320, 216, 0), geometry.D);
+        Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Null(actualBatch.Attempts[0].Primitive!.PilotGeometry);
+        Assert.Null(actualBatch.Attempts[2].Primitive!.PilotGeometry);
+        Assert.Same(geometry, NativeBattlePilotVisualGeometry.Sample(geometry, geometry with { A = System.Numerics.Vector3.One }, 0.5f));
+    }
+
     private sealed class Fixture
     {
         public NativeBattleEffect320Frame Frame;

@@ -40,7 +40,7 @@ public static partial class NativeBattleEffect312Controller
         }
         if (age == 43)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect312CaptureStage59D400(TargetPointAddress));
+            frame = inputs.Execute(frame, new NativeBattleEffect312CaptureStage59D400(TargetPointAddress) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(312, Read(frame, address), 0x59D400) : null });
         }
         if (age == 1)
         {
@@ -104,7 +104,7 @@ public static partial class NativeBattleEffect312Controller
         }
         if (age == 6 || age == 51)
         {
-            frame = inputs.Execute(frame, age == 6 ? new NativeBattleEffect312Flash5712C0(2, 1, 10, 255) : new NativeBattleEffect312Flash5712C0(0, 2, 4, 255));
+            frame = inputs.Execute(frame, age == 6 ? new NativeBattleEffect312Flash5712C0(2, 1, 10, 255) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(312, Read(frame, address), 0x5712) : null } : new NativeBattleEffect312Flash5712C0(0, 2, 4, 255) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(312, Read(frame, address), 0x5712) : null });
         }
         if (age == 44 || age == 54)
         {

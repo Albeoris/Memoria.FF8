@@ -40,11 +40,16 @@ public static partial class NativeBattleEffect312Late
         int age = TaskWord(task, 12);
         int ring = age % 3;
         uint history = unchecked(group + 0x1B8u + (uint)(ring * 20));
+        if (inputs.CapturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, group + 0x1B8, ring);
+        }
         frame = WriteBytes(frame, history, Put(ReadBytes(frame, history, 20), 0, 1), 4);
         frame = WriteBytes(frame, history + 4, ReadBytes(frame, 0x2240EC8, 8), 8);
         frame = WriteBytes(frame, history + 12, ReadBytes(frame, unchecked(group + 0x38u + (uint)(TaskWord(task, 24) * 8)), 8), 8);
         int requested = age < 21 ? 3 : 24 - age;
         int count = 0;
+        int oldestRing = ring;
         while (count < requested)
         {
             uint row = unchecked(group + 0x1B8u + (uint)(ring * 20));
@@ -54,6 +59,7 @@ public static partial class NativeBattleEffect312Late
             }
             frame = WriteBytes(frame, group + 0x1F4u + (uint)(count * 8), ReadBytes(frame, row + 4, 8), 8);
             frame = WriteBytes(frame, group + 0x214u + (uint)(count * 8), ReadBytes(frame, row + 12, 8), 8);
+            oldestRing = ring;
             ring--;
             if (ring < 0)
             {
@@ -96,6 +102,7 @@ public static partial class NativeBattleEffect312Late
                 registers = LoadPoint(registers, 0, ReadBytes(frame, group + 0x234u + (uint)(segment * 8), 8), 0);
                 registers = LoadPoint(registers, 1, ReadBytes(frame, group + 0x23Cu + (uint)(segment * 8), 8), 0);
                 registers = LoadPoint(registers, 2, ReadBytes(frame, group + 0x2B4u + (uint)(segment * 8), 8), 0);
+                System.Numerics.Vector3[]? world = inputs.CapturePresentation ? [NativeBattleEffect312Presentation.Loaded(registers, 0, inputs.ReadProjection(frame)), NativeBattleEffect312Presentation.Loaded(registers, 1, inputs.ReadProjection(frame)), NativeBattleEffect312Presentation.Loaded(registers, 2, inputs.ReadProjection(frame)), default] : null;
                 registers = NativeBattleGeometry.ProjectTriple(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
                 uint flags = registers.Colors.Flags!.Value;
                 scratch = Put(scratch, 12, flags);
@@ -106,6 +113,10 @@ public static partial class NativeBattleEffect312Late
                 }
                 uint[] screens = [registers.Geometry.Sxy[0]!.Value, registers.Geometry.Sxy[1]!.Value, registers.Geometry.Sxy[2]!.Value, 0];
                 registers = LoadPoint(registers, 0, ReadBytes(frame, group + 0x2BCu + (uint)(segment * 8), 8), 0);
+                if (world is not null)
+                {
+                    world[3] = NativeBattleEffect312Presentation.Loaded(registers, 0, inputs.ReadProjection(frame));
+                }
                 registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
                 screens[3] = registers.Geometry.Sxy[2]!.Value;
                 registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Effect312 strips require current ZSF4."));
@@ -127,8 +138,15 @@ public static partial class NativeBattleEffect312Late
                 }
                 int bucket = unchecked(17 + ((int)depth >> 2));
                 ImmutableArray<int> payload = registers.Geometry.Sz.Select(value => unchecked((int)value!.Value)).ToImmutableArray();
-                attempts.Add(first.Attempt(new(bucket, first.Words(), payload)));
-                attempts.Add(second.Attempt(new(bucket, second.Words(), payload)));
+                NativeBattleGeometryPrimitive firstPrimitive = new(bucket, first.Words(), payload);
+                NativeBattleGeometryPrimitive secondPrimitive = new(bucket, second.Words(), payload);
+                if (world is not null)
+                {
+                    firstPrimitive = NativeBattleEffect312Presentation.Attach(firstPrimitive, NativeBattleEffect312Presentation.Segment(frame, group + 0x1B8, age % 3, oldestRing, segment, 0), world);
+                    secondPrimitive = NativeBattleEffect312Presentation.Attach(secondPrimitive, NativeBattleEffect312Presentation.Segment(frame, group + 0x1B8, age % 3, oldestRing, segment, 1), world);
+                }
+                attempts.Add(first.Attempt(firstPrimitive));
+                attempts.Add(second.Attempt(secondPrimitive));
                 allocated += 72;
             }
             frame = WriteBytes(Publish(frame, registers), temporary, scratch, 64);
@@ -208,6 +226,7 @@ public static partial class NativeBattleEffect312Late
                 registers = LoadPoint(registers, 0, ReadBytes(frame, row + 24, 8), 0);
                 registers = LoadPoint(registers, 1, ReadBytes(frame, row + 8, 8), 0);
                 registers = LoadPoint(registers, 2, ReadBytes(frame, row + 16, 8), 0);
+                System.Numerics.Vector3[]? qWorld = inputs.CapturePresentation ? [NativeBattleEffect312Presentation.Loaded(registers, 0, inputs.ReadProjection(frame)), NativeBattleEffect312Presentation.Loaded(registers, 1, inputs.ReadProjection(frame)), NativeBattleEffect312Presentation.Loaded(registers, 2, inputs.ReadProjection(frame))] : null;
                 registers = NativeBattleGeometry.ProjectTriple(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
                 uint flags = registers.Colors.Flags!.Value;
                 scratch = Put(scratch, 12, flags);
@@ -224,6 +243,7 @@ public static partial class NativeBattleEffect312Late
                 registers = LoadPoint(registers, 0, ReadBytes(frame, row, 8), 0);
                 registers = LoadPoint(registers, 1, ReadBytes(frame, row + 32, 8), 0);
                 registers = LoadPoint(registers, 2, ReadBytes(frame, row + 40, 8), 0);
+                System.Numerics.Vector3[]? rWorld = inputs.CapturePresentation ? [NativeBattleEffect312Presentation.Loaded(registers, 0, inputs.ReadProjection(frame)), NativeBattleEffect312Presentation.Loaded(registers, 1, inputs.ReadProjection(frame)), NativeBattleEffect312Presentation.Loaded(registers, 2, inputs.ReadProjection(frame))] : null;
                 registers = NativeBattleGeometry.ProjectTriple(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
                 uint[] r = registers.Geometry.Sxy.Select(value => value!.Value).ToArray();
                 uint[] firstScreens = [r[1], q[0], q[1], r[0]];
@@ -239,8 +259,15 @@ public static partial class NativeBattleEffect312Late
                 }
                 int bucket = unchecked(17 + ((int)depth >> 2));
                 ImmutableArray<int> payload = registers.Geometry.Sz.Select(value => unchecked((int)value!.Value)).ToImmutableArray();
-                attempts.Add(first.Attempt(new(bucket, first.Words(), payload)));
-                attempts.Add(second.Attempt(new(bucket, second.Words(), payload)));
+                NativeBattleGeometryPrimitive firstPrimitive = new(bucket, first.Words(), payload);
+                NativeBattleGeometryPrimitive secondPrimitive = new(bucket, second.Words(), payload);
+                if (qWorld is not null && rWorld is not null)
+                {
+                    firstPrimitive = NativeBattleEffect312Presentation.Attach(firstPrimitive, NativeBattleEffect312Presentation.Segment(frame, group + 0x38, segment, segment + 1, segment, 0), [rWorld[1], qWorld[0], qWorld[1], rWorld[0]]);
+                    secondPrimitive = NativeBattleEffect312Presentation.Attach(secondPrimitive, NativeBattleEffect312Presentation.Segment(frame, group + 0x38, segment, segment + 1, segment, 1), [qWorld[0], rWorld[2], rWorld[0], qWorld[2]]);
+                }
+                attempts.Add(first.Attempt(firstPrimitive));
+                attempts.Add(second.Attempt(secondPrimitive));
                 allocated += 72;
             }
             frame = WriteBytes(Publish(frame, registers), temporary, scratch, 144);

@@ -8,7 +8,7 @@ public sealed record NativeBattleDegenerator306CustomMeshStep(NativeBattleEffect
 
 public static class NativeBattleDegenerator306CustomMesh
 {
-    public static NativeBattleDegenerator306CustomMeshStep Draw5A3AC0(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context108, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleDegenerator306CustomMeshStep Draw5A3AC0(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context108, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         context108.Validate();
         if (mesh.Bytes.IsDefault || mesh.Bytes.Length < 8 || Dword(0) != mesh.Address || depthShift > 31)
@@ -33,6 +33,7 @@ public static class NativeBattleDegenerator306CustomMesh
         uint rgb = Dword(8);
         far = far with { FarRed = (rgb & 255) << 4, FarGreen = ((rgb >> 8) & 255) << 4, FarBlue = ((rgb >> 16) & 255) << 4 };
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
+        NativeBattleActionMatrix? pilotMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
         int allocated = 0;
         cursor = checked(cursor + 8);
         Put(0x24, checked(mesh.Address + (uint)cursor));
@@ -65,10 +66,12 @@ public static class NativeBattleDegenerator306CustomMesh
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = Read(cursor, stride).ToArray();
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[quad ? 4 : 3] : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     var vertex = Vertex(corner);
                     registers = NativeBattleGeometry.LoadVector(registers, corner, vertex.Position, vertex.W);
+                    Capture(corner, vertex.Position);
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
                 uint firstFlags = registers.Colors.Flags ?? throw new NotSupportedException("Degenerator custom mesh requires its RTPT flags.");
@@ -101,6 +104,14 @@ public static class NativeBattleDegenerator306CustomMesh
                         registers = registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, (Dword(0x20) | (quad ? 0x2C000000u : 0x24000000u) | ((flags & 1) != 0 ? 0x02000000u : 0)) & ~((flags & 4) != 0 ? 0x02000000u : 0), Dword(12), far, constants).Registers };
                     }
                     attempt = attempt with { Primitive = attempt.Primitive with { Bucket = checked(tableBaseBucket + (unchecked((int)depth) >> depthShift)) } };
+                    if (pilotIdentity is { } identity && world is not null)
+                    {
+                        attempt = attempt with { Primitive = attempt.Primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)world.Length)) } };
+                    }
+                    if (pilotIdentity?.Effect == 174)
+                    {
+                        attempt = attempt with { Primitive = NativeBattleEffect174Presentation.PreserveNativeDepths(attempt.Primitive!) };
+                    }
                     allocated = checked(allocated + attempt.PacketLength);
                 }
                 attempts.Add(attempt);
@@ -113,11 +124,20 @@ public static class NativeBattleDegenerator306CustomMesh
                     {
                         var vertex = Vertex(corner);
                         registers = NativeBattleGeometry.LoadVector(registers, 0, vertex.Position, vertex.W);
+                        Capture(corner, vertex.Position);
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
                         registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Degenerator custom mesh requires its ZSF4 owner."));
                     }
                     return projected[corner];
+                }
+
+                void Capture(int corner, NativeBattleVector point)
+                {
+                    if (world is not null && pilotMatrix is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix, point), projection);
+                    }
                 }
 
                 (NativeBattleVector Position, short W) Vertex(int corner)

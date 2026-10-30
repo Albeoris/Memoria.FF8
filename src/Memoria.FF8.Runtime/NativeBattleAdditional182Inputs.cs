@@ -6,9 +6,16 @@ public sealed record NativeBattleAdditional182Frame(NativeBattleEffectMemory Mem
 }
 
 public sealed record NativeBattleAdditional182PointStep(NativeBattleAdditional182Frame Frame, NativeBattleEffectArena Point8);
-public sealed record NativeBattleAdditional182Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleAdditional182Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleAdditional182Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleAdditional182Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleAdditional182Frame, int, NativeBattleAdditional182PointStep> ReadAnchor571400, Func<NativeBattleAdditional182Frame, NativeBattleAdditional182Operation, NativeBattleAdditional182Frame> Execute);
+public sealed record NativeBattleAdditional182Inputs(NativeBattleActionPacketsState Packets, NativeBattleSummonColors Colors, uint GraphicsFlags, Func<NativeBattleAdditional182Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleAdditional182Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleAdditional182Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleAdditional182Frame, int, NativeBattleAdditional182PointStep> ReadAnchor571400, Func<NativeBattleAdditional182Frame, NativeBattleAdditional182Operation, NativeBattleAdditional182Frame> Execute)
+{
+    public bool CapturePresentation { get; init; }
+}
 
-public abstract record NativeBattleAdditional182Operation;
+public abstract record NativeBattleAdditional182Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleAdditional182Sound5013A0(uint Packed, uint Flags, NativeBattleEffectArena Point8) : NativeBattleAdditional182Operation;
 public sealed record NativeBattleAdditional182ContactsAll(int HeaderIndex) : NativeBattleAdditional182Operation;
 public sealed record NativeBattleAdditional182ActorFlags(int Actor, ushort ClearMask, ushort SetMask) : NativeBattleAdditional182Operation;

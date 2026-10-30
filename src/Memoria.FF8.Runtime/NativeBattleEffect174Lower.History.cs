@@ -23,6 +23,10 @@ public static partial class NativeBattleEffect174Lower
         uint sampleAddress = 0x2395E58 + (uint)(slot * 0x404);
         frame = frame with { State = frame.State.WriteDword(sampleAddress, 1) };
         frame = L174SaveBones(frame, sampleAddress + 4, current);
+        if (inputs.CapturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, 0x2395E58, slot);
+        }
         frame = L174SaveBones(frame, 0x2394BA0, current);
         NativeBattleEffectArena model = inputs.ReadModelArena9C(frame, actor);
         NativeBattleEffectArena originalMask = CopyBytes(model, 0x7C, NativeBattleEffectArena.Clear().MarkUnknown(0, 4), 0, 4);
@@ -39,7 +43,7 @@ public static partial class NativeBattleEffect174Lower
             }
             frame = inputs.WriteCurrentBoneMatrices32(frame, actor, L174ReadBones(frame, history + 4, length));
             frame = L174WriteModel(frame, actor, 0x28, L174Put(NativeBattleEffectArena.Clear(), 0, resources.HistoryColors[index]), 4, inputs);
-            frame = inputs.Execute(frame, new NativeBattleEffect174DrawModelHistory5120(actor));
+            frame = inputs.Execute(frame, new NativeBattleEffect174DrawModelHistory5120(actor) { PilotIdentity = inputs.CapturePresentation ? NativeBattleEffect174Presentation.Row(frame, 0x2395E58, previous, address, checked((uint)actor), index) : null });
             previous--;
             if (previous < 0)
             {

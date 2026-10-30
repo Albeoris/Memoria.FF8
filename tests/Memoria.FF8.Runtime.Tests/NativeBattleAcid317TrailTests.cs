@@ -128,6 +128,46 @@ public sealed class NativeBattleAcid317TrailTests
         Assert.Equal(NativeBattleTestSnapshots.Json(expected.Batch), NativeBattleTestSnapshots.Json(actual.Batch));
     }
 
+    [Fact]
+    public void Capture_preserves_native_trail_and_both_endpoint_births_block_recycled_sampling()
+    {
+        NativeBattleAcid317Frame Make()
+        {
+            return Point(Point(Frame(), 0, 100, 200, 512, 32, 2048, Address(1)), 1, 116, 200, 512, 32, 1024, 0);
+        }
+        var native = NativeBattleAcid317Trail.Draw(Make(), Address(0), 2, Resources());
+        NativeBattleAcid317Frame frame = Make();
+        Dictionary<uint, System.Numerics.Vector3> centers = new() { [Address(0)] = new(10, 20, 2000), [Address(1)] = new(30, 20, 2000) };
+        NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, Address(0), 0);
+        NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, Address(0), 1);
+        var captured = NativeBattleAcid317Trail.Draw(frame, Address(0), 2, Resources(), new(317, 0x21DFE40, 2, 9, 2), centers);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Frame), NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        NativeBattlePilotVisualGeometry first = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(4, first.CornerCount);
+        Assert.Equal(4, first.ScreenOffsets.Length);
+        Assert.True(first.UseSourceDepths);
+        Assert.Equal(System.Numerics.Vector4.Zero, first.SourceDepths);
+        NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, Address(0), 1);
+        var secondBirth = NativeBattleAcid317Trail.Draw(MakeWithSameStorage(frame), Address(0), 2, Resources(), new(317, 0x21DFE40, 2, 9, 2), centers);
+        NativeBattlePilotVisualGeometry second = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(secondBirth.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(first.Identity.Generation, second.Identity.Generation);
+        Assert.NotEqual(first.Identity.ResourceGeneration, second.Identity.ResourceGeneration);
+        Assert.Same(first, NativeBattlePilotVisualGeometry.Sample(first, second, 0.5f));
+        NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, Address(0), 0);
+        var firstBirth = NativeBattleAcid317Trail.Draw(MakeWithSameStorage(frame), Address(0), 2, Resources(), new(317, 0x21DFE40, 2, 9, 2), centers);
+        NativeBattlePilotVisualGeometry third = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(firstBirth.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.NotEqual(first.Identity.Generation, third.Identity.Generation);
+        string before = NativeBattleTestSnapshots.Json(firstBirth.Frame);
+        Assert.Same(second, NativeBattlePilotVisualGeometry.Sample(second, third, 0.5f));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(firstBirth.Frame));
+
+        NativeBattleAcid317Frame MakeWithSameStorage(NativeBattleAcid317Frame current)
+        {
+            return Point(Point(current, 0, 100, 200, 512, 32, 2048, Address(1)), 1, 116, 200, 512, 32, 1024, 0);
+        }
+    }
+
     private static uint Address(int index) => ArenaAddress + (uint)(PointsOffset + index * PointStride);
     private static uint Dword(ImmutableArray<byte> data, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan().Slice(offset));
     private static short Word(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));

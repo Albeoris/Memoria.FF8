@@ -103,9 +103,42 @@ public sealed class NativeBattleAcid317ActMeshTests
         Assert.Equal(NativeBattleTestSnapshots.Json(Next(result)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
-    private static NativeBattleAcid317ActMeshStep Draw(NativeBattleGfAnimationNode node, NativeBattleEffectArena context, NativeBattleActionMatrix? camera = null, NativeBattleEffectArena? arena = null, int count = 4)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Actual_ACT_capture_keeps_selected_or_morphed_operands_and_all_native_scratch(bool morph)
     {
-        return NativeBattleAcid317ActMesh.Draw(Source(count), node, context, NativeBattlePackedMatrix32.FromMatrix(camera ?? NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), arena ?? NativeBattleEffectArena.Clear(), new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), new(1, 2, 3, 4, 5), new(null, 100, 160, 108), 0, 0, 0x155, 0x100, Constants);
+        NativeBattleGfAnimationNode node = Node(0);
+        if (morph)
+        {
+            byte[] bytes = node.Data.ToArray();
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(38), 2048);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(42), 1);
+            node = node with { Data = bytes.ToImmutableArray() };
+        }
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 100, 160, 108);
+        NativeBattleAcid317ActMeshStep native = Draw(node, Context(0), projection: projection);
+        NativeBattleAcid317ActMeshStep captured = Draw(node, Context(0), pilotIdentity: new(317, 0x2500000, 1, 9, node.ResourceOffset) { ResourceGeneration = 0x1000224 }, projection: projection);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Arena), NativeBattleTestSnapshots.Json(captured.Arena));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Temporary88), NativeBattleTestSnapshots.Json(captured.Temporary88));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Registers), NativeBattleTestSnapshots.Json(captured.Registers));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batch), NativeBattleTestSnapshots.Json(captured.Batch));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive is not null).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal((ushort)317, geometry.Identity.Effect);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+        Assert.Equal((byte)4, geometry.CornerCount);
+        Assert.NotEqual(geometry.A, geometry.D);
+        Assert.All(native.Batch.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+        string before = NativeBattleTestSnapshots.Json(captured.Arena);
+        _ = NativeBattlePilotVisualGeometry.Sample(geometry, geometry with { A = geometry.A + System.Numerics.Vector3.UnitX }, 0.5f);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(captured.Arena));
+    }
+
+    private static NativeBattleAcid317ActMeshStep Draw(NativeBattleGfAnimationNode node, NativeBattleEffectArena context, NativeBattleActionMatrix? camera = null, NativeBattleEffectArena? arena = null, int count = 4, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null)
+    {
+        return NativeBattleAcid317ActMesh.Draw(Source(count), node, context, NativeBattlePackedMatrix32.FromMatrix(camera ?? NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), arena ?? NativeBattleEffectArena.Clear(), new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), new(1, 2, 3, 4, 5), projection ?? new(null, 100, 160, 108), 0, 0, 0x155, 0x100, Constants, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleEffectArena Context(int unused)

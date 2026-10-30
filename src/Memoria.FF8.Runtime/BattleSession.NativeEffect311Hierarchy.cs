@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private void DrawNativeEffect311Hierarchy(ref NativeBattleGraphicsState graphics, ref NativeBattleOriginalEffectState effect, NativeBattleEffect311Resources resources, NativeBattleGfAnimationNode node, NativeBattleVector center)
+    private void DrawNativeEffect311Hierarchy(ref NativeBattleGraphicsState graphics, ref NativeBattleOriginalEffectState effect, NativeBattleEffect311Resources resources, NativeBattleGfAnimationNode node, NativeBattleVector center, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -69,7 +69,7 @@ public sealed partial class BattleSession
             matrix = matrix with { Rotation = matrix.Rotation.Select((value, index) => unchecked((short)(value * (index % 3 == 0 ? scale.X : index % 3 == 1 ? scale.Y : scale.Z) >> 12))).ToImmutableArray() };
         }
         bool cue = node.Scalar36 != 0;
-        var batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(source, geometry, vertices, matrix, projection, new(cue ? 0x20F0u : 0x2030u, cue ? node.Color32 : 0, node.Scalar36, null, null, -128, 17, 2), definition.NativeGraphics!.Rules.SummonColors);
+        var batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(source, geometry, vertices, matrix, projection, new(cue ? 0x20F0u : 0x2030u, cue ? node.Color32 : 0, node.Scalar36, null, null, -128, 17, 2), definition.NativeGraphics!.Rules.SummonColors, pilotIdentity: pilotIdentity);
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame!;
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, frame.Pending, batch);
         NativeEffectMemory = written.Memory;

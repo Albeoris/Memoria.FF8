@@ -5,7 +5,11 @@ public sealed record NativeBattleHeroFrame(NativeBattleEffectMemory Memory, Nati
     public NativeBattleHeroProfile Profile => NativeBattleHeroProfile.ForEffect(State.Effect);
 }
 
-public abstract record NativeBattleHeroOperation;
+public abstract record NativeBattleHeroOperation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleHeroSound(uint Sound, int Channel, int Pan) : NativeBattleHeroOperation;
 public sealed record NativeBattleHeroContact(int Index) : NativeBattleHeroOperation;
 public sealed record NativeBattleHeroAct(NativeBattleGfAnimationSource Source, NativeBattleGfAnimationNode Node, NativeBattleHeroDrawContext Context) : NativeBattleHeroOperation;
@@ -58,4 +62,6 @@ public sealed record NativeBattleHeroStackInput(NativeBattleExecutionStack? Exec
 public sealed record NativeBattleHeroInputs(NativeBattleActionPacketsState Packets, Func<byte, NativeBattleGraphicsModel> ReadModel, Func<byte, NativeBattleModuleAnchor> ReadAnchor571400, NativeBattleHeroStackInput Stack, Func<NativeBattleHeroFrame, NativeBattleHeroOperation, NativeBattleHeroFrame> Execute)
 {
     public Func<NativeBattleHeroFrame, byte, NativeBattleHeroFrame>? ObserveAnchor571400 { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
 }

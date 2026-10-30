@@ -24,9 +24,9 @@ public static partial class NativeBattleEffect313Controller
             frame = SetupRecordSprite313(frame, CopyBytes(record, 8, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), scale, unchecked((short)-(scale >> 4)), inputs);
             context = Context(frame, temporary, 180).Write(4, record.Read(4, 2));
             frame = PublishContext(frame, temporary, context, 180);
-            NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+            NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(313, frame.State.Storage, RecordsAddress, index) with { ResourceGeneration = RecordSpriteAddress } : null);
             frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
-            frame = inputs.Execute(frame, new NativeBattleEffect313DrawBatch(draw.Batch, CursorGlobal));
+            frame = inputs.Execute(frame, new NativeBattleEffect313DrawBatch(NativeBattleEffect313Lower.PreserveNativeDepths(draw.Batch), CursorGlobal));
             if ((inputs.ReadFlags(frame) & 0x201) != 0)
             {
                 continue;
@@ -59,6 +59,10 @@ public static partial class NativeBattleEffect313Controller
                 continue;
             }
             uint address = RecordsAddress + (uint)(slot * RecordStride);
+            if (inputs.CapturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, RecordsAddress, slot);
+            }
             frame = frame with { State = frame.State.WriteDword(address, 1).WriteWord(address + 4, 0) };
             int scale = 2304 + Roll313(ref frame) % 1280;
             NativeBattleActionMatrix matrix = CurrentCasterMatrix313(frame, inputs);

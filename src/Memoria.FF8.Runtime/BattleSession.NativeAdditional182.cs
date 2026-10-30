@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Additional effect182 requires its actual process memory.");
         NativeBattleAdditional182Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Additional effect182 requires its actual CRT stream."), memory.Additional182 ?? throw new NotSupportedException("Additional effect182 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Additional effect182 requires its physical temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Additional effect182 requires its interpolation constants.");
-        NativeBattleAdditional182Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Additional effect182 requires its current projection."), (_, actor) => graphics.Models[actor], Anchor, Execute);
+        NativeBattleAdditional182Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Additional effect182 requires its current projection."), (_, actor) => graphics.Models[actor], Anchor, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleAdditional182Controller.Initialize(frame, resources, inputs) : NativeBattleAdditional182Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -85,15 +85,15 @@ public sealed partial class BattleSession
                     NativeStage = retained with { Groups = retained.Groups.Select(group => group with { ColorDepth = unchecked((short)stage.Value), ColorFlags = stage.Flags }).ToImmutableArray() };
                     return current;
                 case NativeBattleAdditional182DrawSprite180 sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)));
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.SourceAddress, sprite.TableBaseBucket, unchecked((byte)(sprite.DepthShift & 31)), pilotIdentity: sprite.PilotIdentity);
                 case NativeBattleAdditional182DrawStatic88 mesh:
-                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)));
+                    return DrawMesh(current, mesh.TemporaryAddress, mesh.SourceAddress, mesh.TableBaseBucket, unchecked((byte)(mesh.DepthShift & 31)), pilotIdentity: mesh.PilotIdentity);
                 default:
                     throw new NotSupportedException("Additional effect182 emitted an unsupported native operation.");
             }
         }
 
-        NativeBattleAdditional182Frame DrawSprite(NativeBattleAdditional182Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleAdditional182Frame DrawSprite(NativeBattleAdditional182Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Additional effect182 sprite requires its actual temporary memory.");
@@ -102,21 +102,21 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Additional effect182 sprite arguments differ from its physical temporary.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Additional effect182 sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Additional effect182 sprite requires its projection."), Camera().Roll, bucket, shift);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Additional effect182 sprite dispatcher changed its original source."), Camera().Projection ?? throw new NotSupportedException("Additional effect182 sprite requires its projection."), Camera().Roll, bucket, shift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
-            return Deliver(current, drawn.Batch);
+            return Deliver(current, pilotIdentity.HasValue ? NativeBattleAdditional182Visuals.PreserveNativeDepths(drawn.Batch) : drawn.Batch);
         }
 
         NativeBattleModelRendererRegisters LoadFar(uint rgb, NativeBattleModelRendererRegisters far) => far with { FarRed = (rgb & 255) << 4, FarGreen = ((rgb >> 8) & 255) << 4, FarBlue = ((rgb >> 16) & 255) << 4 };
 
-        NativeBattleAdditional182Frame DrawMesh(NativeBattleAdditional182Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleAdditional182Frame DrawMesh(NativeBattleAdditional182Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleStaticMeshResource mesh = resources.ReadMesh(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Additional effect182 mesh requires its actual temporary memory.");
             NativeBattleEffectArena temporary = Temporary(staging, address, 88);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Additional effect182 requires its current projection."), temporary, colors, bucket, shift);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, mesh, Camera().Projection ?? throw new NotSupportedException("Additional effect182 requires its current projection."), temporary, colors, bucket, shift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context, 88) };
-            return Deliver(current, drawn.Batch);
+            return Deliver(current, pilotIdentity.HasValue ? NativeBattleAdditional182Visuals.PreserveNativeDepths(drawn.Batch) : drawn.Batch);
         }
 
         static NativeBattleEffectArena Temporary(NativeBattleFileStaging staging, uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, address, length), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);

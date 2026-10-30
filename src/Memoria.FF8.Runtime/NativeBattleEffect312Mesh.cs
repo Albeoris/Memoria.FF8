@@ -9,28 +9,28 @@ public static class NativeBattleEffect312Mesh
 {
     private static readonly int[] Strides = [12, 12, 20, 24, 20, 24, 28, 36];
 
-    public static NativeBattleEffect312Frame Draw572200(NativeBattleEffect312Frame frame, uint temporary, uint meshAddress, NativeBattlePackedMatrix32 matrix, NativeBattleEffect312Resources resources, NativeBattleEffect312Inputs inputs)
+    public static NativeBattleEffect312Frame Draw572200(NativeBattleEffect312Frame frame, uint temporary, uint meshAddress, NativeBattlePackedMatrix32 matrix, NativeBattleEffect312Resources resources, NativeBattleEffect312Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return Draw(frame, temporary, meshAddress, matrix, resources, inputs, false);
+        return Draw(frame, temporary, meshAddress, matrix, resources, inputs, false, pilotIdentity);
     }
 
-    public static NativeBattleEffect312Frame DrawLocal(NativeBattleEffect312Frame frame, uint temporary, uint meshAddress, NativeBattlePackedMatrix32 matrix, NativeBattleEffect312Resources resources, NativeBattleEffect312Inputs inputs)
+    public static NativeBattleEffect312Frame DrawLocal(NativeBattleEffect312Frame frame, uint temporary, uint meshAddress, NativeBattlePackedMatrix32 matrix, NativeBattleEffect312Resources resources, NativeBattleEffect312Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return Draw(frame, temporary, meshAddress, matrix, resources, inputs, true);
+        return Draw(frame, temporary, meshAddress, matrix, resources, inputs, true, pilotIdentity);
     }
 
-    private static NativeBattleEffect312Frame Draw(NativeBattleEffect312Frame frame, uint temporary, uint meshAddress, NativeBattlePackedMatrix32 matrix, NativeBattleEffect312Resources resources, NativeBattleEffect312Inputs inputs, bool local)
+    private static NativeBattleEffect312Frame Draw(NativeBattleEffect312Frame frame, uint temporary, uint meshAddress, NativeBattlePackedMatrix32 matrix, NativeBattleEffect312Resources resources, NativeBattleEffect312Inputs inputs, bool local, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         frame = NativeBattleEffect312Controller.LoadMatrix(frame, matrix);
         int length = local ? 108 : 88;
         NativeBattleEffectArena context = NativeBattleEffect312Controller.ReadBytes(frame, temporary, length);
-        NativeBattleEffect312MeshStep drawn = DrawLoaded(frame.Memory, resources.ReadMesh(meshAddress), inputs.ReadProjection(frame), context, inputs.Colors, local);
+        NativeBattleEffect312MeshStep drawn = DrawLoaded(frame.Memory, resources.ReadMesh(meshAddress), inputs.ReadProjection(frame), context, inputs.Colors, local, pilotIdentity);
         frame = frame with { Memory = drawn.Memory };
         frame = NativeBattleEffect312Controller.WriteBytes(frame, temporary, drawn.Context, length);
         return inputs.Execute(frame, new NativeBattleEffect312DrawBatch(drawn.Batch));
     }
 
-    public static NativeBattleEffect312MeshStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, bool local)
+    public static NativeBattleEffect312MeshStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, bool local, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint flags = U(context, 0x1C);
         if (U(context, 0) != mesh.Address || (flags & ~0x3FFFu) != 0 || mesh.Bytes.IsDefault || mesh.Bytes.Length < 8)
@@ -82,6 +82,7 @@ public static class NativeBattleEffect312Mesh
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = Source(cursor, Strides[group]).ToArray();
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[corners] : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     Load(corner, corner);
@@ -212,7 +213,12 @@ public static class NativeBattleEffect312Mesh
                                 packet.Word(gouraud ? Screen(corner) - 4 : 4, shades[corner]);
                             }
                             ImmutableArray<int> payload = registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Effect312 mesh requires current SZ sidecars.")))).ToImmutableArray();
-                            attempts.Add(packet.Attempt(new(17 + (unchecked((int)depth) >> 2), packet.Words(), payload)));
+                            NativeBattleGeometryPrimitive primitive = new(17 + (unchecked((int)depth) >> 2), packet.Words(), payload);
+                            if (pilotIdentity is { } identity && world is not null)
+                            {
+                                primitive = NativeBattleEffect312Presentation.Attach(primitive, identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world);
+                            }
+                            attempts.Add(packet.Attempt(primitive));
                             allocated += packetLength;
                             accepted = true;
                         }
@@ -237,6 +243,10 @@ public static class NativeBattleEffect312Mesh
                     ReadOnlySpan<byte> row = Source(8 + offset, 8);
                     NativeBattleVector vertex = new(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..]));
                     registers = NativeBattleGeometry.LoadVector(registers, slot, vertex, BinaryPrimitives.ReadInt16LittleEndian(row[6..]));
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattleEffect312Presentation.Loaded(registers, slot, projection);
+                    }
                 }
             }
         }

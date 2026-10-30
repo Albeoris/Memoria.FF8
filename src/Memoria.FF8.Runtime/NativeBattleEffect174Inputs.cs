@@ -9,9 +9,17 @@ public sealed record NativeBattleEffect174Frame(NativeBattleEffectMemory Memory,
 
 public sealed record NativeBattleEffect174Step(NativeBattleEffect174Frame Frame, int Result);
 public sealed record NativeBattleEffect174PointStep(NativeBattleEffect174Frame Frame, NativeBattleEffectArena Output8);
-public sealed record NativeBattleEffect174Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect174Frame, uint> ReadFlags, Func<NativeBattleEffect174Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect174Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect174Frame, int, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect174Frame, int, NativeBattlePackedMatrix32> ReadWorld, Func<NativeBattleEffect174Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect174Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect174Frame, short> ReadCameraRoll, Func<NativeBattleEffect174Frame, short> ReadScalarFocal, Func<NativeBattleEffect174Frame, uint, uint> ReadColor, Func<NativeBattleEffect174Frame, int, byte, short, NativeBattleEffectArena, NativeBattleEffect174PointStep> Point502170, Func<NativeBattleEffect174Frame, int, NativeBattleEffectArena, NativeBattleEffect174PointStep> Anchor571400, Func<NativeBattleEffect174Frame, int, ImmutableArray<NativeBattlePackedMatrix32>> ReadCurrentBoneMatrices32, Func<NativeBattleEffect174Frame, int, ImmutableArray<NativeBattlePackedMatrix32>, NativeBattleEffect174Frame> WriteCurrentBoneMatrices32, Func<NativeBattleEffect174Frame, NativeBattleEffect174Operation, NativeBattleEffect174Frame> Execute);
+public sealed record NativeBattleEffect174Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect174Frame, uint> ReadFlags, Func<NativeBattleEffect174Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect174Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect174Frame, int, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect174Frame, int, NativeBattlePackedMatrix32> ReadWorld, Func<NativeBattleEffect174Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect174Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect174Frame, short> ReadCameraRoll, Func<NativeBattleEffect174Frame, short> ReadScalarFocal, Func<NativeBattleEffect174Frame, uint, uint> ReadColor, Func<NativeBattleEffect174Frame, int, byte, short, NativeBattleEffectArena, NativeBattleEffect174PointStep> Point502170, Func<NativeBattleEffect174Frame, int, NativeBattleEffectArena, NativeBattleEffect174PointStep> Anchor571400, Func<NativeBattleEffect174Frame, int, ImmutableArray<NativeBattlePackedMatrix32>> ReadCurrentBoneMatrices32, Func<NativeBattleEffect174Frame, int, ImmutableArray<NativeBattlePackedMatrix32>, NativeBattleEffect174Frame> WriteCurrentBoneMatrices32, Func<NativeBattleEffect174Frame, NativeBattleEffect174Operation, NativeBattleEffect174Frame> Execute)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+}
 
-public abstract record NativeBattleEffect174Operation;
+public abstract record NativeBattleEffect174Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect174UploadTim505E30(uint SourceAddress) : NativeBattleEffect174Operation;
 public sealed record NativeBattleEffect174RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect174Operation;
 public sealed record NativeBattleEffect174SetResourceFlags44(int Actor, ushort Value) : NativeBattleEffect174Operation;

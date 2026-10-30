@@ -58,12 +58,17 @@ public sealed partial class BattleSession
         {
             case 17:
                 BattleNativeSpecialContext card = command.NativeSpecial ?? throw new InvalidDataException("Card lacks its original invocation result.");
-                if (card.Failed || card.Card is null or 255)
+                if (card.Failed)
                 {
-                    if (card.Failed)
-                    {
-                        QueueNativeSpecialText(actor, recipient, NativeBattleGlobalText(50));
-                    }
+                    throw new InvalidDataException("Rejected Card invocation must use its internal zero command.");
+                }
+                if (card.Card is null)
+                {
+                    throw new InvalidDataException("Card lacks its prepared result BYTE.");
+                }
+                if (card.Card == 255)
+                {
+                    MarkNativeContactFlags(0, 4);
                     Log("Miss", actor.Id, recipient.Id, 0, "Card failed.");
                     return true;
                 }
@@ -74,16 +79,20 @@ public sealed partial class BattleSession
                     throw new InvalidDataException("Native card message separator is empty.");
                 }
                 QueueNativeSpecialText(actor, recipient, NativeBattleGlobalText(9) + separator[0] + NativeBattleGlobalText(71) + cardName + separator[0] + NativeBattleGlobalText(16));
-                CommitNativeEjection(actor, recipient, command, "Card");
+                MarkNativeContactFlags(1, 0);
+                CommitNativeSpecialContact(actor, recipient, "Card", 0, true);
                 return true;
             case 19:
                 BattleNativeSpecialContext devour = command.NativeSpecial ?? throw new InvalidDataException("Devour lacks its original invocation result.");
-                if (devour.Failed || devour.DevourEffect is not int effectIndex || recipient.CurrentHp > actor.CurrentHp)
+                if (devour.Failed)
                 {
-                    if (devour.Failed)
-                    {
-                        QueueNativeSpecialText(actor, recipient, NativeBattleGlobalText(112));
-                    }
+                    throw new InvalidDataException("Rejected Devour invocation must use its internal zero command.");
+                }
+                int effectIndex = devour.DevourEffect ?? throw new InvalidDataException("Devour lacks its prepared level-band effect BYTE.");
+                if (recipient.CurrentHp > actor.CurrentHp)
+                {
+                    MarkNativeContactFlags(0, 4);
+                    CommitNativeSpecialContact(actor, recipient, "Devour", 8, false);
                     Log("Miss", actor.Id, recipient.Id, 0, "Devour failed.");
                     return true;
                 }
@@ -92,13 +101,16 @@ public sealed partial class BattleSession
                 int roll = NextRandomByte();
                 if (threshold == 0 || threshold < roll)
                 {
+                    MarkNativeContactFlags(0, 4);
+                    CommitNativeSpecialContact(actor, recipient, "Devour", 8, false);
                     Log("Miss", actor.Id, recipient.Id, 0, "Devour failed.");
                     return true;
                 }
                 BattleNativeDevourEffect effect = definition.NativeDevourEffects[effectIndex];
                 ValidateNativeDevourGrowth(actor, effect);
                 QueueNativeSpecialText(actor, recipient, effect.Description ?? "");
-                CommitNativeEjection(actor, recipient, command, "Devour");
+                MarkNativeContactFlags(1, 0);
+                CommitNativeSpecialContact(actor, recipient, "Devour", devour.DevourOutcome ?? throw new InvalidDataException("Devour lacks its original outcome BYTE."), true);
                 ApplyNativeDevourEffect(actor, native, effect);
                 return true;
             case 23:
@@ -160,11 +172,19 @@ public sealed partial class BattleSession
         QueueNativeDescriptorMessage(new BattleEvent(Frame, "NativeText", actor.Id, recipient.Id, frames, text) { NativeMessageMode = 3 });
     }
 
-    private void CommitNativeEjection(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, string source)
+    private void CommitNativeSpecialContact(BattleCombatant actor, BattleCombatant recipient, string source, int amount, bool eject)
     {
-        recipient.NativeStatus1 |= 0x10000;
-        RecordNativeActionMemory(actor, recipient, command);
-        ApplyDamage(actor, recipient, recipient.CurrentHp, source, bypassDamageLimit: true);
+        if (eject)
+        {
+            recipient.NativeStatus1 |= 0x10000;
+        }
+        if (nativeContactWorking is { SpecialSource: not 255 })
+        {
+            amount >>= 1;
+        }
+        SetNativeContactDamage(amount);
+        FinalizeNativeContactPresentation();
+        ApplyDamage(actor, recipient, amount, source, bypassDamageLimit: true);
     }
 
     private static void ValidateNativeDevourGrowth(BattleCombatant actor, BattleNativeDevourEffect effect)

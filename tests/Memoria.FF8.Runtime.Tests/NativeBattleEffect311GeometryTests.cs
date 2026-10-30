@@ -5,6 +5,47 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect311GeometryTests
 {
+    [Fact]
+    public void Group20_screen_capture_keeps_exact_copied_pixel_coordinates_asymmetric_clamps_and_zero_payload()
+    {
+        byte[] mesh = Mesh(true);
+        SetPoint(mesh, 0, -8, -16);
+        SetPoint(mesh, 1, 2560, 2000);
+        SetPoint(mesh, 2, 8, 2000);
+        SetPoint(mesh, 3, 8, -8);
+        for (int corner = 0; corner < 4; corner++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(mesh.AsSpan(60 + corner * 2), (ushort)(corner * 3));
+        }
+        var matrix = new NativeBattleActionMatrix([4096, 0, 0, 0, 4096, 0, 0, 0, 0], 0, 0, 0, 4096);
+        var native = NativeBattleEffect311Geometry.Emit665D50(mesh.ToImmutableArray(), matrix, 123, 0, Colors);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var identity = new NativeBattlePilotVisualIdentity(311, 0x25073E8, 0, 123, 0x10000) { ResourceGeneration = 0x101B0E8 };
+        var captured = NativeBattleEffect311Geometry.Emit665D50(mesh.ToImmutableArray(), matrix, 123, 0, Colors, identity);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.Null(Assert.Single(captured.Segments[0].Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Null(Assert.Single(captured.Segments[2].Batch.Attempts).Primitive!.PilotGeometry);
+        var geometry = Assert.Single(captured.Segments[1].Batch.Attempts).Primitive!.PilotGeometry!;
+        Assert.True(geometry.ScreenSpace);
+        Assert.Equal(8, geometry.ScreenScale);
+        Assert.Equal((uint)1, captured.Segments[1].Flags20);
+        var nativePrimitive = Assert.Single(native.Segments[1].Batch.Attempts).Primitive!;
+        for (int corner = 0; corner < 4; corner++)
+        {
+            uint xy = nativePrimitive.Words[corner * 2 + 2];
+            var sampled = NativeBattlePilotVisualGeometry.SampleCorner(geometry, geometry, corner, 0.5f);
+            Assert.Equal(unchecked((short)xy), sampled.X * geometry.ScreenScale * 0.125f);
+            Assert.Equal(unchecked((short)(xy >> 16)), sampled.Y * geometry.ScreenScale * 0.125f);
+        }
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths!.Value);
+        Assert.Equal(new System.Numerics.Vector3(0, -2, 0), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(319, 250, 0), geometry.B);
+        Assert.Equal(new System.Numerics.Vector3(1, 215, 0), geometry.C);
+        Assert.Equal(new System.Numerics.Vector3(1, 0, 0), geometry.D);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+    }
+
     private static NativeBattleActionMatrix View => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096);
     private static NativeBattleCameraProjection Projection => new(View, 216, 160, 108);
     private static NativeBattleSummonColors Colors => new(0, 0, 1f / 4096, 4503601774854144d);

@@ -82,19 +82,19 @@ public static partial class NativeBattleEffect312Late
         frame = WriteBytes(frame, temporary, context, length);
         if (callback == 0x5A0030)
         {
-            NativeBattleEffect166ModeMesh96Step drawn = NativeBattleEffect166ModeMesh96.DrawLoaded(frame.Memory, resources.ReadMesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors);
+            NativeBattleEffect166ModeMesh96Step drawn = NativeBattleEffect166ModeMesh96.DrawLoaded(frame.Memory, resources.ReadMesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(312, task) with { ResourceGeneration = mesh } : null);
             frame = WriteBytes(frame with { Memory = drawn.Memory }, temporary, drawn.Context96, length);
-            frame = inputs.Execute(frame, new NativeBattleEffect312DrawBatch(drawn.Batch));
+            frame = inputs.Execute(frame, new NativeBattleEffect312DrawBatch(NativeBattleEffect312Presentation.PreserveNativeDepths(drawn.Batch)));
         }
         else if (callback == 0x5A03D0)
         {
-            NativeBattleScrollingMeshContext124Step drawn = NativeBattleScrollingMeshContext124.DrawLoaded(frame.Memory, resources.ReadMesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors);
+            NativeBattleScrollingMeshContext124Step drawn = NativeBattleScrollingMeshContext124.DrawLoaded(frame.Memory, resources.ReadMesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(312, task) with { ResourceGeneration = mesh } : null);
             frame = WriteBytes(frame with { Memory = drawn.Memory }, temporary, drawn.Context124, length);
-            frame = inputs.Execute(frame, new NativeBattleEffect312DrawBatch(drawn.Batch));
+            frame = inputs.Execute(frame, new NativeBattleEffect312DrawBatch(NativeBattleEffect312Presentation.PreserveNativeDepths(drawn.Batch)));
         }
         else
         {
-            frame = NativeBattleEffect312Mesh.Draw572200(frame, temporary, mesh, matrix, resources, inputs);
+            frame = NativeBattleEffect312Mesh.Draw572200(frame, temporary, mesh, matrix, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(312, task) with { ResourceGeneration = mesh } : null);
         }
         frame = Release(frame, length);
         if (Paused(frame, inputs))

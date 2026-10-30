@@ -17,7 +17,11 @@ public sealed record NativeBattleEffect320Inputs(
     Func<NativeBattleEffect320Frame, short> ReadCameraRoll,
     Func<NativeBattleEffect320Frame, int, NativeBattleEffectArena, NativeBattleEffect320PointStep> Anchor571400,
     Func<NativeBattleEffect320Frame, NativeBattleEffectArena, NativeBattleEffectArena, NativeBattleEffect320PointStep> Origin65DA30,
-    Func<NativeBattleEffect320Frame, NativeBattleEffect320Operation, NativeBattleEffect320Frame> Execute);
+    Func<NativeBattleEffect320Frame, NativeBattleEffect320Operation, NativeBattleEffect320Frame> Execute)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+}
 
 public abstract record NativeBattleEffect320Operation;
 public sealed record NativeBattleEffect320UploadTim505E30(uint SourceAddress) : NativeBattleEffect320Operation;

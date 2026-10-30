@@ -22,9 +22,17 @@ public sealed record NativeBattleEffect312Inputs(
     Func<NativeBattleEffect312Frame, NativeBattlePackedMatrix32> ReadView,
     Func<NativeBattleEffect312Frame, NativeBattleCameraProjection> ReadProjection,
     Func<NativeBattleEffect312Frame, short> ReadCameraRoll,
-    Func<NativeBattleEffect312Frame, NativeBattleEffect312Operation, NativeBattleEffect312Frame> Execute);
+    Func<NativeBattleEffect312Frame, NativeBattleEffect312Operation, NativeBattleEffect312Frame> Execute)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+}
 
-public abstract record NativeBattleEffect312Operation;
+public abstract record NativeBattleEffect312Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect312UploadTim505E30(uint SourceAddress) : NativeBattleEffect312Operation;
 public sealed record NativeBattleEffect312RegisterCamera5099A0(uint SourceAddress) : NativeBattleEffect312Operation;
 public sealed record NativeBattleEffect312Flash5712C0(int Rise, int Hold, int Fall, byte Color) : NativeBattleEffect312Operation;

@@ -6,9 +6,9 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleAcid317Controller
 {
-    private static NativeBattleAcid317Frame StartTrail(NativeBattleAcid317Frame frame, NativeBattleVector source, NativeBattleVector destination, short tag, short progress, short increment, short scale, int angle)
+    private static NativeBattleAcid317Frame StartTrail(NativeBattleAcid317Frame frame, NativeBattleVector source, NativeBattleVector destination, short tag, short progress, short increment, short scale, int angle, bool capturePresentation = false)
     {
-        (frame, uint head) = AllocatePoint(frame, source, tag);
+        (frame, uint head) = AllocatePoint(frame, source, tag, capturePresentation);
         if (head == 0)
         {
             return frame;
@@ -38,7 +38,7 @@ public static partial class NativeBattleAcid317Controller
         return WriteArena(frame, head + 12, BitConverter.GetBytes(frame.State.ReadDword(0x25054DC)));
     }
 
-    private static (NativeBattleAcid317Frame Frame, uint Address) AllocatePoint(NativeBattleAcid317Frame frame, NativeBattleVector position, short tag)
+    private static (NativeBattleAcid317Frame Frame, uint Address) AllocatePoint(NativeBattleAcid317Frame frame, NativeBattleVector position, short tag, bool capturePresentation)
     {
         for (int index = 0; index < PointCount; index++)
         {
@@ -47,6 +47,10 @@ public static partial class NativeBattleAcid317Controller
             {
                 frame = PointVector(frame, address, position);
                 frame = PointWord(PointWord(PointWord(frame, address + 6, tag), address + 14, 10), address + 0x20, 2048);
+                if (capturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena ?? throw new NotSupportedException("Acid point birth requires its current native arena."), Working(frame) + PointsOffset, index);
+                }
                 return (WriteArena(frame, address + 0x24, BitConverter.GetBytes(0u)), address);
             }
         }
@@ -86,7 +90,7 @@ public static partial class NativeBattleAcid317Controller
                         frame = Write(frame, child, Position(Read(frame, child).WriteDword(12, 0), point).WriteWord(0x16, unchecked((ushort)(task.ReadWord(0x4C) << 4))));
                     }
                 }
-                (frame, uint next) = AllocatePoint(frame, point, Signed(task, 0x4C));
+                (frame, uint next) = AllocatePoint(frame, point, Signed(task, 0x4C), inputs.CapturePresentation);
                 if (next == 0)
                 {
                     frame = Write(frame, address, Read(frame, address).WriteWord(0x1E, 4096));
@@ -115,10 +119,10 @@ public static partial class NativeBattleAcid317Controller
         NativeBattleModulePoolTask current = Read(frame, address);
         short count = Signed(current, 14);
         uint head = current.ReadDword(0x10);
-        frame = inputs.Execute(frame, new NativeBattleAcid317ProjectPoints(head, count));
+        frame = inputs.Execute(frame, new NativeBattleAcid317ProjectPoints(head, count) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(317, current, 2) : null });
         if (count >= 2)
         {
-            frame = inputs.Execute(frame, new NativeBattleAcid317DrawTrail(head, count));
+            frame = inputs.Execute(frame, new NativeBattleAcid317DrawTrail(head, count) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(317, current, 2) : null });
         }
         for (uint cursor = head, visited = 0; cursor != 0; visited++)
         {

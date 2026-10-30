@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleEffectMemory Memory, NativeBattleFileStaging Staging, NativeBattleGraphicsState Graphics) DrawNativePrimaryHistory76(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging? currentStaging, NativeBattleGraphicsState graphics, int actor)
+    private (NativeBattleEffectMemory Memory, NativeBattleFileStaging Staging, NativeBattleGraphicsState Graphics) DrawNativePrimaryHistory76(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleFileStaging? currentStaging, NativeBattleGraphicsState graphics, int actor, NativeBattlePilotVisualIdentity? callerPilotIdentity = null)
     {
         NativeBattleGraphicsModel model = graphics.Models[actor];
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
@@ -43,9 +43,14 @@ public sealed partial class BattleSession
         {
             NativeBattleResourcePointer pointer = GeometryPointer();
             ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(Read, source.BoneCount);
+            NativeBattlePilotVisualIdentity? pilotIdentity = callerPilotIdentity is { } identity ? identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ (pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? 0)) } : null;
             process = process.PublishModelColor(color);
             (byte[] retained, _) = staging.ReadSnapshot(scratch, capacity);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, NativeBattleBodyBoneMatrices.Require(model, source), projection, color, mask, retained.ToImmutableArray(), definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Primary body history requires its color arithmetic."), 4, new(0, 0, 320, 216), 17);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, NativeBattleBodyBoneMatrices.Require(model, source), projection, color, mask, retained.ToImmutableArray(), definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Primary body history requires its color arithmetic."), 4, new(0, 0, 320, 216), 17, pilotIdentity: pilotIdentity, pilotContinuous: callerPilotIdentity?.Effect != 174);
+            if (callerPilotIdentity?.Effect == 174)
+            {
+                drawn = drawn with { Packets = drawn.Packets with { Attempts = drawn.Packets.Attempts.Select(attempt => attempt.Primitive is { } polygon ? attempt with { Primitive = NativeBattleEffect174Presentation.PreserveNativeDepths(polygon) } : attempt).ToImmutableArray() } };
+            }
             if (drawn.ProjectedBytesWritten != 0)
             {
                 staging = staging.Write(scratch, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));

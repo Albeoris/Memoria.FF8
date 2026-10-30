@@ -12,7 +12,7 @@ public static partial class NativeBattleEffect313Lower
         NativeBattleModulePoolTask task = Read(frame, address);
         NativeBattleEffect313BeamShape shape = BuildBeam313(ReadBytes(frame, 0x223CC90, 8), inputs.ReadCameraEye8(frame), TaskView(task, 16, 8), Signed(task, 24), Signed(task, 32), Signed(task, 12));
         int age = Signed(task, 12);
-        frame = DrawMesh313(frame, shape.Matrix, 0xCD82E0, age >= 3 ? 0xF3u : 0x33u, age >= 3 ? unchecked((age - 3) * 682) : null, resources, inputs);
+        frame = DrawMesh313(frame, shape.Matrix, 0xCD82E0, age >= 3 ? 0xF3u : 0x33u, age >= 3 ? unchecked((age - 3) * 682) : null, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(313, task) with { ResourceGeneration = 0xCD82E0 } : null);
         if (Paused313(frame, inputs))
         {
             return new(frame, 0);

@@ -228,6 +228,96 @@ public sealed class NativeBattleEffect313LowerTests
         Assert.Equal(1, Signed(Read(result.Frame, fixture.Address), 12));
     }
 
+    [Fact]
+    public void Actual_debris_capture_keeps_loaded_body_FIFO_task_owner_and_native_update()
+    {
+        Fixture Prepare()
+        {
+            Fixture fixture = new(0x59B9F0);
+            fixture.Task(task => task.WriteWord(12, 0).WriteWord(14, 20).WriteWord(24, 0).WriteWord(26, 4096).WriteWord(28, 0).WriteWord(30, 0).WriteWord(32, 0).WriteWord(34, 0));
+            NativeBattleStaticMeshResource mesh = CaptureMesh(6) with { Address = 0xCD7410 };
+            fixture.Resources = fixture.Resources with { Meshes = fixture.Resources.Meshes.SetItem(mesh.Address, mesh) };
+            return fixture;
+        }
+        Fixture native = Prepare();
+        NativeBattleEffect313Step expected = Advance(native.Frame, native.Address, native.Resources, native.Inputs() with { ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108) });
+        Fixture captured = Prepare();
+        NativeBattlePilotVisualIdentity owner = NativeBattlePilotVisualLifetimes.Identity(313, Read(captured.Frame, captured.Address));
+        NativeBattleEffect313Step actual = Advance(captured.Frame, captured.Address, captured.Resources, captured.Inputs() with { CapturePresentation = true, ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108) });
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
+        NativeBattleGfGeometryBatch expectedBatch = Assert.Single(native.Operations.OfType<NativeBattleEffect313DrawBatch>()).Batch;
+        NativeBattleGfGeometryBatch actualBatch = Assert.Single(captured.Operations.OfType<NativeBattleEffect313DrawBatch>()).Batch;
+        Assert.Equal(NativeBattleTestSnapshots.Json(expectedBatch), NativeBattleTestSnapshots.Json(actualBatch));
+        NativeBattleGeometryPrimitive body = Assert.Single(actualBatch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(body.PilotGeometry);
+        Assert.Equal(owner.Bank, geometry.Identity.Bank);
+        Assert.Equal(owner.Slot, geometry.Identity.Slot);
+        Assert.Equal(owner.Generation, geometry.Identity.Generation);
+        Assert.Equal(0xCD7410, geometry.Identity.ResourceGeneration);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(body.VertexPayload4[0], body.VertexPayload4[1], body.VertexPayload4[2], body.VertexPayload4[3]), geometry.SourceDepths);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 1000), geometry.A);
+        Assert.Equal(1, Read(actual.Frame, captured.Address).ReadWord(12));
+        Assert.Null(Assert.Single(expectedBatch.Attempts).Primitive!.PilotGeometry);
+        string before = NativeBattleTestSnapshots.Json(actual.Frame);
+        NativeBattlePilotVisualGeometry sampled = NativeBattlePilotVisualGeometry.Sample(geometry, geometry with { A = geometry.A + System.Numerics.Vector3.UnitX * 4 }, 0.5f);
+        Assert.Equal(geometry.A + System.Numerics.Vector3.UnitX * 2, sampled.A);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(actual.Frame));
+    }
+
+    private static NativeBattleStaticMeshResource CaptureMesh(int group, bool degenerate = false)
+    {
+        int[] strides = [12, 12, 20, 24, 20, 24, 28, 36];
+        byte[] bytes = new byte[8 + 4 * 8 + 8 * 4 + strides[group]];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, 40);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 4);
+        short[] xs = [-100, 100, -100, 100];
+        short[] ys = [-100, -100, 100, 100];
+        for (int index = 0; index < 4; index++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(8 + index * 8), xs[index]);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(10 + index * 8), ys[index]);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(14 + index * 8), (short)(index + 3));
+        }
+        int cursor = 40;
+        for (int section = 0; section < 8; section++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(cursor), section == group ? 1 : 0);
+            cursor += 4;
+            if (section != group)
+            {
+                continue;
+            }
+            byte command = group switch { 3 => 0x2C, 4 => 0x30, 5 => 0x38, 6 => 0x34, _ => 0x20 };
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(cursor), (uint)command << 24 | 0x808080u);
+            for (int corner = 0; corner < ((group & 1) == 0 ? 3 : 4); corner++)
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(cursor + 4 + corner * 2), (ushort)(degenerate ? 0 : corner * 2));
+            }
+            if ((group & 2) != 0)
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(cursor + 10), 0x0605);
+                if ((group & 1) != 0)
+                {
+                    BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(cursor + 10), 6);
+                    BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(cursor + 20), 0x08070605);
+                }
+                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(cursor + 12), 0x12340201);
+                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(cursor + 16), 0x56780403);
+            }
+            if ((group & 4) != 0)
+            {
+                int start = (group & 2) != 0 ? (group & 1) != 0 ? 24 : 20 : 12;
+                for (int corner = 1; corner < ((group & 1) == 0 ? 3 : 4); corner++)
+                {
+                    BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(cursor + start + (corner - 1) * 4), 0x00808080);
+                }
+            }
+            cursor += strides[group];
+        }
+        return new(0, 0x1000, bytes.ToImmutableArray());
+    }
+
     private static NativeBattleEffectArena Point(short x, short y, short z) => PutWord313(PutWord313(PutWord313(NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, x), 2, y), 4, z);
 
     private sealed class Fixture

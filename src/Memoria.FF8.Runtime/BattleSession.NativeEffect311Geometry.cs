@@ -123,7 +123,7 @@ public static class NativeBattleEffect311Geometry
         return bounds;
     }
 
-    public static NativeBattleEffect311ScreenMeshBatch Emit665D50(ImmutableArray<byte> mesh, NativeBattleActionMatrix screenMatrix, int bucket, int colorFactor, NativeBattleSummonColors colors)
+    public static NativeBattleEffect311ScreenMeshBatch Emit665D50(ImmutableArray<byte> mesh, NativeBattleActionMatrix screenMatrix, int bucket, int colorFactor, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         screenMatrix.Validate();
         if (mesh.IsDefault || screenMatrix.Rotation[2] != 0 || screenMatrix.Rotation[5] != 0 || screenMatrix.Rotation[8] != 0)
@@ -187,7 +187,17 @@ public static class NativeBattleEffect311Geometry
                     words[corner * 2 + 2] = screens[index / 3];
                 }
                 words[1] = words[1] & 0xFFFFFF | (group == 0 ? 0x32000000u : 0x3A000000u);
-                attempts.Add(Attempt(cursor, words.ToImmutableArray(), bucket));
+                NativeBattleGfGeometryAttempt attempt = Attempt(cursor, words.ToImmutableArray(), bucket);
+                if (pilotIdentity is { } identity && attempt.Primitive is { } primitive)
+                {
+                    System.Numerics.Vector3 Point(int corner)
+                    {
+                        uint packed = words[corner * 2 + 2];
+                        return new(unchecked((short)packed), unchecked((short)(packed >> 16)), 0);
+                    }
+                    attempt = attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + positionOffset) }, Point(0), Point(1), Point(2), corners == 4 ? Point(3) : default, checked((byte)corners)) { ScreenSpace = true, ScreenScale = 8, UseSourceDepths = true, SourceDepths = System.Numerics.Vector4.Zero } } };
+                }
+                attempts.Add(attempt);
                 cursor = checked(cursor + words.Length * 4);
                 positionOffset = checked(positionOffset + faceLength);
             }

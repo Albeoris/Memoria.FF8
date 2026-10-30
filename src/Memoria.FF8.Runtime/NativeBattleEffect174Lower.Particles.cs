@@ -25,7 +25,7 @@ public static partial class NativeBattleEffect174Lower
             (byte[] w, bool[] known) = point.ReadSnapshot(6, 2);
             frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), L174Vector(point), known.All(value => value) ? L174S(NativeBattleEffectArena.Clear().Write(0, w), 0) : null, scale, unchecked((short)-(scale >> 4))) };
             context = L174Word(Context(frame, temporary, 180), 4, frame.State.ReadWord(row + 4));
-            frame = L174Sprite(frame, temporary, context, resources, inputs);
+            frame = L174Sprite(frame, temporary, context, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattleEffect174Presentation.Row(frame, L174Records, index, taskAddress, 0xD59648) : null);
             if (L174Paused(frame, inputs))
             {
                 continue;
@@ -85,6 +85,10 @@ public static partial class NativeBattleEffect174Lower
                 uint row = L174Records + (uint)(slot * 24);
                 int size = L174Random(ref frame) % (moving ? 768 : 640) + (moving ? 256 : 384);
                 frame = frame with { State = frame.State.WriteDword(row, (uint)marker).WriteWord(row + 4, 0).WriteWord(row + 6, (ushort)size).WriteView(row + 8, TaskView(Read(frame, taskAddress), 0x10, 8), 8) };
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, L174Records, slot);
+                }
                 if (moving)
                 {
                     int x = L174Random(ref frame) % 4096 - 2048;

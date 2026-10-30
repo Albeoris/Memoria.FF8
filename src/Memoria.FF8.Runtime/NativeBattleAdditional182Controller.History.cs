@@ -14,6 +14,10 @@ public static partial class NativeBattleAdditional182Controller
         NativeBattlePackedMatrix32 localPacked = NativeBattlePackedMatrix32.FromMatrix(local, null);
         NativeBattleEffectArena localView = NativeBattleEffectArena.Clear().Write(0, localPacked.Bytes.AsSpan()).MarkUnknown(18, 2);
         frame = frame with { State = frame.State.WriteDword(slot, 1).WriteView(slot + 4, localView, 32) };
+        if (inputs.CapturePresentation)
+        {
+            NativeBattleAdditional182Visuals.Recorded(frame, task, slot, age);
+        }
         frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local), null));
         (frame, uint temporary) = Allocate(frame, 88);
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0xD3AE78u)).Write(8, BitConverter.GetBytes(0u)).Write(0x1C, BitConverter.GetBytes(0u));
@@ -24,7 +28,7 @@ public static partial class NativeBattleAdditional182Controller
                 context = context.Write(0x1C, BitConverter.GetBytes(0xC3u)).Write(12, BitConverter.GetBytes((age - 22) << 9));
             }
             frame = PublishContext(frame, temporary, context, 88);
-            frame = inputs.Execute(frame, new NativeBattleAdditional182DrawStatic88(temporary, 0xD3AE78));
+            frame = inputs.Execute(frame, new NativeBattleAdditional182DrawStatic88(temporary, 0xD3AE78) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(182, task) with { ResourceGeneration = 0xD3AE78 } : null });
             context = Context(frame, temporary, 88);
         }
         context = context.Write(0x1C, BitConverter.GetBytes(NativeBattleStaticMeshContext88.Dword(context, 0x1C) | 0xC3u)).Write(12, BitConverter.GetBytes(3072));
@@ -45,7 +49,7 @@ public static partial class NativeBattleAdditional182Controller
             context = Context(frame, temporary, 88);
             context = context.Write(12, BitConverter.GetBytes(unchecked((int)NativeBattleStaticMeshContext88.Dword(context, 12) + bias)));
             frame = PublishContext(frame, temporary, context, 88);
-            frame = inputs.Execute(frame, new NativeBattleAdditional182DrawStatic88(temporary, 0xD3AE78));
+            frame = inputs.Execute(frame, new NativeBattleAdditional182DrawStatic88(temporary, 0xD3AE78) { PilotIdentity = inputs.CapturePresentation ? NativeBattleAdditional182Visuals.History(frame, task, at) : null });
             index = index == 0 ? 4 : index - 1;
             bias += 32;
         }
