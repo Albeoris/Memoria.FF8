@@ -26,7 +26,7 @@ public static partial class NativeBattleEffect218Controller
         frame = LoadMatrix(frame, PairMatrix633090(task, normalDepth));
         (frame, uint temporary) = Allocate(frame, 88);
         NativeBattleEffectArena context = PairContext633090(Context(frame, temporary, 88), task);
-        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, mesh, projection, context, colors, 4122, 14);
+        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, mesh, projection, context, colors, 4122, 14, pilotIdentity: NativeBattleEffect218Presentation.Resource(frame, mesh.Address));
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context, 88);
         frame = deliver(frame, drawn.Batch);
         return Release(frame, 88);

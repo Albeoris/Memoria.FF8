@@ -36,6 +36,7 @@ public static partial class NativeBattleDuel215Controller
                 while (task.ReadWord(offset + 6) != 0);
             }
         }
+        NativeBattleDuel28Presentation.Allocated(task, offset);
         task = task.WriteDword(5116, offset < 5094 ? checked(address + 22) : checked(taskAddress + 2300));
         task = task.WriteWord(offset + 16, Rand()).WriteWord(offset + 18, Rand()).WriteByte(offset + 20, unchecked((byte)Rand())).WriteByte(offset + 21, unchecked((byte)Rand()));
         return new(frame, task, address);

@@ -36,7 +36,36 @@ public sealed class NativeBattleEffect218FragmentMeshTests
         Assert.Equal(0x05500102u, BinaryPrimitives.ReadUInt32LittleEndian(attempt.Data.AsSpan().Slice(12)));
     }
 
-    private static NativeBattleEffect218FragmentMeshStep Draw(int group, NativeBattleVector origin, bool wrap = false)
+    [Theory]
+    [InlineData(2, false)]
+    [InlineData(6, false)]
+    [InlineData(2, true)]
+    [InlineData(6, true)]
+    public void Captured218_fragment_retains_actual_pivot_depths_native_W_masks_and_rejection(int group, bool wrap)
+    {
+        NativeBattleVector origin = wrap ? new(-20, 0, 0) : new(10, 20, 30);
+        NativeBattleEffect218FragmentMeshStep native = Draw(group, origin, wrap);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattleEffect218FragmentMeshStep captured = Draw(group, origin, wrap, new(218, 1, 2, 3, 4) { ResourceGeneration = 5 });
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(native));
+        NativeBattleGfGeometryAttempt attempt = Assert.Single(captured.Batch.Attempts);
+        if (wrap)
+        {
+            Assert.Null(attempt.Primitive);
+        }
+        else
+        {
+            NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(attempt.Primitive!.PilotGeometry);
+            Assert.Equal((ushort)218, visual.Identity.Effect);
+            Assert.Equal(-400, visual.A.X);
+            Assert.Equal(-400, visual.A.Y);
+            Assert.Equal(2000, visual.A.Z);
+            Assert.Equal(new System.Numerics.Vector4(2000, 2000, 2000, 0), visual.SourceDepths);
+        }
+    }
+
+    private static NativeBattleEffect218FragmentMeshStep Draw(int group, NativeBattleVector origin, bool wrap = false, NativeBattlePilotVisualIdentity? identity = null)
     {
         const uint address = 0x30000000;
         int stride = group == 2 ? 20 : 28;
@@ -67,6 +96,6 @@ public sealed class NativeBattleEffect218FragmentMeshTests
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 2000, 4096);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), matrix, true, true, 0), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 96).Write(0, BitConverter.GetBytes(address)).Write(8, new byte[3]).Write(0x1C, BitConverter.GetBytes(0x3Cu)).Write(0x58, BitConverter.GetBytes(origin.X)).Write(0x5A, BitConverter.GetBytes(origin.Y)).Write(0x5C, BitConverter.GetBytes(origin.Z)).Write(0x5E, BitConverter.GetBytes((short)123));
-        return NativeBattleEffect218FragmentMesh.Draw635280(memory, new(0, address, bytes.ToImmutableArray()), new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        return NativeBattleEffect218FragmentMesh.DrawPresentation(memory, new(0, address, bytes.ToImmutableArray()), new(identity.HasValue ? NativeBattleCuragaMatrices.Identity8DD770() : null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, identity);
     }
 }

@@ -11,6 +11,10 @@ public static class NativeBattleCinematicFrameCopy26
     public static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicFrameCopy26Services services, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint payload = SlotDword(0xB8);
+        if (pilotIdentity is { Effect: 208 or 211 } sourceIdentity)
+        {
+            pilotIdentity = sourceIdentity with { ResourceGeneration = payload };
+        }
         frame = frame.WriteTemporaryDword(0x90, unchecked((uint)(int)SignedWord(payload)));
         frame = frame.WriteTemporaryDword(0x94, unchecked((uint)(int)SignedWord(payload + 2)));
         if (SlotDword(0xC4) == 0)

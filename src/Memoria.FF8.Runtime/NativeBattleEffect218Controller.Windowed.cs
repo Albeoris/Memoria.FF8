@@ -6,7 +6,7 @@ public static partial class NativeBattleEffect218Controller
     {
         (frame, uint temporary) = Allocate(frame, 144);
         NativeBattleEffectArena context = prepare(Context(frame, temporary, 144));
-        NativeBattleWindowedMesh144Step drawn = NativeBattleWindowedMesh144.DrawLoaded(frame.Memory, mesh, projection, context, colors, depthShift: depthShift, groupMask: (1 << 2) | (1 << 3) | (1 << 6) | (1 << 7));
+        NativeBattleWindowedMesh144Step drawn = NativeBattleWindowedMesh144.DrawLoaded(frame.Memory, mesh, projection, context, colors, depthShift: depthShift, groupMask: (1 << 2) | (1 << 3) | (1 << 6) | (1 << 7), pilotIdentity: NativeBattleEffect218Presentation.Resource(frame, mesh.Address));
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context144, 144);
         frame = deliver(frame, drawn.Batch);
         return Release(frame, 144);
@@ -31,7 +31,7 @@ public static partial class NativeBattleEffect218Controller
         NativeBattleScriptedDpcsResult shade = NativeBattleScriptedDpcs.Transform45F270(frame.Memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown(), 0x00808080, cue, far, colors);
         frame = frame with { Memory = frame.Memory with { PrimitiveProcess = process with { ModelRendererRegisters = far }, ScriptedColorRegisters = shade.Registers } };
         context = context.Write(0x24, BitConverter.GetBytes(shade.PackedRgb));
-        NativeBattleWindowedMesh144Step drawn = NativeBattleWindowedMesh144.DrawLoaded(frame.Memory, mesh, projection, context, colors, groupMask: (1 << 2) | (1 << 3) | (1 << 6) | (1 << 7));
+        NativeBattleWindowedMesh144Step drawn = NativeBattleWindowedMesh144.DrawLoaded(frame.Memory, mesh, projection, context, colors, groupMask: (1 << 2) | (1 << 3) | (1 << 6) | (1 << 7), pilotIdentity: NativeBattleEffect218Presentation.Resource(frame, mesh.Address));
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context144, 144);
         frame = deliver(frame, drawn.Batch);
         frame = Release(frame, 144);

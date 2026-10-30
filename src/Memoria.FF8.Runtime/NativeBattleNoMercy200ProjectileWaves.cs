@@ -19,6 +19,10 @@ public static partial class NativeBattleNoMercy200Controller
                     break;
                 }
                 SetDword(row, checked((uint)marker));
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattleShotVisualLifetimes.Allocated(200, task, unchecked((int)row));
+                }
                 SetWord(row + 4, 0);
                 int scale = (Rand() % 768 + (tick << 8) + 1536) / 3;
                 SetWord(row + 16, scale);
@@ -44,7 +48,7 @@ public static partial class NativeBattleNoMercy200Controller
             uint point = checked(path + 48 + (uint)sample * 8);
             NativeBattleActionMatrix local = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)), ReadWord(frame.Staging, row + 10), ReadWord(frame.Staging, row + 8), ReadWord(frame.Staging, row + 8)) with { X = ReadWord(frame.Staging, point), Y = 0, Z = ReadWord(frame.Staging, point + 4) };
             short age = ReadWord(frame.Staging, row + 4);
-            frame = inputs.Execute(frame, new NativeBattleNoMercy200MeshDraw(0xE3260C, NativeBattlePoseMatrices.Compose56C2F0(basis, local), new(age >= 0 ? 0xF3u : 0x33u, 0, age >= 0 ? 682 * age : null, null, null, null, 17, 2)) { Common = true });
+            frame = inputs.Execute(frame, new NativeBattleNoMercy200MeshDraw(0xE3260C, NativeBattlePoseMatrices.Compose56C2F0(basis, local), new(age >= 0 ? 0xF3u : 0x33u, 0, age >= 0 ? 682 * age : null, null, null, null, 17, 2)) { Common = true, PilotIdentity = Visual200(task, inputs, 0xE3260C, row) });
             if (!paused)
             {
                 if (age < 6)

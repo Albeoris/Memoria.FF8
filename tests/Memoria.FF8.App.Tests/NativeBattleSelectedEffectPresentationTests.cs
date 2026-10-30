@@ -79,6 +79,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         int renderedCommandCount = 0;
         int renderedSamples = 0;
         int capturedOwnedFrames = 0;
+        int captured218Frames = 0;
         int captured30 = 0;
         HashSet<uint> capturedOwnedBanks = [];
         BattleSnapshot? peak = null;
@@ -198,7 +199,18 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                         captured30++;
                     }
                 }
-                if (effect is 9 or 17 or 168 or 179 or 180 && currentEffect?.Binding.Effect == effect && primitive is not null && (currentEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0))
+                if (effect == 218)
+                {
+                    if (NativeBattleCinematicCaptureAssertions.AssertFrame(current, effect) > 0)
+                    {
+                        captured218Frames++;
+                    }
+                    if (current.NativeEffectMemory?.Effect218 is { CommonPacketStart: not null, CommonPacketEnd: not null })
+                    {
+                        NativeBattleCinematicCaptureAssertions.AssertCommands(current, effect, NativeBattleSelectedEffect218Packets.CurrentCommands(current));
+                    }
+                }
+                if (effect is 9 or 17 or 168 or 179 or 180 or 187 && currentEffect?.Binding.Effect == effect && primitive is not null && (currentEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0))
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> appended = currentEffect.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
                     ownedCommands = primitive.LastCommands.Select(item => item.Command).Where(command => appended.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet))).ToArray();
@@ -207,9 +219,9 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 {
                     ownedCommands = NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value, includeCompleted: true);
                 }
-                if (effect is 9 or 17 or 18 or 168 or 179 or 180 && primitive is not null)
+                if (effect is 9 or 17 or 18 or 168 or 179 or 180 or 187 && primitive is not null)
                 {
-                    NativeBattleLogicalCommand[] geometry = ownedCommands.Where(command => command.Opcode is >= 0x20 and < 0x40).ToArray();
+                    NativeBattleLogicalCommand[] geometry = ownedCommands.Where(command => command.Opcode >= 0x20 && command.Opcode < (effect == 187 ? 0x80 : 0x40)).ToArray();
                     foreach (NativeBattleLogicalCommand command in geometry)
                     {
                         NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
@@ -269,7 +281,11 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             {
                 Assert.True(captured30 > 0);
             }
-            if (effect is 9 or 17 or 18 or 168 or 179 or 180)
+            if (effect == 218)
+            {
+                Assert.True(captured218Frames > 1);
+            }
+            if (effect is 9 or 17 or 18 or 168 or 179 or 180 or 187)
             {
                 Assert.True(capturedOwnedFrames > 1, "The standalone component must reach captured physical geometry on multiple callbacks.");
             }
@@ -343,6 +359,21 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             direct.Tick();
             NativeBattleCloudBombPresentationOwnership.AssertFrame(direct.Capture(), effect);
             NativeBattleCloudBombPresentationOwnership.AssertFrame(cold.Capture(), effect);
+            if (effect == 187)
+            {
+                _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(cold.Capture(), 187);
+                _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(direct.Capture(), 187);
+            }
+            if (effect == 218)
+            {
+                NativeBattleCinematicCaptureAssertions.AssertFrame(direct.Capture(), effect);
+                NativeBattleCinematicCaptureAssertions.AssertFrame(cold.Capture(), effect);
+                if (cold.Capture().NativeEffectMemory?.Effect218 is { CommonPacketStart: not null, CommonPacketEnd: not null })
+                {
+                    NativeBattleCinematicCaptureAssertions.AssertCommands(cold.Capture(), effect, NativeBattleSelectedEffect218Packets.CurrentCommands(cold.Capture()));
+                    NativeBattleCinematicCaptureAssertions.AssertCommands(direct.Capture(), effect, NativeBattleSelectedEffect218Packets.CurrentCommands(direct.Capture()));
+                }
+            }
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
             if (effect == 18 && cold.NativeGraphics?.OriginalEffect?.Binding.Effect == 18)
             {

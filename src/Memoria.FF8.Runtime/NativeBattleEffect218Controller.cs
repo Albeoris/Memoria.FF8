@@ -45,7 +45,9 @@ public static partial class NativeBattleEffect218Controller
     public static (NativeBattleEffect218Frame Frame, int Result) AdvanceTask218(NativeBattleEffect218Frame frame, uint address, NativeBattleEffect218Resources resources, NativeBattleEffect218RuntimeInputs inputs)
     {
         uint flags = inputs.ReadGraphicsFlags(frame);
-        uint callback = Read(frame, address).Callback;
+        NativeBattleModulePoolTask presentationTask = Read(frame, address);
+        frame = frame with { PresentationIdentity = frame.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(218, presentationTask) : null };
+        uint callback = presentationTask.Callback;
         return callback switch
         {
             RootCallback => AdvanceRoot6374D0(frame, address, resources, inputs),

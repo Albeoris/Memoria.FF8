@@ -8,7 +8,7 @@ public sealed record NativeBattleEffect187ColoredMesh108Step(NativeBattleEffectM
 
 public static class NativeBattleEffect187ColoredMesh108
 {
-    public static NativeBattleEffect187ColoredMesh108Step Draw64C9A0(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context108, NativeBattleSummonColors colors, byte depthShift = 3)
+    public static NativeBattleEffect187ColoredMesh108Step Draw64C9A0(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context108, NativeBattleSummonColors colors, byte depthShift = 3, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint flags = Dword(context108, 0x1C);
         if (Dword(context108, 0) != mesh.Address || mesh.Address is not (0xE41788 or 0xE413E8 or 0xE3D3A8) || flags != 0xF3 || depthShift != 3)
@@ -43,6 +43,8 @@ public static class NativeBattleEffect187ColoredMesh108
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = mesh.Bytes.AsSpan(cursor, 24).ToArray();
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
+                NativeBattleActionMatrix? matrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     Load(corner, corner);
@@ -69,6 +71,10 @@ public static class NativeBattleEffect187ColoredMesh108
                     context108 = Put(context108, 0x30, registers.Geometry.Otz!.Value);
                     uint command = (material | 0x2C000000) | 0x02000000;
                     registers = registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, command, Dword(context108, 12), far, colors).Registers };
+                    if (pilotIdentity is { } identity && world is not null)
+                    {
+                        attempt = attempt with { Primitive = attempt.Primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], world[3], 4) { SourceDepths = new(projected[0].Depth, projected[1].Depth, projected[2].Depth, projected[3].Depth), UseSourceDepths = true } } };
+                    }
                     allocated = checked(allocated + attempt.PacketLength);
                 }
                 attempts.Add(attempt);
@@ -79,7 +85,12 @@ public static class NativeBattleEffect187ColoredMesh108
                 {
                     int offset = checked(8 + BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)) * 4);
                     ReadOnlySpan<byte> packed = mesh.Bytes.AsSpan(offset, 8);
-                    registers = NativeBattleGeometry.LoadVector(registers, slot, new(BinaryPrimitives.ReadInt16LittleEndian(packed), BinaryPrimitives.ReadInt16LittleEndian(packed[2..]), BinaryPrimitives.ReadInt16LittleEndian(packed[4..])), BinaryPrimitives.ReadInt16LittleEndian(packed[6..]));
+                    NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(packed), BinaryPrimitives.ReadInt16LittleEndian(packed[2..]), BinaryPrimitives.ReadInt16LittleEndian(packed[4..]));
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix!, point), projection);
+                    }
+                    registers = NativeBattleGeometry.LoadVector(registers, slot, point, BinaryPrimitives.ReadInt16LittleEndian(packed[6..]));
                 }
 
                 NativeBattleModuleProjectedVertex ReadCorner(int corner)

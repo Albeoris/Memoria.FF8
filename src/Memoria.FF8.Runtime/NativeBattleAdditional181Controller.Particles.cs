@@ -28,7 +28,7 @@ public static partial class NativeBattleAdditional181Controller
             short size = ParticleWord181(frame, row + 6);
             frame = PublishContext(frame, temporary, Context(frame, temporary, 180).Write(4, BitConverter.GetBytes(unchecked((ushort)phase))), 180);
             frame = SetupSprite181(frame, inputs.ReadView(frame), frame.State.ReadView(row + 8, 8), size, unchecked((short)-(size >> 4)));
-            frame = inputs.Execute(frame, new NativeBattleAdditional181DrawSprite180(temporary, source));
+            frame = inputs.Execute(frame, new NativeBattleAdditional181DrawSprite180(temporary, source) { PilotIdentity = inputs.CapturePresentation ? NativeBattleShotVisualLifetimes.Resource(NativeBattleShotVisualLifetimes.Identity(181, task, NativeBattlePilotVisualLifetimes.Identity(181, task), unchecked((int)row)), source) : null });
             if ((inputs.GraphicsFlags & 0x201) != 0)
             {
                 continue;
@@ -69,6 +69,10 @@ public static partial class NativeBattleAdditional181Controller
                     break;
                 }
                 frame = frame with { State = frame.State.WriteDword(row, mask).WriteWord(row + 4, 0) };
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattleShotVisualLifetimes.Allocated(181, task, unchecked((int)row));
+                }
                 frame = DrawRandom(frame, out ushort sizeDraw);
                 frame = PutParticle181(frame, row + 6, moving ? (sizeDraw & 4095) + 2048 : sizeDraw % 3840 + 2560);
                 frame = frame with { State = frame.State.WriteView(row + 8, TaskView(task, 0x10, 8), 8) };

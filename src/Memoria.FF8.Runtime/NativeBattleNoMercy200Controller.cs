@@ -3,7 +3,11 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public abstract record NativeBattleNoMercy200Operation;
+public abstract record NativeBattleNoMercy200Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleNoMercy200Camera : NativeBattleNoMercy200Operation;
 public sealed record NativeBattleNoMercy200Bind : NativeBattleNoMercy200Operation;
 public sealed record NativeBattleNoMercy200Sequence(int Actor, ushort Sequence) : NativeBattleNoMercy200Operation;
@@ -16,7 +20,10 @@ public sealed record NativeBattleNoMercy200Stage(int Intensity) : NativeBattleNo
 public sealed record NativeBattleNoMercy200Flash : NativeBattleNoMercy200Operation;
 public sealed record NativeBattleNoMercy200Contacts : NativeBattleNoMercy200Operation;
 public sealed record NativeBattleNoMercy200Reload(uint CompletionAddress) : NativeBattleNoMercy200Operation;
-public sealed record NativeBattleNoMercy200Inputs(uint GraphicsFlags, NativeBattleActionMatrix View, Func<int> ReadIoResult, Func<NativeBattleNoMercy200Frame, NativeBattleNoMercy200Operation, NativeBattleNoMercy200Frame> Execute);
+public sealed record NativeBattleNoMercy200Inputs(uint GraphicsFlags, NativeBattleActionMatrix View, Func<int> ReadIoResult, Func<NativeBattleNoMercy200Frame, NativeBattleNoMercy200Operation, NativeBattleNoMercy200Frame> Execute)
+{
+    public bool CapturePresentation { get; init; }
+}
 
 /// <summary>639380's signed175-tick scene and63E680/63E6F0's single physical callback queue.</summary>
 public static partial class NativeBattleNoMercy200Controller
@@ -209,4 +216,19 @@ public static partial class NativeBattleNoMercy200Controller
         BinaryPrimitives.WriteInt32LittleEndian(translation.AsSpan(8), matrix.Z);
         return staging.Write(address, rotation).Write(address + 20, translation);
     }
+    private static NativeBattlePilotVisualIdentity? Visual200(NativeBattleModulePoolTask task, NativeBattleNoMercy200Inputs inputs, uint source, uint? row = null)
+    {
+        if (!inputs.CapturePresentation)
+        {
+            return null;
+        }
+        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(200, task);
+        if (row is uint physicalRow)
+        {
+            identity = NativeBattleShotVisualLifetimes.Identity(200, task, identity, unchecked((int)physicalRow));
+            return NativeBattleShotVisualLifetimes.Resource(identity, source);
+        }
+        return identity with { ResourceGeneration = source };
+    }
+
 }

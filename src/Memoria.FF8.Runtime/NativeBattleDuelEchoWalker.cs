@@ -32,6 +32,7 @@ public static class NativeBattleDuelEchoWalker
             int groups = Signed(cursor);
             cursor = checked(cursor + 2);
             int destination = 0;
+            Dictionary<int, System.Numerics.Vector3>? world = pilotIdentity is { Effect: 212 or 216 } ? new() : null;
             for (int group = 0; group < groups; group++)
             {
                 int bone = Signed(cursor);
@@ -58,7 +59,7 @@ public static class NativeBattleDuelEchoWalker
                 }
                 int matrixAddress = checked(NativeBattleDuelEcho.ReadHistoryOffset(echo, echoOffset, history, historyStride) + preparedOffset + selected * 32);
                 NativeBattleActionMatrix matrix = Matrix(echo, matrixAddress);
-                NativeBattleDuelEchoProjectionResult projected = NativeBattleDuelEchoProjection.Project6A2A90(context, offset, Bytes(cursor, checked(2 + vertices * 6)).ToImmutableArray(), matrix, projection, destination, writeCpu, observeContext);
+                NativeBattleDuelEchoProjectionResult projected = NativeBattleDuelEchoProjection.Project6A2A90(context, offset, Bytes(cursor, checked(2 + vertices * 6)).ToImmutableArray(), matrix, projection, destination, writeCpu, observeContext, world is null ? null : (vertex, point) => world[vertex / 8] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection));
                 context = projected.Context;
                 cursor = checked(cursor + projected.SourceBytes);
                 destination = checked(destination + projected.VertexBytes);
@@ -87,7 +88,7 @@ public static class NativeBattleDuelEchoWalker
                     }
                 }
                 return new(BinaryPrimitives.ReadUInt32LittleEndian(raw), BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(4)), BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(6))) { KnownBytesMask = mask };
-            }, tableBaseBucket, depthShift, zsf3, zsf4, observeContext, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + mesh) } : null);
+            }, tableBaseBucket, depthShift, zsf3, zsf4, observeContext, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + mesh) } : null, readWorld: world is null ? null : vertex => world[vertex]);
             context = packets.Context;
             submit(packets.Batch);
         }

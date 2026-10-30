@@ -58,7 +58,7 @@ public static partial class NativeBattleEffect187Controller
                 frame = inputs.Execute(frame, new NativeBattleEffect187WriteModelBytes(actor, 7, NativeBattleEffectArena.Clear().Write(0, [0]), 1));
             }
             frame = PublishContext(frame, temporary, context, 464);
-            frame = inputs.Execute(frame, new NativeBattleEffect187DrawBody464(temporary, actor, offsetWorld));
+            frame = inputs.Execute(frame, new NativeBattleEffect187DrawBody464(temporary, actor, offsetWorld) { PilotIdentity = Visual187(frame, address, inputs, unchecked((uint)actor)) });
             frame = Release(frame, 464);
         }
         if ((inputs.ReadFlags(frame) & 0x201) != 0)

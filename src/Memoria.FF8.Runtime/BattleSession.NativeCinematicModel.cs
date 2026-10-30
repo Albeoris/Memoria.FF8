@@ -38,7 +38,7 @@ public sealed partial class BattleSession
         uint color = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(model + 0x5C), 4), 4));
         NativeBattleModelRendererRegisters renderer = (common.ModelRendererRegisters ?? new(null, null, null, null, null)).PublishModelColor(color);
         NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native cinematic model requires its original color arithmetic tables.");
-        NativeBattleCinematicModelDraw drawn = NativeBattleCinematicModel.Render(frame, model, projection, colors, OtBucket, NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, bank, index) with { ResourceGeneration = graphics.OriginalEffect.Binding.Effect == 18 ? model : 0 });
+        NativeBattleCinematicModelDraw drawn = NativeBattleCinematicModel.Render(frame, model, projection, colors, OtBucket, NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, bank, index) with { ResourceGeneration = graphics.OriginalEffect.Binding.Effect is 18 or 208 or 211 ? model : 0 });
         frame = drawn.Frame;
         uint manager = CoreDword(frame, 0x27973EC);
         uint start = CoreDword(frame, unchecked(manager + 0x7C));
@@ -55,6 +55,10 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic model requires its current ordering table.");
             if ((ReadSlot(frame, 0x4C, 1)[0] & 1) != 0)
             {
+                if (graphics.OriginalEffect is { Binding.Effect: 208 or 211 } selected)
+                {
+                    graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, "20DFAB8", 0, ArenaOffset(start, 0), drawn.Packets) } };
+                }
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, ArenaOffset(start, 0), primitive.Pending, drawn.Packets);
                 memory = written.Memory;
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
@@ -64,6 +68,10 @@ public sealed partial class BattleSession
                 if (start != common.ByteCursor)
                 {
                     throw new InvalidDataException("Native cinematic model COMMON cursor disagrees with its current physical owner.");
+                }
+                if (graphics.OriginalEffect is { Binding.Effect: 208 or 211 } selected)
+                {
+                    graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, common.PacketBank!, common.PacketBuffer, common.ByteCursor!.Value, drawn.Packets) } };
                 }
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(common, primitive.Pending, drawn.Packets);
                 memory = memory with { PrimitiveProcess = written.Process };

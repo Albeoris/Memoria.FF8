@@ -93,7 +93,7 @@ public static partial class NativeBattleNoMercy200Controller
         uint point = checked(row + 48 + (uint)sample * 8);
         local = NativeBattlePoseMatrices.Scale56BEF0(local, Word(task, 28), Word(task, 28), Word(task, 28)) with { X = ReadWord(frame.Staging, point), Y = ReadWord(frame.Staging, point + 2), Z = ReadWord(frame.Staging, point + 4) };
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(inputs.View, local);
-        frame = inputs.Execute(frame, new NativeBattleNoMercy200MeshDraw(0xE3239C, matrix, new(0xF3, 0, 768 * Word(task, 20), null, null, null, 17, 2)));
+        frame = inputs.Execute(frame, new NativeBattleNoMercy200MeshDraw(0xE3239C, matrix, new(0xF3, 0, 768 * Word(task, 20), null, null, null, 17, 2)) { PilotIdentity = Visual200(task, inputs, 0xE3239C) });
         if (paused)
         {
             return new(frame, pool, 0);

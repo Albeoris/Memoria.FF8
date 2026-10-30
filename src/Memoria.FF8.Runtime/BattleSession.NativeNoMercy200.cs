@@ -28,10 +28,10 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native No Mercy requires its actual projection registers.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native No Mercy requires its published view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native No Mercy requires its original color arithmetic.");
-        NativeBattleNoMercy200Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native No Mercy requires its entered module."), NativeFileStaging ?? throw new NotSupportedException("Native No Mercy requires its retained resource memory."), nativeCrtRandom ?? throw new NotSupportedException("Native No Mercy requires its retained CRT random owner."));
+        NativeBattleNoMercy200Frame frame = new(memory, (graphics.OriginalEffect ?? throw new InvalidDataException("Native No Mercy requires its entered module.")) with { PresentationPackets = [] }, NativeFileStaging ?? throw new NotSupportedException("Native No Mercy requires its retained resource memory."), nativeCrtRandom ?? throw new NotSupportedException("Native No Mercy requires its retained CRT random owner."));
         NativeBattleNoMercy200TargetInputs targets = new(nativeActionPackets, actor => ReadNativeModelAnchor(graphics, actor) with { W = (graphics.Models[actor].Transform ?? throw new NotSupportedException("Native571400 requires the actual model WORD36.")).Angle36 }, actor => graphics.Models[actor].Transform?.Scale38 ?? throw new NotSupportedException("Native No Mercy requires actual target scale."), actor => graphics.Models[actor].Transform?.Angle36 ?? throw new NotSupportedException("Native No Mercy requires actual target WORD36."));
         NativeBattleNoMercy200BoneInputs bones = new(actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native No Mercy requires its current actor skeleton.")).BoneCount, (actor, selector, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)selector), fraction));
-        NativeBattleNoMercy200Inputs inputs = new(graphics.Flags, view, () => NativeEffectIoResult ?? throw new NotSupportedException("Native No Mercy requires its signed file IO result."), Execute);
+        NativeBattleNoMercy200Inputs inputs = new(graphics.Flags, view, () => NativeEffectIoResult ?? throw new NotSupportedException("Native No Mercy requires its signed file IO result."), Execute) { CapturePresentation = true };
         frame = NativeBattleNoMercy200Controller.AdvanceRoot(frame, inputs, Child);
         NativeEffectMemory = frame.Memory;
         NativeFileStaging = frame.Staging;
@@ -177,18 +177,18 @@ public sealed partial class BattleSession
                     if (mesh.Scrolling is { } scrolling)
                     {
                         NativeBattleScriptedGraphicsMemory registers = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native No Mercy requires its actual GTE registers.");
-                        batch = NativeBattleShivaScrollingPackets.Emit64E080(resource, mesh.Matrix, projection, scrolling, registers.Zsf3 ?? throw new NotSupportedException("Native No Mercy requires ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native No Mercy requires ZSF4."), registers.Dqa, registers.Dqb, colors);
+                        batch = NativeBattleShivaScrollingPackets.Emit64E080(resource, mesh.Matrix, projection, scrolling, registers.Zsf3 ?? throw new NotSupportedException("Native No Mercy requires ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native No Mercy requires ZSF4."), registers.Dqa, registers.Dqb, colors, mesh.PilotIdentity);
                     }
                     else
                     {
-                        batch = mesh.Tint is uint tint ? NativeBattleTintedMeshPackets.Emit(resource.Bytes, mesh.Matrix, projection, mesh.Context, tint, colors) : NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors);
+                        batch = mesh.Tint is uint tint ? NativeBattleTintedMeshPackets.Emit(resource.Bytes, mesh.Matrix, projection, mesh.Context, tint, colors, pilotIdentity: mesh.PilotIdentity) : NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, mesh.Matrix, projection, mesh.Context, colors, pilotIdentity: mesh.PilotIdentity);
                     }
                     return AppendGeometry(current, batch, mesh.Common);
                 case NativeBattleNoMercy200SpriteDraw sprite:
                     NativeBattleTemporaryAllocation? allocated = sprite.TemporaryAddress is null ? NativeBattleTemporaryMemory.Allocate5082B0(current.Staging, 180) : null;
                     uint context = sprite.TemporaryAddress ?? allocated!.Address;
                     NativeBattleFileStaging staging = allocated?.Staging ?? current.Staging;
-                    NativeBattleModuleDraw draw = sprite.Draw;
+                    NativeBattleModuleDraw draw = sprite.Draw with { PilotIdentity = sprite.PilotIdentity };
                     if (allocated is not null)
                     {
                         staging = NativeBattleModuleSpriteTemporary.Begin571C80(staging, context, draw.Resource?.Address ?? throw new InvalidDataException("Native No Mercy sprite requires its resource."), draw.SpriteFlags);
@@ -225,10 +225,13 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native No Mercy requires its initialized ordering table.");
             if (common)
             {
-                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native No Mercy requires its common packet owner."), primitive.Pending, batch);
+                NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native No Mercy requires its common packet owner.");
+                current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                 return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
             }
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, current.Effect.DrawArenaOffset!.Value, batch) } };
             NativeBattleEffectPacketWrite effectWritten = NativeBattleEffectPacketArena.Append(current.Memory, current.Effect.DrawArenaOffset ?? throw new InvalidDataException("Native No Mercy lost its actual private cursor."), primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = effectWritten.Ordering } };
             byte[] bytes = new byte[4];

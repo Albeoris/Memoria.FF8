@@ -48,14 +48,14 @@ public static partial class NativeBattleEffect187Controller
         if (colored)
         {
             context = context.Write(0x20, BitConverter.GetBytes(0x2020A0u));
-            NativeBattleEffect187ColoredMesh108Step drawn = NativeBattleEffect187ColoredMesh108.Draw64C9A0(frame.Memory, resources.Mesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors);
+            NativeBattleEffect187ColoredMesh108Step drawn = NativeBattleEffect187ColoredMesh108.Draw64C9A0(frame.Memory, resources.Mesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors, pilotIdentity: Visual187(frame, address, inputs, mesh));
             frame = frame with { Memory = drawn.Memory };
             context = drawn.Context108;
             batch = drawn.Batch;
         }
         else
         {
-            NativeBattleDefaultActMeshStep drawn = NativeBattleEffect187MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors, 3);
+            NativeBattleDefaultActMeshStep drawn = NativeBattleEffect187MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors, 3, pilotIdentity: Visual187(frame, address, inputs, mesh));
             frame = frame with { Memory = drawn.Memory };
             context = drawn.Context88;
             batch = drawn.Batch;

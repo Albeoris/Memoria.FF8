@@ -62,7 +62,7 @@ public static partial class NativeBattleEffect187Controller
             }
             frame = Release(frame, 400);
             frame = LoadMatrix(frame, ReadPacked(frame, ViewMatrix));
-            NativeBattleRibbonPair72Step drawn = NativeBattleRibbonPair72.DrawLoaded(frame.Memory, ReadBytes(frame, 0x24FD6D8, 256), ReadBytes(frame, 0x24FD7D8, 256), context, inputs.ReadProjection(frame), inputs.Colors, 0x3A903030);
+            NativeBattleRibbonPair72Step drawn = NativeBattleRibbonPair72.DrawLoaded(frame.Memory, ReadBytes(frame, 0x24FD6D8, 256), ReadBytes(frame, 0x24FD7D8, 256), context, inputs.ReadProjection(frame), inputs.Colors, 0x3A903030, pilotIdentity: Visual187(frame, address, inputs, 0x24FD6D8));
             frame = frame with { Memory = drawn.Memory };
             context = drawn.Temporary64;
             frame = PublishContext(frame, temporary, context, 64);

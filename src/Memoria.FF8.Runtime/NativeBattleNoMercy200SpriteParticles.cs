@@ -29,7 +29,7 @@ public static partial class NativeBattleNoMercy200Controller
         ushort phase = callback == 0x639DE0 ? unchecked((ushort)(9 - task.ReadWord(12))) : task.ReadWord(12);
         NativeBattleModuleResource resource = callback == 0x639DE0 ? sharedSprite5 : Sprite(callback == 0x639A60 ? 0xE3382Cu : 0xE33B84u);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(phase), Phase = phase, Anchor = new(point.X, point.Y, point.Z, Word(task, 22)), Scale = scale, DepthOffset = -(scale >> (callback == 0x639A60 ? 4 : 3)), SpriteFlags = callback == 0x639DE0 ? (ushort)16 : (ushort)0, SpritePaletteOffsets = callback == 0x639DE0 ? [4, 0, 0, 0] : [] };
-        frame = inputs.Execute(frame, new NativeBattleNoMercy200SpriteDraw(draw));
+        frame = inputs.Execute(frame, new NativeBattleNoMercy200SpriteDraw(draw) { PilotIdentity = Visual200(task, inputs, draw.Resource!.Address) });
         if (callback == 0x639A60)
         {
             NativeBattleModuleResource ground = Sprite(0xE339D8);
@@ -37,7 +37,7 @@ public static partial class NativeBattleNoMercy200Controller
             byte tint = unchecked((byte)(160 * ((height << 12) / 2000) / 4096 - 96));
             NativeBattleActionMatrix rotation = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(new(1024, 0, 0)), scale, scale, 4096);
             draw = draw with { Resource = ground, SpriteFrame = ground.ProjectedFrame571C80(phase), Anchor = new(point.X, Word(task, 22), point.Z, 0), DepthOffset = 0, SpriteFlags = 12, SpriteColor = (uint)(tint | tint << 8 | tint << 16), SpriteWorldRotation = rotation.Rotation };
-            frame = inputs.Execute(frame, new NativeBattleNoMercy200SpriteDraw(draw));
+            frame = inputs.Execute(frame, new NativeBattleNoMercy200SpriteDraw(draw) { PilotIdentity = Visual200(task, inputs, draw.Resource!.Address) });
         }
         if (paused)
         {

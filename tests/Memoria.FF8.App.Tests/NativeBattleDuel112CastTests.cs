@@ -150,6 +150,7 @@ public sealed partial class NativeBattleDuel112CastTests
         Directory.CreateDirectory(output);
         Console.WriteLine("Duel evidence: " + output);
         BattleSnapshot before = battle.Capture();
+        int captured28Frames = 0;
         BattleNativeDuelState? savedDuel = namedSource?.NativeLimits.SingleOrDefault(owner => owner.ActorId == "party")?.Duel;
         bool queuedChoice = savedDuel is { Phase: BattleNativeDuelPhase.Finisher } && NativeBattleDuelRules.ActionId(definition.Combatants[0].NativeLimit!, savedDuel.MoveSetId) == action.ActionId;
         bool selected = false;
@@ -228,6 +229,10 @@ public sealed partial class NativeBattleDuel112CastTests
                         captured112Frames++;
                     }
                 }
+                if (effectId is 212 or 215 or 216 && NativeBattleDuel28CaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+                {
+                    captured28Frames++;
+                }
                 bool active = graphics.OriginalEffect is { ReturnedDescriptor: > 0 } selectedEffect && selectedEffect.Binding.Effect == effectId && (!duelCommandRoute || queuedChoice);
                 if (active)
                 {
@@ -254,6 +259,10 @@ public sealed partial class NativeBattleDuel112CastTests
                     if (effectId == 112)
                     {
                         Assert.True(captured112Frames > 1);
+                    }
+                    if (effectId is 212 or 215 or 216)
+                    {
+                        Assert.True(captured28Frames > 1);
                     }
                     Assert.True(drawn);
                     Assert.True(midpoint);
@@ -322,6 +331,14 @@ public sealed partial class NativeBattleDuel112CastTests
             before = battle.Capture();
             battle.Tick();
             clone.Tick();
+            if (effectId is 212 or 215 or 216)
+            {
+                if (NativeBattleDuel28CaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+                {
+                    captured28Frames++;
+                }
+                _ = NativeBattleDuel28CaptureAssertions.AssertFrame(clone.Capture(), effectId);
+            }
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
             Publish(name + "-next");

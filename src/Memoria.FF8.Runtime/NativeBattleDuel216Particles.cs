@@ -3,8 +3,16 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDuel216ParticleBirth(NativeBattleDuel216Frame Frame, NativeBattleEffectTaskPool Pool);
-public sealed record NativeBattleDuel216BillboardParticle(uint Source, NativeBattleVector Point, ushort Scale, short DepthDisplacement, short Phase);
-public sealed record NativeBattleDuel216MeshParticle(uint Source, NativeBattleActionMatrix Basis120, NativeBattleActionMatrix Local88, short AngleX, short AngleY, short Scale);
+public sealed record NativeBattleDuel216BillboardParticle(uint Source, NativeBattleVector Point, ushort Scale, short DepthDisplacement, short Phase)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
+public sealed record NativeBattleDuel216MeshParticle(uint Source, NativeBattleActionMatrix Basis120, NativeBattleActionMatrix Local88, short AngleX, short AngleY, short Scale)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleDuel216ParticleServices(Func<NativeBattleDuel216Frame, NativeBattleDuel216BillboardParticle, NativeBattleDuel216Frame> DrawBillboard571C80, Func<NativeBattleDuel216Frame, NativeBattleDuel216MeshParticle, NativeBattleDuel216Frame> DrawMesh69A410);
 
 public static class NativeBattleDuel216Particles
@@ -106,7 +114,7 @@ public static class NativeBattleDuel216Particles
         NativeBattleActionMatrix pitch = new([4096, 0, 0, 0, unchecked((short)cosine), unchecked((short)sine), 0, unchecked((short)-sine), unchecked((short)cosine)], 0, 0, 0, 4096);
         NativeBattleVector point = Point(task);
         NativeBattleActionMatrix local = NativeBattleGfMatrices.Multiply56C090(pitch, basis) with { X = point.X, Y = point.Y, Z = point.Z };
-        frame = services.DrawMesh69A410(frame, new(0x1140AA4, basis, local, angleX, angleY, scale));
+        frame = services.DrawMesh69A410(frame, new(0x1140AA4, basis, local, angleX, angleY, scale) { PilotIdentity = NativeBattleDuel28Presentation.Identity(216, task, 0x1140AA4) });
         byte life = unchecked((byte)(task.ReadByte(27) - 1));
         task = task.WriteByte(27, life);
         if (life == 0)
@@ -136,7 +144,7 @@ public static class NativeBattleDuel216Particles
         }
         ushort scale = task.ReadWord(18);
         short phase = unchecked((sbyte)task.ReadByte(23));
-        frame = services.DrawBillboard571C80(frame, new(accelerating ? 0x113C2F0u : 0x113C1ACu, Point(task), scale, unchecked((short)-(unchecked((short)scale) >> 2)), phase));
+        frame = services.DrawBillboard571C80(frame, new(accelerating ? 0x113C2F0u : 0x113C1ACu, Point(task), scale, unchecked((short)-(unchecked((short)scale) >> 2)), phase) { PilotIdentity = NativeBattleDuel28Presentation.Identity(216, task, accelerating ? 0x113C2F0u : 0x113C1ACu) });
         for (int component = 0; component < 3; component++)
         {
             sbyte velocity = unchecked((sbyte)task.ReadByte(20 + component));

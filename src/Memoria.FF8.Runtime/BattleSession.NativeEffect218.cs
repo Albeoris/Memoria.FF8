@@ -12,10 +12,10 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState RunNativeEffect218(NativeBattleGraphicsState graphics, bool initialize)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect218 requires its selected original effect.");
+        NativeBattleOriginalEffectState effect = (graphics.OriginalEffect ?? throw new NotSupportedException("Effect218 requires its selected original effect.")) with { PresentationPackets = [] };
         NativeBattleEffect218Resources resources = effect.Binding.Effect218Resources ?? throw new NotSupportedException("Effect218 requires its selected original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect218 requires its current process memory.");
-        NativeBattleEffect218Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect218 requires its current CRT stream."), memory.Effect218 ?? throw new NotSupportedException("Effect218 requires its retained storage; explicitly migrate a needed older snapshot.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect218 requires its current addressed memory.") };
+        NativeBattleEffect218Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect218 requires its current CRT stream."), memory.Effect218 ?? throw new NotSupportedException("Effect218 requires its retained storage; explicitly migrate a needed older snapshot.")) { CapturePresentation = true, Staging = NativeFileStaging ?? throw new NotSupportedException("Effect218 requires its current addressed memory.") };
         int commonStart = frame.Memory.PrimitiveProcess?.ByteCursor ?? throw new NotSupportedException("Effect218 requires its actual callback COMMON cursor.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect218 requires its actual arithmetic tables.");
         bool hardware = definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect218 requires its current hardware capability.");
@@ -71,6 +71,9 @@ public sealed partial class BattleSession
         NativeBattleEffect218Frame Deliver(NativeBattleEffect218Frame current, NativeBattleGfGeometryBatch batch, ushort flags)
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect218 requires its current ordering table.");
+            batch = NativeBattleCinematicCapturePresentation.Depths(batch);
+            NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess!;
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect218 requires its actual COMMON packet process."), primitive.Pending, batch, flags);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
@@ -92,6 +95,7 @@ public sealed partial class BattleSession
                 }
                 return new NativeBattleGfGeometryAttempt(allocated.ByteOffset, bytes.ToImmutableArray(), primitive.PhysicalWriteMask ?? throw new NotSupportedException("Effect218 screen packet requires its actual physical write mask."), primitive);
             }).ToImmutableArray(), batch.AllocationBytes);
+            captured = NativeBattleCinematicCapturePresentation.Discrete(captured, current.PresentationIdentity);
             return Deliver(current, captured, 1);
         }
 
@@ -158,6 +162,14 @@ public sealed partial class BattleSession
         NativeBattleEffect218Frame Static(NativeBattleEffect218Frame current, uint address, NativeBattleGfGeometryBatch batch, ushort flags)
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect218 capture requires its actual ordering table.");
+            bool quad = address == NativeBattleEffect218State.CaptureQuadAddress;
+            if (quad)
+            {
+                batch = NativeBattleCinematicCapturePresentation.Discrete(batch, NativeBattleEffect218Presentation.Resource(current, address));
+            }
+            string bank = quad ? NativeBattleEffect218StaticPackets.QuadBank : NativeBattleEffect218StaticPackets.GlobalsBank;
+            uint start = quad ? NativeBattleEffect218State.CaptureQuadAddress : NativeBattleEffect218State.GlobalsAddress;
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, bank, 0, checked((int)(address - start)), batch) } };
             NativeBattleEffect218StaticPacketStep written = NativeBattleEffect218StaticPackets.Store(current.State, primitive.Pending, address, batch, flags);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { State = written.State };

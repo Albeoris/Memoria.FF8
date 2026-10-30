@@ -53,7 +53,7 @@ public sealed partial class BattleSession
                 staging = frame.Staging ?? throw new InvalidDataException("Effect209 capture lost its current scratch memory.");
                 (byte[] retained, _) = staging.ReadSnapshot(scratchAddress, capacity);
                 NativeBattleEffect209StageDepth depth = resources.StageDepthRows[index];
-                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, group.Matrices, camera.Projection ?? throw new NotSupportedException("Effect209 capture requires its current projection registers."), group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), inputs.Colors, depth.DepthShift, new(0, 0, 320, 216), depth.TableBaseBucket, group.ColorDepth);
+                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, group.Matrices, camera.Projection ?? throw new NotSupportedException("Effect209 capture requires its current projection registers."), group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), inputs.Colors, depth.DepthShift, new(0, 0, 320, 216), depth.TableBaseBucket, group.ColorDepth, pilotIdentity: frame.PresentationIdentity is { } identity ? identity with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(mesh), Primitive = index } : null, pilotContinuous: false);
                 frame = frame with { Memory = NativeBattleEffect66StageRegisters.Publish5099D0(frame.Memory with { PrimitiveProcess = process }, mesh, group.Matrices, drawn.ProjectedScratch, group.ColorFlags, temporary, inputs.Colors, depth.TableBaseBucket, depth.DepthShift) };
                 if (drawn.ProjectedBytesWritten != 0)
                 {

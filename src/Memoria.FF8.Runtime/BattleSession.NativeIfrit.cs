@@ -43,6 +43,11 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState AdvanceNativeCinematic(NativeBattleGraphicsState graphics)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
+        if (effect.Binding.Effect is 208 or 211)
+        {
+            effect = effect with { PresentationPackets = [] };
+            graphics = graphics with { OriginalEffect = effect };
+        }
         NativeBattleEffectParameters? outputParameters = effect.Parameters;
         NativeBattleGuardianFormPresentation? presentation = graphics.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.EntryOnly } formPresentation ? formPresentation : null;
         NativeBattleCinematicResources resources = effect.Binding.CinematicResources ?? throw new NotSupportedException("Native cinematic requires its authenticated cinematic tables and resources.");
@@ -108,7 +113,12 @@ public sealed partial class BattleSession
             uint Read(uint address) => System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(core.Read(address, 4));
             packetScope = new(process.PacketBank!, process.PacketBuffer, checked((int)input.CommonCursor), checked((int)Read(manager + 0x7C)), Read(manager + 0xD4), Read(manager + 0xD8));
         }
-        return graphics with { OriginalEffect = advanced.Effect with { Parameters = outputParameters, PresentationPacketScope = packetScope } };
+        NativeBattleOriginalEffectState result = advanced.Effect with { Parameters = outputParameters, PresentationPacketScope = packetScope };
+        if (effect.Binding.Effect is 208 or 211)
+        {
+            result = result with { PresentationPackets = graphics.OriginalEffect!.PresentationPackets };
+        }
+        return graphics with { OriginalEffect = result };
 
         NativeBattleWaterInitializationResource CurrentResource(int index, uint publication)
         {

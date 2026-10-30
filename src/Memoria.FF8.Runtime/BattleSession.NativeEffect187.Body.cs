@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleEffect187Frame Frame) DrawNativeEffect187Body(NativeBattleGraphicsState graphics, NativeBattleEffect187Frame frame, uint temporaryAddress, int actor, NativeBattlePackedMatrix32 offsetWorld, NativeBattleEffect187Resources resources)
+    private (NativeBattleGraphicsState Graphics, NativeBattleEffect187Frame Frame) DrawNativeEffect187Body(NativeBattleGraphicsState graphics, NativeBattleEffect187Frame frame, uint temporaryAddress, int actor, NativeBattlePackedMatrix32 offsetWorld, NativeBattleEffect187Resources resources, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect187 body requires its current primary skeleton.");
@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
         if ((current.Model.Flags0 & 0x20) == 0)
         {
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect187 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect187 shadow requires its current arithmetic.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect187 shadow requires its depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect187 shadow requires its original source."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect187 shadow requires its current renderer capability."), 4121, 16);
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect187 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect187 shadow requires its current arithmetic.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect187 shadow requires its depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect187 shadow requires its original source."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect187 shadow requires its current renderer capability."), 4121, 16, pilotIdentity: pilotIdentity is { } shadowIdentity ? shadowIdentity with { Primitive = unchecked(shadowIdentity.Primitive * 397 - 1), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null);
             current = current with { Memory = current.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors }, Staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 120) };
             current = Deliver(current, shadow.Batch);
             current = current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging, 120) };
@@ -34,7 +34,9 @@ public sealed partial class BattleSession
         NativeDeformedBodyBridge Deliver(NativeDeformedBodyBridge value, NativeBattleGfGeometryBatch batch)
         {
             NativeBattlePrimitiveFrame primitive = value.Graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect187 body requires its current ordering table.");
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(value.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect187 body requires its ordinary packet cursor."), primitive.Pending, batch);
+            NativeBattlePrimitiveProcess process = value.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect187 body requires its ordinary packet cursor.");
+            frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(process, primitive.Pending, batch);
             return value with { Memory = value.Memory with { PrimitiveProcess = written.Process }, Graphics = value.Graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } } };
         }
 
@@ -43,7 +45,7 @@ public sealed partial class BattleSession
             NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(value, linked);
             uint geometryAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect187 body requires its current addressed geometry.");
             int start = value.Memory.PrimitiveProcess?.ByteCursor ?? throw new NotSupportedException("Effect187 body requires its actual ordinary COMMON cursor.");
-            NativeBattleEffect167BodyStep drawn = NativeBattleEffect167BodyDrawing.Draw(value.Memory, value.Temporary, temporaryAddress, ReadGeometry, geometryAddress, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), NativeDeformedBodyView(value.Staging, scratchAddress, scratchLength), scratchLength, projection, Enumerable.Range(0, 56).Select(index => System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(0xE4206C + (uint)(index * 4), 4))).ToImmutableArray(), start, 17, 2);
+            NativeBattleEffect167BodyStep drawn = NativeBattleEffect167BodyDrawing.Draw(value.Memory, value.Temporary, temporaryAddress, ReadGeometry, geometryAddress, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), NativeDeformedBodyView(value.Staging, scratchAddress, scratchLength), scratchLength, projection, Enumerable.Range(0, 56).Select(index => System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(0xE4206C + (uint)(index * 4), 4))).ToImmutableArray(), start, 17, 2, pilotIdentity: pilotIdentity is { } identity ? identity with { ResourceGeneration = geometryAddress } : null);
             value = value with { Memory = drawn.Memory, Temporary = drawn.Temporary464, Staging = NativeBattleTemporaryMemory.PublishView(value.Staging, scratchAddress, drawn.Scratch, scratchLength) };
             foreach (NativeBattleGfGeometryAttempt attempt in drawn.Batch.Attempts)
             {

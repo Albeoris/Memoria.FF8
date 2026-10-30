@@ -49,7 +49,7 @@ public static partial class NativeBattleEffect218Controller
             scratch = scratch.Write(0x38, BitConverter.GetBytes(unchecked(x + (unchecked(direction.X * offset) >> 12)))).Write(0x3C, BitConverter.GetBytes(unchecked(y + (unchecked(direction.Y * offset) >> 12)))).Write(0x40, BitConverter.GetBytes(unchecked(z + (unchecked(direction.Z * offset) >> 12))));
             frame = PublishContext(frame, scratchAddress, scratch, 72);
             frame = frame with { Memory = NativeBattleEffect315Gte.LoadTranslation64DD70(frame.Memory, NativeBattleEffectNodeContextMemory.Copy(scratch, 0x38, NativeBattleEffectArena.Clear(), 0, 12)) };
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, sprite, resources.Sprite, projection, cameraRoll);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleEffect218Presentation.DrawSprite(frame.Memory, sprite, resources.Sprite, projection, cameraRoll, pilotIdentity: NativeBattleEffect218Presentation.Row(frame, bank, index, 0));
             frame = PublishContext(frame with { Memory = drawn.Memory }, spriteAddress, drawn.Temporary180, 180);
             frame = deliver(frame, drawn.Batch);
             if (!paused)
@@ -96,6 +96,10 @@ public static partial class NativeBattleEffect218Controller
                 break;
             }
             uint location = checked(bank + (uint)(slot * 24));
+            if (frame.CapturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.ParticleGlobals, bank, slot);
+            }
             NativeBattleEffectArena row = ReadBytes(frame, location, 24).Write(0, BitConverter.GetBytes(1u)).Write(4, new byte[2]);
             frame = Roll(frame, out ushort scale);
             row = ParticleWord218(row, 6, scale % 3072 + 2560);

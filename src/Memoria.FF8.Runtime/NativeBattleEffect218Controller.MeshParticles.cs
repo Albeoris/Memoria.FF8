@@ -37,7 +37,7 @@ public static partial class NativeBattleEffect218Controller
             scratch = NativeBattleEffectOwnedModelRendering.StoreMatrix(scratch, 0x28, packed);
             frame = PublishContext(frame, scratchAddress, scratch, 104);
             frame = LoadMatrix(frame, packed);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, mesh, projection, Context(frame, contextAddress, 88), colors);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, mesh, projection, Context(frame, contextAddress, 88), colors, pilotIdentity: NativeBattleEffect218Presentation.Row(frame, bank, index, mesh.Address));
             frame = PublishContext(frame with { Memory = drawn.Memory }, contextAddress, drawn.Context, 88);
             frame = deliver(frame, drawn.Batch);
             if (!paused)
@@ -91,6 +91,10 @@ public static partial class NativeBattleEffect218Controller
                 break;
             }
             uint location = checked(bank + (uint)(slot * 32));
+            if (frame.CapturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.ParticleGlobals, bank, slot);
+            }
             NativeBattleEffectArena row = ReadBytes(frame, location, 32).Write(0, BitConverter.GetBytes(1u)).Write(4, new byte[2]);
             frame = Roll(frame, out ushort scale);
             row = ParticleWord218(row, 6, (scale & 1023) + 128);

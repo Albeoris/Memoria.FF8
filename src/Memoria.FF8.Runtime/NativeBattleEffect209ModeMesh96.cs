@@ -9,6 +9,16 @@ public static class NativeBattleEffect209ModeMesh96
 {
     public static NativeBattleEffect209ModeMesh96Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context96, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2)
     {
+        return DrawCore(memory, mesh, projection, context96, colors, tableBaseBucket, depthShift, null);
+    }
+
+    public static NativeBattleEffect209ModeMesh96Step DrawPresentation(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context96, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        return DrawCore(memory, mesh, projection, context96, colors, tableBaseBucket, depthShift, pilotIdentity);
+    }
+
+    private static NativeBattleEffect209ModeMesh96Step DrawCore(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context96, NativeBattleSummonColors colors, int tableBaseBucket, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity)
+    {
         context96.Validate();
         if (depthShift > 31 || Dword(context96, 0) != mesh.Address || Dword(context96, 0x1C) is not (0x33 or 0xF3) || context96.ExceedsExtent(96))
         {
@@ -45,6 +55,8 @@ public static class NativeBattleEffect209ModeMesh96
         far = far with { FarRed = (uint)rgb[0] << 4, FarGreen = (uint)rgb[1] << 4, FarBlue = (uint)rgb[2] << 4 };
         uint farColor = (uint)(rgb[0] | rgb[1] << 8 | rgb[2] << 16);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
+        NativeBattleActionMatrix? captureMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+        System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
         int allocated = 0;
         for (int group = 0; group < 8; group++)
         {
@@ -118,7 +130,7 @@ public static class NativeBattleEffect209ModeMesh96
                             packet.Word(40, Dword(context96, 0x5C));
                             int bucket = unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift));
                             ImmutableArray<int> payload = registers.Geometry.Sz.Select(value => unchecked((int)value!.Value)).ToImmutableArray();
-                            attempts.Add(packet.Attempt(new(bucket, packet.Words(), payload)));
+                            attempts.Add(packet.Attempt(new(bucket, packet.Words(), payload) { PilotGeometry = NativeBattleCinematicCapturePresentation.Corners(pilotIdentity, world, 4, payload, cursor) }));
                             allocated += 44;
                             accepted = true;
                         }
@@ -139,7 +151,12 @@ public static class NativeBattleEffect209ModeMesh96
                         throw new InvalidDataException("Effect209 mode mesh selected a vertex outside its current packed source.");
                     }
                     ReadOnlySpan<byte> vertex = Read(8 + offset, 8);
-                    registers = NativeBattleGeometry.LoadVector(registers, register, new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..])), BinaryPrimitives.ReadInt16LittleEndian(vertex[6..]));
+                    NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..]));
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(captureMatrix!, point), projection);
+                    }
+                    registers = NativeBattleGeometry.LoadVector(registers, register, point, BinaryPrimitives.ReadInt16LittleEndian(vertex[6..]));
                 }
             }
         }
@@ -203,7 +220,7 @@ public static class NativeBattleEffect209ModeMesh96
                         packet.Word(quad ? 28 : 24, Dword(context96, 0x5C));
                         ImmutableArray<int> payload = quad ? registers.Geometry.Sz.Select(value => unchecked((int)value!.Value)).ToImmutableArray() : [unchecked((int)registers.Geometry.Sz[1]!.Value), unchecked((int)registers.Geometry.Sz[2]!.Value), unchecked((int)registers.Geometry.Sz[3]!.Value), 0];
                         int bucket = unchecked(tableBaseBucket + (unchecked((int)depth) >> depthShift));
-                        attempts.Add(packet.Attempt(new(bucket, packet.Words(), payload)));
+                        attempts.Add(packet.Attempt(new(bucket, packet.Words(), payload) { PilotGeometry = NativeBattleCinematicCapturePresentation.Corners(pilotIdentity, world, quad ? 4 : 3, payload, cursor) }));
                         allocated += quad ? 32 : 28;
                         accepted = true;
                     }
@@ -222,7 +239,12 @@ public static class NativeBattleEffect209ModeMesh96
                     throw new InvalidDataException("Effect209 mode mesh selected an invalid packed vertex.");
                 }
                 ReadOnlySpan<byte> vertex = Read(8 + offset, 8);
-                registers = NativeBattleGeometry.LoadVector(registers, register, new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..])), BinaryPrimitives.ReadInt16LittleEndian(vertex[6..]));
+                NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..]));
+                if (world is not null)
+                {
+                    world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(captureMatrix!, point), projection);
+                }
+                registers = NativeBattleGeometry.LoadVector(registers, register, point, BinaryPrimitives.ReadInt16LittleEndian(vertex[6..]));
             }
         }
 

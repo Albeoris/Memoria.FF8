@@ -90,6 +90,36 @@ public sealed class NativeBattleGroup18FrameCopyCaptureTests
         Assert.Same(a, NativeBattlePilotVisualGeometry.Sample(a, b, 0.5f));
     }
 
+    [Theory]
+    [InlineData((ushort)208, (byte)0, false)]
+    [InlineData((ushort)208, (byte)1, false)]
+    [InlineData((ushort)211, (byte)0, false)]
+    [InlineData((ushort)211, (byte)1, false)]
+    [InlineData((ushort)208, (byte)0, true)]
+    [InlineData((ushort)211, (byte)1, true)]
+    public void Selected208_211_frame_copy_keeps_native_capture_IO_and_discrete_actual_source(ushort effect, byte buffer, bool first)
+    {
+        var native = Run(buffer, first, null);
+        string frozen = NativeBattleTestSnapshots.Json(native.Frame);
+        var captured = Run(buffer, first, new(effect, 1, 2, 3, 4));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Batches), NativeBattleTestSnapshots.Json(captured.Batches));
+        Assert.Equal(native.Addresses, captured.Addresses);
+        Assert.Equal(native.Orderings, captured.Orderings);
+        Assert.Equal(native.BufferReads, captured.BufferReads);
+        if (!first)
+        {
+            foreach (NativeBattleGfGeometryBatch strip in captured.Batches.Take(5))
+            {
+                NativeBattlePilotVisualGeometry visual = Assert.Single(strip.Attempts).Primitive!.PilotGeometry!;
+                Assert.Equal(effect, visual.Identity.Effect);
+                Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 0x3000, visual.Identity.ResourceGeneration);
+                Assert.True(visual.ScreenSpace);
+                Assert.False(visual.Continuous);
+            }
+        }
+    }
+
     private static (NativeBattleWaterExecutionFrame Frame, List<NativeBattleGfGeometryBatch> Batches, List<uint> Addresses, List<uint> Orderings, int BufferReads) Run(byte buffer, bool firstFrame, NativeBattlePilotVisualIdentity? identity, uint color = 0x808080)
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryDword(0x14C, 0x120);

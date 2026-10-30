@@ -48,7 +48,7 @@ public static partial class NativeBattleEffect218Controller
         context76 = context76.Write(0x24, BitConverter.GetBytes(projectedAddress)).Write(0x34, new byte[4]).Write(0x38, BitConverter.GetBytes((short)320)).Write(0x3A, BitConverter.GetBytes((short)216)).Write(0x3C, model.Read(0x28, 4)).Write(0x40, model.Read(0x7C, 4)).Write(0x44, new byte[2]).Write(0x48, new byte[4]);
         context76 = NativeBattleEffectNodeContextMemory.Copy(primitiveFlags, 0, context76, 0x30, 4);
         NativeBattleEffectArena context44 = NativeBattleEffectNodeContextMemory.Copy(context76, 32, NativeBattleEffectArena.Clear().MarkUnknown(0, 44), 0, 44);
-        NativeBattleModelContext44Step rendered = NativeBattleModelContext44.Draw(frame.Memory, context44, bones.ToImmutable(), ReadGeometry, geometryAddress, ReadBytes(frame, projectedAddress, projectedLength), projectedLength, projection, colors, hardware, 17, 4, packetCursor);
+        NativeBattleModelContext44Step rendered = NativeBattleModelContext44.Draw(frame.Memory, context44, bones.ToImmutable(), ReadGeometry, geometryAddress, ReadBytes(frame, projectedAddress, projectedLength), projectedLength, projection, colors, hardware, 17, 4, packetCursor, NativeBattleEffect218Presentation.Resource(frame, geometryAddress, unchecked((int)modelAddress)));
         frame = frame with { Memory = rendered.Memory };
         context76 = NativeBattleEffectNodeContextMemory.Copy(rendered.Context44, 0, context76, 32, 44);
         frame = PublishContext(frame, temporary, context76, 76);

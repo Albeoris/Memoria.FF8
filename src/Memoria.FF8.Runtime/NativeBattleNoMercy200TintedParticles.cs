@@ -16,6 +16,10 @@ public static partial class NativeBattleNoMercy200Controller
                     continue;
                 }
                 SetDword(row, 1);
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattleShotVisualLifetimes.Allocated(200, task, unchecked((int)row));
+                }
                 SetWord(row + 4, 0);
                 SetWord(row + 6, Rand() % 6144 + 1024);
                 SetWord(row + 8, Rand() % 8);
@@ -50,7 +54,7 @@ public static partial class NativeBattleNoMercy200Controller
             uint flags = fading ? 0xF3u : 0x33u;
             int? fade = fading ? age < 6 ? 4096 - 682 * age : 682 * (age - 10) : null;
             uint color = frame.Memory.NoMercy200?.Resources?.Dword(checked(0xE33D50u + (uint)tint * 4)) ?? throw new NotSupportedException("Native No Mercy requires its original tint table.");
-            frame = inputs.Execute(frame, new NativeBattleNoMercy200MeshDraw(0xE2F8DC, matrix, new(flags, 0, fade, null, null, null, 17, 2)) { Tint = color });
+            frame = inputs.Execute(frame, new NativeBattleNoMercy200MeshDraw(0xE2F8DC, matrix, new(flags, 0, fade, null, null, null, 17, 2)) { Tint = color, PilotIdentity = Visual200(task, inputs, 0xE2F8DC, row) });
             if (!paused)
             {
                 if (age < 16)

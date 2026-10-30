@@ -47,10 +47,13 @@ public sealed partial class BattleSession
                 }
                 return staging.Read(checked(geometryAddress + (uint)offset), length);
             }
-            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, context, group.Matrices.Select(bone => NativeBattlePackedMatrix32.FromMatrix(bone, null)).ToImmutableArray(), ReadGeometry, geometryAddress, NativeDeformedBodyView(staging, scratchAddress, capacity), capacity, projection, colors, hardware, 17, 16, NativeEffect218CommonCursor(frame.Memory));
+            NativeBattleModelContext44Step drawn = NativeBattleModelContext44.Draw(frame.Memory, context, group.Matrices.Select(bone => NativeBattlePackedMatrix32.FromMatrix(bone, null)).ToImmutableArray(), ReadGeometry, geometryAddress, NativeDeformedBodyView(staging, scratchAddress, capacity), capacity, projection, colors, hardware, 17, 16, NativeEffect218CommonCursor(frame.Memory), NativeBattleEffect218Presentation.Resource(frame, geometryAddress, 1), pilotContinuous: false);
             frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context44, 44);
             frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, scratchAddress, drawn.ProjectedScratch, capacity) };
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect218 capture requires its current ordering table.");
+            drawn = drawn with { Batch = NativeBattleCinematicCapturePresentation.Depths(drawn.Batch) };
+            NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess!;
+            frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, drawn.Batch) } };
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect218 capture requires its current COMMON packet process."), primitive.Pending, drawn.Batch, 0);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             frame = frame with { Memory = frame.Memory with { PrimitiveProcess = written.Process } };

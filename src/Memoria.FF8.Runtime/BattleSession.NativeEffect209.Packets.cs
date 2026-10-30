@@ -13,6 +13,9 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Effect209 selected an unsupported packet cursor.");
         }
+        draw = draw with { Batch = NativeBattleCinematicCapturePresentation.Depths(draw.Batch) };
+        NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess!;
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, draw.Batch) } };
         NativeBattleCommonPacketWrite common = NativeBattleCommonPacketDelivery.Deliver(frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect209 requires its ordinary packet process."), primitive.Pending, draw.Batch, draw.Flags);
         graphics = graphics with { PrimitiveFrame = primitive with { Pending = common.Ordering } };
         return frame with { Memory = frame.Memory with { PrimitiveProcess = common.Process } };
@@ -45,6 +48,8 @@ public sealed partial class BattleSession
             return (value[0], known[0]);
         });
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect209 requires its current ordering table.");
+        batch = NativeBattleCinematicCapturePresentation.Discrete(batch, frame.PresentationIdentity is { } identity ? identity with { ResourceGeneration = draw.Address } : null);
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, "209FAB8", 0, offset, batch) } };
         NativeBattleEffectPacketWrite written = NativeBattleGuardianWorkPacketArena.Append(frame.Memory, offset, primitive.Pending, batch, draw.Flags);
         graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
         return frame with { Memory = written.Memory };

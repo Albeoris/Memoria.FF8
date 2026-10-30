@@ -26,7 +26,7 @@ public static partial class NativeBattleEffect218Controller
         {
             context = context.Write(28, BitConverter.GetBytes(0xF3u)).Write(12, BitConverter.GetBytes(unchecked((age - start) * fadeMultiplier)));
         }
-        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, mesh, projection, context, colors);
+        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, mesh, projection, context, colors, pilotIdentity: NativeBattleEffect218Presentation.Resource(frame, mesh.Address));
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context, 88);
         frame = deliver(frame, drawn.Batch);
         return Release(frame, 88);

@@ -7,7 +7,7 @@ public sealed record NativeBattleAdditional181ModelStep(NativeBattleEffectMemory
 
 public static partial class NativeBattleAdditional181ModelDrawing
 {
-    public static NativeBattleAdditional181ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary128, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleAdditional181ModelStep DrawBody(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary128, NativeBattleEffectArena vertexScratch, Func<int, int, byte[]> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, uint scratchAddress, int scratchLength, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (scratchLength < 0 || depthShift > 31 || U32(temporary128, 4) != scratchAddress)
         {
@@ -77,10 +77,15 @@ public static partial class NativeBattleAdditional181ModelDrawing
                 for (int face = 0; face < faces; face++)
                 {
                     byte[] source = Read(cursor, quad ? 20 : 16);
-                    var drawn = NativeBattleSkinnedBodyPackets.EmitBaseFace(source, quad, vertexScratch, count, temporary128, registers, projection, controls, tableBaseBucket, depthShift, allocated, 0x38, 0x2C, 0x34);
+                    var drawn = NativeBattleSkinnedBodyPackets.EmitBaseFace(source, quad, vertexScratch, count, temporary128, registers, projection, controls, tableBaseBucket, depthShift, allocated, 0x38, 0x2C, 0x34, pilotIdentity is { } identity ? identity with { Primitive = unchecked((identity.Primitive * 397 + index) * 397 + cursor) } : null);
                     temporary128 = drawn.Temporary;
                     registers = drawn.Registers;
                     NativeBattleGfGeometryAttempt attempt = drawn.Attempt;
+                    if (attempt.Primitive is { PilotGeometry: { } geometry } primitive)
+                    {
+                        var depths = primitive.VertexPayload4;
+                        attempt = attempt with { Primitive = primitive with { PilotGeometry = geometry with { SourceDepths = new(depths[0], depths[1], depths[2], depths[3]), UseSourceDepths = true } } };
+                    }
                     attempts.Add(attempt);
                     if (attempt.Primitive is not null)
                     {

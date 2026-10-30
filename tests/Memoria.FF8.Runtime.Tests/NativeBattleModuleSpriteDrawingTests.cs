@@ -6,6 +6,58 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleModuleSpriteDrawingTests
 {
+    [Theory]
+    [InlineData(0xE19C14u, 2000)]
+    [InlineData(0xE19CBCu, 2000)]
+    [InlineData(0xE19E68u, 2000)]
+    [InlineData(0xE19C14u, -2000)]
+    [InlineData(0xE19CBCu, -2000)]
+    [InlineData(0xE19E68u, -2000)]
+    public void Effect218_sprite_binding_uses_the_single_actual_resource_resolution_and_preserves_native_draw_state(uint actualAddress, int depth)
+    {
+        var fixture = Fixture(depth, false);
+        NativeBattleModuleResource resource = fixture.Resource with { Address = actualAddress };
+        uint requested = actualAddress + 4;
+        NativeBattleEffectArena temporary = fixture.Temporary.Write(0, BitConverter.GetBytes(requested));
+        NativeBattleCameraProjection projection = Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() };
+        int nativeReads = 0;
+        int capturedReads = 0;
+        NativeBattleModuleSpriteDraw native = NativeBattleModuleSpriteDrawing.Draw571C80(NativeBattleTestSnapshots.Independent(fixture.Memory), NativeBattleTestSnapshots.Independent(temporary), address =>
+        {
+            Assert.Equal(requested, address);
+            nativeReads++;
+            return resource;
+        }, projection, 0);
+        NativeBattlePilotVisualIdentity owner = new(218, 0x1000, 3, 123, 7);
+        NativeBattleModuleSpriteDraw captured = NativeBattleEffect218Presentation.DrawSprite(NativeBattleTestSnapshots.Independent(fixture.Memory), NativeBattleTestSnapshots.Independent(temporary), address =>
+        {
+            Assert.Equal(requested, address);
+            capturedReads++;
+            return resource;
+        }, projection, 0, owner);
+        Assert.Equal(1, nativeReads);
+        Assert.Equal(1, capturedReads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry[] visuals = captured.Batch.Attempts.Where(attempt => attempt.Primitive?.PilotGeometry is not null).Select(attempt => attempt.Primitive!.PilotGeometry!).ToArray();
+        if (depth > 0)
+        {
+            Assert.NotEmpty(visuals);
+        }
+        else
+        {
+            Assert.Empty(visuals);
+        }
+        foreach (NativeBattlePilotVisualGeometry visual in visuals)
+        {
+            Assert.Equal((long)actualAddress, visual.Identity.ResourceGeneration);
+            Assert.Equal(owner.Effect, visual.Identity.Effect);
+            Assert.Equal(owner.Bank, visual.Identity.Bank);
+            Assert.Equal(owner.Slot, visual.Identity.Slot);
+            Assert.Equal(owner.Generation, visual.Identity.Generation);
+            Assert.False(visual.ScreenSpace);
+        }
+    }
+
     [Fact]
     public void Caller_color_uses_three_actual_BYTES_and_leaves_unknown_high_BYTE_and_GTE_color_owners_untouched()
     {

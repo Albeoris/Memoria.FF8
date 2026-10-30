@@ -28,7 +28,7 @@ public sealed partial class BattleSession
         NativeBattleScriptedGraphicsMemory registers = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Native Burning Rave echo requires its actual GTE registers.");
         NativeBattleEffectTaskPool target = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel212Controller.Targets);
         uint echo = checked(target.BankAddress + 336);
-        frame = NativeBattleDuelEchoDrawing.Draw6A2760(frame, model, echo, 336, ReadEcho, StoreEcho, section, Read, maximum, view, projection, (current, address, bytes) => current with { Staging = current.Staging.Write(address, bytes.AsSpan()) }, (current, address, length) => current.Staging.ReadSnapshot(address, length), Submit, registers.Zsf3 ?? throw new NotSupportedException("Native Burning Rave echo requires its actual ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native Burning Rave echo requires its actual ZSF4."), current => current.Staging, (current, staging) => current with { Staging = staging });
+        frame = NativeBattleDuelEchoDrawing.Draw6A2760(frame, model, echo, 336, ReadEcho, StoreEcho, section, Read, maximum, view, projection, (current, address, bytes) => current with { Staging = current.Staging.Write(address, bytes.AsSpan()) }, (current, address, length) => current.Staging.ReadSnapshot(address, length), Submit, registers.Zsf3 ?? throw new NotSupportedException("Native Burning Rave echo requires its actual ZSF3."), registers.Zsf4 ?? throw new NotSupportedException("Native Burning Rave echo requires its actual ZSF4."), current => current.Staging, (current, staging) => current with { Staging = staging }, pilotIdentity: NativeBattleDuel28Presentation.Identity(212, target.Slots[0], section, 336), pilotHistoryGeneration: bank => NativeBattleDuel28Presentation.Row(target.Slots[0], bank, section));
         return (frame, graphics);
 
         NativeBattleModulePoolTask ReadEcho(NativeBattleDuel212Frame current) => current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel212Controller.Targets).Slots[0];
@@ -72,6 +72,8 @@ public sealed partial class BattleSession
         NativeBattleDuel212Frame Submit(NativeBattleDuel212Frame current, NativeBattleGfGeometryBatch batch)
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Burning Rave echo requires its current ordering table.");
+            NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess!;
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Burning Rave echo requires its COMMON packet owner."), primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };

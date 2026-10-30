@@ -31,6 +31,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
         int contacts = 0;
         int glyphs = 0;
         int completions = 0;
+        int captured28Frames = 0;
         int visibleChangedRgb = 0;
         int peakChangedRgb = 0;
         BattleSnapshot? peakSnapshot = null;
@@ -112,6 +113,10 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                 NativeBattleOriginalEffectState? before = Selected(prior);
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                if (effectId is 208 or 211 && NativeBattleCinematicCaptureAssertions.AssertFrame(current, effectId) > 0)
+                {
+                    captured28Frames++;
+                }
                 NativeBattleOriginalEffectState? after = Selected(current);
                 observeCallback?.Invoke(prior, current);
                 Assert.Equal(logicalHp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
@@ -213,6 +218,10 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             Assert.True(visibleChangedRgb > 0);
             Assert.Equal(contactGate is null && expectedText is null ? 0 : 1, contacts);
             Assert.Equal(1, completions);
+            if (effectId is 208 or 211)
+            {
+                Assert.True(captured28Frames > 1);
+            }
             Assert.True(completed.Events.Count(item => item.NativeModuleSound is not null) > initialSounds, "The selected component published no original module sound.");
             Assert.True(Released(completed), "The original returned task, active effect and action104 descriptor must release through native execution.");
             if (capturePeak)
@@ -245,6 +254,11 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
                 cold.Tick();
                 direct.Tick();
+                if (effectId is 208 or 211)
+                {
+                    NativeBattleCinematicCaptureAssertions.AssertFrame(direct.Capture(), effectId);
+                    NativeBattleCinematicCaptureAssertions.AssertFrame(cold.Capture(), effectId);
+                }
                 Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
                 byte[] pixels = new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray();
                 Assert.Equal(scene.Render(direct, 320, 224).ToArray(), pixels);

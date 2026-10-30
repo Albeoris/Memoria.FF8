@@ -36,6 +36,10 @@ public static partial class NativeBattleNoMercy200Controller
                     break;
                 }
                 SetDword(row, checked((uint)marker));
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattleShotVisualLifetimes.Allocated(200, task, unchecked((int)row));
+                }
                 SetWord(row + 4, 0);
                 SetWord(row + 6, Rand() % (impact ? 896 : moving ? 1024 : 3840) + (impact ? 6 * tick + 256 : 768));
                 if (impact)
@@ -94,7 +98,7 @@ public static partial class NativeBattleNoMercy200Controller
             short age = ReadWord(frame.Staging, row + 4);
             NativeBattleModuleSpriteFrame animation = resource.ProjectedFrame571C80(unchecked((ushort)age));
             NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = animation, Phase = unchecked((ushort)age), Anchor = new(ReadWord(frame.Staging, row + 8), ReadWord(frame.Staging, row + 10), ReadWord(frame.Staging, row + 12), 0), Scale = ReadWord(frame.Staging, row + 6), SpriteFlags = flags, DepthOffset = impact ? -(ReadWord(frame.Staging, row + 6) >> 3) : -Word(task, 24) };
-            frame = inputs.Execute(frame, new NativeBattleNoMercy200SpriteDraw(draw) { TemporaryAddress = sprite.Address });
+            frame = inputs.Execute(frame, new NativeBattleNoMercy200SpriteDraw(draw) { TemporaryAddress = sprite.Address, PilotIdentity = Visual200(task, inputs, sourceAddress, row) });
             if (paused)
             {
                 continue;

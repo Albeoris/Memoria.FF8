@@ -9,6 +9,16 @@ public static class NativeBattleEffect218FragmentMesh
 {
     public static NativeBattleEffect218FragmentMeshStep Draw635280(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants)
     {
+        return DrawCore(memory, mesh, projection, context, constants, null);
+    }
+
+    public static NativeBattleEffect218FragmentMeshStep DrawPresentation(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        return DrawCore(memory, mesh, projection, context, constants, pilotIdentity);
+    }
+
+    private static NativeBattleEffect218FragmentMeshStep DrawCore(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, NativeBattlePilotVisualIdentity? pilotIdentity)
+    {
         context.Validate();
         if (context.ExceedsExtent(96) || Dword(context, 0) != mesh.Address || Dword(context, 0x1C) != 0x3C)
         {
@@ -25,6 +35,8 @@ public static class NativeBattleEffect218FragmentMesh
         short originY = Word(context, 0x5A);
         short originZ = Word(context, 0x5C);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
+        NativeBattleActionMatrix? captureMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
+        System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
         int allocated = 0;
         int cursor = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(mesh.Bytes.AsSpan()));
         int vertexEnd = cursor;
@@ -55,6 +67,10 @@ public static class NativeBattleEffect218FragmentMesh
                     }
                     byte[] raw = mesh.Bytes.AsSpan().Slice(source, 8).ToArray();
                     NativeBattleVector point = new(unchecked((short)(BinaryPrimitives.ReadInt16LittleEndian(raw) - originX)), unchecked((short)(BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(2)) - originY)), unchecked((short)(BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(4)) - originZ)));
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(captureMatrix!, point), projection);
+                    }
                     BinaryPrimitives.WriteInt16LittleEndian(raw, point.X);
                     BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(2), point.Y);
                     BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(4), point.Z);
@@ -80,7 +96,7 @@ public static class NativeBattleEffect218FragmentMesh
                     {
                         uint depth = registers.Geometry.Otz!.Value;
                         context = Put(context, 0x2C, depth);
-                        attempt = attempt with { Primitive = attempt.Primitive with { Bucket = unchecked(17 + (unchecked((int)depth) >> 2)) } };
+                        attempt = attempt with { Primitive = attempt.Primitive with { Bucket = unchecked(17 + (unchecked((int)depth) >> 2)), PilotGeometry = NativeBattleCinematicCapturePresentation.Corners(pilotIdentity, world, 3, attempt.Primitive.VertexPayload4, cursor) } };
                         allocated = checked(allocated + attempt.PacketLength);
                     }
                     attempts.Add(attempt);

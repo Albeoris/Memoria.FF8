@@ -128,7 +128,7 @@ public static partial class NativeBattleNoMercy200Controller
         {
             matrix = NativeBattlePoseMatrices.Compose56C2F0(callback == 0x63D230 ? ReadMatrix(frame.Staging, 0x24F9930) : inputs.View, world);
         }
-        NativeBattleNoMercy200MeshDraw draw = new(address, matrix, new(flags, 0, fade, null, null, null, 17, 2));
+        NativeBattleNoMercy200MeshDraw draw = new(address, matrix, new(flags, 0, fade, null, null, null, 17, 2)) { PilotIdentity = Visual200(task, inputs, address) };
         if (callback == 0x63AD20)
         {
             draw = draw with { Scrolling = new(flags, fade, 0, 8 * tick, 17, 2, new(0, 128, 64, 128)) };

@@ -29,7 +29,7 @@ public static partial class NativeBattleEffect187Controller
             frame = frame with { Memory = NativeBattleEffect315Gte.SetDiagonal64DE00(frame.Memory, unchecked((ushort)ParticleSigned(row, 6))) };
             frame = PublishContext(frame, spriteAddress, ParticleWord(Context(frame, spriteAddress, 180), 4, ParticleSigned(row, 4)), 180);
             frame = frame with { Memory = IrToTranslation64DE90(frame.Memory) };
-            frame = DrawSprite(frame, spriteAddress, resources, inputs);
+            frame = DrawSprite(frame, spriteAddress, resources, inputs, Visual187(frame, address, inputs, unchecked((uint)ParticleDword(Context(frame, spriteAddress, 180), 0)), rowAddress));
             if ((inputs.ReadFlags(frame) & 0x201) != 0)
             {
                 continue;
@@ -63,7 +63,7 @@ public static partial class NativeBattleEffect187Controller
         {
             for (int birth = 0; birth < 10; birth++)
             {
-                uint? free = FindFreeParticle(frame, 0xE41E50);
+                uint? free = FindFreeParticle(frame, 0xE41E50, inputs.CapturePresentation ? Read(frame, address) : null);
                 if (free is not uint destination)
                 {
                     break;

@@ -93,7 +93,8 @@ public static partial class NativeBattleEffect209Lower
                 packet.Word16(18, 32);
                 attempts.Add(packet.Attempt(new(0x101A, packet.Words(), [])));
             }
-            frame = inputs.Execute(frame, new NativeBattleEffect209DrawBatch(new(attempts.ToImmutable(), 140), CommonCursor, 1));
+            NativeBattleGfGeometryBatch tiles = NativeBattleCinematicCapturePresentation.Discrete(new(attempts.ToImmutable(), 140), frame.PresentationIdentity);
+            frame = inputs.Execute(frame, new NativeBattleEffect209DrawBatch(tiles, CommonCursor, 1));
             SkinWrites mode = new(8, 0);
             mode.Word(0, 0x01000000);
             mode.Word(4, 0xE1000200 | unchecked((uint)((column / 2 + 313) & 0x9FF)));

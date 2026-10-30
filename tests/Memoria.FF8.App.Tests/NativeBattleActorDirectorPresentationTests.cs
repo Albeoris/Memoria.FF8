@@ -197,6 +197,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         int smooth24Captured = 0;
         int captured101Frames = 0;
         int contextBodyCapturedFrames = 0;
+        int actorLowerCapturedFrames = 0;
         int contacts = 0;
         int completions = 0;
         int contactGlyphs = 0;
@@ -1618,6 +1619,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 NativeBattleOriginalEffectState? before = Selected(prior);
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                if (effectId == 181 && NativeBattleActorLowerCaptureAssertions.AssertOwned(current, 181) > 0)
+                {
+                    actorLowerCapturedFrames++;
+                }
                 NativeBattleOriginalEffectState? after = Selected(current);
                 if (effectId is 133 or 137 && NativeBattleContextBodyCaptureAssertions.AssertFrame(current, effectId) > 0)
                 {
@@ -7177,6 +7182,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
             {
                 Assert.True(contextBodyCapturedFrames > 1);
             }
+            if (effectId == 181)
+            {
+                Assert.True(actorLowerCapturedFrames > 1);
+            }
             if (effectId is 8 or 20 or 23 or 37 or 44 or 61 or 101)
             {
                 Assert.True(smooth24Captured > 0);
@@ -8273,6 +8282,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     NativeBattleContextBodyCaptureAssertions.AssertFrame(cold.Capture(), effectId);
                 }
                 Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
+                if (effectId == 181)
+                {
+                    _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(cold.Capture(), 181);
+                    _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(direct.Capture(), 181);
+                }
                 if (effectId == 43)
                 {
                     _ = AssertMeltingAnchors(snapshot, cold.Capture());

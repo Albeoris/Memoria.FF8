@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect187Controller
 {
-    public static NativeBattleEffect187Frame DrawOwnedModel64A2A0(NativeBattleEffect187Frame frame, NativeBattleEffect187Resources resources, NativeBattleEffect187Inputs inputs)
+    public static NativeBattleEffect187Frame DrawOwnedModel64A2A0(NativeBattleEffect187Frame frame, NativeBattleEffect187Resources resources, NativeBattleEffect187Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleCactuarRawModelState model = RequireModel(frame);
         NativeBattleDecodedPose pose = model.DecodedPose ?? throw new NotSupportedException("Effect187 model drawing requires its current decoded pose.");
@@ -68,7 +68,7 @@ public static partial class NativeBattleEffect187Controller
                 }
                 int length = checked(mesh.Vertices.Length * 8);
                 (byte[] previous, _) = ReadBytes(frame, scratchAddress, length).ReadSnapshot(0, length);
-                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones, inputs.ReadProjection(frame), color, 1, previous.ToImmutableArray(), inputs.Colors, 4);
+                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones, inputs.ReadProjection(frame), color, 1, previous.ToImmutableArray(), inputs.Colors, 4, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + objectIndex), ResourceGeneration = geometryAddress } : null);
                 if (drawn.ProjectedBytesWritten != 0)
                 {
                     frame = WriteBytes(frame, scratchAddress, NativeBattleEffectArena.Clear().Write(0, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)), drawn.ProjectedBytesWritten);

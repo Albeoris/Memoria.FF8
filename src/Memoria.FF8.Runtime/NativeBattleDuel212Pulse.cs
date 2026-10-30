@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDuel212PulseDrawing
 {
-    public static NativeBattleDuel212HierarchyStep Draw6A1660(NativeBattleDuel212Frame frame, int phase, NativeBattleActionMatrix bone18, NativeBattleActionMatrix world, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleDuel212HierarchyStep Draw6A1660(NativeBattleDuel212Frame frame, int phase, NativeBattleActionMatrix bone18, NativeBattleActionMatrix world, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if ((uint)phase >= 12)
         {
@@ -46,7 +46,7 @@ public static class NativeBattleDuel212PulseDrawing
             }
             ImmutableArray<byte> point = resources.Read(checked(0x11826E8u + (uint)offset), 6);
             return new(BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan()), BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan().Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan().Slice(4)));
-        });
+        }, pilotIdentity);
         return new(frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(result.Staging, 140) }, result.Batch);
     }
 

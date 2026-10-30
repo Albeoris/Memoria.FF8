@@ -12,7 +12,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState RunNativeEffect187(NativeBattleGraphicsState graphics, bool initialize)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect187 requires its selected original effect.");
+        NativeBattleOriginalEffectState effect = (graphics.OriginalEffect ?? throw new NotSupportedException("Effect187 requires its selected original effect.")) with { PresentationPackets = [] };
         NativeBattleEffect187Resources resources = effect.Binding.Effect187Resources ?? throw new NotSupportedException("Effect187 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect187 requires its current process memory.");
         NativeBattleEffect187Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect187 requires its current CRT stream."), memory.Effect187 ?? throw new NotSupportedException("Effect187 requires its retained storage; explicitly migrate a needed older snapshot.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect187 requires its addressed memory.") };
@@ -20,6 +20,7 @@ public sealed partial class BattleSession
         frame = SynchronizeCursor(frame);
         NativeBattleEffect187Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect187 requires its arithmetic constants."), _ => nativeActionPackets, _ => graphics.Flags, current => new(current, NativeEffectIoResult ?? throw new NotSupportedException("Effect187 requires its current signed I/O result.")), _ => Camera().CapturePackedView1D97778(), _ => Projection(), _ => Camera().Roll, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect187 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, _ => Camera().EyePaddingF6, _ => Camera().TargetPaddingFE, (_, actor) => graphics.Models[actor], (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect187 requires its current actor world matrix."), null), Center, Point, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect187 requires its current vibration process.")).IsPlaying(handle), Execute)
         {
+            CapturePresentation = true,
             PrimitiveCapabilities = definition.NativeGraphics?.PrimitiveCapabilities ?? throw new NotSupportedException("Effect187 requires its actual primitive capabilities."),
             ReadColor = (_, address) => address == 0xB8B7D8 ? (NativeStage?.ModelColors ?? throw new NotSupportedException("Effect187 requires its current stage model colors.")).Color40 : throw new NotSupportedException("Effect187 selected an unsupported color owner.")
         };
@@ -148,11 +149,13 @@ public sealed partial class BattleSession
                     graphics = graphics with { Models = graphics.Models.SetItem(write.Actor, ApplyNativeEffect187ModelBytes(graphics.Models[write.Actor], write)) };
                     return current;
                 case NativeBattleEffect187DrawBody464 body:
-                    (graphics, current) = DrawNativeEffect187Body(graphics, current, body.TemporaryAddress, body.Actor, body.OffsetWorld, resources);
+                    (graphics, current) = DrawNativeEffect187Body(graphics, current, body.TemporaryAddress, body.Actor, body.OffsetWorld, resources, body.PilotIdentity);
                     return SynchronizeCursor(current);
                 case NativeBattleEffect187DeliverBatch draw when draw.CursorGlobal == 0x1D8E054:
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect187 requires its current ordering table.");
-                    NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect187 requires its actual COMMON packet process."), primitive.Pending, draw.Batch, draw.Flags);
+                    NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect187 requires its actual COMMON packet process.");
+                    current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, draw.Batch) } };
+                    NativeBattleCommonPacketWrite written = NativeBattleCommonPacketDelivery.Deliver(process, primitive.Pending, draw.Batch, draw.Flags);
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     return SynchronizeCursor(current with { Memory = current.Memory with { PrimitiveProcess = written.Process } });
                 default:

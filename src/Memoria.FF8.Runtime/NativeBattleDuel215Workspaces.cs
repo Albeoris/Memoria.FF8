@@ -20,7 +20,7 @@ public static class NativeBattleDuel215Workspaces
         return Store(frame, pool);
     }
 
-    public static NativeBattleDuel215WorkspaceStep Advance69B070(NativeBattleDuel215Frame frame, int slot, int offset, int size, NativeBattleDuel215Program context, bool anchored, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering)
+    public static NativeBattleDuel215WorkspaceStep Advance69B070(NativeBattleDuel215Frame frame, int slot, int offset, int size, NativeBattleDuel215Program context, bool anchored, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering, bool capturePresentation = false)
     {
         NativeBattleDuel215Resources resources = frame.Memory.Duel215?.Resources ?? throw new NotSupportedException("Native Duel215 workspace requires its entered resources.");
         NativeBattleEffectTaskPool pool = Scene(frame);
@@ -31,9 +31,13 @@ public static class NativeBattleDuel215Workspaces
         NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
-            NativeBattleDuel215HierarchyStep drawn = anchored ? NativeBattleDuel215Hierarchy.Draw69C6B0(frame, source, node, context, projection, colors) : NativeBattleDuel215Hierarchy.Draw69C220(frame, source, node, context, projection, colors);
+            NativeBattleDuel215HierarchyStep drawn = anchored ? NativeBattleDuel215Hierarchy.Draw69C6B0(frame, source, node, context, projection, colors, capturePresentation ? NativeBattleDuel28Presentation.Identity(215, task, source.Address, unchecked(offset * 65537 + node.ResourceOffset)) : null) : NativeBattleDuel215Hierarchy.Draw69C220(frame, source, node, context, projection, colors, capturePresentation ? NativeBattleDuel28Presentation.Identity(215, task, source.Address, unchecked(offset * 65537 + node.ResourceOffset)) : null);
             frame = drawn.Frame;
             int cursor = frame.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Duel215 workspace requires its actual private packet cursor.");
+            if (capturePresentation)
+            {
+                frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, "20DFAB8", 0, cursor, drawn.Batch) } };
+            }
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, cursor, ordering, drawn.Batch);
             frame = frame with { Memory = written.Memory, Effect = frame.Effect with { DrawArenaOffset = written.Cursor }, Staging = frame.Staging.Write(0x2508988, BitConverter.GetBytes(checked(NativeBattleDuel215Controller.Arena + (uint)written.Cursor))) };
             ordering = written.Ordering;

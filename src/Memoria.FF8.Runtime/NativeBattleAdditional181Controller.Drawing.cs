@@ -23,7 +23,7 @@ public static partial class NativeBattleAdditional181Controller
             frame = PublishContext(frame, temporary, Context(frame, temporary, 128).Write(0x5C, BitConverter.GetBytes(color.PackedRgb)), 128);
             int actor = checked((int)frame.State.ReadDword(0x2307D84));
             frame = inputs.Execute(frame, new NativeBattleAdditional181ActorFlags(actor, 0, 0x804));
-            frame = inputs.Execute(frame, new NativeBattleAdditional181DrawBody128(actor, temporary));
+            frame = inputs.Execute(frame, new NativeBattleAdditional181DrawBody128(actor, temporary) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(181, task) : null });
             frame = Release(frame, 128);
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)
@@ -55,7 +55,7 @@ public static partial class NativeBattleAdditional181Controller
             context = context.Write(12, BitConverter.GetBytes((age - fadeStart) << 9));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleAdditional181DrawStatic88(temporary, source));
+        frame = inputs.Execute(frame, new NativeBattleAdditional181DrawStatic88(temporary, source) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(181, task) with { ResourceGeneration = source } : null });
         frame = Release(frame, 88);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -83,7 +83,7 @@ public static partial class NativeBattleAdditional181Controller
         frame = SetupSprite181(frame, inputs.ReadView(frame), TaskView(task, 0x10, 8), size, unchecked((short)-(size >> 3)));
         (frame, uint temporary) = Allocate(frame, 180);
         frame = PublishContext(frame, temporary, Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(0xD3E500u)).Write(4, BitConverter.GetBytes(task.ReadWord(12))).Write(0x24, new byte[2]), 180);
-        frame = inputs.Execute(frame, new NativeBattleAdditional181DrawSprite180(temporary, 0xD3E500));
+        frame = inputs.Execute(frame, new NativeBattleAdditional181DrawSprite180(temporary, 0xD3E500) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(181, task) with { ResourceGeneration = 0xD3E500 } : null });
         frame = Release(frame, 180);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

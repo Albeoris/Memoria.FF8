@@ -54,7 +54,7 @@ public sealed partial class BattleSession
             int referenced = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, referenced));
         }, (current, shapeIndex) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, shapeIndex).Selected);
-        NativeBattleScriptedMeshProjected projected = NativeBattleScriptedMeshPreparation.Project(prepared, extent, projection, registers.Dqa, registers.Dqb, registers.Depths, lighting, currentStep, morph, registers.DepthScaleBits1877DA8, NativeBattleCinematicVisualIdentity.Identity(profile.Effect, frame, bank, index) with { ResourceGeneration = profile.Effect == 18 ? shape : 0 });
+        NativeBattleScriptedMeshProjected projected = NativeBattleScriptedMeshPreparation.Project(prepared, extent, projection, registers.Dqa, registers.Dqb, registers.Depths, lighting, currentStep, morph, registers.DepthScaleBits1877DA8, NativeBattleCinematicVisualIdentity.Identity(profile.Effect, frame, bank, index) with { ResourceGeneration = profile.Effect is 18 or 208 or 211 ? shape : 0 });
         NativeBattleScriptedMeshSubmission submitted = NativeBattleScriptedMeshPreparation.Submit(projected, extent, ReadHandler, ReadStride, OtBucket);
         submitted = submitted with { Packets = NativeBattleEffect249Presentation.FinalizeCapturedBatch(profile.Effect, kind, submitted.Packets) };
         frame = submitted.Frame;
@@ -72,6 +72,10 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic mesh requires its actual current ordering table.");
             if ((ReadSlot(frame, 0x4C, 1)[0] & 1) != 0)
             {
+                if (graphics.OriginalEffect is { Binding.Effect: 208 or 211 } selected)
+                {
+                    graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, "20DFAB8", 0, ArenaOffset(start, 0), submitted.Packets) } };
+                }
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, ArenaOffset(start, 0), primitive.Pending, submitted.Packets);
                 memory = written.Memory;
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
@@ -82,6 +86,10 @@ public sealed partial class BattleSession
                 if (start != common.ByteCursor)
                 {
                     throw new InvalidDataException("Native cinematic mesh COMMON cursor disagrees with its current physical packet owner.");
+                }
+                if (graphics.OriginalEffect is { Binding.Effect: 208 or 211 } selected)
+                {
+                    graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, common.PacketBank!, common.PacketBuffer, common.ByteCursor!.Value, submitted.Packets) } };
                 }
                 NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(common, primitive.Pending, submitted.Packets);
                 memory = memory with { PrimitiveProcess = written.Process };

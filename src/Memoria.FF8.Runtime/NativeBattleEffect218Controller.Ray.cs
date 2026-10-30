@@ -53,7 +53,7 @@ public static partial class NativeBattleEffect218Controller
             ushort spriteFrame = BinaryPrimitives.ReadUInt16LittleEndian(row);
             frame = PrepareBillboard633440(frame, position, null, scale, 0, currentView, projection, normalDepth);
             context = context.Write(4, BitConverter.GetBytes(spriteFrame));
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, projection, cameraRoll);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleEffect218Presentation.DrawSprite(frame.Memory, context, resources.Sprite, projection, cameraRoll, pilotIdentity: NativeBattleEffect218Presentation.Resource(frame, 0, index));
             context = drawn.Temporary180;
             frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, context, 180);
             frame = deliver(frame, drawn.Batch);

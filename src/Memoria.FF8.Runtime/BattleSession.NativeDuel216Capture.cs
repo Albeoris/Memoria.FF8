@@ -34,7 +34,8 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native69A790 requires its authenticated model color arithmetic.");
         ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
         (byte[] retained, _) = frame.Staging.ReadSnapshot(workspace, capacity);
-        NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, transform.Projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth);
+        NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, transform.Projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth, pilotIdentity: NativeBattleDuel28Presentation.Identity(216, frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel216Controller.Main).Slots[0], 0, 0x69A790) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(source) }, pilotScreenSpace: true, pilotContinuous: false);
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, "20DFAB8", 0, frame.Effect.DrawArenaOffset!.Value, drawn.Packets) } };
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, frame.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native69A790 requires its actual private cursor."), ordering, drawn.Packets);
         uint cursor = checked(0x20DFAB8u + (uint)written.Cursor);
         staging = frame.Staging.Write(workspace, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)).Write(0x2508874, BitConverter.GetBytes(cursor));

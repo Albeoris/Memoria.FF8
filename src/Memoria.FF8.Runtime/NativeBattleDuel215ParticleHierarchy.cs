@@ -19,7 +19,7 @@ public static partial class NativeBattleDuel215Controller
         return new(NativeBattleGfMatrices.Compose56C2F0(view, local), new(0, 0, 0), "0\0\0", -128, 0, 0, Arena + 63768);
     }
 
-    public static NativeBattleDuel215ParticleHierarchyStep Advance69CB10(NativeBattleDuel215Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering)
+    public static NativeBattleDuel215ParticleHierarchyStep Advance69CB10(NativeBattleDuel215Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering, bool capturePresentation = false)
     {
         NativeBattleModulePoolTask task = pool.Slots[slot];
         if (pool.DescriptorAddress != Particles || task.Callback != 0x69CB10)
@@ -39,9 +39,13 @@ public static partial class NativeBattleDuel215Controller
         NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 24, size);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
-            NativeBattleDuel215HierarchyStep drawn = NativeBattleDuel215Hierarchy.Draw69C220(frame, source, node, context, projection, colors);
+            NativeBattleDuel215HierarchyStep drawn = NativeBattleDuel215Hierarchy.Draw69C220(frame, source, node, context, projection, colors, capturePresentation ? NativeBattleDuel28Presentation.Identity(215, task, source.Address, unchecked(24 * 65537 + node.ResourceOffset)) : null);
             frame = drawn.Frame;
             int cursor = frame.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Duel215 particle hierarchy requires its actual private packet cursor.");
+            if (capturePresentation)
+            {
+                frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, "20DFAB8", 0, cursor, drawn.Batch) } };
+            }
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, cursor, ordering, drawn.Batch);
             frame = frame with { Memory = written.Memory, Effect = frame.Effect with { DrawArenaOffset = written.Cursor }, Staging = Dword(frame.Staging, 0x2508988, checked(Arena + (uint)written.Cursor)) };
             ordering = written.Ordering;

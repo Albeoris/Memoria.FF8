@@ -23,6 +23,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Duel215 requires its actual view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Duel215 requires its authenticated color arithmetic.");
         NativeBattleDuel215Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel215 requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Duel215 requires retained shared memory."), nativeCrtRandom ?? throw new NotSupportedException("Native Duel215 requires retained CRT state."));
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = [] } };
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Duel215 requires its actual action contact pointer.");
         int count = header.ReadByte(16);
@@ -85,8 +86,9 @@ public sealed partial class BattleSession
         NativeBattleDuel215Frame Body(NativeBattleDuel215Frame current, int index, NativeBattleVector angles, NativeBattleVector pivot)
         {
             Publish(current);
-            graphics = DrawNativeDuel215Body69D200(graphics, index, view, angles, pivot, projection);
-            return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Duel215 body drawing lost its effect memory."), Staging = NativeFileStaging ?? throw new InvalidDataException("Native Duel215 body drawing lost its temporary memory.") };
+            NativeBattlePrimitiveReference bodyStart = NativeBattleDuel28Presentation.Start(NativeEffectMemory!.PrimitiveProcess!);
+            graphics = DrawNativeDuel215Body69D200(graphics, index, view, angles, pivot, projection, NativeBattleDuel28Presentation.Identity(215, current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel215Controller.Scene).Slots[0], 0, index));
+            return current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Common(current.Effect.PresentationPackets, Ordering(), bodyStart, NativeEffectMemory!.PrimitiveProcess!) }, Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Duel215 body drawing lost its effect memory."), Staging = NativeFileStaging ?? throw new InvalidDataException("Native Duel215 body drawing lost its temporary memory.") };
         }
         NativeBattleDuel215Step Child(NativeBattleDuel215Frame current, NativeBattleEffectTaskPool pool, int slot)
         {
@@ -96,7 +98,7 @@ public sealed partial class BattleSession
             }
             if (pool.Slots[slot].Callback == 0x69CB10)
             {
-                NativeBattleDuel215ParticleHierarchyStep advanced = NativeBattleDuel215Controller.Advance69CB10(current, pool, slot, view, projection, colors, Ordering());
+                NativeBattleDuel215ParticleHierarchyStep advanced = NativeBattleDuel215Controller.Advance69CB10(current, pool, slot, view, projection, colors, Ordering(), capturePresentation: true);
                 StoreOrdering(advanced.Ordering);
                 return advanced.Step;
             }
@@ -122,10 +124,13 @@ public sealed partial class BattleSession
                 case NativeBattleDuel215Packets packets:
                     if (packets.Common)
                     {
+                        NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess!;
+                        current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, packets.Batch) } };
                         NativeBattleCommonPacketWrite common = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Duel215 debris requires its current common packet owner."), Ordering(), packets.Batch);
                         StoreOrdering(common.Ordering);
                         return current with { Memory = current.Memory with { PrimitiveProcess = common.Process } };
                     }
+                    current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, current.Effect.DrawArenaOffset!.Value, packets.Batch) } };
                     NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, current.Effect.DrawArenaOffset ?? throw new InvalidDataException("Native Duel215 lost its actual private packet cursor."), Ordering(), packets.Batch);
                     StoreOrdering(written.Ordering);
                     return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor }, Staging = current.Staging.Write(0x2508988, BitConverter.GetBytes(checked(NativeBattleDuel215Controller.Arena + (uint)written.Cursor))) };
@@ -146,18 +151,19 @@ public sealed partial class BattleSession
                     NativeStage = groups with { Groups = groups.Groups.Select(group => group with { Flags = flags.Enabled ? (byte)(group.Flags | 2) : (byte)(group.Flags & ~2) }).ToImmutableArray() };
                     return current;
                 case NativeBattleDuel215ProgramDraw program:
-                    NativeBattleDuel215WorkspaceStep drawn = NativeBattleDuel215Workspaces.Advance69B070(current, program.Slot, program.Offset, program.Size, program.Context, program.Anchored, projection, colors, Ordering());
+                    NativeBattleDuel215WorkspaceStep drawn = NativeBattleDuel215Workspaces.Advance69B070(current, program.Slot, program.Offset, program.Size, program.Context, program.Anchored, projection, colors, Ordering(), capturePresentation: true);
                     StoreOrdering(drawn.Ordering);
                     return drawn.Frame;
                 case NativeBattleDuel215BodyDraw body:
                     Publish(current);
-                    graphics = DrawNativeDuel215Body69D100(graphics, body.Actor, view, projection);
-                    return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Duel215 actor drawing lost its effect memory."), Staging = NativeFileStaging ?? throw new InvalidDataException("Native Duel215 actor drawing lost its temporary memory.") };
+                    NativeBattlePrimitiveReference bodyStart = NativeBattleDuel28Presentation.Start(NativeEffectMemory!.PrimitiveProcess!);
+                    graphics = DrawNativeDuel215Body69D100(graphics, body.Actor, view, projection, NativeBattleDuel28Presentation.Identity(215, current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel215Controller.Scene).Slots[0], 0, body.Actor));
+                    return current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Common(current.Effect.PresentationPackets, Ordering(), bodyStart, NativeEffectMemory!.PrimitiveProcess!) }, Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Duel215 actor drawing lost its effect memory."), Staging = NativeFileStaging ?? throw new InvalidDataException("Native Duel215 actor drawing lost its temporary memory.") };
                 case NativeBattleDuel215TargetsDraw target:
                     return NativeBattleDuel215Targets.Advance69B070(current, target.Slot, target.Tick, recipients);
                 case NativeBattleDuel215DebrisDraw debris:
                     NativeBattleModulePoolTask task = current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel215Controller.Scene).Slots[debris.Slot];
-                    return NativeBattleDuel215Controller.DrawParticles69CC90(current, task, inputs, view, projection);
+                    return NativeBattleDuel215Controller.DrawParticles69CC90(current, task, inputs, view, projection, capturePresentation: true);
                 case NativeBattleDuel215Sound sound:
                     PublishNativeModuleSound(new(sound.Identifier, 0, null) { Pan = 128, RawPan = 128 });
                     return current;

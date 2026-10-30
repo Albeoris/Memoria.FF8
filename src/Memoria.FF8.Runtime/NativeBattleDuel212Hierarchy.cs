@@ -7,7 +7,7 @@ public sealed record NativeBattleDuel212HierarchyStep(NativeBattleDuel212Frame F
 
 public static class NativeBattleDuel212Hierarchy
 {
-    public static NativeBattleDuel212HierarchyStep Draw6A2B80(NativeBattleDuel212Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel212Program context, int workspaceFrame, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleDuel212HierarchyStep Draw6A2B80(NativeBattleDuel212Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel212Program context, int workspaceFrame, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
         {
@@ -15,6 +15,7 @@ public static class NativeBattleDuel212Hierarchy
         }
         NativeBattleDuel212Resources resources = frame.Memory.Duel212?.Resources ?? throw new NotSupportedException("Native Burning Rave hierarchy requires original entered resources.");
         uint meshAddress = checked(source.Address + resources.Dword(checked(source.Address + 8u + (uint)(4 * unchecked((short)node.GeometryIndex)))));
+        pilotIdentity = pilotIdentity is { } owner ? owner with { ResourceGeneration = unchecked(owner.ResourceGeneration * 397 ^ meshAddress) } : null;
         int geometry = checked((int)(meshAddress - NativeBattleDuel212Resources.Address));
         int count = checked((int)resources.Dword(meshAddress + 4));
         bool morphed = node.Word40 != node.Word42 && node.Scalar38 is not (0 or 4096);
@@ -83,7 +84,7 @@ public static class NativeBattleDuel212Hierarchy
             frame = born.Frame with { Effect = born.Frame.Effect with { Pools = born.Frame.Effect.Pools.Select(pool => pool.DescriptorAddress == particles.DescriptorAddress ? born.Pool : pool).ToImmutableArray() } };
         }
         NativeBattleEsunaMeshContext operands = new(flags, fade != 0 ? farColor : null, fade != 0 ? fade : null, depth, 0, vertical, new(0, 0, 256, 256), after, 17, 2);
-        NativeBattleWindowedMesh701DD0Result drawn = NativeBattleWindowedMesh701DD0.Emit(frame.Staging, allocation.Address, meshAddress, resources.Read(meshAddress, checked((int)(NativeBattleDuel212Resources.EndAddress - meshAddress))), matrix, projection, operands, colors, ReadSelected);
+        NativeBattleWindowedMesh701DD0Result drawn = NativeBattleWindowedMesh701DD0.Emit(frame.Staging, allocation.Address, meshAddress, resources.Read(meshAddress, checked((int)(NativeBattleDuel212Resources.EndAddress - meshAddress))), matrix, projection, operands, colors, ReadSelected, pilotIdentity: pilotIdentity);
         return new(frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(drawn.Staging, 108) }, drawn.Batch);
 
         NativeBattleVector ReadSelected(int offset)

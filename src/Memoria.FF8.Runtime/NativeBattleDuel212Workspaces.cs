@@ -6,7 +6,7 @@ public sealed record NativeBattleDuel212WorkspaceStep(NativeBattleDuel212Frame F
 
 public static class NativeBattleDuel212Workspaces
 {
-    public static NativeBattleDuel212WorkspaceStep Advance701970(NativeBattleDuel212Frame frame, NativeBattleDuel212Program operation, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering)
+    public static NativeBattleDuel212WorkspaceStep Advance701970(NativeBattleDuel212Frame frame, NativeBattleDuel212Program operation, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering, bool capturePresentation = false)
     {
         NativeBattleDuel212Resources resources = frame.Memory.Duel212?.Resources ?? throw new NotSupportedException("Native Burning Rave workspace requires original entered resources.");
         (int offset, int size, uint address) = Contract(operation);
@@ -20,9 +20,13 @@ public static class NativeBattleDuel212Workspaces
         }
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
-            NativeBattleDuel212HierarchyStep drawn = NativeBattleDuel212Hierarchy.Draw6A2B80(frame, source, node, operation, current.Frame, projection, colors);
+            NativeBattleDuel212HierarchyStep drawn = NativeBattleDuel212Hierarchy.Draw6A2B80(frame, source, node, operation, current.Frame, projection, colors, capturePresentation ? NativeBattleDuel28Presentation.Identity(212, task, source.Address, unchecked(offset * 65537 + node.ResourceOffset)) : null);
             frame = drawn.Frame;
             int cursor = frame.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Burning Rave requires its actual double-buffered packet cursor.");
+            if (capturePresentation)
+            {
+                frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, "20DFAB8", 0, cursor, drawn.Batch) } };
+            }
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, cursor, ordering, drawn.Batch);
             frame = frame with { Memory = written.Memory, Effect = frame.Effect with { DrawArenaOffset = written.Cursor }, Staging = frame.Staging.Write(0x2510258, BitConverter.GetBytes(checked(0x20DFAB8u + (uint)written.Cursor))) };
             ordering = written.Ordering;

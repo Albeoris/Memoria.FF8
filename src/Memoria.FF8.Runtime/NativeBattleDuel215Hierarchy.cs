@@ -8,9 +8,9 @@ public sealed record NativeBattleDuel215HierarchyStep(NativeBattleDuel215Frame F
 
 public static class NativeBattleDuel215Hierarchy
 {
-    public static NativeBattleDuel215HierarchyStep Draw69C220(NativeBattleDuel215Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel215Program context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors) => Draw(frame, source, node, context, projection, colors, false);
+    public static NativeBattleDuel215HierarchyStep Draw69C220(NativeBattleDuel215Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel215Program context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null) => Draw(frame, source, node, context, projection, colors, false, pilotIdentity);
 
-    public static NativeBattleDuel215HierarchyStep Draw69C6B0(NativeBattleDuel215Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel215Program context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors) => Draw(frame, source, node, context, projection, colors, true);
+    public static NativeBattleDuel215HierarchyStep Draw69C6B0(NativeBattleDuel215Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel215Program context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null) => Draw(frame, source, node, context, projection, colors, true, pilotIdentity);
 
     public static NativeBattleActionMatrix Matrix(NativeBattleGfAnimationNode node, NativeBattleDuel215Program context, bool anchored)
     {
@@ -57,7 +57,7 @@ public static class NativeBattleDuel215Hierarchy
         return rotation with { X = unchecked(x + context.Basis.X), Y = unchecked(y + context.Basis.Y), Z = unchecked(z + context.Basis.Z) };
     }
 
-    private static NativeBattleDuel215HierarchyStep Draw(NativeBattleDuel215Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel215Program context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool anchored)
+    private static NativeBattleDuel215HierarchyStep Draw(NativeBattleDuel215Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel215Program context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool anchored, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
         {
@@ -68,6 +68,7 @@ public static class NativeBattleDuel215Hierarchy
         frame = frame with { Staging = allocation.Staging };
         int geometryIndex = unchecked((short)node.GeometryIndex);
         uint meshAddress = checked(source.Address + resources.Dword(checked(source.Address + 8u + (uint)(geometryIndex * 4))));
+        pilotIdentity = pilotIdentity is { } owner ? owner with { ResourceGeneration = unchecked(owner.ResourceGeneration * 397 ^ meshAddress) } : null;
         ImmutableArray<byte> mesh = resources.Read(meshAddress, checked((int)(NativeBattleDuel215Resources.EndAddress - meshAddress)));
         int count = checked((int)resources.Dword(meshAddress + 4));
         bool arenaSelected = node.Word40 != node.Word42 && node.Scalar38 is not (0 or 4096);
@@ -125,7 +126,7 @@ public static class NativeBattleDuel215Hierarchy
             staging = Dword(Dword(Dword(staging, address + 8, 0), address + 12, unchecked((uint)fade)), address + 28, flags);
         }
         NativeBattleEsunaMeshContext operands = new(flags, fade != 0 ? farColor : null, fade != 0 ? fade : null, context.Depth, 0, vertical, new(0, 0, 256, 256), after, 17, 2);
-        NativeBattleWindowedMesh701DD0Result drawn = NativeBattleWindowedMesh701DD0.Emit(staging, address, meshAddress, mesh, Matrix(node, context, anchored), projection, operands, colors, ReadSelected);
+        NativeBattleWindowedMesh701DD0Result drawn = NativeBattleWindowedMesh701DD0.Emit(staging, address, meshAddress, mesh, Matrix(node, context, anchored), projection, operands, colors, ReadSelected, pilotIdentity: pilotIdentity);
         return new(frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(drawn.Staging, 108) }, drawn.Batch);
 
         NativeBattleVector ReadSelected(int offset)

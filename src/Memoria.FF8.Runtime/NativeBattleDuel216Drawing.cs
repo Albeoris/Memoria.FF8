@@ -7,7 +7,7 @@ public sealed record NativeBattleDuel216DrawingStep(NativeBattleDuel216Frame Fra
 
 public static class NativeBattleDuel216Drawing
 {
-    public static NativeBattleGfGeometryBatch Flash699EE0(int phase)
+    public static NativeBattleGfGeometryBatch Flash699EE0(int phase, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if ((uint)phase > 1)
         {
@@ -21,7 +21,12 @@ public static class NativeBattleDuel216Drawing
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
         }
         ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 24).ToImmutableArray();
-        return new([new(0, bytes.ToImmutableArray(), mask, new(8, words, [0, 0, 0, 0]))], 24);
+        NativeBattleGeometryPrimitive primitive = new(8, words, [0, 0, 0, 0]);
+        if (pilotIdentity is { } identity)
+        {
+            primitive = primitive with { PilotGeometry = new(identity, new(0, 0, 0), new(320, 0, 0), new(0, 216, 0), new(320, 216, 0), 4, false) { ScreenSpace = true, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };
+        }
+        return new([new(0, bytes.ToImmutableArray(), mask, primitive)], 24);
     }
 
     public static NativeBattleDuel216Frame Morph69A670(NativeBattleDuel216Frame frame, uint sourceAddress, int scale, int angle)
@@ -51,7 +56,7 @@ public static class NativeBattleDuel216Drawing
         return frame with { Memory = frame.Memory with { Arena = arena } };
     }
 
-    public static NativeBattleDuel216DrawingStep DrawMorph6960E0(NativeBattleDuel216Frame frame, int phase, int divisor, bool fade, NativeBattleVector bone20, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleDuel216DrawingStep DrawMorph6960E0(NativeBattleDuel216Frame frame, int phase, int divisor, bool fade, NativeBattleVector bone20, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int finalPhase = divisor == 3 ? 3 : 4;
         if (divisor is not (3 or 5) || phase < 0 || phase > finalPhase || fade != (phase == finalPhase))
@@ -78,11 +83,11 @@ public static class NativeBattleDuel216Drawing
         {
             byte[] bytes = frame.Memory.Arena!.Read(checked(11480 + index * 8), 6);
             return new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4)));
-        });
+        }, pilotIdentity);
         return new(frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(drawn.Staging, 148) }, drawn.Batch);
     }
 
-    public static NativeBattleDuel216DrawingStep Draw69A410(NativeBattleDuel216Frame frame, NativeBattleDuel216MeshParticle particle, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleDuel216DrawingStep Draw69A410(NativeBattleDuel216Frame frame, NativeBattleDuel216MeshParticle particle, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleDuel216Resources resources = frame.Memory.Duel216?.Resources ?? throw new NotSupportedException("Native Different Beat debris requires its original mesh.");
         NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging, 152);
@@ -91,7 +96,7 @@ public static class NativeBattleDuel216Drawing
         NativeBattleFileStaging staging = Rotation(temporary.Staging, address + 120, particle.Basis120).Write(address + 138, new byte[2]);
         staging = Matrix(staging, address + 88, matrix).Write(address, BitConverter.GetBytes(particle.Source)).Write(address + 28, new byte[4]);
         ImmutableArray<byte> mesh = resources.Read(particle.Source, checked((int)(NativeBattleDuel216Resources.EndAddress - particle.Source)));
-        NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(staging, address, particle.Source, mesh, matrix, projection, new(0, null, null, null, null, null, 17, 2), colors);
+        NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(staging, address, particle.Source, mesh, matrix, projection, new(0, null, null, null, null, null, 17, 2), colors, pilotIdentity: pilotIdentity ?? particle.PilotIdentity);
         return new(frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(drawn.Staging, 152) }, drawn.Batch);
     }
 

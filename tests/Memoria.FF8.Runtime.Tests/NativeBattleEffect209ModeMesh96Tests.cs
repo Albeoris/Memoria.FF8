@@ -101,6 +101,37 @@ public sealed class NativeBattleEffect209ModeMesh96Tests
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Memory.GeometryRegisters)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(second.Memory.GeometryRegisters)));
     }
 
+    [Theory]
+    [InlineData(0x33u, false)]
+    [InlineData(0xF3u, false)]
+    [InlineData(0x33u, true)]
+    [InlineData(0xF3u, true)]
+    public void Captured209_custom_faces_preserve_native_FIFO_masks_modes_and_rejection_reads(uint flags, bool rejected)
+    {
+        NativeBattleStaticMeshResource mesh = Mesh(zeroArea: rejected);
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleEffect209ModeMesh96Step native = NativeBattleEffect209ModeMesh96.DrawLoaded(Memory(), mesh, projection, Context(flags), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattleEffect209ModeMesh96Step captured = NativeBattleEffect209ModeMesh96.DrawPresentation(Memory(), mesh, projection, Context(flags), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: new(209, 1, 2, 3, 4) { ResourceGeneration = mesh.Address });
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(native));
+        if (rejected)
+        {
+            Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+        }
+        else
+        {
+            Assert.Equal(80, captured.Batch.Attempts.Length);
+            Assert.All(captured.Batch.Attempts, attempt =>
+            {
+                NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(attempt.Primitive!.PilotGeometry);
+                Assert.Equal((ushort)209, visual.Identity.Effect);
+                Assert.True(visual.UseSourceDepths);
+                Assert.Equal(new System.Numerics.Vector4(attempt.Primitive.VertexPayload4[0], attempt.Primitive.VertexPayload4[1], attempt.Primitive.VertexPayload4[2], attempt.Primitive.VertexPayload4[3]), visual.SourceDepths);
+            });
+        }
+    }
+
     private static NativeBattleEffect209ModeMesh96Step Draw(NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context) => NativeBattleEffect209ModeMesh96.DrawLoaded(Memory(), mesh, new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270);
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
     private static NativeBattleEffectArena Context(uint flags) => NativeBattleEffectArena.Clear().MarkUnknown(0, 96).Write(0, BitConverter.GetBytes(0x10000000u)).Write(8, new byte[4]).Write(12, BitConverter.GetBytes(2048u)).Write(0x18, BitConverter.GetBytes(0x12345678u)).Write(0x1C, BitConverter.GetBytes(flags)).Write(0x58, BitConverter.GetBytes(0xE1000240u)).Write(0x5C, BitConverter.GetBytes(0xE1000220u));

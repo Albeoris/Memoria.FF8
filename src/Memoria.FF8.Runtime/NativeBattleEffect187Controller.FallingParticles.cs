@@ -29,7 +29,7 @@ public static partial class NativeBattleEffect187Controller
             sprite = Context(frame, spriteAddress, 180).Write(0x10, BitConverter.GetBytes(unchecked(width * 2 + 0x1200)));
             frame = PublishContext(frame, spriteAddress, sprite, 180);
             frame = frame with { Memory = IrToTranslation64DE90(frame.Memory) };
-            frame = DrawSprite(frame, spriteAddress, resources, inputs);
+            frame = DrawSprite(frame, spriteAddress, resources, inputs, Visual187(frame, address, inputs, unchecked((uint)ParticleDword(Context(frame, spriteAddress, 180), 0)), rowAddress));
             if ((inputs.ReadFlags(frame) & 0x201) != 0)
             {
                 continue;
@@ -44,7 +44,7 @@ public static partial class NativeBattleEffect187Controller
             else
             {
                 row = row.Write(0, BitConverter.GetBytes(0u));
-                uint? wave = FindFreeParticle(frame, 0xE41E54);
+                uint? wave = FindFreeParticle(frame, 0xE41E54, inputs.CapturePresentation ? Read(frame, address) : null);
                 if (wave is uint destination)
                 {
                     NativeBattleEffectArena ripple = ReadBytes(frame, destination, 24).Write(0, BitConverter.GetBytes(1u));
@@ -77,7 +77,7 @@ public static partial class NativeBattleEffect187Controller
             frame = PublishContext(frame, scratchAddress, scratch, 104);
             frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(matrix, null));
             frame = PublishContext(frame, spriteAddress, ParticleWord(Context(frame, spriteAddress, 180), 4, ParticleSigned(row, 4)), 180);
-            frame = DrawSprite(frame, spriteAddress, resources, inputs);
+            frame = DrawSprite(frame, spriteAddress, resources, inputs, Visual187(frame, address, inputs, unchecked((uint)ParticleDword(Context(frame, spriteAddress, 180), 0)), rowAddress));
             if ((inputs.ReadFlags(frame) & 0x201) == 0)
             {
                 row = ParticleWord(row, 4, ParticleSigned(row, 4) + 1);
@@ -105,7 +105,7 @@ public static partial class NativeBattleEffect187Controller
             int births = Math.Min(ParticleRoll(ref frame) % 6 + age / 4 + 1, 30);
             for (int birth = 0; birth < births; birth++)
             {
-                uint? free = FindFreeParticle(frame, 0xE41E50);
+                uint? free = FindFreeParticle(frame, 0xE41E50, inputs.CapturePresentation ? Read(frame, address) : null);
                 if (free is not uint destination)
                 {
                     break;
@@ -132,14 +132,14 @@ public static partial class NativeBattleEffect187Controller
         return frame with { Memory = NativeBattleEffect315Gte.TransformAlternate4607E0(frame.Memory) };
     }
 
-    private static NativeBattleEffect187Frame DrawSprite(NativeBattleEffect187Frame frame, uint address, NativeBattleEffect187Resources resources, NativeBattleEffect187Inputs inputs)
+    private static NativeBattleEffect187Frame DrawSprite(NativeBattleEffect187Frame frame, uint address, NativeBattleEffect187Resources resources, NativeBattleEffect187Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleModuleSpriteDraw drawn = NativeBattleEffect187SpriteDrawing.Draw571C80(frame.Memory, Context(frame, address, 180), resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame));
+        NativeBattleModuleSpriteDraw drawn = NativeBattleEffect187SpriteDrawing.Draw571C80(frame.Memory, Context(frame, address, 180), resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), pilotIdentity);
         frame = PublishContext(frame with { Memory = drawn.Memory }, address, drawn.Temporary180, 180);
         return inputs.Execute(frame, new NativeBattleEffect187DeliverBatch(drawn.Batch, 0x1D8E054));
     }
 
-    private static uint? FindFreeParticle(NativeBattleEffect187Frame frame, uint global)
+    private static uint? FindFreeParticle(NativeBattleEffect187Frame frame, uint global, NativeBattleModulePoolTask? owner = null)
     {
         uint start = frame.State.ReadDword(global);
         for (int index = 0; index < 150; index++)
@@ -147,9 +147,29 @@ public static partial class NativeBattleEffect187Controller
             uint address = checked(start + (uint)(index * 24));
             if (ParticleDword(ReadBytes(frame, address, 4), 0) == 0)
             {
+                if (owner is not null)
+                {
+                    NativeBattleShotVisualLifetimes.Allocated(187, owner, unchecked((int)address));
+                }
                 return address;
             }
         }
         return null;
     }
+    private static NativeBattlePilotVisualIdentity? Visual187(NativeBattleEffect187Frame frame, uint address, NativeBattleEffect187Inputs inputs, uint source, uint? row = null)
+    {
+        if (!inputs.CapturePresentation)
+        {
+            return null;
+        }
+        NativeBattleModulePoolTask task = Read(frame, address);
+        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(187, task);
+        if (row is uint physicalRow)
+        {
+            identity = NativeBattleShotVisualLifetimes.Identity(187, task, identity, unchecked((int)physicalRow));
+            return NativeBattleShotVisualLifetimes.Resource(identity, source);
+        }
+        return identity with { ResourceGeneration = source };
+    }
+
 }

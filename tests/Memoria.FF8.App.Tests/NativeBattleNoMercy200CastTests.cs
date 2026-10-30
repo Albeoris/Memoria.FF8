@@ -7,6 +7,12 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleNoMercy200CastTests
 {
+    [Fact]
+    public void Installed_NoMercy200_standalone_component()
+    {
+        Installed_No_Mercy_completes_original_graphics_and_independent_standalones(6, 200);
+    }
+
     [Theory]
     [InlineData(6, 200)]
     public void Installed_No_Mercy_completes_original_graphics_and_independent_standalones(int characterId, ushort effectId)
@@ -25,6 +31,7 @@ public sealed class NativeBattleNoMercy200CastTests
         bool selected = false;
         bool drawn = false;
         bool midpoint = false;
+        int capturedFrames = 0;
         try
         {
             for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
@@ -44,6 +51,10 @@ public sealed class NativeBattleNoMercy200CastTests
             {
                 before = battle.Capture();
                 battle.Tick();
+                if (NativeBattleActorLowerCaptureAssertions.AssertOwned(battle.Capture(), 200) > 0)
+                {
+                    capturedFrames++;
+                }
                 NativeBattleGraphicsState graphics = battle.NativeGraphics!;
                 bool active = graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId;
                 if (active)
@@ -67,6 +78,7 @@ public sealed class NativeBattleNoMercy200CastTests
                 {
                     Assert.True(drawn);
                     Assert.True(midpoint);
+                    Assert.True(capturedFrames > 1);
                     Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy");
                     CompareNext("completed", battle);
                     File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", characterId, effectId, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback, selected, drawn, midpoint }));
@@ -96,6 +108,8 @@ public sealed class NativeBattleNoMercy200CastTests
             before = current.Capture();
             current.Tick();
             clone.Tick();
+            _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(current.Capture(), 200);
+            _ = NativeBattleActorLowerCaptureAssertions.AssertOwned(clone.Capture(), 200);
             Assert.Equal(JsonSerializer.Serialize(current.Capture()), JsonSerializer.Serialize(clone.Capture()));
             Assert.Equal(scene.Render(current, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
             Publish(name + "-next", current);

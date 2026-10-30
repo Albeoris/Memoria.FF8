@@ -29,7 +29,7 @@ public static partial class NativeBattleEffect187Controller
         {
             (frame, uint temporary) = Allocate(frame, 88);
             NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0xE41B28u)).Write(8, new byte[4]).Write(0x1C, BitConverter.GetBytes(0x33u));
-            NativeBattleDefaultActMeshStep drawn = NativeBattleEffect187MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0xE41B28), inputs.ReadProjection(frame), context, inputs.Colors, 14, tableBaseBucket: tableBase);
+            NativeBattleDefaultActMeshStep drawn = NativeBattleEffect187MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0xE41B28), inputs.ReadProjection(frame), context, inputs.Colors, 14, tableBaseBucket: tableBase, pilotIdentity: Visual187(frame, address, inputs, 0xE41B28));
             frame = frame with { Memory = drawn.Memory };
             frame = PublishContext(frame, temporary, drawn.Context88, 88);
             frame = inputs.Execute(frame, new NativeBattleEffect187DeliverBatch(drawn.Batch, 0x1D8E054));

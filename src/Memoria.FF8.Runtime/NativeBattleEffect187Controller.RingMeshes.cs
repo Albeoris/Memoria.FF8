@@ -23,7 +23,7 @@ public static partial class NativeBattleEffect187Controller
         {
             context = context.Write(0x1C, BitConverter.GetBytes(0xF3u)).Write(12, BitConverter.GetBytes(unchecked((age - fadeStart) * (inner ? 512 : 682))));
         }
-        NativeBattleDefaultActMeshStep drawn = NativeBattleEffect187MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0xE41140), inputs.ReadProjection(frame), context, inputs.Colors, 2);
+        NativeBattleDefaultActMeshStep drawn = NativeBattleEffect187MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0xE41140), inputs.ReadProjection(frame), context, inputs.Colors, 2, pilotIdentity: Visual187(frame, address, inputs, 0xE41140));
         frame = frame with { Memory = drawn.Memory };
         frame = PublishContext(frame, temporary, drawn.Context88, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect187DeliverBatch(drawn.Batch, 0x1D8E054));

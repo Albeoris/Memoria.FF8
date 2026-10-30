@@ -8,7 +8,7 @@ public sealed record NativeBattleDuel216HierarchyStep(NativeBattleDuel216Frame F
 
 public static class NativeBattleDuel216Hierarchy
 {
-    public static NativeBattleDuel216HierarchyStep Draw6978F0(NativeBattleDuel216Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel216Program context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleDuel216HierarchyStep Draw6978F0(NativeBattleDuel216Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel216Program context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
         {
@@ -17,6 +17,7 @@ public static class NativeBattleDuel216Hierarchy
         NativeBattleDuel216Resources resources = frame.Memory.Duel216?.Resources ?? throw new NotSupportedException("Native Duel216 hierarchy requires its actual retained resource owner.");
         int geometryIndex = unchecked((short)node.GeometryIndex);
         uint meshAddress = checked(source.Address + resources.Dword(checked(source.Address + 8u + (uint)(geometryIndex * 4))));
+        pilotIdentity = pilotIdentity is { } owner ? owner with { ResourceGeneration = unchecked(owner.ResourceGeneration * 397 ^ meshAddress) } : null;
         int count = checked((int)resources.Dword(meshAddress + 4));
         bool morphed = node.Word40 != node.Word42 && node.Scalar38 is not (0 or 4096);
         uint selected;
@@ -72,7 +73,7 @@ public static class NativeBattleDuel216Hierarchy
             }
             int depth = unchecked(context.Depth + 256);
             staging = staging.Write(address + 24, BitConverter.GetBytes(depth));
-            batch = NativeBattleDuel216MeshPackets.EmitBatch697D10(meshAddress, mesh, matrix, projection, flags, fade ? node.Color32 : null, fade ? node.Scalar36 : null, depth, colors, ReadSelected, (offset, value) => staging = staging.Write(checked(address + (uint)offset), BitConverter.GetBytes(value)));
+            batch = NativeBattleDuel216MeshPackets.EmitBatch697D10(meshAddress, mesh, matrix, projection, flags, fade ? node.Color32 : null, fade ? node.Scalar36 : null, depth, colors, ReadSelected, (offset, value) => staging = staging.Write(checked(address + (uint)offset), BitConverter.GetBytes(value)), pilotIdentity);
         }
         else
         {
@@ -86,7 +87,7 @@ public static class NativeBattleDuel216Hierarchy
                 staging = staging.Write(address + 8, new byte[4]).Write(address + 12, BitConverter.GetBytes(amount)).Write(address + 28, BitConverter.GetBytes(flags));
             }
             NativeBattleEsunaMeshContext operands = new(flags, (flags & 0xC0) != 0 ? far : null, (flags & 0xC0) != 0 ? amount : null, context.Depth, 0, vertical, new(0, 0, 256, 256), after, 17, 2);
-            NativeBattleWindowedMesh701DD0Result rendered = NativeBattleWindowedMesh701DD0.Emit(staging, address, meshAddress, mesh, matrix, projection, operands, colors, ReadSelected);
+            NativeBattleWindowedMesh701DD0Result rendered = NativeBattleWindowedMesh701DD0.Emit(staging, address, meshAddress, mesh, matrix, projection, operands, colors, ReadSelected, pilotIdentity: pilotIdentity);
             staging = rendered.Staging;
             batch = rendered.Batch;
         }

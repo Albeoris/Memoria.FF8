@@ -17,7 +17,7 @@ public static partial class NativeBattleEffect218Controller
         (frame, uint temporary) = Allocate(frame, 96);
         uint meshAddress = resources.FragmentMeshes[selected];
         NativeBattleEffectArena context = Context(frame, temporary, 96).Write(0, BitConverter.GetBytes(meshAddress)).Write(8, new byte[4]).Write(28, BitConverter.GetBytes(0x3Cu)).Write(0x58, resources.FragmentOrigins.AsSpan().Slice(selected * 8, 8));
-        NativeBattleEffect218FragmentMeshStep drawn = NativeBattleEffect218FragmentMesh.Draw635280(frame.Memory, resources.Mesh(meshAddress), projection, context, colors);
+        NativeBattleEffect218FragmentMeshStep drawn = NativeBattleEffect218FragmentMesh.DrawPresentation(frame.Memory, resources.Mesh(meshAddress), projection, context, colors, NativeBattleEffect218Presentation.Resource(frame, meshAddress, selected));
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context96, 96);
         frame = deliver(frame, drawn.Batch);
         return Release(frame, 96);

@@ -78,7 +78,7 @@ public static partial class NativeBattleEffect187Controller
             sprite = ParticleWord(Context(frame, spriteAddress, 180), 4, ParticleSigned(row, 4));
             frame = PublishContext(frame, spriteAddress, sprite, 180);
             frame = frame with { Memory = IrToTranslation64DE90(frame.Memory) };
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, sprite, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, sprite, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: Visual187(frame, address, inputs, unchecked((uint)ParticleDword(sprite, 0)), rowAddress));
             frame = PublishContext(frame with { Memory = drawn.Memory }, spriteAddress, drawn.Temporary180, 180);
             frame = inputs.Execute(frame, new NativeBattleEffect187DeliverBatch(drawn.Batch, 0x1D8E054));
             if ((inputs.ReadFlags(frame) & 0x201) == 0)
@@ -124,14 +124,14 @@ public static partial class NativeBattleEffect187Controller
                 }
             }
             frame = Release(frame, 400);
-            frame = BirthBoneParticles(frame, paired);
+            frame = BirthBoneParticles(frame, paired, inputs.CapturePresentation ? task : null);
         }
         short next = unchecked((short)(age + 1));
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)next)));
         return new(frame, next >= 4 && survivors == 0 ? 2 : 0);
     }
 
-    private static NativeBattleEffect187Frame BirthBoneParticles(NativeBattleEffect187Frame frame, bool paired)
+    private static NativeBattleEffect187Frame BirthBoneParticles(NativeBattleEffect187Frame frame, bool paired, NativeBattleModulePoolTask? owner = null)
     {
         for (int birth = 0; birth < (paired ? 3 : 5); birth++)
         {
@@ -145,6 +145,10 @@ public static partial class NativeBattleEffect187Controller
                 break;
             }
             uint destination = frame.State.ReadDword(0xE41E58) + (uint)(index * 24);
+            if (owner is not null)
+            {
+                NativeBattleShotVisualLifetimes.Allocated(187, owner, unchecked((int)destination));
+            }
             NativeBattleEffectArena row = ReadBytes(frame, destination, 24).Write(0, BitConverter.GetBytes(paired ? 2u : 1u));
             row = ParticleWord(row, 4, 0);
             row = ParticleWord(row, 6, paired ? ParticleRoll(ref frame) % 1024 + 256 : ParticleRoll(ref frame) % 1152 + 896);

@@ -89,14 +89,18 @@ public static partial class NativeBattleEffect209Controller
         return (WithPool(frame, index, step.Pool), step.Survivors);
     }
 
-    public static NativeBattleEffect209Step AdvanceTask(NativeBattleEffect209Frame frame, uint address, NativeBattleEffect209Resources resources, NativeBattleEffect209Inputs inputs) => Read(frame, address).Callback switch
+    public static NativeBattleEffect209Step AdvanceTask(NativeBattleEffect209Frame frame, uint address, NativeBattleEffect209Resources resources, NativeBattleEffect209Inputs inputs)
     {
-        RootCallback => AdvanceRoot639100(frame, address, resources, inputs),
-        MainCallback => AdvanceMain6375D0(frame, address, resources, inputs),
-        AlternateCallback => AdvanceAlternate638BD0(frame, address, resources, inputs),
-        CleanupCallback => AdvanceCleanup639170(frame, address, inputs),
-        _ => NativeBattleEffect209Lower.Advance(frame, address, resources, inputs)
-    };
+        frame = frame with { PresentationIdentity = frame.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(209, Read(frame, address)) : null };
+        return Read(frame, address).Callback switch
+        {
+            RootCallback => AdvanceRoot639100(frame, address, resources, inputs),
+            MainCallback => AdvanceMain6375D0(frame, address, resources, inputs),
+            AlternateCallback => AdvanceAlternate638BD0(frame, address, resources, inputs),
+            CleanupCallback => AdvanceCleanup639170(frame, address, inputs),
+            _ => NativeBattleEffect209Lower.Advance(frame, address, resources, inputs)
+        };
+    }
 
     public static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new InvalidDataException("Effect209 requires an actual physical model.");
     private static void RequireBinding(NativeBattleEffect209Frame frame)

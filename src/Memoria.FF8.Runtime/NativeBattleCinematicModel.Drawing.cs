@@ -26,6 +26,10 @@ public static partial class NativeBattleCinematicModel
         uint table = Dword(unchecked(model + 0x14));
         uint skeleton = Dword(table);
         uint geometry = Dword(unchecked(table + 4));
+        if (pilotIdentity is { Effect: 208 or 211 } resourceIdentity)
+        {
+            pilotIdentity = resourceIdentity with { ResourceGeneration = unchecked(resourceIdentity.ResourceGeneration * 397 ^ geometry) };
+        }
         int objects = unchecked((int)Dword(geometry));
         if (objects != 1)
         {

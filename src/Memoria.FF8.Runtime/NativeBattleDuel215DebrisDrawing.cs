@@ -7,7 +7,7 @@ public sealed record NativeBattleDuel215Packets(NativeBattleGfGeometryBatch Batc
 
 public static partial class NativeBattleDuel215Controller
 {
-    public static NativeBattleDuel215Frame DrawParticles69CC90(NativeBattleDuel215Frame frame, NativeBattleModulePoolTask task, NativeBattleDuel215Inputs inputs, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
+    public static NativeBattleDuel215Frame DrawParticles69CC90(NativeBattleDuel215Frame frame, NativeBattleModulePoolTask task, NativeBattleDuel215Inputs inputs, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, bool capturePresentation = false)
     {
         NativeBattleDuel215Resources resources = frame.Memory.Duel215?.Resources ?? throw new NotSupportedException("Native Duel215 debris requires resources retained by actual entry.");
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging, 88);
@@ -39,6 +39,7 @@ public static partial class NativeBattleDuel215Controller
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 byte[] face = resources.Read(cursor, 20).ToArray();
+                System.Numerics.Vector3[]? world = capturePresentation ? new System.Numerics.Vector3[3] : null;
                 NativeBattleGfGeometryBatch batch = NativeBattleDuel215ParticlePackets.Emit69CE00(face, Project, 17, 2, allocated, observation =>
                 {
                     NativeBattleFileStaging current = Dword(frame.Staging, allocation.Address + 84, observation.Flags);
@@ -51,7 +52,7 @@ public static partial class NativeBattleDuel215Controller
                         current = Dword(current, allocation.Address + 80, unchecked((uint)depth));
                     }
                     frame = frame with { Staging = current };
-                });
+                }, capturePresentation ? NativeBattleDuel28Presentation.Identity(215, task, 0x1154F58, unchecked(index * 65537 + faceIndex)) with { ResourceGeneration = NativeBattleDuel28Presentation.Row(task, row, 0x1154F58) } : null, world);
                 attempts.AddRange(batch.Attempts);
                 allocated = checked(allocated + batch.AllocationBytes);
                 cursor = checked(cursor + 20);
@@ -62,6 +63,10 @@ public static partial class NativeBattleDuel215Controller
                     ushort offset = BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2));
                     uint address = checked(0x1154F58u + (uint)offset * 4);
                     NativeBattleVector point = new(resources.Word(address), resources.Word(address + 2), resources.Word(address + 4));
+                    if (world is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection);
+                    }
                     return NativeBattleModuleProjection.Project45FE10(matrix, point, projection);
                 }
             }

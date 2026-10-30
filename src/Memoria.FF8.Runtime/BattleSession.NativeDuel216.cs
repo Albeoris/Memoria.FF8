@@ -30,6 +30,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Different Beat requires its actual view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Different Beat requires its authenticated color arithmetic.");
         NativeBattleDuel216Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Different Beat requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Different Beat requires its retained shared memory."), nativeCrtRandom ?? throw new NotSupportedException("Native Different Beat requires its retained CRT random owner."));
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = [] } };
         int target = NativeBattleDuel274Controller.Index(BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging.Read(0x2508884, 4)));
         ImmutableArray<byte>.Builder ring = ImmutableArray.CreateBuilder<byte>();
         int? node = target;
@@ -70,6 +71,7 @@ public sealed partial class BattleSession
         }
         NativeBattleDuel216Frame Append(NativeBattleDuel216Frame current, NativeBattleGfGeometryBatch batch, ushort flags = 0)
         {
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, current.Effect.DrawArenaOffset!.Value, batch) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Different Beat requires its actual private packet cursor."), Ordering(), batch, flags);
             StoreOrdering(written.Ordering);
             return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor }, Staging = current.Staging.Write(0x2508874, BitConverter.GetBytes(checked(NativeBattleDuel216Controller.Arena + (uint)written.Cursor))) };
@@ -139,7 +141,7 @@ public sealed partial class BattleSession
                 case 0x6960E0:
                     return NativeBattleDuel216Scene.Advance6960E0(current, pool, slot, scene);
                 case 0x69A5D0:
-                    NativeBattleDuel216HierarchyTaskStep hierarchy = NativeBattleDuel216Workspaces.Advance69A5D0(current, pool, slot, view, projection, colors, Ordering());
+                    NativeBattleDuel216HierarchyTaskStep hierarchy = NativeBattleDuel216Workspaces.Advance69A5D0(current, pool, slot, view, projection, colors, Ordering(), capturePresentation: true);
                     StoreOrdering(hierarchy.Ordering);
                     return hierarchy.Step;
                 case 0x69A060:
@@ -194,11 +196,11 @@ public sealed partial class BattleSession
             switch (operation)
             {
                 case NativeBattleDuel216ProgramDraw program:
-                    NativeBattleDuel216WorkspaceStep advanced = NativeBattleDuel216Workspaces.Advance701970(current, NativeBattleDuel216Controller.Main, program.Slot, program.Offset, program.Size, program.Context with { Billboard = NativeBattleGfMatrices.Normalize67AAE0(view) }, projection, colors, Ordering());
+                    NativeBattleDuel216WorkspaceStep advanced = NativeBattleDuel216Workspaces.Advance701970(current, NativeBattleDuel216Controller.Main, program.Slot, program.Offset, program.Size, program.Context with { Billboard = NativeBattleGfMatrices.Normalize67AAE0(view) }, projection, colors, Ordering(), capturePresentation: true);
                     StoreOrdering(advanced.Ordering);
                     return advanced.Frame;
                 case NativeBattleDuel216MorphDraw morph:
-                    NativeBattleDuel216DrawingStep drawn = NativeBattleDuel216Drawing.DrawMorph6960E0(current, morph.Phase, morph.Divisor, morph.Fade, ReadNativeGraphicsBone(graphics, parameters.Actor78, 20, 0), view, projection, colors);
+                    NativeBattleDuel216DrawingStep drawn = NativeBattleDuel216Drawing.DrawMorph6960E0(current, morph.Phase, morph.Divisor, morph.Fade, ReadNativeGraphicsBone(graphics, parameters.Actor78, 20, 0), view, projection, colors, NativeBattleDuel28Presentation.Identity(216, Bank(current, NativeBattleDuel216Controller.Main).Slots[0], 0x113C3CC));
                     return Append(drawn.Frame, drawn.Batch);
                 case NativeBattleDuel216Spawn69A550 birth:
                     return NativeBattleDuel216Workspaces.Spawn69A550(current, Position(parameters.Actor78), birth.X, birth.Y, birth.Z, birth.Scale);
@@ -224,8 +226,9 @@ public sealed partial class BattleSession
                     matrix = NativeBattleGfMatrices.Compose56C2F0(view, matrix);
                     (int x, int y, int z) = NativeBattleGfMatrices.Rotate56C3D0(matrix, body.Pivot);
                     matrix = matrix with { X = unchecked(matrix.X - x), Y = unchecked(matrix.Y - y), Z = unchecked(matrix.Z - z) };
-                    graphics = DrawNativeEffectModelContext92(graphics, body.Model, matrix, body.Pivot, projection, 4112, 16);
-                    return current with { Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
+                    NativeBattlePrimitiveReference bodyStart = NativeBattleDuel28Presentation.Start(NativeEffectMemory!.PrimitiveProcess!);
+                    graphics = DrawNativeEffectModelContext92(graphics, body.Model, matrix, body.Pivot, projection, 4112, 16, pilotIdentity: NativeBattleDuel28Presentation.Identity(216, Bank(current, NativeBattleDuel216Controller.Main).Slots[0], 0, body.Model));
+                    return current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Common(current.Effect.PresentationPackets, Ordering(), bodyStart, NativeEffectMemory!.PrimitiveProcess!) }, Memory = NativeEffectMemory!, Staging = NativeFileStaging! };
                 case NativeBattleDuel216EchoDraw:
                     var echo = DrawNativeDuel216Echo(current, graphics, parameters.Actor78, view, projection);
                     graphics = echo.Graphics;
@@ -233,7 +236,7 @@ public sealed partial class BattleSession
                 case NativeBattleDuel216EchoCapture capture:
                     return CaptureEcho(current, capture.Slot);
                 case NativeBattleDuel216Flash699EE0 flash:
-                    return Append(current, NativeBattleDuel216Drawing.Flash699EE0(flash.Phase), 1);
+                    return Append(current, NativeBattleDuel216Drawing.Flash699EE0(flash.Phase, NativeBattleDuel28Presentation.Identity(216, Bank(current, NativeBattleDuel216Controller.Main).Slots[0], 0, flash.Phase)), 1);
                 case NativeBattleDuel216Sound501330:
                     PublishNativeModuleSound(new(resources.Dword(0x113C1A8), 0, null) { Pan = 128, RawPan = 128 });
                     return current;
@@ -276,10 +279,11 @@ public sealed partial class BattleSession
         NativeBattleDuel216Frame Sprite(NativeBattleDuel216Frame current, NativeBattleDuel216BillboardParticle sprite)
         {
             NativeBattleModuleResource source = new(0, sprite.Source, 0, 0, resources.Read(sprite.Source, checked((int)(NativeBattleDuel216Resources.EndAddress - sprite.Source))));
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = source, SpriteFrame = source.ProjectedFrame571C80(sprite.Phase), Phase = unchecked((ushort)sprite.Phase), Anchor = new(sprite.Point.X, sprite.Point.Y, sprite.Point.Z, 0), Scale = sprite.Scale, DepthOffset = sprite.DepthDisplacement, SpriteFlags = 0 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = source, SpriteFrame = source.ProjectedFrame571C80(sprite.Phase), Phase = unchecked((ushort)sprite.Phase), Anchor = new(sprite.Point.X, sprite.Point.Y, sprite.Point.Z, 0), Scale = sprite.Scale, DepthOffset = sprite.DepthDisplacement, SpriteFlags = 0, PilotIdentity = sprite.PilotIdentity };
             NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging, 180);
             NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(temporary.Staging, temporary.Address, sprite.Source, 0).Write(temporary.Address + 4, BitConverter.GetBytes(sprite.Phase));
             NativeBattleModuleSpriteTemporaryResult drawn = NativeBattleModuleSpriteTemporary.Emit571C80(staging, temporary.Address, draw, projection with { View = view }, camera.Roll, 17, 2);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Record(current.Effect.PresentationPackets, "20DFAB8", 0, current.Effect.DrawArenaOffset!.Value, drawn.Batch) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Different Beat sprite requires its private cursor."), Ordering(), drawn.Batch, NativeBattleEffectGouraudWrites.FullDword);
             StoreOrdering(written.Ordering);
             staging = drawn.Staging.Write(0x2508874, BitConverter.GetBytes(checked(NativeBattleDuel216Controller.Arena + (uint)written.Cursor)));
@@ -305,7 +309,7 @@ public sealed partial class BattleSession
                 BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(24), matrix.Y);
                 BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(28), matrix.Z);
                 return (bytes, known);
-            });
+            }, NativeBattleDuel28Presentation.Allocated);
             return StoreBank(current, main.WriteSlot(slot, captured));
         }
     }

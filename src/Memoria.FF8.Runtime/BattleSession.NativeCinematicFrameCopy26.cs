@@ -13,7 +13,7 @@ public sealed partial class BattleSession
         }, (current, output, ordering, batch) => Append(current, output, ordering, batch, 0));
         NativeBattleCinematicFrameCopy26Services services = new(capture, (current, output, ordering, batch) => Append(current, output, ordering, batch, 1));
         NativeBattlePilotVisualIdentity? pilotIdentity = null;
-        if (graphics.OriginalEffect?.Binding.Effect is 256 or 258)
+        if (graphics.OriginalEffect?.Binding.Effect is 208 or 211 or 256 or 258)
         {
             ImmutableArray<NativeBattleEffectInitializerAsset> assets = NativeBattleEffectInitializerPolicy.Assets(graphics.OriginalEffect.Binding);
             if (assets.Length != 2)

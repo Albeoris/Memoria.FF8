@@ -78,7 +78,7 @@ public static partial class NativeBattleNoMercy200Controller
                 {
                     staging = WriteDword(staging, work + 20, color);
                 }
-            });
+            }, pilotIdentity: Visual200(task, inputs, 0x24F9730));
             frame = frame with { Staging = staging };
             frame = inputs.Execute(frame, new NativeBattleNoMercy200TrailDraw(drawn.Batch, drawn.PoolCursorAdvance));
             staging = frame.Staging;

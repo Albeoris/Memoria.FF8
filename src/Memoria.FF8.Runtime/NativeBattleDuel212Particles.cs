@@ -2,7 +2,11 @@ namespace Memoria.FF8.Runtime;
 
 public abstract record NativeBattleDuel212Operation;
 public sealed record NativeBattleDuel212Sprite(NativeBattleModuleDraw Draw) : NativeBattleDuel212Operation;
-public sealed record NativeBattleDuel212Mesh(uint Address, NativeBattleActionMatrix Matrix, NativeBattleModuleMeshContext Context, uint TemporaryAddress) : NativeBattleDuel212Operation;
+public sealed record NativeBattleDuel212Mesh(uint Address, NativeBattleActionMatrix Matrix, NativeBattleModuleMeshContext Context, uint TemporaryAddress) : NativeBattleDuel212Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleDuel212Inputs(NativeBattleActionMatrix View, Func<NativeBattleDuel212Frame, NativeBattleDuel212Operation, NativeBattleDuel212Frame> Execute);
 
 public static partial class NativeBattleDuel212Controller
@@ -27,6 +31,7 @@ public static partial class NativeBattleDuel212Controller
         int scale = Word(task, 18);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
+            PilotIdentity = NativeBattleDuel28Presentation.Identity(212, task, address),
             Resource = resource,
             SpriteFrame = resource.ProjectedFrame571C80(phase),
             Phase = phase,
@@ -100,7 +105,7 @@ public static partial class NativeBattleDuel212Controller
         }
         staging = staging.Write(allocation.Address + 108, BitConverter.GetBytes(matrix.X)).Write(allocation.Address + 112, BitConverter.GetBytes(matrix.Y)).Write(allocation.Address + 116, BitConverter.GetBytes(matrix.Z));
         staging = staging.Write(allocation.Address, BitConverter.GetBytes(resourceAddress)).Write(allocation.Address + 28, new byte[4]);
-        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleDuel212Mesh(resourceAddress, matrix, new(0, null, null, null, null, null, 17, 2), allocation.Address));
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleDuel212Mesh(resourceAddress, matrix, new(0, null, null, null, null, null, 17, 2), allocation.Address) { PilotIdentity = NativeBattleDuel28Presentation.Identity(212, task, resourceAddress) });
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging, 152) };
         task = task.WriteByte(27, unchecked((byte)(task.ReadByte(27) - 1)));
         bool complete = task.ReadByte(27) == 0;

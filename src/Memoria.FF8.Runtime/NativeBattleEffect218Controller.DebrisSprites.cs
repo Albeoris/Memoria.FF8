@@ -35,7 +35,7 @@ public static partial class NativeBattleEffect218Controller
             frame = frame with { Memory = NativeBattleEffect315Gte.SetDiagonal64DE00(NativeBattleEffect315Gte.TransformAlternate4607E0(frame.Memory), unchecked((ushort)ParticleWord218(row, 6))) };
             sprite = Context(frame, spriteAddress, 180).Write(4, BitConverter.GetBytes(unchecked((ushort)((ParticleWord218(row, 4) << 1) + 1))));
             frame = frame with { Memory = NativeBattleEffect315Gte.MacToTranslation64DE40(frame.Memory) };
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, sprite, resources.Sprite, projection, cameraRoll);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleEffect218Presentation.DrawSprite(frame.Memory, sprite, resources.Sprite, projection, cameraRoll, pilotIdentity: NativeBattleEffect218Presentation.Row(frame, bank, index, 0));
             frame = PublishContext(frame with { Memory = drawn.Memory }, spriteAddress, drawn.Temporary180, 180);
             frame = deliver(frame, drawn.Batch);
             if (!paused)
@@ -76,6 +76,10 @@ public static partial class NativeBattleEffect218Controller
                 break;
             }
             uint location = checked(bank + (uint)(slot * 24));
+            if (frame.CapturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.ParticleGlobals, bank, slot);
+            }
             NativeBattleEffectArena row = ReadBytes(frame, location, 24).Write(0, BitConverter.GetBytes(1u)).Write(4, new byte[2]);
             frame = Roll(frame, out ushort scale);
             row = ParticleWord218(row, 6, scale % 2560 + 1536);

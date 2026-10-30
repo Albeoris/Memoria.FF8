@@ -6,7 +6,7 @@ public sealed record NativeBattleDuel215ParticleObservation(uint Flags, int? Ncl
 
 public static class NativeBattleDuel215ParticlePackets
 {
-    public static NativeBattleGfGeometryBatch Emit69CE00(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, int tableBaseBucket, byte depthShift, int byteOffset = 0, Action<NativeBattleDuel215ParticleObservation>? observe = null)
+    public static NativeBattleGfGeometryBatch Emit69CE00(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, int tableBaseBucket, byte depthShift, int byteOffset = 0, Action<NativeBattleDuel215ParticleObservation>? observe = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, IReadOnlyList<System.Numerics.Vector3>? pilotWorld = null)
     {
         if (face.Length != 20 || depthShift > 31)
         {
@@ -42,6 +42,10 @@ public static class NativeBattleDuel215ParticlePackets
         depth = average;
         observe?.Invoke(new(flags, nclip, depth));
         NativeBattleGeometryPrimitive primitive = new(checked(tableBaseBucket + (average >> depthShift)), packet.Words(), [0, 0, 0, 0]);
+        if (pilotIdentity is { } identity && pilotWorld is not null)
+        {
+            primitive = primitive with { PilotGeometry = new(identity, pilotWorld[0], pilotWorld[1], pilotWorld[2], default, 3) { SourceDepths = new(vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, 0), UseSourceDepths = true } };
+        }
         return new([packet.Attempt(primitive)], 28);
 
         NativeBattleGfGeometryBatch Rejected()

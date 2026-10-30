@@ -24,7 +24,7 @@ public static class NativeBattleDuelEchoProjection
         return new(rotation.ToImmutableArray(), translation.X, translation.Y, translation.Z, 4096);
     }
 
-    public static NativeBattleDuelEchoProjectionResult Project6A2A90(NativeBattleModulePoolTask context, int offset, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int vertexOffset, Action<int, ImmutableArray<byte>> writeCpu, Action<NativeBattleModulePoolTask, int, int>? observeContext = null)
+    public static NativeBattleDuelEchoProjectionResult Project6A2A90(NativeBattleModulePoolTask context, int offset, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int vertexOffset, Action<int, ImmutableArray<byte>> writeCpu, Action<NativeBattleModulePoolTask, int, int>? observeContext = null, Action<int, NativeBattleVector>? observePoint = null)
     {
         if (vertices.IsDefault || vertices.Length < 2 || vertexOffset < 0)
         {
@@ -44,6 +44,7 @@ public static class NativeBattleDuelEchoProjection
             context = context.WriteDword(offset + 28, projected.Screen).WriteDword(offset + 32, depth);
             observeContext?.Invoke(context, offset + 28, 8);
             int destination = checked(vertexOffset + index * 8);
+            observePoint?.Invoke(destination, point);
             if (depth == 0)
             {
                 writeCpu(checked(destination + 6), BitConverter.GetBytes((ushort)16).ToImmutableArray());

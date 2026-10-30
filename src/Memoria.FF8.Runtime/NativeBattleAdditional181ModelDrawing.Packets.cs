@@ -15,7 +15,7 @@ public static partial class NativeBattleAdditional181ModelDrawing
         }
         ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, bytes.Length).ToImmutableArray();
         int depth = source.Bucket - tableBaseBucket;
-        NativeBattleGeometryPrimitive primitive = new(depth > 0 ? source.Bucket - 1 : source.Bucket, words.ToImmutableArray(), source.VertexPayload4) { PhysicalWriteMask = mask };
+        NativeBattleGeometryPrimitive primitive = new(depth > 0 ? source.Bucket - 1 : source.Bucket, words.ToImmutableArray(), source.VertexPayload4) { PhysicalWriteMask = mask, PilotGeometry = source.PilotGeometry is { } geometry ? geometry with { Identity = geometry.Identity with { Primitive = unchecked(geometry.Identity.Primitive * 397 + 1) } } : null };
         return new(offset, bytes.ToImmutableArray(), mask, primitive);
     }
 }

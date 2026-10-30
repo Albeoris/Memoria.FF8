@@ -35,7 +35,7 @@ public static partial class NativeBattleEffect187Controller
                     frame = PublishModelPose(frame, resources);
                     break;
                 case NativeBattleEffect187ModelService.Draw:
-                    frame = DrawOwnedModel64A2A0(frame, resources, inputs);
+                    frame = DrawOwnedModel64A2A0(frame, resources, inputs, Visual187(frame, address, inputs, frame.State.Model!.WorkingBase!.Value));
                     break;
                 case NativeBattleEffect187ModelService.InitializeChild:
                     frame = operation.First switch

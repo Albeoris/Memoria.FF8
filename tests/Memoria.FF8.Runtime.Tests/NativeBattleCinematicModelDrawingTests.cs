@@ -47,6 +47,22 @@ public sealed partial class NativeBattleCinematicModelTests
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicModel.Render(frame, Base + Model, new(null, 216, 160, 108), new(0, 0, 1f / 4096, 6755401588539392d), _ => 51));
     }
 
+    [Theory]
+    [InlineData((ushort)208)]
+    [InlineData((ushort)211)]
+    public void Captured208_211_model_keeps_native_pose_scratch_and_actual_model_geometry_resource(ushort effect)
+    {
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 216, 160, 108);
+        NativeBattleCinematicModelDraw native = NativeBattleCinematicModel.Render(RenderFixture(), Base + Model, projection, new(0, 0, 1f / 4096, 6755401588539392d), _ => 51);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattleCinematicModelDraw captured = NativeBattleCinematicModel.Render(RenderFixture(), Base + Model, projection, new(0, 0, 1f / 4096, 6755401588539392d), _ => 51, new(effect, 1, 2, 3, 4) { ResourceGeneration = 123 });
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(native));
+        NativeBattlePilotVisualGeometry visual = Assert.Single(captured.Packets.Attempts).Primitive!.PilotGeometry!;
+        Assert.Equal(effect, visual.Identity.Effect);
+        Assert.Equal(unchecked(123L * 397 ^ (Base + 0x12000u)), visual.Identity.ResourceGeneration);
+    }
+
     private static NativeBattleWaterExecutionFrame RenderFixture()
     {
         NativeBattleWaterExecutionFrame frame = Prepared();

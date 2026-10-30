@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleAdditional181Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeAdditional181Body(NativeBattleAdditional181Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress)
+    private (NativeBattleAdditional181Frame Frame, NativeBattleGraphicsState Graphics) DrawNativeAdditional181Body(NativeBattleAdditional181Frame frame, NativeBattleGraphicsState graphics, byte actor, uint temporaryAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Additional effect181 target requires its current skeleton.");
@@ -26,7 +26,7 @@ public sealed partial class BattleSession
 
         NativeBattleAdditional181ModelFrame Shadow(NativeBattleAdditional181ModelFrame current)
         {
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Additional effect181 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Additional effect181 shadow requires its current GTE data.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Additional effect181 shadow requires its depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Additional effect181 shadow requires its original template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Additional effect181 shadow requires its primitive capabilities."), 4121, 16);
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(current.Staging, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Additional effect181 shadow requires its current GTE matrix."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Additional effect181 shadow requires its current GTE data.")), current.Model, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Additional effect181 shadow requires its depth controls."), definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Additional effect181 shadow requires its original template."), definition.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Additional effect181 shadow requires its primitive capabilities."), 4121, 16, pilotIdentity is { } shadowIdentity ? shadowIdentity with { Primitive = -1 } : null);
             current = current with { Memory = current.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors }, Staging = shadow.Staging };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78) };
             current = AppendCommon(current, shadow.Batch);
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Additional effect181 target requires its physical geometry address.");
             ImmutableArray<NativeBattlePackedMatrix32> bones = matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
             NativeBattleEffectArena scratch = NativeAdditional181View(current.Staging, scratchAddress, scratchLength);
-            NativeBattleAdditional181ModelStep drawn = NativeBattleAdditional181ModelDrawing.DrawBody(current.Memory, current.Temporary128, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Additional effect181 target requires its current depth controls."), scratchAddress, scratchLength);
+            NativeBattleAdditional181ModelStep drawn = NativeBattleAdditional181ModelDrawing.DrawBody(current.Memory, current.Temporary128, scratch, Read, sourceAddress, bones, packedCamera, projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Additional effect181 target requires its current depth controls."), scratchAddress, scratchLength, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = sourceAddress } : null);
             current = current with { Memory = drawn.Memory, Temporary128 = drawn.Temporary128, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.VertexScratch, scratchLength) };
             current = current with { Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, temporaryAddress, current.Temporary128, 128) };
             return AppendCommon(current, drawn.Batch);
@@ -88,7 +88,9 @@ public sealed partial class BattleSession
         NativeBattleAdditional181ModelFrame AppendCommon(NativeBattleAdditional181ModelFrame current, NativeBattleGfGeometryBatch batch)
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Additional effect181 target requires its current COMMON ordering table.");
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Additional effect181 target requires its current COMMON packet owner."), primitive.Pending, batch);
+            NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Additional effect181 target requires its current COMMON packet owner.");
+            frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
         }

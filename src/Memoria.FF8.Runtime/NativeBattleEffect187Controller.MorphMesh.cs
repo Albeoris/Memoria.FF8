@@ -28,7 +28,7 @@ public static partial class NativeBattleEffect187Controller
         for (int pass = 0; pass < 2; pass++)
         {
             NativeBattleEffect187Frame current = frame;
-            NativeBattleDefaultActMeshStep drawn = NativeBattleEffect187MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0xE3EFF0), inputs.ReadProjection(frame), context, inputs.Colors, 2, offset => ReadBytes(current, checked(vertices + (uint)offset), 8));
+            NativeBattleDefaultActMeshStep drawn = NativeBattleEffect187MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0xE3EFF0), inputs.ReadProjection(frame), context, inputs.Colors, 2, offset => ReadBytes(current, checked(vertices + (uint)offset), 8), pilotIdentity: Visual187(frame, address, inputs, 0xE3EFF0));
             frame = frame with { Memory = drawn.Memory };
             context = drawn.Context88;
             frame = PublishContext(frame, temporary, context, 88);

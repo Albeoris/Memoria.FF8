@@ -31,6 +31,7 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Burning Rave requires its current view matrix.");
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Burning Rave requires its authenticated color arithmetic.");
         NativeBattleDuel212Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Burning Rave requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Burning Rave requires retained shared memory."), nativeCrtRandom ?? throw new NotSupportedException("Native Burning Rave requires retained CRT state."));
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = [] } };
         NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Burning Rave requires its actual action contact pointer.");
         int count = header.ReadByte(16);
@@ -68,6 +69,7 @@ public sealed partial class BattleSession
         NativeBattleDuel212Frame Append(NativeBattleDuel212Frame current, NativeBattleGfGeometryBatch batch)
         {
             int cursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Burning Rave requires its actual private packet cursor.");
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, current.Effect.DrawArenaOffset!.Value, batch) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, Ordering(), batch);
             StoreOrdering(written.Ordering);
             return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor }, Staging = current.Staging.Write(0x2510258, BitConverter.GetBytes(checked(0x20DFAB8u + (uint)written.Cursor))) };
@@ -100,8 +102,9 @@ public sealed partial class BattleSession
             Publish(current);
             NativeBattleActionMatrix world = graphics.Models[index].GeometryWorldMatrix ?? throw new NotSupportedException("Native Burning Rave body drawing requires its actual model matrix64.");
             NativeBattleActionMatrix matrix = NativeBattleDuel212Body.Matrix6A2F60(world, view, angles, pivot);
-            graphics = DrawNativeEffectModelContext92(graphics, index, matrix, pivot, projection, -47, 4);
-            return current with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Burning Rave body drawing lost its physical memory."), Staging = NativeFileStaging ?? throw new InvalidDataException("Native Burning Rave body drawing lost its canonical CPU memory.") };
+            NativeBattlePrimitiveReference bodyStart = NativeBattleDuel28Presentation.Start(NativeEffectMemory!.PrimitiveProcess!);
+            graphics = DrawNativeEffectModelContext92(graphics, index, matrix, pivot, projection, -47, 4, pilotIdentity: NativeBattleDuel28Presentation.Identity(212, TargetTask(current), 0, index));
+            return current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Common(current.Effect.PresentationPackets, Ordering(), bodyStart, NativeEffectMemory!.PrimitiveProcess!) }, Memory = NativeEffectMemory ?? throw new InvalidDataException("Native Burning Rave body drawing lost its physical memory."), Staging = NativeFileStaging ?? throw new InvalidDataException("Native Burning Rave body drawing lost its canonical CPU memory.") };
         }
         NativeBattleDuel212Frame QueueFile(NativeBattleDuel212Frame current, NativeBattleEffectFileRequest request)
         {
@@ -141,16 +144,17 @@ public sealed partial class BattleSession
                     NativeStage = retained with { Groups = retained.Groups.Select(group => group with { ColorDepth = unchecked((short)stage.Intensity), ColorFlags = 0 }).ToImmutableArray() };
                     return current;
                 case NativeBattleDuel212Program program:
-                    NativeBattleDuel212WorkspaceStep advanced = NativeBattleDuel212Workspaces.Advance701970(current, program, projection, colors, Ordering());
+                    NativeBattleDuel212WorkspaceStep advanced = NativeBattleDuel212Workspaces.Advance701970(current, program, projection, colors, Ordering(), capturePresentation: true);
                     StoreOrdering(advanced.Ordering);
                     return advanced.Frame;
                 case NativeBattleDuel212Sprite sprite:
                     NativeBattleModulePacketBatch spriteBatch = NativeBattleModulePackets.EmitSprite571DC0(sprite.Draw, projection with { View = view }, camera.Roll, 17, 2);
+                    current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleDuel28Presentation.Record(current.Effect.PresentationPackets, "20DFAB8", 0, current.Effect.DrawArenaOffset!.Value, spriteBatch) } };
                     NativeBattleEffectPacketWrite spriteWritten = NativeBattleEffectPacketArena.Append(current.Memory, current.Effect.DrawArenaOffset ?? throw new InvalidDataException("Native Burning Rave sprite lost its packet cursor."), Ordering(), spriteBatch, NativeBattleEffectGouraudWrites.FullDword);
                     StoreOrdering(spriteWritten.Ordering);
                     return current with { Memory = spriteWritten.Memory, Effect = current.Effect with { DrawArenaOffset = spriteWritten.Cursor }, Staging = current.Staging.Write(0x2510258, BitConverter.GetBytes(checked(0x20DFAB8u + (uint)spriteWritten.Cursor))) };
                 case NativeBattleDuel212Mesh mesh:
-                    NativeBattleModuleMeshTemporaryResult meshDraw = NativeBattleModulePackets.EmitRetainedBatch572200(current.Staging, mesh.TemporaryAddress, mesh.Address, resources.Meshes.Single(source => source.Address == mesh.Address).Bytes, mesh.Matrix, projection, mesh.Context, colors);
+                    NativeBattleModuleMeshTemporaryResult meshDraw = NativeBattleModulePackets.EmitRetainedBatch572200(current.Staging, mesh.TemporaryAddress, mesh.Address, resources.Meshes.Single(source => source.Address == mesh.Address).Bytes, mesh.Matrix, projection, mesh.Context, colors, pilotIdentity: mesh.PilotIdentity);
                     return Append(current with { Staging = meshDraw.Staging }, meshDraw.Batch);
                 case NativeBattleDuel212GroundBirths births:
                     NativeBattleEffectTaskPool fragments = current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel212Controller.Fragments);
@@ -226,7 +230,7 @@ public sealed partial class BattleSession
                     {
                         throw new InvalidDataException("Native Burning Rave pulse requires original skeleton matrix at byte896.");
                     }
-                    NativeBattleDuel212HierarchyStep drawn = NativeBattleDuel212PulseDrawing.Draw6A1660(current, pulse.Phase, bones[18], caster.GeometryWorldMatrix ?? throw new NotSupportedException("Native Burning Rave pulse requires its actual model matrix64."), view, projection, colors);
+                    NativeBattleDuel212HierarchyStep drawn = NativeBattleDuel212PulseDrawing.Draw6A1660(current, pulse.Phase, bones[18], caster.GeometryWorldMatrix ?? throw new NotSupportedException("Native Burning Rave pulse requires its actual model matrix64."), view, projection, colors, NativeBattleDuel28Presentation.Identity(212, task, 0x11826E0));
                     return Append(drawn.Frame, drawn.Batch);
                 case NativeBattleDuel212BoneEmission emission:
                     _ = ReadNativeGraphicsBone(graphics, actor, emission.First, 0);
@@ -299,7 +303,7 @@ public sealed partial class BattleSession
                         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(24), matrix.Y);
                         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(28), matrix.Z);
                         return (bytes, known);
-                    });
+                    }, NativeBattleDuel28Presentation.Allocated);
                     return current with { Effect = current.Effect with { Pools = current.Effect.Pools.Select(pool => pool.DescriptorAddress == NativeBattleDuel212Controller.Targets ? pool.WriteSlot(0, captured) : pool).ToImmutableArray() } };
                 default:
                     throw new NotSupportedException("Native Burning Rave selected an unsupported original scene operation.");
@@ -343,7 +347,8 @@ public sealed partial class BattleSession
             }
             ImmutableArray<NativeBattleRawMesh> meshes = RequireNativeStageGeometry().Where(mesh => mesh.StageGroup == 1).ToImmutableArray();
             (byte[] bytes, _) = current.Staging.ReadSnapshot(address, capacity);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, transform.Projection, group.ColorFlags, uint.MaxValue, bytes.ToImmutableArray(), colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, group.Matrices, transform.Projection, group.ColorFlags, uint.MaxValue, bytes.ToImmutableArray(), colors, 16, new(0, 0, 320, 216), 17, group.ColorDepth, pilotIdentity: NativeBattleDuel28Presentation.Identity(212, TargetTask(current), 0, 0x6A12B0) with { ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(source) }, pilotScreenSpace: true, pilotContinuous: false);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, current.Effect.DrawArenaOffset!.Value, drawn.Packets) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, current.Effect.DrawArenaOffset ?? throw new InvalidDataException("Native Burning Rave capture lost its cursor."), ordering, drawn.Packets);
             NativeBattleFileStaging staging = current.Staging.Write(address, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)).Write(0x2510258, BitConverter.GetBytes(checked(0x20DFAB8u + (uint)written.Cursor)));
             current = current with { Memory = written.Memory with { PrimitiveProcess = gate.Process.PublishModelColor(group.ColorFlags).Publish50FDF0(checked(0x20DFAB8u + (uint)written.Cursor), null) }, Staging = staging, Effect = current.Effect with { DrawArenaOffset = written.Cursor } };

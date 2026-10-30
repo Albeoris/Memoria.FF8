@@ -21,14 +21,14 @@ public static class NativeBattleDuelEcho
         return task;
     }
 
-    public static NativeBattleModulePoolTask Capture68ADF0(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32)
+    public static NativeBattleModulePoolTask Capture68ADF0(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32, Action<NativeBattleModulePoolTask, int>? observeCapture = null)
     {
-        return Capture(task, offset, boneCount, readCurrentMatrix32, 512);
+        return Capture(task, offset, boneCount, readCurrentMatrix32, 512, observeCapture);
     }
 
-    public static NativeBattleModulePoolTask Capture697850(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32)
+    public static NativeBattleModulePoolTask Capture697850(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32, Action<NativeBattleModulePoolTask, int>? observeCapture = null)
     {
-        return Capture(task, offset, boneCount, readCurrentMatrix32, 1152);
+        return Capture(task, offset, boneCount, readCurrentMatrix32, 1152, observeCapture);
     }
 
     public static NativeBattleModulePoolTask Capture8200(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32)
@@ -36,7 +36,7 @@ public static class NativeBattleDuelEcho
         return Capture(task, offset, boneCount, readCurrentMatrix32, 64);
     }
 
-    private static NativeBattleModulePoolTask Capture(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32, int historyStride)
+    private static NativeBattleModulePoolTask Capture(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32, int historyStride, Action<NativeBattleModulePoolTask, int>? observeCapture = null)
     {
         if ((uint)boneCount > 128)
         {
@@ -71,6 +71,7 @@ public static class NativeBattleDuelEcho
                 }
             }
         }
+        observeCapture?.Invoke(task, bank);
         return task;
     }
 

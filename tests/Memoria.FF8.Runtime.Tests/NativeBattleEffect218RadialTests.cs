@@ -49,6 +49,30 @@ public sealed class NativeBattleEffect218RadialTests
         Assert.Equal(2u, Dword(ReadBytes(actual, bank + 199 * 24, 4), 0));
     }
 
+    [Fact]
+    public void Captured218_reused_radial_rows_get_new_births_without_changing_native_W_OR_CRT()
+    {
+        NativeBattleEffect218Frame native = Fixture();
+        NativeBattleEffect218Frame captured = Fixture() with { CapturePresentation = true };
+        uint bank = ArenaAddress + ParticleAOffset;
+        long previous = 0;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            native = SpawnRadial634300(native, bank);
+            captured = SpawnRadial634300(captured, bank);
+            Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(218, captured.State.ParticleGlobals, bank, 0);
+            Assert.True(identity.Generation > previous);
+            previous = identity.Generation;
+            for (int index = 0; index < 8; index++)
+            {
+                uint address = bank + (uint)(index * 24);
+                native = WriteBytes(native, address, NativeBattleEffectArena.Clear().Write(0, new byte[4]), 4);
+                captured = WriteBytes(captured, address, NativeBattleEffectArena.Clear().Write(0, new byte[4]), 4);
+            }
+        }
+    }
+
     private static NativeBattleEffect218Frame Fixture()
     {
         NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor);

@@ -12,7 +12,7 @@ public sealed record NativeBattleDuelEchoPacketsResult(NativeBattleModulePoolTas
 /// <summary>68AAE0's original flat-lit textured echo faces over a retained projected vertex stream.</summary>
 public static class NativeBattleDuelEchoPackets
 {
-    public static NativeBattleDuelEchoPacketsResult Emit68AAE0(NativeBattleModulePoolTask context, int offset, ImmutableArray<byte> faces, Func<int, NativeBattleDuelEchoProjectedVertex> readVertex, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    public static NativeBattleDuelEchoPacketsResult Emit68AAE0(NativeBattleModulePoolTask context, int offset, ImmutableArray<byte> faces, Func<int, NativeBattleDuelEchoProjectedVertex> readVertex, int tableBaseBucket, byte depthShift, short zsf3, short zsf4, Action<NativeBattleModulePoolTask, int, int>? observeContext = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<int, System.Numerics.Vector3>? readWorld = null)
     {
         if (faces.IsDefault || depthShift > 31)
         {
@@ -39,12 +39,17 @@ public static class NativeBattleDuelEchoPackets
                 bool quad = group != 0;
                 ReadOnlySpan<byte> face = faces.AsSpan().Slice(source, quad ? 20 : 16);
                 NativeBattleDuelEchoProjectedVertex[] vertices = new NativeBattleDuelEchoProjectedVertex[quad ? 4 : 3];
+                int[]? sourceVertices = readWorld is null ? null : new int[vertices.Length];
                 bool clipped = false;
                 ushort clipAnd = ushort.MaxValue;
                 for (int corner = 0; corner < vertices.Length; corner++)
                 {
                     int vertex = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(corner * 2)) & 0xFFF;
                     NativeBattleDuelEchoProjectedVertex selected = readVertex(vertex);
+                    if (sourceVertices is not null)
+                    {
+                        sourceVertices[corner] = vertex;
+                    }
                     vertices[corner] = selected;
                     int target = offset + 28 + corner * 8;
                     BinaryPrimitives.WriteUInt32LittleEndian(projectedBytes, selected.Screen);
@@ -106,9 +111,9 @@ public static class NativeBattleDuelEchoPackets
                         NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), NativeBattleEffectMeshPackets.Payload(projected, color));
                         if (pilotIdentity is { } identity)
                         {
-                            System.Numerics.Vector3 Point(int corner) => new(unchecked((short)vertices[corner].Screen), unchecked((short)(vertices[corner].Screen >> 16)), 0);
+                            System.Numerics.Vector3 Point(int corner) => readWorld is not null ? readWorld(sourceVertices![corner]) : new(unchecked((short)vertices[corner].Screen), unchecked((short)(vertices[corner].Screen >> 16)), 0);
                             System.Numerics.Vector4 depths = primitive.VertexPayload4.Length == 4 ? new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]) : System.Numerics.Vector4.Zero;
-                            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + source) }, Point(0), Point(1), Point(2), quad ? Point(3) : default, (byte)vertices.Length, false) { ScreenSpace = true, SourceDepths = depths, UseSourceDepths = true } };
+                            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + source) }, Point(0), Point(1), Point(2), quad ? Point(3) : default, (byte)vertices.Length, readWorld is not null) { ScreenSpace = readWorld is null, SourceDepths = depths, UseSourceDepths = true } };
                         }
                         attempts.Add(packet.Attempt(primitive));
                         allocated = checked(allocated + length);

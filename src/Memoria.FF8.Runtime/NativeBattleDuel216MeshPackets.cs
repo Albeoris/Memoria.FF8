@@ -5,15 +5,26 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDuel216MeshPackets
 {
-    public static NativeBattleGfGeometryBatch EmitBatch697D10(uint meshAddress, ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, uint? farColor, int? fade, int depthBias, NativeBattleSummonColors colors, Func<int, NativeBattleVector> readSelectedVertex, Action<int, uint>? observeContext = null)
+    public static NativeBattleGfGeometryBatch EmitBatch697D10(uint meshAddress, ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, uint? farColor, int? fade, int depthBias, NativeBattleSummonColors colors, Func<int, NativeBattleVector> readSelectedVertex, Action<int, uint>? observeContext = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleMeshPacketContext context = new(flags, farColor, fade, null, null, 0, depthBias, 17, 2);
-        NativeBattleGfGeometryBatch batch = NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, flags, readSelectedVertex, (group, face, readCorner, offset) => Emit(group, face, readCorner, context, colors, offset, observeContext));
+        NativeBattleGfGeometryBatch batch = NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, flags, readSelectedVertex, (group, face, readCorner, offset) => Emit(group, face, readCorner, context, colors, offset, observeContext), pilotIdentity: pilotIdentity);
         int cursor = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(mesh.AsSpan()));
         for (int group = 0; group < 8; group++)
         {
             int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.AsSpan().Slice(cursor, 4));
             cursor = checked(cursor + 4 + count * (group switch { 0 or 1 => 12, 2 or 4 => 20, 3 or 5 => 24, 6 => 28, _ => 36 }));
+        }
+        if (pilotIdentity.HasValue)
+        {
+            batch = batch with { Attempts = batch.Attempts.Select(attempt =>
+            {
+                if (attempt.Primitive is not { PilotGeometry: { } geometry } primitive || geometry.CornerCount != 4 || primitive.Words.Length != 6 || (primitive.Words[1] >> 24) != 0x2A)
+                {
+                    return attempt;
+                }
+                return attempt with { Primitive = primitive with { PilotGeometry = geometry with { A = geometry.B, B = geometry.C, C = geometry.C, D = geometry.D, SourceDepths = new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), UseSourceDepths = true } } };
+            }).ToImmutableArray() };
         }
         observeContext?.Invoke(32, checked(meshAddress + (uint)cursor));
         return batch;
