@@ -6,6 +6,65 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect187ControllerTests
 {
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(10, false)]
+    [InlineData(11, false)]
+    [InlineData(1, true)]
+    public void Authored_fullscreen_flash_capture_keeps_actual_tile_native_state_pause_and_expiration(int age, bool paused)
+    {
+        List<NativeBattleEffect187DeliverBatch> plainPackets = [];
+        List<NativeBattleEffect187DeliverBatch> capturedPackets = [];
+        NativeBattleEffect187Step Draw(bool capture, List<NativeBattleEffect187DeliverBatch> packets)
+        {
+            NativeBattleEffect187Frame frame = Frame();
+            frame = frame with { Memory = frame.Memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, true, true, null) with { Otz = 40 }, ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() } };
+            (frame, uint address) = Spawn647900(frame, 0x64B130);
+            frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)age)).WriteWord(14, 0xA10).WriteWord(0x1C, 255));
+            NativeBattleEffect187Inputs inputs = new(Colors: null!, ReadPackets: null!, ReadFlags: _ => paused ? 0x201u : 0u, ReadStep508500: null!, ReadView: null!, ReadProjection: _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), ReadCameraRoll: null!, ReadCameraPose: _ => new(new(0, 0, -1000), new(0, 0, 0), 100, 0), ReadEyePadding: null!, ReadTargetPadding: _ => 0, ReadModel: null!, ReadWorld: null!, ReadTargetCenter5020A0: null!, ReadBone502170: null!, ReadVibrationPlaying4A2900: null!, Execute: (current, operation) =>
+            {
+                packets.Add(Assert.IsType<NativeBattleEffect187DeliverBatch>(operation));
+                return current;
+            }) { CapturePresentation = capture };
+            return AdvanceFlash64B130(frame, address, inputs);
+        }
+        NativeBattleEffect187Step plain = Draw(false, plainPackets);
+        string frozen = NativeBattleTestSnapshots.Json(plain);
+        NativeBattleEffect187Step captured = Draw(true, capturedPackets);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(plain.Frame.Random, captured.Frame.Random);
+        Assert.Equal(plainPackets.Count, capturedPackets.Count);
+        if (age == 11)
+        {
+            Assert.Empty(capturedPackets);
+            Assert.Equal(2, captured.Result);
+            return;
+        }
+        NativeBattleEffect187DeliverBatch expected = Assert.Single(plainPackets);
+        NativeBattleEffect187DeliverBatch actual = Assert.Single(capturedPackets);
+        Assert.Equal((ushort)1, actual.Flags);
+        NativeBattleGfGeometryAttempt a = Assert.Single(expected.Batch.Attempts);
+        NativeBattleGfGeometryAttempt b = Assert.Single(actual.Batch.Attempts);
+        Assert.Equal(a.Data, b.Data);
+        Assert.Equal(a.WriteMask, b.WriteMask);
+        Assert.Equal(a.Primitive!.Words, b.Primitive!.Words);
+        Assert.Equal(a.Primitive.VertexPayload4, b.Primitive.VertexPayload4);
+        Assert.Null(a.Primitive.PilotGeometry);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(b.Primitive.PilotGeometry);
+        Assert.Equal((ushort)187, geometry.Identity.Effect);
+        Assert.True(geometry.Identity.Generation > 0);
+        Assert.Equal(0x64B130, geometry.Identity.ResourceGeneration);
+        Assert.True(geometry.ScreenSpace);
+        Assert.False(geometry.Continuous);
+        Assert.Equal(8, geometry.ScreenScale);
+        Assert.Equal(new System.Numerics.Vector3(320, 216, 0), geometry.D);
+        Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(57, b.Primitive.Bucket);
+        Assert.Equal(new NativeBattlePrimitiveReference("off_B6D070", 0, 12528), Assert.Single(NativeBattleEffectPresentationPackets.Record([], "off_B6D070", 0, 12528, actual.Batch)));
+    }
+
     [Fact]
     public void ScrollBirthPreservesUnwrittenPayloadAndConsumesExactlyOneCrtDraw()
     {

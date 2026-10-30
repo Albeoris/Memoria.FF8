@@ -49,6 +49,14 @@ public static partial class NativeBattleEffect187Controller
                 packet.Word(index * 4, words[index]);
             }
             NativeBattleGeometryPrimitive primitive = new(unchecked(17 + depth), words, [0, 0, 0, 0]);
+            if (inputs.CapturePresentation)
+            {
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(187, task, unchecked((int)(words[1] >> 24))) with { ResourceGeneration = task.Callback };
+                System.Numerics.Vector3 origin = new(unchecked((short)words[2]), unchecked((short)(words[2] >> 16)), 0);
+                int width = unchecked((ushort)words[3]);
+                int height = unchecked((ushort)(words[3] >> 16));
+                primitive = primitive with { PilotGeometry = new(identity, origin, origin + new System.Numerics.Vector3(width, 0, 0), origin + new System.Numerics.Vector3(0, height, 0), origin + new System.Numerics.Vector3(width, height, 0), 4, false) { ScreenSpace = true, ScreenScale = 8, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };
+            }
             frame = inputs.Execute(frame, new NativeBattleEffect187DeliverBatch(new([packet.Attempt(primitive)], 16), 0x1D8E054, 1));
         }
         if ((inputs.ReadFlags(frame) & 0x201) != 0)
