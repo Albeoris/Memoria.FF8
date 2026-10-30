@@ -48,7 +48,23 @@ internal sealed partial class RecreateGame
         diagnosticCounterPreparationRepair = null;
         SubscribeDiagnosticCounter(diagnosticDriverBattle);
         diagnosticDriverBattle.DiagnosticEffectDispatched += ObserveDiagnosticDriverDispatch;
+        if (recipe.FreshEntry is not null)
+        {
+            diagnosticDriverBattle.DiagnosticInvocationReleased += ObserveDiagnosticInvocationRelease;
+            diagnosticDriverBattle.ConfigureDiagnosticInvocationCompletion(recipe.ExpectedEffect, recipe.Input.ActorId!, recipe.ExpectedNativeCommand, recipe.ExpectedNativeAction ?? recipe.Input.ActionId);
+        }
         PublishDiagnosticDriverProgress();
+    }
+
+    private void ObserveDiagnosticInvocationRelease(BattleDiagnosticInvocationRelease release)
+    {
+        DiagnosticBattleDriver driver = diagnosticDriver ?? throw new InvalidOperationException("Focal release lost its live driver.");
+        if (release.LifecycleId != diagnosticDriverBattle!.DiagnosticLifecycleId)
+        {
+            throw new InvalidDataException("Focal release changed its actual battle lifecycle.");
+        }
+        driver.ObserveInvocationRelease(release);
+        diagnosticTelemetry!.SealInvocation(release);
     }
 
     private void AdvanceDiagnosticDriver(TimeSpan now)
@@ -167,7 +183,7 @@ internal sealed partial class RecreateGame
                         }
                     }
                 }
-                if (previousStage == DiagnosticDriverStage.Drain && driver.Stage == DiagnosticDriverStage.Tail)
+                if (diagnosticDriverRecipe.FreshEntry is null && previousStage == DiagnosticDriverStage.Drain && driver.Stage == DiagnosticDriverStage.Tail)
                 {
                     diagnosticTelemetry.MarkDrained(presentedTimestamp);
                 }
@@ -233,6 +249,7 @@ internal sealed partial class RecreateGame
         WriteDiagnosticFinalizationStage("candidate-published");
         diagnosticTelemetry.Dispose();
         diagnosticDriverBattle!.DiagnosticEffectDispatched -= ObserveDiagnosticDriverDispatch;
+        diagnosticDriverBattle.DiagnosticInvocationReleased -= ObserveDiagnosticInvocationRelease;
         UnsubscribeDiagnosticCounter(diagnosticDriverBattle);
         if (world?.IsDiagnosticBattle == true)
         {

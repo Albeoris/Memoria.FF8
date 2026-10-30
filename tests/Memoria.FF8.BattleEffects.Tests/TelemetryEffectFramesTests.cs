@@ -122,6 +122,62 @@ public sealed class TelemetryEffectFramesTests
         Assert.Equal(1, effect.Frames.DroppedSamples);
     }
 
+    [Fact]
+    public void Native_release_between_real_presentations_retains_walltime_without_inventing_an_interval()
+    {
+        TelemetryFrameCollector collector = new(100, 1000, 2);
+        collector.RecordPresentation(new(105, 1, "effect", 1, 1, 1, 0));
+        collector.RecordPresentation(new(110, 2, "effect", 2, 2, 1, 0));
+        TelemetryFrameSummary invocation = collector.Complete();
+        TelemetryFrameInterval[] original = invocation.Intervals.ToArray();
+        TelemetryEffectFrameSummary effect = TelemetryEffectFrames.SummarizeNativeRelease(invocation, 100, 102, 112, 115, 1000);
+        Assert.Equal(112, effect.CompletedTicks);
+        Assert.Equal(10, effect.CompletedTicks - effect.StartedTicks);
+        Assert.Equal(original, invocation.Intervals);
+        Assert.Equal(original[1], Assert.Single(effect.Frames.Intervals));
+        Assert.Equal(original[0], Assert.Single(effect.BoundaryIntervals));
+        Assert.Equal(5, effect.Frames.DurationMs);
+        Assert.Equal(200, effect.MedianFps);
+        Assert.Contains("Unobserved completion time contributes no presentation interval", effect.Policy);
+        Assert.Throws<InvalidDataException>(() => TelemetryEffectFrames.Summarize(invocation, 100, 102, 112, 1000));
+    }
+
+    [Fact]
+    public void Native_release_equal_to_last_real_present_remains_valid_without_adding_a_tail_frame()
+    {
+        TelemetryFrameSummary invocation = Frames(100, 200);
+        var effect = TelemetryEffectFrames.SummarizeNativeRelease(invocation, 0, 100, 200, 210, 1000);
+        Assert.Equal(200, effect.CompletedTicks);
+        Assert.Equal(invocation.Intervals[1], Assert.Single(effect.Frames.Intervals));
+        Assert.Equal(100, effect.Frames.DurationMs);
+    }
+
+    [Theory]
+    [InlineData(199, 210, 1000)]
+    [InlineData(201, 201, 1000)]
+    [InlineData(202, 201, 1000)]
+    [InlineData(201, 0, 1000)]
+    [InlineData(201, 210, 0)]
+    public void Native_release_requires_known_upper_bound_after_release_and_valid_frequency(long release, long firstTail, long frequency)
+    {
+        Assert.Throws<InvalidDataException>(() => TelemetryEffectFrames.SummarizeNativeRelease(Frames(100, 200), 0, 150, release, firstTail, frequency));
+    }
+
+    [Fact]
+    public void Native_release_cannot_hide_empty_dropped_or_corrupt_original_intervals()
+    {
+        TelemetryFrameSummary invocation = Frames(100, 200);
+        TelemetryFrameSummary empty = new TelemetryFrameCollector(0, 1000, 1).Complete();
+        Assert.Throws<InvalidDataException>(() => TelemetryEffectFrames.SummarizeNativeRelease(empty, 0, 150, 201, 210, 1000));
+        Assert.Throws<InvalidDataException>(() => TelemetryEffectFrames.SummarizeNativeRelease(invocation with { DroppedSamples = 1 }, 0, 150, 201, 210, 1000));
+        TelemetryFrameInterval[] corrupt = invocation.Intervals.ToArray();
+        corrupt[0] = corrupt[0] with { DurationMs = 99 };
+        Assert.Throws<InvalidDataException>(() => TelemetryEffectFrames.SummarizeNativeRelease(invocation with { Intervals = corrupt }, 0, 150, 201, 210, 1000));
+        corrupt = invocation.Intervals.ToArray();
+        corrupt[1] = corrupt[1] with { End = corrupt[1].End with { FrameIndex = 1 } };
+        Assert.Throws<InvalidDataException>(() => TelemetryEffectFrames.SummarizeNativeRelease(invocation with { Intervals = corrupt }, 0, 150, 201, 210, 1000));
+    }
+
     private static TelemetryFrameSummary Frames(params long[] ticks)
     {
         TelemetryFrameCollector collector = new(0, 1000, ticks.Length);

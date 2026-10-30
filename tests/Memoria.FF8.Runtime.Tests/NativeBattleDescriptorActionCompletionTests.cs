@@ -136,6 +136,82 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         Assert.Same(fixture.Action, fixture.Session.ActiveAction);
     }
 
+    [Theory]
+    [InlineData("none")]
+    [InlineData("contact")]
+    [InlineData("returned-task")]
+    [InlineData("descriptor")]
+    [InlineData("generation")]
+    [InlineData("no-ack")]
+    [InlineData("post-action")]
+    public void Optional_focal_observer_preserves_native_completion_and_seals_only_exact_released_owners(string fault)
+    {
+        var ordinary = Fixture();
+        var captured = Fixture();
+        NativeBattleGraphicsState Prepare(BattleSession session, NativeBattleGraphicsState graphics)
+        {
+            Property(nameof(BattleSession.NativeCamera)).SetValue(session, NativeBattleCameraState.Initialize());
+            Property(nameof(BattleSession.NativeFileIo)).SetValue(session, NativeBattleFileIoState.FromColdProcess());
+            Property(nameof(BattleSession.NativeEffectMemory)).SetValue(session, NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = fault == "returned-task" ? 1u : 0u, SoundPublishedFlags = 0 });
+            Property(nameof(BattleSession.NativeHostCallbacks)).SetValue(session, 20L);
+            if (fault == "no-ack")
+            {
+                SetAction(session, null!);
+            }
+            if (fault == "post-action")
+            {
+                Field("nativeActionScratch").SetValue(session, session.Capture().NativeActionScratch! with { Command = 28 });
+            }
+            var descriptors = graphics.Descriptors.Enqueue(10, 128, fault == "post-action" ? 0x47DE70u : 0x47DDA0u).State;
+            if (fault == "descriptor")
+            {
+                descriptors = descriptors.Enqueue(10, 128, 0x47DDA0).State;
+            }
+            return graphics with { OriginalEffect = new(1, 0, new(1, 1, 1), null, 0), Descriptors = descriptors, PendingContacts = fault == "contact" ? [session.NativeActionPackets.ReadContact(0)] : [] };
+        }
+        NativeBattleGraphicsState plainGraphics = Prepare(ordinary.Session, ordinary.Graphics);
+        NativeBattleGraphicsState capturedGraphics = Prepare(captured.Session, captured.Graphics);
+        captured.Session.DiagnosticEffectDispatched += _ =>
+        {
+        };
+        captured.Session.ConfigureDiagnosticInvocationCompletion(1, "party", 252, 1);
+        Field("diagnosticDispatchSerial").SetValue(captured.Session, 1L);
+        Method("ObserveDiagnosticPreparedHeader").Invoke(captured.Session, [0]);
+        BattleDiagnosticEffectDispatch focal = new(1, 10, "party", BattleAbility.EnemyAbility, 1, 1, 1, 252) { NativeActorIndex = 0, NativeHeaderIndex = 0, NativeHeaderGeneration = fault == "generation" ? 2 : 1 };
+        Method("PublishDiagnosticEffectDispatch").Invoke(captured.Session, [new Action<BattleDiagnosticEffectDispatch>(_ =>
+        {
+        }), focal]);
+        List<BattleDiagnosticInvocationRelease> releases = [];
+        captured.Session.DiagnosticInvocationReleased += receipt =>
+        {
+            Assert.Null(captured.Session.ActiveAction);
+            Assert.Contains(captured.Session.Events, value => value.Kind == "ActionComplete");
+            Assert.Equal((byte)0, captured.Session.NativeActionPackets.ActionCount);
+            releases.Add(receipt);
+        };
+        uint callback = fault == "post-action" ? 0x47DE70u : 0x47DDA0u;
+        NativeBattleGraphicsState plainResult = Complete(ordinary.Session, plainGraphics, callback);
+        NativeBattleGraphicsState capturedResult = Complete(captured.Session, capturedGraphics, callback);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plainResult), NativeBattleTestSnapshots.Json(capturedResult));
+        Assert.Equal(NativeBattleTestSnapshots.Json(ordinary.Session.Capture()), NativeBattleTestSnapshots.Json(captured.Session.Capture()));
+        Assert.Equal(ordinary.Session.Events, captured.Session.Events);
+        if (fault == "none")
+        {
+            BattleDiagnosticInvocationRelease release = Assert.Single(releases);
+            Assert.True(release.Released);
+            Assert.Equal(1, release.Owners.DescriptorPackets);
+            Assert.Equal((ushort)10, release.CompletionPacket!.Command);
+            Assert.True(release.HeaderCapturedBeforeReset);
+            Assert.Equal(1, release.Dispatch.NativeHeaderGeneration);
+        }
+        else
+        {
+            Assert.Empty(releases);
+            Assert.False(captured.Session.LastDiagnosticInvocationCompletion!.Released);
+        }
+        Assert.Null(ordinary.Session.LastDiagnosticInvocationCompletion);
+    }
+
     private static (BattleSession Session, NativeBattleGraphicsState Graphics, BattleActionPresentation Action) Fixture()
     {
         BattleDefinition definition = new()

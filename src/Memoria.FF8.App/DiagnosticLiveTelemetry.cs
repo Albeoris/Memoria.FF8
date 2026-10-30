@@ -14,10 +14,16 @@ internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool C
     public DiagnosticSlotsObservation? SlotsStart { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticSlotsObservation? SlotsEnd { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleDiagnosticInvocationRelease? InvocationRelease { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticInvocationTail? PostReleaseTail { get; init; }
     public int ReflectionDispatchCount => Dispatches.Count(dispatch => dispatch.Reflection is not null);
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticVisualChangesSummary? VisualChanges { get; init; }
 }
+
+internal sealed record DiagnosticInvocationTail(long FirstPresentedFrame, long LastPresentedFrame, long FirstTimestamp, long LastTimestamp, int PresentedFrames);
 
 /// <summary>Observes one live session. Scored windows include ordinary admission, first-use work, cleanup and presented tails.</summary>
 internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDisposable
@@ -50,6 +56,11 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     private TelemetryProcessSample? processBefore;
     private long effectStartedTicks;
     private long effectCompletedTicks;
+    private long lastPresentedFrame;
+    private BattleDiagnosticInvocationRelease? invocationRelease;
+    private DiagnosticInvocationTail? postReleaseTail;
+    private int sealedExecutionIndex = -1;
+    private bool sealedTailFinalized;
     private readonly DiagnosticPresentationProgress presentationProgress = new(Stopwatch.Frequency);
     private const int EventCapacity = 65536;
     private readonly bool pacingEnabled = Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_PACING") == "1";
@@ -134,6 +145,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         {
             throw new InvalidOperationException("A live telemetry window cannot overlap or replace an execution.");
         }
+        lastPresentedFrame = frame;
         rendererOwner = rendererId;
         before = battle.ObserveDiagnosticCombatants();
         SlotsStart = slotsSource is null ? null : DiagnosticSlotsObservations.Observe(battle, slotsSource.BattleInstanceId, slotsSource.ActorId, slotsSource);
@@ -184,6 +196,22 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
 
     internal void Presented(long timestamp, long frame, string phase, long rendererVersion, int drawCalls, int textureUploads)
     {
+        lastPresentedFrame = frame;
+        if (invocationRelease is not null && !sealedTailFinalized && timestamp > invocationRelease.Timestamp)
+        {
+            if (postReleaseTail is null)
+            {
+                postReleaseTail = new(frame, frame, timestamp, timestamp, 1);
+            }
+            else
+            {
+                if (frame <= postReleaseTail.LastPresentedFrame || timestamp <= postReleaseTail.LastTimestamp)
+                {
+                    throw new InvalidDataException("Post-release presentation tail is not a sequence of actual increasing presents.");
+                }
+                postReleaseTail = postReleaseTail with { LastPresentedFrame = frame, LastTimestamp = timestamp, PresentedFrames = postReleaseTail.PresentedFrames + 1 };
+            }
+        }
         if (!Active)
         {
             return;
@@ -199,10 +227,32 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         frames!.RecordPresentation(new(timestamp, frame, phase, battle.NativeHostCallbacks ?? battle.Frame, renders, drawCalls, textureUploads));
     }
 
+    internal void SealInvocation(BattleDiagnosticInvocationRelease release)
+    {
+        if (!Active || invocationRelease is not null || release.LifecycleId != battle.DiagnosticLifecycleId || release.Callback != battle.NativeHostCallbacks || release.SimulationFrame != battle.Frame)
+        {
+            throw new InvalidDataException("Focal telemetry release is outside its active original battle window.");
+        }
+        BattleDiagnosticEffectDispatch focal = dispatches.Single(value => value.Serial == release.Dispatch.Serial);
+        DiagnosticInvocationReleaseValidation.Validate(release, focal, battle.DiagnosticLifecycleId);
+        invocationRelease = release;
+        effectCompletedTicks = release.Timestamp;
+        Complete(lastPresentedFrame, false, 0, null);
+        sealedExecutionIndex = executions.Count - 1;
+    }
+
     internal void Complete(long frame, bool completed, int tailFrames, string? error)
     {
         if (start is null)
         {
+            if (sealedExecutionIndex >= 0 && !sealedTailFinalized)
+            {
+                DiagnosticLiveExecution sealedExecution = executions[sealedExecutionIndex];
+                string? integrityError = sealedExecution.IntegrityError ?? error;
+                bool actualTail = completed && integrityError is null && postReleaseTail is { PresentedFrames: >= 2 } && postReleaseTail.PresentedFrames >= tailFrames;
+                executions[sealedExecutionIndex] = sealedExecution with { Completed = actualTail, CleanupCompleted = actualTail, TailPresentedFrames = postReleaseTail?.PresentedFrames ?? 0, PostReleaseTail = postReleaseTail, IntegrityError = integrityError ?? (actualTail ? null : "POST_RELEASE_PRESENTATION_TAIL_INCOMPLETE") };
+                sealedTailFinalized = true;
+            }
             return;
         }
         runtimeScope?.Dispose();
@@ -217,7 +267,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         }
         double effectDuration = effectStartedTicks > 0 && effectCompletedTicks > effectStartedTicks ? (effectCompletedTicks - effectStartedTicks) * 1000.0 / Stopwatch.Frequency : 0;
         TelemetryProcessSample processAfter = TelemetryProcessSample.Capture();
-        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter) { PresentationPacing = pacing?.Complete(), VisualChanges = visualChanges?.Complete(effectStartedTicks, effectCompletedTicks), SlotsStart = SlotsStart, SlotsEnd = slotsSource is null ? null : DiagnosticSlotsObservations.Observe(battle, slotsSource.BattleInstanceId, slotsSource.ActorId, slotsSource) });
+        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter) { InvocationRelease = invocationRelease, PresentationPacing = pacing?.Complete(), VisualChanges = visualChanges?.Complete(effectStartedTicks, effectCompletedTicks), SlotsStart = SlotsStart, SlotsEnd = slotsSource is null ? null : DiagnosticSlotsObservations.Observe(battle, slotsSource.BattleInstanceId, slotsSource.ActorId, slotsSource) });
         start = null;
         pacing = null;
         visualChanges = null;

@@ -157,6 +157,18 @@ internal sealed class DiagnosticBattleDriver
     internal DiagnosticDriverStage Stage { get; private set; }
     internal int Execution { get; private set; } = 1;
     internal string? Blocker { get; private set; }
+    internal BattleDiagnosticInvocationRelease? FocalRelease { get; private set; }
+
+    internal void ObserveInvocationRelease(BattleDiagnosticInvocationRelease release)
+    {
+        if (recipe.FreshEntry is null || Stage != DiagnosticDriverStage.Drain || currentFocalDispatch is null || FocalRelease is not null)
+        {
+            throw new InvalidDataException("Focal release is outside its single-use invocation.");
+        }
+        DiagnosticInvocationReleaseValidation.Validate(release, currentFocalDispatch, release.LifecycleId);
+        FocalRelease = release;
+    }
+
     internal IReadOnlyList<BattleDiagnosticEffectDispatch> Dispatches => dispatches;
     internal IReadOnlyList<BattleDiagnosticEffectDispatch> ReflectionDispatches => reflectionDispatches;
     internal string[] LastDrainBlockers { get; private set; } = [];
@@ -169,7 +181,7 @@ internal sealed class DiagnosticBattleDriver
 
     internal void ObserveDispatch(BattleDiagnosticEffectDispatch dispatch, DiagnosticShotDispatchPackets? packetProof, DiagnosticCounterDispatchPackets? counterPackets)
     {
-        if (Finished || Stage is not (DiagnosticDriverStage.AwaitDispatch or DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail))
+        if (Finished || recipe.FreshEntry is not null && FocalRelease is not null || Stage is not (DiagnosticDriverStage.AwaitDispatch or DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail))
         {
             return;
         }
@@ -277,6 +289,7 @@ internal sealed class DiagnosticBattleDriver
         {
             return false;
         }
+        bool drained = recipe.FreshEntry is not null && (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) ? FocalRelease is not null : observation.Drained;
         LastDrainBlockers = observation.DrainBlockers;
         if (observation.Callback < previousCallback)
         {
@@ -325,7 +338,7 @@ internal sealed class DiagnosticBattleDriver
                 return true;
             }
         }
-        else if (Stage == DiagnosticDriverStage.Drain && observation.Drained)
+        else if (Stage == DiagnosticDriverStage.Drain && drained)
         {
             if (recipe.ShotCycle is not null)
             {
@@ -371,7 +384,7 @@ internal sealed class DiagnosticBattleDriver
         }
         else if (Stage == DiagnosticDriverStage.Tail)
         {
-            if (!observation.Drained)
+            if (!drained)
             {
                 Stage = DiagnosticDriverStage.Drain;
             }

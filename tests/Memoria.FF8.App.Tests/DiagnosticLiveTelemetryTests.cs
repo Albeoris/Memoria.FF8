@@ -9,6 +9,51 @@ public sealed class DiagnosticLiveTelemetryTests
         return new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 1000, CurrentHp = 1000, Speed = 1 }] }, BattleAtbMode.Normal);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("SEALED_INTEGRITY_FAILURE")]
+    public void Synchronous_focal_seal_keeps_actual_afterstate_integrity_and_excludes_later_gameplay_from_separate_tail(string? sealedIntegrityError)
+    {
+        BattleSession battle = Battle();
+        using DiagnosticLiveTelemetry telemetry = new(battle, Guid.NewGuid(), 2);
+        long begin = System.Diagnostics.Stopwatch.GetTimestamp();
+        telemetry.Begin(begin, 10, 0, "renderer");
+        var release = DiagnosticInvocationReleaseTests.Receipt() with { LifecycleId = battle.DiagnosticLifecycleId, SimulationFrame = battle.Frame };
+        typeof(DiagnosticLiveTelemetry).GetMethod("ObserveDispatch", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(telemetry, [release.Dispatch]);
+        NativeBattleTelemetry.Record(1001, NativeBattleTrafficKind.CpuCopyPayload, 17);
+        telemetry.Presented(System.Diagnostics.Stopwatch.GetTimestamp(), 11, "Drain", 1, 1, 0);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeHostCallbacks))!.SetValue(battle, 3L);
+        release = release with { Timestamp = System.Diagnostics.Stopwatch.GetTimestamp() };
+        BattleDiagnosticCombatant[] actualAtRelease = battle.ObserveDiagnosticCombatants();
+        telemetry.SealInvocation(release);
+        DiagnosticLiveExecution sealedWindow = Assert.Single(telemetry.Executions);
+        if (sealedIntegrityError is not null)
+        {
+            var retained = (List<DiagnosticLiveExecution>)typeof(DiagnosticLiveTelemetry).GetField("executions", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(telemetry)!;
+            retained[0] = sealedWindow with { IntegrityError = sealedIntegrityError };
+        }
+        battle.QueueAttack("party", "enemy");
+        NativeBattleTelemetry.Record(1001, NativeBattleTrafficKind.CpuCopyPayload, 999);
+        telemetry.Presented(release.Timestamp + 1, 12, "Tail", 2, 2, 0);
+        telemetry.Presented(release.Timestamp + 2, 13, "Tail", 3, 2, 0);
+        telemetry.Complete(13, true, 2, null);
+        DiagnosticLiveExecution final = Assert.Single(telemetry.Executions);
+        Assert.Equal(17, final.Traffic.CpuCopyPayloadBytes);
+        Assert.DoesNotContain(final.Events, value => value.Kind == "Queued");
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(actualAtRelease), System.Text.Json.JsonSerializer.Serialize(final.After));
+        Assert.Contains(battle.Events, value => value.Kind == "Queued");
+        Assert.Equal(sealedWindow.EndOwners, final.EndOwners);
+        Assert.Equal(3, final.EndCallback);
+        Assert.Equal(11, final.EndFrame);
+        Assert.Equal(1, final.Frames.FrameCount);
+        Assert.Equal(sealedIntegrityError is null, final.Completed);
+        Assert.Equal(sealedIntegrityError is null, final.CleanupCompleted);
+        Assert.Equal(sealedIntegrityError, final.IntegrityError);
+        Assert.Equal(2, final.PostReleaseTail!.PresentedFrames);
+        Assert.Equal(12, final.PostReleaseTail.FirstPresentedFrame);
+        Assert.Equal(release, final.InvocationRelease);
+    }
+
     [Fact]
     public void Window_observes_live_events_and_actual_payload_without_snapshot_polling()
     {

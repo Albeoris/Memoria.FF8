@@ -13,6 +13,21 @@ public static class TelemetryEffectFrames
 
     public static TelemetryEffectFrameSummary Summarize(TelemetryFrameSummary invocation, long precedingTicks, long effectStart, long effectEnd, long frequency)
     {
+        return SummarizeCore(invocation, precedingTicks, effectStart, effectEnd, frequency, null);
+    }
+
+    public static TelemetryEffectFrameSummary SummarizeNativeRelease(TelemetryFrameSummary invocation, long precedingTicks, long effectStart, long effectEnd, long firstTailTicks, long frequency)
+    {
+        ArgumentNullException.ThrowIfNull(invocation);
+        if (invocation.Intervals.Count == 0 || invocation.DroppedSamples != 0 || firstTailTicks <= effectEnd)
+        {
+            throw new InvalidDataException("Native release requires nonempty loss-free real presentation intervals and its independently observed first tail strictly after release.");
+        }
+        return SummarizeCore(invocation, precedingTicks, effectStart, effectEnd, frequency, firstTailTicks);
+    }
+
+    private static TelemetryEffectFrameSummary SummarizeCore(TelemetryFrameSummary invocation, long precedingTicks, long effectStart, long effectEnd, long frequency, long? firstTailTicks)
+    {
         ArgumentNullException.ThrowIfNull(invocation);
         if (frequency <= 0 || precedingTicks < 0 || effectStart < precedingTicks || effectEnd <= effectStart)
         {
@@ -45,11 +60,16 @@ public static class TelemetryEffectFrames
             previousTicks = endTicks;
             previousFrame = interval.End.FrameIndex;
         }
-        if (effectEnd > previousTicks)
+        if (firstTailTicks is not null && effectEnd < previousTicks)
+        {
+            throw new InvalidDataException("Native release cannot precede its last retained focal presentation.");
+        }
+        if (firstTailTicks is null && effectEnd > previousTicks)
         {
             throw new InvalidDataException("Effect markers must be covered by retained presentation intervals.");
         }
         TelemetryFrameSummary frames = TelemetryFrameCollector.Recompute(included.ToArray(), invocation.DroppedSamples);
-        return new(frames, effectStart, effectEnd, boundaries.Count, boundaries.ToArray(), Policy);
+        string policy = firstTailTicks is null ? Policy : Policy + " Native release may follow the last focal presentation and must precede the independently observed first tail. Unobserved completion time contributes no presentation interval.";
+        return new(frames, effectStart, effectEnd, boundaries.Count, boundaries.ToArray(), policy);
     }
 }

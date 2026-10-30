@@ -205,6 +205,15 @@ public static class LiveEvidenceValidation
                 }
                 JsonElement dispatches = execution.GetProperty("dispatches");
                 BattleDiagnosticEffectDispatch[] typedDispatches = dispatches.Deserialize<BattleDiagnosticEffectDispatch[]>(Json) ?? throw new InvalidDataException("Dispatch observations must be an explicit array.");
+                BattleDiagnosticInvocationRelease? invocationRelease = null;
+                if (freshEntry)
+                {
+                    invocationRelease = ValidateFreshInvocationRelease(report, execution, typedDispatches, startCallback, endCallback, endFrame);
+                }
+                else if (execution.TryGetProperty("invocation_release", out JsonElement unexpectedRelease) && unexpectedRelease.ValueKind != JsonValueKind.Null)
+                {
+                    throw new InvalidDataException("Ordinary two-use evidence cannot substitute a focal release for global drain.");
+                }
                 if (shotCycle is not null)
                 {
                     BattleInput submitted = input.Deserialize<BattleInput>(Json) ?? throw new InvalidDataException("Shot input is absent.");
@@ -318,7 +327,7 @@ public static class LiveEvidenceValidation
                 long effectCompleted = Number(execution, "effect_completed_ticks");
                 double effectDuration = checked(effectCompleted - effectStarted) * 1000.0 / frequency;
                 double declaredDuration = execution.GetProperty("effect_duration_ms").GetDouble();
-                if (effectStarted < Number(execution, "preceding_presentation_ticks") || effectCompleted <= effectStarted || effectCompleted > previousTicks || !double.IsFinite(declaredDuration) || Math.Abs(declaredDuration - effectDuration) > 0.0000001 || effectDuration > recomputed.DurationMs)
+                if (effectStarted < Number(execution, "preceding_presentation_ticks") || effectCompleted <= effectStarted || (invocationRelease is null ? effectCompleted > previousTicks : effectCompleted != invocationRelease.Timestamp || previousTicks > invocationRelease.Timestamp) || !double.IsFinite(declaredDuration) || Math.Abs(declaredDuration - effectDuration) > 0.0000001 || (invocationRelease is null && effectDuration > recomputed.DurationMs))
                 {
                     errors.Add("EFFECT_TIMING_MARKERS_INVALID");
                 }
@@ -327,7 +336,9 @@ public static class LiveEvidenceValidation
                     effectDurations.Add(effectDuration);
                     if (frameLineageValid)
                     {
-                        effectFrames.Add(TelemetryEffectFrames.Summarize(recomputed, Number(execution, "preceding_presentation_ticks"), effectStarted, effectCompleted, frequency));
+                        effectFrames.Add(invocationRelease is null
+                            ? TelemetryEffectFrames.Summarize(recomputed, Number(execution, "preceding_presentation_ticks"), effectStarted, effectCompleted, frequency)
+                            : TelemetryEffectFrames.SummarizeNativeRelease(recomputed, Number(execution, "preceding_presentation_ticks"), effectStarted, effectCompleted, Number(execution.GetProperty("post_release_tail"), "first_timestamp"), frequency));
                     }
                 }
                 if (!recomputed.Valid || Number(execution, "dropped_events") != 0)
@@ -457,6 +468,30 @@ public static class LiveEvidenceValidation
             }
         }
         return invocations;
+    }
+
+    private static BattleDiagnosticInvocationRelease ValidateFreshInvocationRelease(JsonElement report, JsonElement execution, BattleDiagnosticEffectDispatch[] dispatches, long startCallback, long endCallback, long endFrame)
+    {
+        BattleDiagnosticInvocationRelease release = execution.GetProperty("invocation_release").Deserialize<BattleDiagnosticInvocationRelease>(Json) ?? throw new InvalidDataException("Fresh entry requires its actual native invocation release.");
+        BattleDiagnosticEffectDispatch focal = dispatches.Single(value => value.Serial == release.Dispatch.Serial);
+        TelemetryOwnerState end = execution.GetProperty("end_owners").Deserialize<TelemetryOwnerState>(Json) ?? throw new InvalidDataException("Fresh release has no retained end owner.");
+        DiagnosticInvocationReleaseValidation.Validate(release, focal, Guid.Parse(end.RetainedMemoryOwnerId));
+        JsonElement tail = execution.GetProperty("post_release_tail");
+        long first = Number(tail, "first_presented_frame");
+        long last = Number(tail, "last_presented_frame");
+        long firstTicks = Number(tail, "first_timestamp");
+        long lastTicks = Number(tail, "last_timestamp");
+        long count = Number(tail, "presented_frames");
+        long requiredTail = Number(report.GetProperty("initialization").GetProperty("preparation").GetProperty("driver"), "tail_frames");
+        if (release.Callback != endCallback || release.Callback <= startCallback || release.Timestamp != Number(execution, "effect_completed_ticks") || first != endFrame + 1 || requiredTail < 2 || count < requiredTail || last - first + 1 != count || Number(execution, "tail_presented_frames") != count || firstTicks <= release.Timestamp || lastTicks <= firstTicks)
+        {
+            throw new InvalidDataException("Fresh release and separate actual presentation tail do not match their focal execution boundary.");
+        }
+        if (execution.GetProperty("events").EnumerateArray().Any(value => Number(value, "frame") > release.SimulationFrame) || execution.GetProperty("resolutions").EnumerateArray().Any(value => Number(value, "callback") > release.Callback))
+        {
+            throw new InvalidDataException("Fresh focal window contains gameplay after its sealed native release.");
+        }
+        return release;
     }
 
     private static bool HasSupportingInvocation(JsonElement execution, JsonElement dispatch, BattleDiagnosticSupportingInvocation[] declared)

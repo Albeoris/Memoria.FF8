@@ -31,13 +31,16 @@ public sealed partial class BattleSession
         }
         BattleActionPresentation? presentation = CaptureNativeEventPresentation();
         BattleAttackCommand[] queuedPresentations = CaptureNativeQueuedEventPresentations();
+        DiagnosticInvocationCompletion? diagnosticCompletion = CaptureDiagnosticInvocationCompletion(graphics, callback);
         NativeGraphics = graphics;
         ReleaseNativeRawRenzokukenActionOwners(callback);
         bool completed = CompleteNativeActionEvent(callback);
+        bool diagnosticAcknowledged = diagnosticCompletion is { } observed && completed && (presentation is not null && ReferenceEquals(ActiveAction, presentation) && presentation.ActorId == observed.Dispatch.ActorId && presentation.NativeHeaderIndex == observed.Dispatch.NativeHeaderIndex || queuedPresentations.Any(command => command.ActorId == observed.Dispatch.ActorId && command.NativeHeaderIndex == observed.Dispatch.NativeHeaderIndex));
         if (completed)
         {
             AcknowledgeNativeEventPresentations(presentation, queuedPresentations);
         }
+        ObserveDiagnosticInvocationCompletion(diagnosticCompletion, completed, diagnosticAcknowledged);
         return NativeGraphics ?? throw new InvalidDataException("Native completion lost its graphical descriptor owner.");
     }
 

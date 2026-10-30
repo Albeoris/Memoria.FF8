@@ -13,6 +13,7 @@ public sealed partial class BattleSession
         diagnosticPacketReadThread = Environment.CurrentManagedThreadId;
         try
         {
+            ObserveDiagnosticInvocationDispatch(dispatch);
             observer(dispatch);
         }
         finally

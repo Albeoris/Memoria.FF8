@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Memoria.FF8.BattleEffects;
 using Memoria.FF8.Runtime;
 
@@ -9,10 +10,18 @@ namespace Memoria.FF8.BattleEffects.Tests;
 
 public sealed class FreshEntryPairValidationTests
 {
+    private static readonly JsonSerializerOptions Json = new(RecordJson.Options) { Converters = { new JsonStringEnumConverter() } };
+
     [Fact]
     public void Two_independent_source_bound_single_use_entries_pass_without_claiming_campaign_acceptance()
     {
         using Fixture fixture = new(ActualExecutable());
+        foreach (JsonObject entry in fixture.Reports)
+        {
+            using JsonDocument entryDocument = JsonDocument.Parse(entry.ToJsonString());
+            LiveEvidenceVerdict entryVerdict = LiveEvidenceValidation.ValidateFreshEntry(entryDocument.RootElement);
+            Assert.True(entryVerdict.Verdict == "PASS", string.Join(";", entryVerdict.Errors));
+        }
         var result = FreshEntryPairValidation.ValidateFiles(fixture.Pins());
         Assert.True(result.FunctionalPass, string.Join(";", result.Errors));
         Assert.Equal(2, result.Entries.Length);
@@ -37,6 +46,11 @@ public sealed class FreshEntryPairValidationTests
     [InlineData("restore")]
     [InlineData("second-use")]
     [InlineData("repair")]
+    [InlineData("release-missing")]
+    [InlineData("release-generation")]
+    [InlineData("release-task")]
+    [InlineData("release-packet")]
+    [InlineData("release-tail")]
     public void Pair_rejects_owner_source_recipe_native_and_independent_anchor_divergence(string fault)
     {
         using Fixture fixture = new(ActualExecutable());
@@ -77,6 +91,21 @@ public sealed class FreshEntryPairValidationTests
                 break;
             case "second-use":
                 second["executions"]!.AsArray().Add(second["executions"]![0]!.DeepClone());
+                break;
+            case "release-missing":
+                second["executions"]![0]!["invocation_release"] = null;
+                break;
+            case "release-generation":
+                second["executions"]![0]!["invocation_release"]!["dispatch"]!["native_header_generation"] = 2;
+                break;
+            case "release-task":
+                second["executions"]![0]!["invocation_release"]!["owners"]!["returned_task_pointer"] = 1;
+                break;
+            case "release-packet":
+                second["executions"]![0]!["invocation_release"]!["completion_packet_serial"] = 8;
+                break;
+            case "release-tail":
+                second["executions"]![0]!["post_release_tail"]!["first_presented_frame"] = 0;
                 break;
             case "repair":
                 second["initialization"]!["preparation"]!["driver"]!["repairs"]!.AsArray().Add(new JsonObject { ["actor_id"] = "party0", ["hit_points"] = 500 });
@@ -123,6 +152,11 @@ public sealed class FreshEntryPairValidationTests
     [InlineData("restore")]
     [InlineData("second-use")]
     [InlineData("repair")]
+    [InlineData("release-missing")]
+    [InlineData("release-generation")]
+    [InlineData("release-task")]
+    [InlineData("release-packet")]
+    [InlineData("release-tail")]
     public void Pure_single_entry_structure_still_rejects_divergence_without_installed_inputs(string fault)
     {
         using Fixture fixture = new();
@@ -149,6 +183,21 @@ public sealed class FreshEntryPairValidationTests
                 break;
             case "second-use":
                 report["executions"]!.AsArray().Add(report["executions"]![0]!.DeepClone());
+                break;
+            case "release-missing":
+                report["executions"]![0]!["invocation_release"] = null;
+                break;
+            case "release-generation":
+                report["executions"]![0]!["invocation_release"]!["dispatch"]!["native_header_generation"] = 2;
+                break;
+            case "release-task":
+                report["executions"]![0]!["invocation_release"]!["owners"]!["returned_task_pointer"] = 1;
+                break;
+            case "release-packet":
+                report["executions"]![0]!["invocation_release"]!["completion_packet_serial"] = 8;
+                break;
+            case "release-tail":
+                report["executions"]![0]!["post_release_tail"]!["first_presented_frame"] = 0;
                 break;
             case "repair":
                 report["initialization"]!["preparation"]!["driver"]!["repairs"]!.AsArray().Add(new JsonObject { ["actor_id"] = "party0", ["hit_points"] = 500 });
@@ -193,7 +242,7 @@ public sealed class FreshEntryPairValidationTests
             JsonObject driver = new()
             {
                 ["input"] = template["input"]!.DeepClone(), ["expected_effect"] = 1,
-                ["expected_native_action"] = null, ["expected_native_command"] = null,
+                ["expected_native_action"] = null, ["expected_native_command"] = null, ["tail_frames"] = 2,
                 ["fresh_entry"] = JsonSerializer.SerializeToNode(declaration, RecordJson.Options),
                 ["repairs"] = new JsonArray(), ["supporting_effects"] = new JsonArray(), ["supporting_invocations"] = new JsonArray()
             };
@@ -223,6 +272,42 @@ public sealed class FreshEntryPairValidationTests
                     ["preparation"] = preparation.DeepClone(), ["fresh_entry_host"] = JsonSerializer.SerializeToNode(host, RecordJson.Options),
                     ["ordered_stages"] = new JsonArray("installed-cold-process", "canonical-encounter-construction", "resource-derived-new-game")
                 };
+                JsonObject execution = report["executions"]![0]!.AsObject();
+                JsonObject dispatched = execution["dispatches"]![0]!.AsObject();
+                dispatched["native_command"] = 2;
+                dispatched["native_actor_index"] = 0;
+                dispatched["native_header_index"] = 0;
+                dispatched["native_header_generation"] = 1;
+                BattleDiagnosticEffectDispatch focal = dispatched.Deserialize<BattleDiagnosticEffectDispatch>(Json)!;
+                byte[] headerBytes = new byte[20];
+                headerBytes[1] = 2;
+                headerBytes[4] = 21;
+                headerBytes[6] = 1;
+                byte[] completionBytes = new byte[12];
+                completionBytes[0] = 7;
+                completionBytes[1] = 0x80;
+                completionBytes[2] = 10;
+                System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(completionBytes.AsSpan(4), 0x47DDA0);
+                TelemetryFrameSummary inheritedFrames = execution["frames"]!.Deserialize<TelemetryFrameSummary>(Json)!;
+                TelemetryFrameInterval lastFocalPresent = inheritedFrames.Intervals[0];
+                TelemetryFrameSummary focalFrames = TelemetryFrameCollector.Recompute([lastFocalPresent], inheritedFrames.DroppedSamples);
+                execution["frames"] = JsonSerializer.SerializeToNode(focalFrames, RecordJson.Options);
+                execution["end_frame"] = lastFocalPresent.End.FrameIndex;
+                execution["renderer_frames"] = lastFocalPresent.End.UniqueRenders;
+                execution["end_owners"]!["frame_index"] = lastFocalPresent.End.FrameIndex;
+                long endCallback = execution["end_callback"]!.GetValue<long>();
+                long endFrame = execution["end_frame"]!.GetValue<long>();
+                long releaseTicks = 112;
+                BattleDiagnosticInvocationOwners releasedOwners = new(1, 0, 0, 0, false, false, 0, false, 0, 0, false, 0, false, false, false, false) { ObservedOriginalEffect = true, SelectedReturnedDescriptor = 0, OriginalPools = [] };
+                BattleDiagnosticInvocationRelease release = new(Guid.Parse(lifecycle), endCallback, endFrame, releaseTicks, focal, new(headerBytes.ToImmutableArray(), 0, 0, null), new(completionBytes.ToImmutableArray()), 0x47DDA0, 0, 0, 7, 0x47DDA0, true, true, true, true, releasedOwners, []);
+                execution["invocation_release"] = JsonSerializer.SerializeToNode(release, RecordJson.Options);
+                execution["effect_completed_ticks"] = releaseTicks;
+                execution["effect_duration_ms"] = 10;
+                execution["post_release_tail"] = new JsonObject { ["first_presented_frame"] = endFrame + 1, ["last_presented_frame"] = endFrame + 2, ["first_timestamp"] = 115, ["last_timestamp"] = 120, ["presented_frames"] = 2 };
+                foreach (JsonNode? observedEvent in execution["events"]!.AsArray())
+                {
+                    observedEvent!["frame"] = endFrame;
+                }
                 Reports[index] = report;
                 Write($"initialization-{index}.json", report["initialization"]!.ToJsonString());
             }

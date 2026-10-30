@@ -13,25 +13,25 @@ public sealed class DiagnosticFreshEntryTests
     private static DiagnosticDriverObservation Observation(double seconds, long frame, bool drained = true, bool terminal = false) => new(seconds, frame, frame, true, drained, terminal, drained ? [] : ["native-work"]);
 
     [Fact]
-    public void Single_entry_drains_real_terminal_dispatch_and_tail_without_rearm()
+    public void Single_entry_requires_real_release_before_its_separate_terminal_tail()
     {
         DiagnosticBattleDriver driver = new(Recipe, 0);
         driver.Advance(Observation(0, 0));
         Assert.True(driver.Advance(Observation(0.1, 1)));
-        driver.ObserveDispatch(new(1, 1, "party-0", BattleAbility.Magic, 1, 2, 2));
+        BattleDiagnosticInvocationRelease release = DiagnosticInvocationReleaseTests.Receipt();
+        driver.ObserveDispatch(release.Dispatch);
         driver.Advance(Observation(0.2, 2, false, true));
         Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
         driver.Advance(Observation(0.3, 3, true, true));
-        driver.Advance(Observation(0.4, 4, false, true));
         Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
-        driver.Advance(Observation(0.5, 5, true, true));
-        driver.Advance(Observation(0.6, 6, true, true));
+        driver.ObserveInvocationRelease(release);
+        driver.Advance(Observation(0.4, 4, false, true));
         Assert.Equal(DiagnosticDriverStage.Tail, driver.Stage);
-        driver.Advance(Observation(0.7, 7, true, true));
+        driver.Advance(Observation(0.5, 5, false, true));
+        driver.Advance(Observation(0.6, 6, false, true));
         Assert.Equal(DiagnosticDriverStage.Completed, driver.Stage);
         Assert.Equal(1, driver.Execution);
         Assert.Single(driver.Dispatches);
-        Assert.False(driver.Advance(Observation(0.8, 8)));
     }
 
     [Fact]
