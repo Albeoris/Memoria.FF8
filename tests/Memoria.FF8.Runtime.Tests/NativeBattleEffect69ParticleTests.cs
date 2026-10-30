@@ -6,6 +6,45 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect69ParticleTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Debris_capture_preserves_final_OTZ_scratch_and_native_state_against_an_independent_baseline(bool quad)
+    {
+        NativeBattleEffect69Frame baselineInput = NativeBattleTestSnapshots.Independent(DebrisFrame(quad));
+        NativeBattleGfGeometryBatch? baselineBatch = null;
+        NativeBattleEffect69Inputs baselineInputs = Inputs((current, operation) =>
+        {
+            baselineBatch = Assert.IsType<NativeBattleEffect69DeliverCommonBatch>(operation).Batch;
+            return current;
+        });
+        NativeBattleEffect69Frame baseline = NativeBattleEffect69Particles.DrawDebris6FF2F0(baselineInput, baselineInputs);
+        string expectedNativeState = NativeBattleTestSnapshots.Json(baseline);
+        string expectedPackets = NativeBattleTestSnapshots.Json(baselineBatch);
+        (byte[] expectedScratch, bool[] expectedKnown) = baseline.Staging!.ReadSnapshot(NativeBattleTemporaryMemory.Address, 8);
+        Assert.Equal(quad ? 500u : 499u, BinaryPrimitives.ReadUInt32LittleEndian(expectedScratch));
+
+        NativeBattleEffect69Frame capturedInput = NativeBattleTestSnapshots.Independent(DebrisFrame(quad));
+        Assert.NotSame(baselineInput.Memory.Arena, capturedInput.Memory.Arena);
+        Assert.NotSame(baselineInput.Staging, capturedInput.Staging);
+        NativeBattleGfGeometryBatch? capturedBatch = null;
+        NativeBattleEffect69Inputs capturedInputs = Inputs((current, operation) =>
+        {
+            capturedBatch = Assert.IsType<NativeBattleEffect69DeliverCommonBatch>(operation).Batch;
+            return current;
+        }) with { CapturePresentation = true };
+        NativeBattleEffect69Frame captured = NativeBattleEffect69Particles.DrawDebris6FF2F0(capturedInput, capturedInputs);
+        Assert.Equal(expectedNativeState, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(expectedPackets, NativeBattleTestSnapshots.Json(capturedBatch));
+        (byte[] capturedScratch, bool[] capturedKnown) = captured.Staging!.ReadSnapshot(NativeBattleTemporaryMemory.Address, 8);
+        Assert.Equal(expectedScratch, capturedScratch);
+        Assert.Equal(expectedKnown, capturedKnown);
+        Assert.Equal(quad ? 500u : 499u, BinaryPrimitives.ReadUInt32LittleEndian(capturedScratch));
+        NativeBattlePilotVisualGeometry geometry = Assert.Single(capturedBatch!.Attempts).Primitive!.PilotGeometry!;
+        Assert.Equal(quad ? 4 : 3, geometry.CornerCount);
+        Assert.Equal(new System.Numerics.Vector4(2000, 2000, 2000, quad ? 2000 : 0), geometry.SourceDepths);
+    }
+
     [Fact]
     public void Spark_initialization_preserves_records_except_life_and_sets_actual_free_cursor()
     {

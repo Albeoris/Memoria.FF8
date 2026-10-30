@@ -99,7 +99,7 @@ public static class NativeBattleEffect79NodeEngine
                     ObserveStack(0x8DD260, null);
                 }
                 deliveries.Add((common, batch));
-            });
+            }, inputs.PilotIdentity, inputs.CapturePresentation ? PreparePilotMesh : null);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
             bank.Publish();
             frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State.ReplaceNodeBank(sourceAddress, bank.Source).WriteWord(0x25E8950, emitterCursor).WriteWord(0x25EAF40, geometryCursor) };
@@ -113,7 +113,14 @@ public static class NativeBattleEffect79NodeEngine
                 frame = inputs.Execute(frame, new NativeBattleEffect79ObserveNodeStack(instruction, firstDword));
             }
 
-            NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] source)
+            NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] source) => PrepareMeshWithIdentity(node, source, null);
+
+            NativeBattleEffectNodePilotMeshInstance PreparePilotMesh(int node, byte[] source)
+            {
+                return (resource, matrix, identity) => PrepareMeshWithIdentity(node, source, identity)(resource, matrix);
+            }
+
+            NativeBattleEffectNodeMeshInstance PrepareMeshWithIdentity(int node, byte[] source, NativeBattlePilotVisualIdentity? pilotIdentity)
             {
                 return (resource, matrix) =>
                 {
@@ -145,7 +152,7 @@ public static class NativeBattleEffect79NodeEngine
                     short? padding = known[18] && known[19] ? BinaryPrimitives.ReadInt16LittleEndian(packed.AsSpan(18)) : null;
                     frame = frame with { Memory = frame.Memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect79 node mesh requires current geometry registers."), matrix, true, true, padding) } };
                     ObserveStack(0x7B6020, null);
-                    NativeBattleEffect79Mesh104Step drawn = NativeBattleEffect79Mesh104.DrawLoaded(frame.Memory, resourceAddress, resource, inputs.ReadProjection(frame), temporary, inputs.Colors);
+                    NativeBattleEffect79Mesh104Step drawn = NativeBattleEffect79Mesh104.DrawLoaded(frame.Memory, resourceAddress, resource, inputs.ReadProjection(frame), temporary, inputs.Colors, pilotIdentity: pilotIdentity is { } identity ? identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ resourceAddress) } : null);
                     full = NativeBattleEffectNodeContextMemory.Copy(drawn.Context104, 0, NativeBattleEffectNodeContextMemory.Capture(drawn.Memory), 76, 104);
                     frame = frame with { Memory = NativeBattleEffectNodeContextMemory.Publish(drawn.Memory, full), State = frame.State.WriteDword(0x25EB3AC, checked(temporaryAddress + 104)) };
                     memory.PublishProcessMemory(frame.Memory);

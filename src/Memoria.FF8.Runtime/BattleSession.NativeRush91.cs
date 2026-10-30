@@ -46,7 +46,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Rush cannot read an uninitialized projected scratch owner.");
             }
-            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Rush requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Rush requires its selected device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray());
+            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Rush requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Rush requires its selected device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray(), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(91, task) with { ResourceGeneration = model.ResourceAddress });
             if (shared.ProjectedScratch is null && drawn.ProjectedBytesWritten != size)
             {
                 throw new InvalidDataException("Native Rush's first body draw did not establish every projected record.");
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
 
         NativeBattleRush91ProgramStep AdvanceProgram(NativeBattleRush91Frame current, NativeBattleModulePoolTask task)
         {
-            NativeBattleRush91ProgramDraw drawn = NativeBattleRush91ProgramDrawing.Advance761BB0(task, resources.ProgramSource, current.Memory.Rush91MorphScratch ?? throw new NotSupportedException("Native Rush requires its retained static morph bank."), view, projection, colors);
+            NativeBattleRush91ProgramDraw drawn = NativeBattleRush91ProgramDrawing.Advance761BB0(task, resources.ProgramSource, current.Memory.Rush91MorphScratch ?? throw new NotSupportedException("Native Rush requires its retained static morph bank."), view, projection, colors, capturePresentation: true);
             current = current with { Memory = current.Memory with { Rush91MorphScratch = drawn.MorphScratch } };
             return new(Append(current, drawn.Packets), drawn.Task, drawn.Remaining);
         }
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
             NativeBattleRecover93NodeState nodes = shared.Nodes with { PrivateDrawCursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Rush requires its current private cursor.") };
             NativeBattleRecover93NodeFrame nodeFrame = new(current.Memory, current.Effect, nodes, current.Random);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Rush requires its initialized ordering table.");
-            NativeBattleRecover93NodeStep advanced = NativeBattleRush91Nodes.AdvanceContext(nodeFrame, address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors);
+            NativeBattleRecover93NodeStep advanced = NativeBattleRush91Nodes.AdvanceContext(nodeFrame, address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors, capturePresentation: true);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = advanced.Ordering } };
             NativeBattleEffectMemory memory = advanced.Frame.Memory with { Rush91 = advanced.Frame.Memory.Rush91! with { Nodes = advanced.Frame.State } };
             return new(new(memory, advanced.Frame.Effect with { DrawArenaOffset = advanced.Frame.State.PrivateDrawCursor }, advanced.Frame.Random), advanced.Complete);
@@ -100,9 +100,9 @@ public sealed partial class BattleSession
                     (textures, _) = textures.EnqueueTim505E30(resources.ModelTim);
                     return current with { Memory = current.Memory with { Textures = textures } };
                 case NativeBattleRush91Sprite sprite:
-                    return Append(current, NativeBattleSearchSprites.Draw7582A0(sprite.Task, resources.Sprite12.Bytes, view, projection, NativeCamera!.Roll));
+                    return Append(current, NativeBattleSearchSprites.Draw7582A0(sprite.Task, resources.Sprite12.Bytes, view, projection, NativeCamera!.Roll, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(91, sprite.Task) with { ResourceGeneration = resources.Sprite12.Address }));
                 case NativeBattleRush91Mesh mesh:
-                    return Append(current, NativeBattleSearchMeshDrawing.Draw755FC0(mesh.Task, resources.ParticleMesh, view, projection, colors));
+                    return Append(current, NativeBattleSearchMeshDrawing.Draw755FC0(mesh.Task, resources.ParticleMesh, view, projection, colors, NativeBattlePilotVisualLifetimes.Identity(91, mesh.Task) with { ResourceGeneration = resources.ParticleMesh.Address }));
                 case NativeBattleRush91CommonTextureLoad load:
                     (NativeBattleAuxiliaryState auxiliary, _) = graphics.Auxiliary.AppendCommonTextureLoad508630(checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)load.DestinationArenaOffset), load.CompletionAddress, (address, value) => current = current with { Effect = NativeBattleRush91Controller.WriteCompletionByte(current.Effect, address, value) });
                     graphics = graphics with { Auxiliary = auxiliary };
@@ -114,6 +114,7 @@ public sealed partial class BattleSession
 
         NativeBattleRush91Frame Append(NativeBattleRush91Frame current, NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleRetainedPolygonDepths.Capture(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Rush requires its initialized ordering table.");
             NativeBattleEffectPacketWrite privateWrite = NativeBattleEffectPacketArena.Append(current.Memory, current.Effect.DrawArenaOffset!.Value, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = privateWrite.Ordering } };

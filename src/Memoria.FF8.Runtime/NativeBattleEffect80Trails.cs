@@ -27,7 +27,7 @@ public static partial class NativeBattleEffect80Trails
         return frame with { State = state };
     }
 
-    public static (NativeBattleEffect80Frame Frame, uint PointAddress) AllocatePoint7AFD80(NativeBattleEffect80Frame frame)
+    public static (NativeBattleEffect80Frame Frame, uint PointAddress) AllocatePoint7AFD80(NativeBattleEffect80Frame frame, bool capturePresentation = false)
     {
         uint pointer = frame.State.ReadDword(TrailPointerAddress);
         uint selected = frame.State.ReadDword(TrailPointCursorGlobal);
@@ -48,11 +48,15 @@ public static partial class NativeBattleEffect80Trails
         {
             return (frame, 0);
         }
+        if (capturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.State.InitializedSources[TrailAddress], pointer, checked((int)((selected - pointer) / 24)));
+        }
         uint next = selected >= pointer + 0x2FE8 ? pointer : selected + 24;
         return (frame with { State = frame.State.WriteDword(TrailPointCursorGlobal, next) }, selected);
     }
 
-    public static (NativeBattleEffect80Frame Frame, uint PointAddress) Birth7AFDD0(NativeBattleEffect80Frame frame, NativeBattleEffectArena descriptor48, NativeBattleEffect80Resources resources)
+    public static (NativeBattleEffect80Frame Frame, uint PointAddress) Birth7AFDD0(NativeBattleEffect80Frame frame, NativeBattleEffectArena descriptor48, NativeBattleEffect80Resources resources, bool capturePresentation = false)
     {
         frame = Bind(frame, resources);
         uint pointer = frame.State.ReadDword(TrailPointerAddress);
@@ -75,7 +79,7 @@ public static partial class NativeBattleEffect80Trails
             return (frame, 0);
         }
         frame = frame with { State = frame.State.WriteDword(TrailRecordCursorGlobal, record >= pointer + 0x3BD0 ? pointer + 0x3000 : record + 48) };
-        (frame, uint point) = AllocatePoint7AFD80(frame);
+        (frame, uint point) = AllocatePoint7AFD80(frame, capturePresentation);
         if (point == 0)
         {
             return (frame, 0);
@@ -97,7 +101,7 @@ public static partial class NativeBattleEffect80Trails
 
     public static NativeBattleEffect80Frame Advance7AF4C0(NativeBattleEffect80Frame frame, NativeBattleEffect80Resources resources, NativeBattleEffect80Inputs inputs)
     {
-        return Update7AF9F0(Draw7AF4D0(frame, resources, inputs), resources);
+        return Update7AF9F0(Draw7AF4D0(frame, resources, inputs), resources, inputs.CapturePresentation);
     }
 
     private static short SignedWord(NativeBattleEffect80State state, uint address) => unchecked((short)state.ReadWord(address));

@@ -10,7 +10,7 @@ public static class NativeBattleAngelWing84ShaderMesh
 {
     public const int VertexCapacityBytes = 12000;
 
-    public static NativeBattleAngelWing84ShaderDraw Draw(ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> localBones, NativeBattleActionMatrix modelView, NativeBattleCameraProjection projection, uint objectMask, short radius, short centerY, NativeBattleEffectArena vertices)
+    public static NativeBattleAngelWing84ShaderDraw Draw(ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> localBones, NativeBattleActionMatrix modelView, NativeBattleCameraProjection projection, uint objectMask, short radius, short centerY, NativeBattleEffectArena vertices, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (meshes.IsDefault || localBones.IsDefaultOrEmpty)
         {
@@ -46,9 +46,12 @@ public static class NativeBattleAngelWing84ShaderMesh
                 BinaryPrimitives.WriteUInt32LittleEndian(shade, NativeBattleAngelWing84ShaderPackets.Shade(posed, centerY, radius));
                 vertices = vertices.Write(index * 12, xyz).MarkUnknown(index * 12 + 6, 2).Write(index * 12 + 8, shade);
             }
+            int polygonIndex = 0;
             foreach (NativeBattleRawPolygon polygon in mesh.Polygons.Where(face => !face.Quad && face.Bytes.Length == 16).Concat(mesh.Polygons.Where(face => face.Quad && face.Bytes.Length == 20)))
             {
+                int sourcePolygon = polygonIndex++;
                 int count = polygon.Quad ? 4 : 3;
+                System.Numerics.Vector3[] world = new System.Numerics.Vector3[count];
                 NativeBattleModuleProjectedVertex[] corners = new NativeBattleModuleProjectedVertex[count];
                 byte[] shades = new byte[count];
                 for (int corner = 0; corner < 3; corner++)
@@ -64,6 +67,10 @@ public static class NativeBattleAngelWing84ShaderMesh
                     ReadCorner(3);
                 }
                 NativeBattleGfGeometryBatch batch = NativeBattleAngelWing84ShaderPackets.Emit(polygon.Bytes.AsSpan(), polygon.Quad, corners, shades);
+                if (pilotIdentity is { } identity)
+                {
+                    batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 397 + meshIndex) * 65537 + sourcePolygon) }, world[0], world[1], world[2], polygon.Quad ? world[3] : default, (byte)count) { SourceDepths = new(corners[0].Depth, corners[1].Depth, corners[2].Depth, polygon.Quad ? corners[3].Depth : 0), UseSourceDepths = true } } } : attempt).ToImmutableArray() };
+                }
                 attempts.AddRange(batch.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
                 allocated = checked(allocated + batch.AllocationBytes);
 
@@ -77,6 +84,10 @@ public static class NativeBattleAngelWing84ShaderMesh
                     byte[] xyz = vertices.Read(index * 12, 6);
                     NativeBattleVector position = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
                     corners[corner] = NativeBattleModuleProjection.Project45FE10(modelView, position, projection);
+                    if (pilotIdentity.HasValue)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(modelView, position), projection);
+                    }
                     shades[corner] = vertices.Read(index * 12 + 8, 1)[0];
                 }
             }

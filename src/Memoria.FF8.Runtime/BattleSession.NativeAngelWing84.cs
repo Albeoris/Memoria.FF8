@@ -62,7 +62,7 @@ public sealed partial class BattleSession
                     return NativeBattleAngelWing84Body.Advance(current, address, new(CurrentBodyResources(), controller, BodyOperation));
                 case 0x796FD0:
                 case 0x7972B0:
-                    NativeBattleAngelWing84GlowStep glow = NativeBattleAngelWing84Glows.Advance(current, address, new((actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, bone, fraction), view, projection, Ordering(), colors, resources.Glows));
+                    NativeBattleAngelWing84GlowStep glow = NativeBattleAngelWing84Glows.Advance(current, address, new((actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, bone, fraction), view, projection, Ordering(), colors, resources.Glows) { CapturePresentation = true });
                     StoreOrdering(glow.Ordering);
                     return new(glow.Frame, glow.Result);
                 case 0x7913C0:
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
                         generator = generator.Draw(out ushort draw);
                         return NativeBattleAngelWing84Body.ReadBodyBone(current, resources.Body, checked((byte)resources.Body.OriginBones[draw % 14]));
                     }
-                    NativeBattleAngelWing84NodeCallbackStep nodes = NativeBattleAngelWing84Nodes.AdvanceGeneric(current, address, resources.Nodes, controller, random, projection, NativeCamera!.Roll, Ordering(), colors, SpawnOrigin);
+                    NativeBattleAngelWing84NodeCallbackStep nodes = NativeBattleAngelWing84Nodes.AdvanceGeneric(current, address, resources.Nodes, controller, random, projection, NativeCamera!.Roll, Ordering(), colors, SpawnOrigin, capturePresentation: true);
                     random = nodes.Random;
                     StoreOrdering(nodes.Ordering);
                     return new(nodes.Frame, nodes.Result);
@@ -83,7 +83,7 @@ public sealed partial class BattleSession
                         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Angel Wing requires its actual stage groups.");
                         NativeStage = stage with { Groups = stage.Groups.Select(group => group with { Flags = restore ? unchecked((byte)((group.Flags & ~2) | ((group.Flags >> 1) & 2))) : unchecked((byte)(group.Flags & ~2)) }).ToImmutableArray() };
                         return next;
-                    }));
+                    }) { CapturePresentation = true });
                     StoreOrdering(program.Ordering);
                     return new(program.Frame, program.Result);
                 default:
@@ -147,7 +147,7 @@ public sealed partial class BattleSession
                     graphics = SelectNativeHeaderSequence(graphics, bind.Actor, 1);
                     return current;
                 case NativeBattleAngelWing84DrawBody body:
-                    NativeBattleAngelWing84BodyDrawStep drawn = NativeBattleAngelWing84Body.Draw(current, body.Address, resources.Body, view, projection, rules.Rules.ShadowSource ?? throw new NotSupportedException("Native Angel Wing requires its original shadow vectors."), rules.PrimitiveCapabilities ?? throw new NotSupportedException("Native Angel Wing requires its current renderer capabilities."), colors, Ordering());
+                    NativeBattleAngelWing84BodyDrawStep drawn = NativeBattleAngelWing84Body.Draw(current, body.Address, resources.Body, view, projection, rules.Rules.ShadowSource ?? throw new NotSupportedException("Native Angel Wing requires its original shadow vectors."), rules.PrimitiveCapabilities ?? throw new NotSupportedException("Native Angel Wing requires its current renderer capabilities."), colors, Ordering(), capturePresentation: true);
                     StoreOrdering(drawn.Ordering);
                     return drawn.Frame;
                 default:

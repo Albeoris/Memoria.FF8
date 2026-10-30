@@ -7,7 +7,7 @@ public sealed record NativeBattleEffect79BodyDrawingStep(NativeBattleEffectMemor
 
 public static class NativeBattleEffect79BodyDrawing
 {
-    public static NativeBattleEffect79BodyDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleEffectArena temporary168, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, uint color, uint mask, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena rows, int rowLength, NativeBattleSummonColors constants, byte depthShift = 4, int depthFieldOffset = 0xD0)
+    public static NativeBattleEffect79BodyDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleEffectArena temporary168, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, uint color, uint mask, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena rows, int rowLength, NativeBattleSummonColors constants, byte depthShift = 4, int depthFieldOffset = 0xD0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (depthShift > 29 || rowLength < 0 || rowLength % 16 != 0 || depthFieldOffset is not (0xC0 or 0xD0))
         {
@@ -147,7 +147,17 @@ public static class NativeBattleEffect79BodyDrawing
                             packet.Word16(36, BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(18)));
                         }
                         ImmutableArray<int> sidecars = quad ? depths.ToImmutableArray() : [depths[0], depths[1], depths[2], 0];
-                        attempts.Add(packet.Attempt(new(checked(17 + depth), packet.Words(), sidecars)));
+                        NativeBattleGeometryPrimitive primitive = new(checked(17 + depth), packet.Words(), sidecars);
+                        if (pilotIdentity is { } identity)
+                        {
+                            System.Numerics.Vector3 Point(int corner)
+                            {
+                                NativeBattleVector position = Vector(rows, indices[corner] * 16);
+                                return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(view.ReadMatrix(), position), projection);
+                            }
+                            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + (int)cursor), ResourceGeneration = geometryAddress }, Point(0), Point(1), Point(2), quad ? Point(3) : default, (byte)indices.Length) { SourceDepths = new(depths[0], depths[1], depths[2], quad ? depths[3] : 0), UseSourceDepths = true } };
+                        }
+                        attempts.Add(packet.Attempt(primitive));
                         allocation += quad ? 40 : 32;
                     }
                     cursor += quad ? 20u : 16u;

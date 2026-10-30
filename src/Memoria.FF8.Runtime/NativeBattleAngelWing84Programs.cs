@@ -5,7 +5,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleAngelWing84ProgramResources(ImmutableArray<NativeBattleGfAnimationSource> Sources);
 public sealed record NativeBattleAngelWing84ProgramStep(NativeBattleAngelWing84Frame Frame, int Result, NativeBattleLogicalOrdering Ordering);
-public sealed record NativeBattleAngelWing84ProgramInputs(NativeBattleAngelWing84Inputs Controller, NativeBattleAngelWing84ProgramResources Resources, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, NativeBattleLogicalOrdering Ordering, Func<NativeBattleAngelWing84Frame, bool, NativeBattleAngelWing84Frame> SetStageFlags);
+public sealed record NativeBattleAngelWing84ProgramInputs(NativeBattleAngelWing84Inputs Controller, NativeBattleAngelWing84ProgramResources Resources, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, NativeBattleLogicalOrdering Ordering, Func<NativeBattleAngelWing84Frame, bool, NativeBattleAngelWing84Frame> SetStageFlags)
+{
+    public bool CapturePresentation { get; init; }
+}
 
 /// <summary>78ECD0/791260/796290's three scene programs and original78EEE0 private mesh callback.</summary>
 public static class NativeBattleAngelWing84Programs
@@ -103,7 +106,7 @@ public static class NativeBattleAngelWing84Programs
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (148 - 12), size);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
             {
-                NativeBattleGfGeometryBatch batch = DrawNode(source, node, context, unchecked((short)task.ReadWord(136)), task.ReadWord(128), inputs.Projection, inputs.Colors);
+                NativeBattleGfGeometryBatch batch = DrawNode(source, node, context, unchecked((short)task.ReadWord(136)), task.ReadWord(128), inputs.Projection, inputs.Colors, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(84, task, node.ResourceOffset) with { ResourceGeneration = source.Address } : null);
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, frame.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native78EEE0 requires its current private draw cursor."), ordering, batch);
                 frame = frame with { Memory = written.Memory, State = frame.State with { PrimaryDrawCursor = written.Cursor } };
                 ordering = written.Ordering;
@@ -114,7 +117,7 @@ public static class NativeBattleAngelWing84Programs
         }
     }
 
-    public static NativeBattleGfGeometryBatch DrawNode(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, short depthBias, ushort mode, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch DrawNode(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, short depthBias, ushort mode, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
         {
@@ -153,7 +156,7 @@ public static class NativeBattleAngelWing84Programs
         }
         NativeBattleTextureWindow full = new(0, 0, 256, 256);
         NativeBattleEsunaMeshContext operands = new(flags, fade ? node.Color32 : null, fade ? node.Scalar36 : null, mode == 2 && index == 1 ? depthBias - 28672 : depthBias, 0, 0, full, full, 17, 2);
-        return NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh, matrix, projection, operands, colors, offset =>
+        return NativeBattleRetainedPolygonDepths.Capture(NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh, matrix, projection, operands, colors, offset =>
         {
             if (offset < 0 || (offset & 7) != 0 || offset >= vertices * 8)
             {
@@ -161,7 +164,7 @@ public static class NativeBattleAngelWing84Programs
             }
             ReadOnlySpan<byte> vertex = Read(checked(geometry + 12 + shape * vertices * 8 + offset), 6);
             return new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..]));
-        });
+        }, pilotIdentity: pilotIdentity));
 
         ReadOnlySpan<byte> Read(int offset, int length) => source.Data.AsSpan().Slice(offset, length);
         int Int(int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(offset, 4));

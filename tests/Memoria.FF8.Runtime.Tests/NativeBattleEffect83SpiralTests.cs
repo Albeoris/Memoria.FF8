@@ -5,6 +5,33 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect83SpiralTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_spiral_retains_native_face_work_and_triangle_or_quad_payload(bool quad)
+    {
+        byte[] source = Geometry(quad);
+        NativeBattleEffect83SpiralDrawingStep original = Raster(source, quad);
+        NativeBattleEffect83SpiralDrawingStep capture = Raster(source, quad, new(83, 0x100, 1, 4, 0) { ResourceGeneration = 0x1000 });
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.Memory)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(capture.Memory)));
+        Assert.Equal(original.Faces.ReadSnapshot(0, 64).Item1, capture.Faces.ReadSnapshot(0, 64).Item1);
+        Assert.Equal(original.Temporary148.ReadSnapshot(0, 148).Item1, capture.Temporary148.ReadSnapshot(0, 148).Item1);
+        NativeBattleGfGeometryBatch normal = original.Batch;
+        NativeBattleGfGeometryBatch captured = capture.Batch;
+        Assert.Equal(normal.AllocationBytes, captured.AllocationBytes);
+        Assert.Equal(normal.Attempts.Length, captured.Attempts.Length);
+        for (int index = 0; index < normal.Attempts.Length; index++)
+        {
+            Assert.Equal(normal.Attempts[index].Data.ToArray(), captured.Attempts[index].Data.ToArray());
+            Assert.Equal(normal.Attempts[index].WriteMask.ToArray(), captured.Attempts[index].WriteMask.ToArray());
+            Assert.Equal(normal.Attempts[index].Primitive!.Bucket, captured.Attempts[index].Primitive!.Bucket);
+            Assert.Equal(normal.Attempts[index].Primitive!.VertexPayload4.ToArray(), captured.Attempts[index].Primitive!.VertexPayload4.ToArray());
+        }
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(quad ? 4 : 3, geometry.CornerCount);
+        Assert.True(geometry.UseSourceDepths);
+    }
+
     [Fact]
     public void First_face_retains_leading_row_and_waits_one_callback_after_threshold()
     {
@@ -90,14 +117,14 @@ public sealed class NativeBattleEffect83SpiralTests
         Assert.Equal(0u, result.Memory.GeometryRegisters!.Mac0);
     }
 
-    private static NativeBattleEffect83SpiralDrawingStep Raster(byte[] source, bool quad)
+    private static NativeBattleEffect83SpiralDrawingStep Raster(byte[] source, bool quad, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
         NativeBattlePackedMatrix32 bone = NativeBattlePackedMatrix32.FromMatrix(identity, null);
         NativeBattlePackedMatrix32 view = NativeBattlePackedMatrix32.FromMatrix(identity with { Z = 8000 }, null);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), identity, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         NativeBattleEffectArena temporary = NativeBattleEffectArena.Clear().MarkUnknown(0, 148).Write(0x48, BitConverter.GetBytes(0x24123456u)).Write(0x4C, BitConverter.GetBytes(0x2C123456u)).Write(0x50, BitConverter.GetBytes(1u)).Write(0x90, new byte[2]);
-        return NativeBattleEffect83SpiralDrawing.Draw(memory, temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, source.AsSpan(checked((int)(address - 0x1000)), length)), 0x1000, [bone], view, new(null, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), NativeBattleEffectArena.Clear(), (quad ? 4 : 3) * 16, NativeBattleEffectArena.Clear());
+        return NativeBattleEffect83SpiralDrawing.Draw(memory, temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, source.AsSpan(checked((int)(address - 0x1000)), length)), 0x1000, [bone], view, new(identity, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), NativeBattleEffectArena.Clear(), (quad ? 4 : 3) * 16, NativeBattleEffectArena.Clear(), pilotIdentity);
     }
 
     private static byte[] Geometry(bool quad)

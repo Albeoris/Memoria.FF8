@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect80Trails
 {
-    public static NativeBattleEffect80Frame Update7AF9F0(NativeBattleEffect80Frame frame, NativeBattleEffect80Resources resources)
+    public static NativeBattleEffect80Frame Update7AF9F0(NativeBattleEffect80Frame frame, NativeBattleEffect80Resources resources, bool capturePresentation = false)
     {
         frame = Bind(frame, resources);
         uint pointer = frame.State.ReadDword(TrailPointerAddress);
@@ -65,7 +65,7 @@ public static partial class NativeBattleEffect80Trails
                 {
                     position = Interpolate(ref registers, frame.State.ReadView(record + 8, 6), frame.State.ReadView(record + 0x10, 6), fraction);
                 }
-                (frame, uint point) = AllocatePoint7AFD80(frame);
+                (frame, uint point) = AllocatePoint7AFD80(frame, capturePresentation);
                 if (point == 0)
                 {
                     return Publish(frame with { State = frame.State.WriteWord(record + 0x16, 4096) }, registers);
@@ -92,7 +92,7 @@ public static partial class NativeBattleEffect80Trails
                             descriptor = descriptor.Write(0x18 + (int)axis * 2, BitConverter.GetBytes(unchecked((ushort)(frame.State.ReadWord(record + 0x18 + axis * 2) + (random & 0x1FF) - 0x100))));
                         }
                         descriptor = descriptor.Write(0x1E, BitConverter.GetBytes(frame.State.ReadWord(record + 0x1E))).Write(0x20, frame.State.Read(record + 0x20, 6)).Write(0x26, BitConverter.GetBytes((ushort)0)).Write(0x28, BitConverter.GetBytes(frame.State.ReadDword(record + 0x28))).Write(0x2E, BitConverter.GetBytes(frame.State.ReadWord(record + 0x2E)));
-                        (frame, uint child) = Birth7AFDD0(frame, descriptor, resources);
+                        (frame, uint child) = Birth7AFDD0(frame, descriptor, resources, capturePresentation);
                         if (child != 0)
                         {
                             frame = frame with { State = frame.State.Write(child + 8, frame.State.Read(point + 8, 8)) };

@@ -8,6 +8,29 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleFullscreenOverlayTests
 {
     [Fact]
+    public void Effect82_delayed_overlay_capture_preserves_native_program_memory_and_fixed_packets()
+    {
+        var fixture = Fixture([0x00123456, 0xFF000000]);
+        NativeBattleModulePoolTask task = fixture.Frame.Pools[0].Slots[0];
+        task = NativeBattleTaskFixture.EditTask(task, data => data with { Callback = 0x8DDC30 }).WriteByte(0x29, 1);
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Pools);
+        NativeBattleFullscreenOverlayFrame frame = fixture.Frame with { Pools = hierarchy.Write(fixture.Address, task).Pools };
+        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(82, task);
+        NativeBattleFullscreenOverlayStep plain = NativeBattleFullscreenOverlay.Advance8DDC30(NativeBattleTestSnapshots.Independent(frame), fixture.Address, 0, fixture.Program);
+        NativeBattleFullscreenOverlayStep captured = NativeBattleFullscreenOverlay.Advance8DDC30(NativeBattleTestSnapshots.Independent(frame), fixture.Address, 0, fixture.Program, identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        NativeBattleLogicalPacket[] packets = captured.Frame.Ordering.Packets.Where(packet => packet.PilotGeometry is not null).ToArray();
+        Assert.Equal(4, packets.Length);
+        Assert.All(packets, packet =>
+        {
+            Assert.Equal((ushort)82, packet.PilotGeometry!.Identity.Effect);
+            Assert.True(packet.PilotGeometry.ScreenSpace);
+            Assert.False(packet.PilotGeometry.Continuous);
+        });
+        Assert.Equal(4, packets.Select(packet => packet.PilotGeometry!.Identity).Distinct().Count());
+    }
+
+    [Fact]
     public void FixedPacketsTraverseModeThenReverseQuadrantsAndRetainUnusedProxyDepth()
     {
         var fixture = Fixture([0x00123456, 0xFF000000]);

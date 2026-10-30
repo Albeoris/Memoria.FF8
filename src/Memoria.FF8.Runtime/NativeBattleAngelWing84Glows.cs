@@ -4,7 +4,10 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleAngelWing84GlowResources(ImmutableArray<NativeBattleStaticMeshResource> Meshes);
-public sealed record NativeBattleAngelWing84GlowInputs(Func<byte, byte, short, NativeBattleVector> ReadBone, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, NativeBattleLogicalOrdering Ordering, NativeBattleSummonColors Colors, NativeBattleAngelWing84GlowResources Resources);
+public sealed record NativeBattleAngelWing84GlowInputs(Func<byte, byte, short, NativeBattleVector> ReadBone, NativeBattleActionMatrix Camera, NativeBattleCameraProjection Projection, NativeBattleLogicalOrdering Ordering, NativeBattleSummonColors Colors, NativeBattleAngelWing84GlowResources Resources)
+{
+    public bool CapturePresentation { get; init; }
+}
 public sealed record NativeBattleAngelWing84GlowStep(NativeBattleAngelWing84Frame Frame, int Result, NativeBattleLogicalOrdering Ordering);
 
 /// <summary>The original796FD0 caster glow and7972B0 camera-centered glow, including their separate phase gates.</summary>
@@ -99,8 +102,8 @@ public static class NativeBattleAngelWing84Glows
             NativeBattleStaticMeshResource mesh = inputs.Resources.Meshes.SingleOrDefault(candidate => candidate.Address == source) ?? throw new NotSupportedException("Native Angel Wing glow has no original mesh source.");
             NativeBattleTextureWindow window = new(0, 0, 256, 256);
             NativeBattleEsunaMeshContext context = new(240, task.ReadDword(64), unchecked((short)task.ReadWord(80)), unchecked((short)task.ReadWord(82)), 0, 0, window, window, 17, 2);
-            NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh.Bytes, matrix, inputs.Projection, context, inputs.Colors, observeFirstThreeFlags: flags => frame = frame with { Memory = frame.Memory with { NodeScratch2793E30 = (frame.Memory.NodeScratch2793E30 ?? throw new NotSupportedException("Native Angel Wing mesh requires the current projection flag owner.")).WriteFlags(flags) } });
-            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, frame.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native Angel Wing glow requires its executed private draw cursor."), ordering, batch);
+            NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh.Bytes, matrix, inputs.Projection, context, inputs.Colors, observeFirstThreeFlags: flags => frame = frame with { Memory = frame.Memory with { NodeScratch2793E30 = (frame.Memory.NodeScratch2793E30 ?? throw new NotSupportedException("Native Angel Wing mesh requires the current projection flag owner.")).WriteFlags(flags) } }, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(84, task) with { ResourceGeneration = source } : null);
+            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, frame.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native Angel Wing glow requires its executed private draw cursor."), ordering, NativeBattleRetainedPolygonDepths.Capture(batch));
             frame = frame with { Memory = written.Memory, State = frame.State with { PrimaryDrawCursor = written.Cursor } };
             ordering = written.Ordering;
         }

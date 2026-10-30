@@ -79,7 +79,7 @@ public sealed partial class BattleSession
         NativeBattleActorDirectorLeafStep AdvanceOverlay(NativeBattleActorDirectorFrame current, uint address)
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("The actor director overlay requires its current ordering table.");
-            NativeBattleFullscreenOverlayStep advanced = NativeBattleFullscreenOverlay.Advance8DDC30(new(current.Memory, current.Effect.Pools, primitive.Pending), address, current.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("The actor director overlay pause owner is unknown."), resources.Overlay ?? throw new NotSupportedException("The actor director requires its original fullscreen programme."));
+            NativeBattleFullscreenOverlayStep advanced = NativeBattleFullscreenOverlay.Advance8DDC30(new(current.Memory, current.Effect.Pools, primitive.Pending), address, current.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("The actor director overlay pause owner is unknown."), resources.Overlay ?? throw new NotSupportedException("The actor director requires its original fullscreen programme."), current.State.Effect == 82 ? NativeBattlePilotVisualLifetimes.Identity(82, new NativeBattleEffectHierarchy(current.Effect.Pools).Read(address)) : null);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = advanced.Frame.Ordering } };
             return new(current with { Memory = advanced.Frame.Memory, Effect = current.Effect with { Pools = advanced.Frame.Pools } }, advanced.Result);
         }

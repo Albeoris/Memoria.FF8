@@ -130,6 +130,7 @@ public sealed class NativeBattleRush91PresentationTests
                 }
                 sawModelTim |= current.NativeEffectMemory?.Textures?.Slots.Any(item => item?.Source?.Identity == resources.ModelTim.Identity) == true;
                 NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
+                NativeBattleReachedCaptureAssertions.Moving(91, current, frame.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8"));
                 sawPrivate |= frame.LastCommands.Any(item => item.Command.Packet.Bank == "20DFAB8");
                 sawCommon |= frame.LastCommands.Any(item => item.Command.Packet.Bank is "off_B6D070" or "off_B6D094");
                 sawOverlay |= frame.LastCommands.Any(item => item.Command.Packet.Bank == NativeBattleFullscreenOverlay.PacketBank);

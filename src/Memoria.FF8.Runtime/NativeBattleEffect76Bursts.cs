@@ -84,7 +84,7 @@ public static class NativeBattleEffect76Bursts
         frame = NativeBattleEffect76Meshes.Draw(frame, temporary, source, PrivateCursor, false, resources, inputs);
         if (callback == 0x620BD0)
         {
-            frame = NativeBattleEffect76Meshes.Draw(frame, temporary, source, PrivateCursor, false, resources, inputs);
+            frame = NativeBattleEffect76Meshes.Draw(frame, temporary, source, PrivateCursor, false, resources, inputs with { PilotIdentity = inputs.PilotIdentity is { } identity ? identity with { Primitive = 1 } : null });
         }
         frame = Release(frame, 88);
         if (Paused(frame, inputs))

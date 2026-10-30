@@ -9,6 +9,34 @@ public sealed class NativeBattleControl18ShardsTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void Effect77_shards_keep_signed_Q8_corners_native_flag_payload_and_record_birth(bool quad)
+    {
+        byte[] records = [.. new byte[68], .. Record(quad)];
+        BinaryPrimitives.WriteInt32LittleEndian(records.AsSpan(68 + 4), 32767 << 8);
+        BinaryPrimitives.WriteInt16LittleEndian(records.AsSpan(68 + 16), 1);
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+        NativeBattlePilotVisualLifetimes.Allocated(arena, 0x2000, 1);
+        NativeBattlePilotVisualIdentity Identity(int slot) => NativeBattlePilotVisualLifetimes.Identity(77, arena, 0x2000, slot, 3) with { ResourceGeneration = 17 };
+        NativeBattleModuleProjectedVertex Project(NativeBattleVector point) => new(0, 4096, 0x80004000);
+        System.Numerics.Vector3 World(NativeBattleVector point) => new(point.X, point.Y, point.Z);
+        NativeBattleGfGeometryBatch plain = NativeBattleControl18Shards.Emit(records, Polygon, new uint[] { 0, 0 }, Project, 17);
+        NativeBattleGfGeometryBatch captured = NativeBattleControl18Shards.Emit(records, Polygon, new uint[] { 0, 0 }, Project, 17, World, Identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(plain), NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry first = Assert.Single(captured.Attempts).Primitive!.PilotGeometry!;
+        Assert.NotNull(first);
+        Assert.Equal(new System.Numerics.Vector3(-32768, 0, 0), first.A);
+        Assert.Equal(1, first.Identity.Slot);
+        NativeBattleGfGeometryBatch depths = NativeBattleCinematicActorPresentation.NativeDepths(captured);
+        Assert.Equal(new System.Numerics.Vector4(0x10000, 0x10000, 0x10000, quad ? 0x10000 : 0), Assert.Single(depths.Attempts).Primitive!.PilotGeometry!.SourceDepths);
+        NativeBattlePilotVisualLifetimes.Allocated(arena, 0x2000, 1);
+        NativeBattleGfGeometryBatch reused = NativeBattleControl18Shards.Emit(records, Polygon, new uint[] { 0, 0 }, Project, 17, World, Identity);
+        Assert.NotEqual(first.Identity.Generation, Assert.Single(reused.Attempts).Primitive!.PilotGeometry!.Identity.Generation);
+        Assert.Equal(NativeBattleTestSnapshots.Json(captured), NativeBattleTestSnapshots.Json(reused));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Original_UV_mapping_TPAGE_bit_and_partial_packet_stores_are_distinct_for_triangles_and_quads(bool quad)
     {
         byte[] record = Record(quad);

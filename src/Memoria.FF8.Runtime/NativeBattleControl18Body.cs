@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleControl18Body
 {
-    public static NativeBattleGfGeometryBatch Emit(ReadOnlySpan<byte> triangles, ReadOnlySpan<byte> quads, ReadOnlySpan<byte> projected, ReadOnlySpan<byte> faceFlags, uint uniformColor, Func<int, ImmutableArray<uint>, uint, uint>? light, int orderingBaseBucket)
+    public static NativeBattleGfGeometryBatch Emit(ReadOnlySpan<byte> triangles, ReadOnlySpan<byte> quads, ReadOnlySpan<byte> projected, ReadOnlySpan<byte> faceFlags, uint uniformColor, Func<int, ImmutableArray<uint>, uint, uint>? light, int orderingBaseBucket, IReadOnlyList<System.Numerics.Vector3>? pilotWorld = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int triangleCount = triangles.Length / 16;
         int quadCount = quads.Length / 20;
@@ -89,6 +89,16 @@ public static class NativeBattleControl18Body
             ImmutableArray<NativeBattleGfPacketByteState> states = mask.ToImmutableArray();
             ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(index * 4, 4))).ToImmutableArray();
             NativeBattleGeometryPrimitive? primitive = bucket < 4095 ? new(checked(orderingBaseBucket + bucket), words, payload.ToImmutableArray()) { PhysicalWriteMask = states } : null;
+            if (primitive is not null && pilotIdentity is { } identity && pilotWorld is not null)
+            {
+                System.Numerics.Vector3[] world = new System.Numerics.Vector3[count];
+                for (int corner = 0; corner < count; corner++)
+                {
+                    int index = BinaryPrimitives.ReadUInt16LittleEndian(polygon.Slice(corner * 2, 2)) & 0xFFF;
+                    world[corner] = pilotWorld[index];
+                }
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + faceIndex) }, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)count)) };
+            }
             attempts.Add(new(allocation, packet.ToImmutableArray(), states, primitive));
             allocation = checked(allocation + length);
 

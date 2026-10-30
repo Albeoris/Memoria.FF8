@@ -12,6 +12,23 @@ public sealed class NativeBattleEffect69CasterDrawingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void Effect69_caster_capture_preserves_actual_physical_owner_and_discrete_native_packet(bool quad)
+    {
+        NativeBattleEffect69CasterDrawingStep native = Draw(Source(quad, false));
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattleEffect69CasterDrawingStep captured = Draw(Source(quad, false), pilotIdentity: new(69, 0x25E0000, 1, 17, 3) { ResourceGeneration = SourceAddress });
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry geometry = Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry!;
+        Assert.Equal(69, geometry.Identity.Effect);
+        Assert.Equal(17, geometry.Identity.Generation);
+        Assert.Equal(SourceAddress, geometry.Identity.ResourceGeneration);
+        Assert.Equal(new System.Numerics.Vector4(500, 500, 500, quad ? 500 : 0), geometry.SourceDepths);
+        Assert.True(geometry.UseSourceDepths);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Capture_preserves_native_half_plane_skin_and_quarter_depth_with_independent_arenas(bool quad)
     {
         NativeBattleEffect69CasterDrawingStep native = Draw(Source(quad, false));

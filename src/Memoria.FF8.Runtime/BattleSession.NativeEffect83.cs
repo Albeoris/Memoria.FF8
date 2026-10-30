@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect83 requires its process memory.");
         NativeBattleEffect83Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect83 requires its current CRT stream."), memory.Effect83 ?? throw new NotSupportedException("Effect83 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect83 requires its temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect83 requires its arithmetic constants.");
-        NativeBattleEffect83Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.Models[actor], (_, actor) => Pose(actor), _ => Camera().Roll, ReadColor, Execute);
+        NativeBattleEffect83Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.Models[actor], (_, actor) => Pose(actor), _ => Camera().Roll, ReadColor, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect83Controller.Initialize(frame, resources, inputs) : NativeBattleEffect83Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -70,6 +70,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEffect83Frame Deliver(NativeBattleEffect83Frame current, NativeBattleGfGeometryBatch batch, uint cursorGlobal, ushort flags)
         {
+            batch = NativeBattleRetainedPolygonDepths.Capture(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect83 requires its current ordering table.");
             if (cursorGlobal == 0x1D8E054)
             {
@@ -159,7 +160,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect83DrawOwnedModel owned:
                     NativeBattleEffectOwnedModelRenderInputs renderInputs = new(Camera().CapturePackedView1D97778(), Projection(), definition.NativeGraphics!.Rules.ShadowSource ?? throw new NotSupportedException("Effect83 requires its original shadow."), definition.NativeGraphics.PrimitiveCapabilities ?? throw new NotSupportedException("Effect83 requires primitive capabilities."), colors);
                     NativeBattleEffectOwnedModelRenderFrame render = new(current.Memory, NativeBattleEffect83Controller.Read(current, owned.TaskAddress), current.State.OwnedModels[owned.TaskAddress], resources.Model, current.State.ReadView(ProjectedAddress, ProjectedLength), ProjectedAddress, ProjectedLength, current.State.ReadDword(0x25CA07C), current.State.ReadDword(0x25C9F74));
-                    NativeBattleEffectOwnedModelRenderStep drawn = NativeBattleEffectOwnedModelRendering.DrawNormal(render, current.Staging!, renderInputs);
+                    NativeBattleEffectOwnedModelRenderStep drawn = NativeBattleEffectOwnedModelRendering.DrawNormal(render, current.Staging!, renderInputs, NativeBattlePilotVisualLifetimes.Identity(83, render.Task) with { ResourceGeneration = resources.Model.Address });
                     current = current with { Memory = drawn.Frame.Memory, Staging = drawn.Staging, State = current.State.WriteView(ProjectedAddress, drawn.Frame.ProjectedScratch, ProjectedLength) };
                     current = NativeBattleEffect83Controller.Write(current, owned.TaskAddress, drawn.Frame.Task);
                     return Deliver(current, drawn.Batch, 0x25C9F74, 0);

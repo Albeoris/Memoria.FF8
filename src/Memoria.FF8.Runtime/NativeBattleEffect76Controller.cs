@@ -98,16 +98,23 @@ public static partial class NativeBattleEffect76Controller
         return (WithPool(frame, index, step.Pool), step.Survivors);
     }
 
-    public static NativeBattleEffect76Step AdvanceTask(NativeBattleEffect76Frame frame, uint address, NativeBattleEffect76Resources resources, NativeBattleEffect76Inputs inputs) => Read(frame, address).Callback switch
+    public static NativeBattleEffect76Step AdvanceTask(NativeBattleEffect76Frame frame, uint address, NativeBattleEffect76Resources resources, NativeBattleEffect76Inputs inputs)
     {
-        RootCallback => AdvanceRoot6225A0(frame, address, resources, inputs),
-        MainCallback => AdvanceStartup61FA80(frame, address, resources, inputs),
-        0x61FC90 => AdvanceDelay61FC90(frame, address, inputs),
-        DriverCallback => AdvanceMain61FCD0(frame, address, resources, inputs),
-        0x6200F0 or 0x620140 => AdvanceWhite(frame, address, inputs),
-        0x63E9C0 => AdvanceCamera63E9C0(frame, address, inputs),
-        _ => NativeBattleEffect76Lower.Advance(frame, address, resources, inputs)
-    };
+        if (inputs.CapturePresentation)
+        {
+            inputs = inputs with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(76, Read(frame, address)) };
+        }
+        return Read(frame, address).Callback switch
+        {
+            RootCallback => AdvanceRoot6225A0(frame, address, resources, inputs),
+            MainCallback => AdvanceStartup61FA80(frame, address, resources, inputs),
+            0x61FC90 => AdvanceDelay61FC90(frame, address, inputs),
+            DriverCallback => AdvanceMain61FCD0(frame, address, resources, inputs),
+            0x6200F0 or 0x620140 => AdvanceWhite(frame, address, inputs),
+            0x63E9C0 => AdvanceCamera63E9C0(frame, address, inputs),
+            _ => NativeBattleEffect76Lower.Advance(frame, address, resources, inputs)
+        };
+    }
 
     public static NativeBattleEffect76Step AdvanceRoot6225A0(NativeBattleEffect76Frame frame, uint address, NativeBattleEffect76Resources resources, NativeBattleEffect76Inputs inputs)
     {

@@ -86,6 +86,7 @@ public sealed class NativeBattleAngelWing84CastTests
                 before = battle.Capture();
                 battle.Tick();
                 NativeBattleGraphicsState graphics = battle.NativeGraphics!;
+                NativeBattleReachedCaptureAssertions.Moving(84, battle.Capture(), graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8"));
                 bool active = graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId;
                 if (active)
                 {

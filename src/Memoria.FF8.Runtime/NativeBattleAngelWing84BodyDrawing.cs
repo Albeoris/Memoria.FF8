@@ -33,7 +33,7 @@ public static partial class NativeBattleAngelWing84Body
         return frame with { State = frame.State with { BodyShaderAngle = 0, BodyDrawStorage = storage with { Context = context, Parameters = parameters, CenterY = 0 } } };
     }
 
-    public static NativeBattleAngelWing84BodyDrawStep Draw(NativeBattleAngelWing84Frame frame, uint address, NativeBattleAngelWing84BodyResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleShadowSource shadow, NativeBattlePrimitiveCapabilities capabilities, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering)
+    public static NativeBattleAngelWing84BodyDrawStep Draw(NativeBattleAngelWing84Frame frame, uint address, NativeBattleAngelWing84BodyResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleShadowSource shadow, NativeBattlePrimitiveCapabilities capabilities, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering, bool capturePresentation = false)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
@@ -49,7 +49,7 @@ public static partial class NativeBattleAngelWing84Body
             NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native796440 requires its retained renderer process.");
             var gate = process.Enter5099D0(capabilities.HardwareEnabled ?? throw new NotSupportedException("Native796440 requires its current hardware capability."));
             int start = frame.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native796440 requires its current private packet cursor.");
-            NativeBattleEffectOwnedModelDraw ordinary = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, shadow, capabilities, colors, storage.OrdinaryProjected, () => gate.Draw);
+            NativeBattleEffectOwnedModelDraw ordinary = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, shadow, capabilities, colors, storage.OrdinaryProjected, () => gate.Draw, capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(84, task) with { ResourceGeneration = resources.Model.Address } : null);
             process = gate.Process;
             if (gate.Draw)
             {
@@ -74,8 +74,8 @@ public static partial class NativeBattleAngelWing84Body
         NativeBattleEffectLocalBounds bounds = new(new(Signed(100), Signed(102), Signed(104)), new(Signed(106), Signed(108), Signed(110)));
         NativeBattleShadowGeometry shape = NativeBattlePoseMatrices.ShadowGeometry5088A0(world, Signed(84), bounds, view, shadow, capabilities.GouraudAlpha);
         NativeBattleModuleProjectedVertex[] shadowVertices = shape.Vertices.Select(vertex => NativeBattleModuleProjection.Project45FE10(shape.CameraMatrix, vertex, projection)).ToArray();
-        Append(NativeBattleShadowPackets.EmitBatch5088A0(shadowVertices, task.ReadDword(92), capabilities.GouraudAlpha, 4112, 16));
-        NativeBattleAngelWing84ShaderDraw shader = NativeBattleAngelWing84ShaderMesh.Draw(resources.Model.Geometry, bones, modelView, projection, task.ReadDword(172), unchecked((short)(frame.State.BodyShaderAngle ?? throw new NotSupportedException("Native796720 requires its current shader radius."))), centerY, storage.Vertices);
+        Append(NativeBattleShadowPackets.EmitBatch5088A0(shadowVertices, task.ReadDword(92), capabilities.GouraudAlpha, 4112, 16, capturePresentation ? shape.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shape.CameraMatrix, vertex), projection)).ToArray() : null, capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(84, task, int.MinValue) with { ResourceGeneration = resources.Model.Address } : null));
+        NativeBattleAngelWing84ShaderDraw shader = NativeBattleAngelWing84ShaderMesh.Draw(resources.Model.Geometry, bones, modelView, projection, task.ReadDword(172), unchecked((short)(frame.State.BodyShaderAngle ?? throw new NotSupportedException("Native796720 requires its current shader radius."))), centerY, storage.Vertices, capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(84, task, 1) with { ResourceGeneration = resources.Model.Address } : null);
         NativeBattleEffectArena context = StoreMatrix(storage.Context, 0, world);
         context = StoreMatrix(context, 32, modelView);
         frame = frame with { State = frame.State with { BodyBones = bones, BodyDrawStorage = storage with { Context = context, Vertices = shader.Vertices, CenterY = centerY } } };
@@ -85,7 +85,7 @@ public static partial class NativeBattleAngelWing84Body
         short Signed(int offset) => unchecked((short)task.ReadWord(offset));
         void Append(NativeBattleGfGeometryBatch batch)
         {
-            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, frame.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native796390 requires its current private draw cursor."), ordering, batch);
+            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, frame.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native796390 requires its current private draw cursor."), ordering, NativeBattleRetainedPolygonDepths.Capture(batch));
             frame = frame with { Memory = written.Memory, State = frame.State with { PrimaryDrawCursor = written.Cursor } };
             ordering = written.Ordering;
         }

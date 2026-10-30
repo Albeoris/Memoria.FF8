@@ -18,6 +18,28 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
     [InlineData(4)]
     [InlineData(5)]
     [InlineData(7)]
+    public void Effect82_capture_preserves_all_actor_wave_packet_groups_and_native_writes(int group)
+    {
+        ImmutableArray<byte> mesh = Mesh(group);
+        NativeBattleCameraProjection projection = Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() };
+        NativeBattleActorWaveMeshStep plain = Emit(mesh, projection: projection);
+        NativeBattlePilotVisualIdentity identity = new(82, 0x1000, 2, 3, 4) { ResourceGeneration = Address };
+        NativeBattleActorWaveMeshStep captured = Emit(mesh, projection: projection, pilotIdentity: identity);
+        Assert.Equal(SnapshotJson(plain), SnapshotJson(captured));
+        NativeBattleGeometryPrimitive packet = Assert.Single(captured.Batch.Attempts).Primitive!;
+        Assert.NotNull(packet.PilotGeometry);
+        Assert.Equal((ushort)82, packet.PilotGeometry.Identity.Effect);
+        Assert.Equal(SnapshotJson(plain.Registers), SnapshotJson(captured.Registers));
+        Assert.Equal(SnapshotJson(plain.FarControls), SnapshotJson(captured.FarControls));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(7)]
     public void All_selected_groups_preserve_Esuna_packet_bytes_and_publish_native_depth(int group)
     {
         ImmutableArray<byte> mesh = Mesh(group);
@@ -143,10 +165,10 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
         Assert.Equal(accepted ? (uint?)375u : null, result.Registers.Geometry.Otz);
     }
 
-    private static NativeBattleActorWaveMeshStep Emit(ImmutableArray<byte> mesh, NativeBattleEffectArena? context = null, NativeBattleCameraProjection? projection = null, short? zsf3 = 0x155, short? zsf4 = 0x100, Func<int, short?>? readVertexW = null)
+    private static NativeBattleActorWaveMeshStep Emit(ImmutableArray<byte> mesh, NativeBattleEffectArena? context = null, NativeBattleCameraProjection? projection = null, short? zsf3 = 0x155, short? zsf4 = 0x100, Func<int, short?>? readVertexW = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleScriptedColorRegisters colors = NativeBattleScriptedColorRegisters.Unknown() with { Rgb = [null, 0x12345678, 0xABCDEF01] };
-        return NativeBattleActorWaveMesh.EmitBatch(mesh, Address, Matrix, projection ?? Projection, context ?? Context(), new(NativeBattleGeometryRegisters.Unknown(), colors), new(1, 2, 3, 4, 5), 0, 0, zsf4, Constants, 0x4321, zsf3, readVertexW);
+        return NativeBattleActorWaveMesh.EmitBatch(mesh, Address, Matrix, projection ?? Projection, context ?? Context(), new(NativeBattleGeometryRegisters.Unknown(), colors), new(1, 2, 3, 4, 5), 0, 0, zsf4, Constants, 0x4321, zsf3, readVertexW, pilotIdentity: pilotIdentity);
     }
 
     [Fact]

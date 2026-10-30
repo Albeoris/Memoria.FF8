@@ -9,6 +9,32 @@ public sealed class NativeBattleEffect79BodyDrawingTests
     private static readonly NativeBattleActionMatrix Identity = NativeBattleCuragaMatrices.Identity8DD770();
 
     [Theory]
+    [InlineData(79, false)]
+    [InlineData(79, true)]
+    [InlineData(80, false)]
+    [InlineData(80, true)]
+    public void Source_capture_preserves_native_deformed_rows_registers_packets_and_depths(int effect, bool quad)
+    {
+        NativeBattleEffect79BodyDrawingStep native = Draw(Geometry(quad), Context(), Temporary(), quad ? 4 : 3);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattlePilotVisualIdentity identity = new((ushort)effect, 0x100, 2, 3, 4);
+        NativeBattleEffect79BodyDrawingStep captured = Draw(Geometry(quad), Context(), Temporary(), quad ? 4 : 3, pilotIdentity: identity);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(effect, geometry.Identity.Effect);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(0x1000, geometry.Identity.ResourceGeneration);
+        Assert.Equal(quad ? 4 : 3, geometry.CornerCount);
+        Assert.Equal(new System.Numerics.Vector3(100, 0, 8000), geometry.B);
+        Assert.Equal(new System.Numerics.Vector4(8000, 8000, 8000, quad ? 8000 : 0), geometry.SourceDepths);
+        Assert.True(geometry.UseSourceDepths);
+        NativeBattlePilotVisualGeometry changed = geometry with { A = geometry.A + new System.Numerics.Vector3(20, 0, 0) };
+        Assert.Equal(geometry.A + new System.Numerics.Vector3(10, 0, 0), NativeBattlePilotVisualGeometry.SampleCorner(geometry, changed, 0, 0.5f));
+        Assert.Equal(geometry.A, NativeBattlePilotVisualGeometry.SampleCorner(geometry, changed with { Identity = changed.Identity with { Generation = 999 } }, 0, 0.5f));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void Raw_faces_build_FT_packets_with_explicit_depth_without_AVSZ(bool quad)
@@ -102,14 +128,14 @@ public sealed class NativeBattleEffect79BodyDrawingTests
         Assert.Equal(8000u, U(result.Rows, 44));
     }
 
-    private static NativeBattleEffect79BodyDrawingStep Draw(byte[] source, NativeBattleEffectArena context, NativeBattleEffectArena temporary, int vertices, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? rows = null)
+    private static NativeBattleEffect79BodyDrawingStep Draw(byte[] source, NativeBattleEffectArena context, NativeBattleEffectArena temporary, int vertices, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? rows = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         memory ??= NativeBattleEffectMemory.FromColdProcess() with
         {
             GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), Identity, true, true, null) with { Otz = 0x1357 },
             ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown()
         };
-        return NativeBattleEffect79BodyDrawing.Draw(memory, context, temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, source.AsSpan(checked((int)(address - 0x1000)), length)), 0x1000, [NativeBattlePackedMatrix32.FromMatrix(Identity, null)], 0x7F123456, 1, new(null, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), rows ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 128), vertices * 16, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        return NativeBattleEffect79BodyDrawing.Draw(memory, context, temporary, (address, length) => NativeBattleEffectArena.Clear().Write(0, source.AsSpan(checked((int)(address - 0x1000)), length)), 0x1000, [NativeBattlePackedMatrix32.FromMatrix(Identity, null)], 0x7F123456, 1, new(Identity, 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), rows ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 128), vertices * 16, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleEffectArena Context(short weight = 0, short depth = 0)

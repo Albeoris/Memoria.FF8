@@ -9,6 +9,30 @@ public sealed class NativeBattleEffect76MeshTests
     [Theory]
     [InlineData(0x33)]
     [InlineData(0xF3)]
+    public void Captured_custom_quads_preserve_native_materials_knownness_registers_and_all_eight_sources(int flags)
+    {
+        NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770();
+        NativeBattleCameraProjection projection = new(view, 100, 160, 108);
+        NativeBattleEffect76MeshStep native = NativeBattleEffect76Meshes.DrawLoaded(Memory(2000), Mesh(false), projection, Context(flags), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        NativeBattleEffect76MeshStep captured = NativeBattleEffect76Meshes.DrawLoaded(Memory(2000), Mesh(false), projection, Context(flags), NativeBattleGteColorInterpolation.CodeConstants45F270, new(76, 0x24C3F20, 3, 42, 0));
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(8, captured.Batch.Attempts.Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+        Assert.All(captured.Batch.Attempts, attempt =>
+        {
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(attempt.Primitive!.PilotGeometry);
+            Assert.Equal(4, geometry.CornerCount);
+            Assert.Equal(new System.Numerics.Vector4(2000, 2000, 2000, 2000), geometry.SourceDepths);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(42, geometry.Identity.Generation);
+        });
+        NativeBattleEffect76MeshStep rejected = NativeBattleEffect76Meshes.DrawLoaded(Memory(2000), Mesh(true), projection, Context(flags), NativeBattleGteColorInterpolation.CodeConstants45F270, new(76, 1, 2, 3, 4));
+        Assert.All(rejected.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+    }
+
+    [Theory]
+    [InlineData(0x33)]
+    [InlineData(0xF3)]
     public void Accepted_quads_publish_inline_draw_mode_current_AVSZ_and_fade_only_when_selected(int flags)
     {
         NativeBattleStaticMeshResource mesh = Mesh(false);

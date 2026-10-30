@@ -20,6 +20,7 @@ public sealed partial class BattleSession
             _ => throw new NotSupportedException("Effect69 selected an unsupported current color address.")
         }, Execute)
         {
+            CapturePresentation = true,
             ReadIoResult = _ => NativeEffectIoResult ?? throw new NotSupportedException("Effect69 requires its current signed file result."),
             ReadScratchAddress = _ => ScratchAddress(),
             ReadStage = ReadStage,
@@ -68,6 +69,7 @@ public sealed partial class BattleSession
 
         NativeBattleEffect69Frame Deliver(NativeBattleEffect69Frame current, NativeBattleGfGeometryBatch batch, uint cursorGlobal, ushort flags = 0)
         {
+            batch = NativeBattleEffect69Presentation.FinalizeCapturedBatch(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect69 requires its current ordering table.");
             if (cursorGlobal == 0x1D8E054)
             {
@@ -138,7 +140,7 @@ public sealed partial class BattleSession
                         NativeBattleEffectArena point = address >= ProgrammeAddress && (ulong)address + 8 <= (ulong)ProgrammeAddress + ProgrammeLength ? NativeBattleEffectArena.Clear().Write(0, resources.ReadStatic(address, 8).AsSpan()) : NativeBattleEffect69Controller.ReadBytes(current, address, 8);
                         (byte[] w, bool[] known) = point.ReadSnapshot(6, 2);
                         return (NativeBattleEffect69Controller.Vector(point), known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(w) : null);
-                    });
+                    }, pilotIdentity: window.PilotIdentity);
                     current = NativeBattleEffect69Controller.WriteBytes(current with { Memory = drawn.Memory }, window.TemporaryAddress, drawn.Context108, 108);
                     return Deliver(current, drawn.Batch, CursorGlobal);
                 case NativeBattleEffect69DrawCaster caster:

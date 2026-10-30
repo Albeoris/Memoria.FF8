@@ -8,6 +8,8 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeControl18Breakup(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleGraphicsState graphics)
     {
+        NativeBattleWaterSlotBank visualBank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, resourceLength);
+        NativeBattlePilotVisualIdentity visualIdentity = NativeBattleCinematicVisualIdentity.Identity(graphics.OriginalEffect!.Binding.Effect, frame, visualBank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, visualBank));
         uint manager = CoreDword(frame, 0x27973EC);
         uint payload = Slot32(0xB8);
         byte actorIndex = ReadSlot(frame, 0x1B, 1)[0];
@@ -25,6 +27,7 @@ public sealed partial class BattleSession
         NativeBattleModelCpuResourceRow row = cpu.Rows[physicalRow];
         NativeBattleModelCpuReference geometry = row.Require(16);
         uint geometryAddress = geometry.PhysicalAddress;
+        long visualSource = unchecked((long)NativeBattleModelResourceRow.Address100(actor) * 397 ^ geometryAddress);
         var objectRecords = new List<(ImmutableArray<ushort> Counts, int Offset)>();
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => ReadGeometry(checked(geometryAddress + (uint)offset), length), pose.BoneCount, (_, counts, offset, _) => objectRecords.Add((counts, offset)));
         ushort mode = Word(payload + 8);
@@ -216,7 +219,7 @@ public sealed partial class BattleSession
             {
                 frame = current;
                 NativeBattleModuleProjectedVertex point = Project(position);
-                return new(frame, point.Screen, point.Depth >> 2, point.Flags);
+                return new(frame, point.Screen, point.Depth >> 2, point.Flags) { PilotWorld = World(position) };
             }, (current, values) =>
             {
                 NativeBattleEffectMemory memory = RequireWaterMemory();
@@ -228,7 +231,7 @@ public sealed partial class BattleSession
                 var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
                 graphics = written.Graphics;
                 return written.Frame;
-            }));
+            }), visualIdentity);
         }
         Put16(clone, unchecked((ushort)(Word(clone) + 1)));
         return (frame, graphics);
@@ -258,12 +261,14 @@ public sealed partial class BattleSession
                 if ((mask & (1u << (meshIndex & 31))) != 0)
                 {
                     byte[] projected = new byte[mesh.Vertices.Length * 8];
+                    System.Numerics.Vector3[] worldVertices = new System.Numerics.Vector3[mesh.Vertices.Length];
                     for (int index = 0; index < mesh.Vertices.Length; index++)
                     {
                         NativeBattleRawVertex vertex = mesh.Vertices[index];
                         NativeBattleEffectMemory projectionMemory = RequireWaterMemory();
                         NativeBattleScriptedGraphicsMemory cue = projectionMemory.ScriptedGraphics ?? throw new NotSupportedException("Native breakup body projection requires its depth-cue owner.");
                         NativeBattleModuleDepthCueVertex point = NativeBattleControl18BodyProjection.Project50FD40(bones[vertex.Bone], vertex.Position, projection, cue.Dqa, cue.Dqb);
+                        worldVertices[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(bones[vertex.Bone], vertex.Position), projection);
                         NativeBattleScriptedColorRegisters registers = projectionMemory.ScriptedColorRegisters ?? throw new NotSupportedException("Native breakup body projection requires its packed input owner.");
                         int packedIndex = index;
                         ImmutableArray<byte> packedInput = default;
@@ -291,13 +296,13 @@ public sealed partial class BattleSession
                     Put16(clone + 0x4E, directory.Counts[3]);
                     Put32(clone + 0x40, geometryAddress + (uint)directory.Offset);
                     Func<int, ImmutableArray<uint>, uint, uint>? light = ReadSlot(frame, 0xE1, 1)[0] != 0 ? ShadeFace : null;
-                    NativeBattleGfGeometryBatch body = NativeBattleControl18Body.Emit(ReadGeometry(geometryAddress + (uint)directory.Offset, directory.Counts[0] * 16), ReadGeometry(geometryAddress + (uint)directory.Offset + (uint)(directory.Counts[0] * 16), directory.Counts[1] * 20), projected, polygonStates.AsSpan(globalFace, faces), bodyColor, light, OtBucket(frame.ReadTemporaryDword(0x14C)));
+                    NativeBattleGfGeometryBatch body = NativeBattleControl18Body.Emit(ReadGeometry(geometryAddress + (uint)directory.Offset, directory.Counts[0] * 16), ReadGeometry(geometryAddress + (uint)directory.Offset + (uint)(directory.Counts[0] * 16), directory.Counts[1] * 20), projected, polygonStates.AsSpan(globalFace, faces), bodyColor, light, OtBucket(frame.ReadTemporaryDword(0x14C)), worldVertices, NativeBattleCinematicActorPresentation.Object(visualIdentity, clone, meshIndex, false, visualSource));
                     Append(body);
                     globalFace += faces;
                     frame = frame.WriteTemporaryDword(0x60, unchecked((uint)globalFace));
                     uint shadeAddress = Dword(work + 8);
                     uint[] shades = Enumerable.Range(0, highestLife + 1).Select(index => Dword(shadeAddress + 4u * (uint)index)).ToArray();
-                    NativeBattleGfGeometryBatch shards = NativeBattleControl18Shards.Emit(recordBytes, (address, length) => ReadGeometry(address, length).ToImmutableArray(), shades, Project, OtBucket(frame.ReadTemporaryDword(0x14C)));
+                    NativeBattleGfGeometryBatch shards = NativeBattleControl18Shards.Emit(recordBytes, (address, length) => ReadGeometry(address, length).ToImmutableArray(), shades, Project, OtBucket(frame.ReadTemporaryDword(0x14C)), World, slot => NativeBattlePilotVisualLifetimes.Identity(visualIdentity.Effect, frame.Arena, work + 32, slot, meshIndex) with { ResourceGeneration = visualSource });
                     Append(shards);
                 }
             }
@@ -367,10 +372,15 @@ public sealed partial class BattleSession
             frame = frame.WriteTemporaryDword(0xFC, point.Projected.Flags);
             return point.Projected;
         }
+        System.Numerics.Vector3 World(NativeBattleVector position)
+        {
+            NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native breakup capture requires its current camera projection.");
+            return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(prepared.Matrix, position), projection);
+        }
         void Append(NativeBattleGfGeometryBatch batch)
         {
             uint output = CoreDword(frame, manager + 0x7C);
-            var appended = AppendNativeCinematicPackets(frame, output, null, batch, graphics);
+            var appended = AppendNativeCinematicPackets(frame, output, null, NativeBattleCinematicActorPresentation.NativeDepths(batch), graphics);
             frame = WriteCoreDword(appended.Frame, manager + 0x7C, unchecked(output + (uint)batch.AllocationBytes));
             graphics = appended.Graphics;
         }
@@ -383,6 +393,7 @@ public sealed partial class BattleSession
                 uint address = work + 32u + (uint)offset;
                 if (spawn && oldPointer == 0 && pointer != 0)
                 {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.Arena, work + 32, offset / 68);
                     foreach ((int start, int length) in new (int, int)[] { (0, 16), (0x10, 6), (0x16, 8), (0x1E, 9), (0x2E, 1), (0x30, 8), (0x3C, 8) })
                     {
                         Put(address + (uint)start, after.Slice(offset + start, length));

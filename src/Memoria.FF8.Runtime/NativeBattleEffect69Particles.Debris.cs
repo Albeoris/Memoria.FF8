@@ -93,7 +93,20 @@ public static partial class NativeBattleEffect69Particles
                 Put32(4, 0x2CF0F0F0);
             }
             ImmutableArray<uint> words = Enumerable.Range(0, packet.Length / 4).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(word * 4))).ToImmutableArray();
-            attempts.Add(Attempt(new(depth >> 2, words, quad ? depths.ToImmutableArray() : [depths[0], depths[1], depths[2], 0])));
+            NativeBattleGeometryPrimitive primitive = new(depth >> 2, words, quad ? depths.ToImmutableArray() : [depths[0], depths[1], depths[2], 0]);
+            if (inputs.CapturePresentation)
+            {
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(69, frame.Memory.Arena ?? throw new InvalidDataException("Effect69 capture requires its debris arena owner."), arena, index) with { ResourceGeneration = unchecked((long)U32(record, 44) << 32 | U32(record, 48)) };
+                System.Numerics.Vector3 Point(int corner)
+                {
+                    short x = unchecked((short)(I16(record, 0) + I16(record, 20 + corner * 6)));
+                    short y = unchecked((short)(I16(record, 2) + I16(record, 22 + corner * 6)));
+                    short z = unchecked((short)(I16(record, 4) + I16(record, 24 + corner * 6)));
+                    return new(x, y, z);
+                }
+                primitive = primitive with { PilotGeometry = new(identity, Point(0), Point(1), Point(2), quad ? Point(3) : default, (byte)corners) { SourceDepths = new(depths[0], depths[1], depths[2], quad ? depths[3] : 0), UseSourceDepths = true } };
+            }
+            attempts.Add(Attempt(primitive));
             allocated += packet.Length;
 
             void ObserveScreen(int corner)

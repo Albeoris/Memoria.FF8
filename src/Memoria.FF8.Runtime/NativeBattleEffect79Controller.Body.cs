@@ -122,7 +122,7 @@ public static partial class NativeBattleEffect79Controller
         {
             NativeBattleVector body = new(unchecked((short)(frame.State.ReadDword(BodyContextAddress + 0x78) - frame.State.ReadDword(BodyContextAddress + 0x70))), unchecked((short)(frame.State.ReadWord(BodyContextAddress + 0x7A) - frame.State.ReadWord(BodyContextAddress + 0x72))), unchecked((short)(frame.State.ReadDword(BodyContextAddress + 0x7C) - frame.State.ReadDword(BodyContextAddress + 0x74))));
             frame = inputs.Execute(frame, new NativeBattleEffect79ModelPatch(caster, Position: body, WorldTranslation: body));
-            frame = inputs.Execute(frame, new NativeBattleEffect79DrawBody7BD020(BodyContextAddress));
+            frame = inputs.Execute(frame, new NativeBattleEffect79DrawBody7BD020(BodyContextAddress) { PilotIdentity = inputs.PilotIdentity });
         }
         frame = inputs.Execute(frame, new NativeBattleEffect79ObserveBodyStack(address, drewBody));
         return Finish(frame, address);

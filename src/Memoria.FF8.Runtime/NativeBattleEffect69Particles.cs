@@ -56,6 +56,11 @@ public static partial class NativeBattleEffect69Particles
             {
                 break;
             }
+            if (inputs.CapturePresentation)
+            {
+                uint bank = frame.State.ReadDword(ArenaGlobal) + 0x8020;
+                NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena ?? throw new InvalidDataException("Effect69 capture requires its spark arena owner."), bank, checked((int)((address - bank) / 16)));
+            }
             frame = DrawRandom(frame, out ushort radiusDraw);
             int radius = radiusDraw & 2047;
             NativeBattleGraphicsModel caster = inputs.ReadModel(frame, checked((int)((frame.State.ReadDword(CasterGlobal) - 0x1D972C0) / 156)));

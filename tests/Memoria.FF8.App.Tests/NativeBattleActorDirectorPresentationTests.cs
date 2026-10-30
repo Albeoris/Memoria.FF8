@@ -1741,10 +1741,12 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 if (effectId == 79)
                 {
                     effect79.Observe(prior, current, ColdNext);
+                    NativeBattleReachedCaptureAssertions.Moving(79, current, NativeBattleEffect79PresentationObserver.EffectCommands(prior, current));
                 }
                 if (effectId == 83)
                 {
                     effect83.Observe(prior, current, ColdNext);
+                    NativeBattleReachedCaptureAssertions.Moving(83, current, NativeBattleEffect83PresentationObserver.EffectCommands(prior, current));
                 }
                 if (effectId == 289)
                 {
@@ -7043,6 +7045,15 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         Assert.Equal(expectedSecondaryText.HalfWidth, text.HalfWidth);
                         secondaryContactGlyphs++;
                         ColdNext("secondary-contact", current);
+                    }
+                }
+                if (effectId == 82 && after?.ReturnedDescriptor is > 0)
+                {
+                    ImmutableHashSet<NativeBattlePrimitiveReference> smoothOwned = ActorDirectorPacketReferences(prior, current);
+                    foreach (NativeBattleLogicalCommand command in current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => smoothOwned.Contains(command.Packet) && command.Opcode is >= 0x20 and < 0x80))
+                    {
+                        Assert.True(command.PilotGeometry is not null, $"Effect82 uncaptured pass at frame {current.Frame}: {command.Packet}, opcode {command.Opcode:X2}, word {command.WordOffset}.");
+                        Assert.Equal(effectId, command.PilotGeometry!.Identity.Effect);
                     }
                 }
                 if ((visibleChangedRgb == 0 || effectId is 79 or 83 or 289 or 315 or 303 or 298 or 279 or 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260) && after?.ReturnedDescriptor is > 0 && Director(current).Effect == effectId)

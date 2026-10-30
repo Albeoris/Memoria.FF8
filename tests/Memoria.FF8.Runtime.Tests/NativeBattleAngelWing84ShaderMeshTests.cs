@@ -11,6 +11,35 @@ public sealed class NativeBattleAngelWing84ShaderMeshTests
     private static readonly NativeBattleCameraProjection Projection = new(null, 256, 160, 108);
 
     [Fact]
+    public void Presentation_shader_keeps_native_scratch_shading_triangle_depths_and_object_identity()
+    {
+        NativeBattleActionMatrix view = Identity with { Z = 1024 };
+        NativeBattleCameraProjection projection = Projection with { View = view };
+        NativeBattlePilotVisualIdentity identity = new(84, 0x100, 0, 3, 1) { ResourceGeneration = 0x2000 };
+        NativeBattleAngelWing84ShaderDraw original = NativeBattleAngelWing84ShaderMesh.Draw([Mesh(-50), Mesh(-25)], [Identity], view, projection, 3, 128, 0, NativeBattleEffectArena.Clear());
+        NativeBattleAngelWing84ShaderDraw capture = NativeBattleAngelWing84ShaderMesh.Draw([Mesh(-50), Mesh(-25)], [Identity], view, projection, 3, 128, 0, NativeBattleEffectArena.Clear(), identity);
+        Assert.Equal(original.Vertices.ReadSnapshot(0, 36).Item1, capture.Vertices.ReadSnapshot(0, 36).Item1);
+        Assert.Equal(original.VertexBytesWritten, capture.VertexBytesWritten);
+        NativeBattleGfGeometryBatch normal = original.Packets;
+        NativeBattleGfGeometryBatch captured = capture.Packets;
+        Assert.Equal(normal.AllocationBytes, captured.AllocationBytes);
+        Assert.Equal(normal.Attempts.Length, captured.Attempts.Length);
+        for (int index = 0; index < normal.Attempts.Length; index++)
+        {
+            Assert.Equal(normal.Attempts[index].Data.ToArray(), captured.Attempts[index].Data.ToArray());
+            Assert.Equal(normal.Attempts[index].WriteMask.ToArray(), captured.Attempts[index].WriteMask.ToArray());
+            Assert.Equal(normal.Attempts[index].Primitive!.Bucket, captured.Attempts[index].Primitive!.Bucket);
+            Assert.Equal(normal.Attempts[index].Primitive!.VertexPayload4.ToArray(), captured.Attempts[index].Primitive!.VertexPayload4.ToArray());
+        }
+        NativeBattlePilotVisualGeometry first = captured.Attempts[0].Primitive!.PilotGeometry!;
+        NativeBattlePilotVisualGeometry second = captured.Attempts[1].Primitive!.PilotGeometry!;
+        Assert.Equal(3, first.CornerCount);
+        Assert.True(first.UseSourceDepths);
+        Assert.NotEqual(first.Identity, second.Identity);
+        Assert.Equal(identity.ResourceGeneration, first.Identity.ResourceGeneration);
+    }
+
+    [Fact]
     public void Posed_vertex_publication_restarts_each_object_and_preserves_unknown_stack_padding()
     {
         NativeBattleRawMesh first = Mesh(-50);

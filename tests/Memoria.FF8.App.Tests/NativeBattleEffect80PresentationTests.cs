@@ -52,6 +52,7 @@ public sealed class NativeBattleEffect80PresentationTests
                 }
                 observer.Observe(prior, current, ColdNext);
                 NativeBattleLogicalCommand[] commands = observer.CurrentCommands;
+                NativeBattleReachedCaptureAssertions.Moving(80, current, commands);
                 if (commands.Length > 0)
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = commands.Select(command => command.Packet).ToImmutableHashSet();

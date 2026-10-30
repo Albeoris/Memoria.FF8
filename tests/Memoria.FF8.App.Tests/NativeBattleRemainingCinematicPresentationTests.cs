@@ -150,6 +150,15 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                     contacts++;
                     ColdNext("contact-" + contacts, current);
                 }
+                if (effectId == 77 && after?.ReturnedDescriptor is > 0)
+                {
+                    ImmutableHashSet<NativeBattlePrimitiveReference> smoothOwned = NativeBattleTargetGuardianCastTests.GuardianPacketReferences(prior, current, effectId, game);
+                    foreach (NativeBattleLogicalCommand command in current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => smoothOwned.Contains(command.Packet) && command.Opcode is >= 0x20 and < 0x80))
+                    {
+                        Assert.True(command.PilotGeometry is not null, $"Effect77 uncaptured pass at frame {current.Frame}: {command.Packet}, opcode {command.Opcode:X2}, word {command.WordOffset}.");
+                        Assert.Equal(effectId, command.PilotGeometry!.Identity.Effect);
+                    }
+                }
                 if ((capturePeak || visibleChangedRgb == 0) && after?.ReturnedDescriptor is > 0 && current.NativeEffectMemory?.Cinematic?.Effect == effectId)
                 {
                     // The shared cinematic owner publishes its private common-bank prefix through the manager cursor.

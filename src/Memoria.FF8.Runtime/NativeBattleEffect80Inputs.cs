@@ -6,7 +6,11 @@ public sealed record NativeBattleEffect80Frame(NativeBattleEffectMemory Memory, 
 }
 
 public sealed record NativeBattleEffect80Step(NativeBattleEffect80Frame Frame, int Result);
-public sealed record NativeBattleEffect80Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect80Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect80Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect80Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect80Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect80Frame, int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect80Frame, int, NativeBattleEffectArena> ReadPosition8, Func<NativeBattleEffect80Frame, short> ReadCameraRoll, Func<NativeBattleEffect80Frame, uint, uint> ReadColor, Func<NativeBattleEffect80Frame, NativeBattleEffect80Operation, NativeBattleEffect80Frame> Execute);
+public sealed record NativeBattleEffect80Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect80Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect80Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect80Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect80Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect80Frame, int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect80Frame, int, NativeBattleEffectArena> ReadPosition8, Func<NativeBattleEffect80Frame, short> ReadCameraRoll, Func<NativeBattleEffect80Frame, uint, uint> ReadColor, Func<NativeBattleEffect80Frame, NativeBattleEffect80Operation, NativeBattleEffect80Frame> Execute)
+{
+    public bool CapturePresentation { get; init; }
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 
 public abstract record NativeBattleEffect80Operation;
 public sealed record NativeBattleEffect80UpdateCaster8DC740(uint TaskAddress) : NativeBattleEffect80Operation;
@@ -26,4 +30,7 @@ public sealed record NativeBattleEffect80SetSequence505C00(uint ModelAddress, by
 public sealed record NativeBattleEffect80Vibration4A29A0(uint SourceAddress, int Mode, int Magnitude, uint OutputAddress) : NativeBattleEffect80Operation;
 public sealed record NativeBattleEffect80StopVibration4A2940(short Handle) : NativeBattleEffect80Operation;
 public sealed record NativeBattleEffect80BodyAnchor7B4750(uint TaskAddress, uint ContextAddress) : NativeBattleEffect80Operation;
-public sealed record NativeBattleEffect80DrawBody7AFEC0(uint ContextAddress) : NativeBattleEffect80Operation;
+public sealed record NativeBattleEffect80DrawBody7AFEC0(uint ContextAddress) : NativeBattleEffect80Operation
+{
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}

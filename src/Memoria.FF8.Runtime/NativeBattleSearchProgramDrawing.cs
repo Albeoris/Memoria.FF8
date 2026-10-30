@@ -19,7 +19,7 @@ public static class NativeBattleSearchProgramDrawing
         return Store(task, workspace);
     }
 
-    public static NativeBattleSearchProgramDraw Advance758D70(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleSearchProgramDraw Advance758D70(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool capturePresentation = false)
     {
         RequireTask(task, source);
         NativeBattleActionMatrix context = ComposeContext758D70(task, view);
@@ -28,7 +28,7 @@ public static class NativeBattleSearchProgramDrawing
         int allocated = 0;
         NativeBattleGfAnimationAdvance advanced = Workspace(task).Advance701970(source, 0, (current, node) =>
         {
-            NativeBattleGfGeometryBatch batch = Node758EA0(source, node, context, depthBias, projection, colors);
+            NativeBattleGfGeometryBatch batch = Node758EA0(source, node, context, depthBias, projection, colors, capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(92, task, node.ResourceOffset) with { ResourceGeneration = source.Address } : null);
             attempts.AddRange(batch.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) }));
             allocated += batch.AllocationBytes;
             return current;
@@ -58,7 +58,7 @@ public static class NativeBattleSearchProgramDrawing
         return NativeBattlePoseMatrices.Compose56C2F0(view, local);
     }
 
-    public static NativeBattleGfGeometryBatch Node758EA0(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, short depthBias, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Node758EA0(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, short depthBias, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Data.IsDefault || node.Data.Length != 44)
         {
@@ -90,7 +90,7 @@ public static class NativeBattleSearchProgramDrawing
         bool cue = node.Scalar36 != 0;
         NativeBattleTextureWindow window = new(0, 0, 256, 256);
         NativeBattleEsunaMeshContext operands = new(cue ? 0x20F0u : 0x2030u, cue ? node.Color32 : null, cue ? node.Scalar36 : null, depthBias, 0, 0, window, window, 17, 2);
-        return NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh, matrix, projection, operands, colors, offset =>
+        return NativeBattleRetainedPolygonDepths.Capture(NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh, matrix, projection, operands, colors, offset =>
         {
             if (offset < 0 || (offset & 7) != 0 || offset > count * 8 - 8)
             {
@@ -98,7 +98,7 @@ public static class NativeBattleSearchProgramDrawing
             }
             ReadOnlySpan<byte> vertex = Read(geometry + 12 + offset, 6);
             return new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..]));
-        });
+        }, pilotIdentity: pilotIdentity));
 
         ReadOnlySpan<byte> Read(int offset, int length)
         {

@@ -26,7 +26,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect80 requires its process memory.");
         NativeBattleEffect80Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect80 requires its current CRT stream."), memory.Effect80 ?? throw new NotSupportedException("Effect80 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect80 requires its temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect80 requires its arithmetic constants.");
-        NativeBattleEffect80Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.Models[actor], (_, actor) => Pose(actor), (_, actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), _ => Camera().Roll, ReadColor, Execute);
+        NativeBattleEffect80Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.Models[actor], (_, actor) => Pose(actor), (_, actor) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), 0x1C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), _ => Camera().Roll, ReadColor, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect80Controller.Initialize(frame, resources, inputs) : NativeBattleEffect80Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -66,6 +66,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEffect80Frame Deliver(NativeBattleEffect80Frame current, NativeBattleGfGeometryBatch batch, uint cursorGlobal, ushort flags)
         {
+            batch = NativeBattleEffect80Presentation.FinalizeCapturedBatch(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect80 requires its current ordering table.");
             if (cursorGlobal == 0x1D8E054)
             {
@@ -166,7 +167,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect80DeliverBatch packets:
                     return Deliver(current, packets.Batch, packets.CursorGlobal, packets.Flags);
                 case NativeBattleEffect80DrawBody7AFEC0 draw:
-                    (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect80Frame bodyFrame) = DrawNativeEffect80Body(graphics, current, draw.ContextAddress, Deliver);
+                    (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect80Frame bodyFrame) = DrawNativeEffect80Body(graphics, current, draw.ContextAddress, Deliver, draw.PilotIdentity);
                     graphics = graphics with { Models = bodyGraphics.Models };
                     return bodyFrame;
                 case NativeBattleEffect80BodyAnchor7B4750 anchor:

@@ -81,26 +81,33 @@ public static partial class NativeBattleEffect79Controller
         return frame with { Effect = frame.Effect with { Pools = [] } };
     }
 
-    public static NativeBattleEffect79Step AdvanceTask(NativeBattleEffect79Frame frame, uint address, NativeBattleEffect79Resources resources, NativeBattleEffect79Inputs inputs) => Read(frame, address).Callback switch
+    public static NativeBattleEffect79Step AdvanceTask(NativeBattleEffect79Frame frame, uint address, NativeBattleEffect79Resources resources, NativeBattleEffect79Inputs inputs)
     {
-        RootCallback => AdvanceRoot(frame, address, resources, inputs),
-        0x7B4FF0 => AdvanceMain(frame, address, resources, inputs),
-        0x7B55B0 => AdvanceDriver(frame, address, resources, inputs),
-        0x7B51C0 => AdvanceIo7B51C0(frame, address, resources, inputs),
-        0x7B82C0 => AdvanceNode(frame, address, resources, inputs),
-        0x7B5B80 or 0x7B80B0 or 0x7B81C0 => AdvanceProgramme(frame, address, resources, inputs),
-        0x7BCF10 => AdvanceBody(frame, address, resources, inputs),
-        0x7BCD50 => AdvanceParticle7BCD50(frame, address, resources, inputs),
-        0x7BC610 => AdvanceParticle7BC610(frame, address, resources, inputs),
-        0x7BC840 => AdvanceParticle7BC840(frame, address, resources, inputs),
-        0x7BBC20 => AdvanceParticle7BBC20(frame, address, resources, inputs),
-        0x7BBDF0 => AdvanceParticle7BBDF0(frame, address, resources, inputs),
-        0x7BCB40 => AdvanceParticle7BCB40(frame, address, resources, inputs),
-        0x7BCC80 => AdvanceParticle7BCC80(frame, address, resources, inputs),
-        0x7BCE40 => AdvanceParticle7BCE40(frame, address, resources, inputs),
-        0x7BDAD0 => AdvanceParticle7BDAD0(frame, address, resources, inputs),
-        _ => throw new NotSupportedException("Effect79 reached an unsupported actual hierarchy callback.")
-    };
+        if (inputs.CapturePresentation)
+        {
+            inputs = inputs with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(79, Read(frame, address)) };
+        }
+        return Read(frame, address).Callback switch
+        {
+            RootCallback => AdvanceRoot(frame, address, resources, inputs),
+            0x7B4FF0 => AdvanceMain(frame, address, resources, inputs),
+            0x7B55B0 => AdvanceDriver(frame, address, resources, inputs),
+            0x7B51C0 => AdvanceIo7B51C0(frame, address, resources, inputs),
+            0x7B82C0 => AdvanceNode(frame, address, resources, inputs),
+            0x7B5B80 or 0x7B80B0 or 0x7B81C0 => AdvanceProgramme(frame, address, resources, inputs),
+            0x7BCF10 => AdvanceBody(frame, address, resources, inputs),
+            0x7BCD50 => AdvanceParticle7BCD50(frame, address, resources, inputs),
+            0x7BC610 => AdvanceParticle7BC610(frame, address, resources, inputs),
+            0x7BC840 => AdvanceParticle7BC840(frame, address, resources, inputs),
+            0x7BBC20 => AdvanceParticle7BBC20(frame, address, resources, inputs),
+            0x7BBDF0 => AdvanceParticle7BBDF0(frame, address, resources, inputs),
+            0x7BCB40 => AdvanceParticle7BCB40(frame, address, resources, inputs),
+            0x7BCC80 => AdvanceParticle7BCC80(frame, address, resources, inputs),
+            0x7BCE40 => AdvanceParticle7BCE40(frame, address, resources, inputs),
+            0x7BDAD0 => AdvanceParticle7BDAD0(frame, address, resources, inputs),
+            _ => throw new NotSupportedException("Effect79 reached an unsupported actual hierarchy callback.")
+        };
+    }
 
     private static (NativeBattleEffect79Frame Frame, int Survivors) Scan(NativeBattleEffect79Frame frame, int index, NativeBattleEffect79Resources resources, NativeBattleEffect79Inputs inputs)
     {

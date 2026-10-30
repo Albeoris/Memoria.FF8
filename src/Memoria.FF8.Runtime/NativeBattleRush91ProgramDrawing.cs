@@ -19,7 +19,7 @@ public static class NativeBattleRush91ProgramDrawing
         return Store(task, Workspace(task).Initialize7016B0(source, 0x70));
     }
 
-    public static NativeBattleRush91ProgramDraw Advance761BB0(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleRush91ProgramDraw Advance761BB0(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool capturePresentation = false)
     {
         RequireTask(task, source);
         RequireScratch(morphScratch);
@@ -29,7 +29,7 @@ public static class NativeBattleRush91ProgramDrawing
         int allocated = 0;
         NativeBattleGfAnimationAdvance advanced = Workspace(task).Advance701970(source, 0, (current, node) =>
         {
-            NativeBattleRush91NodeDraw draw = Node761CE0(source, node, morphScratch, context, depthBias, projection, colors);
+            NativeBattleRush91NodeDraw draw = Node761CE0(source, node, morphScratch, context, depthBias, projection, colors, capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(91, task, node.ResourceOffset) with { ResourceGeneration = source.Address } : null);
             morphScratch = draw.MorphScratch;
             attempts.AddRange(draw.Packets.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) }));
             allocated = checked(allocated + draw.Packets.AllocationBytes);
@@ -43,7 +43,7 @@ public static class NativeBattleRush91ProgramDrawing
         return NativeBattleSearchProgramDrawing.ComposeContext758D70(task, view);
     }
 
-    public static NativeBattleRush91NodeDraw Node761CE0(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix context, short depthBias, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleRush91NodeDraw Node761CE0(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix context, short depthBias, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         RequireScratch(morphScratch);
         if (node.Data.IsDefault || node.Data.Length != 44)
@@ -93,8 +93,8 @@ public static class NativeBattleRush91ProgramDrawing
             }
             ReadOnlySpan<byte> vertex = selected.AsSpan().Slice(offset, 6);
             return new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex[2..]), BinaryPrimitives.ReadInt16LittleEndian(vertex[4..]));
-        });
-        return new(packets, morphScratch);
+        }, pilotIdentity: pilotIdentity);
+        return new(NativeBattleRetainedPolygonDepths.Capture(packets), morphScratch);
 
         ReadOnlySpan<byte> Read(int offset, int length)
         {

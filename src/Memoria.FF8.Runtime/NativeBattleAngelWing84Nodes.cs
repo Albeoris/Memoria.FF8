@@ -36,7 +36,7 @@ internal static class NativeBattleAngelWing84Nodes
         return FromNodeFrame(frame, bridge);
     }
 
-    internal static NativeBattleAngelWing84NodeStep Advance(NativeBattleAngelWing84Frame frame, uint address, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, NativeBattleEffectNodeSpawnOrigin spawnOrigin)
+    internal static NativeBattleAngelWing84NodeStep Advance(NativeBattleAngelWing84Frame frame, uint address, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, NativeBattleEffectNodeSpawnOrigin spawnOrigin, bool capturePresentation = false)
     {
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         if (hierarchy.Read(address).Callback != 0x7913C0)
@@ -57,10 +57,19 @@ internal static class NativeBattleAngelWing84Nodes
             ushort geometryCursor = frame.State.GeometryScanCursor ?? throw new NotSupportedException("Native Angel Wing geometry cursor is unknown.");
             NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera ?? throw new NotSupportedException("Native Angel Wing requires its current copied camera."), readModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, emitters, 4, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, geometry, 40, ref geometryCursor, emitter, source)) { SpawnOrigin = spawnOrigin };
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
-            lifecycle.AdvanceAndDraw(ref currentRandom, projection, cameraRoll, PrepareMesh, (_, batch) => privatePackets.Add(batch));
+            lifecycle.AdvanceAndDraw(ref currentRandom, projection, cameraRoll, PrepareMesh, (_, batch) => privatePackets.Add(batch), capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(84, ReadTask()) : null, capturePresentation ? PreparePilotMesh : null);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
             bank.Publish();
             frame = frame with { Memory = written.Memory, Effect = written.Effect, State = frame.State with { NodeData = bankSource, EmitterScanCursor = emitterCursor, GeometryScanCursor = geometryCursor } };
+
+            NativeBattleEffectNodePilotMeshInstance PreparePilotMesh(int node, byte[] source)
+            {
+                short fade = unchecked((short)memory.Word(node + 0x1CE));
+                uint flags = BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A)) == 0 ? 0x30u : 0;
+                flags |= fade == 0 ? 0 : 0xC0u;
+                NativeBattleFullLifeMeshContext operands = new(flags, fade == 0 ? null : memory.Dword(node + 0x16C), fade == 0 ? null : fade, null, null, null, 17, 2);
+                return (bytes, matrix, identity) => NativeBattleRestorationMeshPackets.EmitBatch884370(bytes, matrix, projection, operands, colors, observeFirstThreeFlags: memory.WriteProjectionFlags, pilotIdentity: identity);
+            }
 
             NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] source)
             {
@@ -77,7 +86,7 @@ internal static class NativeBattleAngelWing84Nodes
         });
         foreach (NativeBattleGfGeometryBatch batch in privatePackets)
         {
-            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, frame.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native792020 requires its current private packet cursor."), ordering, batch);
+            NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, frame.State.PrimaryDrawCursor ?? throw new NotSupportedException("Native792020 requires its current private packet cursor."), ordering, NativeBattleRetainedPolygonDepths.Capture(batch));
             frame = frame with { Memory = written.Memory, State = frame.State with { PrimaryDrawCursor = written.Cursor } };
             ordering = written.Ordering;
         }
@@ -92,7 +101,7 @@ internal static class NativeBattleAngelWing84Nodes
         }
     }
 
-    internal static NativeBattleAngelWing84NodeCallbackStep AdvanceGeneric(NativeBattleAngelWing84Frame frame, uint address, NativeBattleAngelWing84NodeResources resources, NativeBattleAngelWing84Inputs controller, NativeCrtRandomState random, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, NativeBattleEffectNodeSpawnOrigin spawnOrigin)
+    internal static NativeBattleAngelWing84NodeCallbackStep AdvanceGeneric(NativeBattleAngelWing84Frame frame, uint address, NativeBattleAngelWing84NodeResources resources, NativeBattleAngelWing84Inputs controller, NativeCrtRandomState random, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, NativeBattleEffectNodeSpawnOrigin spawnOrigin, bool capturePresentation = false)
     {
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
         if (task.Callback != 0x7913C0)
@@ -132,7 +141,7 @@ internal static class NativeBattleAngelWing84Nodes
 
         bool AdvanceContext()
         {
-            NativeBattleAngelWing84NodeStep advanced = Advance(frame, address, random, controller.ReadModel, projection, cameraRoll, ordering, colors, spawnOrigin);
+            NativeBattleAngelWing84NodeStep advanced = Advance(frame, address, random, controller.ReadModel, projection, cameraRoll, ordering, colors, spawnOrigin, capturePresentation);
             frame = advanced.Frame;
             random = advanced.Random;
             ordering = advanced.Ordering;

@@ -13,18 +13,18 @@ public static class NativeBattleEffect76Meshes
     {
         if (custom)
         {
-            NativeBattleEffect76MeshStep drawn = DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), Context(frame, temporary, 92), inputs.Colors);
+            NativeBattleEffect76MeshStep drawn = DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), Context(frame, temporary, 92), inputs.Colors, pilotIdentity: inputs.PilotIdentity is { } customIdentity ? customIdentity with { ResourceGeneration = source } : null);
             frame = frame with { Memory = drawn.Memory };
             frame = PublishContext(frame, temporary, drawn.Context92, 92);
             return inputs.Execute(frame, new NativeBattleEffect76DrawBatch(drawn.Batch, cursorGlobal));
         }
-        NativeBattleStaticMeshContext88Step standard = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), Context(frame, temporary, 88), inputs.Colors);
+        NativeBattleStaticMeshContext88Step standard = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), Context(frame, temporary, 88), inputs.Colors, pilotIdentity: inputs.PilotIdentity is { } identity ? identity with { ResourceGeneration = source } : null);
         frame = frame with { Memory = standard.Memory };
         frame = PublishContext(frame, temporary, standard.Context, 88);
         return inputs.Execute(frame, new NativeBattleEffect76DrawBatch(standard.Batch, cursorGlobal));
     }
 
-    public static NativeBattleEffect76MeshStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants)
+    public static NativeBattleEffect76MeshStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint flags = Dword(context, 0x1C);
         if (mesh.Address != 0xDE2470 || mesh.Bytes.Length != 376 || Dword(context, 0) != mesh.Address || flags is not (0x33 or 0xF3))
@@ -52,6 +52,7 @@ public static class NativeBattleEffect76Meshes
             }
             for (int index = 0; index < count; index++)
             {
+                NativeBattleActionMatrix? capturedMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
                 byte[] face = mesh.Bytes.AsSpan().Slice(cursor, 24).ToArray();
                 uint material = BinaryPrimitives.ReadUInt32LittleEndian(face);
                 material = (flags & 1) != 0 ? material | 0x02000000 : material;
@@ -97,6 +98,11 @@ public static class NativeBattleEffect76Meshes
                         registers = registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, material, unchecked((uint)cue), far, constants).Registers };
                     }
                     attempt = attempt with { Primitive = primitive with { Bucket = unchecked(17 + ((int)depth >> 2)) } };
+                    if (pilotIdentity is { } identity && capturedMatrix is not null)
+                    {
+                        System.Numerics.Vector3 Point(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(capturedMatrix, Vertex(corner).Vertex), projection);
+                        attempt = attempt with { Primitive = attempt.Primitive! with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, Point(0), Point(1), Point(2), Point(3), 4) { SourceDepths = new(corners[0].Depth, corners[1].Depth, corners[2].Depth, corners[3].Depth), UseSourceDepths = true } } };
+                    }
                     allocated += 44;
                 }
                 attempts.Add(attempt);

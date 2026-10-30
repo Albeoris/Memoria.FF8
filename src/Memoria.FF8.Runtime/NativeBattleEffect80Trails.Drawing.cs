@@ -43,6 +43,9 @@ public static partial class NativeBattleEffect80Trails
                     temporary = StoreColor(temporary, 0x1C + color * 4, registers);
                 }
             }
+            System.Numerics.Vector3[]? capturedWorld = inputs.CapturePresentation ? new System.Numerics.Vector3[32] : null;
+            uint[]? capturedCenters = inputs.CapturePresentation ? new uint[32] : null;
+            uint[]? capturedNodes = inputs.CapturePresentation ? new uint[32] : null;
             int rowCount = 0;
             int shape = 0;
             while (node != 0)
@@ -66,6 +69,12 @@ public static partial class NativeBattleEffect80Trails
                 registers = WeightColor(registers, temporary, 0x1C + colorIndex * 4, 4096 - fraction, false);
                 registers = WeightColor(registers, temporary, 0x20 + colorIndex * 4, fraction, true);
                 temporary = StoreColor(temporary, row + 0x10, registers);
+                if (capturedWorld is not null && capturedCenters is not null && capturedNodes is not null)
+                {
+                    capturedWorld[rowCount] = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
+                    capturedCenters[rowCount] = registers.Geometry.Sxy[2]!.Value;
+                    capturedNodes[rowCount] = node;
+                }
                 rowCount++;
                 shape += (2048 / count) * 2;
                 node = frame.State.ReadDword(node + 0x14);
@@ -131,6 +140,17 @@ public static partial class NativeBattleEffect80Trails
                     (byte[] data, bool[] known) = packet.ReadSnapshot(0, 52);
                     NativeBattleGfPacketByteState[] mask = Enumerable.Range(0, 52).Select(offset => offset is 38 or 39 or 50 or 51 ? NativeBattleGfPacketByteState.Untouched : known[offset] ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Unknown).ToArray();
                     NativeBattleGeometryPrimitive primitive = new(bucket, Enumerable.Range(0, 13).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(word * 4))).ToImmutableArray(), [0, 0, 0, 0]) { PhysicalWriteMask = mask.ToImmutableArray() };
+                    if (capturedWorld is not null && capturedCenters is not null && capturedNodes is not null)
+                    {
+                        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(80, frame.State.InitializedSources[TrailAddress], pointer, checked((int)((capturedNodes[index] - pointer) / 24)), variant) with { ResourceGeneration = unchecked(NativeBattlePilotVisualLifetimes.Identity(80, frame.State.InitializedSources[TrailAddress], pointer, checked((int)((capturedNodes[index + 1] - pointer) / 24))).Generation * 397 ^ record) };
+                        System.Numerics.Vector2 Offset(int at, int corner)
+                        {
+                            int offset = 0x30 + at * 20 + corner;
+                            uint center = capturedCenters[at];
+                            return new System.Numerics.Vector2(Word(temporary, offset), Word(temporary, offset + 2)) - new System.Numerics.Vector2(unchecked((short)center), unchecked((short)(center >> 16)));
+                        }
+                        primitive = primitive with { PilotGeometry = new(identity, capturedWorld[index], capturedWorld[index], capturedWorld[index + 1], capturedWorld[index + 1], 4) { ScreenOffsets = [Offset(index, 0), Offset(index, 8), Offset(index + 1, 0), Offset(index + 1, 8)], SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };
+                    }
                     attempts.Add(new(allocated, data.ToImmutableArray(), mask.ToImmutableArray(), primitive));
                     allocated += 52;
                 }

@@ -84,7 +84,7 @@ public static partial class NativeBattleEffect80Controller
             short X(int offset) => unchecked((short)frame.State.ReadWord(BodyContextAddress + (uint)offset));
             NativeBattleVector point = new(unchecked((short)(frame.State.ReadDword(BodyContextAddress + 0x78) - frame.State.ReadDword(BodyContextAddress + 0x70) + frame.State.ReadDword(BodyContextAddress + 0xB4))), unchecked((short)(X(0x7A) - X(0x72) + X(0xB6))), unchecked((short)(frame.State.ReadDword(BodyContextAddress + 0x7C) - frame.State.ReadDword(BodyContextAddress + 0x74) + frame.State.ReadDword(BodyContextAddress + 0xB8))));
             frame = inputs.Execute(frame, new NativeBattleEffect80SetActorPosition(target, point, true));
-            frame = inputs.Execute(frame, new NativeBattleEffect80DrawBody7AFEC0(BodyContextAddress));
+            frame = inputs.Execute(frame, new NativeBattleEffect80DrawBody7AFEC0(BodyContextAddress) { PilotIdentity = inputs.PilotIdentity });
         }
         frame = NativeBattleEffect80Particles.Emit7B06A0(frame, address, resources, inputs);
         return Finish(frame, address);

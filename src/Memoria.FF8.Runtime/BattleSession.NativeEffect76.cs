@@ -17,7 +17,7 @@ public sealed partial class BattleSession
             0xB8B7D8 => Stage().ModelColors?.Color40 ?? throw new NotSupportedException("Effect76 requires its current model color."),
             0xB8B9A8 => Stage().ModelColors?.Color44 ?? throw new NotSupportedException("Effect76 requires its current model color."),
             _ => throw new NotSupportedException("Effect76 selected an unsupported current color address.")
-        }, Execute);
+        }, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect76Controller.Initialize(frame, resources, inputs) : NativeBattleEffect76Controller.Advance(frame, resources, inputs);
         Publish(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -161,6 +161,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { Auxiliary = auxiliary };
                     return current;
                 case NativeBattleEffect76DrawBatch draw:
+                    draw = draw with { Batch = NativeBattleEffect76Presentation.FinalizeCapturedBatch(draw.Batch) };
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect76 requires its current ordering table.");
                     if (draw.CursorGlobal == 0x1D8E054)
                     {

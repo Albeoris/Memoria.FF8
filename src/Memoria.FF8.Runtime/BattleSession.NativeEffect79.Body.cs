@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleGraphicsState Graphics, NativeBattleEffect79Frame Frame) DrawNativeEffect79Body(NativeBattleGraphicsState graphics, NativeBattleEffect79Frame frame, uint bodyAddress, Func<NativeBattleEffect79Frame, NativeBattleGfGeometryBatch, uint, ushort, NativeBattleEffect79Frame> deliver)
+    private (NativeBattleGraphicsState Graphics, NativeBattleEffect79Frame Frame) DrawNativeEffect79Body(NativeBattleGraphicsState graphics, NativeBattleEffect79Frame frame, uint bodyAddress, Func<NativeBattleEffect79Frame, NativeBattleGfGeometryBatch, uint, ushort, NativeBattleEffect79Frame> deliver, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = NativeBattleEffect79Controller.ReadBytes(frame, bodyAddress, BodyContextLength);
         uint modelAddress = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(0x64, 4));
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
             NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.Models[actor], allocated.Staging, temporary, allocated.Address);
             NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, linked);
             uint sourceAddress = pointer.Cpu?.PhysicalAddress ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect79 requires addressed caster geometry.");
-            NativeBattleEffect79BodyDrawingStep drawn = NativeBattleEffect79BodyDrawing.Draw(frame.Memory, context, temporary, ReadSource, sourceAddress, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), color, mask, camera.Projection ?? throw new NotSupportedException("Effect79 requires its projection."), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect79 requires depth controls."), frame.State.ReadView(TransformedAddress, TransformedLength), TransformedLength, definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Effect79 requires its arithmetic constants."));
+            NativeBattleEffect79BodyDrawingStep drawn = NativeBattleEffect79BodyDrawing.Draw(frame.Memory, context, temporary, ReadSource, sourceAddress, matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray(), color, mask, camera.Projection ?? throw new NotSupportedException("Effect79 requires its projection."), frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect79 requires depth controls."), frame.State.ReadView(TransformedAddress, TransformedLength), TransformedLength, definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Effect79 requires its arithmetic constants."), pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(actor * 2 + (linked ? 1 : 0)), ResourceGeneration = sourceAddress } : null);
             NativeBattleFileStaging staged = NativeBattleTemporaryMemory.PublishView(allocated.Staging, allocated.Address, drawn.Temporary168, 168);
             frame = frame with { Memory = drawn.Memory, State = frame.State.WriteView(TransformedAddress, drawn.Rows, TransformedLength), Staging = NativeBattleTemporaryMemory.Release5082D0(staged, 168) };
             frame = deliver(frame, drawn.Batch, 0x1D8E054, 0);

@@ -70,13 +70,25 @@ public static class NativeBattleEffect83NodeEngine
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, nodeInputs);
             List<(bool Common, NativeBattleGfGeometryBatch Batch)> deliveries = [];
             NativeCrtRandomState random = frame.Random;
-            lifecycle.AdvanceAndDraw(ref random, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), PrepareMesh, (common, batch) => deliveries.Add((common, batch)));
+            NativeBattlePilotVisualIdentity? currentPilotIdentity = null;
+            lifecycle.AdvanceAndDraw(ref random, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), PrepareMesh, (common, batch) => deliveries.Add((common, batch)), inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(83, ReadTask()) : null, inputs.CapturePresentation ? (node, source) => (resource, matrix, identity) =>
+            {
+                currentPilotIdentity = identity;
+                try
+                {
+                    return PrepareMesh(node, source)(resource, matrix);
+                }
+                finally
+                {
+                    currentPilotIdentity = null;
+                }
+            } : null);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
             bank.Publish();
             frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State.ReplaceNodeBank(bank.Source).WriteWord(0x25CA850, emitterCursor).WriteWord(0x25CFA38, geometryCursor) };
             foreach ((bool common, NativeBattleGfGeometryBatch batch) in deliveries)
             {
-                frame = inputs.Execute(frame, new NativeBattleEffect83DeliverBatch(batch, common ? 0x1D8E054u : 0x25C9F74u));
+                frame = inputs.Execute(frame, new NativeBattleEffect83DeliverBatch(NativeBattleRetainedPolygonDepths.Capture(batch), common ? 0x1D8E054u : 0x25C9F74u));
             }
 
             NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] source)
@@ -110,7 +122,7 @@ public static class NativeBattleEffect83NodeEngine
                     (byte[] packed, bool[] known) = frame.Memory.Arena!.ReadSnapshot(matrixOffset, 32);
                     short? padding = known[18] && known[19] ? BinaryPrimitives.ReadInt16LittleEndian(packed.AsSpan(18)) : null;
                     frame = frame with { Memory = frame.Memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect83 node mesh requires current geometry registers."), matrix, true, true, padding) } };
-                    NativeBattleEffect83Mesh104Step drawn = NativeBattleEffect83Mesh104.DrawLoaded(frame.Memory, resourceAddress, resource, inputs.ReadProjection(frame), temporary, inputs.Colors);
+                    NativeBattleEffect83Mesh104Step drawn = NativeBattleEffect83Mesh104.DrawLoaded(frame.Memory, resourceAddress, resource, inputs.ReadProjection(frame), temporary, inputs.Colors, captureMatrix: matrix, pilotIdentity: currentPilotIdentity);
                     full = NativeBattleEffectNodeContextMemory.Copy(drawn.Context104, 0, NativeBattleEffectNodeContextMemory.Capture(drawn.Memory), 76, 104);
                     frame = frame with { Memory = NativeBattleEffectNodeContextMemory.Publish(drawn.Memory, full), State = frame.State.WriteDword(0x25CFA40, checked(temporaryAddress + 104)) };
                     memory.PublishProcessMemory(frame.Memory);

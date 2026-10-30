@@ -7,7 +7,7 @@ public sealed record NativeBattleEffect83SpiralDrawingStep(NativeBattleEffectMem
 
 public static partial class NativeBattleEffect83SpiralDrawing
 {
-    public static NativeBattleEffect83SpiralDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary148, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 matrix, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena transformed, int transformedLength, NativeBattleEffectArena faces)
+    public static NativeBattleEffect83SpiralDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary148, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, NativeBattlePackedMatrix32 matrix, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena transformed, int transformedLength, NativeBattleEffectArena faces, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGeometryRegisters geometry = memory.GeometryRegisters ?? throw new NotSupportedException("Effect83 requires its current geometry registers.");
         memory = memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(geometry, matrix.ReadMatrix(), true, true, Padding(matrix)) };
@@ -121,7 +121,13 @@ public static partial class NativeBattleEffect83SpiralDrawing
                             packet.Word16(36, BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan(18)));
                         }
                         ImmutableArray<int> payload = quad ? registers.Geometry.Sz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Effect83 requires current depth FIFO.")))).ToImmutableArray() : [unchecked((int)registers.Geometry.Sz[1]!.Value), unchecked((int)registers.Geometry.Sz[2]!.Value), unchecked((int)registers.Geometry.Sz[3]!.Value), 0];
-                        attempts.Add(packet.Attempt(new(checked(17 + (int)depth), packet.Words(), payload)));
+                        NativeBattleGeometryPrimitive primitive = new(checked(17 + (int)depth), packet.Words(), payload);
+                        if (pilotIdentity is { } identity)
+                        {
+                            System.Numerics.Vector3[] world = Enumerable.Range(0, corners).Select(corner => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix.ReadMatrix(), Vector(temporary148, 0x54 + corner * 8)), projection)).ToArray();
+                            primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 397 + item) * 65537 + faceOffset) }, world[0], world[1], world[2], quad ? world[3] : default, (byte)corners) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+                        }
+                        attempts.Add(packet.Attempt(primitive));
                         allocation += quad ? 40 : 32;
                     }
                     memory = memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors };

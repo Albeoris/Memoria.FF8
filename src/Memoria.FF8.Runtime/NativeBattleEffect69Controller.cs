@@ -63,12 +63,19 @@ public static partial class NativeBattleEffect69Controller
         return frame with { Effect = frame.Effect with { ReturnedDescriptor = 0, Pools = [] } };
     }
 
-    public static NativeBattleEffect69Step AdvanceTask(NativeBattleEffect69Frame frame, uint address, NativeBattleEffect69Resources resources, NativeBattleEffect69Inputs inputs) => Read(frame, address).Callback switch
+    public static NativeBattleEffect69Step AdvanceTask(NativeBattleEffect69Frame frame, uint address, NativeBattleEffect69Resources resources, NativeBattleEffect69Inputs inputs)
     {
-        RootCallback => AdvanceRoot(frame, address, resources, inputs),
-        MainCallback => AdvanceMain(frame, address, resources, inputs),
-        _ => throw new NotSupportedException("Effect69 reached an unsupported actual private task callback.")
-    };
+        if (inputs.CapturePresentation)
+        {
+            inputs = inputs with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(69, Read(frame, address)) };
+        }
+        return Read(frame, address).Callback switch
+        {
+            RootCallback => AdvanceRoot(frame, address, resources, inputs),
+            MainCallback => AdvanceMain(frame, address, resources, inputs),
+            _ => throw new NotSupportedException("Effect69 reached an unsupported actual private task callback.")
+        };
+    }
 
     private static NativeBattleEffect69Frame InitializePool(NativeBattleEffect69Frame frame, int index)
     {

@@ -7,13 +7,13 @@ public sealed record NativeBattleEffect83Mesh104Step(NativeBattleEffectMemory Me
 
 public static class NativeBattleEffect83Mesh104
 {
-    public static NativeBattleEffect83Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleEffect83Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, NativeBattleActionMatrix? captureMatrix = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader resource = new(mesh.Bytes);
-        return DrawLoaded(memory, mesh.Address, resource, projection, context, constants, tableBaseBucket, depthShift);
+        return DrawLoaded(memory, mesh.Address, resource, projection, context, constants, tableBaseBucket, depthShift, captureMatrix, pilotIdentity);
     }
 
-    internal static NativeBattleEffect83Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, uint meshAddress, NativeBattleGfSourceReader resource, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2)
+    internal static NativeBattleEffect83Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, uint meshAddress, NativeBattleGfSourceReader resource, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, NativeBattleActionMatrix? captureMatrix = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         context.Validate();
         context = Put(context, 4, checked(meshAddress + 8));
@@ -148,6 +148,12 @@ public static class NativeBattleEffect83Mesh104
                             registers = registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, material, cue, far, constants).Registers };
                         }
                     }
+                }
+                if (pilotIdentity is { } identity && leaf.Attempts.Any(attempt => attempt.Primitive is { Words.Length: > 1 } primitive && (primitive.Words[1] & 0xE0000000) == 0x20000000))
+                {
+                    NativeBattleActionMatrix matrix = captureMatrix ?? throw new InvalidDataException("Effect83 mesh capture requires its loaded matrix.");
+                    System.Numerics.Vector3[] world = Enumerable.Range(0, quad ? 4 : 3).Select(corner => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, Vertex(corner).Vertex), projection)).ToArray();
+                    leaf = leaf with { Attempts = leaf.Attempts.Select(attempt => attempt.Primitive is { Words.Length: > 1 } primitive && (primitive.Words[1] & 0xE0000000) == 0x20000000 ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, world[0], world[1], world[2], quad ? world[3] : default, (byte)world.Length) { SourceDepths = primitive.VertexPayload4.Length == 4 ? new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]) : System.Numerics.Vector4.Zero, UseSourceDepths = true } } } : attempt).ToImmutableArray() };
                 }
                 foreach (NativeBattleGfGeometryAttempt attempt in leaf.Attempts)
                 {

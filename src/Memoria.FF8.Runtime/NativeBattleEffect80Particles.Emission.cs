@@ -36,12 +36,12 @@ public static partial class NativeBattleEffect80Particles
         second = new(unchecked((short)(second.X + endpoint.X)), unchecked((short)(second.Y + endpoint.Y)), unchecked((short)(second.Z + endpoint.Z)));
         if (count > 0)
         {
-            frame = BirthPair7B0860(frame, first, second, unchecked((short)count), resources);
+            frame = BirthPair7B0860(frame, first, second, unchecked((short)count), resources, inputs.CapturePresentation);
         }
         return frame;
     }
 
-    public static NativeBattleEffect80Frame BirthPair7B0860(NativeBattleEffect80Frame frame, NativeBattleVector start, NativeBattleVector end, short count, NativeBattleEffect80Resources resources)
+    public static NativeBattleEffect80Frame BirthPair7B0860(NativeBattleEffect80Frame frame, NativeBattleVector start, NativeBattleVector end, short count, NativeBattleEffect80Resources resources, bool capturePresentation = false)
     {
         int step = 4096 / Math.Max(1, (int)count);
         for (int particle = 0; particle < 2; particle++)
@@ -63,7 +63,7 @@ public static partial class NativeBattleEffect80Particles
             random = random.Draw(out ushort driftZ);
             descriptor = Point(descriptor, 32, new(unchecked((short)((driftX & 0xFF) - 0x80)), unchecked((short)((driftY & 0xFF) - 0x80)), unchecked((short)((driftZ & 0xFF) - 0x80))));
             frame = frame with { Random = random };
-            (frame, _) = NativeBattleEffect80Trails.Birth7AFDD0(frame, descriptor, resources);
+            (frame, _) = NativeBattleEffect80Trails.Birth7AFDD0(frame, descriptor, resources, capturePresentation);
         }
         return frame;
     }

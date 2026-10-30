@@ -8,6 +8,24 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect80TrailTests
 {
     [Fact]
+    public void Reused_point_birth_changes_only_presentation_generation_on_actual_initialized_storage()
+    {
+        NativeBattleEffect80Resources resources = Resources();
+        NativeBattleEffect80Frame frame = NativeBattleEffect80Trails.Initialize7B43F0(Frame(), resources);
+        (frame, uint first) = NativeBattleEffect80Trails.AllocatePoint7AFD80(frame, capturePresentation: true);
+        NativeBattlePilotVisualIdentity before = NativeBattlePilotVisualLifetimes.Identity(80, frame.State.InitializedSources[TrailAddress], TrailAddress, 0);
+        frame = frame with { State = frame.State.WriteDword(TrailPointCursorGlobal, first) };
+        (frame, uint reused) = NativeBattleEffect80Trails.AllocatePoint7AFD80(frame, capturePresentation: true);
+        NativeBattlePilotVisualIdentity after = NativeBattlePilotVisualLifetimes.Identity(80, frame.State.InitializedSources[TrailAddress], TrailAddress, 0);
+        Assert.Equal(first, reused);
+        Assert.NotEqual(before.Generation, after.Generation);
+        Assert.Equal(before.Bank, after.Bank);
+        Assert.Equal(before.Slot, after.Slot);
+        Assert.Equal(TrailAddress + 24, frame.State.ReadDword(TrailPointCursorGlobal));
+        Assert.Equal(new NativeCrtRandomState(99), frame.Random);
+    }
+
+    [Fact]
     public void Initialization_clears_only_native_free_markers_and_retains_lcg_and_backing()
     {
         NativeBattleEffect80Frame frame = Frame();
@@ -123,7 +141,7 @@ public sealed class NativeBattleEffect80TrailTests
         distances[0] = 0;
         resources = resources with { StaticTables = ImmutableDictionary<uint, ImmutableArray<byte>>.Empty.Add(ShapeTableAddress, shape.ToImmutableArray()).Add(DistanceAddress, distances.ToImmutableArray()) };
         NativeBattleEffect80Frame frame = NativeBattleEffect80Trails.Initialize7B43F0(Frame(), resources);
-        (frame, uint first) = NativeBattleEffect80Trails.Birth7AFDD0(frame, Descriptor(), resources);
+        (frame, uint first) = NativeBattleEffect80Trails.Birth7AFDD0(frame, Descriptor(), resources, capturePresentation: true);
         uint second = first + 24;
         frame = frame with
         {
@@ -150,13 +168,19 @@ public sealed class NativeBattleEffect80TrailTests
             Assert.Equal(0x1D8E054u, delivery.CursorGlobal);
             batch = delivery.Batch;
             return current;
-        });
+        }) { CapturePresentation = true };
         NativeBattleEffect80Frame result = NativeBattleEffect80Trails.Draw7AF4D0(frame, resources, inputs);
         Assert.NotNull(batch);
         Assert.Equal(degenerateSecondRecord ? 208 : 104, batch.AllocationBytes);
         Assert.Equal(degenerateSecondRecord ? 4 : 2, batch.Attempts.Length);
         foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
         {
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(attempt.Primitive!.PilotGeometry);
+            Assert.Equal(80, geometry.Identity.Effect);
+            Assert.Equal(4, geometry.CornerCount);
+            Assert.Equal(4, geometry.ScreenOffsets.Length);
+            Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+            Assert.True(geometry.UseSourceDepths);
             Assert.Equal(new[] { 0, 0, 0, 0 }, attempt.Primitive!.VertexPayload4.ToArray());
             Assert.Equal(0x3Eu, attempt.Primitive.Words[1] >> 24);
             Assert.Equal(0x80F0F0u, attempt.Primitive.Words[1] & 0xFFFFFF);

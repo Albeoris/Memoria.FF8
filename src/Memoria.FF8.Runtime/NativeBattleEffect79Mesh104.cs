@@ -7,13 +7,13 @@ public sealed record NativeBattleEffect79Mesh104Step(NativeBattleEffectMemory Me
 
 public static class NativeBattleEffect79Mesh104
 {
-    public static NativeBattleEffect79Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, int maximumVertices = 125, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleEffect79Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, int maximumVertices = 125, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader resource = new(mesh.Bytes);
-        return DrawLoaded(memory, mesh.Address, resource, projection, context, constants, readSelectedVertex, maximumVertices, tableBaseBucket, depthShift);
+        return DrawLoaded(memory, mesh.Address, resource, projection, context, constants, readSelectedVertex, maximumVertices, tableBaseBucket, depthShift, pilotIdentity);
     }
 
-    internal static NativeBattleEffect79Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, uint meshAddress, NativeBattleGfSourceReader resource, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, int maximumVertices = 125, int tableBaseBucket = 17, byte depthShift = 2)
+    internal static NativeBattleEffect79Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, uint meshAddress, NativeBattleGfSourceReader resource, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, int maximumVertices = 125, int tableBaseBucket = 17, byte depthShift = 2, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         context.Validate();
         uint flags = Dword(context, 0x14);
@@ -60,6 +60,7 @@ public static class NativeBattleEffect79Mesh104
             context = Put(context, 0x2C, checked(meshAddress + (uint)cursor));
             for (int index = 0; index < faces; index++)
             {
+                NativeBattleActionMatrix? capturedMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
                 byte[] face = resource.ReadBytes(cursor, lengths[group]);
                 bool quad = (group & 1) != 0;
                 bool gouraud = group >= 4;
@@ -154,7 +155,15 @@ public static class NativeBattleEffect79Mesh104
                 }
                 foreach (NativeBattleGfGeometryAttempt attempt in leaf.Attempts)
                 {
-                    attempts.Add(attempt);
+                    if (pilotIdentity is { } identity && capturedMatrix is not null && attempt.Primitive is { Words.Length: > 1 } primitive && ((primitive.Words[1] >> 24) & 0xE0) == 0x20)
+                    {
+                        System.Numerics.Vector3 Point(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(capturedMatrix, Vertex(corner).Vertex), projection);
+                        attempts.Add(attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, Point(0), Point(1), Point(2), quad ? Point(3) : default, (byte)(quad ? 4 : 3)) { SourceDepths = new(projected[0].Depth, projected[1].Depth, projected[2].Depth, quad ? projected[3].Depth : 0), UseSourceDepths = true } } });
+                    }
+                    else
+                    {
+                        attempts.Add(attempt);
+                    }
 
                 }
                 allocated = checked(allocated + leaf.AllocationBytes);

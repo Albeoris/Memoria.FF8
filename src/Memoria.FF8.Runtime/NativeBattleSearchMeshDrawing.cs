@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Search's ordinary mesh particle submission into the caller's common packet buffer.</summary>
 public static class NativeBattleSearchMeshDrawing
 {
-    public static NativeBattleGfGeometryBatch Draw755FC0(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Draw755FC0(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (task.ReadDword(0x4C) != mesh.Address)
         {
@@ -16,7 +16,7 @@ public static class NativeBattleSearchMeshDrawing
             throw new NotSupportedException("Native Search mesh particle requires its initialized zero far-color, fade and depth-bias owners.");
         }
         NativeBattleTextureWindow window = new(0, 0, 256, 256);
-        return NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh.Bytes, ComposeMatrix(task, view), projection, new(0xF0, 0, 0, 0, 0, 0, window, window, 17, 2), colors);
+        return NativeBattleRetainedPolygonDepths.Capture(NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh.Bytes, ComposeMatrix(task, view), projection, new(0xF0, 0, 0, 0, 0, 0, window, window, 17, 2), colors, pilotIdentity: pilotIdentity));
     }
 
     internal static NativeBattleActionMatrix ComposeMatrix(NativeBattleModulePoolTask task, NativeBattleActionMatrix view)

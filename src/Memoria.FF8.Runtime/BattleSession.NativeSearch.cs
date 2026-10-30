@@ -58,7 +58,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Search cannot read an uninitialized projected scratch owner.");
             }
-            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.ModelProfile.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Search requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Search requires its selected device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray());
+            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.ModelProfile.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Search requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Search requires its selected device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray(), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(92, task) with { ResourceGeneration = model.ResourceAddress });
             if (shared.ProjectedScratch is null && drawn.ProjectedBytesWritten != size)
             {
                 throw new InvalidDataException("Native Search's first body draw did not establish every projected record.");
@@ -69,7 +69,7 @@ public sealed partial class BattleSession
 
         NativeBattleSearchProgramStep AdvanceProgram(NativeBattleSearchFrame current, NativeBattleModulePoolTask task)
         {
-            NativeBattleSearchProgramDraw drawn = NativeBattleSearchProgramDrawing.Advance758D70(task, resources.ProgramSource, view, projection, colors);
+            NativeBattleSearchProgramDraw drawn = NativeBattleSearchProgramDrawing.Advance758D70(task, resources.ProgramSource, view, projection, colors, capturePresentation: true);
             return new(Append(current, drawn.Packets, false), drawn.Task, drawn.Remaining);
         }
 
@@ -108,9 +108,9 @@ public sealed partial class BattleSession
                     graphics = SelectNativeHeaderSequence(graphics, checked((byte)sequence.Actor), sequence.Sequence);
                     return current;
                 case NativeBattleSearchSprite sprite:
-                    return Append(current, NativeBattleSearchSprites.Draw7582A0(sprite.Task, resources.Sprite8.Bytes, view, projection, NativeCamera!.Roll), false);
+                    return Append(current, NativeBattleSearchSprites.Draw7582A0(sprite.Task, resources.Sprite8.Bytes, view, projection, NativeCamera!.Roll, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(92, sprite.Task) with { ResourceGeneration = resources.Sprite8.Address }), false);
                 case NativeBattleSearchMesh mesh:
-                    return Append(current, NativeBattleSearchMeshDrawing.Draw755FC0(mesh.Task, resources.ParticleMesh, view, projection, colors), true);
+                    return Append(current, NativeBattleSearchMeshDrawing.Draw755FC0(mesh.Task, resources.ParticleMesh, view, projection, colors, NativeBattlePilotVisualLifetimes.Identity(92, mesh.Task) with { ResourceGeneration = resources.ParticleMesh.Address }), true);
                 case NativeBattleSearchCommonTextureLoad load:
                     (NativeBattleAuxiliaryState auxiliary, _) = graphics.Auxiliary.AppendCommonTextureLoad508630(checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)load.DestinationArenaOffset), load.CompletionAddress, (address, value) => current = current with { Effect = NativeBattleSearchController.WriteCompletionByte(current.Effect, address, value) });
                     graphics = graphics with { Auxiliary = auxiliary };
@@ -122,6 +122,7 @@ public sealed partial class BattleSession
 
         NativeBattleSearchFrame Append(NativeBattleSearchFrame current, NativeBattleGfGeometryBatch batch, bool common)
         {
+            batch = NativeBattleRetainedPolygonDepths.Capture(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Search requires its initialized ordering table.");
             if (common)
             {

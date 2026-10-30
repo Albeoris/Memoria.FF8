@@ -93,7 +93,7 @@ public static class NativeBattleEffect69StageDrawing
                 }
                 if (metric < threshold)
                 {
-                    frame = DetachFace(frame, context, face, currentMetric, randomMask, arena);
+                    frame = DetachFace(frame, context, face, currentMetric, randomMask, arena, inputs.CapturePresentation);
                     continue;
                 }
                 byte union = 0;
@@ -143,7 +143,14 @@ public static class NativeBattleEffect69StageDrawing
                 }
                 int bucket = unchecked(tableBaseBucket + (unchecked((int)otz) >> depthShift));
                 ImmutableArray<int> sidecars = face.Quad ? depths.Select(value => (int)value).ToImmutableArray() : [(int)depths[0], (int)depths[1], (int)depths[2], 0];
-                attempts.Add(packet.Attempt(new(bucket, packet.Words(), sidecars)));
+                NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), sidecars);
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattlePilotVisualIdentity owner = inputs.PilotIdentity ?? throw new InvalidDataException("Effect69 stage capture requires its executing task.");
+                    System.Numerics.Vector3 Point(int corner) => new(Signed(context, 0x28 + corner * 16), Signed(context, 0x2A + corner * 16), Signed(context, 0x2C + corner * 16));
+                    primitive = primitive with { PilotGeometry = new(owner with { Primitive = unchecked((int)currentMetric), ResourceGeneration = source.GeometryAddress }, Point(0), Point(1), Point(2), face.Quad ? Point(3) : default, (byte)count) { SourceDepths = new(sidecars[0], sidecars[1], sidecars[2], sidecars[3]), UseSourceDepths = true } };
+                }
+                attempts.Add(packet.Attempt(primitive));
                 allocation += face.Quad ? 40 : 32;
             }
             context = Word(Word(context, 8, -1), 10, -1);
@@ -155,13 +162,17 @@ public static class NativeBattleEffect69StageDrawing
         return new(frame, metricPointer);
     }
 
-    private static NativeBattleEffect69Frame DetachFace(NativeBattleEffect69Frame frame, NativeBattleEffectArena context, NativeBattleRawPolygon face, uint metricAddress, ushort mask, uint arena)
+    private static NativeBattleEffect69Frame DetachFace(NativeBattleEffect69Frame frame, NativeBattleEffectArena context, NativeBattleRawPolygon face, uint metricAddress, ushort mask, uint arena, bool capturePresentation)
     {
         uint address;
         (frame, address) = AllocateDebris6FFFE0(frame, arena);
         if (address == 0)
         {
             return frame;
+        }
+        if (capturePresentation)
+        {
+            NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena ?? throw new InvalidDataException("Effect69 capture requires its debris arena owner."), arena, checked((int)((address - arena) / 60)));
         }
         NativeBattleEffectArena debris = ReadBytes(frame, address, 0x3C);
         int corners = face.Quad ? 4 : 3;

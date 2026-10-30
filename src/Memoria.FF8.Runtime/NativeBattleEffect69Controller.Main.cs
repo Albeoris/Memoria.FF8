@@ -56,7 +56,7 @@ public static partial class NativeBattleEffect69Controller
         if (age is >= 55 and < 85)
         {
             uint scratch = (inputs.ReadScratchAddress ?? throw new NotSupportedException("Effect69 requires its current shared projected scratch pointer."))(frame);
-            frame = inputs.Execute(frame, new NativeBattleEffect69DrawCaster(frame.State.ReadDword(CasterGlobal), 0, scratch));
+            frame = inputs.Execute(frame, new NativeBattleEffect69DrawCaster(frame.State.ReadDword(CasterGlobal), 0, scratch) { PilotIdentity = inputs.PilotIdentity });
             frame = inputs.Execute(frame, new NativeBattleEffect69ModelFlags(caster, 0xFFFF, 4, false));
         }
         else if (age == 85)
@@ -84,7 +84,7 @@ public static partial class NativeBattleEffect69Controller
         frame = NativeBattleEffect69Particles.DrawDebris6FF2F0(frame, inputs);
         if (unchecked((uint)(age - 94)) < 32)
         {
-            frame = inputs.Execute(frame, new NativeBattleEffect69DeliverBatch(NativeBattleModuleRenderCommands.Emit700150(age - 94, 255, 255, 255, 14, 4, 14), CursorGlobal));
+            frame = inputs.Execute(frame, new NativeBattleEffect69DeliverBatch(NativeBattleModuleRenderCommands.Emit700150(age - 94, 255, 255, 255, 14, 4, 14, pilotIdentity: inputs.PilotIdentity is { } identity ? identity with { Primitive = 0x700150 } : null), CursorGlobal));
         }
         if (age == 0)
         {

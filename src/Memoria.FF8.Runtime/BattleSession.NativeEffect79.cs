@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         NativeBattleEffect79Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect79 requires its current CRT stream."), memory.Effect79 ?? throw new NotSupportedException("Effect79 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect79 requires its temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect79 requires its arithmetic constants.");
         NativeBattleStackBytes stack = NativeBattleEffect79Stack.Begin(graphics.Callback);
-        NativeBattleEffect79Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.Models[actor], (_, actor) => Pose(actor), _ => Camera().Roll, ReadColor, Execute) { ParticleBasis = ParticleBasis };
+        NativeBattleEffect79Inputs inputs = new(colors, _ => nativeActionPackets, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.Models[actor], (_, actor) => Pose(actor), _ => Camera().Roll, ReadColor, Execute) { ParticleBasis = ParticleBasis, CapturePresentation = true };
         frame = initialize ? NativeBattleEffect79Controller.Initialize(frame, resources, inputs) : NativeBattleEffect79Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -58,6 +58,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEffect79Frame Deliver(NativeBattleEffect79Frame current, NativeBattleGfGeometryBatch batch, uint cursorGlobal, ushort flags)
         {
+            batch = NativeBattleEffect79Presentation.FinalizeCapturedBatch(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect79 requires its current ordering table.");
             if (cursorGlobal == 0x1D8E054)
             {
@@ -157,7 +158,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect79DeliverBatch packets:
                     return Deliver(current, packets.Batch, packets.CursorGlobal, packets.Flags);
                 case NativeBattleEffect79DrawBody7BD020 draw:
-                    (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect79Frame bodyFrame) = DrawNativeEffect79Body(graphics, current, draw.ContextAddress, Deliver);
+                    (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect79Frame bodyFrame) = DrawNativeEffect79Body(graphics, current, draw.ContextAddress, Deliver, draw.PilotIdentity);
                     graphics = graphics with { Models = bodyGraphics.Models };
                     return bodyFrame;
                 case NativeBattleEffect79ObserveCasterAnchor anchor:

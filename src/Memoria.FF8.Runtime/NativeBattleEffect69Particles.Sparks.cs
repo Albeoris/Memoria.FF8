@@ -50,7 +50,7 @@ public static partial class NativeBattleEffect69Particles
             }
             temporary = Dword(temporary, 0x2C, unchecked(source + (uint)selected + 4));
             frame = Publish(frame, registers);
-            NativeBattleShockwavePulsar260PuffStep draw = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(frame.Memory, temporary, resources.Sprite, inputs.ReadProjection(frame));
+            NativeBattleShockwavePulsar260PuffStep draw = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(frame.Memory, temporary, resources.Sprite, inputs.ReadProjection(frame), pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(69, frame.Memory.Arena ?? throw new InvalidDataException("Effect69 capture requires its spark arena owner."), arena + 0x8020, index) with { ResourceGeneration = source } : null);
             frame = WriteBytes(frame with { Memory = draw.Memory }, temporaryAddress, draw.Temporary180, 180);
             frame = inputs.Execute(frame, new NativeBattleEffect69DeliverCommonBatch(draw.Batch));
             temporary = ReadBytes(frame, temporaryAddress, 180);

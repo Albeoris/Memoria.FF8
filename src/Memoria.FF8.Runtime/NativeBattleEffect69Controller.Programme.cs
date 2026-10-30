@@ -118,7 +118,7 @@ public static partial class NativeBattleEffect69Controller
             context = context.Write(0x22, BitConverter.GetBytes(window)).Write(0x24, BitConverter.GetBytes((ushort)0)).Write(0x26, BitConverter.GetBytes((ushort)0)).Write(0x28, BitConverter.GetBytes((ushort)256)).Write(0x2A, BitConverter.GetBytes((ushort)256)).Write(0x2C, BitConverter.GetBytes((ushort)0)).Write(0x2E, BitConverter.GetBytes((ushort)128)).Write(0x30, BitConverter.GetBytes((ushort)256)).Write(0x32, BitConverter.GetBytes((ushort)128));
         }
         frame = PublishContext(frame, temporary, context, 108);
-        frame = inputs.Execute(frame, new NativeBattleEffect69DrawWindow108(temporary, geometryAddress, vertices));
+        frame = inputs.Execute(frame, new NativeBattleEffect69DrawWindow108(temporary, geometryAddress, vertices) { PilotIdentity = inputs.PilotIdentity is { } identity ? identity with { Primitive = node.ResourceOffset, ResourceGeneration = geometryAddress } : null });
         return Release(frame, 108);
     }
 

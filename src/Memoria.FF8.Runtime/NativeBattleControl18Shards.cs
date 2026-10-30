@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleControl18Shards
 {
-    public static NativeBattleGfGeometryBatch Emit(ReadOnlySpan<byte> records, Func<uint, int, ImmutableArray<byte>> readPolygon, ReadOnlySpan<uint> shadeTable, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, int orderingBaseBucket)
+    public static NativeBattleGfGeometryBatch Emit(ReadOnlySpan<byte> records, Func<uint, int, ImmutableArray<byte>> readPolygon, ReadOnlySpan<uint> shadeTable, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project, int orderingBaseBucket, Func<NativeBattleVector, System.Numerics.Vector3>? pilotWorld = null, Func<int, NativeBattlePilotVisualIdentity>? pilotIdentity = null)
     {
         if (records.Length % 68 != 0)
         {
@@ -29,6 +29,7 @@ public static class NativeBattleControl18Shards
             int centerX = BinaryPrimitives.ReadInt32LittleEndian(record.Slice(4, 4)) >> 8;
             int centerY = BinaryPrimitives.ReadInt32LittleEndian(record.Slice(8, 4)) >> 8;
             int centerZ = BinaryPrimitives.ReadInt32LittleEndian(record.Slice(12, 4)) >> 8;
+            System.Numerics.Vector3[]? world = pilotWorld is not null && pilotIdentity is not null ? new System.Numerics.Vector3[corners] : null;
             int sum = 0;
             int[] payload = new int[4];
             for (int corner = 0; corner < corners; corner++)
@@ -36,6 +37,10 @@ public static class NativeBattleControl18Shards
                 int position = 16 + corner * 8;
                 NativeBattleVector point = new(unchecked((short)(centerX + BinaryPrimitives.ReadInt16LittleEndian(record.Slice(position, 2)))), unchecked((short)(centerY + BinaryPrimitives.ReadInt16LittleEndian(record.Slice(position + 2, 2)))), unchecked((short)(centerZ + BinaryPrimitives.ReadInt16LittleEndian(record.Slice(position + 4, 2)))));
                 NativeBattleModuleProjectedVertex projected = project(point);
+                if (world is not null)
+                {
+                    world[corner] = pilotWorld!(point);
+                }
                 StoreDword(8 + corner * 8, projected.Screen);
                 sum += projected.Depth >> 2;
                 payload[corner] = unchecked((int)(projected.Flags << 2));
@@ -67,6 +72,12 @@ public static class NativeBattleControl18Shards
             ImmutableArray<NativeBattleGfPacketByteState> states = mask.ToImmutableArray();
             ImmutableArray<uint> words = Enumerable.Range(0, length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(index * 4, 4))).ToImmutableArray();
             NativeBattleGeometryPrimitive? primitive = bucket < 4095 ? new(checked(orderingBaseBucket + bucket), words, payload.ToImmutableArray()) { PhysicalWriteMask = states } : null;
+            if (primitive is not null && world is not null)
+            {
+                NativeBattlePilotVisualIdentity identity = pilotIdentity!(offset / 68);
+                identity = identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ pointer) };
+                primitive = primitive with { PilotGeometry = new(identity, world[0], world[1], world[2], quad ? world[3] : default, checked((byte)corners)) };
+            }
             attempts.Add(new(allocation, packet.ToImmutableArray(), states, primitive));
             allocation = checked(allocation + length);
 

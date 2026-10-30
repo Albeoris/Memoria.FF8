@@ -10,6 +10,30 @@ public sealed class NativeBattleSearchProgramDrawingTests
     private static NativeBattleSummonColors Colors => NativeBattleGteColorInterpolation.CodeConstants45F270;
 
     [Fact]
+    public void Presentation_capture_retains_native_packets_and_interpolates_only_the_same_resource_row()
+    {
+        NativeBattlePilotVisualIdentity identity = new(92, 0x100, 2, 7, 13) { ResourceGeneration = Source().Address };
+        NativeBattleGfGeometryBatch normal = NativeBattleSearchProgramDrawing.Node758EA0(Source(), Node(), View, -256, Projection, Colors);
+        NativeBattleGfGeometryBatch captured = NativeBattleSearchProgramDrawing.Node758EA0(Source(), Node(), View, -256, Projection, Colors, identity);
+        NativeBattleGfGeometryBatch moved = NativeBattleSearchProgramDrawing.Node758EA0(Source(), Node(), View with { X = 80 }, -256, Projection, Colors, identity);
+        Assert.Equal(normal.AllocationBytes, captured.AllocationBytes);
+        Assert.Equal(normal.Attempts.Length, captured.Attempts.Length);
+        for (int index = 0; index < normal.Attempts.Length; index++)
+        {
+            Assert.Equal(normal.Attempts[index].Data.ToArray(), captured.Attempts[index].Data.ToArray());
+            Assert.Equal(normal.Attempts[index].WriteMask.ToArray(), captured.Attempts[index].WriteMask.ToArray());
+            Assert.Equal(normal.Attempts[index].Primitive!.Bucket, captured.Attempts[index].Primitive!.Bucket);
+            Assert.Equal(normal.Attempts[index].Primitive!.VertexPayload4.ToArray(), captured.Attempts[index].Primitive!.VertexPayload4.ToArray());
+        }
+        NativeBattlePilotVisualGeometry earlier = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Attempts).Primitive!.PilotGeometry);
+        NativeBattlePilotVisualGeometry later = Assert.Single(moved.Attempts).Primitive!.PilotGeometry!;
+        Assert.True(earlier.UseSourceDepths);
+        Assert.Equal(identity.ResourceGeneration, earlier.Identity.ResourceGeneration);
+        Assert.Equal(earlier.A + new System.Numerics.Vector3(40, 0, 0), NativeBattlePilotVisualGeometry.Sample(earlier, later, 0.5f).A);
+        Assert.Equal(earlier, NativeBattlePilotVisualGeometry.Sample(earlier, later with { Identity = later.Identity with { Generation = 8 } }, 0.5f));
+    }
+
+    [Fact]
     public void Direct_node_ignores_context_rotation_but_applies_column_scale_after_its_own_Euler()
     {
         byte[] data = Node().Data.ToArray();

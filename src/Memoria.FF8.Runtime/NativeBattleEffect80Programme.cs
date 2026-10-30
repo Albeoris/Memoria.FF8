@@ -63,7 +63,7 @@ public static class NativeBattleEffect80Programme
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
             frame = PublishWorkspace(frame, taskAddress, current);
-            frame = DrawNode7AC1E0(frame, source, node, caller92, resources, inputs);
+            frame = DrawNode7AC1E0(frame, source, node, caller92, resources, inputs.CapturePresentation ? inputs with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(80, task) with { Primitive = node.ResourceOffset, ResourceGeneration = source.Address } } : inputs);
             return current;
         });
         return new(PublishWorkspace(frame, taskAddress, advanced.Workspace), advanced.Remaining);
@@ -159,7 +159,7 @@ public static class NativeBattleEffect80Programme
             (byte[] bytes, bool[] known) = row.ReadSnapshot(0, 8);
             ReadOnlySpan<byte> xyz = row.Read(0, 6);
             return (new NativeBattleVector(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..])), known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : null);
-        });
+        }, pilotIdentity: inputs.PilotIdentity is { } identity ? identity with { ResourceGeneration = geometryAddress } : null);
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context104, 104);
         frame = inputs.Execute(frame, new NativeBattleEffect80DeliverBatch(drawn.Batch, 0x1D8E054));
         return Release(frame, 104);

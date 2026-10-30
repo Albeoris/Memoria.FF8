@@ -18,7 +18,7 @@ public static class NativeBattleEffect76Particles
         short age = unchecked((short)Read(frame, taskAddress).ReadWord(12));
         if (!Paused(frame, inputs))
         {
-            (frame, temporary) = Birth(frame, temporary, age, kind);
+            (frame, temporary) = Birth(frame, temporary, age, kind, inputs.CapturePresentation);
         }
         (frame, uint contextAddress) = Allocate(frame, contextLength);
         uint[] sources = [0xDE2DE0, 0xDE2EB8, 0xDE25E8, 0xDE2EB8, 0xDE2470];
@@ -62,7 +62,7 @@ public static class NativeBattleEffect76Particles
                 frame = Load(frame, NativeBattleEffectNodeContextMemory.Copy(temporary, 0x28, NativeBattleEffectArena.Clear().MarkUnknown(0, 32), 0, 32));
                 context = Cue(context, Short(row, 4), kind);
                 frame = PublishContext(frame, contextAddress, context, contextLength);
-                frame = NativeBattleEffect76Meshes.Draw(frame, contextAddress, sources[kind], kind is 0 or 1 or 4 ? CommonCursor : PrivateCursor, kind == 4, resources, inputs);
+                frame = NativeBattleEffect76Meshes.Draw(frame, contextAddress, sources[kind], kind is 0 or 1 or 4 ? CommonCursor : PrivateCursor, kind == 4, resources, inputs.CapturePresentation ? inputs with { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(76, frame.State.Storage, bank, index) with { ResourceGeneration = sources[kind] } } : inputs);
                 context = Context(frame, contextAddress, contextLength);
             }
             if (!Paused(frame, inputs))
@@ -85,7 +85,7 @@ public static class NativeBattleEffect76Particles
         return Tick(frame, taskAddress, result);
     }
 
-    public static (NativeBattleEffect76Frame Frame, NativeBattleEffectArena Temporary) Birth(NativeBattleEffect76Frame frame, NativeBattleEffectArena temporary, short age, int kind)
+    public static (NativeBattleEffect76Frame Frame, NativeBattleEffectArena Temporary) Birth(NativeBattleEffect76Frame frame, NativeBattleEffectArena temporary, short age, int kind, bool capturePresentation = false)
     {
         int births = kind switch
         {
@@ -113,6 +113,10 @@ public static class NativeBattleEffect76Particles
             if (address == 0)
             {
                 break;
+            }
+            if (capturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, bank, checked((int)((address - bank) / 32)));
             }
             NativeBattleEffectArena row = Marker(Word(ReadBytes(frame, address, 32), 4, 0), kind == 1 ? 2 : kind == 3 ? 4 : 1);
             if (kind == 0 || kind == 2)
@@ -255,7 +259,7 @@ public static class NativeBattleEffect76Particles
         return (row, true);
     }
 
-    public static NativeBattleEffectArena Cue(NativeBattleEffectArena context, short age, int kind)
+    public static NativeBattleEffectArena Cue(NativeBattleEffectArena context, short age, int kind, bool capturePresentation = false)
     {
         bool fading;
         int cue;

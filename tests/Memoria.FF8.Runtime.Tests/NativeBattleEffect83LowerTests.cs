@@ -6,6 +6,51 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect83LowerTests
 {
+    [Fact]
+    public void Rejected_quad_capture_does_not_read_the_unreached_invalid_fourth_vertex()
+    {
+        NativeBattleStaticMeshResource original = Mesh(3);
+        byte[] bytes = original.Bytes.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(66), ushort.MaxValue);
+        NativeBattleStaticMeshResource mesh = original with { Bytes = bytes.ToImmutableArray() };
+        NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.Identity8DD770() with { X = 30000, Z = 1 };
+        NativeBattleEffectMemory MemoryForDraw() => Memory() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), matrix, true, true, null) };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleEffect83Mesh104Step native = NativeBattleEffect83Mesh104.DrawLoaded(MemoryForDraw(), mesh, projection, Context(mesh.Address), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattleEffect83Mesh104Step captured = NativeBattleEffect83Mesh104.DrawLoaded(MemoryForDraw(), mesh, projection, Context(mesh.Address), NativeBattleGteColorInterpolation.CodeConstants45F270, captureMatrix: matrix, pilotIdentity: new(83, 0x100, 0, 1, 0));
+        Assert.All(native.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(native)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(captured)));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public void Presentation_capture_preserves_physical_mesh_writes_registers_and_depths(int group)
+    {
+        NativeBattleStaticMeshResource mesh = Mesh(group);
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleEffect83Mesh104Step original = NativeBattleEffect83Mesh104.DrawLoaded(Memory(), mesh, projection, Context(mesh.Address), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattleEffect83Mesh104Step capture = NativeBattleEffect83Mesh104.DrawLoaded(Memory(), mesh, projection, Context(mesh.Address), NativeBattleGteColorInterpolation.CodeConstants45F270, captureMatrix: NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, pilotIdentity: new(83, 0x100, 0, 3, 0));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.Memory)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(capture.Memory)));
+        Assert.Equal(original.Context104.ReadSnapshot(0, 104).Item1, capture.Context104.ReadSnapshot(0, 104).Item1);
+        NativeBattleGfGeometryBatch normal = original.Batch;
+        NativeBattleGfGeometryBatch captured = capture.Batch;
+        Assert.Equal(normal.AllocationBytes, captured.AllocationBytes);
+        Assert.Equal(normal.Attempts.Length, captured.Attempts.Length);
+        for (int index = 0; index < normal.Attempts.Length; index++)
+        {
+            Assert.Equal(normal.Attempts[index].Data.ToArray(), captured.Attempts[index].Data.ToArray());
+            Assert.Equal(normal.Attempts[index].WriteMask.ToArray(), captured.Attempts[index].WriteMask.ToArray());
+            Assert.Equal(normal.Attempts[index].Primitive!.Bucket, captured.Attempts[index].Primitive!.Bucket);
+            Assert.Equal(normal.Attempts[index].Primitive!.VertexPayload4.ToArray(), captured.Attempts[index].Primitive!.VertexPayload4.ToArray());
+        }
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(group == 4 ? 3 : 4, geometry.CornerCount);
+        Assert.True(geometry.UseSourceDepths);
+    }
+
     [Theory]
     [InlineData(1, 24)]
     [InlineData(3, 40)]

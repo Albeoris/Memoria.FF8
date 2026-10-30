@@ -25,7 +25,7 @@ public static class NativeBattleEffect80Sprite
                 throw new NotSupportedException("Effect80 particle requires its selected original projected sprite source.");
             }
             return new(0, source, 0, 0, bytes);
-        }, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17);
+        }, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(80, task) : null);
         frame = PublishContext(frame with { Memory = drawn.Memory }, address, drawn.TemporaryD8, length);
         frame = inputs.Execute(frame, new NativeBattleEffect80DeliverBatch(drawn.Batch, 0x25D493C));
         return Release(frame, length);

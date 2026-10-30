@@ -85,6 +85,8 @@ public sealed class NativeBattleSearchPresentationTests
                 callbacks++;
                 audio.Update(battle);
                 BattleSnapshot current = battle.Capture();
+                NativeBattleReachedCaptureAssertions.Moving(92, current, current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8"));
+                NativeBattleReachedCaptureAssertions.SearchCommon(prior, current, resources);
                 Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? afterEffect = Selected(current);
                 initialized |= afterEffect?.ReturnedDescriptor is > 0;
