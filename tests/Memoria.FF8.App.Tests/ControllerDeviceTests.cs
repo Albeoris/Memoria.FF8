@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework.Input;
 using SDL3;
 
@@ -12,6 +14,67 @@ public sealed class SdlControllerCollection;
 [Collection("SDL virtual controllers")]
 public sealed class ControllerDeviceTests
 {
+    [Theory]
+    [InlineData(SDL.GamepadAxis.LeftTrigger, Buttons.LeftTrigger, ControlAction.CameraLeft)]
+    [InlineData(SDL.GamepadAxis.RightTrigger, Buttons.RightTrigger, ControlAction.CameraRight)]
+    public void Virtual_trigger_press_release_threshold_and_binding_capture(SDL.GamepadAxis axis, Buttons button, ControlAction action)
+    {
+        using SdlSession session = new();
+        using VirtualGamepad pad = new("XboxOne");
+        using ControllerDevice device = new();
+        InputChord chord = new([], [button]);
+        // SDL maps the virtual joystick's signed range to the trigger's 0..32767 range.
+        // These nearby samples bracket the normalized 30/255 button threshold.
+        foreach ((short value, bool pressed) in new (short, bool)[] { (short.MinValue, false), (-25060, false), (-25054, true), (short.MaxValue, true), (-25060, false), (short.MinValue, false) })
+        {
+            pad.Axis(axis, value);
+            GamePadState state = device.Read();
+            Assert.Equal(pressed, state.IsButtonDown(button));
+            Assert.Equal(pressed, chord.Matches(default, state));
+            Buttons other = button == Buttons.LeftTrigger ? Buttons.RightTrigger : Buttons.LeftTrigger;
+            Assert.False(state.IsButtonDown(other));
+        }
+
+        ControlsProfile profile = ControlsProfile.CreateDefault().WithoutBinding(action, ControlDevice.Controller);
+        MenuController menus = new();
+        menus.ConnectControls(() => profile, next => profile = next);
+        menus.Open("config-controller");
+        menus.SelectEntry("config-controller", action.ToString());
+        menus.Navigate(MenuInput.Confirm);
+        Assert.True(menus.IsCapturingControls);
+        menus.UpdateControlsCapture(default, device.Read(), true);
+        pad.Axis(axis, short.MaxValue);
+        menus.UpdateControlsCapture(default, device.Read(), true);
+        pad.Axis(axis, short.MinValue);
+        menus.UpdateControlsCapture(default, device.Read(), true);
+        Assert.False(menus.IsCapturingControls);
+        Assert.Equal("config-controller", menus.ScreenId);
+        Assert.Equal(button, Assert.Single(Assert.Single(profile.GetBindings(action, ControlDevice.Controller)).Buttons));
+    }
+
+    [Fact]
+    public void Virtual_triggers_can_be_held_together_and_released_independently()
+    {
+        using SdlSession session = new();
+        using VirtualGamepad pad = new("XboxOne");
+        using ControllerDevice device = new();
+        Assert.True(device.Read().IsConnected);
+        pad.Axis(SDL.GamepadAxis.LeftTrigger, short.MaxValue);
+        pad.Axis(SDL.GamepadAxis.RightTrigger, short.MaxValue);
+        GamePadState state = device.Read();
+        Assert.Equal(1f, state.Triggers.Left);
+        Assert.Equal(1f, state.Triggers.Right);
+        Assert.True(new InputChord([], [Buttons.LeftTrigger, Buttons.RightTrigger]).Matches(default, state));
+        pad.Axis(SDL.GamepadAxis.LeftTrigger, short.MinValue);
+        state = device.Read();
+        Assert.False(state.IsButtonDown(Buttons.LeftTrigger));
+        Assert.True(state.IsButtonDown(Buttons.RightTrigger));
+        pad.Axis(SDL.GamepadAxis.RightTrigger, short.MinValue);
+        state = device.Read();
+        Assert.False(state.IsButtonDown(Buttons.LeftTrigger));
+        Assert.False(state.IsButtonDown(Buttons.RightTrigger));
+    }
+
     [Fact]
     public void Virtual_controller_preserves_raw_analog_values_and_all_standard_buttons()
     {

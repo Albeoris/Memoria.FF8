@@ -6,6 +6,8 @@ namespace Memoria.FF8;
 
 internal sealed class ControllerDevice : IDisposable
 {
+    private const float TriggerButtonThreshold = 30f / 255f;
+
     private static readonly (SDL.GamepadButton Source, Buttons Target)[] ButtonMap =
     [
         (SDL.GamepadButton.South, Buttons.A),
@@ -98,6 +100,17 @@ internal sealed class ControllerDevice : IDisposable
         Vector2 right = new(Normalize(SDL.GetGamepadAxis(gamepad, SDL.GamepadAxis.RightX)), -Normalize(SDL.GetGamepadAxis(gamepad, SDL.GamepadAxis.RightY)));
         float leftTrigger = Math.Max(0f, SDL.GetGamepadAxis(gamepad, SDL.GamepadAxis.LeftTrigger) / (float)short.MaxValue);
         float rightTrigger = Math.Max(0f, SDL.GetGamepadAxis(gamepad, SDL.GamepadAxis.RightTrigger) / (float)short.MaxValue);
+        // GamePadState preserves the supplied button mask; analog triggers need explicit button flags.
+        if (leftTrigger >= TriggerButtonThreshold)
+        {
+            buttons |= Buttons.LeftTrigger;
+        }
+
+        if (rightTrigger >= TriggerButtonThreshold)
+        {
+            buttons |= Buttons.RightTrigger;
+        }
+
         return new GamePadState(left, right, leftTrigger, rightTrigger, buttons);
     }
 
