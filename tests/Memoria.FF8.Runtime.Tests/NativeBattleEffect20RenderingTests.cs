@@ -8,6 +8,28 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect20RenderingTests
 {
     [Fact]
+    public void Source_body_capture_preserves_selected_mesh_and_detached_projected_prefix()
+    {
+        byte[] polygon = new byte[16];
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon, 0x8000);
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(2), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(4), 2);
+        NativeBattleRawMesh mesh = new([new(new(-10, -10, 1000), 0), new(new(10, -10, 1000), 0), new(new(0, 10, 1000), 0)], [new(false, polygon.ToImmutableArray())]);
+        NativeBattleActionMatrix identityMatrix = NativeBattleCuragaMatrices.Identity8DD770();
+        NativeBattleCameraProjection projection = new(identityMatrix, 1000, 160, 108);
+        NativeBattleSummonColors colors = new(0, 0, 1f / 4096, 6755401588539392d);
+        NativeBattleRawModelBodyDraw native = NativeBattleRawModelBodyDrawing.Draw5099D0([mesh, mesh], [identityMatrix], projection, 0x808080, 2, new byte[24].ToImmutableArray(), colors);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattlePilotVisualIdentity identity = new(20, 0x2732CF8, 0, 1, 1) { ResourceGeneration = 0x193F000 };
+        NativeBattleRawModelBodyDraw visual = NativeBattleRawModelBodyDrawing.Draw5099D0([mesh, mesh], [identityMatrix], projection, 0x808080, 2, new byte[24].ToImmutableArray(), colors, pilotIdentity: identity);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(visual));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(visual.Packets.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal((ushort)20, geometry.Identity.Effect);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(new System.Numerics.Vector3(-10, -10, 1000), geometry.A);
+    }
+
+    [Fact]
     public void Mesh_context_uses_full_windows_signed_bias_and_CPU_composition_without_extra_GTE_product()
     {
         NativeBattleModulePoolTask task = Task(0x8A0990).WriteDword(0x4C, 0x1629E00).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096).WriteDword(0x40, 0xABCDEF).WriteWord(0x50, 0xFFFE).WriteWord(0x52, 0xFFF0).WriteWord(0x5E, 777).WriteWord(0x1C, 10).WriteWord(0x1E, 20).WriteWord(0x20, 30);

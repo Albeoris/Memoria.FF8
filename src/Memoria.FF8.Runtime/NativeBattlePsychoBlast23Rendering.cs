@@ -17,9 +17,9 @@ public static class NativeBattlePsychoBlast23Rendering
 
     public static bool Visible(NativeBattleGfAnimationNode node) => NativeBattleActMeshRendering.Visible(node);
 
-    public static NativeBattlePsychoBlast23NodeDraw DrawNode(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePsychoBlast23ActContext root, NativeBattleEffectArena temporary, NativeBattleEffectArena morph, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, NativeBattleCameraProjection projection, short dqa, int dqb, short? zsf3, short? zsf4, NativeBattleSummonColors constants)
+    public static NativeBattlePsychoBlast23NodeDraw DrawNode(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePsychoBlast23ActContext root, NativeBattleEffectArena temporary, NativeBattleEffectArena morph, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, NativeBattleCameraProjection projection, short dqa, int dqb, short? zsf3, short? zsf4, NativeBattleSummonColors constants, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleActMeshDraw drawn = NativeBattleActMeshRendering.DrawNode(source, node, new(root.Matrix, root.DepthBias), temporary, morph, registers, farControls, projection, dqa, dqb, zsf3, zsf4, constants, Rules);
+        NativeBattleActMeshDraw drawn = NativeBattleActMeshRendering.DrawNode(source, node, new(root.Matrix, root.DepthBias), temporary, morph, registers, farControls, projection, dqa, dqb, zsf3, zsf4, constants, Rules, pilotIdentity);
         return new(drawn.Batch, drawn.Temporary104, drawn.MorphScratch, drawn.Registers, drawn.FarControls);
     }
 }

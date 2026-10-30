@@ -102,6 +102,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             bool contactChecked = false;
             bool producedRevivalContact = false;
             int changedRgbPixels = 0;
+            int capturedGeometry = 0;
             int healingTransitions = 0;
             ushort displayedHp = 0;
             for (int callback = 0; callback < 2048; callback++)
@@ -129,6 +130,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                     producedRevivalContact = true;
                 }
                 NativeBattleGraphicsState graphics = current.NativeGraphics!;
+                capturedGeometry += NativeBattleRecoveryCaptureAssertions.AssertOwnedGeometry(current, 27);
                 selectedCasting |= graphics.ActionGraphics?.Callback == 0x50A9A0;
                 selectedFullLife |= graphics.OriginalEffect is { Binding.Effect: 27, Restoration: not null };
                 cameraChanged |= JsonSerializer.Serialize(current.NativeCamera) != cameraBefore;
@@ -165,6 +167,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             BattleSnapshot completed = battle.Capture();
             Assert.True(selectedCasting);
             Assert.True(selectedFullLife);
+            Assert.True(capturedGeometry > 0);
             Assert.True(cameraChanged);
             Assert.True(visibleChecked);
             Assert.True(contactChecked);

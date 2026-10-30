@@ -75,6 +75,8 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         int peakChanged = 0;
         int renderedCommandCount = 0;
         int renderedSamples = 0;
+        int capturedOwnedFrames = 0;
+        HashSet<uint> capturedOwnedBanks = [];
         BattleSnapshot? peak = null;
         byte[]? peakPixels = null;
         byte[]? peakPlain = null;
@@ -82,10 +84,15 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         {
             Cold("queued", source);
             BattleSnapshot prior = source;
+            int recoveryCapturedGeometry = 0;
             for (; callbacks < maximum; callbacks++)
             {
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                if (effect == 7)
+                {
+                    recoveryCapturedGeometry += NativeBattleRecoveryCaptureAssertions.AssertOwnedGeometry(current, 7);
+                }
                 observer?.Observe(prior, current, Cold);
                 observer314?.Observe(prior, current, Cold);
                 NativeBattleOriginalEffectState? currentEffect = current.NativeGraphics!.OriginalEffect;
@@ -142,6 +149,30 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 {
                     ownedCommands = primitive.LastCommands.Select(command => command.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= 0 && command.Packet.ByteOffset < cursor).ToArray();
                 }
+                if (effect is 9 or 17 && currentEffect?.Binding.Effect == effect && primitive is not null && (currentEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0))
+                {
+                    ImmutableHashSet<NativeBattlePrimitiveReference> appended = currentEffect.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
+                    ownedCommands = primitive.LastCommands.Select(item => item.Command).Where(command => appended.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet))).ToArray();
+                }
+                if (effect == 18 && currentEffect?.Binding.Effect == 18 && prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0 && currentEffect.ReturnedDescriptor == 0)
+                {
+                    ownedCommands = NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value, includeCompleted: true);
+                }
+                if (effect is 9 or 17 or 18 && primitive is not null)
+                {
+                    NativeBattleLogicalCommand[] geometry = ownedCommands.Where(command => command.Opcode is >= 0x20 and < 0x40).ToArray();
+                    foreach (NativeBattleLogicalCommand command in geometry)
+                    {
+                        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
+                        Assert.Equal(effect, visual.Identity.Effect);
+                        Assert.True(visual.Identity.Generation > 0);
+                        capturedOwnedBanks.Add(visual.Identity.Bank);
+                    }
+                    if (geometry.Length > 0)
+                    {
+                        capturedOwnedFrames++;
+                    }
+                }
                 if (primitive is not null && ownedCommands.Length > 0 && (peak is null || ownedCommands.Length > renderedCommandCount))
                 {
                     renderedCommandCount = Math.Max(renderedCommandCount, ownedCommands.Length);
@@ -178,10 +209,29 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             }
             Assert.True(callbacks < maximum, "The selected component exceeded its diagnostic callback budget.");
             Assert.Equal(1, completions);
+            if (effect is 9 or 17 or 18)
+            {
+                Assert.True(capturedOwnedFrames > 1, "The standalone component must reach captured physical geometry on multiple callbacks.");
+            }
+            if (effect == 9)
+            {
+                Assert.Contains(0x27571A0u, capturedOwnedBanks);
+                Assert.Contains(0x274F628u, capturedOwnedBanks);
+                Assert.Contains(0x274F230u, capturedOwnedBanks);
+            }
+            if (effect == 17)
+            {
+                Assert.Contains(0x2556FC8u, capturedOwnedBanks);
+                Assert.Contains(0x2556FD8u, capturedOwnedBanks);
+            }
             Assert.Equal(expectedContactTransitions, contactTransitions);
             if (!livePartyFollowup)
             {
                 Assert.True(peakChanged > 0, "The selected component did not produce visible physical commands.");
+            }
+            if (effect == 7)
+            {
+                Assert.True(recoveryCapturedGeometry > 0);
             }
             BattleSnapshot completed = battle.Capture();
             if (peak is not null)

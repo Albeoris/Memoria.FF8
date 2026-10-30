@@ -113,7 +113,7 @@ public static class NativeBattleEffect9Particles
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Effect9 particles require their current physical temporary memory."), 0xD8);
         NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 0xD8);
         NativeBattleProjectedSpriteHead head = NativeBattleProjectedSpriteD8.PrepareHead(frame.Memory, task, inputs.ReadCamera(frame), temporary);
-        NativeBattleProjectedSpriteDraw drawn = NativeBattleProjectedSpriteD8.Draw(head, address => address == inputs.Sprite.Address ? inputs.Sprite : throw new NotSupportedException("Effect9 particle selected an unsupported sprite source."), inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17);
+        NativeBattleProjectedSpriteDraw drawn = NativeBattleProjectedSpriteD8.Draw(head, address => address == inputs.Sprite.Address ? inputs.Sprite : throw new NotSupportedException("Effect9 particle selected an unsupported sprite source."), inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, NativeBattlePilotVisualLifetimes.Identity(9, task) with { ResourceGeneration = inputs.Sprite.Address });
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.TemporaryD8, 0xD8);
         frame = inputs.AppendCommon(frame with { Memory = drawn.Memory, Staging = staging }, drawn.Batch);
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(frame.Staging ?? throw new NotSupportedException("Effect9 particle drawing lost its temporary memory."), 0xD8) };

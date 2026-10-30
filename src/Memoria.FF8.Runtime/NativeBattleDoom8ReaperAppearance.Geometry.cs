@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleDoom8ReaperAppearance
 {
-    public static NativeBattleDoom8AppearanceStep Draw8CC7B0(NativeBattleDoom8Frame frame, NativeBattleFileStaging staging, NativeBattleDoom8AppearanceModel model, NativeBattleCameraProjection projection, int tableBaseBucket = 17)
+    public static NativeBattleDoom8AppearanceStep Draw8CC7B0(NativeBattleDoom8Frame frame, NativeBattleFileStaging staging, NativeBattleDoom8AppearanceModel model, NativeBattleCameraProjection projection, int tableBaseBucket = 17, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (model.Address == 0 || frame.State.ReadDword(ScratchAddress + 0x48) != model.Address || frame.State.ReadDword(ScratchAddress + 0x40) != VertexAddress || frame.State.ReadDword(ScratchAddress + 0x44) != DescriptorAddress || frame.State.ReadDword(DescriptorAddress + 4) != VertexAddress || frame.State.ReadDword(ScratchAddress + 0x4C) != CursorAddress || frame.State.ReadDword(ScratchAddress + 0x50) != CursorAddress)
         {
@@ -134,10 +134,16 @@ public static partial class NativeBattleDoom8ReaperAppearance
                         }
                     }
                 }
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[count] : null;
                 registers = Registers(memory);
                 for (int corner = 0; corner < 3; corner++)
                 {
                     registers = LoadPackedVector(registers, corner, PackedVector(temporary, 0x54 + corner * 8));
+                    if (world is not null)
+                    {
+                        NativeBattleVector point = new(I16(temporary, 0x54 + corner * 8), I16(temporary, 0x56 + corner * 8), I16(temporary, 0x58 + corner * 8));
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(composed.ReadMatrix(), point), projection);
+                    }
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
                 registers = NativeBattleGeometry.Clip45EE10(registers);
@@ -152,6 +158,11 @@ public static partial class NativeBattleDoom8ReaperAppearance
                 {
                     attempts.Add(ScreenPrefix(allocationBytes, screen));
                     registers = LoadPackedVector(registers, 0, PackedVector(temporary, 0x6C));
+                    if (world is not null)
+                    {
+                        NativeBattleVector point = new(I16(temporary, 0x6C), I16(temporary, 0x6E), I16(temporary, 0x70));
+                        world[3] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(composed.ReadMatrix(), point), projection);
+                    }
                     registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                     registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Doom appearance requires its actual ZSF4."));
                 }
@@ -163,6 +174,11 @@ public static partial class NativeBattleDoom8ReaperAppearance
                 temporary = Dword(temporary, 0xF0, depth);
                 memory = Publish(memory, registers);
                 NativeBattleGfGeometryAttempt packet = Packet(face, age, state, registers, screen, allocationBytes, checked(tableBaseBucket + (int)depth));
+                if (pilotIdentity is { } identity && packet.Primitive is { } primitive)
+                {
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + faceAgeOffset) }, world![0], world[1], world[2], face.Quad ? world[3] : default, (byte)count) { DepthDivisor = 4, SourceDepths = new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]) } };
+                    packet = packet with { Primitive = primitive };
+                }
                 attempts.Add(packet);
                 allocationBytes += packet.PacketLength;
             }

@@ -58,13 +58,13 @@ public static partial class NativeBattleDrawStock15SpriteRendering
         }
     }
 
-    public static NativeBattleDrawStock15SpriteTemporaryResult Emit180(NativeBattleFileStaging staging, uint temporary, NativeBattleModulePoolTask task, NativeBattleDrawStock15ParticleResources resources, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePackedMatrix32? capturedMatrix = null)
+    public static NativeBattleDrawStock15SpriteTemporaryResult Emit180(NativeBattleFileStaging staging, uint temporary, NativeBattleModulePoolTask task, NativeBattleDrawStock15ParticleResources resources, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePackedMatrix32? capturedMatrix = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleDrawStock15SpriteComposition composed = NativeBattleDrawStock15Rendering.ComposeSprite(task, resources, camera, projection, cameraRoll);
-        return EmitPrepared180(staging, temporary, task, composed, projection, cameraRoll, capturedMatrix);
+        return EmitPrepared180(staging, temporary, task, composed, projection, cameraRoll, capturedMatrix, pilotIdentity);
     }
 
-    public static NativeBattleDrawStock15SpriteTemporaryResult EmitPrepared180(NativeBattleFileStaging staging, uint temporary, NativeBattleModulePoolTask task, NativeBattleDrawStock15SpriteComposition composed, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePackedMatrix32? capturedMatrix = null)
+    public static NativeBattleDrawStock15SpriteTemporaryResult EmitPrepared180(NativeBattleFileStaging staging, uint temporary, NativeBattleModulePoolTask task, NativeBattleDrawStock15SpriteComposition composed, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePackedMatrix32? capturedMatrix = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (composed.Draw.Resource?.Address != task.ReadDword(0x4C) || composed.Draw.Phase != task.ReadWord(0x50))
         {
@@ -74,7 +74,7 @@ public static partial class NativeBattleDrawStock15SpriteRendering
         staging = Word(staging, temporary + 4, task.ReadWord(0x50));
         staging = Word(staging, temporary + 36, 0);
         staging = NativeBattleModuleSpriteTemporary.Begin571C80(staging, temporary, task.ReadDword(0x4C), 0);
-        NativeBattleModuleSpriteTemporaryResult emitted = NativeBattleModuleSpriteTemporary.Emit571C80(staging, temporary, composed.Draw, projection, cameraRoll, 17, 2, capturedMatrix);
+        NativeBattleModuleSpriteTemporaryResult emitted = NativeBattleModuleSpriteTemporary.Emit571C80(staging, temporary, composed.Draw with { PilotIdentity = pilotIdentity }, projection, cameraRoll, 17, 2, capturedMatrix);
         ImmutableArray<NativeBattleDrawStock15ParticleOperation>.Builder operations = ImmutableArray.CreateBuilder<NativeBattleDrawStock15ParticleOperation>();
         NativeBattleModuleSpriteFrame frame = composed.Draw.SpriteFrame!;
         bool accepted = false;

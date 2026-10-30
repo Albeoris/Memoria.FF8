@@ -8,6 +8,7 @@ public sealed record NativeBattleDoom8NodeAppend(NativeBattleDoom8Frame Frame, u
 public sealed record NativeBattleDoom8NodeInputs(NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleCameraProjection Projection, short CameraRoll, NativeBattleSummonColors Colors, Func<NativeBattleDoom8Frame, NativeBattleDoom8Operation, NativeBattleDoom8Frame> Execute)
 {
     public Func<uint, int, byte[]>? ReadExternal { get; init; }
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
 }
 
 public static class NativeBattleDoom8Nodes
@@ -91,13 +92,19 @@ public static class NativeBattleDoom8Nodes
             NativeBattleEffectNodeInputs operands = new(camera, inputs.ReadModel, (parent, actor, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, emitters, 10, ref emitterScan, parent, actor, target), (emitter, actor) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, geometry, 40, ref geometryScan, emitter, actor));
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, operands);
             NativeCrtRandomState random = frame.Random;
-            _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver);
+            _ = lifecycle.AdvanceAndDraw(ref random, inputs.Projection, inputs.CameraRoll, PrepareMesh, Deliver, inputs.PilotIdentity, PreparePilotMesh);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
             bank.Publish();
             frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random };
             frame = frame with { State = frame.State.WriteWord(0x275ABD8, emitterScan).WriteWord(0x275F508, geometryScan) };
 
             NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] descriptor)
+            {
+                NativeBattleEffectNodePilotMeshInstance prepared = PreparePilotMesh(node, descriptor);
+                return (bytes, matrix) => prepared(bytes, matrix, default);
+            }
+
+            NativeBattleEffectNodePilotMeshInstance PreparePilotMesh(int node, byte[] descriptor)
             {
                 NativeBattleDoom8Frame current = frame with { Memory = memory.CaptureProcessMemory() };
                 short fade = unchecked((short)memory.Word(node + 0x1CE));
@@ -111,12 +118,12 @@ public static class NativeBattleDoom8Nodes
                 {
                     frame = frame with { State = NativeBattleDoom8NodeDrawing.End(current).State };
                 }
-                return (bytes, matrix) =>
+                return (bytes, matrix, identity) =>
                 {
                     NativeBattleEffectNodeMemoryWrite live = memory.FlushStorage();
                     (byte[] padding, bool[] known) = live.Memory.Arena!.ReadSnapshot(node + 0xAC + 18, 2);
                     short? matrixPadding = known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(padding) : null;
-                    NativeBattleDoom8NodeMeshStep emitted = NativeBattleDoom8NodeDrawing.Emit(frame with { Memory = memory.CaptureProcessMemory() }, bytes, meshAddress, matrix, inputs.Projection, inputs.Colors, matrixPadding);
+                    NativeBattleDoom8NodeMeshStep emitted = NativeBattleDoom8NodeDrawing.Emit(frame with { Memory = memory.CaptureProcessMemory() }, bytes, meshAddress, matrix, inputs.Projection, inputs.Colors, matrixPadding, inputs.PilotIdentity.HasValue ? identity : null);
                     memory.PublishProcessMemory(emitted.Frame.Memory);
                     if (++instance == count)
                     {

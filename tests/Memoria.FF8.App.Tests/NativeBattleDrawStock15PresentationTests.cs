@@ -19,6 +19,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
         BattleSession? battle = null;
         BattleSnapshot? prior = null;
         int callbacks = 0;
+        int smoothCaptured = 0;
         int contactTransitions = 0;
         int completions = 0;
         int expectedQuantity = 0;
@@ -181,6 +182,16 @@ public sealed class NativeBattleDrawStock15PresentationTests
                     Assert.DoesNotContain(current.NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelIndex == half.ActorIndex);
                     ColdNext("contact", current);
                 }
+                if (after?.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 })
+                {
+                    ImmutableHashSet<NativeBattlePrimitiveReference> capturedOwned = DrawStockPacketReferences(current);
+                    foreach (NativeBattleLogicalCommand command in current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => capturedOwned.Contains(command.Packet) && command.Opcode is >= 0x20 and < 0x80))
+                    {
+                        Assert.True(command.PilotGeometry is not null, $"Draw Stock uncaptured owned pass at frame {current.Frame}: {command.Packet}, opcode {command.Opcode:X2}, word {command.WordOffset}.");
+                        Assert.Equal((ushort)15, command.PilotGeometry!.Identity.Effect);
+                        smoothCaptured++;
+                    }
+                }
                 if (after?.ReturnedDescriptor is > 0 && !liveRestored)
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = DrawStockPacketReferences(current);
@@ -217,6 +228,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
             Assert.True(peakChangedRgb > 0);
             Assert.Equal(1, contactTransitions);
             Assert.Equal(1, completions);
+            Assert.True(smoothCaptured > 0);
             Assert.True(cameraChanged);
             Assert.True(Released(completed));
             Assert.Single(battle.Events, item => item.Kind == "Draw" && item.ActorId == "party" && item.TargetId == "enemy" && item.Amount == expectedAdded);
@@ -280,7 +292,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
     {
         NativeBattleOriginalEffectState effect = snapshot.NativeGraphics!.OriginalEffect!;
         NativeBattleCuragaState nodes = effect.DrawStock15!.Nodes;
-        NativeBattleModulePoolTask root = effect.Pools[0].Slots.First(task => task.Callback == 0x8B0A50 && (task.Flags & 1) != 0);
+        NativeBattleModulePoolTask root = effect.Pools[0].Slots.First(task => task.Callback == 0x8B0A50 && ((task.Flags & 1) != 0 || effect.ReturnedDescriptor == 0));
         bool odd = (unchecked((ushort)(root.ReadWord(0x5C) - 1)) & 1) != 0;
         int primaryStart = nodes.SourceArenaOffset + (odd ? 0 : 0x9000);
         int secondaryStart = nodes.SourceArenaOffset + (odd ? 0x9000 : 0x12000);

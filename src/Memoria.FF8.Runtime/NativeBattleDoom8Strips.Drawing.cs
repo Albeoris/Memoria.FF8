@@ -82,13 +82,18 @@ public static partial class NativeBattleDoom8Strips
                 NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Doom strips require their actual projection controls.");
                 registers = new(frame.Memory.GeometryRegisters!, frame.Memory.ScriptedColorRegisters!);
                 uint[] addresses = [bank + (uint)(row * 32 + column * 8), bank + (uint)(row * 32 + (column + 1) * 8), bank + (uint)((row + 1) * 32 + column * 8), bank + (uint)((row + 1) * 32 + (column + 1) * 8)];
+                System.Numerics.Vector3[] world = new System.Numerics.Vector3[4];
                 for (int corner = 0; corner < 3; corner++)
                 {
                     registers = LoadVertex(registers, frame.State, addresses[corner], corner);
+                    NativeBattleVector point = Vector(frame.State, addresses[corner]);
+                    world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection with { View = view });
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
                 uint[] screens = registers.Geometry.Sxy.Select(value => value ?? throw new InvalidDataException("Doom strip projection did not publish its screens.")).ToArray();
                 registers = LoadVertex(registers, frame.State, addresses[3], 0);
+                NativeBattleVector fourthPoint = Vector(frame.State, addresses[3]);
+                world[3] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, fourthPoint), projection with { View = view });
                 registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                 uint fourth = registers.Geometry.Sxy[2]!.Value;
                 byte[] data = new byte[36];
@@ -108,7 +113,7 @@ public static partial class NativeBattleDoom8Strips
                 mask[31] = NativeBattleGfPacketByteState.Untouched;
                 ImmutableArray<uint> words = Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(index * 4, 4))).ToImmutableArray();
                 ImmutableArray<int> depths = registers.Geometry.Sz.Select(value => (int)unchecked((ushort)(value ?? throw new InvalidDataException("Doom strips require all four actual depth FIFO values.")))).ToImmutableArray();
-                NativeBattleGeometryPrimitive primitive = new(bucket, words, depths);
+                NativeBattleGeometryPrimitive primitive = new(bucket, words, depths) { PilotGeometry = new(NativeBattlePilotVisualLifetimes.Identity(8, frame.State.Globals, bank, 0, row * 3 + column), world[0], world[1], world[2], world[3], 4) { DepthDivisor = 4, SourceDepths = new(depths[0], depths[1], depths[2], depths[3]) } };
                 NativeBattleGfGeometryAttempt attempt = new(0, data.ToImmutableArray(), mask.ToImmutableArray(), primitive);
                 frame = frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
                 frame = deliver(frame, new([attempt], 36));

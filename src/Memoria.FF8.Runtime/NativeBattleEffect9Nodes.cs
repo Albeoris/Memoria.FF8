@@ -157,7 +157,7 @@ public static class NativeBattleEffect9Nodes
             flags |= 0xC0;
         }
         NativeBattleGfGeometryContext context = new(flags, cue ? node.Color32 : 0, node.Scalar36, null, null, unchecked((short)task.ReadWord(0x88)), 17, 2);
-        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, vertices, matrix, inputs.Projection, context, inputs.Colors);
+        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, vertices, matrix, inputs.Projection, context, inputs.Colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(9, task, node.NodeIndex) with { ResourceGeneration = source.Address });
         return inputs.Append(frame, batch);
     }
 }

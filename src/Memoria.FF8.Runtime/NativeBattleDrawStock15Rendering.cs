@@ -57,16 +57,16 @@ public static class NativeBattleDrawStock15Rendering
         return new(draw, setup, main, NativeBattleModulePackets.EmitSprite571DC0(draw, projection, cameraRoll, 17, 2, main));
     }
 
-    public static NativeBattleDrawStock15RibbonStep Ribbon8B5F30(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, ushort? cameraPadding = null)
+    public static NativeBattleDrawStock15RibbonStep Ribbon8B5F30(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, ushort? cameraPadding = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (task.Callback != 0x8B5C70)
         {
             throw new InvalidDataException("Draw Stock ribbon requires its original trajectory task.");
         }
-        return RibbonTrajectory(task, camera, projection, cameraPadding);
+        return RibbonTrajectory(task, camera, projection, cameraPadding, pilotIdentity);
     }
 
-    internal static NativeBattleDrawStock15RibbonStep RibbonTrajectory(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, ushort? cameraPadding)
+    internal static NativeBattleDrawStock15RibbonStep RibbonTrajectory(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, ushort? cameraPadding, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         int first = Word(task, 0x128);
         int last = Word(task, 0x12A);
@@ -142,6 +142,11 @@ public static class NativeBattleDrawStock15Rendering
             int bucket = RibbonBucket(vertices[a].Depth, vertices[b].Depth, vertices[c].Depth);
             ImmutableArray<NativeBattleGfPacketByteState> known = mask.ToImmutableArray();
             NativeBattleGeometryPrimitive primitive = new(bucket, Enumerable.Range(0, 10).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(word * 4))).ToImmutableArray(), []) { PhysicalWriteMask = known };
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 Point(int index) => new(points[index].X, points[index].Y, points[index].Z);
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + a * 2 + (second ? 1 : 0)) }, Point(a), Point(b), Point(c), default, 3) { DepthQuantum = 4, DepthDivisor = 4, DepthScale = 0.25f, SourceDepths = new(vertices[a].Depth, vertices[b].Depth, vertices[c].Depth, 0) } };
+            }
             attempts.Add(new(attempts.Count * 40, bytes.ToImmutableArray(), known, primitive));
 
             void Byte(int offset, byte value)

@@ -14,16 +14,16 @@ public static partial class NativeBattleDoom8ModelDrawing
 
     public static NativeBattleFileStaging PublishDecodedPose(NativeBattleFileStaging staging, NativeBattleEffectOwnedModelState state, NativeBattleEffectOwnedModelResource resource) => NativeBattleEffectOwnedModelRendering.PublishDecodedPose(staging, state, resource);
 
-    public static NativeBattleDoom8ModelDrawStep Draw8CC4D0(NativeBattleDoom8Frame frame, NativeBattleFileStaging staging, uint address, NativeBattleEffectOwnedModelState model, NativeBattleEffectOwnedModelResource resource, NativeBattleDoom8ModelDrawInputs inputs)
+    public static NativeBattleDoom8ModelDrawStep Draw8CC4D0(NativeBattleDoom8Frame frame, NativeBattleFileStaging staging, uint address, NativeBattleEffectOwnedModelState model, NativeBattleEffectOwnedModelResource resource, NativeBattleDoom8ModelDrawInputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleModulePoolTask task = RequireModel(frame, address, model, resource);
         NativeBattleEffectOwnedModelRenderFrame current = new(frame.Memory, task, model, resource, frame.State.ReadView(ProjectedAddress, ProjectedLength), ProjectedAddress, ProjectedLength, frame.State.ReadDword(FarInputAddress), frame.State.ReadDword(NativeBattleDoom8ReaperAppearance.CursorAddress));
-        NativeBattleEffectOwnedModelRenderStep drawn = NativeBattleEffectOwnedModelRendering.DrawNormal(current, staging, new(inputs.Camera, inputs.Projection, inputs.Shadow, inputs.Capabilities, inputs.Colors));
+        NativeBattleEffectOwnedModelRenderStep drawn = NativeBattleEffectOwnedModelRendering.DrawNormal(current, staging, new(inputs.Camera, inputs.Projection, inputs.Shadow, inputs.Capabilities, inputs.Colors), pilotIdentity is { } identity ? identity with { ResourceGeneration = resource.Address } : null);
         frame = WriteTask(frame with { Memory = drawn.Frame.Memory, State = frame.State.WriteView(ProjectedAddress, drawn.Frame.ProjectedScratch, ProjectedLength).WriteDword(NativeBattleDoom8ReaperAppearance.CursorAddress, drawn.Frame.PacketAddress), Staging = drawn.Staging }, address, drawn.Frame.Task);
         return new(frame, drawn.Staging, drawn.Batch);
     }
 
-    public static NativeBattleDoom8ModelDrawStep Draw8CC6B0(NativeBattleDoom8Frame frame, NativeBattleFileStaging staging, uint address, NativeBattleEffectOwnedModelState model, NativeBattleEffectOwnedModelResource resource, NativeBattleDoom8ModelDrawInputs inputs)
+    public static NativeBattleDoom8ModelDrawStep Draw8CC6B0(NativeBattleDoom8Frame frame, NativeBattleFileStaging staging, uint address, NativeBattleEffectOwnedModelState model, NativeBattleEffectOwnedModelResource resource, NativeBattleDoom8ModelDrawInputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleModulePoolTask task = RequireModel(frame, address, model, resource);
         RequireStagedPose(staging, model, resource);
@@ -31,21 +31,21 @@ public static partial class NativeBattleDoom8ModelDrawing
         staging = PrepareLocalBones508C90(staging, model, resource);
         frame = NativeBattleDoom8ReaperAppearance.PrepareCamera8CC6B0(frame, world, inputs.Camera);
         NativeBattleEffectLocalBounds bounds = new(new(Signed(task, 0x64), Signed(task, 0x66), Signed(task, 0x68)), new(Signed(task, 0x6A), Signed(task, 0x6C), Signed(task, 0x6E)));
-        NativeBattleDoom8ModelDrawStep shadow = DrawShadow(frame, staging, task, world.ReadMatrix(), bounds, inputs, 4112);
+        NativeBattleDoom8ModelDrawStep shadow = DrawShadow(frame, staging, task, world.ReadMatrix(), bounds, inputs, 4112, pilotIdentity);
         frame = shadow.Frame;
         staging = shadow.Staging;
         ImmutableArray<NativeBattlePackedMatrix32> bones = CaptureBones(staging, resource);
         NativeBattleDoom8AppearanceModel appearance = new(checked(address + 0x30), CaptureTaskModel(task), ReadGeometry(staging, resource), bones);
-        NativeBattleDoom8AppearanceStep drawn = NativeBattleDoom8ReaperAppearance.Draw8CC7B0(frame, staging, appearance, inputs.Projection);
+        NativeBattleDoom8AppearanceStep drawn = NativeBattleDoom8ReaperAppearance.Draw8CC7B0(frame, staging, appearance, inputs.Projection, pilotIdentity: pilotIdentity is { } identity ? identity with { ResourceGeneration = resource.Address } : null);
         staging = PrepareLocalBones508C90(drawn.Staging, model, resource);
         return new(drawn.Frame with { Staging = staging }, staging, Combine(shadow.Batch, drawn.Batch));
     }
 
     public static NativeBattleFileStaging PrepareLocalBones508C90(NativeBattleFileStaging staging, NativeBattleEffectOwnedModelState model, NativeBattleEffectOwnedModelResource resource) => NativeBattleEffectOwnedModelRendering.PrepareLocalBones508C90(staging, model, resource);
 
-    private static NativeBattleDoom8ModelDrawStep DrawShadow(NativeBattleDoom8Frame frame, NativeBattleFileStaging staging, NativeBattleModulePoolTask task, NativeBattleActionMatrix world, NativeBattleEffectLocalBounds bounds, NativeBattleDoom8ModelDrawInputs inputs, int bucket)
+    private static NativeBattleDoom8ModelDrawStep DrawShadow(NativeBattleDoom8Frame frame, NativeBattleFileStaging staging, NativeBattleModulePoolTask task, NativeBattleActionMatrix world, NativeBattleEffectLocalBounds bounds, NativeBattleDoom8ModelDrawInputs inputs, int bucket, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
-        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(staging, Registers(frame.Memory), world, Signed(task, 0x54), bounds, task.ReadDword(0x5C), inputs.Projection with { View = inputs.Camera.ReadMatrix() }, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Doom shadow requires its current depth controls."), inputs.Shadow, inputs.Capabilities.GouraudAlpha, bucket, 16);
+        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(staging, Registers(frame.Memory), world, Signed(task, 0x54), bounds, task.ReadDword(0x5C), inputs.Projection with { View = inputs.Camera.ReadMatrix() }, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Doom shadow requires its current depth controls."), inputs.Shadow, inputs.Capabilities.GouraudAlpha, bucket, 16, pilotIdentity is { } identity ? identity with { Primitive = 0x5088A0 } : null);
         staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78);
         staging = NativeBattleTemporaryMemory.Release5082D0(staging, 0x78);
         uint cursor = frame.State.ReadDword(NativeBattleDoom8ReaperAppearance.CursorAddress);

@@ -15,7 +15,7 @@ public static class NativeBattleDoom8ActRendering
         return new(frame with { Memory = prepared.Memory, Staging = prepared.Staging }, prepared.Context92);
     }
 
-    public static NativeBattleDoom8Frame DrawNode8C5B10(NativeBattleDoom8Frame frame, NativeBattleGfAnimationSource source, NativeBattleEffectArena context92, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<NativeBattleDoom8Frame, NativeBattleGfGeometryBatch, NativeBattleDoom8Frame> deliver)
+    public static NativeBattleDoom8Frame DrawNode8C5B10(NativeBattleDoom8Frame frame, NativeBattleGfAnimationSource source, NativeBattleEffectArena context92, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<NativeBattleDoom8Frame, NativeBattleGfGeometryBatch, NativeBattleDoom8Frame> deliver, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!NativeBattleActMeshRendering.Visible(node))
         {
@@ -29,7 +29,7 @@ public static class NativeBattleDoom8ActRendering
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Doom ACT drawing requires its packet process.");
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Doom ACT drawing requires its projection controls.");
         NativeBattleGeometryRegisterStep registers = new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Doom ACT drawing requires its geometry controls."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Doom ACT drawing requires its geometry data registers."));
-        NativeBattleActMeshDraw drawn = NativeBattleActMeshRendering.DrawNode(source, node, root, temporary, frame.State.ReadView(MorphAddress, MorphLength), registers, process.ModelRendererRegisters ?? throw new NotSupportedException("Doom ACT drawing requires its retained FAR controls."), projection, controls.Dqa, controls.Dqb, controls.Zsf3, controls.Zsf4, constants, Rules);
+        NativeBattleActMeshDraw drawn = NativeBattleActMeshRendering.DrawNode(source, node, root, temporary, frame.State.ReadView(MorphAddress, MorphLength), registers, process.ModelRendererRegisters ?? throw new NotSupportedException("Doom ACT drawing requires its retained FAR controls."), projection, controls.Dqa, controls.Dqb, controls.Zsf3, controls.Zsf4, constants, Rules, pilotIdentity is { } identity ? identity with { Primitive = node.ResourceOffset, ResourceGeneration = unchecked(((long)source.Address << 16) ^ node.GeometryIndex) } : null);
         frame = frame with
         {
             Memory = frame.Memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors, PrimitiveProcess = process with { ModelRendererRegisters = drawn.FarControls } },

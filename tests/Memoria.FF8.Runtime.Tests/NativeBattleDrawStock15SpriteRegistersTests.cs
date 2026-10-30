@@ -5,6 +5,32 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleDrawStock15SpriteRegistersTests
 {
+    [Theory]
+    [InlineData(0x8B5C70u)]
+    [InlineData(0x8B6440u)]
+    public void Presentation_capture_preserves_detached_head_and_body_temporary_and_packet_outputs(uint callback)
+    {
+        var nativeFixture = Fixture(callback);
+        NativeBattleDrawStock15SpriteTemporaryResult native = Emit(nativeFixture.Task, nativeFixture.Resources, nativeFixture.Camera);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        var visualFixture = Fixture(callback);
+        NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(15, visualFixture.Task) with { ResourceGeneration = visualFixture.Task.ReadDword(0x4C) };
+        uint temporary = NativeBattleTemporaryMemory.Address;
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(temporary, Enumerable.Repeat((byte)0xA5, 180).ToArray());
+        NativeBattleDrawStock15SpriteTemporaryResult visual = NativeBattleDrawStock15SpriteRendering.Emit180(staging, temporary, visualFixture.Task, visualFixture.Resources, visualFixture.Camera, new(visualFixture.Camera, 216, 160, 108), 0, pilotIdentity: identity);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(visual));
+        NativeBattleAllocatedPrimitive[] polygons = visual.Batch.Primitives.Where(item => ((item.Primitive.Words[1] >> 24) & 0xE0) == 0x20).ToArray();
+        Assert.Equal(callback == 0x8B5C70 ? 4 : 2, polygons.Length);
+        Assert.All(polygons, item =>
+        {
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(item.Primitive.PilotGeometry);
+            Assert.Equal(identity.Generation, geometry.Identity.Generation);
+            Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+            Assert.NotNull(geometry.Sprite);
+        });
+        Assert.Equal(polygons.Length, polygons.Select(item => item.Primitive.PilotGeometry!.Identity).Distinct().Count());
+    }
+
     [Fact]
     public void Every_accepted_quad_has_its_fourth_projection_but_only_the_first_computes_cached_average()
     {

@@ -256,6 +256,102 @@ public sealed class NativeBattleLifeControllerTests
         return (frame, resources, inputs);
     }
 
+    [Fact]
+    public void Phoenix_particles_capture_each_real_sprite_and_wedge_without_changing_native_draws_or_CRT()
+    {
+        var phoenix = Fixture(5);
+        var life = Fixture(35);
+        NativeBattleLifeFrame left = NativeBattleTestSnapshots.RestoreJson<NativeBattleLifeFrame>(NativeBattleTestSnapshots.Json(phoenix.Frame))!;
+        NativeBattleLifeFrame right = NativeBattleTestSnapshots.RestoreJson<NativeBattleLifeFrame>(NativeBattleTestSnapshots.Json(life.Frame))!;
+        NativeCrtRandomState random = phoenix.Inputs.Random;
+        int sprites = 0;
+        int wedges = 0;
+        Dictionary<(uint Bank, int Slot, long Generation), long> resources = [];
+        NativeBattleLifeResources WithQuads(NativeBattleLifeResources original)
+        {
+            return original with { Sprites = original.Sprites.Select(resource =>
+            {
+                byte[] bytes = new byte[resource.Bytes.Length + 20];
+                resource.Bytes.CopyTo(bytes);
+                int descriptor = bytes.Length - 24;
+                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(descriptor), 1);
+                bytes[descriptor + 4] = 8;
+                bytes[descriptor + 5] = 128;
+                bytes[descriptor + 6] = 8;
+                bytes[descriptor + 7] = 0x2C;
+                return resource with { Bytes = bytes.ToImmutableArray() };
+            }).ToImmutableArray() };
+        }
+        NativeBattleLifeResources phoenixResources = WithQuads(phoenix.Resources);
+        NativeBattleLifeResources lifeResources = WithQuads(life.Resources);
+        for (int callback = 0; callback < 120 && left.Effect.ReturnedDescriptor != 0; callback++)
+        {
+            List<NativeBattleModulePacketBatch> captured = [];
+            List<NativeBattleModulePacketBatch> plain = [];
+            NativeBattleLifeStep a = NativeBattleLifeController.Advance864AB0(left, phoenixResources, phoenix.Inputs with { Random = random, Execute = (frame, batch) =>
+            {
+                captured.Add(batch);
+                return frame;
+            } });
+            NativeBattleLifeStep b = NativeBattleLifeController.Advance864AB0(right, lifeResources, life.Inputs with { Random = random, Execute = (frame, batch) =>
+            {
+                plain.Add(batch);
+                return frame;
+            } });
+            Assert.Equal(a.Random, b.Random);
+            Assert.Equal(a.Contacts.ToArray(), b.Contacts.ToArray());
+            Assert.Equal(a.Sounds.ToArray(), b.Sounds.ToArray());
+            Assert.Equal(plain.Count, captured.Count);
+            for (int batch = 0; batch < captured.Count; batch++)
+            {
+                Assert.Equal(plain[batch].AllocationBytes, captured[batch].AllocationBytes);
+                Assert.Equal(plain[batch].Primitives.Length, captured[batch].Primitives.Length);
+                for (int index = 0; index < captured[batch].Primitives.Length; index++)
+                {
+                    NativeBattleAllocatedPrimitive actual = captured[batch].Primitives[index];
+                    NativeBattleAllocatedPrimitive native = plain[batch].Primitives[index];
+                    Assert.Equal(native.ByteOffset, actual.ByteOffset);
+                    Assert.Equal(native.Flags20, actual.Flags20);
+                    Assert.Equal(native.Primitive.Words.ToArray(), actual.Primitive.Words.ToArray());
+                    Assert.Equal(native.Primitive.VertexPayload4.ToArray(), actual.Primitive.VertexPayload4.ToArray());
+                    Assert.Equal(native.Primitive.Bucket, actual.Primitive.Bucket);
+                    Assert.Null(native.Primitive.PilotGeometry);
+                    byte opcode = (byte)(actual.Primitive.Words[1] >> 24);
+                    if (opcode < 0x20 || opcode >= 0x60)
+                    {
+                        Assert.Null(actual.Primitive.PilotGeometry);
+                        continue;
+                    }
+                    NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(actual.Primitive.PilotGeometry);
+                    Assert.Equal((ushort)5, geometry.Identity.Effect);
+                    Assert.True(geometry.Identity.Generation > 0);
+                    if (geometry.Sprite is not null)
+                    {
+                        Assert.Contains(phoenixResources.Sprites, resource => resource.Address == geometry.Identity.ResourceGeneration);
+                        var owner = (geometry.Identity.Bank, geometry.Identity.Slot, geometry.Identity.Generation);
+                        if (resources.TryGetValue(owner, out long previous))
+                        {
+                            Assert.Equal(previous, geometry.Identity.ResourceGeneration);
+                        }
+                        resources[owner] = geometry.Identity.ResourceGeneration;
+                        sprites++;
+                    }
+                    else
+                    {
+                        wedges++;
+                    }
+                }
+            }
+            left = a.Frame;
+            right = b.Frame;
+            random = a.Random;
+        }
+        Assert.Equal(0u, left.Effect.ReturnedDescriptor);
+        Assert.Equal(0u, right.Effect.ReturnedDescriptor);
+        Assert.True(sprites > 0);
+        Assert.True(wedges > 0);
+    }
+
     private static NativeBattleModuleResource Sprite(uint address)
     {
         const int count = 17;

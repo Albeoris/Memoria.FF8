@@ -54,7 +54,7 @@ public sealed partial class BattleSession
             int referenced = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, referenced));
         }, (current, shapeIndex) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, shapeIndex).Selected);
-        NativeBattleScriptedMeshProjected projected = NativeBattleScriptedMeshPreparation.Project(prepared, extent, projection, registers.Dqa, registers.Dqb, registers.Depths, lighting, currentStep, morph, registers.DepthScaleBits1877DA8, NativeBattleCinematicVisualIdentity.Identity(profile.Effect, frame, bank, index));
+        NativeBattleScriptedMeshProjected projected = NativeBattleScriptedMeshPreparation.Project(prepared, extent, projection, registers.Dqa, registers.Dqb, registers.Depths, lighting, currentStep, morph, registers.DepthScaleBits1877DA8, NativeBattleCinematicVisualIdentity.Identity(profile.Effect, frame, bank, index) with { ResourceGeneration = profile.Effect == 18 ? shape : 0 });
         NativeBattleScriptedMeshSubmission submitted = NativeBattleScriptedMeshPreparation.Submit(projected, extent, ReadHandler, ReadStride, OtBucket);
         submitted = submitted with { Packets = NativeBattleEffect249Presentation.FinalizeCapturedBatch(profile.Effect, kind, submitted.Packets) };
         frame = submitted.Frame;

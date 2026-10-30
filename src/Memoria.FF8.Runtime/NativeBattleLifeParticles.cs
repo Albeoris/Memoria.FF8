@@ -132,7 +132,7 @@ public static partial class NativeBattleLifeController
                 NativeBattleLifeFrame written = inputs.Execute(frame with { Memory = current.Memory, Effect = frame.Effect with { Pools = current.Pools } }, batch);
                 frame = written;
                 return new(written.Memory, written.Effect.Pools);
-            });
+            }, pilotEffect: frame.Effect.Binding.Effect == 5 ? (ushort)5 : null);
             return new(frame with { Memory = wedge.Frame.Memory, Effect = frame.Effect with { Pools = wedge.Frame.Pools } }, wedge.CrtRandomAfter, wedge.Result);
         }
         NativeBattleLifeProfile profile = NativeBattleLifeProfile.ForEntry(frame.Effect.Binding.Entry);
@@ -190,7 +190,8 @@ public static partial class NativeBattleLifeController
                 DepthOffset = Word(task, 0x54),
                 Direction = 4096,
                 SpriteFlags = 0,
-                SpriteColor = 0x808080
+                SpriteColor = 0x808080,
+                PilotIdentity = frame.Effect.Binding.Effect == 5 ? NativeBattlePilotVisualLifetimes.Identity(5, task) with { ResourceGeneration = resource.Address } : null
             };
             frame = inputs.Execute(frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } }, NativeBattleModulePackets.EmitSprite571DC0(draw, inputs.Projection, inputs.CameraRoll, 17, 2));
             hierarchy = new(frame.Effect.Pools);

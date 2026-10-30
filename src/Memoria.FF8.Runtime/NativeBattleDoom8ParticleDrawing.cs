@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDoom8ParticleDrawing
 {
-    public static NativeBattleDoom8Frame DrawDust(NativeBattleDoom8Frame frame, uint address, NativeBattleDoom8Resources resources, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, short cameraRoll, Func<NativeBattleDoom8Frame, NativeBattleGfGeometryBatch, bool, NativeBattleDoom8Frame> deliver)
+    public static NativeBattleDoom8Frame DrawDust(NativeBattleDoom8Frame frame, uint address, NativeBattleDoom8Resources resources, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, short cameraRoll, Func<NativeBattleDoom8Frame, NativeBattleGfGeometryBatch, bool, NativeBattleDoom8Frame> deliver, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleModulePoolTask task = Require(frame, address, 0x8CD670);
         if ((task.ReadByte(0x26) & 4) != 0)
@@ -14,13 +14,13 @@ public static class NativeBattleDoom8ParticleDrawing
         frame = frame with { Staging = allocation.Staging };
         NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 216);
         NativeBattleProjectedSpriteHead prepared = NativeBattleProjectedSpriteD8.PrepareHead(frame.Memory, task, camera, temporary);
-        NativeBattleProjectedSpriteDraw drawn = NativeBattleProjectedSpriteD8.Draw(prepared, source => source == sprite.Address ? sprite : throw new InvalidDataException("Doom dust selected another sprite owner."), projection, cameraRoll, 17);
+        NativeBattleProjectedSpriteDraw drawn = NativeBattleProjectedSpriteD8.Draw(prepared, source => source == sprite.Address ? sprite : throw new InvalidDataException("Doom dust selected another sprite owner."), projection, cameraRoll, 17, pilotIdentity is { } identity ? identity with { ResourceGeneration = sprite.Address } : null);
         frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), allocation.Address, drawn.TemporaryD8, 216) };
         frame = deliver(frame, drawn.Batch, false);
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 216) };
     }
 
-    public static NativeBattleDoom8Frame DrawSmoke(NativeBattleDoom8Frame frame, uint address, NativeBattleDoom8Resources resources, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<NativeBattleDoom8Frame, NativeBattleGfGeometryBatch, bool, NativeBattleDoom8Frame> deliver)
+    public static NativeBattleDoom8Frame DrawSmoke(NativeBattleDoom8Frame frame, uint address, NativeBattleDoom8Resources resources, NativeBattlePackedMatrix32 camera, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<NativeBattleDoom8Frame, NativeBattleGfGeometryBatch, bool, NativeBattleDoom8Frame> deliver, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleModulePoolTask task = Require(frame, address, 0x8CDFB0);
         if ((task.ReadByte(0x26) & 4) != 0)
@@ -47,7 +47,7 @@ public static class NativeBattleDoom8ParticleDrawing
         temporary = NativeBattleStaticMeshContext88.Put(temporary, 8, task.ReadDword(0x40));
         temporary = NativeBattleStaticMeshContext88.Put(temporary, 12, unchecked((uint)(int)Signed(task, 0x50)));
         temporary = NativeBattleStaticMeshContext88.Put(temporary, 0x1C, 0xF0);
-        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(frame.Memory, mesh, matrix, projection, temporary, constants, null);
+        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(frame.Memory, mesh, matrix, projection, temporary, constants, null, pilotIdentity: pilotIdentity is { } visualIdentity ? visualIdentity with { ResourceGeneration = mesh.Address } : null);
         frame = frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), allocation.Address, drawn.Context, 88) };
         frame = deliver(frame, drawn.Batch, true);
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 88) };

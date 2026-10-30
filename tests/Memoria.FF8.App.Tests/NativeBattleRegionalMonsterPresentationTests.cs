@@ -94,6 +94,8 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
         bool restoredLive = false;
         int callbacks = 0;
         int peakChangedRgb = 0;
+        int capturedControlFrames = 0;
+        HashSet<uint> capturedControlBanks = [];
         try
         {
             // A diagnostic liveness bound only; reaching it never establishes native completion.
@@ -104,6 +106,31 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                 BattleSnapshot current = battle.Capture();
                 NativeBattleGraphicsState graphics = current.NativeGraphics!;
                 produced |= current.Events.Any(item => item.Kind == "Windup" && item.ActorId == "monster");
+                if (control is not null && native.MagicId is 17 or 18 && graphics.OriginalEffect is { } controlEffect && controlEffect.Binding.Effect == native.MagicId && (controlEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0) && graphics.PrimitiveFrame is { } controlPrimitives)
+                {
+                    NativeBattleLogicalCommand[] owned;
+                    if (native.MagicId == 17)
+                    {
+                        ImmutableHashSet<NativeBattlePrimitiveReference> references = controlEffect.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
+                        owned = controlPrimitives.LastCommands.Select(item => item.Command).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet))).ToArray();
+                    }
+                    else
+                    {
+                        owned = NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value, includeCompleted: true);
+                    }
+                    NativeBattleLogicalCommand[] geometry = owned.Where(command => command.Opcode is >= 0x20 and < 0x40).ToArray();
+                    foreach (NativeBattleLogicalCommand command in geometry)
+                    {
+                        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
+                        Assert.Equal(native.MagicId, visual.Identity.Effect);
+                        Assert.True(visual.Identity.Generation > 0);
+                        capturedControlBanks.Add(visual.Identity.Bank);
+                    }
+                    if (geometry.Length > 0)
+                    {
+                        capturedControlFrames++;
+                    }
+                }
                 if (graphics.OriginalEffect is { } effect && effect.RequestedEffect == native.MagicId)
                 {
                     selected = true;
@@ -145,6 +172,15 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             Assert.True(native.MagicId == 0 || selected, "The ordinary command never selected its original effect module.");
             Assert.True(visible, "The selected action submitted no visible packet contribution.");
             Assert.True(completed, "The selected ordinary monster action did not release its command and effect task.");
+            if (control is not null && native.MagicId is 17 or 18)
+            {
+                Assert.True(capturedControlFrames > 1, "The original control component must reach captured owned geometry on multiple callbacks.");
+                if (native.MagicId == 17)
+                {
+                    Assert.Contains(0x2556FC8u, capturedControlBanks);
+                    Assert.Contains(0x2556FD8u, capturedControlBanks);
+                }
+            }
             Assert.Single(battle.Events, item => item.Kind == "Windup" && item.ActorId == "monster");
             Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == "monster");
             File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", model, level, slot, Driver = control is null ? "bank" : "opcode30-control", ability.Command, ability.Id, ability.Sequence, native.MagicId, callbacks, peakChangedRgb, restoredLive, battle.Frame, NativeCallback = battle.NativeGraphics!.Callback }));

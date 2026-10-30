@@ -52,6 +52,54 @@ public sealed class NativeBattleRestorationAllMeshGroupsTests
         Assert.Equal(0xE2000210u, result.Attempts[3].Primitive!.Words[1]);
     }
 
+    [Theory]
+    [InlineData((ushort)7)]
+    [InlineData((ushort)27)]
+    public void Recovery_and_Full_life_capture_all_supported_native_groups_with_identical_packets_and_masks(ushort effect)
+    {
+        NativeBattleActionMatrix camera = NativeBattleCuragaMatrices.Identity8DD770();
+        NativeBattleActionMatrix matrix = camera with { X = 120, Y = -30, Z = 4096 };
+        NativeBattleCameraProjection projection = new(camera, 216, 160, 108);
+        NativeBattlePilotVisualIdentity identity = new(effect, effect == 7 ? NativeBattleRecoveryProfile.ForEffect(7).Descriptors[2] : NativeBattleRestorationProfile.FullLife.Descriptors[2], 2, 17, 0) { ResourceGeneration = 23 };
+        NativeBattleTextureWindow window = new(0, 0, 128, 128);
+        NativeBattleEsunaMeshContext esuna = new(0xF0, 0, 2048, -4, 3, 5, window, window, 17, 2);
+        NativeBattleFullLifeMeshContext fullLife = new(0xF0, 0, 2048, null, null, null, 17, 2);
+        for (int group = effect == 27 ? 1 : 0; group < 8; group++)
+        {
+            ImmutableArray<byte> source = Mesh(group);
+            NativeBattleGfGeometryBatch Emit(NativeBattlePilotVisualIdentity? owner) => effect == 7
+                ? NativeBattleRestorationMeshPackets.EmitBatch88E240(source, matrix, projection, esuna, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: owner)
+                : NativeBattleRestorationMeshPackets.EmitBatch884370(source, matrix, projection, fullLife, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: owner);
+            NativeBattleGfGeometryBatch plain = Emit(null);
+            NativeBattleGfGeometryBatch captured = Emit(identity);
+            Assert.Equal(plain.AllocationBytes, captured.AllocationBytes);
+            Assert.Equal(plain.Attempts.Length, captured.Attempts.Length);
+            int polygons = 0;
+            for (int index = 0; index < captured.Attempts.Length; index++)
+            {
+                NativeBattleGfGeometryAttempt expected = plain.Attempts[index];
+                NativeBattleGfGeometryAttempt actual = captured.Attempts[index];
+                Assert.Equal(expected.Data.ToArray(), actual.Data.ToArray());
+                Assert.Equal(expected.WriteMask.ToArray(), actual.WriteMask.ToArray());
+                Assert.Equal(expected.ByteOffsetRelative, actual.ByteOffsetRelative);
+                Assert.Equal(expected.Primitive?.Bucket, actual.Primitive?.Bucket);
+                if (actual.Primitive is not { } primitive || (primitive.Words[1] >> 24) >= 0x60)
+                {
+                    continue;
+                }
+                NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+                Assert.Equal(identity.Effect, geometry.Identity.Effect);
+                Assert.Equal(identity.Generation, geometry.Identity.Generation);
+                Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+                Assert.Equal((group & 1) == 0 ? 3 : 4, geometry.CornerCount);
+                Assert.Equal(new System.Numerics.Vector3(-136, -286, 4096), geometry.A);
+                Assert.Equal(expected.Primitive!.VertexPayload4.ToArray(), primitive.VertexPayload4.ToArray());
+                polygons++;
+            }
+            Assert.True(polygons > 0);
+        }
+    }
+
     private static ImmutableArray<byte> Mesh(int selected)
     {
         byte[] face = Face(selected);

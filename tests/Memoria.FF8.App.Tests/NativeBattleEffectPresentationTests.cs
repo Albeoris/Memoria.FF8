@@ -91,6 +91,7 @@ public sealed class NativeBattleEffectPresentationTests
         bool morphed = false;
         bool flashed = false;
         int peakRgb = 0;
+        int capturedGeometry = 0;
         BattleSnapshot? peak = null;
         byte[]? peakPixels = null;
         BattleSession? clone = null;
@@ -112,6 +113,10 @@ public sealed class NativeBattleEffectPresentationTests
                 audio.Update(battle);
                 BattleSnapshot after = battle.Capture();
                 NativeBattleGraphicsState graphics = after.NativeGraphics!;
+                if (effect == 5)
+                {
+                    capturedGeometry += NativeBattleRecoveryCaptureAssertions.AssertOwnedGeometry(after, 5);
+                }
                 casting |= graphics.ActionGraphics?.Callback == 0x50A9A0;
                 selected |= graphics.OriginalEffect?.Binding.Entry == entry;
                 NativeBattleStatusMirror priorStatus = before.Combatants.Single(actor => actor.Id == "target").NativeStatus!.Presentation;
@@ -197,6 +202,10 @@ public sealed class NativeBattleEffectPresentationTests
         Assert.Equal((byte)0, battle.NativeEffectMemory!.Active);
         Assert.Equal(0, battle.NativeGraphics.Models[1].Flags0 & 4);
         Assert.All(battle.NativeStage!.Groups, group => Assert.Equal((short)0, group.ColorDepth));
+        if (effect == 5)
+        {
+            Assert.True(capturedGeometry > 0);
+        }
         Assert.Equal(expectedStatus, battle.Capture().Combatants.Single(actor => actor.Id == "target").NativeStatus!.Presentation);
         Assert.Equal(expectedHp, battle.Capture().NativePartyPresentation!.Rows[1]!.HitPoints);
         Assert.Equal(initial.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));

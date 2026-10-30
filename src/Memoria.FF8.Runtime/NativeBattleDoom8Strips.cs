@@ -42,6 +42,8 @@ public static partial class NativeBattleDoom8Strips
         {
             throw new InvalidDataException("Doom strips require the actual selected target actor.");
         }
+        NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, NearVertices, 0);
+        NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, FarVertices, 0);
         frame = frame with { State = frame.State.Write(TargetAddress, new byte[88]) };
         NativeBattleDoom8State state = frame.State.Write(TargetAddress + 0x48, [96, 0, 32]).Write(TargetAddress + 0x44, [48, 0, 16]).Write(TargetAddress + 0x40, [0, 0, 0]);
         task.RequirePayloadRange(0x1C, 8);

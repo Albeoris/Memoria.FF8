@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Effect20 requires its published projection.");
         (uint temporary, NativeBattleEffectArena retained) = AllocateNativeEffect20Temporary(216);
         NativeBattleProjectedSpriteHead prepared = NativeBattleProjectedSpriteD8.PrepareHead(current.Memory, task, camera.CapturePackedView1D97778(), retained);
-        NativeBattleProjectedSpriteDraw drawn = NativeBattleProjectedSpriteD8.Draw(prepared, selected => selected == resources.Sprite.Address ? resources.Sprite : throw new NotSupportedException("Effect20 sprite selected an unavailable original resource."), projection, camera.Roll, 17);
+        NativeBattleProjectedSpriteDraw drawn = NativeBattleProjectedSpriteD8.Draw(prepared, selected => selected == resources.Sprite.Address ? resources.Sprite : throw new NotSupportedException("Effect20 sprite selected an unavailable original resource."), projection, camera.Roll, 17, NativeBattlePilotVisualLifetimes.Identity(20, task) with { ResourceGeneration = resources.Sprite.Address });
         current = current with { Memory = drawn.Memory };
         (graphics, current) = AppendNativeEffect20Private(graphics, current, drawn.Batch);
         ReleaseNativeEffect20Temporary(temporary, drawn.TemporaryD8, 216);
@@ -44,7 +44,7 @@ public sealed partial class BattleSession
         prepared = NativeBattleEffect20MeshRendering.Prepare(task, view, retained, camera.CanonicalViewPadding);
         NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect20 requires its packet process.");
         NativeBattleScriptedGraphicsMemory controls = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect20 requires its projection controls.");
-        NativeBattleActorWaveMeshStep drawn = NativeBattleActorWaveMesh.EmitBatch(resources.Mesh.Bytes, resources.Mesh.Address, prepared.Matrix, projection, prepared.Context104, new(current.Memory.GeometryRegisters!, current.Memory.ScriptedColorRegisters!), process.ModelRendererRegisters ?? throw new NotSupportedException("Effect20 requires its retained far colors."), controls.Dqa, controls.Dqb, controls.Zsf4, definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Effect20 requires its geometry constants."), null, controls.Zsf3);
+        NativeBattleActorWaveMeshStep drawn = NativeBattleActorWaveMesh.EmitBatch(resources.Mesh.Bytes, resources.Mesh.Address, prepared.Matrix, projection, prepared.Context104, new(current.Memory.GeometryRegisters!, current.Memory.ScriptedColorRegisters!), process.ModelRendererRegisters ?? throw new NotSupportedException("Effect20 requires its retained far colors."), controls.Dqa, controls.Dqb, controls.Zsf4, definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Effect20 requires its geometry constants."), null, controls.Zsf3, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(20, task) with { ResourceGeneration = resources.Mesh.Address });
         current = current with { Memory = current.Memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors, PrimitiveProcess = process with { ModelRendererRegisters = drawn.FarControls } } };
         (graphics, current) = AppendNativeEffect20Private(graphics, current, drawn.Batch);
         ReleaseNativeEffect20Temporary(temporary, drawn.Context104, 104);
@@ -135,7 +135,7 @@ public sealed partial class BattleSession
                     retained = retained.Write(0x68 + group * 2, count);
                 }
                 (byte[] previous, _) = NativeFileStaging!.ReadSnapshot(scratch, maximum * 8);
-                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones, projection, inputs.ModelColor28, 1, previous.ToImmutableArray(), colors, 4, new(0, 0, 320, 216), 17, 0);
+                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones, projection, inputs.ModelColor28, 1, previous.ToImmutableArray(), colors, 4, new(0, 0, 320, 216), 17, 0, NativeBattlePilotVisualLifetimes.Identity(20, task) with { Primitive = meshIndex, ResourceGeneration = physical });
                 if (drawn.ProjectedBytesWritten != 0)
                 {
                     NativeFileStaging = NativeFileStaging.Write(scratch, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));

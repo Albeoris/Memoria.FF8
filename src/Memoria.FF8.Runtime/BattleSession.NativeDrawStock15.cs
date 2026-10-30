@@ -112,7 +112,7 @@ public sealed partial class BattleSession
                 case NativeBattleDrawStock15SparkleSprite sparkle:
                     return DrawSprite(current, sparkle.Task, false);
                 case NativeBattleDrawStock15Ribbon ribbon:
-                    NativeBattleDrawStock15RibbonStep drawn = NativeBattleDrawStock15Rendering.Ribbon8B5F30(ribbon.Task, view, projection, camera.CanonicalViewPadding);
+                    NativeBattleDrawStock15RibbonStep drawn = NativeBattleDrawStock15Rendering.Ribbon8B5F30(ribbon.Task, view, projection, camera.CanonicalViewPadding, NativeBattlePilotVisualLifetimes.Identity(15, ribbon.Task));
                     foreach (NativeBattleDrawStock15ParticleOperation instruction in drawn.Operations)
                     {
                         current = ExecuteParticle(current, instruction);
@@ -142,7 +142,7 @@ public sealed partial class BattleSession
             }
             NativeBattleTemporaryAllocation active = allocation ?? throw new InvalidOperationException("Draw Stock sprite did not allocate its original frame.");
             NativeBattlePackedMatrix32 captured = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Draw Stock sprite requires its prepared matrix controls."));
-            NativeBattleDrawStock15SpriteTemporaryResult emitted = NativeBattleDrawStock15SpriteRendering.Emit180(NativeFileStaging!, active.Address, task, resources.Particles, view, projection, camera.Roll, captured);
+            NativeBattleDrawStock15SpriteTemporaryResult emitted = NativeBattleDrawStock15SpriteRendering.Emit180(NativeFileStaging!, active.Address, task, resources.Particles, view, projection, camera.Roll, captured, NativeBattlePilotVisualLifetimes.Identity(15, task) with { ResourceGeneration = task.ReadDword(0x4C) });
             NativeFileStaging = emitted.Staging;
             spriteTemporary = active.Address;
             foreach (NativeBattleDrawStock15ParticleOperation instruction in emitted.Operations)

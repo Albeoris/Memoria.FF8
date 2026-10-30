@@ -22,7 +22,7 @@ public static class NativeBattleEffect9Body
         return unchecked((short)(shade - ratio));
     }
 
-    public static NativeBattleEffect9BodyDraw Draw(NativeBattleEffect9Frame frame, ImmutableArray<NativeBattleCureActorGeometry> meshes, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short lower, short upper, short shade, uint objectMask)
+    public static NativeBattleEffect9BodyDraw Draw(NativeBattleEffect9Frame frame, ImmutableArray<NativeBattleCureActorGeometry> meshes, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short lower, short upper, short shade, uint objectMask, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect9 body requires its current depth controls.");
         NativeBattleGeometryRegisterStep registers = new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect9 body requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect9 body requires its current arithmetic registers."));
@@ -75,8 +75,10 @@ public static class NativeBattleEffect9Body
                 frame = frame with { State = frame.State with { Globals = globals } };
                 frame = frame with { State = frame.State.WriteDword(VertexAddress + (uint)(vertex * 12 + 8), color) };
             }
+            int faceIndex = 0;
             foreach (NativeBattleRawPolygon polygon in mesh.Polygons.Where(face => !face.Quad && face.Bytes.Length == 16).Concat(mesh.Polygons.Where(face => face.Quad && face.Bytes.Length == 20)))
             {
+                int authoredFace = faceIndex++;
                 ImmutableArray<byte> face = geometry.AlreadyRelocated ? polygon.Bytes : NativeBattleRawGeometryPackets.Relocate507550(polygon, geometry.Binding);
                 int count = polygon.Quad ? 4 : 3;
                 int[] indices = Enumerable.Range(0, count).Select(corner => BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan().Slice(corner * 2)) & 0xFFF).ToArray();
@@ -136,7 +138,19 @@ public static class NativeBattleEffect9Body
                     packet.Word16(48, BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan().Slice(18)));
                 }
                 ImmutableArray<int> payload = depths.ToImmutableArray();
-                attempts.Add(packet.Attempt(new(bucket, packet.Words(), polygon.Quad ? payload : payload.Add(0))));
+                NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), polygon.Quad ? payload : payload.Add(0));
+                if (pilotIdentity is { } identity)
+                {
+                    // Only reached corners are read, after the native front-face rejection.
+                    System.Numerics.Vector3 World(int corner)
+                    {
+                        byte[] value = frame.State.Globals.Read(checked((int)(VertexAddress - NativeBattleEffect9State.BaseAddress) + indices[corner] * 12), 6);
+                        NativeBattleVector posed = new(BinaryPrimitives.ReadInt16LittleEndian(value), BinaryPrimitives.ReadInt16LittleEndian(value.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(value.AsSpan(4)));
+                        return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, posed), projection);
+                    }
+                    primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 397 + geometry.AuthoredMesh) * 397 + authoredFace) }, World(0), World(1), World(2), polygon.Quad ? World(3) : default, checked((byte)count)) { SourceDepths = new(depths[0], depths[1], depths[2], polygon.Quad ? depths[3] : 0), UseSourceDepths = true } };
+                }
+                attempts.Add(packet.Attempt(primitive));
                 allocated = checked(allocated + (polygon.Quad ? 52 : 40));
 
                 NativeBattleGeometryRegisterStep Load(int slot, int index)

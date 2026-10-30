@@ -6,6 +6,39 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleDoom8ReaperAppearanceGeometryTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Presentation_capture_preserves_detached_native_state_and_rejected_face_writes(bool quad, bool reverse)
+    {
+        Fixture nativeFixture = new(quad: quad, reverse: reverse);
+        NativeBattleDoom8AppearanceStep native = nativeFixture.Draw();
+        string frozen = SnapshotJson(native);
+        Fixture visualFixture = new(quad: quad, reverse: reverse);
+        NativeBattlePilotVisualIdentity identity = new(8, 0x275DF50, 0, 1, 0) { ResourceGeneration = visualFixture.Model.Address };
+        NativeBattleCameraProjection projection = visualFixture.Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() };
+        NativeBattleDoom8AppearanceStep visual = NativeBattleDoom8ReaperAppearance.Draw8CC7B0(visualFixture.Frame, visualFixture.Staging, visualFixture.Model, projection, pilotIdentity: identity);
+        Assert.Equal(frozen, SnapshotJson(visual));
+        foreach (NativeBattleGfGeometryAttempt attempt in visual.Batch.Attempts.Where(attempt => attempt.Primitive is not null))
+        {
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(attempt.Primitive!.PilotGeometry);
+            Assert.Equal(identity.Generation, geometry.Identity.Generation);
+            Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+            Assert.Equal(quad ? 4 : 3, geometry.CornerCount);
+            Assert.Equal(new System.Numerics.Vector3(-100, -100, 2000), geometry.A);
+            Assert.NotNull(geometry.SourceDepths);
+        }
+        if (reverse)
+        {
+            Assert.Empty(visual.Batch.Attempts);
+        }
+        else
+        {
+            Assert.Contains(visual.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null);
+        }
+    }
+
     [Fact]
     public void Accepted_quad_uses_ordered_screen_prefix_sparse_tail_and_actual_depth_sidecars()
     {

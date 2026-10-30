@@ -312,9 +312,9 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
         File.WriteAllText(Path.Combine(output, $"effect{effect}-native-observations.json"), JsonSerializer.Serialize(new { Markers = markers.Order(), Observations = observations }));
     }
 
-    internal static NativeBattleLogicalCommand[] CurrentCommands(BattleSnapshot snapshot, int commonStart)
+    internal static NativeBattleLogicalCommand[] CurrentCommands(BattleSnapshot snapshot, int commonStart, bool includeCompleted = false)
     {
-        if (snapshot.NativeGraphics?.OriginalEffect is not { ReturnedDescriptor: > 0 } || snapshot.NativeEffectMemory?.ScriptedEffects is not { } core || snapshot.NativeGraphics.PrimitiveFrame is not { } primitive)
+        if (snapshot.NativeGraphics?.OriginalEffect is not { } selected || (!includeCompleted && selected.ReturnedDescriptor is not > 0) || snapshot.NativeEffectMemory?.ScriptedEffects is not { } core || snapshot.NativeGraphics.PrimitiveFrame is not { } primitive)
         {
             return [];
         }

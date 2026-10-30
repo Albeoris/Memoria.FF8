@@ -27,6 +27,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState AdvanceNativeLanding17(NativeBattleGraphicsState graphics)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
+        effect = effect with { PresentationPackets = [] };
         NativeBattleLanding17Resources resources = effect.Binding.Landing17Resources!;
         NativeBattleLanding17State state = effect.Landing17 ?? throw new NotSupportedException("Native landing requires its executed entry state.");
         NativeBattleEffectTaskPool roots = effect.Pools[0];
@@ -84,7 +85,7 @@ public sealed partial class BattleSession
                 int frame = task.ReadWord(12);
                 int scale = unchecked((short)task.ReadWord(22));
                 NativeBattleVector position = Vector(task, 16);
-                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Spark, SpriteFrame = resources.Spark.SpriteFrame(frame), Anchor = new(position.X, position.Y, position.Z, 0), Scale = scale, DepthOffset = -(scale >> 2), SpriteFlags = 0 };
+                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Spark, SpriteFrame = resources.Spark.SpriteFrame(frame), Anchor = new(position.X, position.Y, position.Z, 0), Scale = scale, DepthOffset = -(scale >> 2), SpriteFlags = 0, PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(17, task) with { ResourceGeneration = resources.Spark.Address } };
                 NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera!.Roll, 17, 2);
                 AppendSprite(batch);
                 NativeBattleVector velocity = Vector(task, 24);
@@ -203,9 +204,10 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(resources.SecondSound, 0, new(position.X, position.Y, position.Z, 0));
                 }
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (8), 0x1E8);
+                NativeBattlePilotVisualIdentity directorIdentity = NativeBattlePilotVisualLifetimes.Identity(17, task) with { ResourceGeneration = resources.Animation.Address };
                 NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Animation, 0, (current, node) =>
                 {
-                    DrawNode(node, origin);
+                    DrawNode(node, origin, directorIdentity with { Primitive = node.NodeIndex });
                     return current;
                 });
                 task = PublishWorkspace(task, 20, advanced.Workspace);
@@ -222,7 +224,7 @@ public sealed partial class BattleSession
             return 0;
         }
 
-        void DrawNode(NativeBattleGfAnimationNode node, NativeBattleVector origin)
+        void DrawNode(NativeBattleGfAnimationNode node, NativeBattleVector origin, NativeBattlePilotVisualIdentity visualIdentity)
         {
             if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
             {
@@ -262,11 +264,12 @@ public sealed partial class BattleSession
             {
                 flags |= 0xC0;
             }
-            Append(NativeBattleModulePackets.EmitBatch572200(data, geometry, vertices, matrix, projection, new(flags, node.Scalar36 != 0 ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2), colors));
+            Append(NativeBattleModulePackets.EmitBatch572200(data, geometry, vertices, matrix, projection, new(flags, node.Scalar36 != 0 ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2), colors, pilotIdentity: visualIdentity));
         }
 
         void Append(NativeBattleGfGeometryBatch batch)
         {
+            effect = effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(effect.PresentationPackets, "20DFAB8", 0, cursor, batch) };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, cursor, graphics.PrimitiveFrame!.Pending, batch);
             NativeEffectMemory = written.Memory;
             cursor = written.Cursor;
@@ -275,6 +278,7 @@ public sealed partial class BattleSession
 
         void AppendSprite(NativeBattleModulePacketBatch batch)
         {
+            effect = effect with { PresentationPackets = effect.PresentationPackets.AddRange(batch.Primitives.Select(item => new NativeBattlePrimitiveReference("20DFAB8", 0, checked(cursor + item.ByteOffset)))) };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, cursor, graphics.PrimitiveFrame!.Pending, batch, NativeBattleEffectGouraudWrites.FullDword);
             NativeEffectMemory = written.Memory;
             cursor = written.Cursor;

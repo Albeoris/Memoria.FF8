@@ -6,6 +6,32 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattlePsychoBlast23RenderingTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2048)]
+    [InlineData(4096)]
+    public void Presentation_morph_capture_keeps_detached_scratch_registers_and_native_packet_masks(int ratio)
+    {
+        NativeBattlePilotVisualIdentity identity = new(23, 0x2732CF8, 0, 1, 0) { ResourceGeneration = 0x1700000 };
+        NativeBattlePsychoBlast23NodeDraw native = Draw(null);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattlePsychoBlast23NodeDraw captured = Draw(identity);
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        NativeBattleGeometryPrimitive primitive = Assert.IsType<NativeBattleGeometryPrimitive>(Assert.Single(captured.Batch.Attempts).Primitive);
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(2000, geometry.A.Z);
+
+        NativeBattlePsychoBlast23NodeDraw Draw(NativeBattlePilotVisualIdentity? capture)
+        {
+            NativeBattleEffectArena scratch = NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 672).ToArray()).MarkUnknown(14, 2);
+            NativeBattleGeometryRegisterStep registers = new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown() with { Material = 0xAA123456, Rgb = [0x11, 0x22, 0x33] });
+            NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770();
+            return NativeBattlePsychoBlast23Rendering.DrawNode(Source(), Node(0x200, ratio), new(view with { Z = 2000 }, -7), NativeBattleEffectArena.Clear().MarkUnknown(0, 104), scratch, registers, new(1, 2, 3, 4, 5), Projection with { View = view }, 0, 0, 0x155, 0x100, Constants, capture);
+        }
+    }
+
     private static NativeBattleSummonColors Constants => new(0, 0, 1f / 4096f, BitConverter.Int64BitsToDouble(0x4330000080000000L));
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);
 

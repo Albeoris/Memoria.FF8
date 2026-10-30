@@ -45,6 +45,7 @@ public sealed class NativeBattleRecoveryPresentationTests
     }
 
     [Theory]
+    [InlineData((ushort)7)]
     [InlineData((ushort)53)]
     [InlineData((ushort)58)]
     [InlineData((ushort)59)]
@@ -73,6 +74,14 @@ public sealed class NativeBattleRecoveryPresentationTests
         Assert.NotEqual(first.Primitive, secondInstance.Primitive);
         Assert.Equal(otherRow, memory.PilotGeometryIdentity(task, geometry + 672, 0));
         Assert.Equal(before, NativeBattleTestSnapshots.Json(memory.Flush()));
+        NativeBattleRecoveryFrame detached = NativeBattleTestSnapshots.RestoreJson<NativeBattleRecoveryFrame>(before)!;
+        using NativeBattleRecoveryNodeMemory independent = new(detached, appended.Address);
+        independent.AllocatedPilotGeometry(geometry);
+        NativeBattlePilotVisualIdentity independentTask = NativeBattlePilotVisualLifetimes.Identity(effect, new NativeBattleEffectHierarchy(detached.Effect.Pools).Read(appended.Address));
+        NativeBattlePilotVisualIdentity independentRow = independent.PilotGeometryIdentity(independentTask, geometry, 0);
+        Assert.NotEqual(reborn.Generation, independentRow.Generation);
+        Assert.NotEqual(reborn.ResourceGeneration, independentRow.ResourceGeneration);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(independent.Flush()));
     }
 
     [Fact]

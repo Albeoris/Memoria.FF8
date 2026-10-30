@@ -194,6 +194,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         BattleSnapshot? prior = null;
         BattleScenePresentation? scene = null;
         int callbacks = 0;
+        int smooth24Captured = 0;
         int contacts = 0;
         int completions = 0;
         int contactGlyphs = 0;
@@ -7047,6 +7048,16 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         ColdNext("secondary-contact", current);
                     }
                 }
+                if (effectId is 8 or 20 or 23 && (before?.ReturnedDescriptor is > 0 || after?.ReturnedDescriptor is > 0))
+                {
+                    ImmutableHashSet<NativeBattlePrimitiveReference> owned24 = ActorDirectorPacketReferences(prior, current);
+                    foreach (NativeBattleLogicalCommand command in current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => owned24.Contains(command.Packet) && command.Opcode is >= 0x20 and < 0x80))
+                    {
+                        Assert.True(command.PilotGeometry is not null, $"Effect{effectId} uncaptured owned pass at frame {current.Frame}: {command.Packet}, opcode {command.Opcode:X2}, word {command.WordOffset}.");
+                        Assert.Equal(effectId, command.PilotGeometry!.Identity.Effect);
+                        smooth24Captured++;
+                    }
+                }
                 if (effectId == 82 && after?.ReturnedDescriptor is > 0)
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> smoothOwned = ActorDirectorPacketReferences(prior, current);
@@ -7143,6 +7154,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.False(stageChanged);
             }
             Assert.Equal(1, completions);
+            if (effectId is 8 or 20 or 23)
+            {
+                Assert.True(smooth24Captured > 0);
+            }
             if (effectId == 79)
             {
                 effect79.Accept(completed, output!);
@@ -9254,7 +9269,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             {
                 return new(effect, source, null, null, 0x8000, true);
             }
-            NativeBattleModulePoolTask root = Assert.Single(snapshot.NativeGraphics.OriginalEffect.Pools[0].Slots, task => (task.Flags & 1) != 0 && task.Callback == NativeBattleDoom8Controller.RootCallback);
+            NativeBattleModulePoolTask root = Assert.Single(snapshot.NativeGraphics.OriginalEffect.Pools[0].Slots, task => task.Callback == NativeBattleDoom8Controller.RootCallback && ((task.Flags & 1) != 0 || snapshot.NativeGraphics.OriginalEffect.ReturnedDescriptor == 0));
             bool odd = ((unchecked((ushort)(root.ReadWord(0x5C) - 1))) & 1) != 0;
             uint selected = odd ? first : second;
             Assert.InRange(cursor, selected, checked(selected + 0x8000u));

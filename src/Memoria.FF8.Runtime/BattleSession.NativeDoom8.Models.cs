@@ -48,7 +48,7 @@ public sealed partial class BattleSession
                 }
                 uint first = frame.State.ReadDword(0x2758504);
                 NativeBattleEffectOwnedModelState owned = NativeBattleDoom8Models.Read(frame, draw.TaskAddress);
-                NativeBattleDoom8ModelDrawStep drawn = appearanceDraw ? NativeBattleDoom8ModelDrawing.Draw8CC6B0(frame, RequireDoom8Staging(frame), draw.TaskAddress, owned, resources.ReaperModel, inputs) : NativeBattleDoom8ModelDrawing.Draw8CC4D0(frame, RequireDoom8Staging(frame), draw.TaskAddress, owned, resources.ReaperModel, inputs);
+                NativeBattleDoom8ModelDrawStep drawn = appearanceDraw ? NativeBattleDoom8ModelDrawing.Draw8CC6B0(frame, RequireDoom8Staging(frame), draw.TaskAddress, owned, resources.ReaperModel, inputs, NativeBattlePilotVisualLifetimes.Identity(8, task)) : NativeBattleDoom8ModelDrawing.Draw8CC4D0(frame, RequireDoom8Staging(frame), draw.TaskAddress, owned, resources.ReaperModel, inputs, NativeBattlePilotVisualLifetimes.Identity(8, task));
                 frame = drawn.Frame with { Staging = drawn.Staging };
                 uint end = frame.State.ReadDword(0x2758504);
                 frame = deliver(frame with { State = frame.State.WriteDword(0x2758504, first) }, drawn.Batch, false);

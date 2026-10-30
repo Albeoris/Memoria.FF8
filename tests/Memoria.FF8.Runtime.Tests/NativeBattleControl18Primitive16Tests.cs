@@ -39,7 +39,26 @@ public sealed class NativeBattleControl18Primitive16Tests
         Assert.Equal(accepted ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[12]);
     }
 
-    private static NativeBattleScriptedMeshSubmission Run(uint handler, float depthScale, uint clip = 0)
+    [Fact]
+    public void Original_control18_type16_capture_preserves_native_packets_masks_depths_and_registers()
+    {
+        NativeBattlePilotVisualIdentity identity = new(18, 0x2000000, 3, 7, 9) { ResourceGeneration = 123 };
+        NativeBattleScriptedMeshSubmission plain = Run(0xB50540, 0.25f);
+        NativeBattleScriptedMeshSubmission captured = Run(0xB50540, 0.25f, pilotIdentity: identity);
+        NativeBattleGfGeometryAttempt a = Assert.Single(plain.Packets.Attempts);
+        NativeBattleGfGeometryAttempt b = Assert.Single(captured.Packets.Attempts);
+        Assert.Equal(a.Data.ToArray(), b.Data.ToArray());
+        Assert.Equal(a.WriteMask.ToArray(), b.WriteMask.ToArray());
+        Assert.Equal(a.Primitive!.VertexPayload4, b.Primitive!.VertexPayload4);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(plain.Registers), System.Text.Json.JsonSerializer.Serialize(captured.Registers));
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(plain.Geometry), System.Text.Json.JsonSerializer.Serialize(captured.Geometry));
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(b.Primitive.PilotGeometry);
+        Assert.Equal(identity.ResourceGeneration, visual.Identity.ResourceGeneration);
+        Assert.Equal(new System.Numerics.Vector3(30, 40, 50), visual.D);
+        Assert.Equal(0.25f, visual.DepthScale);
+    }
+
+    private static NativeBattleScriptedMeshSubmission Run(uint handler, float depthScale, uint clip = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleWaterExecutionFrame frame = NativeBattleWaterMeshPacketTests.Frame();
         byte[] face = new byte[12];
@@ -52,6 +71,6 @@ public sealed class NativeBattleControl18Primitive16Tests
             BinaryPrimitives.WriteUInt32LittleEndian(projected.AsSpan(corner * 8), screens[corner]);
             BinaryPrimitives.WriteUInt32LittleEndian(projected.AsSpan(corner * 8 + 4), clip | 100u);
         }
-        return NativeBattleScriptedMeshPackets.EmitSelected(frame, new(16, 1, face.ToImmutableArray()), handler, 0, projected.ToImmutableArray(), [0xFFFF0007, 11, 15, 19], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), NativeBattleGeometryRegisters.Unknown(), depthScale);
+        return NativeBattleScriptedMeshPackets.EmitSelected(frame, new(16, 1, face.ToImmutableArray()), handler, 0, projected.ToImmutableArray(), [0xFFFF0007, 11, 15, 19], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), NativeBattleGeometryRegisters.Unknown(), depthScale, pilotWorldVertices: [new(0, 0, 0), new(10, 20, 30), new(20, 30, 40), new(30, 40, 50)], pilotIdentity: pilotIdentity);
     }
 }

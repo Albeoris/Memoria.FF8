@@ -11,6 +11,7 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState RunNativeEffect9(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect9 requires its selected module.");
+        effect = effect with { PresentationPackets = [] };
         NativeBattleEffect9Resources resources = effect.Binding.Effect9Resources ?? throw new NotSupportedException("Effect9 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect9 requires its current process memory.");
         NativeBattleEffect9Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect9 requires its current CRT state."), memory.Effect9 ?? throw new NotSupportedException("Effect9 requires its retained module state; explicitly migrate a needed older snapshot.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect9 requires its current physical temporary memory.") };
@@ -62,14 +63,16 @@ public sealed partial class BattleSession
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect9 requires its pending ordering table.");
             if (common)
             {
-                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect9 requires its current common packet allocator."), primitive.Pending, batch);
+                NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect9 requires its current common packet allocator.");
+                ImmutableArray<NativeBattlePrimitiveReference> references = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch);
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
-                return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
+                return current with { Memory = current.Memory with { PrimitiveProcess = written.Process }, Effect = current.Effect with { PresentationPackets = references } };
             }
             uint cursor = current.State.ReadDword(0x274EFEC);
             NativeBattleEffectPacketWrite packets = NativeBattleEffectPacketArena.Append(current.Memory, checked((int)(cursor - 0x20DFAB8)), primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = packets.Ordering } };
-            return current with { Memory = packets.Memory, State = current.State.WriteDword(0x274EFEC, checked(0x20DFAB8u + (uint)packets.Cursor)), Effect = current.Effect with { DrawArenaOffset = packets.Cursor } };
+            return current with { Memory = packets.Memory, State = current.State.WriteDword(0x274EFEC, checked(0x20DFAB8u + (uint)packets.Cursor)), Effect = current.Effect with { DrawArenaOffset = packets.Cursor, PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, checked((int)(cursor - 0x20DFAB8)), batch) } };
         }
 
         NativeBattleEffect9Step AdvanceLeaf(NativeBattleEffect9Frame current, uint address)
@@ -88,7 +91,11 @@ public sealed partial class BattleSession
                 case 0x8C3E00:
                     return NativeBattleEffect9Particles.Advance(current, address, new(nativeActionPackets, resources.BirthSchedule, resources.Particle, _ => Camera().CapturePackedView1D97778(), _ => Projection(), _ => Camera().Roll, (value, batch) => Append(value, batch, true)));
                 case 0x8DDC30:
-                    NativeBattleFullscreenOverlayStep overlay = NativeBattleFullscreenOverlay.Advance8DDC30(new(current.Memory, current.Effect.Pools, graphics.PrimitiveFrame!.Pending), address, current.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("Effect9 overlay requires its actual pause word."), resources.Overlay);
+                    NativeBattleFullscreenOverlayStep overlay = NativeBattleFullscreenOverlay.Advance8DDC30(new(current.Memory, current.Effect.Pools, graphics.PrimitiveFrame!.Pending), address, current.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("Effect9 overlay requires its actual pause word."), resources.Overlay, NativeBattlePilotVisualLifetimes.Identity(9, NativeBattleEffect9Controller.Read(current, address)) with { ResourceGeneration = resources.Overlay.Address });
+                    if (!ReferenceEquals(overlay.Frame.Ordering, graphics.PrimitiveFrame.Pending))
+                    {
+                        current = current with { Effect = current.Effect with { PresentationPackets = current.Effect.PresentationPackets.AddRange(new[] { 0, 24, 48, 72, 96 }.Select(offset => new NativeBattlePrimitiveReference(NativeBattleFullscreenOverlay.PacketBank, 0, offset))) } };
+                    }
                     graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = overlay.Frame.Ordering } };
                     return new(current with { Memory = overlay.Frame.Memory, Effect = current.Effect with { Pools = overlay.Frame.Pools } }, overlay.Result);
                 default:
@@ -168,11 +175,13 @@ public sealed partial class BattleSession
 
         NativeBattleEffect9Frame DrawBody(NativeBattleEffect9Frame current, uint address)
         {
-            int actor = NativeBattleEffect9Controller.Read(current, address).ReadByte(0x2D);
+            NativeBattleModulePoolTask bodyTask = NativeBattleEffect9Controller.Read(current, address);
+            int actor = bodyTask.ReadByte(0x2D);
             NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, actor);
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Effect9 body requires its current rig.");
             NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[actor], source);
             graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
+            NativeBattlePilotVisualIdentity visualIdentity = NativeBattlePilotVisualLifetimes.Identity(9, bodyTask) with { ResourceGeneration = model.ModelId4 ?? throw new NotSupportedException("Effect9 body requires its selected resource identity.") };
             NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new NotSupportedException("Effect9 body requires its retained world matrix.");
             world = world with { Y = unchecked(world.Y + (short)current.State.ReadWord(0x274F044)) };
             NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(Camera().CapturePackedView1D97778().ReadMatrix(), world);
@@ -184,10 +193,10 @@ public sealed partial class BattleSession
                 bool gouraud = definition.NativeGraphics!.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect9 body shadow requires its current device capability.");
                 NativeBattleShadowGeometry geometry = NativeBattlePoseMatrices.ShadowGeometry5088A0(model, model.GeometryBounds52!, Projection().View!, shadow, gouraud);
                 NativeBattleModuleProjectedVertex[] points = geometry.Vertices.Select(vertex => NativeBattleModuleProjection.Project45FE10(geometry.CameraMatrix, vertex, Projection())).ToArray();
-                current = Append(current, NativeBattleShadowPackets.EmitBatch5088A0(points, model.Color44 ?? throw new NotSupportedException("Effect9 body shadow requires its current model color."), gouraud, 4112, 16), false);
+                current = Append(current, NativeBattleShadowPackets.EmitBatch5088A0(points, model.Color44 ?? throw new NotSupportedException("Effect9 body shadow requires its current model color."), gouraud, 4112, 16, geometry.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(geometry.CameraMatrix, vertex), Projection())).ToArray(), visualIdentity with { Primitive = -1 }), false);
             }
             uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Effect9 body requires its current mesh mask.");
-            NativeBattleEffect9BodyDraw body = NativeBattleEffect9Body.Draw(current, NativeBattleCureActorAssembly.SelectGeometry8D7110(model, resource, mask), NativeBattleBodyBoneMatrices.Require(model, source), composed, Projection(), unchecked((short)current.State.ReadWord(0x274F048)), unchecked((short)current.State.ReadWord(0x274F04A)), unchecked((short)current.State.ReadWord(0x274F046)), mask);
+            NativeBattleEffect9BodyDraw body = NativeBattleEffect9Body.Draw(current, NativeBattleCureActorAssembly.SelectGeometry8D7110(model, resource, mask), NativeBattleBodyBoneMatrices.Require(model, source), composed, Projection(), unchecked((short)current.State.ReadWord(0x274F048)), unchecked((short)current.State.ReadWord(0x274F04A)), unchecked((short)current.State.ReadWord(0x274F046)), mask, visualIdentity);
             current = Append(body.Frame, body.Batch, false);
             model = NativeBattleBodyBoneMatrices.Publish508C90(model, source);
             graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };

@@ -19,7 +19,7 @@ public static class NativeBattleRecoveryLifecycle
         using NativeBattleEffectNodeBank bank = new(memory.Profile.ExecutableAddress, retained.Data, retained.Read);
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, readModel, AllocateEmitter, AllocateGeometry);
         NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
-        NativeBattlePilotVisualIdentity? identity = memory.Profile.Effect is 53 or 58 or 59 ? NativeBattlePilotVisualLifetimes.Identity(memory.Profile.Effect, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)) : null;
+        NativeBattlePilotVisualIdentity? identity = memory.Profile.Effect is 7 or 53 or 58 or 59 ? NativeBattlePilotVisualLifetimes.Identity(memory.Profile.Effect, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(contextTask)) : null;
         NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh, pilotIdentity: identity, preparePilotMesh: identity.HasValue ? PreparePilotMesh : null);
         NativeBattleRecoveryFrame result = memory.Flush();
         bank.Publish();
@@ -69,7 +69,7 @@ public static class NativeBattleRecoveryLifecycle
                 {
                     memory.ContextWord(0x2A, prepared.NextUvCounter);
                 }
-                return (bytes, matrix, _) => NativeBattleRestorationMeshPackets.EmitBatch88E240(bytes, matrix, projection, prepared.Context, colors);
+                return (bytes, matrix, owner) => NativeBattleRestorationMeshPackets.EmitBatch88E240(bytes, matrix, projection, prepared.Context, colors, pilotIdentity: identity.HasValue ? owner : null);
             }
             uint flags = sourceFlags == 0 ? 0x30u : 0;
             if (fade != 0)

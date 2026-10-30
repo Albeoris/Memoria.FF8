@@ -97,14 +97,14 @@ public sealed partial class BattleSession
             switch (callback)
             {
                 case NativeBattleDoom8Nodes.Callback:
-                    return NativeBattleDoom8Nodes.Advance8C88D0(current, address, resources.NodeSource, new(nativeActionPackets, actor => graphics.Models[actor], PoseSource, Projection(), Camera().Roll, Colors(), Execute));
+                    return NativeBattleDoom8Nodes.Advance8C88D0(current, address, resources.NodeSource, new(nativeActionPackets, actor => graphics.Models[actor], PoseSource, Projection(), Camera().Roll, Colors(), Execute) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(8, NativeBattleDoom8Controller.Read(current, address)) });
                 case NativeBattleDoom8Reaper.Callback:
                     NativeBattleSummonColors sourceColors = Colors();
                     return NativeBattleDoom8Reaper.Advance(current, address, new(sourceColors.Transition, sourceColors.Normal, (value, model) => NativeBattleDoom8Models.Advance(value, model, resources.ReaperModel, false), Execute));
                 case 0x8C58B0:
                 case 0x8C8050:
                 case 0x8C8790:
-                    return NativeBattleDoom8Act.Advance(current, address, new(ReadAct, (value, task) => NativeBattleDoom8ActRendering.Prepare8C59E0(value, task, Camera().CapturePackedView1D97778(), NativeBattleEffectArena.Clear().MarkUnknown(0, 92), NativeBattleEffectArena.Clear().MarkUnknown(0, 32)), (value, task, context, node) => NativeBattleDoom8ActRendering.DrawNode8C5B10(value, ReadAct(value, NativeBattleDoom8Controller.Read(value, task).ReadDword(0x94)), context, node, Projection(), Colors(), (output, batch) => Deliver(output, batch, false)), Execute, AdvanceStrips, index => resources.RequirePlacementSelectors()[index], SelectActors));
+                    return NativeBattleDoom8Act.Advance(current, address, new(ReadAct, (value, task) => NativeBattleDoom8ActRendering.Prepare8C59E0(value, task, Camera().CapturePackedView1D97778(), NativeBattleEffectArena.Clear().MarkUnknown(0, 92), NativeBattleEffectArena.Clear().MarkUnknown(0, 32)), (value, task, context, node) => NativeBattleDoom8ActRendering.DrawNode8C5B10(value, ReadAct(value, NativeBattleDoom8Controller.Read(value, task).ReadDword(0x94)), context, node, Projection(), Colors(), (output, batch) => Deliver(output, batch, false), NativeBattlePilotVisualLifetimes.Identity(8, NativeBattleDoom8Controller.Read(value, task))), Execute, AdvanceStrips, index => resources.RequirePlacementSelectors()[index], SelectActors));
                 case 0x8CD4B0:
                 case 0x8CD670:
                 case 0x8CDED0:
@@ -112,7 +112,7 @@ public sealed partial class BattleSession
                     return NativeBattleDoom8Particles.Advance(current, address, nativeActionPackets, Execute);
                 case 0x8DDC30:
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Doom overlay requires its pending ordering table.");
-                    NativeBattleFullscreenOverlayStep overlay = NativeBattleFullscreenOverlay.Advance8DDC30(new(current.Memory, current.Effect.Pools, primitive.Pending), address, current.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("Doom overlay requires its retained pause owner."), new(0x163ACB4, resources.RequireOverlayColors()));
+                    NativeBattleFullscreenOverlayStep overlay = NativeBattleFullscreenOverlay.Advance8DDC30(new(current.Memory, current.Effect.Pools, primitive.Pending), address, current.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("Doom overlay requires its retained pause owner."), new(0x163ACB4, resources.RequireOverlayColors()), NativeBattlePilotVisualLifetimes.Identity(8, NativeBattleDoom8Controller.Read(current, address)));
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = overlay.Frame.Ordering } };
                     return new(current with { Memory = overlay.Frame.Memory, Effect = current.Effect with { Pools = overlay.Frame.Pools } }, overlay.Result);
                 default:
@@ -193,9 +193,9 @@ public sealed partial class BattleSession
                 case NativeBattleDoom8NodePackets packets:
                     return Deliver(current, packets.Batch, packets.Common);
                 case NativeBattleDoom8DrawDust dust:
-                    return NativeBattleDoom8ParticleDrawing.DrawDust(current, dust.Address, resources, Camera().CapturePackedView1D97778(), Projection(), Camera().Roll, Deliver);
+                    return NativeBattleDoom8ParticleDrawing.DrawDust(current, dust.Address, resources, Camera().CapturePackedView1D97778(), Projection(), Camera().Roll, Deliver, NativeBattlePilotVisualLifetimes.Identity(8, NativeBattleDoom8Controller.Read(current, dust.Address)));
                 case NativeBattleDoom8DrawSmoke smoke:
-                    return NativeBattleDoom8ParticleDrawing.DrawSmoke(current, smoke.Address, resources, Camera().CapturePackedView1D97778(), Projection(), Colors(), Deliver);
+                    return NativeBattleDoom8ParticleDrawing.DrawSmoke(current, smoke.Address, resources, Camera().CapturePackedView1D97778(), Projection(), Colors(), Deliver, NativeBattlePilotVisualLifetimes.Identity(8, NativeBattleDoom8Controller.Read(current, smoke.Address)));
                 case NativeBattleDoom8ActInitializeTarget target:
                     RequireTargetPointer(current);
                     return NativeBattleDoom8Strips.InitializeTarget8C8120(current, target.TaskAddress, target.Actor, resources.RequireStripTables(), Execute);
