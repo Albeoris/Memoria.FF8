@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleRush91PresentationTests
 {
-    private static readonly TimeSpan Callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
+    private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
 
     [Fact]
     public void External_Rush_completes_original_resources_with_independent_live_restores()
