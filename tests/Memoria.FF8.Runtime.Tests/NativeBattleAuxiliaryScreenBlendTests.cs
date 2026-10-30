@@ -5,6 +5,24 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleAuxiliaryScreenBlendTests
 {
     [Fact]
+    public void Effect77_screen_blend_capture_preserves_native_packet_and_discrete_screen_operation()
+    {
+        NativeBattleGeometryPrimitive original = new(3, [0x03000000, 0x62FFFFFF, 0, 0x00D80140], [0, 0, 0, 0]);
+        NativeBattleGeometryPrimitive captured = BattleSession.CaptureNativeScreenBlend501E80(original, 77);
+        Assert.Equal(NativeBattleTestSnapshots.Json(original), NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(captured.PilotGeometry);
+        Assert.Equal((ushort)77, geometry.Identity.Effect);
+        Assert.Equal(0x501E80u, geometry.Identity.Bank);
+        Assert.False(geometry.Continuous);
+        Assert.True(geometry.ScreenSpace);
+        Assert.Equal(8, geometry.ScreenScale);
+        Assert.Equal(new System.Numerics.Vector3(320, 216, 0), geometry.D);
+        Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        Assert.Same(original, BattleSession.CaptureNativeScreenBlend501E80(original, 69));
+        Assert.Same(original, BattleSession.CaptureNativeScreenBlend501E80(original, null));
+    }
+
+    [Fact]
     public void Full_auxiliary_bank_cannot_silently_drop_the_required_native_screen_blend()
     {
         NativeBattleAuxiliaryState state = NativeBattleAuxiliaryState.Clear();
