@@ -107,10 +107,10 @@ public sealed class FieldMovementModTests
     }
 
     [Fact]
-    public void BundledMovementPatchTargetsOnlyTheGgkodo1InputHeading()
+    public void BundledReorientationPatchTargetsOnlyTheGgkodo1InputHeading()
     {
-        string path = Path.Combine(AppContext.BaseDirectory, "BundledMods", "Memoria", "Movement", "fields", "ggkodo1.json");
-        ModFile file = new("Memoria/Movement", ModFormat.Memoria, "fields/ggkodo1.json", 1, () => File.ReadAllBytes(path));
+        string path = Path.Combine(AppContext.BaseDirectory, "BundledMods", "Memoria", "Reorientation", "fields", "ggkodo1.json");
+        ModFile file = new("Memoria/Reorientation", ModFormat.Memoria, "fields/ggkodo1.json", 1, () => File.ReadAllBytes(path));
         FieldScenePatch patch = Assert.Single(Prepare(file).Patches).Patch;
         Assert.Equal("ggkodo1", patch.FieldName);
         Assert.Empty(patch.Backgrounds);

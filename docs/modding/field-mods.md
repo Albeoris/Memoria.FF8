@@ -58,7 +58,7 @@ The first matching movement contribution in package priority order wins, includi
 
 The rotation applies to keyboard and stick player movement, including field movie callbacks. It leaves stationary facing, scripted movement, original INF/AXIS values, saved positions and world controls unchanged. Disabling the package restores original projection for the next movement without migrating a save. Reloading a saved game uses the currently enabled mod configuration. Target-based field guidance accounts for the active rotation.
 
-The bundled `Memoria/Movement` package corrects the diagonal keyboard projection in the Galbadia Garden lobby (`ggkodo1`). Toggle it in the Mods menu to compare its screen directions with the original behavior. Each corrected field has its own JSON file, as in the bundled `Depixelation` package.
+The bundled `Memoria/Reorientation` package corrects the diagonal keyboard projection in the Galbadia Garden lobby (`ggkodo1`). Toggle it in the Mods menu to compare its screen directions with the original behavior. Each corrected field has its own JSON file, as in the bundled `Depixelation` package.
 
 ## Inspect a field
 
