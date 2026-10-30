@@ -17,15 +17,26 @@ public sealed record BattleDiagnosticInvocationOwners(int DescriptorPackets, int
 }
 public sealed record BattleDiagnosticInvocationRelease(Guid LifecycleId, long Callback, long SimulationFrame, long Timestamp, BattleDiagnosticEffectDispatch Dispatch, NativeBattleActionHeaderSlot Header, NativeBattleDescriptorPacket? CompletionPacket, uint CompletionCallback, byte EventActorIndex, int CompletionPacketSlot, byte CompletionPacketSerial, uint CompletionPacketArgument, bool NativeEventCompleted, bool PresentationAcknowledged, bool HeaderCapturedBeforeReset, bool CurrentCompletionPacketGuaranteedRemoval, BattleDiagnosticInvocationOwners Owners, ImmutableArray<string> Blockers)
 {
+    public const string ExecutingBoundary = "executing-completion";
+    public const string GraphicsFrameBoundary = "completed-graphics-frame";
+    public string Boundary { get; init; } = ExecutingBoundary;
+    public bool PacketRemoved { get; init; }
+    public long? GraphicsCallback { get; init; }
+    public NativeBattleDescriptorPacket? RemovedCompletionPacket { get; init; }
+    public BattleDiagnosticInvocationRelease? ExecutingCompletion { get; init; }
     public bool Released => NativeEventCompleted && PresentationAcknowledged && HeaderCapturedBeforeReset && CurrentCompletionPacketGuaranteedRemoval && Blockers.IsEmpty;
 }
 
 public sealed partial class BattleSession
 {
     private sealed record DiagnosticInvocationPolicy(ushort Effect, string ActorId, byte? Command, int ActionId);
-    private sealed record DiagnosticInvocationCompletion(BattleDiagnosticEffectDispatch Dispatch, NativeBattleActionHeaderSlot Header, NativeBattleDescriptorPacket? Packet, byte ActorIndex, uint Callback, int PacketSlot, byte PacketSerial, bool HeaderCaptured);
+    private sealed record DiagnosticInvocationCompletion(BattleDiagnosticEffectDispatch Dispatch, NativeBattleActionHeaderSlot Header, NativeBattleDescriptorPacket? Packet, byte ActorIndex, uint Callback, int PacketSlot, byte PacketSerial, bool HeaderCaptured, Guid LifecycleId, long SimulationFrame, long HostCallback, long GraphicsCallback, long DispatchSerial);
     private DiagnosticInvocationPolicy? diagnosticInvocationPolicy;
     private BattleDiagnosticEffectDispatch? diagnosticInvocationDispatch;
+    private DiagnosticInvocationCompletion? diagnosticPendingFrameAttempt;
+    private BattleDiagnosticInvocationRelease? diagnosticPendingFrameCertificate;
+    private NativeBattleDescriptorPacket? diagnosticPendingRetiredPacket;
+    public object? LastDiagnosticInvocationPendingOwners { get; private set; }
     public BattleDiagnosticInvocationRelease? LastDiagnosticInvocationCompletion { get; private set; }
     public event Action<BattleDiagnosticInvocationRelease>? DiagnosticInvocationReleased;
 
@@ -40,6 +51,13 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticInvocationDispatch(BattleDiagnosticEffectDispatch dispatch)
     {
+        if (diagnosticPendingFrameAttempt is not null)
+        {
+            LastDiagnosticInvocationPendingOwners = new { Reason = "dispatch-before-graphics-frame-end", dispatch.Serial, FocalSerial = diagnosticPendingFrameAttempt.Dispatch.Serial };
+            diagnosticPendingFrameAttempt = null;
+            diagnosticPendingFrameCertificate = null;
+            diagnosticPendingRetiredPacket = null;
+        }
         if (LastDiagnosticInvocationCompletion is { Released: true } || diagnosticInvocationPolicy is not { } policy || dispatch.RequestedEffect != policy.Effect || dispatch.ExecutedEffect != policy.Effect || dispatch.ActorId != policy.ActorId || dispatch.ActionId != policy.ActionId || policy.Command is byte command && dispatch.NativeCommand != command)
         {
             return;
@@ -65,10 +83,10 @@ public sealed partial class BattleSession
         bool captured = physicalHeader.ReadByte(0) == actor && physicalHeader.ReadByte(1) == dispatch.NativeCommand && (physicalHeader.ReadByte(4) | physicalHeader.ReadByte(5) << 8) == dispatch.ActionId && (physicalHeader.ReadByte(6) | physicalHeader.ReadByte(7) << 8) == dispatch.RequestedEffect && dispatch.Serial <= diagnosticDispatchSerial && diagnosticHeaderGenerations is { } generations && generations.TryGetValue(header, out long actual) && actual == generation && generation > 0 && nativeActionScratch.EventActorB0F == actor && dispatch.Serial > 0;
         int slot = graphics.Descriptors.Queue.IsEmpty ? -1 : graphics.Descriptors.Queue[0];
         byte serial = slot < 0 ? (byte)0 : graphics.Descriptors.Packets[slot].Serial;
-        return new(dispatch, physicalHeader, slot < 0 ? null : graphics.Descriptors.Packets[slot], actor, callback, slot, serial, captured);
+        return new(dispatch, physicalHeader, slot < 0 ? null : graphics.Descriptors.Packets[slot], actor, callback, slot, serial, captured, DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? throw new NotSupportedException("Focal completion requires its actual native callback."), graphics.Callback, diagnosticDispatchSerial);
     }
 
-    private void ObserveDiagnosticInvocationCompletion(DiagnosticInvocationCompletion? attempt, bool completed, bool acknowledged)
+    private void ObserveDiagnosticInvocationCompletion(DiagnosticInvocationCompletion? attempt, bool completed, bool acknowledged, BattleDiagnosticInvocationRelease? executingCertificate = null, NativeBattleDescriptorPacket? retiredWitness = null)
     {
         if (attempt is null || !attempt.HeaderCaptured && LastDiagnosticInvocationCompletion is { HeaderCapturedBeforeReset: true })
         {
@@ -77,7 +95,10 @@ public sealed partial class BattleSession
         NativeBattleGraphicsState graphics = NativeGraphics ?? throw new InvalidDataException("Focal completion lost its actual graphical owner.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Focal completion lost its returned-task owner.");
         int? files = NativeFileIo?.ActiveCount;
-        bool exactPacket = attempt.PacketSlot >= 0 && graphics.Descriptors.Queue.Length == 1 && graphics.Descriptors.Queue[0] == attempt.PacketSlot && graphics.Descriptors.Packets[attempt.PacketSlot] is { Command: 10 } packet && packet.Serial == attempt.PacketSerial && packet.Argument == attempt.Callback;
+        bool frameEnd = executingCertificate is not null;
+        bool exactPacket = !frameEnd && attempt.PacketSlot >= 0 && graphics.Descriptors.Queue.Length == 1 && graphics.Descriptors.Queue[0] == attempt.PacketSlot && graphics.Descriptors.Packets[attempt.PacketSlot] is { Command: 10 } packet && packet.Serial == attempt.PacketSerial && packet.Argument == attempt.Callback;
+        NativeBattleDescriptorPacket? retiredPacket = frameEnd && attempt.PacketSlot >= 0 ? graphics.Descriptors.Packets[attempt.PacketSlot] : null;
+        bool removed = frameEnd && retiredWitness is not null && ReferenceEquals(retiredPacket, retiredWitness) && executingCertificate!.CompletionPacket is { } original && retiredPacket is not null && !graphics.Descriptors.Queue.Contains(attempt.PacketSlot) && retiredPacket.UnknownByteMask == original.UnknownByteMask && retiredPacket.Bytes.AsSpan().SequenceEqual(original.Bytes.SetItem(1, 0).AsSpan());
         BattleDiagnosticInvocationOwners owners = new(graphics.Descriptors.Queue.Length, graphics.Descriptors.Tasks.Count(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0), graphics.PendingContacts.Length, graphics.Effects.PublishedCount, graphics.Effects.Head is not null, graphics.Auxiliary.Head is not null, graphics.ModuleEffects.PublishedCount, graphics.ModuleEffects.Head is not null, files, memory.ReturnedTaskPointer1D96AAC, memory.DetachedReturnedTask is not null, NativeCameraTaskMask, NativeOriginalSoundBusy(), graphics.Models.Any(model => (model.Flags0 & 2) != 0 && (model.ResourceMagicId is not null || model.ActiveStagedResourceRow100 is not null)), ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any(), nativeTimedAction is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions || pendingSlotsDeal is not null || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0)
         {
             ActionHeaders = nativeActionPackets.ActionCount,
@@ -102,11 +123,11 @@ public sealed partial class BattleSession
         {
             blockers.Add("header-generation-or-event-owner-mismatch");
         }
-        if (!exactPacket)
+        if (frameEnd ? !removed : !exactPacket)
         {
-            blockers.Add("executing-completion-packet-mismatch");
+            blockers.Add(frameEnd ? "completion-packet-not-retired-or-slot-reused" : "executing-completion-packet-mismatch");
         }
-        if (owners.NonPumpDescriptorTasks != 0 || owners.PendingContacts != 0)
+        if (frameEnd && owners.DescriptorPackets != 0 || owners.NonPumpDescriptorTasks != 0 || owners.PendingContacts != 0)
         {
             blockers.Add("contact-or-descriptor");
         }
@@ -126,10 +147,89 @@ public sealed partial class BattleSession
         {
             blockers.Add("action-or-reaction");
         }
-        LastDiagnosticInvocationCompletion = new(DiagnosticLifecycleId, NativeHostCallbacks ?? throw new NotSupportedException("Focal completion requires its actual native callback."), Frame, Stopwatch.GetTimestamp(), attempt.Dispatch, attempt.Header, attempt.Packet, attempt.Callback, attempt.ActorIndex, attempt.PacketSlot, attempt.PacketSerial, attempt.Callback, completed, acknowledged, attempt.HeaderCaptured, exactPacket, owners, blockers.ToImmutable());
+        LastDiagnosticInvocationCompletion = new(DiagnosticLifecycleId, NativeHostCallbacks ?? throw new NotSupportedException("Focal completion requires its actual native callback."), Frame, Stopwatch.GetTimestamp(), attempt.Dispatch, attempt.Header, attempt.Packet, attempt.Callback, attempt.ActorIndex, attempt.PacketSlot, attempt.PacketSerial, attempt.Callback, completed, acknowledged, attempt.HeaderCaptured, frameEnd ? executingCertificate!.CurrentCompletionPacketGuaranteedRemoval : exactPacket, owners, blockers.ToImmutable())
+        {
+            Boundary = frameEnd ? BattleDiagnosticInvocationRelease.GraphicsFrameBoundary : BattleDiagnosticInvocationRelease.ExecutingBoundary,
+            PacketRemoved = removed,
+            GraphicsCallback = graphics.Callback,
+            RemovedCompletionPacket = retiredPacket,
+            ExecutingCompletion = executingCertificate
+        };
         if (LastDiagnosticInvocationCompletion.Released)
         {
             DiagnosticInvocationReleased?.Invoke(LastDiagnosticInvocationCompletion);
         }
+        else if (!frameEnd && completed && acknowledged && attempt.HeaderCaptured && exactPacket)
+        {
+            diagnosticPendingFrameAttempt = attempt;
+            diagnosticPendingFrameCertificate = LastDiagnosticInvocationCompletion;
+            diagnosticPendingRetiredPacket = null;
+        }
+        if (frameEnd && !LastDiagnosticInvocationCompletion.Released)
+        {
+            CaptureDiagnosticInvocationPendingOwners(graphics);
+        }
     }
+    private void ObserveDiagnosticInvocationPacketRemoved(NativeBattleDescriptorState state, int slot, NativeBattleDescriptorPacket original)
+    {
+        if (diagnosticPendingFrameAttempt is not { } attempt || slot != attempt.PacketSlot || !ReferenceEquals(original, attempt.Packet))
+        {
+            return;
+        }
+        if (diagnosticPendingRetiredPacket is not null)
+        {
+            diagnosticPendingFrameAttempt = null;
+            diagnosticPendingFrameCertificate = null;
+            diagnosticPendingRetiredPacket = null;
+            LastDiagnosticInvocationPendingOwners = new { Reason = "duplicate-completion-packet-removal" };
+            return;
+        }
+        diagnosticPendingRetiredPacket = state.Packets[slot];
+    }
+
+    private void ObserveDiagnosticInvocationGraphicsFrameEnd()
+    {
+        DiagnosticInvocationCompletion? attempt = diagnosticPendingFrameAttempt;
+        BattleDiagnosticInvocationRelease? certificate = diagnosticPendingFrameCertificate;
+        NativeBattleDescriptorPacket? retiredWitness = diagnosticPendingRetiredPacket;
+        diagnosticPendingFrameAttempt = null;
+        diagnosticPendingFrameCertificate = null;
+        diagnosticPendingRetiredPacket = null;
+        if (attempt is null || certificate is null)
+        {
+            return;
+        }
+        if (attempt.LifecycleId != DiagnosticLifecycleId || attempt.SimulationFrame != Frame || attempt.HostCallback != NativeHostCallbacks || attempt.GraphicsCallback + 1 != NativeGraphics?.Callback || attempt.DispatchSerial != diagnosticDispatchSerial || attempt.Dispatch.Serial != diagnosticInvocationDispatch?.Serial || LastDiagnosticInvocationCompletion is { Released: true })
+        {
+            LastDiagnosticInvocationPendingOwners = new { Reason = "same-native-graphics-frame-boundary-expired", ExpectedCallback = attempt.HostCallback, ActualCallback = NativeHostCallbacks, ExpectedFrame = attempt.SimulationFrame, ActualFrame = Frame };
+            return;
+        }
+        ObserveDiagnosticInvocationCompletion(attempt, true, true, certificate, retiredWitness);
+    }
+
+    private void CaptureDiagnosticInvocationPendingOwners(NativeBattleGraphicsState graphics)
+    {
+        List<object> auxiliary = [];
+        int? next = graphics.Auxiliary.Head;
+        for (int visited = 0; next is int slot && visited < Math.Min(graphics.Auxiliary.Slots.Length, 64); visited++)
+        {
+            NativeBattleAuxiliaryTask task = graphics.Auxiliary.Slots[slot];
+            auxiliary.Add(new { Slot = slot, task.Kind, task.Flags, task.State, task.Next });
+            next = task.Next;
+        }
+        LastDiagnosticInvocationPendingOwners = new
+        {
+            Callback = NativeHostCallbacks,
+            SimulationFrame = Frame,
+            GraphicsCallback = graphics.Callback,
+            ActiveAction = ActiveAction is { } active ? new { active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeHeaderIndex, active.NativeQueuedCommand } : null,
+            QueuedPresentationCount = actions.Count,
+            QueuedPresentations = actions.Take(64).Select(command => new { command.ActorId, command.TargetId, command.Ability, command.ActionId, command.NativeHeaderIndex, command.NativeQueuedCommand, command.NativeCallback }).ToArray(),
+            BoundCommands = nativeCommandBanks.Banks.SelectMany((bank, bankIndex) => bank.LogicalCommands.Select((command, packetIndex) => new { command, bankIndex, packetIndex })).Where(row => row.command is not null).Take(66).Select(row => new { Bank = row.bankIndex, Slot = row.packetIndex / 2, Subcommand = row.packetIndex % 2, row.command!.ActorId, row.command!.TargetId, row.command!.Ability, row.command!.ActionId, row.command!.NativeHeaderIndex, row.command!.NativeQueuedCommand, row.command!.NativeCallback }).ToArray(),
+            DispatchedCommand = nativeDispatchCommandLocation,
+            Auxiliary = auxiliary.ToArray(),
+            AuxiliaryTruncated = next is not null
+        };
+    }
+
 }

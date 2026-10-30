@@ -32,6 +32,133 @@ public sealed class FreshEntryPairValidationTests
         Assert.Equal("PASS", LiveEvidenceValidation.ValidateFreshEntry(report.RootElement).Verdict);
     }
 
+    [Fact]
+    public void Two_independent_same_callback_post_frame_releases_pass_the_full_file_pair_contract()
+    {
+        using Fixture fixture = new(ActualExecutable());
+        fixture.UsePostFrameRelease();
+        foreach (JsonObject report in fixture.Reports)
+        {
+            JsonObject execution = report["executions"]![0]!.AsObject();
+            BattleDiagnosticInvocationRelease release = execution["invocation_release"]!.Deserialize<BattleDiagnosticInvocationRelease>(Json)!;
+            BattleDiagnosticInvocationRelease certificate = release.ExecutingCompletion!;
+            Assert.Equal(BattleDiagnosticInvocationRelease.GraphicsFrameBoundary, release.Boundary);
+            Assert.Equal(certificate.Callback, release.Callback);
+            Assert.Equal(certificate.SimulationFrame, release.SimulationFrame);
+            Assert.Equal(certificate.GraphicsCallback!.Value + 1, release.GraphicsCallback!.Value);
+            Assert.True(release.PacketRemoved);
+            Assert.Equal(0, release.Owners.DescriptorPackets);
+            Assert.Equal(1, certificate.Owners.DescriptorPackets);
+            Assert.True(certificate.Owners.AuxiliaryHead);
+            Assert.NotEmpty(certificate.Blockers);
+            Assert.Equal<byte>(certificate.CompletionPacket!.Bytes.SetItem(1, 0), release.RemovedCompletionPacket!.Bytes);
+            using JsonDocument document = JsonDocument.Parse(report.ToJsonString());
+            LiveEvidenceVerdict verdict = LiveEvidenceValidation.ValidateFreshEntry(document.RootElement);
+            Assert.True(verdict.Verdict == "PASS", string.Join(";", verdict.Errors));
+        }
+        FreshEntryPairVerdict pair = FreshEntryPairValidation.ValidateFiles(fixture.Pins());
+        Assert.True(pair.FunctionalPass, string.Join(";", pair.Errors));
+        Assert.Equal(2, pair.Entries.Length);
+        Assert.All(pair.Entries, entry => Assert.Single(entry.Executions));
+        Assert.False(pair.CampaignAcceptance);
+    }
+
+    [Theory]
+    [InlineData("missing-certificate")]
+    [InlineData("executing-mode")]
+    [InlineData("unknown-mode")]
+    [InlineData("descriptor-count")]
+    [InlineData("not-removed")]
+    [InlineData("certificate-no-blockers")]
+    [InlineData("certificate-no-outstanding-owner")]
+    [InlineData("certificate-wrong-mode")]
+    [InlineData("certificate-already-removed")]
+    [InlineData("nested-certificate")]
+    [InlineData("retired-command-byte")]
+    [InlineData("retired-priority-byte")]
+    [InlineData("retired-slot-reused")]
+    [InlineData("physical-slot-reused")]
+    [InlineData("callback")]
+    [InlineData("simulation-frame")]
+    [InlineData("lifecycle")]
+    [InlineData("graphics-callback-same")]
+    [InlineData("graphics-callback-later")]
+    [InlineData("certificate-future-time")]
+    [InlineData("live-owner")]
+    [InlineData("unknown-files")]
+    [InlineData("foreign-certificate-dispatch")]
+    [InlineData("foreign-header-generation")]
+    [InlineData("header-payload")]
+    [InlineData("header-data")]
+    public void Typed_post_frame_release_rejects_changed_certificate_removed_packet_boundary_and_owner(string fault)
+    {
+        using Fixture fixture = new();
+        fixture.UsePostFrameRelease();
+        BattleDiagnosticInvocationRelease baseline = fixture.Reports[0]["executions"]![0]!["invocation_release"]!.Deserialize<BattleDiagnosticInvocationRelease>(Json)!;
+        BattleDiagnosticInvocationRelease certificate = baseline.ExecutingCompletion!;
+        DiagnosticInvocationReleaseValidation.Validate(baseline, baseline.Dispatch, baseline.LifecycleId);
+        BattleDiagnosticInvocationRelease invalid = fault switch
+        {
+            "missing-certificate" => baseline with { ExecutingCompletion = null },
+            "executing-mode" => baseline with { Boundary = BattleDiagnosticInvocationRelease.ExecutingBoundary },
+            "unknown-mode" => baseline with { Boundary = "unproved-boundary" },
+            "descriptor-count" => baseline with { Owners = baseline.Owners with { DescriptorPackets = 1 } },
+            "not-removed" => baseline with { PacketRemoved = false },
+            "certificate-no-blockers" => baseline with { ExecutingCompletion = certificate with { Blockers = [] } },
+            "certificate-no-outstanding-owner" => baseline with { ExecutingCompletion = certificate with { Owners = certificate.Owners with { AuxiliaryHead = false } } },
+            "certificate-wrong-mode" => baseline with { ExecutingCompletion = certificate with { Boundary = BattleDiagnosticInvocationRelease.GraphicsFrameBoundary } },
+            "certificate-already-removed" => baseline with { ExecutingCompletion = certificate with { PacketRemoved = true } },
+            "nested-certificate" => baseline with { ExecutingCompletion = certificate with { ExecutingCompletion = certificate } },
+            "retired-command-byte" => baseline with { RemovedCompletionPacket = baseline.RemovedCompletionPacket! with { Bytes = baseline.RemovedCompletionPacket!.Bytes.SetItem(2, 104) } },
+            "retired-priority-byte" => baseline with { RemovedCompletionPacket = baseline.RemovedCompletionPacket! with { Bytes = baseline.RemovedCompletionPacket!.Bytes.SetItem(1, 0x80) } },
+            "retired-slot-reused" => baseline with { RemovedCompletionPacket = baseline.RemovedCompletionPacket! with { Bytes = baseline.RemovedCompletionPacket!.Bytes.SetItem(0, 8) } },
+            "physical-slot-reused" => baseline with { CompletionPacketSlot = baseline.CompletionPacketSlot + 1 },
+            "callback" => baseline with { Callback = baseline.Callback + 1 },
+            "simulation-frame" => baseline with { SimulationFrame = baseline.SimulationFrame + 1 },
+            "lifecycle" => baseline with { LifecycleId = Guid.NewGuid() },
+            "graphics-callback-same" => baseline with { GraphicsCallback = certificate.GraphicsCallback },
+            "graphics-callback-later" => baseline with { GraphicsCallback = certificate.GraphicsCallback + 2 },
+            "certificate-future-time" => baseline with { ExecutingCompletion = certificate with { Timestamp = baseline.Timestamp + 1 } },
+            "live-owner" => baseline with { Owners = baseline.Owners with { AuxiliaryHead = true } },
+            "unknown-files" => baseline with { Owners = baseline.Owners with { Files = null } },
+            "foreign-certificate-dispatch" => baseline with { ExecutingCompletion = certificate with { Dispatch = certificate.Dispatch with { Serial = certificate.Dispatch.Serial + 1 } } },
+            "foreign-header-generation" => baseline with { Dispatch = baseline.Dispatch with { NativeHeaderGeneration = 2 } },
+            "header-payload" => baseline with { Header = baseline.Header with { Payload = baseline.Header.Payload.SetItem(4, 22) } },
+            "header-data" => baseline with { Header = baseline.Header with { Data = new NativeBattleActionDataReference(1, 2) } },
+            _ => throw new ArgumentOutOfRangeException(nameof(fault))
+        };
+        Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(invalid, baseline.Dispatch, baseline.LifecycleId));
+    }
+
+    [Theory]
+    [InlineData("missing-certificate")]
+    [InlineData("descriptor-count")]
+    [InlineData("retired-slot-reused")]
+    public void Full_file_pair_rejects_post_frame_certificate_and_removed_packet_tampering(string fault)
+    {
+        using Fixture fixture = new(ActualExecutable());
+        fixture.UsePostFrameRelease();
+        JsonObject execution = fixture.Reports[1]["executions"]![0]!.AsObject();
+        BattleDiagnosticInvocationRelease release = execution["invocation_release"]!.Deserialize<BattleDiagnosticInvocationRelease>(Json)!;
+        BattleDiagnosticInvocationRelease invalid = fault switch
+        {
+            "missing-certificate" => release with { ExecutingCompletion = null },
+            "descriptor-count" => release with { Owners = release.Owners with { DescriptorPackets = 1 } },
+            "retired-slot-reused" => release with { RemovedCompletionPacket = release.RemovedCompletionPacket! with { Bytes = release.RemovedCompletionPacket!.Bytes.SetItem(0, 8) } },
+            _ => throw new ArgumentOutOfRangeException(nameof(fault))
+        };
+        execution["invocation_release"] = JsonSerializer.SerializeToNode(invalid, Json);
+        FreshEntryPairVerdict pair = FreshEntryPairValidation.ValidateFiles(fixture.Pins());
+        Assert.False(pair.FunctionalPass);
+        Assert.NotEmpty(pair.Errors);
+    }
+
+    private static BattleDiagnosticInvocationRelease PostFrameRelease(BattleDiagnosticInvocationRelease baseline)
+    {
+        BattleDiagnosticInvocationRelease certificate = baseline with { Timestamp = baseline.Timestamp - 1, GraphicsCallback = 7, Owners = baseline.Owners with { AuxiliaryHead = true }, Blockers = ["effect-or-auxiliary-task"] };
+        return certificate with { Boundary = BattleDiagnosticInvocationRelease.GraphicsFrameBoundary, PacketRemoved = true, GraphicsCallback = 8, RemovedCompletionPacket = certificate.CompletionPacket! with { Bytes = certificate.CompletionPacket!.Bytes.SetItem(1, 0) }, ExecutingCompletion = certificate, Timestamp = baseline.Timestamp, Owners = baseline.Owners with { DescriptorPackets = 0 }, Blockers = [] };
+    }
+
     [Theory]
     [InlineData("same-report")]
     [InlineData("process")]
@@ -310,6 +437,16 @@ public sealed class FreshEntryPairValidationTests
                 }
                 Reports[index] = report;
                 Write($"initialization-{index}.json", report["initialization"]!.ToJsonString());
+            }
+        }
+
+        public void UsePostFrameRelease()
+        {
+            foreach (JsonObject report in Reports)
+            {
+                JsonObject execution = report["executions"]![0]!.AsObject();
+                BattleDiagnosticInvocationRelease baseline = execution["invocation_release"]!.Deserialize<BattleDiagnosticInvocationRelease>(Json)!;
+                execution["invocation_release"] = JsonSerializer.SerializeToNode(PostFrameRelease(baseline), Json);
             }
         }
 

@@ -12,6 +12,7 @@ public sealed partial class BattleSession
             SimulationFrame = Frame,
             Callback = NativeHostCallbacks,
             LastInvocationCompletion = LastDiagnosticInvocationCompletion,
+            LastInvocationPendingOwners = LastDiagnosticInvocationPendingOwners,
             Clock = nativeBattleClock,
             EffectIoResult = NativeEffectIoResult,
             CameraMask = NativeCamera?.Mask,

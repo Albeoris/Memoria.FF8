@@ -5,7 +5,7 @@ public sealed record NativeBattleDescriptorCompletion(NativeBattleDescriptorStat
 
 public sealed partial record NativeBattleDescriptorState
 {
-    public NativeBattleDescriptorState Advance(Func<NativeBattleDescriptorState, int, NativeBattleDescriptorDispatch> dispatch, Func<NativeBattleDescriptorState, int, NativeBattleDescriptorCompletion> callback, Action<NativeBattleDescriptorState, int>? observe = null)
+    public NativeBattleDescriptorState Advance(Func<NativeBattleDescriptorState, int, NativeBattleDescriptorDispatch> dispatch, Func<NativeBattleDescriptorState, int, NativeBattleDescriptorCompletion> callback, Action<NativeBattleDescriptorState, int>? observe = null, Action<NativeBattleDescriptorState, int, NativeBattleDescriptorPacket>? observeRemoval = null)
     {
         Validate();
         NativeBattleDescriptorState state = this;
@@ -16,7 +16,7 @@ public sealed partial record NativeBattleDescriptorState
             NativeBattleDescriptorCompletion completed;
             if (state.Tasks[slot].Kind == NativeBattleDescriptorTaskKind.Pump500CC0)
             {
-                completed = new(state.Pump(dispatch), false);
+                completed = new(state.Pump(dispatch, observeRemoval), false);
             }
             else
             {
@@ -45,7 +45,7 @@ public sealed partial record NativeBattleDescriptorState
         return state with { TaskTail = previous };
     }
 
-    private NativeBattleDescriptorState Pump(Func<NativeBattleDescriptorState, int, NativeBattleDescriptorDispatch> dispatch)
+    private NativeBattleDescriptorState Pump(Func<NativeBattleDescriptorState, int, NativeBattleDescriptorDispatch> dispatch, Action<NativeBattleDescriptorState, int, NativeBattleDescriptorPacket>? observeRemoval)
     {
         NativeBattleDescriptorState state = this;
         int count = Queue.Length;
@@ -76,6 +76,7 @@ public sealed partial record NativeBattleDescriptorState
                     throw new InvalidDataException("Native descriptor completion underflowed its priority stack.");
                 }
                 state = state.RemoveFirst() with { Depth = (byte)(state.Depth - 1), CurrentCommand = 0, CurrentSerial = 0 };
+                observeRemoval?.Invoke(state, packetSlot, packet);
             }
             else
             {

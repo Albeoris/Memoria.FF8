@@ -33,6 +33,7 @@ public sealed class DiagnosticInvocationReleaseTests
     [InlineData("packet")]
     [InlineData("packet-bytes")]
     [InlineData("packet-unknown")]
+    [InlineData("packet-already-free")]
     [InlineData("header-bytes")]
     [InlineData("task")]
     [InlineData("contact")]
@@ -57,6 +58,7 @@ public sealed class DiagnosticInvocationReleaseTests
             "serial" => baseline with { Dispatch = baseline.Dispatch with { Serial = 2 } },
             "packet" => baseline with { CompletionPacketSerial = 8 },
             "packet-unknown" => baseline with { CompletionPacket = baseline.CompletionPacket! with { UnknownByteMask = 1 } },
+            "packet-already-free" => baseline with { CompletionPacket = baseline.CompletionPacket! with { Bytes = baseline.CompletionPacket!.Bytes.SetItem(1, 0) } },
             "packet-bytes" => baseline with { CompletionPacket = baseline.CompletionPacket! with { Bytes = baseline.CompletionPacket!.Bytes.SetItem(2, 104) } },
             "header-bytes" => baseline with { Header = baseline.Header with { Payload = baseline.Header.Payload.SetItem(4, 3) } },
             "task" => baseline with { Owners = baseline.Owners with { NonPumpDescriptorTasks = 1 } },
@@ -67,6 +69,187 @@ public sealed class DiagnosticInvocationReleaseTests
             "unknown-files" => baseline with { Owners = baseline.Owners with { Files = null } },
             "action" => baseline with { Owners = baseline.Owners with { ActionOrCommand = true } },
             _ => baseline with { Callback = 1 }
+        };
+        Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(invalid, baseline.Dispatch, baseline.LifecycleId));
+    }
+
+    private static BattleDiagnosticInvocationRelease PostFrameReceipt()
+    {
+        BattleDiagnosticInvocationRelease baseline = Receipt();
+        BattleDiagnosticInvocationRelease certificate = baseline with
+        {
+            GraphicsCallback = 7,
+            Owners = baseline.Owners with { AuxiliaryHead = true, ActionOrCommand = true },
+            Blockers = ["effect-or-auxiliary-task", "action-or-reaction"]
+        };
+        return certificate with
+        {
+            Boundary = BattleDiagnosticInvocationRelease.GraphicsFrameBoundary,
+            PacketRemoved = true,
+            GraphicsCallback = 8,
+            RemovedCompletionPacket = certificate.CompletionPacket! with { Bytes = certificate.CompletionPacket!.Bytes.SetItem(1, 0) },
+            ExecutingCompletion = certificate,
+            Timestamp = certificate.Timestamp + 1,
+            Owners = baseline.Owners with { DescriptorPackets = 0 },
+            Blockers = []
+        };
+    }
+
+    [Fact]
+    public void Post_frame_release_requires_actual_native_byte1_retirement_and_same_callback_certificate()
+    {
+        BattleDiagnosticInvocationRelease post = PostFrameReceipt();
+        BattleDiagnosticInvocationRelease certificate = post.ExecutingCompletion!;
+        Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(certificate, post.Dispatch, post.LifecycleId));
+        DiagnosticInvocationReleaseValidation.Validate(post, post.Dispatch, post.LifecycleId);
+        Assert.True(certificate.HeaderCapturedBeforeReset);
+        Assert.True(certificate.NativeEventCompleted);
+        Assert.True(certificate.PresentationAcknowledged);
+        Assert.Equal(certificate.Callback, post.Callback);
+        Assert.Equal(certificate.SimulationFrame, post.SimulationFrame);
+        Assert.Equal(certificate.LifecycleId, post.LifecycleId);
+        Assert.Equal(certificate.GraphicsCallback + 1, post.GraphicsCallback);
+        Assert.Equal(128, certificate.CompletionPacket!.Bytes[1]);
+        Assert.Equal(0, post.RemovedCompletionPacket!.Bytes[1]);
+        Assert.Equal(certificate.CompletionPacket!.Bytes.SetItem(1, 0), post.RemovedCompletionPacket!.Bytes);
+        Assert.Equal(1, certificate.Owners.DescriptorPackets);
+        Assert.Equal(0, post.Owners.DescriptorPackets);
+        Assert.True(certificate.Owners.AuxiliaryHead);
+        Assert.True(certificate.Owners.ActionOrCommand);
+        Assert.False(post.Owners.AuxiliaryHead);
+        Assert.False(post.Owners.ActionOrCommand);
+    }
+
+    [Theory]
+    [InlineData("unknown-mode")]
+    [InlineData("missing-certificate")]
+    [InlineData("not-removed")]
+    [InlineData("missing-retired-packet")]
+    [InlineData("retired-byte1-unchanged")]
+    [InlineData("retired-byte1-nonzero")]
+    [InlineData("retired-serial-reused")]
+    [InlineData("retired-command-reused")]
+    [InlineData("retired-argument-reused")]
+    [InlineData("retired-unread-byte-reused")]
+    [InlineData("retired-knownness-changed")]
+    [InlineData("retired-empty")]
+    [InlineData("next-host-callback")]
+    [InlineData("next-simulation-frame")]
+    [InlineData("foreign-lifecycle")]
+    [InlineData("graphics-not-advanced")]
+    [InlineData("graphics-retried-later")]
+    [InlineData("graphics-unknown")]
+    [InlineData("timestamp-before-certificate")]
+    [InlineData("certificate-not-completed")]
+    [InlineData("certificate-not-acknowledged")]
+    [InlineData("certificate-not-captured")]
+    [InlineData("certificate-no-removal-guarantee")]
+    [InlineData("certificate-wrong-mode")]
+    [InlineData("certificate-already-removed")]
+    [InlineData("certificate-nested")]
+    [InlineData("certificate-retired-packet")]
+    [InlineData("certificate-no-blocker")]
+    [InlineData("certificate-no-outstanding-owner")]
+    [InlineData("certificate-wrong-count")]
+    [InlineData("certificate-graphics-unknown")]
+    [InlineData("certificate-graphics-negative")]
+    [InlineData("certificate-stale-generation")]
+    [InlineData("certificate-foreign-dispatch")]
+    [InlineData("certificate-wrong-slot")]
+    [InlineData("certificate-wrong-serial")]
+    [InlineData("certificate-header-changed")]
+    [InlineData("certificate-contact-index-changed")]
+    [InlineData("certificate-header-data-changed")]
+    [InlineData("certificate-packet-unread-byte-changed")]
+    [InlineData("certificate-packet-knownness-changed")]
+    [InlineData("certificate-packet-already-free")]
+    [InlineData("post-descriptor-still-present")]
+    [InlineData("post-descriptor-task")]
+    [InlineData("post-auxiliary")]
+    [InlineData("post-action")]
+    [InlineData("post-contact")]
+    [InlineData("post-module")]
+    [InlineData("post-unknown-file-count")]
+    [InlineData("post-live-pool")]
+    public void Post_frame_release_rejects_mixed_modes_reuse_changed_certificate_or_live_owners(string fault)
+    {
+        BattleDiagnosticInvocationRelease baseline = PostFrameReceipt();
+        BattleDiagnosticInvocationRelease certificate = baseline.ExecutingCompletion!;
+        DiagnosticInvocationReleaseValidation.Validate(baseline, baseline.Dispatch, baseline.LifecycleId);
+        BattleDiagnosticInvocationRelease invalid = fault switch
+        {
+            "unknown-mode" => baseline with { Boundary = "later-global-drain" },
+            "missing-certificate" => baseline with { ExecutingCompletion = null },
+            "not-removed" => baseline with { PacketRemoved = false },
+            "missing-retired-packet" => baseline with { RemovedCompletionPacket = null },
+            "retired-byte1-unchanged" => baseline with { RemovedCompletionPacket = certificate.CompletionPacket },
+            "retired-byte1-nonzero" => baseline with { RemovedCompletionPacket = baseline.RemovedCompletionPacket! with { Bytes = baseline.RemovedCompletionPacket!.Bytes.SetItem(1, 1) } },
+            "retired-serial-reused" => baseline with { RemovedCompletionPacket = baseline.RemovedCompletionPacket! with { Bytes = baseline.RemovedCompletionPacket!.Bytes.SetItem(0, 8) } },
+            "retired-command-reused" => baseline with { RemovedCompletionPacket = baseline.RemovedCompletionPacket! with { Bytes = baseline.RemovedCompletionPacket!.Bytes.SetItem(2, 104) } },
+            "retired-argument-reused" => baseline with { RemovedCompletionPacket = baseline.RemovedCompletionPacket! with { Bytes = baseline.RemovedCompletionPacket!.Bytes.SetItem(4, 0) } },
+            "retired-unread-byte-reused" => baseline with { RemovedCompletionPacket = baseline.RemovedCompletionPacket! with { Bytes = baseline.RemovedCompletionPacket!.Bytes.SetItem(11, 1) } },
+            "retired-knownness-changed" => baseline with { RemovedCompletionPacket = baseline.RemovedCompletionPacket! with { UnknownByteMask = 0x100 } },
+            "retired-empty" => baseline with { RemovedCompletionPacket = baseline.RemovedCompletionPacket! with { Bytes = [] } },
+            "next-host-callback" => baseline with { Callback = baseline.Callback + 1 },
+            "next-simulation-frame" => baseline with { SimulationFrame = baseline.SimulationFrame + 1 },
+            "foreign-lifecycle" => baseline with { LifecycleId = Guid.NewGuid() },
+            "graphics-not-advanced" => baseline with { GraphicsCallback = certificate.GraphicsCallback },
+            "graphics-retried-later" => baseline with { GraphicsCallback = certificate.GraphicsCallback + 2 },
+            "graphics-unknown" => baseline with { GraphicsCallback = null },
+            "timestamp-before-certificate" => baseline with { Timestamp = certificate.Timestamp - 1 },
+            "certificate-not-completed" => baseline with { ExecutingCompletion = certificate with { NativeEventCompleted = false } },
+            "certificate-not-acknowledged" => baseline with { ExecutingCompletion = certificate with { PresentationAcknowledged = false } },
+            "certificate-not-captured" => baseline with { ExecutingCompletion = certificate with { HeaderCapturedBeforeReset = false } },
+            "certificate-no-removal-guarantee" => baseline with { ExecutingCompletion = certificate with { CurrentCompletionPacketGuaranteedRemoval = false } },
+            "certificate-wrong-mode" => baseline with { ExecutingCompletion = certificate with { Boundary = BattleDiagnosticInvocationRelease.GraphicsFrameBoundary } },
+            "certificate-already-removed" => baseline with { ExecutingCompletion = certificate with { PacketRemoved = true } },
+            "certificate-nested" => baseline with { ExecutingCompletion = certificate with { ExecutingCompletion = certificate } },
+            "certificate-retired-packet" => baseline with { ExecutingCompletion = certificate with { RemovedCompletionPacket = baseline.RemovedCompletionPacket } },
+            "certificate-no-blocker" => baseline with { ExecutingCompletion = certificate with { Blockers = [] } },
+            "certificate-no-outstanding-owner" => baseline with { ExecutingCompletion = certificate with { Owners = Receipt().Owners } },
+            "certificate-wrong-count" => baseline with { ExecutingCompletion = certificate with { Owners = certificate.Owners with { DescriptorPackets = 0 } } },
+            "certificate-graphics-unknown" => baseline with { ExecutingCompletion = certificate with { GraphicsCallback = null } },
+            "certificate-graphics-negative" => baseline with { ExecutingCompletion = certificate with { GraphicsCallback = -1 } },
+            "certificate-stale-generation" => baseline with { ExecutingCompletion = certificate with { Dispatch = certificate.Dispatch with { NativeHeaderGeneration = 2 } } },
+            "certificate-foreign-dispatch" => baseline with { ExecutingCompletion = certificate with { Dispatch = certificate.Dispatch with { Serial = 2 } } },
+            "certificate-wrong-slot" => baseline with { ExecutingCompletion = certificate with { CompletionPacketSlot = 1 } },
+            "certificate-wrong-serial" => baseline with { ExecutingCompletion = certificate with { CompletionPacketSerial = 8 } },
+            "certificate-header-changed" => baseline with { ExecutingCompletion = certificate with { Header = certificate.Header with { Payload = certificate.Header.Payload.SetItem(2, 11) } } },
+            "certificate-contact-index-changed" => baseline with { ExecutingCompletion = certificate with { Header = certificate.Header with { FirstContactIndex = 1 } } },
+            "certificate-header-data-changed" => baseline with { ExecutingCompletion = certificate with { Header = certificate.Header with { Data = new(1, 2, "changed") } } },
+            "certificate-packet-unread-byte-changed" => baseline with { ExecutingCompletion = certificate with { CompletionPacket = certificate.CompletionPacket! with { Bytes = certificate.CompletionPacket!.Bytes.SetItem(11, 1) } } },
+            "certificate-packet-knownness-changed" => baseline with { ExecutingCompletion = certificate with { CompletionPacket = certificate.CompletionPacket! with { UnknownByteMask = 0x100 } } },
+            "certificate-packet-already-free" => baseline with { ExecutingCompletion = certificate with { CompletionPacket = baseline.RemovedCompletionPacket } },
+            "post-descriptor-still-present" => baseline with { Owners = baseline.Owners with { DescriptorPackets = 1 } },
+            "post-descriptor-task" => baseline with { Owners = baseline.Owners with { NonPumpDescriptorTasks = 1 } },
+            "post-auxiliary" => baseline with { Owners = baseline.Owners with { AuxiliaryHead = true } },
+            "post-action" => baseline with { Owners = baseline.Owners with { ActionOrCommand = true } },
+            "post-contact" => baseline with { Owners = baseline.Owners with { PendingContacts = 1 } },
+            "post-module" => baseline with { Owners = baseline.Owners with { Modules = 1, ModuleHead = true } },
+            "post-unknown-file-count" => baseline with { Owners = baseline.Owners with { Files = null } },
+            "post-live-pool" => baseline with { Owners = baseline.Owners with { OriginalPools = [new(1, 2, 12, 1, true, true)] } },
+            _ => throw new ArgumentOutOfRangeException(nameof(fault))
+        };
+        Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(invalid, baseline.Dispatch, baseline.LifecycleId));
+    }
+
+    [Theory]
+    [InlineData("removed")]
+    [InlineData("removed-packet")]
+    [InlineData("certificate")]
+    [InlineData("post-count")]
+    [InlineData("unknown-mode")]
+    public void Immediate_release_keeps_its_existing_contract_and_rejects_post_frame_fields(string fault)
+    {
+        BattleDiagnosticInvocationRelease baseline = Receipt();
+        DiagnosticInvocationReleaseValidation.Validate(baseline, baseline.Dispatch, baseline.LifecycleId);
+        BattleDiagnosticInvocationRelease invalid = fault switch
+        {
+            "removed" => baseline with { PacketRemoved = true },
+            "removed-packet" => baseline with { RemovedCompletionPacket = baseline.CompletionPacket },
+            "certificate" => baseline with { ExecutingCompletion = PostFrameReceipt().ExecutingCompletion },
+            "post-count" => baseline with { Owners = baseline.Owners with { DescriptorPackets = 0 } },
+            _ => baseline with { Boundary = "completed-later" }
         };
         Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(invalid, baseline.Dispatch, baseline.LifecycleId));
     }

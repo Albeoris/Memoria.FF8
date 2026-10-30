@@ -140,6 +140,15 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     [InlineData("none")]
     [InlineData("contact")]
     [InlineData("retention")]
+    [InlineData("post-frame")]
+    [InlineData("post-duplicate")]
+    [InlineData("post-callback")]
+    [InlineData("post-simulation")]
+    [InlineData("post-graphics")]
+    [InlineData("post-foreign")]
+    [InlineData("post-reuse")]
+    [InlineData("post-no-removal")]
+    [InlineData("post-live")]
     [InlineData("returned-task")]
     [InlineData("descriptor")]
     [InlineData("generation")]
@@ -168,6 +177,12 @@ public sealed class NativeBattleDescriptorActionCompletionTests
             {
                 descriptors = descriptors.Enqueue(10, 128, 0x47DDA0).State;
             }
+            if (fault.StartsWith("post-", StringComparison.Ordinal) && fault != "post-action")
+            {
+                graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendDeferredCompletion5086C0(NativeBattleDescriptorState.CompletionAddress503040(0), (_, _) =>
+                {
+                }) };
+            }
             return graphics with { OriginalEffect = new(1, 0, new(1, 1, 1), null, 0), Descriptors = descriptors, PendingContacts = fault is "contact" or "retention" ? [session.NativeActionPackets.ReadContact(0)] : [] };
         }
         NativeBattleGraphicsState plainGraphics = Prepare(ordinary.Session, ordinary.Graphics);
@@ -191,8 +206,19 @@ public sealed class NativeBattleDescriptorActionCompletionTests
             releases.Add(receipt);
         };
         uint callback = fault == "post-action" ? 0x47DE70u : 0x47DDA0u;
-        NativeBattleGraphicsState plainResult = Complete(ordinary.Session, plainGraphics, callback);
-        NativeBattleGraphicsState capturedResult = Complete(captured.Session, capturedGraphics, callback);
+        bool frameEndCase = fault.StartsWith("post-", StringComparison.Ordinal) && fault != "post-action";
+        NativeBattleGraphicsState CompleteThroughPump(BattleSession session, NativeBattleGraphicsState graphics, bool observeRemoval)
+        {
+            NativeBattleGraphicsState current = graphics;
+            NativeBattleDescriptorState descriptors = graphics.Descriptors.Advance((state, _) =>
+            {
+                current = Complete(session, current with { Descriptors = state }, callback);
+                return new(current.Descriptors, 15);
+            }, (_, _) => throw new InvalidOperationException("Unexpected descriptor task in the completion fixture."), observeRemoval: observeRemoval ? (state, slot, packet) => Method("ObserveDiagnosticInvocationPacketRemoved").Invoke(session, [state, slot, packet]) : null);
+            return current with { Descriptors = descriptors };
+        }
+        NativeBattleGraphicsState plainResult = frameEndCase ? CompleteThroughPump(ordinary.Session, plainGraphics, false) : Complete(ordinary.Session, plainGraphics, callback);
+        NativeBattleGraphicsState capturedResult = frameEndCase ? CompleteThroughPump(captured.Session, capturedGraphics, fault != "post-no-removal") : Complete(captured.Session, capturedGraphics, callback);
         Assert.Equal(NativeBattleTestSnapshots.Json(plainResult), NativeBattleTestSnapshots.Json(capturedResult));
         Assert.Equal(NativeBattleTestSnapshots.Json(ordinary.Session.Capture()), NativeBattleTestSnapshots.Json(captured.Session.Capture()));
         Assert.Equal(ordinary.Session.Events, captured.Session.Events);
@@ -211,6 +237,83 @@ public sealed class NativeBattleDescriptorActionCompletionTests
             Assert.False(captured.Session.LastDiagnosticInvocationCompletion!.Released);
         }
         Assert.Null(ordinary.Session.LastDiagnosticInvocationCompletion);
+        if (frameEndCase)
+        {
+            BattleDiagnosticInvocationRelease original = captured.Session.LastDiagnosticInvocationCompletion!;
+            Assert.True(original.HeaderCapturedBeforeReset);
+            Assert.True(original.NativeEventCompleted);
+            Assert.Equal(BattleDiagnosticInvocationRelease.ExecutingBoundary, original.Boundary);
+            Assert.False(original.Released);
+            Assert.Empty(capturedResult.Descriptors.Queue);
+            List<byte> completionWrites = [];
+            NativeBattleAuxiliaryStep retiredAuxiliary = capturedResult.Auxiliary.Advance(new() { WriteCompletionByte = (_, value) => completionWrites.Add(value) });
+            Assert.Equal((byte)255, Assert.Single(completionWrites));
+            NativeBattleGraphicsState post = capturedResult with { Auxiliary = retiredAuxiliary.State, Callback = capturedResult.Callback + 1 };
+            if (fault == "post-reuse")
+            {
+                NativeBattleDescriptorPacket originallyRetired = post.Descriptors.Packets[original.CompletionPacketSlot];
+                NativeBattleDescriptorState reused = post.Descriptors;
+                for (int index = 0; index < 256; index++)
+                {
+                    reused = reused.Enqueue(10, 128, 0x47DDA0).State;
+                    reused = reused.Advance((state, _) => new(state, 15), (_, _) => throw new InvalidOperationException("Unexpected reused descriptor task."));
+                }
+                Assert.True(originallyRetired.Bytes.AsSpan().SequenceEqual(reused.Packets[original.CompletionPacketSlot].Bytes.AsSpan()));
+                Assert.NotSame(originallyRetired, reused.Packets[original.CompletionPacketSlot]);
+                post = post with { Descriptors = reused };
+            }
+            if (fault == "post-live")
+            {
+                post = post with { Auxiliary = post.Auxiliary.AppendDeferredCompletion5086C0(NativeBattleDescriptorState.CompletionAddress503040(0), (_, _) =>
+                {
+                }) };
+            }
+            if (fault == "post-callback")
+            {
+                Property(nameof(BattleSession.NativeHostCallbacks)).SetValue(captured.Session, 21L);
+            }
+            if (fault == "post-simulation")
+            {
+                Property(nameof(BattleSession.Frame)).SetValue(captured.Session, captured.Session.Frame + 1);
+            }
+            if (fault == "post-graphics")
+            {
+                post = post with { Callback = post.Callback + 1 };
+            }
+            if (fault == "post-foreign")
+            {
+                Field("diagnosticDispatchSerial").SetValue(captured.Session, 2L);
+                Method("PublishDiagnosticEffectDispatch").Invoke(captured.Session, [new Action<BattleDiagnosticEffectDispatch>(_ =>
+                {
+                }), new BattleDiagnosticEffectDispatch(2, 20, "enemy", BattleAbility.Attack, 0, 9, 9)]);
+            }
+            Property(nameof(BattleSession.NativeGraphics)).SetValue(captured.Session, post);
+            Method("ObserveDiagnosticInvocationGraphicsFrameEnd").Invoke(captured.Session, null);
+            if (fault is "post-frame" or "post-duplicate")
+            {
+                BattleDiagnosticInvocationRelease released = Assert.Single(releases);
+                Assert.True(released.PacketRemoved);
+                Assert.Equal(BattleDiagnosticInvocationRelease.GraphicsFrameBoundary, released.Boundary);
+                Assert.Equal(0, released.Owners.DescriptorPackets);
+                Assert.Same(original, released.ExecutingCompletion);
+                Assert.Equal(original.Callback, released.Callback);
+                Assert.Equal(original.SimulationFrame, released.SimulationFrame);
+                Assert.Equal(original.GraphicsCallback + 1, released.GraphicsCallback);
+                Assert.True(original.CompletionPacket!.Bytes.SetItem(1, 0).AsSpan().SequenceEqual(released.RemovedCompletionPacket!.Bytes.AsSpan()));
+                Method("ObserveDiagnosticInvocationGraphicsFrameEnd").Invoke(captured.Session, null);
+                Assert.Single(releases);
+            }
+            else
+            {
+                Assert.Empty(releases);
+                Assert.False(captured.Session.LastDiagnosticInvocationCompletion!.Released);
+                if (fault is "post-live" or "post-no-removal" or "post-reuse")
+                {
+                    Assert.Equal(BattleDiagnosticInvocationRelease.GraphicsFrameBoundary, captured.Session.LastDiagnosticInvocationCompletion.Boundary);
+                    Assert.NotNull(captured.Session.LastDiagnosticInvocationPendingOwners);
+                }
+            }
+        }
         if (fault == "retention")
         {
             BattleDiagnosticInvocationRelease exactFocal = captured.Session.LastDiagnosticInvocationCompletion!;
