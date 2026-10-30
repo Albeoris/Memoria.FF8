@@ -175,7 +175,8 @@ public sealed class NativeBattleEffect80PresentationTests
         Assert.Equal(Entry, binding.Entry);
         Assert.Equal(Initializer, binding.Initializer);
         Assert.Same(game.ReadNativeEffect80Resources(), binding.Effect80Resources);
-        BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(79, binding) }, Combatants = original.Combatants.Select(actor => actor.Id == target.Id ? preparedTarget : actor).ToArray(), NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
+        NativeBattlePresentationStatusMemory presentationStatus = (original.NativePresentationStatusMemory ?? throw new InvalidDataException("Effect80 requires its current physical presentation-status bank.")).Observe(5, preparedTarget.NativeStatus!.Presentation);
+        BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(79, binding) }, Combatants = original.Combatants.Select(actor => actor.Id == target.Id ? preparedTarget : actor).ToArray(), NativePresentationStatusMemory = presentationStatus, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(source.NativeGraphics.Models));
         Assert.Equal(JsonSerializer.Serialize(original.NativeModelCpuResources), JsonSerializer.Serialize(source.NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
