@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Assets;
@@ -28,6 +28,35 @@ public sealed class NativeBattleEffectFixtureExporterTests
         // A fixture-only export is useful tooling output; it is never accepted effect coverage.
         Assert.NotEmpty(result.Artifacts);
         Assert.NotEqual("blocked", result.Status);
+    }
+
+    [Fact]
+    public void Controlled_party_contact_preserves_previous_presentation_when_logical_status_has_already_changed()
+    {
+        NativeBattleStatusSnapshot status = new(768, 0, new short[14]) { Presentation = new(0, 0) };
+        NativeBattlePresentationStatusMemory physical = NativeBattlePresentationStatusMemory.FromColdProcess();
+        var prepared = NativeBattleEffectFixtureExporter.PrepareControlledPartyStatus(status, physical, 0, false);
+        Assert.Same(status, prepared.Status);
+        Assert.Same(physical, prepared.Physical);
+        Assert.Equal(new NativeBattleStatusMirror(0, 0), prepared.Status.Presentation);
+        Assert.Equal(prepared.Status.Presentation, prepared.Physical.Rows[0]);
+        Assert.Equal((ushort)768, prepared.Status.Saved);
+    }
+
+    [Fact]
+    public void Controlled_revival_stages_prior_KO_in_both_presentation_projections_without_replacing_the_logical_result()
+    {
+        NativeBattleStatusSnapshot status = new(768, 0x2000, new short[14]) { Presentation = new(0, 0) };
+        NativeBattlePresentationStatusMemory physical = NativeBattlePresentationStatusMemory.FromColdProcess();
+        var prepared = NativeBattleEffectFixtureExporter.PrepareControlledPartyStatus(status, physical, 1, true);
+        Assert.Equal(new NativeBattleStatusMirror(769, 0x2000), prepared.Status.Presentation);
+        Assert.Equal(prepared.Status.Presentation, prepared.Physical.Rows[1]);
+        Assert.Equal(status.Saved, prepared.Status.Saved);
+        Assert.Equal(status.Battle, prepared.Status.Battle);
+        Assert.Same(status.Timers, prepared.Status.Timers);
+        Assert.Equal(new NativeBattleStatusMirror(0, 0), status.Presentation);
+        Assert.Equal(new NativeBattleStatusMirror(0, 0), physical.Rows[1]);
+        Assert.All(Enumerable.Range(0, NativeBattlePresentationStatusMemory.PhysicalCount).Where(index => index != 1), index => Assert.Same(physical.Rows[index], prepared.Physical.Rows[index]));
     }
 
     [Fact]

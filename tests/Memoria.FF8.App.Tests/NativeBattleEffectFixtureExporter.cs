@@ -34,6 +34,16 @@ internal sealed record NativeEffectFixtureExportResult(string Id, ushort Effect,
 
 internal static class NativeBattleEffectFixtureExporter
 {
+    internal static (NativeBattleStatusSnapshot Status, NativeBattlePresentationStatusMemory Physical) PrepareControlledPartyStatus(NativeBattleStatusSnapshot status, NativeBattlePresentationStatusMemory physical, int actorIndex, bool revival)
+    {
+        if (!revival)
+        {
+            return (status, physical);
+        }
+        NativeBattleStatusMirror prior = new((ushort)(status.Saved | 1), status.Battle);
+        return (status with { Presentation = prior }, physical.Observe(actorIndex, prior));
+    }
+
     internal static void Validate(NativeEffectFixtureRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Id) || request.Effect is < 1 or > 400 || request.EntryMaximumCallbacks <= 0 || request.ProcessTimeoutSeconds <= 0 || request.AdmissionProbeMaximumCallbacks < 0)
@@ -343,11 +353,14 @@ internal static class NativeBattleEffectFixtureExporter
             NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The current contact target lacks its native status owner.");
             if (request.TargetActorIndex < 3)
             {
-                ushort priorSaved = request.RevivalContact ? (ushort)(status.Saved | 1) : status.Saved;
-                target = target with { NativeStatus = status with { Presentation = new(priorSaved, status.Battle) } };
+                // Preserve the current presentation status until the original contact callback refreshes it.
+                var preparedStatus = PrepareControlledPartyStatus(status, before.NativePresentationStatusMemory ?? throw new InvalidDataException("The party fixture requires its current physical presentation-status bank."), request.TargetActorIndex, request.RevivalContact);
+                target = target with { NativeStatus = preparedStatus.Status };
+                before = before with { NativePresentationStatusMemory = preparedStatus.Physical };
                 if (request.RevivalContact)
                 {
                     // This fresh controlled post-formula component keeps the prior KO display while the logical result already holds seven HP.
+                    ushort priorSaved = preparedStatus.Status.Presentation.Saved!.Value;
                     NativeBattlePartyPresentation party = before.NativePartyPresentation ?? throw new InvalidDataException("The revival fixture requires its initialized party display.");
                     before = before with { NativePartyPresentation = party with { Rows = party.Rows.SetItem(1, party.Rows[1]! with { HitPoints = 0 }) }, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, status.Battle) };
                     NativeBattleGraphicsState priorGraphics = before.NativeGraphics!;
