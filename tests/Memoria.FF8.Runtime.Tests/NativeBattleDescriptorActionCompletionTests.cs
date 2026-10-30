@@ -139,6 +139,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
     [Theory]
     [InlineData("none")]
     [InlineData("contact")]
+    [InlineData("retention")]
     [InlineData("returned-task")]
     [InlineData("descriptor")]
     [InlineData("generation")]
@@ -167,7 +168,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
             {
                 descriptors = descriptors.Enqueue(10, 128, 0x47DDA0).State;
             }
-            return graphics with { OriginalEffect = new(1, 0, new(1, 1, 1), null, 0), Descriptors = descriptors, PendingContacts = fault == "contact" ? [session.NativeActionPackets.ReadContact(0)] : [] };
+            return graphics with { OriginalEffect = new(1, 0, new(1, 1, 1), null, 0), Descriptors = descriptors, PendingContacts = fault is "contact" or "retention" ? [session.NativeActionPackets.ReadContact(0)] : [] };
         }
         NativeBattleGraphicsState plainGraphics = Prepare(ordinary.Session, ordinary.Graphics);
         NativeBattleGraphicsState capturedGraphics = Prepare(captured.Session, captured.Graphics);
@@ -210,6 +211,31 @@ public sealed class NativeBattleDescriptorActionCompletionTests
             Assert.False(captured.Session.LastDiagnosticInvocationCompletion!.Released);
         }
         Assert.Null(ordinary.Session.LastDiagnosticInvocationCompletion);
+        if (fault == "retention")
+        {
+            BattleDiagnosticInvocationRelease exactFocal = captured.Session.LastDiagnosticInvocationCompletion!;
+            Assert.True(exactFocal.HeaderCapturedBeforeReset);
+            Assert.True(exactFocal.NativeEventCompleted);
+            Assert.Contains("contact-or-descriptor", exactFocal.Blockers);
+            NativeBattleActionPacketsState laterPackets = captured.Session.NativeActionPackets;
+            (laterPackets, _) = laterPackets.Prepare(new(0, 1, 13, -1, 0, 0, null));
+            (laterPackets, _) = laterPackets.AppendContact(new(new(3, 0, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
+            (laterPackets, _) = laterPackets.Publish(1);
+            Field("nativeActionPackets").SetValue(captured.Session, laterPackets);
+            Method("ObserveDiagnosticPreparedHeader").Invoke(captured.Session, [0]);
+            Property(nameof(BattleSession.NativeHostCallbacks)).SetValue(captured.Session, 40L);
+            SetAction(captured.Session, new("party", "enemy", BattleActionPhase.Windup, 1, BattleAbility.Attack, 0) { NativeHeaderIndex = 0, NativeQueuedCommand = 1, NativeGraphic = new(1) });
+            NativeBattleDescriptorState laterDescriptors = capturedResult.Descriptors.RemoveFirst().Enqueue(10, 128, 0x47DDA0).State;
+            NativeBattleGraphicsState laterResult = Complete(captured.Session, capturedResult with { Descriptors = laterDescriptors }, 0x47DDA0);
+            Assert.Null(captured.Session.ActiveAction);
+            Assert.Equal((byte)1, captured.Session.NativeActionPackets.Headers[0].ReadByte(1));
+            Assert.Equal(2, captured.Session.Events.Count(value => value.Kind == "ActionComplete"));
+            Assert.Same(exactFocal, captured.Session.LastDiagnosticInvocationCompletion);
+            Assert.Equal(20, exactFocal.Callback);
+            Assert.False(exactFocal.Released);
+            Assert.Equal(laterResult.PendingContacts, capturedResult.PendingContacts);
+            Assert.Empty(releases);
+        }
     }
 
     private static (BattleSession Session, NativeBattleGraphicsState Graphics, BattleActionPresentation Action) Fixture()

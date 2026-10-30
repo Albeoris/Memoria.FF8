@@ -70,7 +70,7 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticInvocationCompletion(DiagnosticInvocationCompletion? attempt, bool completed, bool acknowledged)
     {
-        if (attempt is null)
+        if (attempt is null || !attempt.HeaderCaptured && LastDiagnosticInvocationCompletion is { HeaderCapturedBeforeReset: true })
         {
             return;
         }
