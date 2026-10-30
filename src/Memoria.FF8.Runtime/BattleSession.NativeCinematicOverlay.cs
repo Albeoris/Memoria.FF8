@@ -9,7 +9,7 @@ public sealed partial class BattleSession
         uint start = CoreDword(frame, CoreDword(frame, 0x27973EC) + 0x7C);
         NativeBattlePilotVisualIdentity? pilotIdentity = null;
         ushort effect = graphics.OriginalEffect!.Binding.Effect;
-        if (effect is 77 or 238 or 230 or 242 or 252 or 257)
+        if (effect is 18 or 77 or 238 or 230 or 242 or 252 or 257)
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, NativeBattleEffectInitializerPolicy.Assets(graphics.OriginalEffect.Binding)[1].Data.Length);
             pilotIdentity = NativeBattleCinematicVisualIdentity.Identity(effect, frame, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank));

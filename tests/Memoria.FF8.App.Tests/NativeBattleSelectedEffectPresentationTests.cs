@@ -178,7 +178,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                     foreach (NativeBattleLogicalCommand command in geometry)
                     {
                         NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
-                        Assert.Equal(effect, visual.Identity.Effect);
+                        Assert.True(visual.Identity.Effect == effect, $"Effect{effect} callback{current.NativeGraphics.Callback}: packet {command.Packet.Bank}/{command.Packet.Buffer}/{command.Packet.ByteOffset}, opcode{command.Opcode:X2}, captured owner {visual.Identity}.");
                         Assert.True(visual.Identity.Generation > 0);
                         capturedOwnedBanks.Add(visual.Identity.Bank);
                     }
