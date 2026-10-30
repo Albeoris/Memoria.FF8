@@ -15,10 +15,13 @@ public sealed record NativeGuardianForceLearnedBank([property: JsonRequired] ulo
         return ((ability < 64 ? Low : High) & (1UL << (ability & 63))) != 0;
     }
 }
+/// <summary>Native record bytes retained without assigning an unproved runtime meaning.</summary>
+public sealed record NativeGuardianForceOpaqueBytes([property: JsonRequired] byte Byte16, [property: JsonRequired] byte Byte57, [property: JsonRequired] byte Byte58, [property: JsonRequired] byte Byte59);
 public sealed record NativeGuardianForceVital([property: JsonRequired] uint Experience, [property: JsonRequired] byte Flags, [property: JsonRequired] ushort HitPoints, [property: JsonRequired] NativeGuardianForceLearnedBank LearnedBank, [property: JsonRequired] ushort? MaximumHitPoints, [property: JsonRequired] ImmutableArray<byte> AbilityProgress, [property: JsonRequired] byte Learning, [property: JsonRequired] uint ForgottenAbilities)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool MoveFindDisabled { get; init; }
+    public NativeGuardianForceOpaqueBytes? NativeOpaqueBytes { get; init; }
     public GuardianForceProgression? Progression { get; init; }
     public GuardianForceCompatibilityProjection? LastProjection { get; init; }
     public bool HasLearnedAbility(int ability)

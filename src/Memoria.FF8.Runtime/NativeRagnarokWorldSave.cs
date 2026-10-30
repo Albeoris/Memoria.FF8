@@ -42,7 +42,7 @@ public sealed partial record NativeSavedWorldState
     {
         Validate();
         receipt.Validate();
-        return this with { RagnarokPose2 = receipt.Pose2, RagnarokReturn = receipt, FootReturn = null, CarReturn = null, GardenReturn = null, ScriptedReturn = null };
+        return this with { RagnarokPose2 = receipt.Pose2, RagnarokReturn = receipt, FootReturn = null, CarReturn = null, GardenReturn = null, ScriptedReturn = null, UnsupportedEntry = null };
     }
 
     private void ValidateRagnarokReturn()

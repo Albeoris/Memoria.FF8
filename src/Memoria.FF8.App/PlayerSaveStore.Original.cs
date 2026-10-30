@@ -101,7 +101,7 @@ internal sealed partial class PlayerSaveStore
             }
             GameState candidate = LoadOriginal(temporary);
             validateContinuation?.Invoke(candidate);
-            File.Move(temporary, path, overwrite: true);
+            OriginalSavePublication.Publish(temporary, path, overwrite: true);
             entries.Remove(path);
         }
         finally

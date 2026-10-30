@@ -14,7 +14,7 @@ public static partial class NativePcSaveConverter
         {
             throw new NotSupportedException("Original FF8 export requires confirmation of GF configuration/progression losses: " + string.Join("; ", plan.Losses.Select(loss => loss.Description)));
         }
-        return ExportCore(plan.ProjectedState);
+        return ExportCore(CompleteOpaqueExportState(plan.ProjectedState, targetSource));
     }
 
     public static byte[] Export(GameState state)
@@ -30,6 +30,24 @@ public static partial class NativePcSaveConverter
             return Export(state, target);
         }
         return ExportCore(state);
+    }
+
+    private static GameState CompleteOpaqueExportState(GameState state, NativeCharacterVitals targetSource)
+    {
+        if (state.OriginalSave is not null || state.CharacterVitals is not { } current)
+        {
+            return state;
+        }
+        NativeCharacterVitals projected = current.DeepCopy();
+        for (int row = 0; row < projected.Records.Length; row++)
+        {
+            projected.Records[row] = projected.Records[row] with { NativeByte90 = projected.Records[row].NativeByte90 ?? targetSource.Records[row].NativeByte90 };
+        }
+        for (int id = 0; id < projected.GuardianForces.Length; id++)
+        {
+            projected.GuardianForces[id] = projected.GuardianForces[id] with { NativeOpaqueBytes = projected.GuardianForces[id].NativeOpaqueBytes ?? targetSource.GuardianForces[id].NativeOpaqueBytes };
+        }
+        return state with { CharacterVitals = projected };
     }
 
     private static byte[] ExportCore(GameState state)
@@ -87,6 +105,7 @@ public static partial class NativePcSaveConverter
                 D(start + 80, character.Junction.Commands);
                 D(start + 84, character.Junction.Abilities);
                 W(start + 88, character.Junction.GuardianForces);
+                block[Main + start + 90] = character.NativeByte90 ?? block[Main + start + 90];
                 Copy(start + 92, character.Junction.MagicJunctions);
                 for (int gf = 0; gf < 16; gf++)
                 {
@@ -102,6 +121,13 @@ public static partial class NativePcSaveConverter
                 NativeGuardianForceVital gf = vitals.GuardianForces[id];
                 int start = Main + id * 68;
                 WriteDWord(block, start + 12, gf.Experience);
+                if (gf.NativeOpaqueBytes is { } opaque)
+                {
+                    block[start + 16] = opaque.Byte16;
+                    block[start + 57] = opaque.Byte57;
+                    block[start + 58] = opaque.Byte58;
+                    block[start + 59] = opaque.Byte59;
+                }
                 block[start + 17] = gf.Flags;
                 WriteWord(block, start + 18, gf.HitPoints);
                 System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(block.AsSpan(start + 20), gf.LearnedBank.Low);
@@ -160,6 +186,7 @@ public static partial class NativePcSaveConverter
             EW(18, seed.KillBaseline18);
             EW(184, seed.SalaryDisplayCountdown184);
             EW(186, seed.PreviousRank186);
+            block[Main + 3299] = seed.TestLevel;
         }
         if (state.WorldControls is { } controls)
         {
@@ -198,6 +225,17 @@ public static partial class NativePcSaveConverter
         }
         block[Event + 204] = state.DiscProcess?.SavedDisc204 ?? 1;
         D(3200, state.Playtime?.Seconds ?? 0);
+        if (state.BattleStatistics is { } statistics)
+        {
+            D(3212, statistics.Victories);
+            W(3216, statistics.Defeats);
+            W(3218, statistics.Escapes);
+        }
+        if (state.RandomEncounters is { } encounters)
+        {
+            block[Main + 3339] = encounters.Native.FieldIndex;
+            block[Main + 3340] = encounters.Native.FieldOffset;
+        }
         if (state.InputConfiguration is { } input)
         {
             D(2708, input.Options);
@@ -205,6 +243,7 @@ public static partial class NativePcSaveConverter
             block[Main + 2704] = input.NativeBattleSpeedByte ?? 0;
             block[Main + 2705] = input.BattleMessageSpeed ?? 0;
             block[Main + 2706] = input.FieldMessageSpeedByte ?? 0;
+            block[Main + 2707] = input.SoundVolume ?? block[Main + 2707];
         }
         if (state.ShopHistory is { } shops)
         {
@@ -441,10 +480,19 @@ public static partial class NativePcSaveConverter
     {
         void Pose(int offset, NativeSavedWorldPose pose)
         {
+            ushort yaw = pose.Yaw;
+            if (state.Scene != SceneKind.WorldMap && state.SavedWorld?.UnsupportedEntry is { } unsupported)
+            {
+                NativeSavedWorldPose original = unsupported.Poses[offset / 12];
+                if (pose == (original with { Yaw = NativeSavedWorldAngleWords.Normalize(original.Yaw) }))
+                {
+                    yaw = original.Yaw;
+                }
+            }
             WriteDWord(block, World + offset, unchecked((uint)pose.X));
             WriteDWord(block, World + offset + 4, unchecked((uint)pose.RawZ));
             WriteWord(block, World + offset + 8, unchecked((ushort)pose.Height));
-            WriteWord(block, World + offset + 10, pose.Yaw);
+            WriteWord(block, World + offset + 10, yaw);
         }
         void Auxiliary(ushort camera, byte entity, byte animation, byte map)
         {
@@ -455,6 +503,29 @@ public static partial class NativePcSaveConverter
         }
         if (state.SavedWorld is { } saved)
         {
+            if (saved.UnsupportedEntry is { } unsupported)
+            {
+                for (int slot = 0; slot < 8; slot++)
+                {
+                    Pose(slot * 12, unsupported.Poses[slot]);
+                }
+                WriteWord(block, World + 96, unsupported.CameraWord96);
+                block[World + 104] = unsupported.EntryMode104;
+                block[World + 105] = unsupported.EntityType105;
+                block[World + 106] = unsupported.Channel106;
+                block[World + 107] = unsupported.Channel107;
+                block[World + 108] = unsupported.AnimationVariant108;
+                block[World + 110] = unsupported.MapDisplayMode110;
+            }
+            if (saved.EntryMode104 is byte mode)
+            {
+                block[World + 104] = mode;
+            }
+            if (saved.TerrainFlags109 is { } terrain)
+            {
+                terrain.Validate();
+                block[World + 109] = (byte)((block[World + 109] & ~terrain.KnownMask) | (terrain.Value & terrain.KnownMask));
+            }
             Pose(48, saved.Slot4.Pose);
             Pose(60, saved.Slot5.Pose);
             block[World + 98] = saved.Slot4.ShapeId;
@@ -530,8 +601,20 @@ public static partial class NativePcSaveConverter
                 Auxiliary(checked((ushort)world.CameraYaw), entity, world.NativeFootRuntime?.AnimationVariant ?? world.NativeGardenRuntime?.AnimationVariant ?? world.NativeRagnarokRuntime?.AnimationVariant ?? world.NativeCarRuntime?.AnimationVariant ?? 0, world.NativeFootRuntime?.MapDisplayMode ?? world.NativeGardenRuntime?.MapDisplayMode ?? world.NativeRagnarokRuntime?.MapDisplayMode ?? world.NativeCarRuntime?.MapDisplayMode ?? 0);
             }
         }
-        block[World + 106] = 255;
-        block[World + 107] = 255;
+        if (state.SavedWorld?.UnsupportedEntry is null || state.Scene == SceneKind.WorldMap)
+        {
+            block[World + 106] = 255;
+            block[World + 107] = 255;
+        }
+        if (state.SavedWorld?.OriginalAngleWords is { } angles && state.SavedWorld.UnsupportedEntry is null)
+        {
+            for (int slot = 0; slot < 8; slot++)
+            {
+                int offset = World + 12 * slot + 10;
+                WriteWord(block, offset, angles.ResolveBodyWord(slot, ReadWord(block, offset)));
+            }
+            WriteWord(block, World + 96, angles.ResolveCameraWord(ReadWord(block, World + 96)));
+        }
     }
 
     private static void UpdatePreview(byte[] block, GameState state)

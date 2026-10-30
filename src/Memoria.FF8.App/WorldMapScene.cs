@@ -79,6 +79,7 @@ internal sealed partial class WorldMapScene : IDisposable
             NativeSavedWorldFootReturn? reload = null;
             NativeFootWorldRuntimeState? initialFootRuntime = null;
             NativeCarWorldRuntimeState? initialCarRuntime = null;
+            NativeSavedWorldCarReturn? carReload = null;
             NativeSavedWorldState? carSavedDeparture = null;
             if (scripted)
             {
@@ -89,14 +90,22 @@ internal sealed partial class WorldMapScene : IDisposable
             }
             else if (car)
             {
-                if (entry == 62 || unchecked((sbyte)arrival.Extra) != -1)
+                if (unchecked((sbyte)arrival.Extra) != -1)
                 {
-                    throw new NotSupportedException("Native car saved-position or scripted-route entry is outside the ordinary car contract.");
+                    throw new NotSupportedException("Native car scripted-route entry is outside the ordinary car contract.");
                 }
                 if (session.State.World is null)
                 {
                     carSavedDeparture = session.State.SavedWorld;
-                    session.SetSavedWorldState(session.State.SavedWorld.WithOrdinaryCarEntry(unchecked((byte)arrival.Mode)));
+                    if (entry == 62)
+                    {
+                        carReload = carSavedDeparture.CarReturn ?? throw new NotSupportedException("Native car entry62 requires its actual saved-position owner.");
+                        session.SetSavedWorldState(carSavedDeparture.WithSavedCarEntry(unchecked((byte)arrival.Mode)));
+                    }
+                    else
+                    {
+                        session.SetSavedWorldState(carSavedDeparture.WithOrdinaryCarEntry(unchecked((byte)arrival.Mode)));
+                    }
                 }
                 else if (session.State.World.NativeCarRuntime is null)
                 {
@@ -183,9 +192,9 @@ internal sealed partial class WorldMapScene : IDisposable
                     throw new InvalidDataException($"Original world spawn {entry} is absent.");
                 }
                 WorldSpawn spawn = reload is not null || entry == 62 ? default : assets.Spawns[entry];
-                int x = reload?.Pose0.X ?? spawn.X;
-                int z = reload?.Pose0.RawZ ?? spawn.Z;
-                int height = reload?.Pose0.Height ?? spawn.NativeHeight;
+                int x = carReload?.Pose.X ?? reload?.Pose0.X ?? spawn.X;
+                int z = carReload?.Pose.RawZ ?? reload?.Pose0.RawZ ?? spawn.Z;
+                int height = carReload?.Pose.Height ?? reload?.Pose0.Height ?? spawn.NativeHeight;
                 ushort mask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte);
                 replacements = WorldTerrainSelection.Replacements(mask);
                 WorldGround? ground;
@@ -195,8 +204,12 @@ internal sealed partial class WorldMapScene : IDisposable
                     NativeWorldProcess carProcess = session.State.WorldProcess ?? throw new NotSupportedException("Native car loader requires its executed process camera-follow owner.");
                     carProcess.Validate();
                     byte carType = unchecked((byte)arrival.Mode);
-                    NativeWorldFootCameraState? carProjection = carType is 32 or 35 ? new NativeWorldFootCameraState(x, z, height, x, z, height - 256, (spawn.Unknown & 255) * 16, -112, -341, -7168) : null;
+                    NativeWorldFootCameraState? carProjection = carType is 32 or 35 ? new NativeWorldFootCameraState(x, z, height, x, z, height - 256, carReload?.CameraYaw96 ?? (spawn.Unknown & 255) * 16, -112, -341, -7168) : null;
                     initialCarRuntime = NativeCarWorldRuntimeState.Create(carSavedDeparture!, CreateFreshGroundCache(initialGround.Identity), carProcess, carType, carType is 32 or 35 ? assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265) : null, carProjection);
+                    if (carReload is not null)
+                    {
+                        initialCarRuntime = initialCarRuntime with { AnimationVariant = carReload.AnimationVariant108 };
+                    }
                     ground = initialGround.Ground;
                 }
                 else
@@ -211,8 +224,8 @@ internal sealed partial class WorldMapScene : IDisposable
                     X = x,
                     Z = z,
                     NativeHeight = height,
-                    CameraYaw = reload?.CameraYaw96 ?? (spawn.Unknown & 255) * 16,
-                    BodyYaw = reload?.Pose0.Yaw ?? (spawn.Unknown >> 8) * 16,
+                    CameraYaw = carReload?.CameraYaw96 ?? reload?.CameraYaw96 ?? (spawn.Unknown & 255) * 16,
+                    BodyYaw = carReload?.Pose.Yaw ?? reload?.Pose0.Yaw ?? (spawn.Unknown >> 8) * 16,
                     CameraTargetX = x,
                     CameraTargetZ = z,
                     CameraTargetNativeHeight = height - 256,
@@ -559,6 +572,10 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         if (fieldEntry is not null)
         {
+            if (candidate.NativeScriptedRuntime is null)
+            {
+                salary = PrepareSavedTerrainFlag(candidate, salary, fieldDeparture: true);
+            }
             if (PrepareFieldEntry is null)
             {
                 throw new NotSupportedException($"Original world field entry {fieldEntry.Entry.Index}/field{fieldEntry.Entry.FieldId} has no prepared field backend.");

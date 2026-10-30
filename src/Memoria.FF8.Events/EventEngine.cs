@@ -109,6 +109,7 @@ public sealed partial class EventEngine
         ValidatePreviousFieldLoad(previousFieldId);
         ValidatePreviousWorldEntityLoad(fieldId, jsm, worldEntityAllocationContext);
         ValidateNativeMusicFieldLoad(nativeRuntimeProfile);
+        NativeEventMemory? battleCounterMirrors = PrepareNativeBattleCounterMirrors(nativeRuntimeProfile, restoringCheckpoint);
         JsmProgram next = JsmProgram.Read(jsm);
         string nextHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(jsm));
         if (!restoringCheckpoint && program is not null)
@@ -176,7 +177,7 @@ public sealed partial class EventEngine
         // Native field initialization clears the 256 temporary bytes at variable offset 0x400.
         if (!restoringCheckpoint)
         {
-            SetEventMemory(EventMemory.Clear(1024, 1280));
+            SetEventMemory((battleCounterMirrors ?? EventMemory).Clear(1024, 1280));
         }
         SceneEventState previousScene = Scene;
         Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, PartyPower = previousScene.PartyPower, PlaceId = inheritedPlaceId ?? previousScene.PlaceId };

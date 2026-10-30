@@ -18,6 +18,16 @@ public sealed class SaveTransferCommandTests : IDisposable
         Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.ff8", "--output", "new.ff8", "--model-source-dir", models], false));
     }
 
+    [Fact]
+    public void ExportCanDeclareTargetGameDefinitionsAndExplicitGuardianForceLoss()
+    {
+        SaveTransferCommand.Options options = SaveTransferCommand.Parse(["source.json", "--output", "out.ff8", "--game-dir", "game", "--allow-gf-loss"], false);
+        Assert.Equal(Path.GetFullPath("game"), options.GameDirectory);
+        Assert.True(options.AllowGuardianForceLoss);
+        Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.json", "--output", "out.ff8", "--game-dir", "game", "--allow-gf-loss", "--allow-gf-loss"], false));
+        Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.ff8", "--output", "out.json", "--game-dir", "game", "--allow-gf-loss"], true));
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -39,7 +49,7 @@ public sealed class SaveTransferCommandTests : IDisposable
         Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.ff8", "--output", "out.json", "--force"], true));
         Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.ff8", "--output", "one.json", "--output", "two.json"], true));
         Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.ff8", "--output", "out.json", "--game-dir", "one", "--game-dir", "two"], true));
-        Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.json", "--output", "out.ff8", "--game-dir", "game"], false));
+        Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.json", "--output", "out.ff8", "--allow-gf-loss"], false));
         Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.json", "--output", "out.ff8", "--mods-dir", "mods"], false));
         Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.ff8", "--output", "out.json", "--mods-dir", "one", "--mods-dir", "two"], true));
     }

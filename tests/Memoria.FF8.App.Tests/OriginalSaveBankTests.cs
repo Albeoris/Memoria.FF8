@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-public sealed class OriginalSaveBankTests : IDisposable
+public sealed partial class OriginalSaveBankTests : IDisposable
 {
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-original-banks-" + Guid.NewGuid().ToString("N"));
 

@@ -102,13 +102,7 @@ internal sealed partial class WorldMapScene
             case 0xFF20:
                 return eventUi?.CloseSuppressedThisCallback == true ? false : callbackInput?.Matches(operand);
             case 0xFF21:
-                //544860 copies event BYTE271 to saved-world BYTE109. The normal gameplay callback has no2040A34 preview override.
-                NativeScalarValue flag109 = session.State.EventMemory.Read(271, 1);
-                if (!flag109.IsExact)
-                {
-                    throw new NotSupportedException("World predicate FF21 requires the exact executed event BYTE271 value.");
-                }
-                return WorldFieldEntryReader.MatchesSavedWorldFlag109(checked((byte)flag109.Values[0]), operand);
+                return saved.MatchesTerrainFlags109(operand);
             case 0xFF25:
                 return (state.NativeRagnarokRuntime?.Transfer is not null ? scriptMode : eventUi?.ScriptMode ?? scriptMode) == operand;
             case 0xFF2C:

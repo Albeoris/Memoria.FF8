@@ -93,8 +93,8 @@ public sealed partial class WorldAssets
                         throw new NotSupportedException("Retained native Garden cache/input alternatives disagree on published ground, pose or contact authority.");
                     }
                     physical ??= outcome;
-                    NativeWorldGroundAlternative next = new(blocked ? selection : chosen, cache.ToArray(), committedCenter?.Identity ?? alternative.CurrentGround, groundCommitted ? alternative.CurrentGround : alternative.PreviousGround) { FailedSelections = failedSelections };
-                    if (!alternatives.Any(existing => existing.PreferredGroup == next.PreferredGroup && existing.FailedSelections == next.FailedSelections && existing.CurrentGround == next.CurrentGround && existing.PreviousGround == next.PreviousGround && existing.Entries.SequenceEqual(next.Entries)))
+                    NativeWorldGroundAlternative next = new(blocked ? selection : chosen, cache.ToArray(), committedCenter?.Identity ?? alternative.CurrentGround, groundCommitted ? alternative.CurrentGround : alternative.PreviousGround) { FailedSelections = failedSelections, TerrainFlag109Bit0 = groundCommitted ? (ResolveNativeGroundIdentity(alternative.CurrentGround, replacements).TextureFlags & 8) != 0 : alternative.TerrainFlag109Bit0 };
+                    if (!alternatives.Any(existing => existing.PreferredGroup == next.PreferredGroup && existing.FailedSelections == next.FailedSelections && existing.TerrainFlag109Bit0 == next.TerrainFlag109Bit0 && existing.CurrentGround == next.CurrentGround && existing.PreviousGround == next.PreviousGround && existing.Entries.SequenceEqual(next.Entries)))
                     {
                         alternatives.Add(next);
                     }

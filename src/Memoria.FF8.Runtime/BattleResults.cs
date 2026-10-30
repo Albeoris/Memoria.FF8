@@ -42,6 +42,7 @@ public sealed record BattlePartyResult([property: JsonRequired] byte Row, [prope
 public sealed partial record BattleResult([property: JsonRequired] BattleEncounterOccurrence Encounter, [property: JsonRequired] BattleOutcome Outcome, [property: JsonRequired] BattlePartyResult[] Party, [property: JsonRequired] BattleItemConsumption[] ItemConsumptions, [property: JsonRequired] int[] DefeatedEnemySlots, [property: JsonRequired] int[] RewardEligibleGuardianForceIds, [property: JsonRequired] bool DebugVictory, [property: JsonRequired] BattleRewardPolicy RewardPolicy, [property: JsonRequired] BattleEnemyDefeat[] EnemyDefeats)
 {
     public GameplayTuning Tuning { get; init; } = new();
+    public byte? NativeResult { get; init; }
     public BattleNativeGrowthChange[] NativeGrowthChanges { get; init; } = [];
     public BattleNativeCardChange? NativeCardChange { get; init; }
     public ChocoboRewardLedger? ChocoboRewardsBefore { get; init; }
@@ -107,6 +108,10 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         if (GuardianForceChanges is null || GuardianForceChanges.Any(change => change is null || change.Id is < 0 or >= 16 || change.HitPointsBefore == change.HitPointsAfter) || GuardianForceChanges.Select(change => change.Id).Distinct().Count() != GuardianForceChanges.Length)
         {
             throw new InvalidDataException("Battle GF HP changes require unique before/after owners.");
+        }
+        if (NativeResult is byte nativeResult && (nativeResult is < 1 or > 5 || RewardPolicy != BattleRewardPolicy.NativeCombat || Outcome == BattleOutcome.Victory && nativeResult != 4 || Outcome == BattleOutcome.Escaped && nativeResult != 2 || Outcome is BattleOutcome.Defeat or BattleOutcome.ScriptedExit && nativeResult is not (1 or 3 or 5)))
+        {
+            throw new InvalidDataException("Battle result counter receipt contradicts its native completion.");
         }
         (NativeScriptEffects ?? throw new InvalidDataException("Battle script effects are missing.")).Validate();
         if (RewardPolicy == BattleRewardPolicy.NativeCombat && (Outcome == BattleOutcome.ScriptedExit) != NativeScriptEffects.ScriptedExitRequested)

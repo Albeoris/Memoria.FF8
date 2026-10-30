@@ -15,6 +15,8 @@ public sealed record NativeInputConfiguration([property: JsonRequired] string In
     public byte? NativeBattleSpeedByte { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? FieldMessageSpeedByte { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? SoundVolume { get; init; }
 
     public void Validate()
     {

@@ -20,6 +20,8 @@ public sealed record NativeWorldGroundIdentity([property: JsonRequired] int MapI
 public sealed record NativeWorldGroundAlternative([property: JsonRequired] int PreferredGroup, [property: JsonRequired] NativeWorldGroundIdentity[] Entries, [property: JsonRequired] NativeWorldGroundIdentity CurrentGround, [property: JsonRequired] NativeWorldGroundIdentity PreviousGround)
 {
     public int? FailedSelections { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? TerrainFlag109Bit0 { get; init; }
 }
 
 public sealed record NativeWorldGroundSelectionAlternative([property: JsonRequired] int PreferredGroup, [property: JsonRequired] int? FailedSelections);
@@ -87,7 +89,7 @@ public sealed record NativeWorldGroundCacheState
                 }
                 continue;
             }
-            if (first.PreferredGroup != second.PreferredGroup || first.FailedSelections != second.FailedSelections || first.CurrentGround != second.CurrentGround || first.PreviousGround != second.PreviousGround)
+            if (first.PreferredGroup != second.PreferredGroup || first.FailedSelections != second.FailedSelections || first.TerrainFlag109Bit0 != second.TerrainFlag109Bit0 || first.CurrentGround != second.CurrentGround || first.PreviousGround != second.PreviousGround)
             {
                 return false;
             }

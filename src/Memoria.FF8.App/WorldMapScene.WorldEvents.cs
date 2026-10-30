@@ -7,6 +7,7 @@ internal sealed partial class WorldMapScene
 {
     private WorldFieldSelection? SelectWorldCallback(WorldState accepted, WorldState cameraState, byte scriptMode, ref NativeWorldSalaryState salary, uint currentButtons, bool? activity = null)
     {
+        salary = PrepareSavedTerrainFlag(accepted, salary);
         if (NativeWorldEntryControl.DelayAfterCallback(accepted.Frame, 0) > 0)
         {
             return null;

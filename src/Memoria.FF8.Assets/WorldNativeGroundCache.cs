@@ -174,8 +174,8 @@ public sealed partial class WorldAssets
                     center ??= committed;
                     bool countFailure = blocked && (footprintContact is null || !contactBlocked);
                     int? failures = blocked ? countFailure && alternative.FailedSelections is int count ? unchecked(count + 1) : alternative.FailedSelections : 0;
-                    NativeWorldGroundAlternative nextAlternative = new(rejected ? selection : chosen, cache.ToArray(), committed?.Identity ?? alternative.CurrentGround, publication ? alternative.CurrentGround : alternative.PreviousGround) { FailedSelections = failures };
-                    if (!alternatives.Any(existing => existing.PreferredGroup == nextAlternative.PreferredGroup && existing.FailedSelections == nextAlternative.FailedSelections && existing.CurrentGround == nextAlternative.CurrentGround && existing.PreviousGround == nextAlternative.PreviousGround && existing.Entries.SequenceEqual(nextAlternative.Entries)))
+                    NativeWorldGroundAlternative nextAlternative = new(rejected ? selection : chosen, cache.ToArray(), committed?.Identity ?? alternative.CurrentGround, publication ? alternative.CurrentGround : alternative.PreviousGround) { FailedSelections = failures, TerrainFlag109Bit0 = publication ? (ResolveNativeGroundIdentity(alternative.CurrentGround, replacements).TextureFlags & 8) != 0 : alternative.TerrainFlag109Bit0 };
+                    if (!alternatives.Any(existing => existing.PreferredGroup == nextAlternative.PreferredGroup && existing.FailedSelections == nextAlternative.FailedSelections && existing.TerrainFlag109Bit0 == nextAlternative.TerrainFlag109Bit0 && existing.CurrentGround == nextAlternative.CurrentGround && existing.PreviousGround == nextAlternative.PreviousGround && existing.Entries.SequenceEqual(nextAlternative.Entries)))
                     {
                         alternatives.Add(nextAlternative);
                     }

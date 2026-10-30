@@ -19,11 +19,12 @@ public sealed record NativeHpWord([property: JsonRequired] ushort Minimum, [prop
 
 public sealed record NativeCharacterVital([property: JsonRequired] byte CharacterId, [property: JsonRequired] NativeHpWord HitPoints, [property: JsonRequired] ushort Status, [property: JsonRequired] NativeCharacterJunction Junction, [property: JsonRequired] uint Experience, [property: JsonRequired] ushort HitPointBonus, [property: JsonRequired] byte Weapon, [property: JsonRequired] byte[] StatBonuses, [property: JsonRequired] NativeMagicStock[] MagicInventory, [property: JsonRequired] ushort MemberFlags, [property: JsonRequired] ushort KillCount)
 {
+    public byte? NativeByte90 { get; init; }
     public ushort? DeathCount { get; init; }
     public ushort[]? GuardianForceCompatibility { get; init; }
     public bool Equals(NativeCharacterVital? other)
     {
-        return other is not null && CharacterId == other.CharacterId && HitPoints == other.HitPoints && Status == other.Status && Junction == other.Junction && Experience == other.Experience && HitPointBonus == other.HitPointBonus && Weapon == other.Weapon && MemberFlags == other.MemberFlags && KillCount == other.KillCount && DeathCount == other.DeathCount && StatBonuses.AsSpan().SequenceEqual(other.StatBonuses) && MagicInventory.SequenceEqual(other.MagicInventory) && (GuardianForceCompatibility is null ? other.GuardianForceCompatibility is null : other.GuardianForceCompatibility is not null && GuardianForceCompatibility.AsSpan().SequenceEqual(other.GuardianForceCompatibility));
+        return other is not null && CharacterId == other.CharacterId && HitPoints == other.HitPoints && Status == other.Status && Junction == other.Junction && Experience == other.Experience && HitPointBonus == other.HitPointBonus && Weapon == other.Weapon && MemberFlags == other.MemberFlags && KillCount == other.KillCount && DeathCount == other.DeathCount && NativeByte90 == other.NativeByte90 && StatBonuses.AsSpan().SequenceEqual(other.StatBonuses) && MagicInventory.SequenceEqual(other.MagicInventory) && (GuardianForceCompatibility is null ? other.GuardianForceCompatibility is null : other.GuardianForceCompatibility is not null && GuardianForceCompatibility.AsSpan().SequenceEqual(other.GuardianForceCompatibility));
     }
 
     public override int GetHashCode()
@@ -39,6 +40,7 @@ public sealed record NativeCharacterVital([property: JsonRequired] byte Characte
         hash.Add(MemberFlags);
         hash.Add(KillCount);
         hash.Add(DeathCount);
+        hash.Add(NativeByte90);
         foreach (byte bonus in StatBonuses)
         {
             hash.Add(bonus);

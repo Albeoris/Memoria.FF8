@@ -180,15 +180,12 @@ public sealed partial class NativePcSaveConverterTests
     }
 
     [Fact]
-    public void Unsupported_world_entity_normalizes_to_a_default_foot_loader_with_saved_progress()
+    public void Unsupported_active_world_entity_refuses_instead_of_substituting_a_foot_loader()
     {
         GameState source = Defaults() with { Scene = SceneKind.WorldMap, FieldId = 165, PreviousFieldId = 165, FieldLoadContext = null, WorldArrival = new WorldTransition(62, 0, -1), World = new WorldState { X = 100, Z = 200, NativeHeight = 3, BodyYaw = 4, CameraYaw = 5 } };
         NativePcSaveData data = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(source));
-        data.Block[NativePcSaveData.MainOffset + 4624 + 105] = 33;
-        GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture", "en");
-        Assert.Equal(new WorldTransition(62, 0, -1), imported.WorldArrival);
-        Assert.Equal(new NativeSavedWorldPose(100, 200, 3, 4), imported.SavedWorld!.FootReturn!.Pose0);
-        Assert.Equal(source.Economy!.Gil, imported.Economy!.Gil);
+        data.Block[NativePcSaveData.MainOffset + 4624 + 105] = 34;
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture", "en"));
     }
 
     [Fact]
@@ -251,7 +248,7 @@ public sealed partial class NativePcSaveConverterTests
     }
 
     [Fact]
-    public void Imported_field_defaults_an_unrepresentable_saved_camera_without_changing_its_valid_world_pose()
+    public void Imported_field_retains_raw_camera_and_uses_its_equivalent_operational_angle()
     {
         NativePcSaveData data = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(Defaults()));
         int world = NativePcSaveData.MainOffset + 4624;
@@ -262,8 +259,11 @@ public sealed partial class NativePcSaveConverterTests
         BinaryPrimitives.WriteUInt16LittleEndian(data.Block.AsSpan(world + 96), 0xF9C5);
         GameState imported = NativePcSaveConverter.Import(NativePcSaveCodec.Encode(data), Defaults(), _ => "fixture", "en");
         Assert.Equal(new NativeSavedWorldPose(2855, -23150, 683, 3113), imported.SavedWorld!.FootReturn!.Pose0);
-        Assert.Equal((ushort)0, imported.SavedWorld.FootReturn.CameraYaw96);
+        Assert.Equal((ushort)2501, imported.SavedWorld.FootReturn.CameraYaw96);
+        Assert.Equal((ushort)0xF9C5, imported.SavedWorld.OriginalAngleWords!.CameraWord);
         Assert.Equal((ushort)0xF9C5, BinaryPrimitives.ReadUInt16LittleEndian(imported.OriginalSave!.Block.AsSpan(world + 96)));
+        NativePcSaveData exported = NativePcSaveCodec.Decode(NativePcSaveConverter.Export(imported));
+        Assert.Equal((ushort)0xF9C5, BinaryPrimitives.ReadUInt16LittleEndian(exported.Block.AsSpan(world + 96)));
     }
 
     [Fact]

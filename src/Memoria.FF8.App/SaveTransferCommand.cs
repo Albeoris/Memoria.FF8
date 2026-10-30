@@ -49,8 +49,21 @@ internal static class SaveTransferCommand
         else
         {
             GameState state = GameSession.Load(options.SourcePath);
-            byte[] original = NativePcSaveConverter.Export(state);
-            WriteNewOutput(options.OutputPath, temporary => File.WriteAllBytes(temporary, original));
+            byte[] original;
+            if (options.GameDirectory is { } gameDirectory)
+            {
+                if (!Directory.Exists(gameDirectory))
+                {
+                    throw new DirectoryNotFoundException("Export requires the selected installed game directory.");
+                }
+                using GameAssets assets = new(gameDirectory);
+                original = NativePcSaveConverter.Export(state, assets.ReadNewGameCharacterVitals(), options.AllowGuardianForceLoss);
+            }
+            else
+            {
+                original = NativePcSaveConverter.Export(state);
+            }
+            WriteNewOutput(options.OutputPath, temporary => File.WriteAllBytes(temporary, original), original: true);
             Console.WriteLine($"Exported original PC save to {options.OutputPath}");
         }
         return 0;
@@ -67,10 +80,20 @@ internal static class SaveTransferCommand
         string? gameDirectory = null;
         string? modsDirectory = null;
         string? modelSourceDirectory = null;
+        bool allowGuardianForceLoss = false;
         for (int index = 1; index < args.Length; index++)
         {
             string argument = args[index];
-            if (argument != "--output" && (!import || argument is not ("--game-dir" or "--mods-dir" or "--model-source-dir")))
+            if (argument == "--allow-gf-loss" && !import)
+            {
+                if (allowGuardianForceLoss)
+                {
+                    throw new ArgumentException("Specify --allow-gf-loss only once.");
+                }
+                allowGuardianForceLoss = true;
+                continue;
+            }
+            if (argument is not ("--output" or "--game-dir") && (!import || argument is not ("--mods-dir" or "--model-source-dir")))
             {
                 throw new ArgumentException($"Unknown save transfer argument: {argument}");
             }
@@ -124,10 +147,14 @@ internal static class SaveTransferCommand
         {
             gameDirectory = Path.GetFullPath(LaunchOptions.ConfiguredGameDirectory);
         }
-        return new(source, output, gameDirectory, modsDirectory, modelSourceDirectory);
+        if (allowGuardianForceLoss && gameDirectory is null)
+        {
+            throw new ArgumentException("Export with --allow-gf-loss requires --game-dir to declare the original GF definitions.");
+        }
+        return new(source, output, gameDirectory, modsDirectory, modelSourceDirectory, allowGuardianForceLoss);
     }
 
-    private static void WriteNewOutput(string output, Action<string> write)
+    private static void WriteNewOutput(string output, Action<string> write, bool original = false)
     {
         string directory = Path.GetDirectoryName(output)!;
         Directory.CreateDirectory(directory);
@@ -135,7 +162,14 @@ internal static class SaveTransferCommand
         try
         {
             write(temporary);
-            File.Move(temporary, output, overwrite: false);
+            if (original)
+            {
+                OriginalSavePublication.Publish(temporary, output, overwrite: false);
+            }
+            else
+            {
+                File.Move(temporary, output, overwrite: false);
+            }
         }
         finally
         {
@@ -146,5 +180,5 @@ internal static class SaveTransferCommand
         }
     }
 
-    internal sealed record Options(string SourcePath, string OutputPath, string? GameDirectory, string? ModsDirectory, string? ModelSourceDirectory = null);
+    internal sealed record Options(string SourcePath, string OutputPath, string? GameDirectory, string? ModsDirectory, string? ModelSourceDirectory = null, bool AllowGuardianForceLoss = false);
 }

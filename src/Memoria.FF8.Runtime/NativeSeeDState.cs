@@ -25,6 +25,7 @@ public sealed record NativeSeeDState
     public required ushort PreviousRank186 { get; init; }
     [JsonRequired]
     public required NativeSalaryTable? SalaryTable { get; init; }
+    public byte TestLevel { get; init; }
 
     public static NativeSeeDState CreateNewGame(NativeSeeDState? previousProcessState = null)
     {

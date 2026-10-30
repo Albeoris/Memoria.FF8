@@ -32,6 +32,8 @@ public sealed class NativeWorldGroundContactTests
         Assert.Equal(clear.Cache.Alternatives[0].Entries, result.Entries);
         Assert.NotEmpty(result.Entries);
         Assert.Equal(before, JsonSerializer.Serialize(prior));
+        Assert.Equal((source.Ground.Triangle.TextureFlags & 8) != 0, Assert.Single(clear.Cache.Alternatives).TerrainFlag109Bit0);
+        Assert.Null(result.TerrainFlag109Bit0);
     }
 
     [Fact]

@@ -7,6 +7,35 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeCarWorldTests
 {
+    [Theory]
+    [InlineData(32, 61, 455, 1)]
+    [InlineData(33, 63, 40, 128)]
+    [InlineData(35, 3, 300, 1)]
+    public void SavedCarEntry62UsesItsPhysicalPoseAndAuxiliaries(byte entity, short spawn, ushort story, byte flags265)
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
+        GameSession source = GameSession.CreateColdProcess();
+        InitializeNativeOwners(source, directory);
+        source.Restore(source.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(spawn, entity, -1), FieldLoadContext = null, WorldEntryMemory = source.State.WorldEntryMemory!.WriteBytes(256, 2, story).WriteBytes(264, 1, 8).WriteBytes(265, 1, flags265) });
+        using WorldMapScene first = new(source, directory);
+        WorldState physical = first.State with { BodyYaw = 165, CameraYaw = 199 };
+        NativeSavedWorldCarReturn receipt = NativeSavedWorldCarReturn.Create(physical, 262, story, 0);
+        NativeSavedWorldState saved = source.State.SavedWorld!.WithCarReturn(receipt);
+        GameSession reloaded = new(source.State with { World = null, WorldArrival = new WorldTransition(62, entity, -1), SavedWorld = saved });
+        using WorldMapScene scene = new(reloaded, directory);
+        Assert.Equal((physical.X, physical.Z, physical.NativeHeight), (scene.State.X, scene.State.Z, scene.State.NativeHeight));
+        Assert.Equal(165, scene.State.BodyYaw);
+        Assert.Equal(199, scene.State.CameraYaw);
+        Assert.Equal(entity, scene.State.NativeCarRuntime!.EntityType);
+        Assert.Equal(NativeCarWorldRuntimeState.ShapeForEntity(entity), reloaded.State.SavedWorld!.Slot4.ShapeId);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        GameSession cold = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(reloaded.State))!);
+        using WorldMapScene restored = new(cold, directory);
+        Assert.Equal(scene.State.X, restored.State.X);
+        Assert.Equal(scene.State.Z, restored.State.Z);
+    }
+
     [Fact]
     public void FullMapAdvancesTheCarMotorButRetainsGroundPositionAndSaveNormalization()
     {

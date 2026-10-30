@@ -8,6 +8,19 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeGroundWorldPredicateTests
 {
     [Fact]
+    public void TerrainEntrancePredicateReadsTheSavedByteInsteadOfEvent271()
+    {
+        GameSession session = UniformEntry();
+        session.Restore(session.State with { EventMemory = session.State.EventMemory.Write(271, 1, NativeScalarValue.Exact(0)) });
+        using WorldMapScene scene = new(session, TestResources.GameDirectory);
+        NativeSavedWorldState saved = session.State.SavedWorld! with { TerrainFlags109 = NativeWorldTerrainFlags109.Exact(0xA5) };
+        Assert.True(scene.EvaluateWorldEventPredicate(scene.State, 0, saved, 0xFF21, 1));
+        Assert.False(scene.EvaluateWorldEventPredicate(scene.State, 0, saved, 0xFF21, 0));
+        Assert.False(scene.EvaluateWorldEventPredicate(scene.State, 0, saved, 0xFF21, 0x101));
+        Assert.Throws<NotSupportedException>(() => scene.EvaluateWorldEventPredicate(scene.State, 0, saved with { TerrainFlags109 = null }, 0xFF21, 0));
+    }
+
+    [Fact]
     public void GroundTypeMatchesOnlyTheLowOperandByte()
     {
         GameSession session = UniformEntry();

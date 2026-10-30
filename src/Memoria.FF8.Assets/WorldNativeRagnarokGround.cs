@@ -64,8 +64,8 @@ public sealed partial class WorldAssets
                     }
                     physical ??= outcome;
                     int? failures = terrainBlocked ? !primaryBlocked && alternative.FailedSelections is int failed ? unchecked(failed + 1) : alternative.FailedSelections : 0;
-                    var next = new NativeWorldGroundAlternative(blocked ? selection : chosen, cache.ToArray(), committedCenter?.Identity ?? alternative.CurrentGround, groundCommitted ? alternative.CurrentGround : alternative.PreviousGround) { FailedSelections = failures };
-                    if (!alternatives.Any(existing => existing.PreferredGroup == next.PreferredGroup && existing.FailedSelections == next.FailedSelections && existing.CurrentGround == next.CurrentGround && existing.PreviousGround == next.PreviousGround && existing.Entries.SequenceEqual(next.Entries)))
+                    var next = new NativeWorldGroundAlternative(blocked ? selection : chosen, cache.ToArray(), committedCenter?.Identity ?? alternative.CurrentGround, groundCommitted ? alternative.CurrentGround : alternative.PreviousGround) { FailedSelections = failures, TerrainFlag109Bit0 = groundCommitted ? (ResolveNativeGroundIdentity(alternative.CurrentGround, replacements).TextureFlags & 8) != 0 : alternative.TerrainFlag109Bit0 };
+                    if (!alternatives.Any(existing => existing.PreferredGroup == next.PreferredGroup && existing.FailedSelections == next.FailedSelections && existing.TerrainFlag109Bit0 == next.TerrainFlag109Bit0 && existing.CurrentGround == next.CurrentGround && existing.PreviousGround == next.PreviousGround && existing.Entries.SequenceEqual(next.Entries)))
                     {
                         alternatives.Add(next);
                     }

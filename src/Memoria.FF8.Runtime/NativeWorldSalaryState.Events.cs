@@ -8,6 +8,12 @@ public sealed partial record NativeWorldSalaryState
     private NativeSavedWorldGardenReturn? CameraToggleGardenReturn { get; init; }
     private NativeSavedWorldRagnarokReturn? CameraToggleRagnarokReturn { get; init; }
 
+    public NativeWorldSalaryState WithTerrainEntranceFlag(bool? entrance)
+    {
+        NativeSavedWorldState saved = SavedWorldEvents ?? throw new NotSupportedException("World terrain publication requires its saved-world owner.");
+        return this with { SavedWorldEvents = saved.WithTerrainEntranceFlag(entrance) };
+    }
+
     public NativeWorldSalaryState WithFootCameraToggle(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId)
     {
         NativeSavedWorldState saved = SavedWorldEvents ?? throw new NotSupportedException("Camera mode saving requires the actual saved-world owner.");
@@ -98,7 +104,8 @@ public sealed partial record NativeWorldSalaryState
             FuelDistance112 = FuelDistance112,
             WorldEventFlags116 = SavedWorldEvents?.WorldEventFlags116,
             WorldEventVariable124 = SavedWorldEvents?.WorldEventVariable124,
-            WorldEventVariable125 = SavedWorldEvents?.WorldEventVariable125
+            WorldEventVariable125 = SavedWorldEvents?.WorldEventVariable125,
+            TerrainFlags109 = SavedWorldEvents?.TerrainFlags109
         };
     }
 }
