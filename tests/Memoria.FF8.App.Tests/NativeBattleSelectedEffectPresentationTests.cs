@@ -102,7 +102,17 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                     int afterHp = current.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
                     if (beforeHp != afterHp)
                     {
-                        Assert.Equal(Math.Max(0, beforeHp - selectedContact.Primary.Amount6), afterHp);
+                        if (effect == 7)
+                        {
+                            Assert.NotEqual(0, selectedContact.Primary.HitFlags3 & 1);
+                            Assert.Equal(0, beforeHp);
+                            Assert.Equal(selectedContact.Primary.Amount6, afterHp);
+                            Assert.Equal(source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == selectedContact.Primary.ActorIndex).CurrentHp, afterHp);
+                        }
+                        else
+                        {
+                            Assert.Equal(Math.Max(0, beforeHp - selectedContact.Primary.Amount6), afterHp);
+                        }
                         contactTransitions++;
                         Cold("contact", current);
                     }
