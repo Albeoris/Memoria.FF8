@@ -76,6 +76,7 @@ public static partial class NativeBattleEffect326Controller
             ring = ring == 0 ? 9 : ring - 1;
         }
         frame = WriteBytes(frame, 0x24F2180, history, 200);
+        NativeBattleEffect326Presentation.RecordedHistory(frame, inputs, checked(0x24F2180u + (uint)((age % 10) * 20)), age);
         frame = WriteBytes(frame, 0x24F0BD0, firstControls, 80);
         frame = WriteBytes(frame, 0x24F0C28, secondControls, 80);
         if (count > 1)
@@ -96,11 +97,11 @@ public static partial class NativeBattleEffect326Controller
             }
             frame = Release(frame, 400);
             frame = LoadMatrix(frame, ReadPacked(frame, 0x24F2268));
-            NativeBattleRibbonPair72Step drawn = NativeBattleRibbonPair72.DrawLoaded(frame.Memory, ReadBytes(frame, 0x24F1068, 256), ReadBytes(frame, 0x24F1168, 256), context, inputs.ReadProjection(frame), inputs.Colors, 0x3A903030);
+            NativeBattleRibbonPair72Step drawn = NativeBattleRibbonPair72.DrawLoaded(frame.Memory, ReadBytes(frame, 0x24F1068, 256), ReadBytes(frame, 0x24F1168, 256), context, inputs.ReadProjection(frame), inputs.Colors, 0x3A903030, pilotIdentity: NativeBattleEffect326Presentation.Ribbon(frame, inputs, age % 10, count));
             frame = frame with { Memory = drawn.Memory };
             context = drawn.Temporary64;
             frame = PublishContext(frame, temporary, context, 64);
-            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(drawn.Batch, 0x1D8E054));
+            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, 0x1D8E054));
         }
         else
         {
@@ -136,10 +137,10 @@ public static partial class NativeBattleEffect326Controller
         {
             (frame, uint temporary) = Allocate(frame, 88);
             NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0xE18B38u)).Write(8, new byte[4]).Write(0x1C, BitConverter.GetBytes(0x33u));
-            NativeBattleDefaultActMeshStep drawn = NativeBattleEffect326MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0xE18B38), inputs.ReadProjection(frame), context, inputs.Colors, 14, tableBaseBucket: tableBase);
+            NativeBattleDefaultActMeshStep drawn = NativeBattleEffect326MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0xE18B38), inputs.ReadProjection(frame), context, inputs.Colors, 14, tableBaseBucket: tableBase, pilotIdentity: NativeBattleEffect326Presentation.Task(inputs, 0xE18B38));
             frame = frame with { Memory = drawn.Memory };
             frame = PublishContext(frame, temporary, drawn.Context88, 88);
-            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(drawn.Batch, 0x1D8E054));
+            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, 0x1D8E054));
             frame = Release(frame, 88);
         }
         if ((inputs.ReadFlags(frame) & 0x201) == 0)
@@ -223,10 +224,10 @@ public static partial class NativeBattleEffect326Controller
         {
             context = context.Write(12, BitConverter.GetBytes(history ? unchecked((age - 7) << 10) : unchecked((age - 6) * 682)));
         }
-        NativeBattleWindowedMesh144Step drawn = NativeBattleWindowedMesh144.DrawLoaded(frame.Memory, resources.Mesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors, groupMask: (1 << 2) | (1 << 3) | (1 << 6) | (1 << 7));
+        NativeBattleWindowedMesh144Step drawn = NativeBattleWindowedMesh144.DrawLoaded(frame.Memory, resources.Mesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors, groupMask: (1 << 2) | (1 << 3) | (1 << 6) | (1 << 7), pilotIdentity: NativeBattleEffect326Presentation.Task(inputs, mesh));
         frame = frame with { Memory = drawn.Memory };
         frame = PublishContext(frame, temporary, drawn.Context144, 144);
-        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(drawn.Batch, 0x1D8E054));
+        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, 0x1D8E054));
         return AdvanceLateClock(Release(frame, 144), address, inputs, history ? 11 : 12);
     }
 
@@ -287,6 +288,7 @@ public static partial class NativeBattleEffect326Controller
                 row = LateSetWord(row, 18, -15 - LateRoll(ref frame) % 25);
                 row = LateSetWord(row, 20, unchecked(direction.Z * velocitySpeed) >> 12);
                 frame = WriteBytes(frame, destination, row, 24);
+                NativeBattleEffect326Presentation.Allocated(frame, inputs, destination);
             }
             frame = PublishContext(frame, scratchAddress, scratch, 72);
         }
@@ -312,9 +314,9 @@ public static partial class NativeBattleEffect326Controller
             frame = frame with { Memory = NativeBattleEffect315Gte.SetDiagonal64DE00(NativeBattleEffect315Gte.TransformAlternate4607E0(frame.Memory), unchecked((ushort)LateWord(row, 6))) };
             frame = PublishContext(frame, spriteAddress, LateSetWord(Context(frame, spriteAddress, 180), 4, LateWord(row, 4)), 180);
             frame = frame with { Memory = NativeBattleEffect315Gte.MacToTranslation64DE40(frame.Memory) };
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, spriteAddress, 180), resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, spriteAddress, 180), resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: NativeBattleEffect326Presentation.Row(frame, inputs, location, 0xE10E04));
             frame = PublishContext(frame with { Memory = drawn.Memory }, spriteAddress, drawn.Temporary180, 180);
-            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(drawn.Batch, 0x1D8E054));
+            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, 0x1D8E054));
             if ((inputs.ReadFlags(frame) & 0x201) != 0)
             {
                 continue;
@@ -421,9 +423,9 @@ public static partial class NativeBattleEffect326Controller
         }
         (frame, uint temporary) = Allocate(frame, 108);
         NativeBattleEffectArena context = Context(frame, temporary, 108).Write(0, BitConverter.GetBytes(mesh)).Write(8, BitConverter.GetBytes(0u)).Write(12, BitConverter.GetBytes(fade)).Write(0x1C, BitConverter.GetBytes(0xF3u)).Write(0x20, BitConverter.GetBytes(material));
-        LateColoredMeshStep drawn = LateColoredMesh108.Draw6314A0(frame.Memory, resources.Mesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors);
+        LateColoredMeshStep drawn = LateColoredMesh108.Draw6314A0(frame.Memory, resources.Mesh(mesh), inputs.ReadProjection(frame), context, inputs.Colors, pilotIdentity: NativeBattleEffect326Presentation.Task(inputs, mesh));
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context, 108);
-        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(drawn.Batch, 0x1D8E054));
+        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, 0x1D8E054));
         frame = Release(frame, 108);
         if (paused)
         {
@@ -440,11 +442,11 @@ public static partial class NativeBattleEffect326Controller
         return new(frame, nextAge >= (trail ? 7 : Signed(task, 0x20)) ? 2 : 0);
     }
 
-    private sealed record LateColoredMeshStep(NativeBattleEffectMemory Memory, NativeBattleEffectArena Context, NativeBattleGfGeometryBatch Batch);
+    internal sealed record LateColoredMeshStep(NativeBattleEffectMemory Memory, NativeBattleEffectArena Context, NativeBattleGfGeometryBatch Batch);
 
-    private static class LateColoredMesh108
+    internal static class LateColoredMesh108
     {
-        public static LateColoredMeshStep Draw6314A0(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context108, NativeBattleSummonColors colors, byte depthShift = 3)
+        public static LateColoredMeshStep Draw6314A0(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context108, NativeBattleSummonColors colors, byte depthShift = 3, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             uint flags = Dword(context108, 0x1C);
             if (Dword(context108, 0) != mesh.Address || mesh.Address is not (0xE18798 or 0xE183F8 or 0xE113F8 or 0xE11058) || flags != 0xF3 || depthShift != 3)
@@ -461,6 +463,7 @@ public static partial class NativeBattleEffect326Controller
             uint farColor = (uint)(rgb[0] | rgb[1] << 8 | rgb[2] << 16);
             context108 = Put(Put(context108, 4, mesh.Address + 8), 0x18, 0);
             int cursor = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan());
+            NativeBattleActionMatrix? pilotMatrix = null;
             int allocated = 0;
             ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
             for (int group = 0; group < 8; group++)
@@ -479,6 +482,7 @@ public static partial class NativeBattleEffect326Controller
                 for (int faceIndex = 0; faceIndex < count; faceIndex++)
                 {
                     byte[] face = mesh.Bytes.AsSpan(cursor, 24).ToArray();
+                    System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
                     for (int corner = 0; corner < 3; corner++)
                     {
                         Load(corner, corner);
@@ -505,6 +509,10 @@ public static partial class NativeBattleEffect326Controller
                         context108 = Put(context108, 0x30, registers.Geometry.Otz!.Value);
                         uint command = (material | 0x2C000000) | 0x02000000;
                         registers = registers with { Colors = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, command, Dword(context108, 12), far, colors).Registers };
+                        if (pilotIdentity is { } identity && world is not null)
+                        {
+                            attempt = attempt with { Primitive = attempt.Primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], world[3], 4) } };
+                        }
                         allocated = checked(allocated + attempt.PacketLength);
                     }
                     attempts.Add(attempt);
@@ -515,7 +523,13 @@ public static partial class NativeBattleEffect326Controller
                     {
                         int offset = checked(8 + BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)) * 4);
                         ReadOnlySpan<byte> packed = mesh.Bytes.AsSpan(offset, 8);
-                        registers = NativeBattleGeometry.LoadVector(registers, slot, new(BinaryPrimitives.ReadInt16LittleEndian(packed), BinaryPrimitives.ReadInt16LittleEndian(packed[2..]), BinaryPrimitives.ReadInt16LittleEndian(packed[4..])), BinaryPrimitives.ReadInt16LittleEndian(packed[6..]));
+                        NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(packed), BinaryPrimitives.ReadInt16LittleEndian(packed[2..]), BinaryPrimitives.ReadInt16LittleEndian(packed[4..]));
+                        registers = NativeBattleGeometry.LoadVector(registers, slot, point, BinaryPrimitives.ReadInt16LittleEndian(packed[6..]));
+                        if (world is not null)
+                        {
+                            pilotMatrix ??= NativeBattleGeometry.CaptureMatrix(registers.Geometry);
+                            world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix, point), projection);
+                        }
                     }
 
                     NativeBattleModuleProjectedVertex ReadCorner(int corner)

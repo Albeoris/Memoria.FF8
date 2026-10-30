@@ -33,7 +33,7 @@ public static class NativeBattleEffect321Rings
             context = Put(context, 12, unchecked((uint)((age - threshold) << 9)));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = Release(DrawStatic(frame, temporary, resources, inputs), 88);
+        frame = Release(DrawStatic(frame, temporary, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(321, task) with { ResourceGeneration = anisotropic ? 0xCD1D5C : 0xCD153C } : null), 88);
         if (Paused(frame, inputs))
         {
             return new(frame, 0);

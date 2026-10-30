@@ -158,6 +158,83 @@ public sealed class NativeBattleGatlingGun305SlotsTests
     private static NativeBattleEffectArena Packed(short x, short y, short z) => NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes(x)).Write(2, BitConverter.GetBytes(y)).Write(4, BitConverter.GetBytes(z));
     private sealed record Draw(uint Source, ushort Flags, ushort Phase, int Angle, bool SourceWKnown);
 
+    [Theory]
+    [InlineData(0x5A5DA0u)]
+    [InlineData(0x5A6330u)]
+    [InlineData(0x5A68C0u)]
+    public void Group21_all_slot_modes_capture_actual_100_rows_and_keep_paused_native_state(uint callback)
+    {
+        (NativeBattleGatlingGun305Frame Frame, List<NativeBattleGatlingGun305Operation> Operations) Run(bool capture)
+        {
+            Fixture fixture = new();
+            (var frame, uint address) = fixture.Task(callback, 8);
+            uint bank = callback == 0x5A68C0 ? SlotBankA : SlotBankB;
+            for (int index = 0; index < SlotCount; index++)
+            {
+                frame = fixture.Row(frame, bank + (uint)(index * SlotStride), false);
+            }
+            List<NativeBattleGatlingGun305Operation> operations = [];
+            var inputs = fixture.Inputs(0x201) with { CapturePresentation = capture };
+            var execute = inputs.Execute;
+            inputs = inputs with { Execute = (current, operation) =>
+            {
+                operations.Add(operation);
+                return execute(current, operation);
+            } };
+            return (NativeBattleGatlingGun305Slots.Advance(frame, address, fixture.Resources, inputs).Frame, operations);
+        }
+        var native = Run(false);
+        string before = NativeBattleTestSnapshots.Json(native.Frame);
+        var captured = Run(true);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Operations), NativeBattleTestSnapshots.Json(captured.Operations));
+        Assert.Equal(SlotCount, captured.Operations.Count);
+        Assert.Equal(SlotCount, captured.Operations.Select(operation => operation.PilotIdentity).Distinct().Count());
+        Assert.All(captured.Operations, operation => Assert.Equal(callback == 0x5A68C0 ? SlotBankA : SlotBankB, operation.PilotIdentity!.Value.Bank));
+        Assert.All(native.Operations, operation => Assert.Null(operation.PilotIdentity));
+    }
+
+    [Fact]
+    public void Group21_continuous_slot_birth_reuses_only_native_free_rows_with_new_epochs()
+    {
+        (NativeBattleGatlingGun305Frame Frame, List<NativeBattlePilotVisualIdentity> First, List<NativeBattlePilotVisualIdentity> Second) Run(bool capture)
+        {
+            Fixture fixture = new() { Dead = true };
+            (var frame, uint address) = fixture.Task(0x5A5DA0, 0);
+            frame = frame with { State = frame.State.WriteWord(AnchorGlobal + 4, 1000).WriteWord(AnchorGlobal + 6, 0xCAFE) };
+            var inputs = fixture.Inputs() with { CapturePresentation = capture };
+            var execute = inputs.Execute;
+            List<NativeBattlePilotVisualIdentity> identities = [];
+            inputs = inputs with { Execute = (current, operation) =>
+            {
+                if (operation.PilotIdentity is { } identity)
+                {
+                    identities.Add(identity);
+                }
+                return execute(current, operation);
+            } };
+            frame = NativeBattleGatlingGun305Slots.Advance(frame, address, fixture.Resources, inputs).Frame;
+            Assert.Empty(identities);
+            frame = NativeBattleGatlingGun305Slots.Advance(frame, address, fixture.Resources, inputs).Frame;
+            var first = identities.ToList();
+            identities.Clear();
+            frame = NativeBattleGatlingGun305Slots.Advance(frame, address, fixture.Resources, inputs).Frame;
+            return (frame, first, identities);
+        }
+        var native = Run(false);
+        string before = NativeBattleTestSnapshots.Json(native.Frame);
+        var captured = Run(true);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(3, captured.First.Count);
+        Assert.Equal(3, captured.Second.Count);
+        for (int index = 0; index < 3; index++)
+        {
+            Assert.Equal(captured.First[index].Slot, captured.Second[index].Slot);
+            Assert.NotEqual(captured.First[index].Generation, captured.Second[index].Generation);
+            Assert.Equal(captured.First[index].ResourceGeneration, captured.Second[index].ResourceGeneration);
+        }
+    }
+
     private sealed class Fixture
     {
         public NativeBattleGatlingGun305Resources Resources { get; } = new(new("unused", []), new("unused", []), new(0, 0, []), new(0, 0, []), new(0, 0, []), new(0, 0xCED358, 0, 0, []), new(0, 0xCED15C, 0, 0, []), new(0, 0xCED504, 0, 0, []), 0x61AD6);

@@ -19,10 +19,10 @@ public static partial class NativeBattleEffect326Controller
         uint color = unchecked((uint)((lane << 16) | (lane << 8) | lane));
         (frame, uint temporary) = Allocate(frame, 120);
         NativeBattleEffectArena context = Context(frame, temporary, 120).Write(0, BitConverter.GetBytes(second ? 512 : 256)).Write(4, BitConverter.GetBytes(32)).Write(8, BitConverter.GetBytes(second ? 16 : 32)).Write(12, BitConverter.GetBytes(second ? age * 2 : age)).Write(16, BitConverter.GetBytes(age * 2)).Write(0x74, BitConverter.GetBytes(color));
-        NativeBattleEffect326OpeningGridStep drawn = NativeBattleEffect326OpeningGrid.Draw62B1C0(frame.Memory, context, inputs.ReadProjection(frame));
+        NativeBattleEffect326OpeningGridStep drawn = NativeBattleEffect326OpeningGrid.Draw62B1C0(frame.Memory, context, inputs.ReadProjection(frame), inputs.CapturePresentation ? NativeBattleEffect326Presentation.Task(inputs, Read(frame, address).Callback) : null);
         frame = frame with { Memory = drawn.Memory };
         frame = PublishContext(frame, temporary, drawn.Context120, 120);
-        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(drawn.Batch, 0x1D8E054));
+        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, 0x1D8E054));
         frame = Release(frame, 120);
         return IncrementMeshClock(frame, address, inputs, 54);
     }

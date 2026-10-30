@@ -29,7 +29,7 @@ public static partial class NativeBattleEffect326Controller
             sprite = Context(frame, spriteAddress, 180).Write(0x10, BitConverter.GetBytes(unchecked(width * 2 + 0x1200)));
             frame = PublishContext(frame, spriteAddress, sprite, 180);
             frame = frame with { Memory = IrToTranslation64DE90(frame.Memory) };
-            frame = DrawSprite326(frame, spriteAddress, resources, inputs);
+            frame = DrawSprite326(frame, spriteAddress, resources, inputs, NativeBattleEffect326Presentation.Row(frame, inputs, rowAddress, 0xE10C80));
             if ((inputs.ReadFlags(frame) & 0x201) != 0)
             {
                 continue;
@@ -51,6 +51,7 @@ public static partial class NativeBattleEffect326Controller
                     ripple = ParticleWord(ParticleWord(ripple, 4, 0), 6, width + ParticleRoll(ref frame) % 1024 + 1024);
                     ripple = ParticleWord(ParticleWord(ParticleWord(ripple, 8, ParticleSigned(row, 8)), 10, 0), 12, ParticleSigned(row, 12));
                     frame = WriteBytes(frame, destination, ripple, 24);
+                    NativeBattleEffect326Presentation.Allocated(frame, inputs, destination);
                 }
             }
             frame = WriteBytes(frame, rowAddress, row, 24);
@@ -77,7 +78,7 @@ public static partial class NativeBattleEffect326Controller
             frame = PublishContext(frame, scratchAddress, scratch, 104);
             frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(matrix, null));
             frame = PublishContext(frame, spriteAddress, ParticleWord(Context(frame, spriteAddress, 180), 4, ParticleSigned(row, 4)), 180);
-            frame = DrawSprite326(frame, spriteAddress, resources, inputs);
+            frame = DrawSprite326(frame, spriteAddress, resources, inputs, NativeBattleEffect326Presentation.Row(frame, inputs, rowAddress, 0xE10CA8));
             if ((inputs.ReadFlags(frame) & 0x201) == 0)
             {
                 row = ParticleWord(row, 4, ParticleSigned(row, 4) + 1);
@@ -117,6 +118,7 @@ public static partial class NativeBattleEffect326Controller
                 row = ParticleWord(row, 12, ParticleRoll(ref frame) % 10000 - 5000);
                 row = ParticleWord(row, 0x12, ParticleRoll(ref frame) % 550 + 180);
                 frame = WriteBytes(frame, destination, row, 24);
+                NativeBattleEffect326Presentation.Allocated(frame, inputs, destination);
             }
         }
         frame = Release(frame, 104);
@@ -132,11 +134,11 @@ public static partial class NativeBattleEffect326Controller
         return frame with { Memory = NativeBattleEffect315Gte.TransformAlternate4607E0(frame.Memory) };
     }
 
-    private static NativeBattleEffect326Frame DrawSprite326(NativeBattleEffect326Frame frame, uint address, NativeBattleEffect326Resources resources, NativeBattleEffect326Inputs inputs)
+    private static NativeBattleEffect326Frame DrawSprite326(NativeBattleEffect326Frame frame, uint address, NativeBattleEffect326Resources resources, NativeBattleEffect326Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleModuleSpriteDraw drawn = NativeBattleEffect326SpriteDrawing.Draw571C80(frame.Memory, Context(frame, address, 180), resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame));
+        NativeBattleModuleSpriteDraw drawn = NativeBattleEffect326SpriteDrawing.Draw571C80(frame.Memory, Context(frame, address, 180), resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), pilotIdentity);
         frame = PublishContext(frame with { Memory = drawn.Memory }, address, drawn.Temporary180, 180);
-        return inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(drawn.Batch, 0x1D8E054));
+        return inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, 0x1D8E054));
     }
 
     private static uint? FindFreeParticle(NativeBattleEffect326Frame frame, uint global)

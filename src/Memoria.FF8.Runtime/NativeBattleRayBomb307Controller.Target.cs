@@ -75,6 +75,10 @@ public static partial class NativeBattleRayBomb307Controller
                 frame = SlotWord(frame, at + 16, unchecked((short)(unchecked(NativeBattleCameraMath.Cosine(angle) * speed) >> 12)));
                 frame = SlotWord(frame, at + 18, 0);
                 frame = SlotWord(frame, at + 20, unchecked((short)(unchecked(NativeBattleCameraMath.Sine(angle) * speed) >> 12)));
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattleRayBomb307Visuals.Born(frame, slot);
+                }
             }
         }
         task = task.WriteWord(12, unchecked((ushort)(age + 1)));

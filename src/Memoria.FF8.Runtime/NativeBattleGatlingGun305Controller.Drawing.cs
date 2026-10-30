@@ -39,10 +39,10 @@ public static partial class NativeBattleGatlingGun305Controller
             temporary = Dword(temporary, 12, unchecked((uint)value));
         }
         frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, temporary, 88) };
-        frame = inputs.Execute(frame, new NativeBattleGatlingGun305DrawStatic88(allocation.Address, source));
+        frame = inputs.Execute(frame, new NativeBattleGatlingGun305DrawStatic88(allocation.Address, source) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(305, task, 0) with { ResourceGeneration = source } : null });
         if (first)
         {
-            frame = inputs.Execute(frame, new NativeBattleGatlingGun305DrawStatic88(allocation.Address, source));
+            frame = inputs.Execute(frame, new NativeBattleGatlingGun305DrawStatic88(allocation.Address, source) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(305, task, 1) with { ResourceGeneration = source } : null });
         }
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 88) };
         if ((inputs.GraphicsFlags & 0x201) != 0)
@@ -68,7 +68,7 @@ public static partial class NativeBattleGatlingGun305Controller
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(RequireStaging(frame), 180);
         ushort phase = task.ReadWord(12);
         NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(allocation.Staging, allocation.Address, 0xCED15C, 0).Write(allocation.Address + 4, BitConverter.GetBytes(phase));
-        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleGatlingGun305DrawSprite180(allocation.Address, 0xCED15C, phase));
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleGatlingGun305DrawSprite180(allocation.Address, 0xCED15C, phase) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(305, task) with { ResourceGeneration = 0xCED15C } : null });
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 180) };
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

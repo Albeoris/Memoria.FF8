@@ -6,7 +6,7 @@ public sealed record NativeBattleBoomerangSword304MeshContext88Step(NativeBattle
 
 public static class NativeBattleBoomerangSword304MeshContext88
 {
-    public static NativeBattleBoomerangSword304MeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex)
+    public static NativeBattleBoomerangSword304MeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint flags = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(0x1C, 4));
         if (BinaryPrimitives.ReadUInt32LittleEndian(context.Read(0, 4)) != mesh.Address || flags is not (0x2030 or 0x20F0) || depthShift > 31)
@@ -49,7 +49,7 @@ public static class NativeBattleBoomerangSword304MeshContext88
             }
             return current.W;
         }
-        NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(memory, mesh.Bytes, mesh.Address, 0, context, projection, constants, ReadVertex, ReadW, tableBaseBucket, depthShift);
+        NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(memory, mesh.Bytes, mesh.Address, 0, context, projection, constants, ReadVertex, ReadW, tableBaseBucket, depthShift, pilotIdentity: pilotIdentity);
         return new(drawn.Memory, drawn.Context88, drawn.Batch);
     }
 }

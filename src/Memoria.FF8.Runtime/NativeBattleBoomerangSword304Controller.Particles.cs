@@ -9,7 +9,7 @@ public static partial class NativeBattleBoomerangSword304Controller
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(resources.Sprite.Address)).Write(4, BitConverter.GetBytes(task.ReadWord(18))).Write(36, BitConverter.GetBytes((ushort)0));
         frame = PublishContext(frame, temporary, context, 180);
-        frame = inputs.Execute(frame, new NativeBattleBoomerangSword304DrawSprite180(temporary, resources.Sprite.Address));
+        frame = inputs.Execute(frame, new NativeBattleBoomerangSword304DrawSprite180(temporary, resources.Sprite.Address) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(304, Read(frame, address)) with { ResourceGeneration = resources.Sprite.Address } : null });
         frame = Release(frame, 180);
         task = Read(frame, address);
         short phase = unchecked((short)(task.ReadWord(18) + 1));

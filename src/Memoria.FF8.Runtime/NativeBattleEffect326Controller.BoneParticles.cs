@@ -78,9 +78,9 @@ public static partial class NativeBattleEffect326Controller
             sprite = ParticleWord(Context(frame, spriteAddress, 180), 4, ParticleSigned(row, 4));
             frame = PublishContext(frame, spriteAddress, sprite, 180);
             frame = frame with { Memory = IrToTranslation64DE90(frame.Memory) };
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, sprite, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, sprite, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: NativeBattleEffect326Presentation.Row(frame, inputs, rowAddress, spriteSource));
             frame = PublishContext(frame with { Memory = drawn.Memory }, spriteAddress, drawn.Temporary180, 180);
-            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(drawn.Batch, 0x1D8E054));
+            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, 0x1D8E054));
             if ((inputs.ReadFlags(frame) & 0x201) == 0)
             {
                 row = ParticleWord(row, 4, ParticleSigned(row, 4) + 1);
@@ -124,14 +124,14 @@ public static partial class NativeBattleEffect326Controller
                 }
             }
             frame = Release(frame, 400);
-            frame = BirthBoneParticles(frame, paired);
+            frame = BirthBoneParticles(frame, paired, inputs);
         }
         short next = unchecked((short)(age + 1));
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)next)));
         return new(frame, next >= 4 && survivors == 0 ? 2 : 0);
     }
 
-    private static NativeBattleEffect326Frame BirthBoneParticles(NativeBattleEffect326Frame frame, bool paired)
+    private static NativeBattleEffect326Frame BirthBoneParticles(NativeBattleEffect326Frame frame, bool paired, NativeBattleEffect326Inputs inputs)
     {
         for (int birth = 0; birth < (paired ? 3 : 5); birth++)
         {
@@ -162,6 +162,7 @@ public static partial class NativeBattleEffect326Controller
                 row = ParticleWord(row, 16 + axis * 2, velocity + random);
             }
             frame = WriteBytes(frame, destination, row, 24);
+            NativeBattleEffect326Presentation.Allocated(frame, inputs, destination);
         }
         return frame;
     }

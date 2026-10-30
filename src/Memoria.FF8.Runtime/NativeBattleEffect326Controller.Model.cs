@@ -66,7 +66,7 @@ public static partial class NativeBattleEffect326Controller
                     frame = frame with { State = frame.State.WriteDword(model + 0x7C, unchecked((uint)operation.First)) };
                     break;
                 case NativeBattleEffect326ModelService.Flash:
-                    frame = inputs.Execute(frame, new NativeBattleEffect326Flash5712C0(operation.First, operation.Second, operation.Third, operation.Fourth));
+                    frame = inputs.Execute(frame, new NativeBattleEffect326Flash5712C0(operation.First, operation.Second, operation.Third, operation.Fourth) { PilotIdentity = NativeBattleEffect326Presentation.Task(inputs, 0x5712C0) });
                     break;
                 case NativeBattleEffect326ModelService.SplitHeld:
                     frame = DrawSplitModel(frame, resources, inputs, address, operation.First, false);

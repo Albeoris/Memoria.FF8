@@ -49,6 +49,10 @@ public static partial class NativeBattleEffect326Controller
                 packet.Word(index * 4, words[index]);
             }
             NativeBattleGeometryPrimitive primitive = new(unchecked(17 + depth), words, [0, 0, 0, 0]);
+            if (inputs.CapturePresentation && NativeBattleEffect326Presentation.Task(inputs, Read(frame, address).Callback) is { } identity)
+            {
+                primitive = primitive with { PilotGeometry = new(identity, new(0, 0, 0), new(2560, 0, 0), new(0, 1728, 0), new(2560, 1728, 0), 4, false) { ScreenSpace = true, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true } };
+            }
             frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(new([packet.Attempt(primitive)], 16), 0x1D8E054));
         }
         if ((inputs.ReadFlags(frame) & 0x201) != 0)

@@ -53,7 +53,7 @@ public static partial class NativeBattleEffect338Controller
         return Write(frame, child, task);
     }
 
-    private static NativeBattleEffect338Frame SpawnImpactParticles(NativeBattleEffect338Frame frame, uint main, uint pointAddress, NativeBattleEffect338Resources resources)
+    private static NativeBattleEffect338Frame SpawnImpactParticles(NativeBattleEffect338Frame frame, uint main, uint pointAddress, NativeBattleEffect338Resources resources, bool capturePresentation = false)
     {
         (frame, NativeBattleEffectArena point) = ReadEmbeddedPoint(frame, main, pointAddress, resources);
         (frame, uint first) = AllocateParticle(frame);
@@ -64,6 +64,10 @@ public static partial class NativeBattleEffect338Controller
         NativeBattleEffectArena hit = ReadBytes(frame, first, 24);
         hit = NativeBattleEffectNodeContextMemory.Copy(point, 0, hit, 4, 4).Write(8, BitConverter.GetBytes(unchecked((short)(Word338(point, 4) - 500)))).Write(10, BitConverter.GetBytes((ushort)7)).Write(12, new byte[4]).Write(16, new byte[2]).Write(20, new byte[4]).Write(18, BitConverter.GetBytes((ushort)3000)).Write(0, BitConverter.GetBytes(0x1371464u));
         frame = WriteBytes(frame, first, hit, 24);
+        if (capturePresentation)
+        {
+            NativeBattleEffect338Presentation.Allocated(frame, first);
+        }
         for (int index = 0; index < 7; index++)
         {
             (frame, uint particle) = AllocateParticle(frame);
@@ -85,6 +89,10 @@ public static partial class NativeBattleEffect338Controller
             }
             row = row.Write(12, BitConverter.GetBytes(vx)).Write(16, new byte[2]).Write(22, [0]).Write(20, [Acceleration6ECAF3(vx)]).Write(21, [Acceleration6ECAF3(vy)]).Write(18, BitConverter.GetBytes((ushort)3072)).Write(0, BitConverter.GetBytes(0x13711FCu));
             frame = WriteBytes(frame, particle, row, 24);
+            if (capturePresentation)
+            {
+                NativeBattleEffect338Presentation.Allocated(frame, particle);
+            }
         }
         return frame;
     }

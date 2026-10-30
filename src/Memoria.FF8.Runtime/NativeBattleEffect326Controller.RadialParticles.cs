@@ -29,7 +29,7 @@ public static partial class NativeBattleEffect326Controller
             frame = frame with { Memory = NativeBattleEffect315Gte.SetDiagonal64DE00(frame.Memory, unchecked((ushort)ParticleSigned(row, 6))) };
             frame = PublishContext(frame, spriteAddress, ParticleWord(Context(frame, spriteAddress, 180), 4, ParticleSigned(row, 4)), 180);
             frame = frame with { Memory = IrToTranslation64DE90(frame.Memory) };
-            frame = DrawSprite326(frame, spriteAddress, resources, inputs);
+            frame = DrawSprite326(frame, spriteAddress, resources, inputs, NativeBattleEffect326Presentation.Row(frame, inputs, rowAddress, 0xE10FB0));
             if ((inputs.ReadFlags(frame) & 0x201) != 0)
             {
                 continue;
@@ -80,6 +80,7 @@ public static partial class NativeBattleEffect326Controller
                 row = ParticleWord(row, 18, -50 - ParticleRoll(ref frame) % 125);
                 row = ParticleWord(row, 20, unchecked(NativeBattleCameraMath.Sine(angle) * speed) >> 12);
                 frame = WriteBytes(frame, destination, row, 24);
+                NativeBattleEffect326Presentation.Allocated(frame, inputs, destination);
             }
         }
         frame = Release(frame, 72);

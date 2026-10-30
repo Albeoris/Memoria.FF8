@@ -130,6 +130,41 @@ public sealed class NativeBattleDegenerator306CustomMeshTests
         Assert.Equal(2048u, first.Memory.ScriptedColorRegisters!.Ir0);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Group21_actual306_custom_capture_preserves_native_materials_sparse_writes_and_depths(bool reject)
+    {
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var source = Source();
+        if (reject)
+        {
+            byte[] data = source.Bytes.ToArray();
+            BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(86), 0x7FFF);
+            source = source with { Bytes = data.ToImmutableArray() };
+        }
+        var native = Draw(source, Context(), depth: reject ? 0 : 2000, projection: projection);
+        var captured = Draw(source, Context(), depth: reject ? 0 : 2000, pilotIdentity: new(306, 0x2243490, 1, 2, 3), projection: projection);
+        captured = captured with { Batch = NativeBattleDegenerator306Presentation.PreserveNativeDepths(captured.Batch) };
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        if (reject)
+        {
+            Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+        }
+        else
+        {
+            Assert.Equal(2, captured.Batch.Attempts.Count(attempt => attempt.Primitive is not null));
+            foreach (var attempt in captured.Batch.Attempts)
+            {
+                var primitive = Assert.IsType<NativeBattleGeometryPrimitive>(attempt.Primitive);
+                var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+                Assert.Equal((ushort)306, geometry.Identity.Effect);
+                Assert.True(geometry.UseSourceDepths);
+                Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+            }
+        }
+    }
+
     private static NativeBattleDegenerator306CustomMeshStep Draw(NativeBattleStaticMeshResource source, NativeBattleEffectArena context, int depth = 2000, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null, NativeBattleActionMatrix? loadedMatrix = null)
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();

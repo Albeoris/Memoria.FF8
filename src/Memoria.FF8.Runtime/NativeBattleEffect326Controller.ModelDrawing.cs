@@ -71,7 +71,7 @@ public static partial class NativeBattleEffect326Controller
                 }
                 int length = checked(mesh.Vertices.Length * 8);
                 (byte[] previous, _) = ReadBytes(frame, scratchAddress, length).ReadSnapshot(0, length);
-                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones, inputs.ReadProjection(frame), color, 1, previous.ToImmutableArray(), inputs.Colors, 4);
+                NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, bones, inputs.ReadProjection(frame), color, 1, previous.ToImmutableArray(), inputs.Colors, 4, pilotIdentity: NativeBattleEffect326Presentation.Task(inputs, unchecked(geometryAddress * 397 ^ modelAddress), objectIndex));
                 if (drawn.ProjectedBytesWritten != 0)
                 {
                     frame = WriteBytes(frame, scratchAddress, NativeBattleEffectArena.Clear().Write(0, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten)), drawn.ProjectedBytesWritten);
@@ -83,7 +83,7 @@ public static partial class NativeBattleEffect326Controller
         }
         frame = frame with { Memory = frame.Memory with { PrimitiveProcess = process } };
         frame = PublishContext(frame, temporary, context, 76);
-        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(new(attempts.ToImmutable(), allocated), 0x1D8E054));
+        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(new(attempts.ToImmutable(), allocated)) : new(attempts.ToImmutable(), allocated), 0x1D8E054));
         frame = PublishModelPose(frame, resources, modelAddress);
         return Release(frame, 76);
     }

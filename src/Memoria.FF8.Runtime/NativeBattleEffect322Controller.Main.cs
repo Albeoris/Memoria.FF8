@@ -35,7 +35,7 @@ public static partial class NativeBattleEffect322Controller
             NativeBattleActionMatrix basis = NativeBattleFunguarLaser277.Basis50CBA0(history.X - current.X, 0, current.Z - history.Z).Matrix;
             NativeBattleActionMatrix rotation = NativeBattlePandemona291Restoration.Rotation701220(Signed(Read(frame, address), 14));
             NativeBattleActionMatrix world = NativeBattleGfMatrices.Multiply56C090(basis, rotation) with { X = current.X, Y = current.Y, Z = current.Z };
-            frame = DrawMainMesh(frame, world, resources, inputs);
+            frame = DrawMainMesh(frame, address, world, resources, inputs);
             frame = BirthMesh(frame, age, world);
             if (current.Y > -512)
             {
@@ -117,14 +117,14 @@ public static partial class NativeBattleEffect322Controller
         return (frame, point);
     }
 
-    private static NativeBattleEffect322Frame DrawMainMesh(NativeBattleEffect322Frame frame, NativeBattleActionMatrix world, NativeBattleEffect322Resources resources, NativeBattleEffect322Inputs inputs)
+    private static NativeBattleEffect322Frame DrawMainMesh(NativeBattleEffect322Frame frame, uint taskAddress, NativeBattleActionMatrix world, NativeBattleEffect322Resources resources, NativeBattleEffect322Inputs inputs)
     {
         (frame, uint temporary) = Allocate(frame, 88);
         NativeBattleActionMatrix viewWorld = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), world);
         frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(viewWorld, null));
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0xFE44C8u)).Write(0x1C, BitConverter.GetBytes(0u));
         frame = PublishContext(frame, temporary, context, 88);
-        frame = NativeBattleEffect322Lower.DrawMesh572200(frame, temporary, resources, inputs);
+        frame = NativeBattleEffect322Lower.DrawMesh572200(frame, temporary, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(322, Read(frame, taskAddress)) with { ResourceGeneration = NativeBattleEffect322Lower.Dword322(context, 0) } : null);
         return Release(frame, 88);
     }
 

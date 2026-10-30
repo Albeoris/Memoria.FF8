@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Ray-Bomb requires its process memory.");
         NativeBattleRayBomb307Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Ray-Bomb requires its CRT stream."), memory.RayBomb307 ?? throw new NotSupportedException("Ray-Bomb requires its retained process banks.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Ray-Bomb requires its addressed temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Ray-Bomb requires its original interpolation constants.");
-        NativeBattleRayBomb307Inputs inputs = new(nativeActionPackets, graphics.Flags, actor => graphics.Models[actor], ReadBoneMatrix, TargetCenter, Anchor, actor => ReadModel8(actor, 0x0C), actor => ReadModel8(actor, 0x1C), Execute) { ReadView = _ => Camera().CapturePackedView1D97778(), ReadCameraEye = _ => Camera().CurrentPose?.Eye is { } eye ? new(eye.X, eye.Y, eye.Z) : throw new NotSupportedException("Ray-Bomb requires its current camera eye.") };
+        NativeBattleRayBomb307Inputs inputs = new(nativeActionPackets, graphics.Flags, actor => graphics.Models[actor], ReadBoneMatrix, TargetCenter, Anchor, actor => ReadModel8(actor, 0x0C), actor => ReadModel8(actor, 0x1C), Execute) { CapturePresentation = true, ReadView = _ => Camera().CapturePackedView1D97778(), ReadCameraEye = _ => Camera().CurrentPose?.Eye is { } eye ? new(eye.X, eye.Y, eye.Z) : throw new NotSupportedException("Ray-Bomb requires its current camera eye.") };
         frame = initialize ? NativeBattleRayBomb307Controller.Initialize(frame, resources, inputs) : NativeBattleRayBomb307Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -90,6 +90,7 @@ public sealed partial class BattleSession
 
         NativeBattleRayBomb307Frame Deliver(NativeBattleRayBomb307Frame current, NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleRayBomb307Presentation.PreserveNativeDepths(batch);
             uint cursor = current.State.ReadDword(CursorGlobal);
             uint working = current.State.ReadDword(WorkingGlobal);
             NativeBattleModulePoolTask root = current.Effect.Pools[0].Slots.Single(task => (task.Flags & 1) != 0 && task.Callback == RootCallback);
@@ -178,7 +179,7 @@ public sealed partial class BattleSession
                 case NativeBattleRayBomb307DrawMesh88 draw:
                     NativeBattleEffectArena context = View(current.Staging!, draw.TemporaryAddress, 88);
                     NativeBattleGeometryRegisters registers = current.Memory.GeometryRegisters ?? throw new NotSupportedException("Ray-Bomb requires its current drawing matrix.");
-                    NativeBattleStaticMeshContext88Step mesh = NativeBattleStaticMeshContext88.Draw(current.Memory, resources.ReadMesh(draw.SourceAddress), NativeBattleGeometry.CaptureMatrix(registers), Camera().Projection!, context, colors, registers.Rotation20[18] is byte low && registers.Rotation20[19] is byte high ? unchecked((short)(low | high << 8)) : null);
+                    NativeBattleStaticMeshContext88Step mesh = NativeBattleStaticMeshContext88.Draw(current.Memory, resources.ReadMesh(draw.SourceAddress), NativeBattleGeometry.CaptureMatrix(registers), Camera().Projection!, context, colors, registers.Rotation20[18] is byte low && registers.Rotation20[19] is byte high ? unchecked((short)(low | high << 8)) : null, pilotIdentity: draw.PilotIdentity);
                     return Deliver(current with { Memory = mesh.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, draw.TemporaryAddress, mesh.Context, 88) }, mesh.Batch);
                 case NativeBattleRayBomb307DrawSprite180 draw:
                     NativeBattleEffectArena temporary = View(current.Staging!, draw.TemporaryAddress, 180);
@@ -186,7 +187,7 @@ public sealed partial class BattleSession
                     {
                         throw new InvalidDataException("Ray-Bomb sprite arguments differ from its current physical context.");
                     }
-                    NativeBattleModuleSpriteDraw sprite = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, resources.ReadSprite, Camera().Projection!, Camera().Roll);
+                    NativeBattleModuleSpriteDraw sprite = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, resources.ReadSprite, Camera().Projection!, Camera().Roll, pilotIdentity: draw.PilotIdentity);
                     return Deliver(current with { Memory = sprite.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, draw.TemporaryAddress, sprite.Temporary180, 180) }, sprite.Batch);
                 default:
                     throw new NotSupportedException("Ray-Bomb operation requires its original native implementation.");

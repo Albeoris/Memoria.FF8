@@ -33,11 +33,11 @@ public static partial class NativeBattleEffect338Controller
                     break;
                 case 23:
                 case 29:
-                    frame = SpawnImpactParticles(frame, address, 0x1376670, resources);
+                    frame = SpawnImpactParticles(frame, address, 0x1376670, resources, inputs.CapturePresentation);
                     break;
                 case 26:
                 case 32:
-                    frame = SpawnImpactParticles(frame, address, 0x1376668, resources);
+                    frame = SpawnImpactParticles(frame, address, 0x1376668, resources, inputs.CapturePresentation);
                     break;
                 case 39:
                     frame = inputs.Execute(frame, new NativeBattleEffect338SelectSequence505C00(target, 4));
@@ -85,6 +85,10 @@ public static partial class NativeBattleEffect338Controller
                     frame = Roll(frame, out ushort scaleRandom);
                     frame = WriteBytes(frame, particle, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(0x137130Cu)), 4);
                     frame = WriteBytes(frame, particle + 18, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(unchecked((ushort)((scaleRandom & 4095) + 2048)))), 2);
+                    if (inputs.CapturePresentation)
+                    {
+                        NativeBattleEffect338Presentation.Allocated(frame, particle);
+                    }
                 }
             }
             if ((uint)(age - 32) < 5)
@@ -125,6 +129,10 @@ public static partial class NativeBattleEffect338Controller
                 frame = Roll(frame, out ushort scaleRandom);
                 row = row.Write(18, BitConverter.GetBytes(unchecked((ushort)((scaleRandom & 4095) + 3000))));
                 frame = WriteBytes(frame, particle, row, 24);
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattleEffect338Presentation.Allocated(frame, particle);
+                }
             }
             int y = unchecked(Word(frame, 0x2556242) - NativeBattleCameraMath.Sine(progress) * 2000 / 4096);
             int z = unchecked(Word(frame, 0x2556244) + progress * 1000 / 1024);
@@ -141,18 +149,18 @@ public static partial class NativeBattleEffect338Controller
         {
             int angle = (int)((uint)((age - 56) << 12) / 12) >> 2;
             int cue = 4096 - NativeBattleCameraMath.Sine(NativeBattleCameraMath.Sine(angle) >> 2);
-            frame = DrawShimmer(frame, address, (age - 56) << 8, cue, resources, inputs);
+            frame = DrawShimmer(frame, address, (age - 56) << 8, cue, resources, inputs, 1);
         }
         if (unchecked((ushort)age) < 68)
         {
             NativeBattleEffect338PoseStep advanced = NativeBattleEffect338Model.Advance6FBDB0(frame.State.Skeleton!, Read(frame, address), resources.Model);
             frame = Write(frame with { State = frame.State with { Skeleton = advanced.Skeleton } }, address, advanced.Task);
-            frame = inputs.Execute(frame, new NativeBattleEffect338DrawModel6A79B0(address));
+            frame = inputs.Execute(frame, new NativeBattleEffect338DrawModel6A79B0(address) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(338, Read(frame, address)) with { ResourceGeneration = resources.Model.Address } : null });
         }
         NativeBattleModulePoolTask main = Read(frame, address);
         NativeBattleActionMatrix particleWorld = NativeBattlePandemona291Restoration.Rotation701270(0) with { X = unchecked((int)main.ReadDword(0x78)), Y = unchecked((int)main.ReadDword(0x7C)), Z = unchecked((int)main.ReadDword(0x80)) };
         frame = frame with { Memory = frame.Memory.PublishEffectLight1D99AB0(NativeBattlePackedMatrix32.FromMatrix(particleWorld, 0)) };
-        frame = DrawParticles(frame, resources, inputs);
+        frame = DrawParticles(frame, address, resources, inputs);
         frame = AdvanceParticleBank(frame);
         if (age == 0)
         {

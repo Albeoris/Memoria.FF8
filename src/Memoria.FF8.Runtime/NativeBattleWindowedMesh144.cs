@@ -7,7 +7,7 @@ public sealed record NativeBattleWindowedMesh144Step(NativeBattleEffectMemory Me
 
 public static class NativeBattleWindowedMesh144
 {
-    public static NativeBattleWindowedMesh144Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2, int groupMask = (1 << 3) | (1 << 7))
+    public static NativeBattleWindowedMesh144Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors colors, int tableBaseBucket = 17, byte depthShift = 2, int groupMask = (1 << 3) | (1 << 7), NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         context.Validate();
         uint flags = U(context, 0x20);
@@ -33,6 +33,7 @@ public static class NativeBattleWindowedMesh144
         byte[] rgb = context.Read(8, 3);
         far = far.PublishFarColor45DDA0(rgb[0], rgb[1], rgb[2]);
         uint farColor = (uint)(rgb[0] | rgb[1] << 8 | rgb[2] << 16);
+        NativeBattleActionMatrix? pilotMatrix = null;
         int vertexCount = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan(4, 4));
         int cursor = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan(0, 4));
         int[] strides = [12, 12, 20, 24, 20, 24, 28, 36];
@@ -53,6 +54,7 @@ public static class NativeBattleWindowedMesh144
                 bool triangle = group is 2 or 6;
                 int colorCount = triangle ? 3 : 4;
                 byte[] face = mesh.Bytes.AsSpan(cursor, strides[group]).ToArray();
+                System.Numerics.Vector3[]? pilotWorld = pilotIdentity.HasValue ? new System.Numerics.Vector3[triangle ? 3 : 4] : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
                     Load(corner, corner);
@@ -142,6 +144,28 @@ public static class NativeBattleWindowedMesh144
                     int bucket = unchecked(tableBaseBucket + (unchecked((int)registers.Geometry.Otz!.Value) >> depthShift));
                     leaf = leaf with { Attempts = leaf.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { Bucket = bucket } } : attempt).ToImmutableArray() };
                 }
+                if (pilotIdentity is { } identity && pilotWorld is not null)
+                {
+                    leaf = leaf with { Attempts = leaf.Attempts.Select(attempt =>
+                    {
+                        if (attempt.Primitive is not { } primitive)
+                        {
+                            return attempt;
+                        }
+                        int commandIndex = primitive.Words.Length > 2 && primitive.Words[1] >> 24 == 0xE2 ? 2 : 1;
+                        if (primitive.Words.Length <= commandIndex || (primitive.Words[commandIndex] & 0xE0000000u) != 0x20000000u)
+                        {
+                            return attempt;
+                        }
+                        System.Numerics.Vector4 depths = primitive.VertexPayload4.Length switch
+                        {
+                            0 => System.Numerics.Vector4.Zero,
+                            4 => new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]),
+                            _ => throw new NotSupportedException("Windowed capture requires its actual empty or four-lane depth payload.")
+                        };
+                        return attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, pilotWorld[0], pilotWorld[1], pilotWorld[2], triangle ? default : pilotWorld[3], checked((byte)pilotWorld.Length)) { SourceDepths = depths, UseSourceDepths = true } } };
+                    }).ToImmutableArray() };
+                }
                 attempts.AddRange(leaf.Attempts);
                 allocated = checked(allocated + leaf.AllocationBytes);
                 cursor += strides[group];
@@ -155,7 +179,13 @@ public static class NativeBattleWindowedMesh144
                         throw new InvalidDataException("Windowed windowed vertex index leaves its physical source.");
                     }
                     ReadOnlySpan<byte> row = mesh.Bytes.AsSpan(offset, 8);
-                    registers = NativeBattleGeometry.LoadVector(registers, register, new(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..])), BinaryPrimitives.ReadInt16LittleEndian(row[6..]));
+                    NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..]));
+                    registers = NativeBattleGeometry.LoadVector(registers, register, point, BinaryPrimitives.ReadInt16LittleEndian(row[6..]));
+                    if (pilotWorld is not null)
+                    {
+                        pilotMatrix ??= NativeBattleGeometry.CaptureMatrix(registers.Geometry);
+                        pilotWorld[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix, point), projection);
+                    }
                 }
 
                 NativeBattleModuleProjectedVertex Project(int corner)

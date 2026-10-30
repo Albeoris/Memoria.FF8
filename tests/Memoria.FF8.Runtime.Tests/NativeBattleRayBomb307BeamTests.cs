@@ -110,8 +110,34 @@ public sealed class NativeBattleRayBomb307BeamTests
     }
 
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
+    [Fact]
+    public void Group21_actual_beam_source_task_corners_and_FIFO_preserve_all_native_registers_and_packets()
+    {
+        Fixture native = new(1);
+        var expected = native.Advance(native.Frame, 0x201);
+        string frame = NativeBattleTestSnapshots.Json(expected.Frame);
+        string batches = NativeBattleTestSnapshots.Json(native.Batches.ToArray());
+        Fixture captured = new(1) { Capture = true };
+        var owner = NativeBattlePilotVisualLifetimes.Identity(307, NativeBattleRayBomb307Controller.Read(captured.Frame, ChildBank));
+        var actual = captured.Advance(captured.Frame, 0x201);
+        Assert.Equal(frame, NativeBattleTestSnapshots.Json(actual.Frame));
+        Assert.Equal(batches, NativeBattleTestSnapshots.Json(captured.Batches.ToArray()));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Contexts.ToArray()), NativeBattleTestSnapshots.Json(captured.Contexts.ToArray()));
+        var primitive = Assert.Single(Assert.Single(captured.Batches).Attempts, attempt => attempt.Primitive is not null).Primitive!;
+        var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(owner.Generation, geometry.Identity.Generation);
+        Assert.Equal(owner.Bank, geometry.Identity.Bank);
+        Assert.Equal(0xCE3BB4, geometry.Identity.ResourceGeneration);
+        Assert.Equal(NativeBattlePilotVisualGeometry.Transform(Fixture.Beam(1).World, new(-1000, -1000, 0)), geometry.A);
+        Assert.Equal(NativeBattlePilotVisualGeometry.Transform(Fixture.Beam(1).World, new(1000, 1000, 0)), geometry.D);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+        Assert.Null(Assert.Single(Assert.Single(native.Batches).Attempts, attempt => attempt.Primitive is not null).Primitive!.PilotGeometry);
+    }
+
     private sealed class Fixture
     {
+        public bool Capture { get; init; }
         public NativeBattleRayBomb307Frame Frame { get; }
         public List<NativeBattleEffectArena> Contexts { get; } = [];
         public List<NativeBattleGfGeometryBatch> Batches { get; } = [];
@@ -129,7 +155,7 @@ public sealed class NativeBattleRayBomb307BeamTests
             Frame = new(memory, effect, new(123), NativeBattleRayBomb307State.FromColdProcess().WriteView(0x2242580, origin, 8)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address + 8, [0x12, 0x34, 0x56]) };
         }
         public static NativeBattleRayBomb10BeamGeometry Beam(short age) => NativeBattleRayBomb10Geometry.Beam628B00(new(2000, -500, 4000), new(1000, -1000, 1000, 0), Eye, 70, 2048, age);
-        public NativeBattleRayBomb307TaskStep Advance(NativeBattleRayBomb307Frame frame, uint flags = 0) => NativeBattleRayBomb307Controller.AdvanceBeam(frame, ChildBank, null!, new(NativeBattleActionPacketsState.Fresh(), flags, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Execute) { ReadView = _ => NativeBattlePackedMatrix32.FromMatrix(View, null), ReadCameraEye = _ => Eye });
+        public NativeBattleRayBomb307TaskStep Advance(NativeBattleRayBomb307Frame frame, uint flags = 0) => NativeBattleRayBomb307Controller.AdvanceBeam(frame, ChildBank, null!, new(NativeBattleActionPacketsState.Fresh(), flags, _ => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), Execute) { CapturePresentation = Capture, ReadView = _ => NativeBattlePackedMatrix32.FromMatrix(View, null), ReadCameraEye = _ => Eye });
         private NativeBattleRayBomb307Frame Execute(NativeBattleRayBomb307Frame frame, NativeBattleRayBomb307Operation operation)
         {
             NativeBattleRayBomb307DrawMesh88 draw = Assert.IsType<NativeBattleRayBomb307DrawMesh88>(operation);
@@ -138,8 +164,8 @@ public sealed class NativeBattleRayBomb307BeamTests
             NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(frame.Staging, draw.TemporaryAddress, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
             Contexts.Add(temporary);
             NativeBattlePackedMatrix32 matrix = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(frame.Memory.GeometryRegisters!);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(frame.Memory, Mesh(), matrix.ReadMatrix(), Projection, temporary, NativeBattleGteColorInterpolation.CodeConstants45F270);
-            Batches.Add(drawn.Batch);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(frame.Memory, Mesh(), matrix.ReadMatrix(), Capture ? Projection with { View = View } : Projection, temporary, NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity: draw.PilotIdentity);
+            Batches.Add(NativeBattleRayBomb307Presentation.PreserveNativeDepths(drawn.Batch));
             return frame with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(frame.Staging, draw.TemporaryAddress, drawn.Context, 88) };
         }
         private static NativeBattleStaticMeshResource Mesh()

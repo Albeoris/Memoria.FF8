@@ -6,6 +6,32 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect218WindowedGt3Tests
 {
     [Theory]
+    [InlineData(0x33u, 2000)]
+    [InlineData(0xF3u, 2000)]
+    [InlineData(0xF3u, -2000)]
+    public void Effect326_optional_capture_preserves_default_window_UV_register_masks_and_zero_payload(uint flags, int z)
+    {
+        var native = Draw(flags, z);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = Draw(flags, z, new(326, 1, 2, 3, 4));
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        var primitive = Assert.Single(captured.Batch.Attempts).Primitive;
+        if (z < 0)
+        {
+            Assert.Null(primitive);
+            return;
+        }
+        var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive!.PilotGeometry);
+        Assert.Equal((ushort)326, geometry.Identity.Effect);
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 2000), geometry.A);
+        Assert.Equal(3, geometry.CornerCount);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+        Assert.All(native.Batch.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+    }
+
+
+    [Theory]
     [InlineData(0x33u)]
     [InlineData(0xF3u)]
     public void Shaft_GT3_uses_its_actual_28_byte_source_and_48_byte_packet_with_three_color_stores(uint flags)
@@ -61,12 +87,31 @@ public sealed class NativeBattleEffect218WindowedGt3Tests
     }
 
     [Fact]
+    public void Effect326_empty_source_does_not_require_unreached_unknown_matrix_with_capture_enabled()
+    {
+        NativeBattleWindowedMesh144Step Run(bool capture)
+        {
+            byte[] empty = new byte[64];
+            Mesh().Bytes.AsSpan().Slice(0, 32).CopyTo(empty);
+            var mesh = Mesh() with { Bytes = empty.ToImmutableArray() };
+            var memory = Memory(2000) with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown() };
+            return NativeBattleWindowedMesh144.DrawLoaded(memory, mesh, Projection, Context(0x33), NativeBattleGteColorInterpolation.CodeConstants45F270, groupMask: 1 << 6, pilotIdentity: capture ? new(326, 1, 2, 3, 4) : null);
+        }
+        var native = Run(false);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = Run(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.Empty(captured.Batch.Attempts);
+        Assert.Equal(0, captured.Batch.AllocationBytes);
+    }
+
+    [Fact]
     public void Existing_default_group_admission_remains_strict_for_GT3()
     {
         Assert.Throws<InvalidDataException>(() => NativeBattleWindowedMesh144.DrawLoaded(Memory(2000), Mesh(), Projection, Context(0x33), NativeBattleGteColorInterpolation.CodeConstants45F270));
     }
 
-    private static NativeBattleWindowedMesh144Step Draw(uint flags, int z = 2000) => NativeBattleWindowedMesh144.DrawLoaded(Memory(z), Mesh(), Projection, Context(flags), NativeBattleGteColorInterpolation.CodeConstants45F270, groupMask: 1 << 6);
+    private static NativeBattleWindowedMesh144Step Draw(uint flags, int z = 2000, NativeBattlePilotVisualIdentity? pilotIdentity = null) => NativeBattleWindowedMesh144.DrawLoaded(Memory(z), Mesh(), pilotIdentity.HasValue ? Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() } : Projection, Context(flags), NativeBattleGteColorInterpolation.CodeConstants45F270, groupMask: 1 << 6, pilotIdentity: pilotIdentity);
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);
     private static uint U(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
     private static uint U(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(offset, 4));

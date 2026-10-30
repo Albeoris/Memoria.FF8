@@ -74,6 +74,10 @@ public static partial class NativeBattleRayBomb307Controller
                     frame = SlotWord(frame, row + 16, unchecked((short)(normalized.X * magnitude >> 12)));
                     frame = SlotWord(frame, row + 18, unchecked((short)(normalized.Y * magnitude >> 12)));
                     frame = SlotWord(frame, row + 20, unchecked((short)(normalized.Z * magnitude >> 12)));
+                    if (inputs.CapturePresentation)
+                    {
+                        NativeBattleRayBomb307Visuals.Born(frame, index);
+                    }
                 }
             }
         }

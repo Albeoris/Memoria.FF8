@@ -24,14 +24,14 @@ public static partial class NativeBattleBoomerangSword304Controller
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)workspaceOffset, current);
-            frame = DrawProgrammeNode66A440(frame, source, node, caller16, resources, inputs);
+            frame = DrawProgrammeNode66A440(frame, source, node, caller16, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(304, Read(frame, address), node.ResourceOffset) with { ResourceGeneration = ((long)source.Address << 32) | (uint)workspaceOffset } : null);
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)workspaceOffset, advanced.Workspace);
         return (frame, advanced.Remaining);
     }
 
-    public static NativeBattleBoomerangSword304Frame DrawProgrammeNode66A440(NativeBattleBoomerangSword304Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller16, NativeBattleBoomerangSword304Resources resources, NativeBattleBoomerangSword304Inputs inputs)
+    public static NativeBattleBoomerangSword304Frame DrawProgrammeNode66A440(NativeBattleBoomerangSword304Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller16, NativeBattleBoomerangSword304Resources resources, NativeBattleBoomerangSword304Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -117,7 +117,7 @@ public static partial class NativeBattleBoomerangSword304Controller
             context = context.Write(8, BitConverter.GetBytes(node.Color32));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleBoomerangSword304DrawMesh7043B0(temporary, geometryAddress, vertices));
+        frame = inputs.Execute(frame, new NativeBattleBoomerangSword304DrawMesh7043B0(temporary, geometryAddress, vertices) { PilotIdentity = pilotIdentity });
         return Release(frame, 88);
     }
 

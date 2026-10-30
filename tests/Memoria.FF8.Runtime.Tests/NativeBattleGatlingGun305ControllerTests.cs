@@ -101,6 +101,33 @@ public sealed class NativeBattleGatlingGun305ControllerTests
         Assert.Equal(NativeBattleTestSnapshots.Json(first.Operations), NativeBattleTestSnapshots.Json(second.Operations));
     }
 
+    [Fact]
+    public void Group21_first_mesh_copies_have_distinct_roles_with_identical_native_context_and_events()
+    {
+        (NativeBattleGatlingGun305Frame Frame, List<NativeBattleGatlingGun305Operation> Operations) Run(bool capture)
+        {
+            Fixture fixture = new();
+            var frame = fixture.Frame;
+            (frame, uint address) = NativeBattleGatlingGun305Controller.Append(frame, 0x5A5C50);
+            var task = NativeBattleGatlingGun305Controller.Read(frame, address).WriteWord(12, 1).WriteWord(0x10, 10).WriteWord(0x12, 20).WriteWord(0x14, 300).WriteWord(0x16, 0x9876).WriteWord(0x18, 0).WriteWord(0x1A, 0).WriteWord(0x1C, 1024);
+            frame = NativeBattleGatlingGun305Controller.Write(frame, address, task);
+            return (fixture.Step(frame, 0x201, capture), fixture.Operations);
+        }
+        var native = Run(false);
+        string beforeFrame = NativeBattleTestSnapshots.Json(native.Frame);
+        var captured = Run(true);
+        Assert.Equal(beforeFrame, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Operations), NativeBattleTestSnapshots.Json(captured.Operations));
+        var copies = captured.Operations.OfType<NativeBattleGatlingGun305DrawStatic88>().ToArray();
+        Assert.Equal(2, copies.Length);
+        Assert.Equal(copies[0].TemporaryAddress, copies[1].TemporaryAddress);
+        Assert.Equal(copies[0].PilotIdentity!.Value.Generation, copies[1].PilotIdentity!.Value.Generation);
+        Assert.NotEqual(copies[0].PilotIdentity, copies[1].PilotIdentity);
+        Assert.Equal(0, copies[0].PilotIdentity!.Value.Primitive);
+        Assert.Equal(1, copies[1].PilotIdentity!.Value.Primitive);
+        Assert.All(native.Operations, operation => Assert.Null(operation.PilotIdentity));
+    }
+
     private sealed class Fixture
     {
         public NativeBattleGatlingGun305Frame Frame { get; }
@@ -125,7 +152,7 @@ public sealed class NativeBattleGatlingGun305ControllerTests
             resources = new(new("fixture", []), new("fixture", []), new(0, 0xCED698, []), new(0, 0xCED998, []), new(0, 0xCEDC60, []), new(0, 0xCED358, 0, 0, []), new(0, 0xCED15C, 0, 0, []), new(0, 0xCED504, 0, 0, []), 0x61AD6);
         }
         public NativeBattleGatlingGun305Frame WithOnlyChild(uint callback) => NativeBattleGatlingGun305Controller.Write(Frame, ChildBank, NativeBattleTaskFixture.EditTask(NativeBattleGatlingGun305Controller.Read(Frame, ChildBank), taskData => taskData with { Callback = callback }));
-        public NativeBattleGatlingGun305Frame Step(NativeBattleGatlingGun305Frame frame, uint flags = 0) => NativeBattleGatlingGun305Controller.Advance(frame, resources, new(flags, packets, actor => new(actor, 2) { Rotation14 = 0, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770(), GeometryBounds52 = new(new(-10, -800, -10), new(10, 0, 10)) }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0), (current, actor, bone, distance) =>
+        public NativeBattleGatlingGun305Frame Step(NativeBattleGatlingGun305Frame frame, uint flags = 0, bool capturePresentation = false) => NativeBattleGatlingGun305Controller.Advance(frame, resources, new(flags, packets, actor => new(actor, 2) { Rotation14 = 0, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770(), GeometryBounds52 = new(new(-10, -800, -10), new(10, 0, 10)) }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0), (current, actor, bone, distance) =>
         {
             Bones.Add((actor, bone, distance));
             return new(current, new(10, 20, 300));
@@ -141,6 +168,6 @@ public sealed class NativeBattleGatlingGun305ControllerTests
                 return current with { Staging = current.Staging!.Write(sprite.TemporaryAddress + 0x28, BitConverter.GetBytes((short)-1)) };
             }
             return current;
-        }));
+        }) { CapturePresentation = capturePresentation });
     }
 }

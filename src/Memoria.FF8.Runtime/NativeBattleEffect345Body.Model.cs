@@ -31,12 +31,12 @@ public static partial class NativeBattleEffect345Body
         NativeBattleEffectOwnedModelState model = Owned(frame, address);
         int length = resources.Model.Geometry.Max(mesh => mesh.Vertices.Length) * 8;
         NativeBattleEffectOwnedModelRenderFrame current = new(frame.Memory, task, model, resources.Model, ReadBytes(frame, NormalProjectedRows, length), NormalProjectedRows, length, frame.State.ReadDword(SecondaryCursorGlobal), frame.State.ReadDword(PrimaryCursorGlobal));
-        NativeBattleEffectOwnedModelRenderStep drawn = NativeBattleEffectOwnedModelRendering.DrawNormal(current, RequireStaging(frame), inputs.ReadModelRenderInputs(frame));
+        NativeBattleEffectOwnedModelRenderStep drawn = NativeBattleEffectOwnedModelRendering.DrawNormal(current, RequireStaging(frame), inputs.ReadModelRenderInputs(frame), inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(345, task) with { ResourceGeneration = resources.Model.Address } : null);
         frame = frame with { Memory = drawn.Frame.Memory, Staging = drawn.Staging };
         frame = Write(frame, address, drawn.Frame.Task);
         frame = WriteBytes(frame, NormalProjectedRows, drawn.Frame.ProjectedScratch, length);
         uint first = frame.State.ReadDword(PrimaryCursorGlobal);
-        frame = inputs.Execute(frame, new NativeBattleEffect345DrawBatch(drawn.Batch, PrimaryCursorGlobal));
+        frame = inputs.Execute(frame, new NativeBattleEffect345DrawBatch(inputs.CapturePresentation ? NativeBattleEffect345Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, PrimaryCursorGlobal));
         if (frame.State.ReadDword(PrimaryCursorGlobal) != drawn.Frame.PacketAddress || drawn.Frame.PacketAddress != checked(first + (uint)drawn.Batch.AllocationBytes))
         {
             throw new InvalidDataException("Effect345 normal model publication differs from its native private cursor advancement.");
@@ -69,11 +69,11 @@ public static partial class NativeBattleEffect345Body
         NativeBattleModulePoolTask task = Read(frame, address);
         NativeBattleEffectOwnedModelRenderInputs drawing = inputs.ReadModelRenderInputs(frame);
         NativeBattleEffectLocalBounds bounds = new(new(unchecked((short)task.ReadWord(0x64)), unchecked((short)task.ReadWord(0x66)), unchecked((short)task.ReadWord(0x68))), new(unchecked((short)task.ReadWord(0x6A)), unchecked((short)task.ReadWord(0x6C)), unchecked((short)task.ReadWord(0x6E))));
-        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(RequireStaging(frame), Registers(frame), world, unchecked((short)task.ReadWord(0x54)), bounds, task.ReadDword(0x5C), drawing.Projection with { View = drawing.Camera.ReadMatrix() }, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect345 shadow drawing requires its current geometry controls."), drawing.Shadow, drawing.Capabilities.GouraudAlpha, 4112, 16);
+        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(RequireStaging(frame), Registers(frame), world, unchecked((short)task.ReadWord(0x54)), bounds, task.ReadDword(0x5C), drawing.Projection with { View = drawing.Camera.ReadMatrix() }, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect345 shadow drawing requires its current geometry controls."), drawing.Shadow, drawing.Capabilities.GouraudAlpha, 4112, 16, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(345, task, 1) with { ResourceGeneration = -1 } : null);
         frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 0x78) };
         frame = Publish(frame, shadow.Registers);
         frame = Release(frame, 0x78);
-        return inputs.Execute(frame, new NativeBattleEffect345DrawBatch(shadow.Batch, PrimaryCursorGlobal));
+        return inputs.Execute(frame, new NativeBattleEffect345DrawBatch(inputs.CapturePresentation ? NativeBattleEffect345Presentation.PreserveNativeDepths(shadow.Batch) : shadow.Batch, PrimaryCursorGlobal));
     }
 
     public static NativeBattleEffect345Frame Draw706550(NativeBattleEffect345Frame frame, uint address, NativeBattleEffect345Resources resources, NativeBattleEffect345Inputs inputs)
@@ -174,10 +174,13 @@ public static partial class NativeBattleEffect345Body
                 {
                     continue;
                 }
+                System.Numerics.Vector3[]? world = inputs.CapturePresentation ? new System.Numerics.Vector3[face.Quad ? 4 : 3] : null;
                 NativeBattleGeometryRegisterStep step = Registers(frame);
+                NativeBattleActionMatrix? matrix = inputs.CapturePresentation ? NativeBattleGeometry.CaptureMatrix(step.Geometry) : null;
                 for (int corner = 0; corner < 3; corner++)
                 {
-                    step = LoadPackedVector(step, corner, ReadPoint(indices[corner]), 0);
+                    int selectedCorner = corner;
+                    step = LoadPackedVector(step, corner, ReadPoint(indices[corner]), 0, world is not null && matrix is not null ? point => world[selectedCorner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection) : null);
                 }
                 step = NativeBattleGeometry.ProjectTriple(step, projection, controls.Dqa, controls.Dqb);
                 step = NativeBattleGeometry.Clip45EE10(step);
@@ -192,7 +195,7 @@ public static partial class NativeBattleEffect345Body
                 {
                     uint fourth = (uint)(BinaryPrimitives.ReadUInt16LittleEndian(face.Bytes.AsSpan().Slice(6, 2)) & 0xFFF);
                     temporary = Put32(temporary, 0x44, fourth);
-                    step = LoadPackedVector(step, 0, ReadPoint(fourth), 0);
+                    step = LoadPackedVector(step, 0, ReadPoint(fourth), 0, world is not null && matrix is not null ? point => world[3] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, point), projection) : null);
                     step = NativeBattleGeometry.ProjectSingle(step, projection, controls.Dqa, controls.Dqb);
                     step = NativeBattleGeometry.Average45E610(step, controls.Zsf4 ?? throw new NotSupportedException("Effect345 appearance requires its current ZSF4."));
                     screens = [.. screens, step.Geometry.Sxy[2] ?? throw new NotSupportedException("Effect345 appearance requires its current fourth screen value.")];
@@ -205,13 +208,18 @@ public static partial class NativeBattleEffect345Body
                 temporary = Put32(temporary, 0x58, depth);
                 frame = Publish(frame, step);
                 NativeBattleGfGeometryAttempt packet = AppearancePacket(face, screens, step.Geometry, color, allocationBytes, checked(17 + (int)depth));
+                if (world is not null && packet.Primitive is { } primitive)
+                {
+                    var identity = NativeBattlePilotVisualLifetimes.Identity(345, task, unchecked((2 * 397 + objectIndex) * 397 + currentFace)) with { ResourceGeneration = resources.Model.Address };
+                    packet = packet with { Primitive = primitive with { PilotGeometry = new(identity, world[0], world[1], world[2], face.Quad ? world[3] : default, checked((byte)world.Length)) } };
+                }
                 attempts.Add(packet);
                 allocationBytes += packet.PacketLength;
             }
         }
         frame = WriteBytes(frame, temporaryAddress, temporary, 0x5C);
         frame = Release(frame, 0x5C);
-        return inputs.Execute(frame, new NativeBattleEffect345DrawBatch(new(attempts.ToImmutable(), allocationBytes), PrimaryCursorGlobal));
+        return inputs.Execute(frame, new NativeBattleEffect345DrawBatch(inputs.CapturePresentation ? NativeBattleEffect345Presentation.PreserveNativeDepths(new(attempts.ToImmutable(), allocationBytes)) : new(attempts.ToImmutable(), allocationBytes), PrimaryCursorGlobal));
     }
 
     private static NativeBattleEffectOwnedModelState Owned(NativeBattleEffect345Frame frame, uint address) => frame.State.OwnedModels.TryGetValue(address, out NativeBattleEffectOwnedModelState? model) ? model : throw new NotSupportedException("Effect345 drawing requires its current effect-owned decoded model.");
@@ -233,9 +241,10 @@ public static partial class NativeBattleEffect345Body
         return !quad || readY(Dword345(temporary, 0x44)) <= 0;
     }
 
-    private static NativeBattleGeometryRegisterStep LoadPackedVector(NativeBattleGeometryRegisterStep step, int slot, NativeBattleEffectArena source, int offset)
+    private static NativeBattleGeometryRegisterStep LoadPackedVector(NativeBattleGeometryRegisterStep step, int slot, NativeBattleEffectArena source, int offset, Action<NativeBattleVector>? reachedLoad = null)
     {
         (byte[] bytes, bool[] known) = source.ReadSnapshot(offset, 8);
+        reachedLoad?.Invoke(new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4))));
         ImmutableArray<byte?> packed = bytes.Select((value, index) => known[index] ? (byte?)value : null).ToImmutableArray();
         return slot switch
         {

@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Gatling Gun requires its actual process memory.");
         NativeBattleGatlingGun305Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Gatling Gun requires its CRT stream."), memory.GatlingGun305 ?? throw new NotSupportedException("Gatling Gun requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Gatling Gun requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Gatling Gun requires its original interpolation constants.");
-        NativeBattleGatlingGun305Inputs inputs = new(graphics.Flags, nativeActionPackets, actor => graphics.Models[actor], _ => Camera().CapturePackedView1D97778(), Bone, Anchor, Execute);
+        NativeBattleGatlingGun305Inputs inputs = new(graphics.Flags, nativeActionPackets, actor => graphics.Models[actor], _ => Camera().CapturePackedView1D97778(), Bone, Anchor, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleGatlingGun305Controller.Initialize(frame, resources, inputs) : NativeBattleGatlingGun305Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -46,6 +46,7 @@ public sealed partial class BattleSession
 
         NativeBattleGatlingGun305Frame Deliver(NativeBattleGatlingGun305Frame current, NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleGatlingGun305Presentation.PreserveNativeDepths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Gatling Gun requires its pending ordering table.");
             NativeBattleGatlingGun305PacketWrite written = NativeBattleGatlingGun305PacketArena.Append(current.State, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
@@ -131,15 +132,15 @@ public sealed partial class BattleSession
                     NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = fade.Depth, ColorFlags = fade.ColorFlags }).ToImmutableArray() };
                     return current;
                 case NativeBattleGatlingGun305DrawStatic88 draw:
-                    return DrawMesh(current, draw.TemporaryAddress, draw.SourceAddress, draw.TableBaseBucket, unchecked((byte)(draw.DepthShift & 31)));
+                    return DrawMesh(current, draw.TemporaryAddress, draw.SourceAddress, draw.TableBaseBucket, unchecked((byte)(draw.DepthShift & 31)), pilotIdentity: draw.PilotIdentity);
                 case NativeBattleGatlingGun305DrawSprite180 draw:
-                    return DrawSprite(current, draw.TemporaryAddress, draw.SourceAddress, draw.Phase, draw.DepthShift);
+                    return DrawSprite(current, draw.TemporaryAddress, draw.SourceAddress, draw.Phase, draw.DepthShift, pilotIdentity: draw.PilotIdentity);
                 default:
                     throw new NotSupportedException("Gatling Gun operation requires its original native owner.");
             }
         }
 
-        NativeBattleGatlingGun305Frame DrawMesh(NativeBattleGatlingGun305Frame current, uint address, uint sourceAddress, int bucket, byte shift)
+        NativeBattleGatlingGun305Frame DrawMesh(NativeBattleGatlingGun305Frame current, uint address, uint sourceAddress, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             const int length = 88;
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Gatling Gun requires its physical drawing context.");
@@ -148,12 +149,12 @@ public sealed partial class BattleSession
             NativeBattleCameraProjection projection = Camera().Projection ?? throw new NotSupportedException("Gatling Gun requires its published projection.");
             NativeBattleGeometryRegisters registers = current.Memory.GeometryRegisters ?? throw new NotSupportedException("Gatling Gun requires its current matrix owner.");
             NativeBattleActionMatrix matrix = NativeBattleGeometry.CaptureMatrix(registers);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(current.Memory, mesh, matrix, projection, temporary, colors, matrixPadding18: registers.Rotation20[18] is byte low && registers.Rotation20[19] is byte high ? unchecked((short)(low | high << 8)) : null, tableBaseBucket: bucket, depthShift: shift);
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(current.Memory, mesh, matrix, projection, temporary, colors, matrixPadding18: registers.Rotation20[18] is byte low && registers.Rotation20[19] is byte high ? unchecked((short)(low | high << 8)) : null, tableBaseBucket: bucket, depthShift: shift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context, length) };
             return Deliver(current, drawn.Batch);
         }
 
-        NativeBattleGatlingGun305Frame DrawSprite(NativeBattleGatlingGun305Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift)
+        NativeBattleGatlingGun305Frame DrawSprite(NativeBattleGatlingGun305Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Gatling Gun sprite requires its physical temporary memory.");
@@ -162,7 +163,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Gatling Gun sprite differs from its current physical frame.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => resources.ReadSprite(selected), Camera().Projection ?? throw new NotSupportedException("Gatling Gun sprite requires its current projection."), Camera().Roll, 17, depthShift);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => resources.ReadSprite(selected), Camera().Projection ?? throw new NotSupportedException("Gatling Gun sprite requires its current projection."), Camera().Roll, 17, depthShift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

@@ -6,6 +6,42 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect345ParticlesTests
 {
+    [Fact]
+    public void Mesh_leaf_capture_preserves_actual_skewed_source_corners_native_FIFO_and_all_writes()
+    {
+        (NativeBattleEffect345Frame Frame, NativeBattleGfGeometryBatch Batch) Run(bool capture)
+        {
+            const uint source = 0x1744D34;
+            var initial = Frame();
+            var matrix = new NativeBattleActionMatrix([4096, 0, 0, 0, 4096, 0, 5, 7, 4096], 0, 0, 2000, 4096);
+            var context = NativeBattleActorWaveMesh.PrepareContext(NativeBattleEffectArena.Clear(), source, 0, 0, null);
+            var frame = initial.Frame with { Memory = NativeBattleEffectNodeContextMemory.Publish(initial.Frame.Memory, context) };
+            frame = frame with { Memory = frame.Memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(frame.Memory.GeometryRegisters!, matrix, true, true, null) } };
+            NativeBattleGfGeometryBatch? batch = null;
+            NativeBattleEffect345Inputs inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, null!, null!, null!, _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), null!, null!, null!, null!, null!, null!, null!, null!, (current, operation) =>
+            {
+                batch = Assert.IsType<NativeBattleEffect345DrawBatch>(operation).Batch;
+                return current;
+            }) { CapturePresentation = capture, ReadModel = null!, ReadPoseSource = null! };
+            var identity = NativeBattlePilotVisualLifetimes.Identity(345, NativeBattleEffect345Controller.Read(frame, initial.Task)) with { ResourceGeneration = source };
+            frame = NativeBattleEffect345Body.Draw707820(frame, NativeBattleEffectNodeContextMemory.Address, NativeBattleActDepthRoutingTests.Geometry(false), source, null!, inputs, capture ? identity : null);
+            return (frame, Assert.IsType<NativeBattleGfGeometryBatch>(batch));
+        }
+        var native = Run(false);
+        string baseline = NativeBattleTestSnapshots.Json(native.Frame);
+        string packets = NativeBattleTestSnapshots.Json(native.Batch);
+        var captured = Run(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(packets, NativeBattleTestSnapshots.Json(captured.Batch));
+        var primitive = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+        var geometry = primitive.PilotGeometry!;
+        Assert.Equal((ushort)345, geometry.Identity.Effect);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+        Assert.NotEqual(MathF.Truncate(geometry.A.Z), geometry.A.Z);
+    }
+
+
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
@@ -146,8 +182,10 @@ public sealed class NativeBattleEffect345ParticlesTests
         Assert.Equal(4096, NativeBattleEffectNodeRandom.Angle882030(initial, -4096, 0).Value);
     }
 
-    [Fact]
-    public void Sprite_branch_reads_retained_resource_and_keeps_first_selection_across_delivery()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Sprite_branch_reads_retained_resource_and_keeps_first_selection_across_delivery(bool capture)
     {
         const uint sourceAddress = 0x1643698;
         const int resource = 0x400;
@@ -197,6 +235,7 @@ public sealed class NativeBattleEffect345ParticlesTests
             return current;
         })
         {
+            CapturePresentation = capture,
             ReadModel = (_, _) => throw new InvalidOperationException("Sprite delivery does not read an actor model."),
             ReadPoseSource = (_, _) => throw new InvalidOperationException("Sprite delivery does not read an actor pose.")
         };
@@ -206,6 +245,22 @@ public sealed class NativeBattleEffect345ParticlesTests
         NativeBattleGfGeometryAttempt second = Assert.Single(batches[1].Attempts);
         Assert.NotNull(first.Primitive);
         Assert.Equal(first.Primitive!.Words, second.Primitive!.Words);
+        if (capture)
+        {
+            var a = Assert.IsType<NativeBattlePilotVisualGeometry>(first.Primitive.PilotGeometry);
+            var b = Assert.IsType<NativeBattlePilotVisualGeometry>(second.Primitive!.PilotGeometry);
+            Assert.Equal((ushort)345, a.Identity.Effect);
+            Assert.Equal((ushort)345, b.Identity.Effect);
+            Assert.NotEqual(a.Identity, b.Identity);
+            Assert.True(a.UseSourceDepths);
+            Assert.True(b.UseSourceDepths);
+            Assert.Equal(new System.Numerics.Vector4(first.Primitive.VertexPayload4[0], first.Primitive.VertexPayload4[1], first.Primitive.VertexPayload4[2], first.Primitive.VertexPayload4[3]), a.SourceDepths);
+        }
+        else
+        {
+            Assert.Null(first.Primitive.PilotGeometry);
+            Assert.Null(second.Primitive!.PilotGeometry);
+        }
         Assert.Equal((byte)2, result.Frame.State.NodeData![sourceAddress].ReadByte(resource + 20));
     }
 

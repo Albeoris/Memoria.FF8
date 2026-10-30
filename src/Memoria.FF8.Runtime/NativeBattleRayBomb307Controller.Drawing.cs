@@ -4,13 +4,13 @@ public static partial class NativeBattleRayBomb307Controller
 {
     private static NativeBattlePackedMatrix32 ReadView(NativeBattleRayBomb307Frame frame, NativeBattleRayBomb307Inputs inputs) => inputs.ReadView?.Invoke(frame) ?? throw new NotSupportedException("Ray-Bomb requires its current packed camera.");
 
-    private static NativeBattleRayBomb307Frame DrawStatic(NativeBattleRayBomb307Frame frame, NativeBattleActionMatrix matrix, uint source, uint flags, int? cue, bool zeroRgb, NativeBattleRayBomb307Inputs inputs)
+    private static NativeBattleRayBomb307Frame DrawStatic(NativeBattleRayBomb307Frame frame, NativeBattleActionMatrix matrix, uint source, uint flags, int? cue, bool zeroRgb, NativeBattleRayBomb307Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         frame = LoadMatrix(frame, matrix, true);
-        return EmitStatic(frame, source, flags, cue, zeroRgb, inputs);
+        return EmitStatic(frame, source, flags, cue, zeroRgb, inputs, pilotIdentity);
     }
 
-    private static NativeBattleRayBomb307Frame EmitStatic(NativeBattleRayBomb307Frame frame, uint source, uint flags, int? cue, bool zeroRgb, NativeBattleRayBomb307Inputs inputs)
+    private static NativeBattleRayBomb307Frame EmitStatic(NativeBattleRayBomb307Frame frame, uint source, uint flags, int? cue, bool zeroRgb, NativeBattleRayBomb307Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(RequireStaging(frame), 88);
         NativeBattleEffectArena temporary = Dword(Dword(Bounded(allocation.Staging, allocation.Address, 88), 0, source), 0x1C, flags);
@@ -23,7 +23,7 @@ public static partial class NativeBattleRayBomb307Controller
             temporary = Dword(temporary, 12, unchecked((uint)value));
         }
         frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, temporary, 88) };
-        frame = inputs.Execute(frame, new NativeBattleRayBomb307DrawMesh88(allocation.Address, source));
+        frame = inputs.Execute(frame, new NativeBattleRayBomb307DrawMesh88(allocation.Address, source) { PilotIdentity = pilotIdentity });
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 88) };
     }
 
@@ -36,7 +36,7 @@ public static partial class NativeBattleRayBomb307Controller
         {
             frame = SetupSprite(frame, frame.State.ReadView(0x2242580, 8), Signed(task, 0x1C), unchecked((short)-Signed(task, 0x16)), inputs);
             int? cue = age < 16 ? (16 - age) << 8 : age >= 22 ? (age - 22) * 682 : null;
-            frame = EmitStatic(frame, 0xCE350C, cue.HasValue ? 0xC0u : 0u, cue, true, inputs);
+            frame = EmitStatic(frame, 0xCE350C, cue.HasValue ? 0xC0u : 0u, cue, true, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(307, task) with { ResourceGeneration = 0xCE350C } : null);
         }
         else
         {
@@ -52,7 +52,7 @@ public static partial class NativeBattleRayBomb307Controller
             }
             int start = burst ? Signed(task, 14) - 8 : 10;
             int? cue = age >= start ? burst ? (age - start) << 9 : (age - start) * 292 : null;
-            frame = DrawStatic(frame, matrix, burst ? resources.MeshSequence[shape] : 0xCE190C, cue.HasValue ? burst ? 0xC3u : 0xF0u : burst ? 0u : 0x30u, cue, cue.HasValue, inputs);
+            frame = DrawStatic(frame, matrix, burst ? resources.MeshSequence[shape] : 0xCE190C, cue.HasValue ? burst ? 0xC3u : 0xF0u : burst ? 0u : 0x30u, cue, cue.HasValue, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(307, task) with { ResourceGeneration = burst ? resources.MeshSequence[shape] : 0xCE190C } : null);
         }
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -132,7 +132,7 @@ public static partial class NativeBattleRayBomb307Controller
                 staging = staging.Write(allocation.Address + 0x1C, new byte[] { color, color, color });
             }
         }
-        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleRayBomb307DrawSprite180(allocation.Address, source, phase, flags));
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleRayBomb307DrawSprite180(allocation.Address, source, phase, flags) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(307, task) with { ResourceGeneration = source } : null });
         short feedback = callback == 0x5A24D0 && (inputs.GraphicsFlags & 0x201) == 0 ? BitConverter.ToInt16(RequireStaging(frame).Read(allocation.Address + 0x28, 2)) : (short)0;
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 180) };
         if ((inputs.GraphicsFlags & 0x201) != 0)

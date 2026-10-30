@@ -28,11 +28,11 @@ public static partial class NativeBattleEffect326Controller
         for (int pass = 0; pass < 2; pass++)
         {
             NativeBattleEffect326Frame current = frame;
-            NativeBattleDefaultActMeshStep drawn = NativeBattleEffect326MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0xE148E8), inputs.ReadProjection(frame), context, inputs.Colors, 2, offset => ReadBytes(current, checked(vertices + (uint)offset), 8));
+            NativeBattleDefaultActMeshStep drawn = NativeBattleEffect326MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0xE148E8), inputs.ReadProjection(frame), context, inputs.Colors, 2, offset => ReadBytes(current, checked(vertices + (uint)offset), 8), pilotIdentity: NativeBattleEffect326Presentation.Task(inputs, unchecked(0xE148E8u * 397 ^ vertices)));
             frame = frame with { Memory = drawn.Memory };
             context = drawn.Context88;
             frame = PublishContext(frame, temporary, context, 88);
-            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(drawn.Batch, 0x1D8E054));
+            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, 0x1D8E054));
         }
         frame = Release(frame, 88);
         return IncrementMeshClock(frame, address, inputs, 12);

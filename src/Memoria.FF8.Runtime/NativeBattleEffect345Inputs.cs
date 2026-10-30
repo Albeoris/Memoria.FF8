@@ -11,6 +11,9 @@ public sealed record NativeBattleEffect345OwnedModelStep(NativeBattleEffect345Fr
 
 public sealed record NativeBattleEffect345Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect345Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect345Frame, uint, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect345Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect345Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect345Frame, short> ReadCameraRoll, Func<NativeBattleEffect345Frame, NativeBattleStageColors> ReadModelColors, Func<NativeBattleEffect345Frame, uint, int, NativeBattleEffectArena> ReadPhysical, Func<NativeBattleEffect345Frame, uint, int, int, NativeBattleEffectArena, NativeBattleEffect345PointStep> Point502170, Func<NativeBattleEffect345Frame, uint, NativeBattleEffectOwnedModelResource, ushort, NativeBattleEffect345OwnedModelStep> InitializeOwnedModel8DD0F0, Func<NativeBattleEffect345Frame, uint, short, NativeBattleEffect345OwnedModelStep> SelectOwnedModel8DD190, Func<NativeBattleEffect345Frame, uint, NativeBattleEffect345OwnedModelStep> AdvanceOwnedModel8DD220, Func<NativeBattleEffect345Frame, NativeBattleEffectOwnedModelRenderInputs> ReadModelRenderInputs, Func<NativeBattleEffect345Frame, NativeBattleEffect345Operation, NativeBattleEffect345Frame> Execute)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+
     public required Func<NativeBattleEffect345Frame, int, NativeBattleGraphicsModel> ReadModel { get; init; }
     public required Func<NativeBattleEffect345Frame, int, NativeBattlePoseSource> ReadPoseSource { get; init; }
 }

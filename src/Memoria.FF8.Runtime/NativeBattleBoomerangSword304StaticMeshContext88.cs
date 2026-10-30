@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleBoomerangSword304StaticMeshContext88
 {
-    public static NativeBattleStaticMeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift)
+    public static NativeBattleStaticMeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint flags = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(28, 4));
         bool main = mesh.Address == 0x102EA98;
@@ -29,6 +29,6 @@ public static class NativeBattleBoomerangSword304StaticMeshContext88
                 throw new InvalidDataException("Boomerang Sword static mesh directory leaves its original source.");
             }
         }
-        return NativeBattleStaticMeshContext88.DrawLoaded(memory, mesh, projection, context, constants, tableBaseBucket, depthShift);
+        return NativeBattleStaticMeshContext88.DrawLoaded(memory, mesh, projection, context, constants, tableBaseBucket, depthShift, pilotIdentity: pilotIdentity);
     }
 }

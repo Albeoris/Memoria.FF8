@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect338Controller
 {
-    private static NativeBattleEffect338Frame DrawShimmer(NativeBattleEffect338Frame frame, uint main, int angle, int cue, NativeBattleEffect338Resources resources, NativeBattleEffect338Inputs inputs)
+    private static NativeBattleEffect338Frame DrawShimmer(NativeBattleEffect338Frame frame, uint main, int angle, int cue, NativeBattleEffect338Resources resources, NativeBattleEffect338Inputs inputs, int role = 0)
     {
         (frame, uint temporary) = Allocate(frame, 120);
         NativeBattleModulePoolTask task = Read(frame, main);
@@ -16,14 +16,14 @@ public static partial class NativeBattleEffect338Controller
         frame = PublishContext(frame, temporary, PackedArena(packed), 32);
         frame = LoadMatrix(frame, packed);
         NativeBattleEffectArena context = Context(frame, temporary + 32, 88).Write(0, BitConverter.GetBytes(0x1371640u)).Write(8, new byte[4]).Write(12, BitConverter.GetBytes(cue)).Write(24, BitConverter.GetBytes(-128)).Write(28, BitConverter.GetBytes(0xF0u));
-        NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(frame.Memory, resources.Mesh(0x1371640).Bytes, 0x1371640, 0, context, inputs.ReadProjection(frame), inputs.Colors);
+        NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(frame.Memory, resources.Mesh(0x1371640).Bytes, 0x1371640, 0, context, inputs.ReadProjection(frame), inputs.Colors, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(338, task, unchecked(0x10000 + role)) with { ResourceGeneration = 0x1371640 } : null);
         frame = frame with { Memory = drawn.Memory };
         frame = PublishContext(frame, temporary + 32, drawn.Context88, 88);
-        frame = inputs.Execute(frame, new NativeBattleEffect338DeliverBatch(drawn.Batch, CursorGlobal));
+        frame = inputs.Execute(frame, new NativeBattleEffect338DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect338Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, CursorGlobal));
         return Release(frame, 120);
     }
 
-    private static NativeBattleEffect338Frame DrawParticles(NativeBattleEffect338Frame frame, NativeBattleEffect338Resources resources, NativeBattleEffect338Inputs inputs)
+    private static NativeBattleEffect338Frame DrawParticles(NativeBattleEffect338Frame frame, uint main, NativeBattleEffect338Resources resources, NativeBattleEffect338Inputs inputs)
     {
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = Context(frame, temporary, 180);
@@ -64,9 +64,9 @@ public static partial class NativeBattleEffect338Controller
             }
             context = context.Write(44, BitConverter.GetBytes(unchecked(sourceAddress + (uint)frameOffset + 4)));
             frame = PublishContext(frame, temporary, context, 180);
-            NativeBattlePuffPacketStep drawn = NativeBattlePuffPackets6FC9E0.Draw(RequireStaging(frame), temporary, inputs.ReadProjection(frame), ReadResource, 17);
+            NativeBattlePuffPacketStep drawn = NativeBattlePuffPackets6FC9E0.Draw(RequireStaging(frame), temporary, inputs.ReadProjection(frame), ReadResource, 17, pilotIdentity: inputs.CapturePresentation ? NativeBattleEffect338Presentation.Particle(frame, Read(frame, main), slot, sourceAddress) : null);
             frame = frame with { Staging = drawn.Staging };
-            frame = inputs.Execute(frame, new NativeBattleEffect338DeliverBatch(drawn.Packets, CursorGlobal));
+            frame = inputs.Execute(frame, new NativeBattleEffect338DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect338Presentation.PreserveNativeDepths(drawn.Packets) : drawn.Packets, CursorGlobal));
         }
         return Release(frame, 180);
 
@@ -96,9 +96,9 @@ public static partial class NativeBattleEffect338Controller
         frame = PublishContext(frame, temporary + 88, PackedArena(packed), 32);
         frame = LoadMatrix(frame, packed);
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0x1372CE8u)).Write(28, new byte[4]);
-        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0x1372CE8), inputs.ReadProjection(frame), context, inputs.Colors);
+        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.Mesh(0x1372CE8), inputs.ReadProjection(frame), context, inputs.Colors, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(338, task) with { ResourceGeneration = 0x1372CE8 } : null);
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context, 88);
-        frame = inputs.Execute(frame, new NativeBattleEffect338DeliverBatch(drawn.Batch, CursorGlobal));
+        frame = inputs.Execute(frame, new NativeBattleEffect338DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect338Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, CursorGlobal));
         frame = Release(frame, 152);
         task = Read(frame, address);
         byte remaining = unchecked((byte)(task.ReadByte(27) - 1));

@@ -7,7 +7,11 @@ public sealed record NativeBattleEffect323Frame(NativeBattleEffectMemory Memory,
 
 public sealed record NativeBattleEffect323Step(NativeBattleEffect323Frame Frame, int Result);
 public sealed record NativeBattleEffect323PointStep(NativeBattleEffect323Frame Frame, NativeBattleEffectArena Output8);
-public sealed record NativeBattleEffect323Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect323Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect323Frame, uint, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect323Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect323Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect323Frame, short> ReadCameraRoll, Func<NativeBattleEffect323Frame, uint, int, int, NativeBattleEffectArena, NativeBattleEffect323PointStep> Point502170, Func<NativeBattleEffect323Frame, uint, NativeBattleEffectArena, NativeBattleEffect323PointStep> Anchor571400, Func<NativeBattleEffect323Frame, NativeBattleEffectArena, int, int, NativeBattleEffectArena, NativeBattleEffect323PointStep> SampleTrajectory, Func<NativeBattleEffect323Frame, NativeBattleEffect323Operation, NativeBattleEffect323Frame> Execute);
+public sealed record NativeBattleEffect323Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect323Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect323Frame, uint, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect323Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect323Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect323Frame, short> ReadCameraRoll, Func<NativeBattleEffect323Frame, uint, int, int, NativeBattleEffectArena, NativeBattleEffect323PointStep> Point502170, Func<NativeBattleEffect323Frame, uint, NativeBattleEffectArena, NativeBattleEffect323PointStep> Anchor571400, Func<NativeBattleEffect323Frame, NativeBattleEffectArena, int, int, NativeBattleEffectArena, NativeBattleEffect323PointStep> SampleTrajectory, Func<NativeBattleEffect323Frame, NativeBattleEffect323Operation, NativeBattleEffect323Frame> Execute)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+}
 
 public abstract record NativeBattleEffect323Operation;
 public sealed record NativeBattleEffect323UploadTim505E30(uint SourceAddress) : NativeBattleEffect323Operation;

@@ -7,9 +7,17 @@ public sealed record NativeBattleEffect338Frame(NativeBattleEffectMemory Memory,
 
 public sealed record NativeBattleEffect338VibrationStep(NativeBattleEffect338Frame Frame, int Handle);
 public sealed record NativeBattleEffect338IoPoll(NativeBattleEffect338Frame Frame, bool Busy);
-public sealed record NativeBattleEffect338Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect338Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect338Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect338Frame, uint, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect338Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect338Frame, NativeBattleEffect338Operation, NativeBattleEffect338Frame> Execute, Func<NativeBattleEffect338Frame, NativeBattleEffect338VibrationStep> StartVibration, Func<NativeBattleEffect338Frame, int, NativeBattleEffect338IoPoll> PollIo5342C0, Func<NativeBattleEffect338Frame, uint, int> ReadBoneCount);
+public sealed record NativeBattleEffect338Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect338Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect338Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect338Frame, uint, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect338Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect338Frame, NativeBattleEffect338Operation, NativeBattleEffect338Frame> Execute, Func<NativeBattleEffect338Frame, NativeBattleEffect338VibrationStep> StartVibration, Func<NativeBattleEffect338Frame, int, NativeBattleEffect338IoPoll> PollIo5342C0, Func<NativeBattleEffect338Frame, uint, int> ReadBoneCount)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+}
 
-public abstract record NativeBattleEffect338Operation;
+public abstract record NativeBattleEffect338Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect338Stage5713E0(int Intensity) : NativeBattleEffect338Operation;
 public sealed record NativeBattleEffect338SelectSequence505C00(uint ModelAddress, ushort Sequence) : NativeBattleEffect338Operation;
 public sealed record NativeBattleEffect338Contact506690(int ContactIndex) : NativeBattleEffect338Operation;

@@ -25,7 +25,7 @@ public static partial class NativeBattleBoomerangSword304Controller
         }
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(resources.TrailMesh.Address)).Write(8, new byte[] { 0, 0, unchecked((byte)blue) }).Write(12, BitConverter.GetBytes(cue)).Write(28, BitConverter.GetBytes(0xC0u));
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleBoomerangSword304DrawStatic88(temporary, resources.TrailMesh.Address));
+        frame = inputs.Execute(frame, new NativeBattleBoomerangSword304DrawStatic88(temporary, resources.TrailMesh.Address) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(304, Read(frame, address)) with { ResourceGeneration = resources.TrailMesh.Address } : null });
         frame = Release(frame, 88);
         task = Read(frame, address);
         short age = unchecked((short)(task.ReadWord(12) + 1));

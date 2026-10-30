@@ -42,17 +42,17 @@ public static class NativeBattleEffect321Lower
         frame = frame with { Random = frame.Random.Draw(out ushort value) };
         return value;
     }
-    public static NativeBattleEffect321Frame DrawStatic(NativeBattleEffect321Frame frame, uint temporary, NativeBattleEffect321Resources resources, NativeBattleEffect321Inputs inputs)
+    public static NativeBattleEffect321Frame DrawStatic(NativeBattleEffect321Frame frame, uint temporary, NativeBattleEffect321Resources resources, NativeBattleEffect321Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = Context(frame, temporary, 88);
-        NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(Dword(context, 0)), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
+        NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(Dword(context, 0)), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = result.Memory }, temporary, result.Context, 88);
-        return inputs.Execute(frame, new NativeBattleEffect321DrawBatch(result.Batch, 0x2239528));
+        return inputs.Execute(frame, new NativeBattleEffect321DrawBatch(inputs.CapturePresentation ? NativeBattleEffect321Presentation.PreserveNativeDepths(result.Batch) : result.Batch, 0x2239528));
     }
-    public static NativeBattleEffect321Frame DrawSprite(NativeBattleEffect321Frame frame, uint temporary, NativeBattleEffect321Resources resources, NativeBattleEffect321Inputs inputs)
+    public static NativeBattleEffect321Frame DrawSprite(NativeBattleEffect321Frame frame, uint temporary, NativeBattleEffect321Resources resources, NativeBattleEffect321Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        NativeBattleModuleSpriteDraw result = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, temporary, 180), resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw result = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, Context(frame, temporary, 180), resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = result.Memory }, temporary, result.Temporary180, 180);
-        return inputs.Execute(frame, new NativeBattleEffect321DrawBatch(result.Batch, 0x2239528));
+        return inputs.Execute(frame, new NativeBattleEffect321DrawBatch(inputs.CapturePresentation ? NativeBattleEffect321Presentation.PreserveNativeDepths(result.Batch) : result.Batch, 0x2239528));
     }
 }

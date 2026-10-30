@@ -133,6 +133,32 @@ public sealed class NativeBattleDegenerator306ModelDrawingTests
     }
 
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);
+    [Fact]
+    public void Group21_actual306_body_and_linked_roles_preserve_full_scratch_FIFO_and_distinct_source_faces()
+    {
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var native = Draw(Geometry(true), Context(2048), 2000, projection: projection);
+        var body = Draw(Geometry(true), Context(2048), 2000, pilotIdentity: new(306, 0x2243490, 1, 2, 0), projection: projection);
+        var linked = Draw(Geometry(true), Context(2048), 2000, pilotIdentity: new(306, 0x2243490, 1, 2, 1), projection: projection);
+        body = body with { Batch = NativeBattleDegenerator306Presentation.PreserveNativeDepths(body.Batch) };
+        linked = linked with { Batch = NativeBattleDegenerator306Presentation.PreserveNativeDepths(linked.Batch) };
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(body));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(linked));
+        var identities = body.Batch.Attempts.Concat(linked.Batch.Attempts).Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).ToArray();
+        Assert.Equal(4, identities.Length);
+        Assert.Equal(4, identities.Distinct().Count());
+        Assert.Equal(new short[] { -200, -200, 1000, 0 }, Words(body.VertexScratch.Read(0, 8)));
+        Assert.Equal(new short[] { -200, -200, 1000, 0 }, Words(linked.VertexScratch.Read(0, 8)));
+        foreach (var attempt in body.Batch.Attempts.Concat(linked.Batch.Attempts))
+        {
+            var primitive = Assert.IsType<NativeBattleGeometryPrimitive>(attempt.Primitive);
+            var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            Assert.Equal(new System.Numerics.Vector3(-200, -200, 1000), geometry.A);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+        }
+    }
+
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess() with { Zsf3 = 0x155, Zsf4 = 0x100 } };
 
     private static NativeBattleDegenerator306ModelStep Draw(byte[] geometry, NativeBattleEffectArena context, int boneZ, int length = 32, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? scratch = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null, NativeBattleActionMatrix? camera = null)

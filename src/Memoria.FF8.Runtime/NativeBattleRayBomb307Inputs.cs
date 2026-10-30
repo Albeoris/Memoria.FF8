@@ -1,6 +1,10 @@
 namespace Memoria.FF8.Runtime;
 
-public abstract record NativeBattleRayBomb307Operation;
+public abstract record NativeBattleRayBomb307Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleRayBomb307BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleRayBomb307Operation;
 public sealed record NativeBattleRayBomb307RingSequence(byte Actor, byte Sequence) : NativeBattleRayBomb307Operation;
 public sealed record NativeBattleRayBomb307ActorFlags(byte Actor, ushort ClearMask, ushort SetMask) : NativeBattleRayBomb307Operation;
@@ -16,6 +20,8 @@ public sealed record NativeBattleRayBomb307AnchorStep(NativeBattleRayBomb307Fram
 public sealed record NativeBattleRayBomb307TaskStep(NativeBattleRayBomb307Frame Frame, int Result);
 public sealed record NativeBattleRayBomb307Inputs(NativeBattleActionPacketsState Packets, uint GraphicsFlags, Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRayBomb307Frame, int, int, NativeBattlePackedMatrix32> ReadCurrentBoneMatrix, Func<NativeBattleRayBomb307Frame, ushort, NativeBattleRayBomb307PointStep> ReadTargetCenter5020A0, Func<NativeBattleRayBomb307Frame, int, NativeBattleRayBomb307AnchorStep> ReadAnchor571400, Func<int, NativeBattleEffectArena> ReadRotation8, Func<int, NativeBattleEffectArena> ReadPosition8, Func<NativeBattleRayBomb307Frame, NativeBattleRayBomb307Operation, NativeBattleRayBomb307Frame> Execute)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
     public Func<NativeBattleRayBomb307Frame, NativeBattlePackedMatrix32>? ReadView { get; init; }
     public Func<NativeBattleRayBomb307Frame, NativeBattleVector>? ReadCameraEye { get; init; }
 }

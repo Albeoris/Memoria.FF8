@@ -18,7 +18,7 @@ public static class NativeBattleEffect323Lower
             case 0x65A720:
                 NativeBattleEffectArena caller = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0x10, 8), 0, NativeBattleEffectArena.CreateUnknown(16), 0, 8);
                 caller = Put323(Put323(caller, 8, unchecked((uint)-128)), 12, checked(frame.State.ReadDword(0x25052A8) + 0x1754));
-                NativeBattleEffect323Step programme = NativeBattleEffect323Programme.Advance(frame, address + 0x18, 0x270, caller, resources, inputs);
+                NativeBattleEffect323Step programme = NativeBattleEffect323Programme.Advance(frame, address + 0x18, 0x270, caller, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(323, task) : null);
                 return new(programme.Frame, programme.Result == 0 ? 2 : 0);
             default:
                 throw new NotSupportedException("The effect requires its selected lower callback.");
@@ -49,12 +49,12 @@ public static class NativeBattleEffect323Lower
         }
     }
 
-    public static NativeBattleEffect323Frame DrawMesh572200(NativeBattleEffect323Frame frame, uint temporary88, NativeBattleEffect323Resources resources, NativeBattleEffect323Inputs inputs)
+    public static NativeBattleEffect323Frame DrawMesh572200(NativeBattleEffect323Frame frame, uint temporary88, NativeBattleEffect323Resources resources, NativeBattleEffect323Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = Context(frame, temporary88, 88);
-        NativeBattleStaticMeshContext88Step draw = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(Dword323(context, 0)), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
+        NativeBattleStaticMeshContext88Step draw = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(Dword323(context, 0)), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, pilotIdentity: pilotIdentity);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary88, draw.Context, 88);
-        return inputs.Execute(frame, new NativeBattleEffect323DrawBatch(draw.Batch, 0x25052A4));
+        return inputs.Execute(frame, new NativeBattleEffect323DrawBatch(inputs.CapturePresentation ? NativeBattleEffect323Presentation.PreserveNativeDepths(draw.Batch) : draw.Batch, 0x25052A4));
     }
 
     public static NativeBattleEffect323Step AdvanceSprite(NativeBattleEffect323Frame frame, uint address, NativeBattleEffect323Resources resources, NativeBattleEffect323Inputs inputs)
@@ -64,9 +64,9 @@ public static class NativeBattleEffect323Lower
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = PutWord323(PutWord323(Put323(Context(frame, temporary, 180), 0, 0xFE12B4), 4, task.ReadWord(0x12)), 0x24, 0);
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(323, task) with { ResourceGeneration = Dword323(context, 0) } : null);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
-        frame = inputs.Execute(frame, new NativeBattleEffect323DrawBatch(draw.Batch, 0x25052A4));
+        frame = inputs.Execute(frame, new NativeBattleEffect323DrawBatch(inputs.CapturePresentation ? NativeBattleEffect323Presentation.PreserveNativeDepths(draw.Batch) : draw.Batch, 0x25052A4));
         frame = Release(frame, 180);
         task = Read(frame, address);
         task = task.WriteWord(0x12, unchecked((ushort)(task.ReadWord(0x12) + 1)));
@@ -97,7 +97,7 @@ public static class NativeBattleEffect323Lower
         NativeBattleEffectArena context = Put323(Put323(Put323(Context(frame, temporary, 88), 0, 0xFE2974), 12, unchecked((uint)cue)), 0x1C, 0xF0);
         context = context.Write(8, new byte[] { 0, 0, unchecked((byte)Math.Min(255, (4096 - cue) >> 4)) });
         frame = PublishContext(frame, temporary, context, 88);
-        frame = DrawMesh572200(frame, temporary, resources, inputs);
+        frame = DrawMesh572200(frame, temporary, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(323, task) with { ResourceGeneration = Dword323(context, 0) } : null);
         frame = Release(frame, 88);
         task = Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1)));
         return new(Write(frame, address, task), Signed(task, 12) < 8 ? 0 : 2);

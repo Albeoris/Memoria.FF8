@@ -149,7 +149,7 @@ public static partial class NativeBattleBoomerangSword304Controller
             frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), world), null));
             NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(resources.Mesh.Address)).Write(28, BitConverter.GetBytes(0u));
             frame = PublishContext(frame, temporary, context, 88);
-            frame = inputs.Execute(frame, new NativeBattleBoomerangSword304DrawStatic88(temporary, resources.Mesh.Address));
+            frame = inputs.Execute(frame, new NativeBattleBoomerangSword304DrawStatic88(temporary, resources.Mesh.Address) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(304, Read(frame, address)) with { ResourceGeneration = resources.Mesh.Address } : null });
             frame = Release(frame, 88);
             (frame, uint trail) = Append(frame, 0x25075A0, 0x66A730);
             if (trail != 0)

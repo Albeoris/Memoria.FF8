@@ -37,7 +37,7 @@ public static partial class NativeBattleEffect323Controller
             frame = inputs.Execute(frame, new NativeBattleEffect323MeshMask(caster, 0xFFFFFFFD, 0));
             NativeBattleVector history = Vector(TaskView(Read(frame, address), 0xAC, 8));
             NativeBattleActionMatrix world = BuildWorld(history, current, Signed(Read(frame, address), 0x1A), Signed(Read(frame, address), 0x1C));
-            frame = DrawMainMesh(frame, world, resources, inputs);
+            frame = DrawMainMesh(frame, address, world, resources, inputs);
             frame = BirthMesh(frame, age, world);
             frame = TriggerRecipient(frame, address, age, sampled.Output8, resources, inputs);
         }
@@ -118,14 +118,14 @@ public static partial class NativeBattleEffect323Controller
         return NativeBattleGfMatrices.Multiply56C090(basis, NativeBattleGfMatrices.Multiply56C090(z, x)) with { X = current.X, Y = current.Y, Z = current.Z };
     }
 
-    private static NativeBattleEffect323Frame DrawMainMesh(NativeBattleEffect323Frame frame, NativeBattleActionMatrix world, NativeBattleEffect323Resources resources, NativeBattleEffect323Inputs inputs)
+    private static NativeBattleEffect323Frame DrawMainMesh(NativeBattleEffect323Frame frame, uint taskAddress, NativeBattleActionMatrix world, NativeBattleEffect323Resources resources, NativeBattleEffect323Inputs inputs)
     {
         (frame, uint temporary) = Allocate(frame, 88);
         NativeBattleActionMatrix viewWorld = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), world);
         frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(viewWorld, null));
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(0xFE13ECu)).Write(0x1C, BitConverter.GetBytes(0u));
         frame = PublishContext(frame, temporary, context, 88);
-        frame = NativeBattleEffect323Lower.DrawMesh572200(frame, temporary, resources, inputs);
+        frame = NativeBattleEffect323Lower.DrawMesh572200(frame, temporary, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(323, Read(frame, taskAddress)) with { ResourceGeneration = NativeBattleEffect323Lower.Dword323(context, 0) } : null);
         return Release(frame, 88);
     }
 

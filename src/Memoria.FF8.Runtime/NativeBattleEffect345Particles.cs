@@ -194,7 +194,7 @@ public static partial class NativeBattleEffect345Particles
                             NativeBattleEffectArena view = NativeBattleActorWaveMesh.PrepareContext(ReadBytes(frame, temporary, 104), resourceAddress, BinaryPrimitives.ReadInt16LittleEndian(descriptor.AsSpan(0x3A)), unchecked((short)memory.Word(particle + 0x1CE)), memory.Word(particle + 0x1CE) != 0 ? memory.Dword(particle + 0x16C) : null);
                             frame = WriteBytes(frame, temporary, view, 104);
                             frame = LoadMatrix(frame, packed);
-                            frame = NativeBattleEffect345Body.Draw707820(frame, temporary, ReadMesh(frame, resources, resourceAddress), resourceAddress, resources, inputs);
+                            frame = NativeBattleEffect345Body.Draw707820(frame, temporary, ReadMesh(frame, resources, resourceAddress), resourceAddress, resources, inputs, inputs.CapturePresentation ? memory.PilotGeometryIdentity(NativeBattlePilotVisualLifetimes.Identity(345, Read(frame, address)), particle, instance) with { ResourceGeneration = unchecked(memory.PilotGeometryIdentity(NativeBattlePilotVisualLifetimes.Identity(345, Read(frame, address)), particle, instance).ResourceGeneration * 397 ^ resourceAddress) } : null);
                         }
                         else
                         {
@@ -210,9 +210,9 @@ public static partial class NativeBattleEffect345Particles
                                 spriteResources.Add(resourceAddress, resource);
                             }
                             ushort phase = unchecked((ushort)(short)(sbyte)memory.Byte(particle + 0x1D0));
-                            NativeBattleGfGeometryBatch batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, phase, packed.ReadMatrix(), inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, observeRolledMatrix: memory.WriteSpriteMatrix, observeQuadMatrix: memory.WriteQuadMatrix, geometry: memory.ProjectedSpriteGeometry(particle, resourceAddress, resource, phase, inputs.ReadProjection(frame)));
+                            NativeBattleGfGeometryBatch batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(resource, phase, packed.ReadMatrix(), inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, observeRolledMatrix: memory.WriteSpriteMatrix, observeQuadMatrix: memory.WriteQuadMatrix, geometry: memory.ProjectedSpriteGeometry(particle, resourceAddress, resource, phase, inputs.ReadProjection(frame)), pilotIdentity: inputs.CapturePresentation ? memory.PilotGeometryIdentity(NativeBattlePilotVisualLifetimes.Identity(345, Read(frame, address)), particle, instance) with { ResourceGeneration = unchecked(memory.PilotGeometryIdentity(NativeBattlePilotVisualLifetimes.Identity(345, Read(frame, address)), particle, instance).ResourceGeneration * 397 ^ resourceAddress) } : null);
                             frame = frame with { Memory = memory.CaptureProcessMemory() };
-                            frame = inputs.Execute(frame, new NativeBattleEffect345DrawBatch(batch, NativeBattleEffect345Profile.PrimaryCursorGlobal));
+                            frame = inputs.Execute(frame, new NativeBattleEffect345DrawBatch(inputs.CapturePresentation ? NativeBattleEffect345Presentation.PreserveNativeDepths(batch) : batch, NativeBattleEffect345Profile.PrimaryCursorGlobal));
                         }
                         frame = frame with { State = frame.State.WriteDword(0x255EA84, scratch) };
                         memory.SynchronizePublishedStorage(frame.Memory);

@@ -21,7 +21,7 @@ public static partial class NativeBattleRayBomb307Controller
                 NativeBattleEffectArena packed = NativeBattleEffectNodeContextMemory.Copy(frame.State.Particles, row + 8, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
                 frame = SetupSprite(frame, packed, scale, unchecked((short)-(scale >> 3)), inputs);
                 frame = frame with { Staging = RequireStaging(frame).Write(allocation.Address + 4, BitConverter.GetBytes(phase)) };
-                frame = inputs.Execute(frame, new NativeBattleRayBomb307DrawSprite180(allocation.Address, 0xCE1760, phase, 0));
+                frame = inputs.Execute(frame, new NativeBattleRayBomb307DrawSprite180(allocation.Address, 0xCE1760, phase, 0) { PilotIdentity = inputs.CapturePresentation ? NativeBattleRayBomb307Visuals.Particle(frame, index) : null });
             }
             else
             {

@@ -7,6 +7,38 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect322ProgrammeTests
 {
+    [Fact]
+    public void Presentation_selected_programme_keeps_actual_source_world_corners_and_native_FIFO()
+    {
+        (NativeBattleEffect322Frame Frame, NativeBattleGfGeometryBatch Batch) Run(bool capture)
+        {
+            Fixture fixture = new(0x65B600);
+            var source = NativeBattleActDepthRoutingTests.ProgrammeSource(0xFE5CC0);
+            var mesh = new NativeBattleStaticMeshResource(0, source.Address + 16, source.Data.AsSpan().Slice(16).ToArray().ToImmutableArray());
+            fixture.Resources = fixture.Resources with { Geometry = fixture.Resources.Geometry.Add(mesh.Address, mesh) };
+            byte[] data = NativeBattleActDepthRoutingTests.Node(0).Data.ToArray();
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4), 0x200);
+            var caller = NativeBattleEffectArena.Clear().MarkUnknown(6, 2).MarkUnknown(12, 4).Write(4, BitConverter.GetBytes((short)2000)).Write(8, BitConverter.GetBytes(-128));
+            var inputs = fixture.Inputs() with { CapturePresentation = capture, ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108) };
+            var identity = NativeBattlePilotVisualLifetimes.Identity(322, NativeBattleEffect322Controller.Read(fixture.Frame, fixture.Address)) with { ResourceGeneration = source.Address };
+            var frame = NativeBattleEffect322Programme.DrawNode(fixture.Frame, source, new(0, 0, data.ToImmutableArray()), caller, fixture.Resources, inputs, capture ? identity : null);
+            return (frame, Assert.IsType<NativeBattleEffect322DrawBatch>(Assert.Single(fixture.Operations)).Batch);
+        }
+        var native = Run(false);
+        string baseline = NativeBattleTestSnapshots.Json(native.Frame);
+        string packets = NativeBattleTestSnapshots.Json(native.Batch);
+        var captured = Run(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(packets, NativeBattleTestSnapshots.Json(captured.Batch));
+        var primitive = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive is not null).Primitive!;
+        var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal((ushort)322, geometry.Identity.Effect);
+        Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), geometry.A);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+    }
+
+
     [Theory]
     [InlineData(0x200)]
     [InlineData(0x40102)]

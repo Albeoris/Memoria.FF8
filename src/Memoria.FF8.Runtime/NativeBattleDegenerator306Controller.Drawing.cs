@@ -103,7 +103,7 @@ public static partial class NativeBattleDegenerator306Controller
             temporary = Dword(temporary, 0x20, resources.MaterialCycle[material]);
         }
         frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, temporary, length) };
-        frame = inputs.Execute(frame, custom ? new NativeBattleDegenerator306DrawCustom108(allocation.Address) : new NativeBattleDegenerator306DrawStatic88(allocation.Address, source, camera ? 4122 : 17, camera ? 14 : 2));
+        frame = inputs.Execute(frame, custom ? new NativeBattleDegenerator306DrawCustom108(allocation.Address) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(306, Read(frame, address)) with { ResourceGeneration = source } : null } : new NativeBattleDegenerator306DrawStatic88(allocation.Address, source, camera ? 4122 : 17, camera ? 14 : 2) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(306, Read(frame, address)) with { ResourceGeneration = source } : null });
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), length) };
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -145,7 +145,7 @@ public static partial class NativeBattleDegenerator306Controller
             frame = LoadMatrix(frame, local);
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(RequireStaging(frame), 180);
             NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(allocation.Staging, allocation.Address, 0xCE60C0, 0).Write(allocation.Address + 4, BitConverter.GetBytes((ushort)0));
-            frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleDegenerator306DrawSprite180(allocation.Address, 0xCE60C0, 0, 14));
+            frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleDegenerator306DrawSprite180(allocation.Address, 0xCE60C0, 0, 14) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(306, Read(frame, address)) with { ResourceGeneration = 0xCE60C0 } : null });
             frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 180) };
         }
         return Age(frame, address, 30, inputs);
@@ -163,7 +163,7 @@ public static partial class NativeBattleDegenerator306Controller
             NativeBattleEffectArena temporary = Dword(Bounded(allocation.Staging, allocation.Address, 136), 0x2C, unchecked((uint)((age << 12) / 30)));
             temporary = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0x10, 8), 0, temporary, 0x60, 8);
             frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, temporary, 136) };
-            frame = inputs.Execute(frame, new NativeBattleDegenerator306DrawBody136(allocation.Address, actor));
+            frame = inputs.Execute(frame, new NativeBattleDegenerator306DrawBody136(allocation.Address, actor) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(306, Read(frame, address)) with { ResourceGeneration = 0 } : null });
             frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 136) };
         }
         return Age(frame, address, 31, inputs);

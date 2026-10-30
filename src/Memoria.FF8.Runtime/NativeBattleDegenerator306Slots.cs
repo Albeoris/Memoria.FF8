@@ -27,7 +27,7 @@ public static class NativeBattleDegenerator306Slots
             short scale = Signed(frame.State, address + 6);
             NativeBattleModuleAnchor anchor = new(Signed(frame.State, address + 8), Signed(frame.State, address + 10), Signed(frame.State, address + 12), Signed(frame.State, address + 14));
             frame = frame with { Staging = RequireStaging(frame).Write(allocation.Address + 4, BitConverter.GetBytes(phase)), Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), anchor, scale, unchecked((short)-(scale >> 4))) };
-            frame = inputs.Execute(frame, new NativeBattleDegenerator306DrawSprite180(allocation.Address, resources.SpriteB.Address, phase));
+            frame = inputs.Execute(frame, new NativeBattleDegenerator306DrawSprite180(allocation.Address, resources.SpriteB.Address, phase) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(306, frame.State.Globals, SlotBank, index) with { ResourceGeneration = unchecked(NativeBattlePilotVisualLifetimes.Identity(306, task).Generation * 397 ^ resources.SpriteB.Address) } : null });
             if (paused)
             {
                 continue;
@@ -79,6 +79,10 @@ public static class NativeBattleDegenerator306Slots
                 frame = DrawRandom(frame, out ushort magnitude);
                 int speed = magnitude % 200 + 170;
                 frame = frame with { State = frame.State.WriteWord(address + 16, unchecked((ushort)(unchecked(direction.X * speed) >> 12))).WriteWord(address + 18, unchecked((ushort)(unchecked(direction.Y * speed) >> 12))).WriteWord(address + 20, unchecked((ushort)(unchecked(direction.Z * speed) >> 12))) };
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, SlotBank, slot);
+                }
             }
         }
         task = task.WriteWord(12, unchecked((ushort)(age + 1)));

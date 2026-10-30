@@ -60,7 +60,7 @@ public static partial class NativeBattleEffect345Body
         return Write(frame, address, task);
     }
 
-    public static NativeBattleEffect345Frame Draw707820(NativeBattleEffect345Frame frame, uint contextAddress, ImmutableArray<byte> mesh, uint meshAddress, NativeBattleEffect345Resources resources, NativeBattleEffect345Inputs inputs)
+    public static NativeBattleEffect345Frame Draw707820(NativeBattleEffect345Frame frame, uint contextAddress, ImmutableArray<byte> mesh, uint meshAddress, NativeBattleEffect345Resources resources, NativeBattleEffect345Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleGeometryRegisterStep registers = Registers(frame);
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect345 mesh drawing requires its current geometry controls.");
@@ -74,11 +74,11 @@ public static partial class NativeBattleEffect345Body
             return (Vector(point), NullableWord(point, 6));
         }
         short? padding = registers.Geometry.Rotation20[18] is byte low && registers.Geometry.Rotation20[19] is byte high ? unchecked((short)(low | high << 8)) : null;
-        NativeBattleActorWaveMeshStep drawn = NativeBattleActorWaveMesh.EmitBatch(mesh, meshAddress, NativeBattleGeometry.CaptureMatrix(registers.Geometry), inputs.ReadProjection(frame), context, registers, far, controls.Dqa, controls.Dqb, controls.Zsf4, inputs.Colors, padding, controls.Zsf3, selectedVerticesAddress: (flags & 0x2000) != 0 ? selected : null, readSelectedVertex: (flags & 0x2000) != 0 ? ReadSelected : null);
+        NativeBattleActorWaveMeshStep drawn = NativeBattleActorWaveMesh.EmitBatch(mesh, meshAddress, NativeBattleGeometry.CaptureMatrix(registers.Geometry), inputs.ReadProjection(frame), context, registers, far, controls.Dqa, controls.Dqb, controls.Zsf4, inputs.Colors, padding, controls.Zsf3, selectedVerticesAddress: (flags & 0x2000) != 0 ? selected : null, readSelectedVertex: (flags & 0x2000) != 0 ? ReadSelected : null, pilotIdentity: pilotIdentity);
         frame = Publish(frame, drawn.Registers);
         frame = frame with { Memory = frame.Memory with { PrimitiveProcess = frame.Memory.PrimitiveProcess! with { ModelRendererRegisters = drawn.FarControls } } };
         frame = WriteBytes(frame, contextAddress, drawn.Context104, 104);
-        return inputs.Execute(frame, new NativeBattleEffect345DrawBatch(drawn.Batch, PrimaryCursorGlobal));
+        return inputs.Execute(frame, new NativeBattleEffect345DrawBatch(inputs.CapturePresentation ? NativeBattleEffect345Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, PrimaryCursorGlobal));
     }
 
     public static NativeBattleEffect345Frame Draw70CEC0(NativeBattleEffect345Frame frame, uint address, NativeBattlePackedMatrix32 basis, NativeBattleEffect345Resources resources, NativeBattleEffect345Inputs inputs)
@@ -101,7 +101,7 @@ public static partial class NativeBattleEffect345Body
         context = Put32(context, 0x14, 0xF0);
         frame = WriteBytes(frame, temporary, context, 104);
         uint meshAddress = task.ReadDword(0x4C);
-        frame = Draw707820(frame, temporary, resources.ReadStatic(meshAddress, NativeBattleEffect345Resources.MeshLength), meshAddress, resources, inputs);
+        frame = Draw707820(frame, temporary, resources.ReadStatic(meshAddress, NativeBattleEffect345Resources.MeshLength), meshAddress, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(345, task) with { ResourceGeneration = meshAddress } : null);
         return Release(frame, 104);
     }
 

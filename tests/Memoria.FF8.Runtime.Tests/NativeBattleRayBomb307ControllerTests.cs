@@ -189,6 +189,82 @@ public sealed class NativeBattleRayBomb307ControllerTests
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
     }
 
+    [Fact]
+    public void Group21_real_particle_row_births_retain_bank_owner_and_change_only_on_native_reuse()
+    {
+        (NativeBattleRayBomb307Frame Frame, List<NativeBattlePilotVisualIdentity> First, List<NativeBattlePilotVisualIdentity> Second) Run(bool capture)
+        {
+            Fixture fixture = new();
+            var frame = fixture.Task(MainCallback, 13);
+            var inputs = fixture.Inputs() with { CapturePresentation = capture };
+            List<NativeBattlePilotVisualIdentity> identities = [];
+            var execute = inputs.Execute;
+            inputs = inputs with { Execute = (current, operation) =>
+            {
+                if (operation.PilotIdentity is { } identity)
+                {
+                    identities.Add(identity);
+                }
+                current = execute(current, operation);
+                if (operation is NativeBattleRayBomb307DrawSprite180 sprite)
+                {
+                    current = current with { Staging = current.Staging!.Write(sprite.TemporaryAddress + 0x28, BitConverter.GetBytes((short)-1)) };
+                }
+                return current;
+            } };
+            frame = NativeBattleRayBomb307Controller.AdvanceMain(frame, ChildBank, fixture.Resources, inputs).Frame;
+            frame = NativeBattleRayBomb307Controller.AdvanceSlots(frame, inputs).Frame;
+            Assert.Empty(identities);
+            frame = NativeBattleRayBomb307Controller.AdvanceSlots(frame, inputs).Frame;
+            var first = identities.ToList();
+            identities.Clear();
+            frame = NativeBattleRayBomb307Controller.AdvanceMain(frame, ChildBank, fixture.Resources, inputs).Frame;
+            frame = NativeBattleRayBomb307Controller.AdvanceSlots(frame, inputs).Frame;
+            frame = NativeBattleRayBomb307Controller.AdvanceSlots(frame, inputs).Frame;
+            return (frame, first, identities);
+        }
+        var native = Run(false);
+        string before = NativeBattleTestSnapshots.Json(native.Frame);
+        var captured = Run(true);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(4, captured.First.Count);
+        Assert.Equal(4, captured.Second.Count);
+        for (int index = 0; index < 4; index++)
+        {
+            Assert.Equal(ParticlesAddress, captured.First[index].Bank);
+            Assert.Equal(captured.First[index].Slot, captured.Second[index].Slot);
+            Assert.NotEqual(captured.First[index].Generation, captured.Second[index].Generation);
+            Assert.Equal(captured.First[index].ResourceGeneration, captured.Second[index].ResourceGeneration);
+        }
+    }
+
+    [Fact]
+    public void Group21_restored_live_rows_use_real_bank_ownership_and_discontinue_prior_capture_epochs()
+    {
+        Fixture fixture = new();
+        var inputs = fixture.Inputs() with { CapturePresentation = true };
+        var frame = NativeBattleRayBomb307Controller.AdvanceMain(fixture.Task(MainCallback, 13), ChildBank, fixture.Resources, inputs).Frame;
+        Assert.Equal(1u, BitConverter.ToUInt32(frame.State.Particles.Read(0, 4)));
+        var original = NativeBattleRayBomb307Visuals.Particle(frame, 0);
+        string native = NativeBattleTestSnapshots.Json(frame);
+        Assert.Equal(original, NativeBattleRayBomb307Visuals.Particle(frame, 0));
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRayBomb307Frame>(native)!;
+        var restoredIdentity = NativeBattleRayBomb307Visuals.Particle(restored, 0);
+        Assert.Equal(ParticlesAddress, restoredIdentity.Bank);
+        Assert.Equal(0, restoredIdentity.Slot);
+        Assert.Equal(0xCE1760, restoredIdentity.ResourceGeneration);
+        Assert.NotEqual(original.Generation, restoredIdentity.Generation);
+        Assert.Equal(native, NativeBattleTestSnapshots.Json(restored));
+        NativeBattlePilotVisualGeometry geometry = new(original, default, default, default, default, 4);
+        Assert.Same(geometry, NativeBattlePilotVisualGeometry.Sample(geometry, geometry with { Identity = restoredIdentity, A = System.Numerics.Vector3.One }, 0.5f));
+        Fixture fresh = new();
+        var next = NativeBattleRayBomb307Controller.AdvanceMain(fresh.Task(MainCallback, 13), ChildBank, fresh.Resources, fresh.Inputs() with { CapturePresentation = true }).Frame;
+        var newBank = NativeBattleRayBomb307Visuals.Particle(next, 0);
+        Assert.NotEqual(original.Generation, newBank.Generation);
+        Assert.NotEqual(restoredIdentity.Generation, newBank.Generation);
+        Assert.Equal(native, NativeBattleTestSnapshots.Json(frame));
+    }
+
     private static short Word(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
     private sealed record Draw(uint Source, ushort Phase, ushort Flags, NativeBattleEffectArena Context);
     private sealed class Fixture

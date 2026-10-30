@@ -39,7 +39,7 @@ public static class NativeBattleEffect321Records
             {
                 continue;
             }
-            frame = DrawRow(frame, row, workAddress, spriteAddress, resources, inputs);
+            frame = DrawRow(frame, row, workAddress, spriteAddress, resources, inputs, inputs.CapturePresentation ? NativeBattleEffect321Presentation.Row(frame, task, index, 0xCD1390) : null);
             if (Paused(frame, inputs))
             {
                 continue;
@@ -106,6 +106,10 @@ public static class NativeBattleEffect321Records
                 row = PutWord(row, 18, -5 - Random(ref frame) % 45);
             }
             frame = frame with { State = frame.State.WriteView(current, row, Stride) };
+            if (inputs.CapturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, First, checked((int)((current - First) / Stride)));
+            }
         }
         return frame;
     }
@@ -123,7 +127,7 @@ public static class NativeBattleEffect321Records
         return 0;
     }
 
-    public static NativeBattleEffect321Frame DrawRow(NativeBattleEffect321Frame frame, NativeBattleEffectArena row, uint workAddress, uint spriteAddress, NativeBattleEffect321Resources resources, NativeBattleEffect321Inputs inputs)
+    public static NativeBattleEffect321Frame DrawRow(NativeBattleEffect321Frame frame, NativeBattleEffectArena row, uint workAddress, uint spriteAddress, NativeBattleEffect321Resources resources, NativeBattleEffect321Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         (byte[] bytes, bool[] known) = row.ReadSnapshot(14, 2);
         short? w = known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : null;
@@ -148,6 +152,6 @@ public static class NativeBattleEffect321Records
         frame = PublishContext(frame, workAddress, work, 72);
         frame = frame with { Memory = NativeBattleEffect315Gte.LoadTranslation64DD70(frame.Memory, CopyBytes(work, 0x38, NativeBattleEffectArena.Clear(), 0, 12)) };
         frame = PublishContext(frame, spriteAddress, PutWord(Context(frame, spriteAddress, 180), 4, Word(row, 4)), 180);
-        return DrawSprite(frame, spriteAddress, resources, inputs);
+        return DrawSprite(frame, spriteAddress, resources, inputs, pilotIdentity);
     }
 }

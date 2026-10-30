@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Boomerang Sword requires its actual process memory.");
         NativeBattleBoomerangSword304Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Boomerang Sword requires its actual CRT stream."), memory.BoomerangSword304 ?? throw new NotSupportedException("Boomerang Sword requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Boomerang Sword requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Boomerang Sword requires its original arithmetic constants.");
-        NativeBattleBoomerangSword304Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute);
+        NativeBattleBoomerangSword304Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleBoomerangSword304Controller.Initialize(frame, resources, inputs) : NativeBattleBoomerangSword304Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -81,6 +81,7 @@ public sealed partial class BattleSession
 
         NativeBattleBoomerangSword304Frame Deliver(NativeBattleBoomerangSword304Frame current, NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleBoomerangSword304Presentation.PreserveNativeDepths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Boomerang Sword requires its current ordering table.");
             uint address = current.State.ReadDword(NativeBattleBoomerangSword304Profile.CursorGlobal);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, NativeBattleWaterExecutionFields.ArenaOffset(address, 0), primitive.Pending, batch);
@@ -124,7 +125,7 @@ public sealed partial class BattleSession
             NativeBattleStaticMeshResource mesh = resources.ReadStatic(operation.SourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Boomerang Sword requires its actual static-mesh temporary memory.");
             NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, operation.TemporaryAddress, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleBoomerangSword304StaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleBoomerangSword304StaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context, 88) }, drawn.Batch);
         }
 
@@ -137,7 +138,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Boomerang Sword mesh selected pointer differs from its actual context.");
             }
-            NativeBattleBoomerangSword304MeshContext88Step drawn = NativeBattleBoomerangSword304MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex);
+            NativeBattleBoomerangSword304MeshContext88Step drawn = NativeBattleBoomerangSword304MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context88, 88) };
             return Deliver(current, drawn.Batch);
 
@@ -178,7 +179,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Boomerang Sword sprite source differs from its current temporary pointer.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Boomerang Sword sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Boomerang Sword sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect338 requires its current process memory.");
         NativeBattleEffect338Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect338 requires its current CRT random owner."), memory.Effect338 ?? throw new NotSupportedException("Effect338 requires its retained executable storage; explicitly migrate a needed older snapshot.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect338 requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect338 requires its actual arithmetic constants.");
-        NativeBattleEffect338Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], _ => nativeActionPackets, Execute, StartVibration, PollIo, (_, pointer) => PoseSource(pointer).BoneCount);
+        NativeBattleEffect338Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], _ => nativeActionPackets, Execute, StartVibration, PollIo, (_, pointer) => PoseSource(pointer).BoneCount) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect338Controller.Initialize(frame, resources, inputs) : NativeBattleEffect338Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -153,7 +153,7 @@ public sealed partial class BattleSession
             return WriteBytes(current, capture.Destination, limits, 4);
         }
 
-        NativeBattleEffect338Frame DrawModel(NativeBattleEffect338Frame current, uint address)
+        NativeBattleEffect338Frame DrawModel(NativeBattleEffect338Frame current, uint address, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleModulePoolTask task = Read(current, address);
             NativeBattleEffect338Skeleton skeleton = current.State.Skeleton ?? throw new NotSupportedException("Effect338 model drawing requires its current embedded skeleton.");
@@ -173,12 +173,12 @@ public sealed partial class BattleSession
             temporary76 = temporary76.Write(0x24, BitConverter.GetBytes(ArenaAddress + ScratchOffset)).Write(0x30, BitConverter.GetBytes(current.State.ReadDword(EndGlobal))).Write(0x34, new byte[4]).Write(0x38, BitConverter.GetBytes((short)320)).Write(0x3A, BitConverter.GetBytes((short)216)).Write(0x3C, BitConverter.GetBytes(task.ReadDword(0x4C))).Write(0x40, BitConverter.GetBytes(task.ReadDword(0xA0))).Write(0x44, new byte[2]).Write(0x48, new byte[4]);
             uint geometry = checked(resources.Model.Address + (uint)resources.Model.Section(1));
             NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(temporary76, 0x20, NativeBattleEffectArena.Clear().MarkUnknown(0, 44), 0, 44);
-            NativeBattleModelContext44Step rendered = NativeBattleModelContext44.Draw(current.Memory, context, bones, ReadGeometry, geometry, ReadBytes(current, ArenaAddress + ScratchOffset, scratchLength), scratchLength, Projection(), colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect338 model drawing requires its actual hardware capability."), 17, 4, current.State.ReadDword(CursorGlobal));
+            NativeBattleModelContext44Step rendered = NativeBattleModelContext44.Draw(current.Memory, context, bones, ReadGeometry, geometry, ReadBytes(current, ArenaAddress + ScratchOffset, scratchLength), scratchLength, Projection(), colors, definition.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect338 model drawing requires its actual hardware capability."), 17, 4, current.State.ReadDword(CursorGlobal), pilotIdentity: pilotIdentity);
             current = current with { Memory = rendered.Memory };
             temporary76 = NativeBattleEffectNodeContextMemory.Copy(rendered.Context44, 0, temporary76, 0x20, 44);
             current = PublishContext(current, temporary, temporary76, 76);
             current = WriteBytes(current, ArenaAddress + ScratchOffset, rendered.ProjectedScratch, scratchLength);
-            current = Deliver(current, rendered.Batch, CursorGlobal, 0);
+            current = Deliver(current, pilotIdentity.HasValue ? NativeBattleEffect338Presentation.PreserveNativeDepths(rendered.Batch) : rendered.Batch, CursorGlobal, 0);
             (current, uint restore) = Allocate(current, 88);
             skeleton = skeleton.Publish(pose);
             ImmutableArray<NativeBattleActionMatrix> restoredBones = Enumerable.Range(0, count).Select(index => NativeBattleArenaPose.ReadMatrix(skeleton.Storage, 32 + index * 48)).ToImmutableArray();
@@ -219,7 +219,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect338CaptureBounds6DFD90 capture:
                     return Bounds(current, capture);
                 case NativeBattleEffect338DrawModel6A79B0 body:
-                    return DrawModel(current, body.TaskAddress);
+                    return DrawModel(current, body.TaskAddress, body.PilotIdentity);
                 case NativeBattleEffect338Sound501330 sound:
                     Publish(current);
                     PublishNativeModuleSound(new(sound.Packed, sound.Flags, null) { Pan = sound.Pan });

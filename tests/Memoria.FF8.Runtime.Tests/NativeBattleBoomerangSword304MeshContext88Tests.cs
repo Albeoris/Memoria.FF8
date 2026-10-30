@@ -57,6 +57,82 @@ public sealed class NativeBattleBoomerangSword304MeshContext88Tests
         Assert.Throws<NotSupportedException>(() => NativeBattleBoomerangSword304MeshContext88.DrawLoaded(Memory(), mesh, new(null, 100, 160, 108), Context(mesh.Address, 0x2030), NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, _ => throw new InvalidOperationException()));
     }
 
+    [Theory]
+    [InlineData(2, true)]
+    [InlineData(3, true)]
+    [InlineData(4, true)]
+    [InlineData(2, false)]
+    [InlineData(3, false)]
+    [InlineData(7, false)]
+    public void Group21_capture_keeps_inline_and_actual_selected_corners_native_W_FIFO_and_writes(int group, bool inline)
+    {
+        var mesh = Mesh(group, inline);
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        List<int> nativeReads = [];
+        List<int> capturedReads = [];
+        NativeBattleGfGeometryBatch Run(NativeBattlePilotVisualIdentity? identity, List<int> reads, out NativeBattleEffectMemory memory, out NativeBattleEffectArena context)
+        {
+            if (inline)
+            {
+                var result = NativeBattleBoomerangSword304StaticMeshContext88.DrawLoaded(Memory(), mesh, projection, Context(mesh.Address, group == 4 ? 0xC0u : 0), NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, pilotIdentity: identity);
+                memory = result.Memory;
+                context = result.Context;
+                return NativeBattleBoomerangSword304Presentation.PreserveNativeDepths(result.Batch);
+            }
+            var selected = NativeBattleBoomerangSword304MeshContext88.DrawLoaded(Memory(), mesh, projection, Context(mesh.Address, 0x20F0).Write(4, BitConverter.GetBytes(0x20000000u)).Write(24, BitConverter.GetBytes(-128)), NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, offset =>
+            {
+                reads.Add(offset);
+                return (Vertex(offset), null);
+            }, pilotIdentity: identity);
+            memory = selected.Memory;
+            context = selected.Context88;
+            return NativeBattleBoomerangSword304Presentation.PreserveNativeDepths(selected.Batch);
+        }
+        var native = Run(null, nativeReads, out var nativeMemory, out var nativeContext);
+        var captured = Run(new(304, 1, 2, 3, 4), capturedReads, out var capturedMemory, out var capturedContext);
+        Assert.Equal(NativeBattleTestSnapshots.Json(nativeMemory), NativeBattleTestSnapshots.Json(capturedMemory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(nativeContext), NativeBattleTestSnapshots.Json(capturedContext));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(nativeReads, capturedReads);
+        var primitive = Assert.Single(captured.Attempts, attempt => attempt.Primitive is not null).Primitive!;
+        var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(new System.Numerics.Vector3(-400, -400, 2000), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(400, -400, 2000), geometry.B);
+        Assert.Equal(new System.Numerics.Vector3(0, 400, 2000), geometry.C);
+        if ((group & 1) != 0)
+        {
+            Assert.Equal(new System.Numerics.Vector3(400, 400, 2000), geometry.D);
+        }
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+        Assert.Null(Assert.Single(native.Attempts, attempt => attempt.Primitive is not null).Primitive!.PilotGeometry);
+    }
+
+    [Fact]
+    public void Group21_rejected_selected_triple_never_reads_invalid_fourth_or_changes_native_partial_writes()
+    {
+        var mesh = Mesh(3, false);
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleBoomerangSword304MeshContext88Step Run(NativeBattlePilotVisualIdentity? identity, List<int> reads)
+        {
+            var memory = Memory();
+            memory = memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(memory.GeometryRegisters!, NativeBattleCuragaMatrices.Identity8DD770(), true, true, null) };
+            return NativeBattleBoomerangSword304MeshContext88.DrawLoaded(memory, mesh, projection, Context(mesh.Address, 0x2030).Write(4, BitConverter.GetBytes(0x20000000u)).Write(24, new byte[4]), NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, offset =>
+            {
+                reads.Add(offset);
+                return offset == 24 ? throw new InvalidOperationException() : (Vertex(offset), (short?)null);
+            }, pilotIdentity: identity);
+        }
+        List<int> nativeReads = [];
+        List<int> capturedReads = [];
+        var native = Run(null, nativeReads);
+        var captured = Run(new(304, 1, 2, 3, 4), capturedReads);
+        Assert.Equal(new[] { 0, 8, 16 }, capturedReads);
+        Assert.Equal(nativeReads, capturedReads);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+    }
+
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
     private static NativeBattleEffectArena Context(uint source, uint flags)
     {

@@ -87,6 +87,47 @@ public sealed class NativeBattleDegenerator306SlotsTests
 
     private static NativeBattleDegenerator306Resources Resources => new(null!, null!, null!, null!, null!, null!, null!, null!, new(0, 0xCE62A8, 0, 0, []), [], 0);
 
+    [Fact]
+    public void Group21_native_slot_rebirth_changes_generation_without_changing_W_rng_or_native_writes()
+    {
+        (NativeBattleDegenerator306Frame Frame, List<NativeBattlePilotVisualIdentity> First, List<NativeBattlePilotVisualIdentity> Second) Run(bool capture)
+        {
+            Fixture fixture = new(0) { NextOffset = -1 };
+            List<NativeBattlePilotVisualIdentity> identities = [];
+            var inputs = fixture.Inputs() with { CapturePresentation = capture };
+            var execute = inputs.Execute;
+            inputs = inputs with { Execute = (current, operation) =>
+            {
+                if (operation.PilotIdentity is { } identity)
+                {
+                    identities.Add(identity);
+                }
+                return execute(current, operation);
+            } };
+            var frame = NativeBattleDegenerator306Slots.Advance(fixture.Frame, fixture.Address, Resources, inputs).Frame;
+            Assert.Empty(identities);
+            frame = NativeBattleDegenerator306Slots.Advance(frame, fixture.Address, Resources, inputs).Frame;
+            var first = identities.ToList();
+            identities.Clear();
+            frame = NativeBattleDegenerator306Slots.Advance(frame, fixture.Address, Resources, inputs).Frame;
+            Assert.Equal((ushort)0xCAFE, fixture.ObservedW);
+            return (frame, first, identities);
+        }
+        var native = Run(false);
+        string before = NativeBattleTestSnapshots.Json(native.Frame);
+        var captured = Run(true);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(20, captured.First.Count);
+        Assert.Equal(20, captured.Second.Count);
+        for (int index = 0; index < 20; index++)
+        {
+            Assert.Equal(captured.First[index].Bank, captured.Second[index].Bank);
+            Assert.Equal(captured.First[index].Slot, captured.Second[index].Slot);
+            Assert.NotEqual(captured.First[index].Generation, captured.Second[index].Generation);
+            Assert.Equal(captured.First[index].ResourceGeneration, captured.Second[index].ResourceGeneration);
+        }
+    }
+
     private sealed class Fixture
     {
         public NativeBattleDegenerator306Frame Frame { get; }

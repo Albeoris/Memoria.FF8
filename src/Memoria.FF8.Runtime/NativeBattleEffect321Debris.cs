@@ -13,7 +13,7 @@ public static class NativeBattleEffect321Debris
         {
             NativeBattleEffectArena sourcePoint = TaskView(task, 16, 8);
             frame = PublishContext(frame, workAddress, CopyBytes(sourcePoint, 0, Context(frame, workAddress, 104), 0, 8), 104);
-            frame = Birth(frame, sourcePoint);
+            frame = Birth(frame, sourcePoint, inputs.CapturePresentation);
         }
         (frame, uint temporary) = Allocate(frame, 88);
         NativeBattleEffectArena work = CopyBytes(PackedArena(inputs.ReadView(frame)), 0, Context(frame, workAddress, 104), 8, 32);
@@ -50,7 +50,7 @@ public static class NativeBattleEffect321Debris
             work = CopyBytes(PackedArena(output), 20, work, 0x3C, 12);
             frame = PublishContext(frame, workAddress, work, 104);
             frame = LoadMatrix(frame, output);
-            frame = DrawStatic(frame, temporary, resources, inputs);
+            frame = DrawStatic(frame, temporary, resources, inputs, inputs.CapturePresentation ? NativeBattleEffect321Presentation.Row(frame, task, index, 0xCD1C24) : null);
             if (Paused(frame, inputs))
             {
                 continue;
@@ -80,7 +80,7 @@ public static class NativeBattleEffect321Debris
         return new(Write(frame, address, task.WriteWord(12, unchecked((ushort)(Signed(task, 12) + 1)))), survivors == 0 ? 2 : 0);
     }
 
-    public static NativeBattleEffect321Frame Birth(NativeBattleEffect321Frame frame, NativeBattleEffectArena point)
+    public static NativeBattleEffect321Frame Birth(NativeBattleEffect321Frame frame, NativeBattleEffectArena point, bool capturePresentation = false)
     {
         for (int birth = 0; birth < 5; birth++)
         {
@@ -105,6 +105,10 @@ public static class NativeBattleEffect321Debris
             spin = Random(ref frame) % 40 + 15;
             row = PutWord(row, 22, (second & 1) != 0 ? -spin : spin);
             frame = frame with { State = frame.State.WriteView(address, row, 24) };
+            if (capturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, NativeBattleEffect321Records.First, checked((int)((address - NativeBattleEffect321Records.First) / 24)));
+            }
         }
         return frame;
     }

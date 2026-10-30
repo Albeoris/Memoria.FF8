@@ -15,7 +15,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Degenerator requires its actual process memory.");
         NativeBattleDegenerator306Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Degenerator requires its CRT stream."), memory.Degenerator306 ?? throw new NotSupportedException("Degenerator requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Degenerator requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Degenerator requires its original interpolation constants.");
-        NativeBattleDegenerator306Inputs inputs = new(graphics.Flags, nativeActionPackets, actor => graphics.Models[actor], _ => Camera().CapturePackedView1D97778(), () => Camera().FocalLength ?? throw new NotSupportedException("Degenerator requires its retained focal shadow."), actor => NativeBattleRaldo19BallController.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), 0x0C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), Bone, Anchor, Execute);
+        NativeBattleDegenerator306Inputs inputs = new(graphics.Flags, nativeActionPackets, actor => graphics.Models[actor], _ => Camera().CapturePackedView1D97778(), () => Camera().FocalLength ?? throw new NotSupportedException("Degenerator requires its retained focal shadow."), actor => NativeBattleRaldo19BallController.Copy(NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), 0x0C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8), Bone, Anchor, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleDegenerator306Controller.Initialize(frame, resources, inputs) : NativeBattleDegenerator306Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -46,6 +46,7 @@ public sealed partial class BattleSession
 
         NativeBattleDegenerator306Frame Deliver(NativeBattleDegenerator306Frame current, NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleDegenerator306Presentation.PreserveNativeDepths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Degenerator requires its pending ordering table.");
             uint cursor = current.State.ReadDword(NativeBattleDegenerator306Profile.CursorGlobal);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, checked((int)(cursor - NativeBattleEffectNodeMemory.ArenaAddress)), primitive.Pending, batch);
@@ -172,14 +173,14 @@ public sealed partial class BattleSession
                     graphics = graphics with { Auxiliary = auxiliary };
                     return current;
                 case NativeBattleDegenerator306DrawStatic88 draw:
-                    return DrawMesh(current, draw.TemporaryAddress, draw.SourceAddress, false, draw.TableBaseBucket, unchecked((byte)(draw.DepthShift & 31)));
+                    return DrawMesh(current, draw.TemporaryAddress, draw.SourceAddress, false, draw.TableBaseBucket, unchecked((byte)(draw.DepthShift & 31)), pilotIdentity: draw.PilotIdentity);
                 case NativeBattleDegenerator306DrawCustom108 draw:
-                    return DrawMesh(current, draw.TemporaryAddress, resources.CustomMesh.Address, true, 17, 2);
+                    return DrawMesh(current, draw.TemporaryAddress, resources.CustomMesh.Address, true, 17, 2, pilotIdentity: draw.PilotIdentity);
                 case NativeBattleDegenerator306DrawSprite180 draw:
-                    return DrawSprite(current, draw.TemporaryAddress, draw.SourceAddress, draw.Phase, draw.DepthShift);
+                    return DrawSprite(current, draw.TemporaryAddress, draw.SourceAddress, draw.Phase, draw.DepthShift, pilotIdentity: draw.PilotIdentity);
                 case NativeBattleDegenerator306DrawBody136 draw:
                     Publish(current);
-                    var body = DrawNativeDegenerator306Body(current, graphics, draw.Actor, draw.TemporaryAddress);
+                    var body = DrawNativeDegenerator306Body(current, graphics, draw.Actor, draw.TemporaryAddress, pilotIdentity: draw.PilotIdentity);
                     graphics = body.Graphics;
                     return body.Frame;
                 default:
@@ -189,7 +190,7 @@ public sealed partial class BattleSession
 
         NativeBattleModelRendererRegisters LoadFar(uint rgb, NativeBattleModelRendererRegisters far) => far with { FarRed = (rgb & 255) << 4, FarGreen = ((rgb >> 8) & 255) << 4, FarBlue = ((rgb >> 16) & 255) << 4 };
 
-        NativeBattleDegenerator306Frame DrawMesh(NativeBattleDegenerator306Frame current, uint address, uint sourceAddress, bool custom, int bucket, byte shift)
+        NativeBattleDegenerator306Frame DrawMesh(NativeBattleDegenerator306Frame current, uint address, uint sourceAddress, bool custom, int bucket, byte shift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             int length = custom ? 108 : 88;
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Degenerator requires its physical drawing context.");
@@ -199,7 +200,7 @@ public sealed partial class BattleSession
             NativeBattleGfGeometryBatch batch;
             if (custom)
             {
-                NativeBattleDegenerator306CustomMeshStep drawn = NativeBattleDegenerator306CustomMesh.Draw5A3AC0(current.Memory, mesh, temporary, projection, colors, bucket, shift);
+                NativeBattleDegenerator306CustomMeshStep drawn = NativeBattleDegenerator306CustomMesh.Draw5A3AC0(current.Memory, mesh, temporary, projection, colors, bucket, shift, pilotIdentity: pilotIdentity);
                 current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context108, length) };
                 batch = drawn.Batch;
             }
@@ -207,14 +208,14 @@ public sealed partial class BattleSession
             {
                 NativeBattleGeometryRegisters registers = current.Memory.GeometryRegisters ?? throw new NotSupportedException("Degenerator requires its current matrix owner.");
                 NativeBattleActionMatrix matrix = NativeBattleGeometry.CaptureMatrix(registers);
-                NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(current.Memory, mesh, matrix, projection, temporary, colors, matrixPadding18: registers.Rotation20[18] is byte low && registers.Rotation20[19] is byte high ? unchecked((short)(low | high << 8)) : null, tableBaseBucket: bucket, depthShift: shift);
+                NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.Draw(current.Memory, mesh, matrix, projection, temporary, colors, matrixPadding18: registers.Rotation20[18] is byte low && registers.Rotation20[19] is byte high ? unchecked((short)(low | high << 8)) : null, tableBaseBucket: bucket, depthShift: shift, pilotIdentity: pilotIdentity);
                 current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context, length) };
                 batch = drawn.Batch;
             }
             return Deliver(current, batch);
         }
 
-        NativeBattleDegenerator306Frame DrawSprite(NativeBattleDegenerator306Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift)
+        NativeBattleDegenerator306Frame DrawSprite(NativeBattleDegenerator306Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleModuleResource resource = resources.ReadSprite(sourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Degenerator sprite requires its physical temporary memory.");
@@ -223,7 +224,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Degenerator sprite differs from its current physical frame.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => resources.ReadSprite(selected), Camera().Projection ?? throw new NotSupportedException("Degenerator sprite requires its current projection."), Camera().Roll, 17, depthShift);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => resources.ReadSprite(selected), Camera().Projection ?? throw new NotSupportedException("Degenerator sprite requires its current projection."), Camera().Roll, 17, depthShift, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

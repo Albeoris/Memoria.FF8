@@ -20,6 +20,7 @@ public sealed partial class BattleSession
         frame = SynchronizeCursor(frame);
         NativeBattleEffect326Inputs inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect326 requires its arithmetic constants."), _ => nativeActionPackets, _ => graphics.Flags, current => new(current, NativeEffectIoResult ?? throw new NotSupportedException("Effect326 requires its current signed I/O result.")), _ => Camera().CapturePackedView1D97778(), _ => Projection(), _ => Camera().Roll, _ => (Camera().CurrentPose ?? throw new NotSupportedException("Effect326 requires its current camera pose.")) with { FocalLength = Camera().FocalLength, Roll = Camera().Roll }, _ => Camera().EyePaddingF6, _ => Camera().TargetPaddingFE, (_, actor) => graphics.Models[actor], (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect326 requires its current actor world matrix."), null), Center, Point, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect326 requires its current vibration process.")).IsPlaying(handle), Execute)
         {
+            CapturePresentation = true,
             EntryLifecycle = graphics.EntryLifecycle,
             ReadAnchor571400 = Anchor,
             ShadowSource = definition.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect326 requires its original shadow source."),
@@ -163,7 +164,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleEffect326Flash5712C0 flash:
-                    graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(unchecked((short)flash.Rise), unchecked((short)flash.Hold), unchecked((short)flash.Fall), checked((byte)flash.Intensity)) };
+                    graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(unchecked((short)flash.Rise), unchecked((short)flash.Hold), unchecked((short)flash.Fall), checked((byte)flash.Intensity), flash.PilotIdentity) };
                     return current;
                 case NativeBattleEffect326QueueTextureRelease508630 load:
                     (NativeBattleAuxiliaryState auxiliary, _) = graphics.Auxiliary.AppendCommonTextureLoad508630(load.SourceAddress, load.CompletionAddress, (address, value) => current = WriteBytes(current, address, NativeBattleEffectArena.Clear().Write(0, [value]), 1));

@@ -55,9 +55,9 @@ public static partial class NativeBattleEffect326Controller
         {
             context = context.Write(12, BitConverter.GetBytes(value));
         }
-        NativeBattleDefaultActMeshStep drawn = NativeBattleEffect326MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(source), inputs.ReadProjection(frame), context, inputs.Colors, shift);
+        NativeBattleDefaultActMeshStep drawn = NativeBattleEffect326MeshContext88.DrawLoaded(frame.Memory, resources.Mesh(source), inputs.ReadProjection(frame), context, inputs.Colors, shift, pilotIdentity: NativeBattleEffect326Presentation.Task(inputs, source));
         frame = PublishContext(frame with { Memory = drawn.Memory }, temporary, drawn.Context88, 88);
-        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(drawn.Batch, 0x1D8E054));
+        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, 0x1D8E054));
         return Release(frame, 88);
     }
 }

@@ -51,7 +51,7 @@ public static class NativeBattleGatlingGun305Slots
             (byte[] wBytes, bool[] wKnown) = packed.ReadSnapshot(6, 2);
             short? w = wKnown.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(wBytes) : null;
             frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), position, w, scale, unchecked((short)-(scale >> 4))) };
-            frame = inputs.Execute(frame, new NativeBattleGatlingGun305DrawSprite180(allocation.Address, source, phase));
+            frame = inputs.Execute(frame, new NativeBattleGatlingGun305DrawSprite180(allocation.Address, source, phase) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(305, frame.State.Globals, bank, index) with { ResourceGeneration = unchecked(NativeBattlePilotVisualLifetimes.Identity(305, NativeBattleGatlingGun305Controller.Read(frame, taskAddress)).Generation * 397 ^ source) } : null });
             NativeBattleGatlingGun305State state = frame.State;
             if (paused)
             {
@@ -119,6 +119,10 @@ public static class NativeBattleGatlingGun305Slots
                     1 => BirthPlanar(frame, row, taskAddress),
                     _ => BirthBurst(frame, row, taskAddress)
                 };
+                if (inputs.CapturePresentation)
+                {
+                    NativeBattlePilotVisualLifetimes.Allocated(frame.State.Globals, bank, index);
+                }
             }
         }
         task = NativeBattleGatlingGun305Controller.Read(frame, taskAddress);

@@ -204,6 +204,89 @@ public sealed class NativeBattleBoomerangSword304LowerTests
         Assert.Equal((ushort)(age + 1), Read(actual.Frame, address).ReadWord(12));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Group21_trail_and_particle_operations_keep_actual_task_generation_and_native_state(bool particle)
+    {
+        (NativeBattleBoomerangSword304Frame Frame, List<NativeBattleBoomerangSword304Operation> Operations) Run(bool capture)
+        {
+            var frame = Frame();
+            (frame, uint address) = Append(frame, particle ? 0x2507580u : 0x25075A0u, particle ? 0x66A330u : 0x66A730u);
+            var task = Read(frame, address).WriteWord(12, 0).WriteWord(14, 0).WriteWord(18, 0);
+            if (!particle)
+            {
+                for (int index = 0; index < 9; index++)
+                {
+                    task = task.WriteWord(16 + index * 2, unchecked((ushort)NativeBattleCuragaMatrices.Identity8DD770().Rotation[index]));
+                }
+                task = task.WriteDword(36, 100).WriteDword(40, 200).WriteDword(44, 300);
+            }
+            frame = Write(frame, address, task);
+            List<NativeBattleBoomerangSword304Operation> operations = [];
+            var inputs = Inputs((current, operation) =>
+            {
+                operations.Add(operation);
+                return current;
+            }) with { CapturePresentation = capture };
+            var result = particle ? AdvanceParticle66A330(frame, address, Resources(), inputs) : AdvanceMesh66A730(frame, address, Resources(), inputs);
+            return (result.Frame, operations);
+        }
+        var native = Run(false);
+        string expected = NativeBattleTestSnapshots.Json(native.Frame);
+        var captured = Run(true);
+        Assert.Equal(expected, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Operations), NativeBattleTestSnapshots.Json(captured.Operations));
+        var identity = Assert.Single(captured.Operations).PilotIdentity!.Value;
+        Assert.Equal((ushort)304, identity.Effect);
+        Assert.Equal(particle ? 0x2507580u : 0x25075A0u, identity.Bank);
+        Assert.Equal(particle ? SpriteAddress : TrailMeshAddress, identity.ResourceGeneration);
+        Assert.True(identity.Generation > 0);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2048)]
+    [InlineData(4096)]
+    public void Group21_ACT_owner_survives_real_selected_and_morph_scratch_discrimination(int ratio)
+    {
+        (NativeBattleBoomerangSword304Frame Frame, NativeBattleBoomerangSword304DrawMesh7043B0 Draw) Run(bool capture)
+        {
+            var resources = Resources();
+            byte[] source = resources.Programme.Data.ToArray();
+            BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(64), 28);
+            BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(72), 2);
+            BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(76), 100);
+            BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(84), 300);
+            resources = resources with { Programme = resources.Programme with { Data = source.ToImmutableArray() } };
+            byte[] data = Node(0x200, new(0, 0, 0)).Data.ToArray();
+            BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(38), (short)ratio);
+            BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(42), 1);
+            var frame = Frame();
+            (frame, uint taskAddress) = Append(frame, 0x2507590, 0x66A3F0);
+            frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(ScratchOffset, BitConverter.GetBytes((short)-777)).Write(ScratchOffset + 6, BitConverter.GetBytes((ushort)0xBEEF)) } };
+            NativeBattleBoomerangSword304DrawMesh7043B0? draw = null;
+            var inputs = Inputs((current, operation) =>
+            {
+                draw = Assert.IsType<NativeBattleBoomerangSword304DrawMesh7043B0>(operation);
+                return current;
+            });
+            var owner = capture ? NativeBattlePilotVisualLifetimes.Identity(304, Read(frame, taskAddress)) with { ResourceGeneration = ((long)resources.Programme.Address << 32) | 24 } : (NativeBattlePilotVisualIdentity?)null;
+            frame = DrawProgrammeNode66A440(frame, resources.Programme, new(0, 0, data.ToImmutableArray()), Caller(new(0, 0, 0), 0), resources, inputs, pilotIdentity: owner);
+            return (frame, Assert.IsType<NativeBattleBoomerangSword304DrawMesh7043B0>(draw));
+        }
+        var native = Run(false);
+        string before = NativeBattleTestSnapshots.Json(native.Frame);
+        var captured = Run(true);
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native.Draw), NativeBattleTestSnapshots.Json(captured.Draw));
+        Assert.Equal(ratio == 2048 ? ArenaAddress + ScratchOffset : ProgrammeAddress + (uint)(ratio == 4096 ? 84 : 76), captured.Draw.VertexAddress);
+        Assert.Equal((short)(ratio == 2048 ? 200 : -777), BinaryPrimitives.ReadInt16LittleEndian(captured.Frame.Memory.Arena!.Read(ScratchOffset, 2)));
+        Assert.Equal((ushort)0xBEEF, W(captured.Frame.Memory.Arena!, ScratchOffset + 6));
+        Assert.Equal(0x2507590u, captured.Draw.PilotIdentity!.Value.Bank);
+        Assert.Null(native.Draw.PilotIdentity);
+    }
+
     private static NativeBattleGfAnimationNode Node(uint header, NativeBattleVector position, NativeBattleVector? rotation = null, NativeBattleVector? scale = null)
     {
         byte[] bytes = new byte[44];

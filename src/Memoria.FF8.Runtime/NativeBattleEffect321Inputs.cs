@@ -8,7 +8,11 @@ public sealed record NativeBattleEffect321Frame(NativeBattleEffectMemory Memory,
 public sealed record NativeBattleEffect321Step(NativeBattleEffect321Frame Frame, int Result);
 public sealed record NativeBattleEffect321PointStep(NativeBattleEffect321Frame Frame, NativeBattleEffectArena Output8);
 public sealed record NativeBattleEffect321BoolStep(NativeBattleEffect321Frame Frame, bool Active);
-public sealed record NativeBattleEffect321Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect321Frame, uint> ReadFlags, Func<NativeBattleEffect321Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect321Frame, uint, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect321Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect321Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect321Frame, short> ReadCameraRoll, Func<NativeBattleEffect321Frame, uint, NativeBattleEffectArena, NativeBattleEffect321PointStep> Anchor571400, Func<NativeBattleEffect321Frame, ushort, NativeBattleEffectArena, NativeBattleEffect321PointStep> TargetCenter5020A0, Func<NativeBattleEffect321Frame, int, NativeBattleEffect321BoolStep> VibrationActive4A2900, Func<NativeBattleEffect321Frame, NativeBattleEffect321Operation, NativeBattleEffect321Frame> Execute);
+public sealed record NativeBattleEffect321Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect321Frame, uint> ReadFlags, Func<NativeBattleEffect321Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect321Frame, uint, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect321Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect321Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect321Frame, short> ReadCameraRoll, Func<NativeBattleEffect321Frame, uint, NativeBattleEffectArena, NativeBattleEffect321PointStep> Anchor571400, Func<NativeBattleEffect321Frame, ushort, NativeBattleEffectArena, NativeBattleEffect321PointStep> TargetCenter5020A0, Func<NativeBattleEffect321Frame, int, NativeBattleEffect321BoolStep> VibrationActive4A2900, Func<NativeBattleEffect321Frame, NativeBattleEffect321Operation, NativeBattleEffect321Frame> Execute)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+}
 
 public abstract record NativeBattleEffect321Operation;
 public sealed record NativeBattleEffect321UploadTim505E30(uint SourceAddress) : NativeBattleEffect321Operation;

@@ -1,6 +1,10 @@
 namespace Memoria.FF8.Runtime;
 
-public abstract record NativeBattleDegenerator306Operation;
+public abstract record NativeBattleDegenerator306Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleDegenerator306BindCaster(byte Actor, uint SaveAddress, uint ResourceAddress) : NativeBattleDegenerator306Operation;
 public sealed record NativeBattleDegenerator306RingSequence(byte Actor, byte Sequence) : NativeBattleDegenerator306Operation;
 public sealed record NativeBattleDegenerator306Sound(uint Value, int Pan) : NativeBattleDegenerator306Operation;
@@ -21,4 +25,8 @@ public sealed record NativeBattleDegenerator306DrawBody136(uint TemporaryAddress
 public sealed record NativeBattleDegenerator306DrawSprite180(uint TemporaryAddress, uint SourceAddress, ushort Phase, byte DepthShift = 2) : NativeBattleDegenerator306Operation;
 public sealed record NativeBattleDegenerator306AnchorStep(NativeBattleDegenerator306Frame Frame, NativeBattleModuleAnchor Anchor);
 public sealed record NativeBattleDegenerator306PointStep(NativeBattleDegenerator306Frame Frame, NativeBattleVector Position);
-public sealed record NativeBattleDegenerator306Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleDegenerator306Frame, NativeBattlePackedMatrix32> ReadView, Func<short> ReadFocalShadow, Func<int, NativeBattleEffectArena> ReadRotation8, Func<NativeBattleDegenerator306Frame, int, short, short, NativeBattleDegenerator306PointStep> ReadBone502170, Func<NativeBattleDegenerator306Frame, int, NativeBattleDegenerator306AnchorStep> ReadAnchor571400, Func<NativeBattleDegenerator306Frame, NativeBattleDegenerator306Operation, NativeBattleDegenerator306Frame> Execute);
+public sealed record NativeBattleDegenerator306Inputs(uint GraphicsFlags, NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleDegenerator306Frame, NativeBattlePackedMatrix32> ReadView, Func<short> ReadFocalShadow, Func<int, NativeBattleEffectArena> ReadRotation8, Func<NativeBattleDegenerator306Frame, int, short, short, NativeBattleDegenerator306PointStep> ReadBone502170, Func<NativeBattleDegenerator306Frame, int, NativeBattleDegenerator306AnchorStep> ReadAnchor571400, Func<NativeBattleDegenerator306Frame, NativeBattleDegenerator306Operation, NativeBattleDegenerator306Frame> Execute)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CapturePresentation { get; init; }
+}

@@ -11,6 +11,36 @@ public sealed class NativeBattleEffect321LowerTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void Presentation_ring_uses_actual_task_source_and_native_register_packet_depth_ledger(bool anisotropic)
+    {
+        (NativeBattleEffect321Frame Frame, NativeBattleGfGeometryBatch Batch) Run(bool capture)
+        {
+            Fixture fixture = new(anisotropic ? 0x598B90u : 0x597E30u);
+            fixture.Task(task => task.WriteWord(20, 3000).WriteWord(28, 4096).WriteWord(32, 4096));
+            fixture.Resources = fixture.Resources with { Meshes = fixture.Resources.Meshes.ToImmutableDictionary(pair => pair.Key, pair => pair.Value with { Bytes = NativeBattleActDepthRoutingTests.Geometry(false) }) };
+            var inputs = fixture.Inputs() with { CapturePresentation = capture, ReadProjection = _ => new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108) };
+            var result = NativeBattleEffect321Lower.Advance(fixture.Frame, fixture.Address, fixture.Resources, inputs);
+            return (result.Frame, Assert.IsType<NativeBattleEffect321DrawBatch>(Assert.Single(fixture.Operations)).Batch);
+        }
+        var native = Run(false);
+        string baseline = NativeBattleTestSnapshots.Json(native.Frame);
+        string packets = NativeBattleTestSnapshots.Json(native.Batch);
+        var captured = Run(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(packets, NativeBattleTestSnapshots.Json(captured.Batch));
+        var primitive = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive is not null).Primitive!;
+        var geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal((ushort)321, geometry.Identity.Effect);
+        Assert.Equal(anisotropic ? 0xCD1D5CL : 0xCD153CL, geometry.Identity.ResourceGeneration);
+        Assert.Equal(new System.Numerics.Vector3(-400, -400, 3000), geometry.A);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+    }
+
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Ring_delay_returns_before_draw_and_pause_prevents_countdown(bool paused)
     {
         Fixture fixture = new(0x597E30) { Flags = paused ? 0x201u : 0u };

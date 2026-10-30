@@ -14,7 +14,7 @@ public static partial class NativeBattleRayBomb307Controller
         NativeBattleVector eye = inputs.ReadCameraEye?.Invoke(frame) ?? throw new NotSupportedException("Ray-Bomb beam requires its current camera eye.");
         NativeBattleRayBomb10BeamGeometry geometry = NativeBattleRayBomb10Geometry.Beam628B00(target, muzzle, eye, Signed(task, 24), Signed(task, 32), unchecked((short)age));
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(ReadView(frame, inputs).ReadMatrix(), geometry.World);
-        frame = DrawStatic(frame, matrix, 0xCE3BB4, age >= 3 ? 0xF3u : 0x33u, age >= 3 ? unchecked((age - 3) * 682) : null, age >= 3, inputs);
+        frame = DrawStatic(frame, matrix, 0xCE3BB4, age >= 3 ? 0xF3u : 0x33u, age >= 3 ? unchecked((age - 3) * 682) : null, age >= 3, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(307, task) with { ResourceGeneration = 0xCE3BB4 } : null);
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
             return new(frame, 0);

@@ -55,9 +55,9 @@ public static partial class NativeBattleEffect326Controller
         {
             NativeBattleVector minimum = ReadSplitVector(frame, modelAddress + 0x34);
             NativeBattleVector maximum = ReadSplitVector(frame, modelAddress + 0x3A);
-            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(RequireStaging(frame), Registers(frame), ReadPacked(frame, modelAddress + 0x40).ReadMatrix(), unchecked((short)BinaryPrimitives.ReadUInt16LittleEndian(model.Model.AsSpan().Slice(0x24, 2))), new(minimum, maximum), BinaryPrimitives.ReadUInt32LittleEndian(model.Model.AsSpan().Slice(0x2C, 4)), projection, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect326 shadow requires its current depth controls."), inputs.ShadowSource ?? throw new NotSupportedException("Effect326 shadow requires its actual template."), inputs.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect326 shadow requires its current primitive capabilities."), 4121, 16);
+            NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(RequireStaging(frame), Registers(frame), ReadPacked(frame, modelAddress + 0x40).ReadMatrix(), unchecked((short)BinaryPrimitives.ReadUInt16LittleEndian(model.Model.AsSpan().Slice(0x24, 2))), new(minimum, maximum), BinaryPrimitives.ReadUInt32LittleEndian(model.Model.AsSpan().Slice(0x2C, 4)), projection, frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect326 shadow requires its current depth controls."), inputs.ShadowSource ?? throw new NotSupportedException("Effect326 shadow requires its actual template."), inputs.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect326 shadow requires its current primitive capabilities."), 4121, 16, NativeBattleEffect326Presentation.Task(inputs, modelAddress, 0x5088A0));
             frame = frame with { Staging = NativeBattleTemporaryMemory.PublishView(shadow.Staging, shadow.TemporaryAddress, shadow.Temporary78, 120), Memory = frame.Memory with { GeometryRegisters = shadow.Registers.Geometry, ScriptedColorRegisters = shadow.Registers.Colors } };
-            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(shadow.Batch, 0x1D8E054));
+            frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(shadow.Batch) : shadow.Batch, 0x1D8E054));
             frame = Release(frame, 120);
         }
         NativeBattleEffectArena context = Context(frame, temporary, 464);
@@ -73,11 +73,11 @@ public static partial class NativeBattleEffect326Controller
         ImmutableArray<NativeBattlePackedMatrix32> bones = Enumerable.Range(0, resource.PoseSource.BoneCount).Select(index => ReadPacked(frame, checked(skeleton + 32u + (uint)(index * 48)))).ToImmutableArray();
         int cursor = frame.Memory.PrimitiveProcess?.ByteCursor ?? throw new NotSupportedException("Effect326 split requires its current COMMON cursor.");
         NativeBattleEffect326Frame current = frame;
-        NativeBattleEffect167BodyStep drawn = NativeBattleEffect167BodyDrawing.Draw(frame.Memory, context, temporary, (address, length) => ReadBytes(current, address, length), geometry, bones, ReadBytes(frame, scratch, scratchLength), scratchLength, projection, Enumerable.Range(0, 56).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(0xE19988 + (uint)(index * 4), 4))).ToImmutableArray(), cursor, 17, 2);
+        NativeBattleEffect167BodyStep drawn = NativeBattleEffect167BodyDrawing.Draw(frame.Memory, context, temporary, (address, length) => ReadBytes(current, address, length), geometry, bones, ReadBytes(frame, scratch, scratchLength), scratchLength, projection, Enumerable.Range(0, 56).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(0xE19988 + (uint)(index * 4), 4))).ToImmutableArray(), cursor, 17, 2, NativeBattleEffect326Presentation.Task(inputs, unchecked(geometry * 397 ^ modelAddress)));
         frame = frame with { Memory = drawn.Memory };
         frame = WriteBytes(frame, scratch, drawn.Scratch, scratchLength);
         frame = PublishContext(frame, temporary, drawn.Temporary464, 464);
-        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(drawn.Batch, 0x1D8E054));
+        frame = inputs.Execute(frame, new NativeBattleEffect326DeliverBatch(inputs.CapturePresentation ? NativeBattleEffect326Presentation.PreserveNativeDepths(drawn.Batch) : drawn.Batch, 0x1D8E054));
         return PublishModelPose(frame, resources, modelAddress);
     }
 
