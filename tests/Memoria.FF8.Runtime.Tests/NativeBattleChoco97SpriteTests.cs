@@ -65,6 +65,26 @@ public sealed class NativeBattleChoco97SpriteTests
         Assert.Null(NativeBattleChoco97Sprite.Draw730C90(task.WriteDword(0x4C, 0).WriteByte(0x26, 4), Resource(), View, Projection, 0));
     }
 
+    [Fact]
+    public void Captured_sprite_preserves_native_packet_spacing_material_depth_and_task_bytes()
+    {
+        NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, 0x730C10, new byte[0x70 - 12].ToImmutableArray()).WriteDword(0x4C, 0x152B5C8).WriteWord(0x54, 0xFF00);
+        NativeBattleModulePacketBatch plain = NativeBattleChoco97Sprite.Draw730C90(task, Resource(), View, Projection, 512)!;
+        NativeBattleModulePacketBatch captured = NativeBattleChoco97Sprite.Draw730C90(task, Resource(), View, Projection, 512, new(97, 17, 1, 2, 3))!;
+        Assert.Equal(plain.AllocationBytes, captured.AllocationBytes);
+        NativeBattleAllocatedPrimitive before = Assert.Single(plain.Primitives);
+        NativeBattleAllocatedPrimitive after = Assert.Single(captured.Primitives);
+        Assert.Equal(before.ByteOffset, after.ByteOffset);
+        Assert.Equal(before.Flags20, after.Flags20);
+        Assert.Equal(before.Primitive.Words.ToArray(), after.Primitive.Words.ToArray());
+        Assert.Equal(before.Primitive.VertexPayload4.ToArray(), after.Primitive.VertexPayload4.ToArray());
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(after.Primitive.PilotGeometry);
+        Assert.Equal(Resource().Address, visual.Identity.ResourceGeneration);
+        Assert.Equal(4, visual.CornerCount);
+        Assert.NotNull(visual.Sprite);
+        Assert.Equal((ushort)0xFF00, task.ReadWord(0x54));
+    }
+
     private static NativeBattleChoco97SpriteStep Advance(NativeBattleModulePoolTask task) => NativeBattleChoco97Sprite.Advance730C10(task, Resource(), [10, 0, 20, 0, 30, 0, 40, 0], View, Projection, 0);
 
     private static NativeBattleChoco97SpriteResources Resource()

@@ -64,6 +64,7 @@ public sealed class NativeBattleMoogle96PresentationTests
         HashSet<byte> cameraPhases = [];
         HashSet<string> cameras = [];
         int callbacks = 0;
+        int capturedGeometry = 0;
         int contacts = 0;
         int completions = 0;
         int fileCompletions = 0;
@@ -103,6 +104,7 @@ public sealed class NativeBattleMoogle96PresentationTests
                 callbacks++;
                 audio.Update(battle);
                 BattleSnapshot current = battle.Capture();
+                capturedGeometry += NativeBattleRestorationSummonCaptureAssertions.AssertOwned(current, 96);
                 Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? afterEffect = Selected(current);
                 initialized |= afterEffect?.ReturnedDescriptor is > 0;
@@ -215,6 +217,7 @@ public sealed class NativeBattleMoogle96PresentationTests
             Assert.Equal(8, boundaries.Count);
             Assert.Equal(1, contacts);
             Assert.Equal(1, completions);
+            Assert.True(capturedGeometry > 0);
             Assert.Equal(new short[] { 438, 439, 440, 441 }, fileIds.ToArray());
             Assert.Equal(4, fileCompletions);
             Assert.All(new short[] { 1, 2, 3, 4 }, mode => Assert.Contains(mode, modes));

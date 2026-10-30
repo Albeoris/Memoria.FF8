@@ -60,6 +60,7 @@ public sealed class NativeBattleChoco97PresentationTests
         HashSet<NativeBattleChoco97LoadedProgram> mutatedPrograms = [];
         HashSet<uint> relocatedNodes = [];
         HashSet<uint> mutatedNodes = [];
+        NativeBattleChocoPresentationOwnership ownership = new(97);
         int callbacks = 0;
         int completions = 0;
         int contacts = 0;
@@ -98,6 +99,7 @@ public sealed class NativeBattleChoco97PresentationTests
                 callbacks++;
                 audio.Update(battle);
                 BattleSnapshot current = battle.Capture();
+                ownership.Accept(current);
                 Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? after = Selected(current);
                 initialized |= after?.ReturnedDescriptor is > 0;
@@ -204,6 +206,7 @@ public sealed class NativeBattleChoco97PresentationTests
                 if (cold is not null)
                 {
                     cold.AdvanceNativeGraphicsPresentation(Callback);
+                    ownership.Accept(cold.Capture());
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(cold.Capture()));
                     byte[] rgba = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition, true).Render(cold, 320, 224).ToArray());
@@ -216,6 +219,7 @@ public sealed class NativeBattleChoco97PresentationTests
             Assert.Empty(requested);
             Assert.Equal(10, boundaries.Count);
             Assert.Equal(1, completions);
+            ownership.Complete();
             Assert.Equal(1, contacts);
             Assert.Equal(Enumerable.Range(442, 12).Select(value => (short)value).ToArray(), files.ToArray());
             Assert.Equal(12, fileCompletions);

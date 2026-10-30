@@ -85,7 +85,7 @@ public static class NativeBattleChoco99Particles
         }
     }
 
-    public static NativeBattleChoco99ParticleStep Advance(NativeBattleModulePoolTask task, NativeBattleChoco99ParticleResources resources, Func<short, bool> modeAtLeast, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
+    public static NativeBattleChoco99ParticleStep Advance(NativeBattleModulePoolTask task, NativeBattleChoco99ParticleResources resources, Func<short, bool> modeAtLeast, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         resources.Validate();
         if (task.PayloadLength != 0xB0 - 12 || task.Callback is not (TrailCallback or RadialCallback))
@@ -130,7 +130,7 @@ public static class NativeBattleChoco99Particles
                 task = task.WriteWord(point + axis * 2, unchecked((ushort)(Word(task, point + axis * 2) + damped / 16)));
             }
             task = CopyRaw(task, point, 0x1C);
-            NativeBattleModulePacketBatch? packet = Draw(task, sprite, view, projection, cameraRoll);
+            NativeBattleModulePacketBatch? packet = Draw(task, sprite, view, projection, cameraRoll, pilotIdentity: pilotIdentity is { } pointIdentity ? pointIdentity with { Primitive = unchecked(pointIdentity.Primitive * 397 + index) } : null);
             if (packet is not null)
             {
                 packets.Add(packet);
@@ -142,7 +142,7 @@ public static class NativeBattleChoco99Particles
         void Next() => task = task.WriteByte(0x29, unchecked((byte)(task.ReadByte(0x29) + 1)));
     }
 
-    private static NativeBattleModulePacketBatch? Draw(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources sprite, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
+    private static NativeBattleModulePacketBatch? Draw(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources sprite, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if ((task.ReadByte(0x26) & 4) != 0)
         {
@@ -157,6 +157,7 @@ public static class NativeBattleChoco99Particles
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
             Resource = resource,
+            PilotIdentity = pilotIdentity is { } identity ? identity with { ResourceGeneration = resource.Address } : null,
             SpriteFrame = resource.ProjectedFrame571C80(frame),
             Phase = frame,
             Anchor = new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20), 0),
@@ -164,7 +165,7 @@ public static class NativeBattleChoco99Particles
             DepthOffset = Word(task, 0x54),
             SpriteFlags = 0
         };
-        return NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = view }, cameraRoll, 17, 2);
+        return NativeBattleChocoPresentationDepths.Capture(NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = view }, cameraRoll, 17, 2));
     }
 
     private static NativeBattleEffectHierarchyAppend Append(NativeBattleEffectHierarchy hierarchy, uint parentAddress, uint callback, Func<uint, sbyte, sbyte, NativeBattleEffectTaskActors> selectActors)

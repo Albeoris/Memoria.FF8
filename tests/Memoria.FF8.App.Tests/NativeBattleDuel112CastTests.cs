@@ -115,6 +115,12 @@ public sealed partial class NativeBattleDuel112CastTests
         RunOriginalDuelEffect(112, duelCommandRoute);
     }
 
+    [Fact]
+    public void Installed_direct_Duel112_component_completes_original_action_and_independent_standalones()
+    {
+        RunOriginalDuelEffect(112, false);
+    }
+
     internal static void RunOriginalDuelEffect(ushort effectId, bool duelCommandRoute, byte? requiredBasicAction = null)
     {
         if (requiredBasicAction is byte basicAction)
@@ -149,6 +155,7 @@ public sealed partial class NativeBattleDuel112CastTests
         bool selected = false;
         bool drawn = false;
         bool midpoint = false;
+        int captured112Frames = 0;
         int duelInputs = 0;
         bool basicQueued = false;
         bool basicObserved = false;
@@ -214,6 +221,13 @@ public sealed partial class NativeBattleDuel112CastTests
                         }
                     }
                 }
+                if (effectId == 112 && graphics.OriginalEffect is { Binding.Effect: 112 } captureEffect && (captureEffect.ReturnedDescriptor is > 0 || before.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
+                {
+                    if (NativeBattleExplicitComponentCapture.AssertFrame(battle.Capture(), 112) > 0)
+                    {
+                        captured112Frames++;
+                    }
+                }
                 bool active = graphics.OriginalEffect is { ReturnedDescriptor: > 0 } selectedEffect && selectedEffect.Binding.Effect == effectId && (!duelCommandRoute || queuedChoice);
                 if (active)
                 {
@@ -237,6 +251,10 @@ public sealed partial class NativeBattleDuel112CastTests
                 }
                 if (selected && Released() && (!duelCommandRoute || battle.GetNativeDuel("party") is null))
                 {
+                    if (effectId == 112)
+                    {
+                        Assert.True(captured112Frames > 1);
+                    }
                     Assert.True(drawn);
                     Assert.True(midpoint);
                     Assert.True(requiredBasicAction is null || basicObserved);

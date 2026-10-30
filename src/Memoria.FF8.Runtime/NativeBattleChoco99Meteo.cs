@@ -5,7 +5,7 @@ public sealed record NativeBattleChoco99CameraYStep(NativeBattleModulePoolTask T
 
 public static class NativeBattleChoco99Meteo
 {
-    public static NativeBattleChoco97SpriteStep Advance720500(NativeBattleModulePoolTask task, NativeBattleChoco99MeteoResources resources, uint sourceIo134, Func<NativeBattleModulePoolTask, NativeBattleChoco97AppendProgram, NativeBattleModulePoolTask> appendProgram, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
+    public static NativeBattleChoco97SpriteStep Advance720500(NativeBattleModulePoolTask task, NativeBattleChoco99MeteoResources resources, uint sourceIo134, Func<NativeBattleModulePoolTask, NativeBattleChoco97AppendProgram, NativeBattleModulePoolTask> appendProgram, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         Require(task, 0x720500, 0xB0);
         resources.Validate();
@@ -35,12 +35,12 @@ public static class NativeBattleChoco99Meteo
             default:
                 throw new NotSupportedException("Native Choco99 meteo phase leaves its four original phases.");
         }
-        NativeBattleModulePacketBatch? packets = Draw(task, resources.Meteo, 6144, view, projection, cameraRoll);
+        NativeBattleModulePacketBatch? packets = Draw(task, resources.Meteo, 6144, view, projection, cameraRoll, pilotIdentity: pilotIdentity);
         task = AddCounter(task);
         return new(task, packets, Complete(task));
     }
 
-    public static NativeBattleChoco97SpriteStep Advance7208D0(NativeBattleModulePoolTask task, NativeBattleChoco99MeteoResources resources, Func<short, bool> modeAtLeast, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
+    public static NativeBattleChoco97SpriteStep Advance7208D0(NativeBattleModulePoolTask task, NativeBattleChoco99MeteoResources resources, Func<short, bool> modeAtLeast, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         Require(task, 0x7208D0, 0xB0);
         resources.Validate();
@@ -61,7 +61,7 @@ public static class NativeBattleChoco99Meteo
             default:
                 throw new NotSupportedException("Native Choco99 secondary sprite phase leaves its three original phases.");
         }
-        NativeBattleModulePacketBatch? packets = Draw(task, resources.Secondary[0], 5632, view, projection, cameraRoll);
+        NativeBattleModulePacketBatch? packets = Draw(task, resources.Secondary[0], 5632, view, projection, cameraRoll, pilotIdentity: pilotIdentity);
         task = AddCounter(task);
         return new(task, packets, Complete(task));
     }
@@ -162,7 +162,7 @@ public static class NativeBattleChoco99Meteo
         return new(task, y, Complete(task));
     }
 
-    private static NativeBattleModulePacketBatch? Draw(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources sprite, int scale, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
+    private static NativeBattleModulePacketBatch? Draw(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources sprite, int scale, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if ((task.ReadByte(0x26) & 4) != 0)
         {
@@ -177,6 +177,7 @@ public static class NativeBattleChoco99Meteo
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
             Resource = resource,
+            PilotIdentity = pilotIdentity is { } identity ? identity with { ResourceGeneration = resource.Address } : null,
             SpriteFrame = resource.ProjectedFrame571C80(frame),
             Phase = frame,
             Anchor = new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20), 0),
@@ -184,7 +185,7 @@ public static class NativeBattleChoco99Meteo
             DepthOffset = Word(task, 0x54),
             SpriteFlags = 0
         };
-        return NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = view }, cameraRoll, 17, 2);
+        return NativeBattleChocoPresentationDepths.Capture(NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = view }, cameraRoll, 17, 2));
     }
     private static (NativeBattleModulePoolTask Task, bool Complete) AdvanceFrame(NativeBattleModulePoolTask task)
     {

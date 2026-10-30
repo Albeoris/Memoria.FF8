@@ -131,6 +131,7 @@ internal enum NativeBattleEffectNodeOrientation2Policy
 internal sealed record NativeBattleEffectNodeInputs(NativeBattleActionMatrix? CopiedCamera, Func<int, NativeBattleGraphicsModel> ReadModel, Func<uint, sbyte, sbyte, int?> AllocateEmitter, Func<int, sbyte, int?> AllocateGeometry)
 {
     public Action<NativeBattleEffectNodeBank, uint, int, byte>? MutateResource { get; init; }
+    public Func<NativeBattlePilotVisualIdentity, uint, NativeBattlePilotVisualIdentity>? PilotResourceIdentity { get; init; }
     public Action<uint, uint, uint, short>? MorphResource { get; init; }
     public Action<uint, uint, uint, uint>? SelectedMorph { get; init; }
     public NativeBattleModelScaleVector? ActorScale { get; init; }

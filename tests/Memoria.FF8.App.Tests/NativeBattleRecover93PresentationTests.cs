@@ -78,6 +78,7 @@ public sealed class NativeBattleRecover93PresentationTests
         HashSet<string> requested = ["model-start", "program-live", "fade-35", "fade-41", "fade-70", "fade-76"];
         List<Boundary> boundaries = [];
         int callbacks = 0;
+        int capturedGeometry = 0;
         int contactTransitions = 0;
         int completions = 0;
         bool initialized = false;
@@ -114,6 +115,7 @@ public sealed class NativeBattleRecover93PresentationTests
                 callbacks++;
                 audio.Update(battle);
                 BattleSnapshot current = battle.Capture();
+                capturedGeometry += NativeBattleRestorationSummonCaptureAssertions.AssertOwned(current, effectId);
                 Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? afterEffect = Selected(current, profile);
                 initialized |= afterEffect?.ReturnedDescriptor is > 0;
@@ -177,6 +179,7 @@ public sealed class NativeBattleRecover93PresentationTests
             Assert.Contains(boundaries, item => item.CommonFramePackets > 0);
             Assert.Equal(1, contactTransitions);
             Assert.Equal(1, completions);
+            Assert.True(capturedGeometry > 0);
             Assert.True(sawModelTim);
             Assert.True(stageCleared);
             Assert.Equal(1536, stagePeak);

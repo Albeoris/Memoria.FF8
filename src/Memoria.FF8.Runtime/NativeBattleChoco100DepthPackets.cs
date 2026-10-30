@@ -5,20 +5,20 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleChoco100DepthPackets
 {
-    public static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext operands, short depthBias, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext operands, short depthBias, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         using NativeBattleGfSourceReader reader = new(source);
-        return EmitBatch(reader, geometryOffset, selectedVertices, matrix, projection, operands, depthBias, colors);
+        return EmitBatch(reader, geometryOffset, selectedVertices, matrix, projection, operands, depthBias, colors, pilotIdentity);
     }
 
-    internal static NativeBattleGfGeometryBatch EmitBatch(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext operands, short depthBias, NativeBattleSummonColors colors)
+    internal static NativeBattleGfGeometryBatch EmitBatch(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext operands, short depthBias, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (geometryOffset < 0 || source.IsDefault || geometryOffset > source.Length - 8 || selectedVertices.IsDefault)
         {
             throw new InvalidDataException("Native Choco depth mesh requires its actual selected geometry owner.");
         }
         using NativeBattleGfSourceReader mesh = source.Slice(geometryOffset);
-        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, operands.Flags, ReadVertex, (group, face, readCorner, offset) => EmitFace(group, face, readCorner, operands, depthBias, colors, offset));
+        return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, operands.Flags, ReadVertex, (group, face, readCorner, offset) => EmitFace(group, face, readCorner, operands, depthBias, colors, offset), pilotIdentity: pilotIdentity);
 
         NativeBattleVector ReadVertex(int offset)
         {

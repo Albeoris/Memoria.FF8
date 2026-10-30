@@ -10,6 +10,11 @@ internal sealed record NativeBattleEffectNodeCallerPolicy(uint SourceAddress, in
 }
 internal static class NativeBattleEffectNodeCaller
 {
+    internal static NativeBattlePilotVisualIdentity ResourceIdentity(NativeBattlePilotVisualIdentity owner, uint sourceBank, uint resource)
+    {
+        return owner with { ResourceGeneration = unchecked((owner.ResourceGeneration * 397 ^ sourceBank) * 397 ^ resource) };
+    }
+
     public static NativeBattleRecover93NodeFrame ClearStorage(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, int initializerTimArenaOffset)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
@@ -109,7 +114,7 @@ internal static class NativeBattleEffectNodeCaller
         return initialized;
     }
 
-    public static NativeBattleRecover93NodeStep Advance74F6E0(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, Action<NativeBattleEffectNodeBank, uint, int, byte>? resourceUpdate = null, Func<NativeBattleEffectNodeMemory, int, byte[], NativeBattleEffectNodeMeshInstance>? prepareMeshOverride = null, NativeBattleEffectNodeSpawnOrigin? spawnOrigin = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<NativeBattleEffectNodeMemory, int, byte[], NativeBattleEffectNodePilotMeshInstance>? preparePilotMeshOverride = null)
+    public static NativeBattleRecover93NodeStep Advance74F6E0(NativeBattleEffectNodeCallerPolicy profile, NativeBattleRecover93NodeFrame frame, uint taskAddress, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, Action<NativeBattleEffectNodeBank, uint, int, byte>? resourceUpdate = null, Func<NativeBattleEffectNodeMemory, int, byte[], NativeBattleEffectNodeMeshInstance>? prepareMeshOverride = null, NativeBattleEffectNodeSpawnOrigin? spawnOrigin = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, Func<NativeBattleEffectNodeMemory, int, byte[], NativeBattleEffectNodePilotMeshInstance>? preparePilotMeshOverride = null, bool captureBuiltInMesh = false)
     {
         using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         frame.State.Validate(profile.SourceLength, profile.EmitterBytes, profile.GeometryBytes);
@@ -132,11 +137,11 @@ internal static class NativeBattleEffectNodeCaller
             ushort emitterCursor = frame.State.EmitterScanCursor ?? throw new NotSupportedException("Native Recover emitter scan WORD is unknown.");
             ushort geometryCursor = frame.State.GeometryScanCursor ?? throw new NotSupportedException("Native Recover geometry scan WORD is unknown.");
             NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera ?? throw new NotSupportedException("Native Recover copied-camera owner is missing."), readModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, first, profile.EmitterCapacity, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, second, profile.GeometryCapacity, ref geometryCursor, emitter, source));
-            inputs = inputs with { MutateResource = resourceUpdate, SpawnOrigin = spawnOrigin };
+            inputs = inputs with { MutateResource = resourceUpdate, SpawnOrigin = spawnOrigin, PilotResourceIdentity = captureBuiltInMesh && pilotIdentity.HasValue ? (owner, resource) => ResourceIdentity(owner, profile.SourceAddress, resource) : null };
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
             List<(bool Mesh, NativeBattleGfGeometryBatch Batch)> deliveries = [];
             NativeCrtRandomState random = frame.Random;
-            _ = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh, (mesh, batch) => deliveries.Add((mesh, batch)), pilotIdentity, preparePilotMeshOverride is null ? null : (node, source) => preparePilotMeshOverride(memory, node, source));
+            _ = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh, (mesh, batch) => deliveries.Add((mesh, batch)), pilotIdentity, preparePilotMeshOverride is not null ? (node, source) => preparePilotMeshOverride(memory, node, source) : captureBuiltInMesh && pilotIdentity.HasValue && prepareMeshOverride is null ? PrepareBuiltInPilotMesh : null);
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
             bank.Publish();
             frame = frame with { Memory = written.Memory, Effect = written.Effect, Random = random, State = frame.State with { Data = bankSource, EmitterScanCursor = emitterCursor, GeometryScanCursor = geometryCursor } };
@@ -145,14 +150,24 @@ internal static class NativeBattleEffectNodeCaller
                 if (mesh && !profile.PrivateMeshes || !mesh && profile.CommonSprites)
                 {
                     commonMeshes.Add(batch);
-                    NativeBattleCommonPacketWrite packets = NativeBattleCommonPacketArena.Append(frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native nodes require their actual common packet owner."), ordering, batch);
+                    NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native nodes require their actual common packet owner.");
+                    if (pilotIdentity.HasValue && (captureBuiltInMesh || preparePilotMeshOverride is not null))
+                    {
+                        frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
+                    }
+                    NativeBattleCommonPacketWrite packets = NativeBattleCommonPacketArena.Append(process, ordering, batch);
                     frame = frame with { Memory = frame.Memory with { PrimitiveProcess = packets.Process } };
                     ordering = packets.Ordering;
                 }
                 else
                 {
                     privateSprites.Add(batch);
-                    NativeBattleEffectPacketWrite packets = NativeBattleEffectPacketArena.Append(frame.Memory, frame.State.PrivateDrawCursor ?? throw new NotSupportedException("Native Recover sprites require their current private cursor."), ordering, batch);
+                    int cursor = frame.State.PrivateDrawCursor ?? throw new NotSupportedException("Native Recover sprites require their current private cursor.");
+                    if (pilotIdentity.HasValue && (captureBuiltInMesh || preparePilotMeshOverride is not null))
+                    {
+                        frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, "20DFAB8", 0, cursor, batch) } };
+                    }
+                    NativeBattleEffectPacketWrite packets = NativeBattleEffectPacketArena.Append(frame.Memory, cursor, ordering, batch);
                     frame = frame with { Memory = packets.Memory, State = frame.State with { PrivateDrawCursor = packets.Cursor } };
                     ordering = packets.Ordering;
                 }
@@ -164,6 +179,12 @@ internal static class NativeBattleEffectNodeCaller
                 {
                     return prepareMeshOverride(memory, node, source);
                 }
+                NativeBattleEffectNodePilotMeshInstance prepared = PrepareBuiltInPilotMesh(node, source);
+                return (bytes, matrix) => prepared(bytes, matrix, default);
+            }
+
+            NativeBattleEffectNodePilotMeshInstance PrepareBuiltInPilotMesh(int node, byte[] source)
+            {
                 short sourceFlags = BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A));
                 short fade = unchecked((short)memory.Word(node + 0x1CE));
                 uint flags = sourceFlags == 0 ? 0x30u : 0;
@@ -174,10 +195,10 @@ internal static class NativeBattleEffectNodeCaller
                 if (profile.FullLife)
                 {
                     NativeBattleFullLifeMeshContext fullLife = new(flags, fade == 0 ? null : memory.Dword(node + 0x16C), fade == 0 ? null : fade, null, null, null, 17, 2);
-                    return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch884370(bytes, matrix, projection, fullLife, colors, observeFirstThreeFlags: memory.WriteProjectionFlags);
+                    return (bytes, matrix, owner) => NativeBattleRestorationMeshPackets.EmitBatch884370(bytes, matrix, projection, fullLife, colors, observeFirstThreeFlags: memory.WriteProjectionFlags, pilotIdentity: captureBuiltInMesh && pilotIdentity.HasValue ? owner : null);
                 }
                 NativeBattleEsunaMeshContext prepared = new(flags, fade == 0 ? null : memory.Dword(node + 0x16C), fade == 0 ? null : fade, 0, 0, 0, new(0, 0, 256, 256), new(0, 0, 256, 256), 17, 2);
-                return (bytes, matrix) => NativeBattleRestorationMeshPackets.EmitBatch88E240(bytes, matrix, projection, prepared, colors, observeFirstThreeFlags: memory.WriteProjectionFlags);
+                return (bytes, matrix, owner) => NativeBattleRestorationMeshPackets.EmitBatch88E240(bytes, matrix, projection, prepared, colors, observeFirstThreeFlags: memory.WriteProjectionFlags, pilotIdentity: captureBuiltInMesh && pilotIdentity.HasValue ? owner : null);
             }
         });
         ushort emitters = frame.State.PassEmitterCount ?? throw new NotSupportedException("Native Recover per-pass emitter count was not reset.");

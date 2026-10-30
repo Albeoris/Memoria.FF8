@@ -106,6 +106,13 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                 BattleSnapshot current = battle.Capture();
                 NativeBattleGraphicsState graphics = current.NativeGraphics!;
                 produced |= current.Events.Any(item => item.Kind == "Windup" && item.ActorId == "monster");
+                if (control is not null && native.MagicId == 110 && graphics.OriginalEffect is { Binding.Effect: 110 } streamEffect && (streamEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
+                {
+                    if (NativeBattleExplicitComponentCapture.AssertFrame(current, 110) > 0)
+                    {
+                        capturedControlFrames++;
+                    }
+                }
                 if (control is not null && native.MagicId is 17 or 18 && graphics.OriginalEffect is { } controlEffect && controlEffect.Binding.Effect == native.MagicId && (controlEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0) && graphics.PrimitiveFrame is { } controlPrimitives)
                 {
                     NativeBattleLogicalCommand[] owned;
@@ -172,7 +179,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             Assert.True(native.MagicId == 0 || selected, "The ordinary command never selected its original effect module.");
             Assert.True(visible, "The selected action submitted no visible packet contribution.");
             Assert.True(completed, "The selected ordinary monster action did not release its command and effect task.");
-            if (control is not null && native.MagicId is 17 or 18)
+            if (control is not null && native.MagicId is 17 or 18 or 110)
             {
                 Assert.True(capturedControlFrames > 1, "The original control component must reach captured owned geometry on multiple callbacks.");
                 if (native.MagicId == 17)

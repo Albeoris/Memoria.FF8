@@ -16,14 +16,14 @@ public static class NativeBattleStorm11Geometry
         return Emit(source, vertices, matrix, projection, phase, fade, colors, pilotIdentity);
     }
 
-    public static NativeBattleGfGeometryBatch Emit6CF0C0(ImmutableArray<byte> source, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int phase, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Emit6CF0C0(ImmutableArray<byte> source, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int phase, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (source.IsDefault || vertices.IsDefault || vertices.Length != 308 * 8 || phase is < 0 or >= 70)
         {
             throw new InvalidDataException("Native control stream requires its complete308-vertex owner and phase.");
         }
         int fade = phase < 8 ? 4096 - NativeBattleCameraMath.Sine(phase << 7) : phase > 62 ? NativeBattleCameraMath.Sine(unchecked(((phase << 7) - 0x1E81) & 0x1FFFFF80)) : 0;
-        return Emit(source, vertices, matrix, projection, phase, fade, colors);
+        return Emit(source, vertices, matrix, projection, phase, fade, colors, pilotIdentity);
     }
 
     private static NativeBattleGfGeometryBatch Emit(ImmutableArray<byte> source, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int phase, int fade, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)

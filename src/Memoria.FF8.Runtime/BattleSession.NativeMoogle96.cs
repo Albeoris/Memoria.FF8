@@ -6,7 +6,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState EnterNativeMoogle731DE0(NativeBattleGraphicsState graphics)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = graphics.OriginalEffect! with { PresentationPackets = [] };
         NativeBattleMoogle96Resources resources = effect.Binding.Moogle96Resources ?? throw new NotSupportedException("Native Moogle requires its original per-module resources.");
         NativeBattleMoogle96Frame frame = NativeBattleMoogle96Controller.Initialize731DE0(NativeEffectMemory ?? throw new NotSupportedException("Native Moogle requires retained effect memory."), effect, nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Moogle requires its CRT random owner."));
         NativeEffectMemory = frame.Memory;
@@ -16,7 +16,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState AdvanceNativeMoogle731F70(NativeBattleGraphicsState graphics)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = graphics.OriginalEffect! with { PresentationPackets = [] };
         NativeBattleMoogle96Resources resources = effect.Binding.Moogle96Resources ?? throw new NotSupportedException("Native Moogle requires its original per-module resources.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Moogle requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Moogle requires its retained view matrix.");
@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Moogle cannot read an uninitialized projected scratch owner.");
             }
-            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Moogle requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Moogle requires its selected device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray());
+            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Moogle requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Moogle requires its selected device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray(), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(96, task) with { ResourceGeneration = resources.Model.Address });
             if (shared.ProjectedScratch is null && drawn.ProjectedBytesWritten != size)
             {
                 throw new InvalidDataException("Native Moogle's first body draw did not establish every projected record.");
@@ -49,7 +49,7 @@ public sealed partial class BattleSession
         NativeBattleMoogle96ProgramStep AdvanceProgram(NativeBattleMoogle96Frame current, NativeBattleModulePoolTask task)
         {
             NativeBattleMoogle96State shared = current.Memory.Moogle96!;
-            NativeBattleMoogle96ProgramDraw drawn = NativeBattleMoogle96ProgramDrawing.Advance734450(task, shared.ProgramSource ?? throw new NotSupportedException("Native Moogle requires its retained mutable program source."), view, projection, colors, shared.Global257CF24 ?? throw new NotSupportedException("Native Moogle requires its retained program pause operand."));
+            NativeBattleMoogle96ProgramDraw drawn = NativeBattleMoogle96ProgramDrawing.Advance734450(task, shared.ProgramSource ?? throw new NotSupportedException("Native Moogle requires its retained mutable program source."), view, projection, colors, shared.Global257CF24 ?? throw new NotSupportedException("Native Moogle requires its retained program pause operand."), NativeBattlePilotVisualLifetimes.Identity(96, task));
             return new(AppendCommon(current, drawn.Packets), drawn.Task, drawn.Remaining);
         }
 
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             NativeBattleMoogle96NodeState nodes = shared.Nodes with { Work = shared.Nodes.Work with { PrivateDrawCursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Moogle requires its current private cursor.") } };
             NativeBattleMoogle96NodeFrame nodeFrame = new(current.Memory, current.Effect, nodes, current.Random);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Moogle requires its initialized ordering table.");
-            NativeBattleMoogle96NodeStep advanced = NativeBattleMoogle96Nodes.AdvanceContext(nodeFrame, address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors);
+            NativeBattleMoogle96NodeStep advanced = NativeBattleMoogle96Nodes.AdvanceContext(nodeFrame, address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors, capturePresentation: true);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = advanced.Ordering } };
             NativeBattleEffectMemory memory = advanced.Frame.Memory with { Moogle96 = advanced.Frame.Memory.Moogle96! with { Nodes = advanced.Frame.State } };
             return new(new(memory, advanced.Frame.Effect with { DrawArenaOffset = advanced.Frame.State.Work.PrivateDrawCursor }, advanced.Frame.Random), advanced.Complete);
@@ -141,7 +141,9 @@ public sealed partial class BattleSession
         NativeBattleMoogle96Frame AppendCommon(NativeBattleMoogle96Frame current, NativeBattleGfGeometryBatch batch)
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Moogle requires its initialized ordering table.");
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Moogle requires its common packet owner."), primitive.Pending, batch);
+            NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Moogle requires its common packet owner.");
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
         }

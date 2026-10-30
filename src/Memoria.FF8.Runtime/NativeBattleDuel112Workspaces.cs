@@ -16,14 +16,14 @@ public static class NativeBattleDuel112Workspaces
         return Store(frame, slot, offset, workspace.Initialize7016B0(resources.Hierarchy(sourceAddress), size));
     }
 
-    public static NativeBattleDuel112WorkspaceStep Advance701970(NativeBattleDuel112Frame frame, int slot, int offset, NativeBattleDuel112HierarchyContext context, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering)
+    public static NativeBattleDuel112WorkspaceStep Advance701970(NativeBattleDuel112Frame frame, int slot, int offset, NativeBattleDuel112HierarchyContext context, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleLogicalOrdering ordering, bool capturePresentation = false)
     {
         (uint sourceAddress, int size) = Contract(offset);
         NativeBattleGfAnimationSource source = Resources(frame).Hierarchy(sourceAddress);
         NativeBattleGfAnimationWorkspace workspace = Read(frame.Effect.Pools[1].Slots[slot], offset, size);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
-            NativeBattleDuel112HierarchyStep drawn = NativeBattleDuel112Hierarchy.Draw6CD280(frame, source, node, context, view, projection, colors);
+            NativeBattleDuel112HierarchyStep drawn = NativeBattleDuel112Hierarchy.Draw6CD280(frame, source, node, context, view, projection, colors, capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(112, frame.Effect.Pools[1].Slots[slot], unchecked(offset * 65537 + node.ResourceOffset)) with { ResourceGeneration = source.Address } : null);
             frame = drawn.Frame;
             uint physicalCursor = BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging.Read(0x2521914, 4));
             int cursor = checked((int)((long)physicalCursor - 0x20DFAB8));

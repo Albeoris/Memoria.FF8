@@ -29,6 +29,31 @@ public sealed class NativeBattleAnchorActPreparationTests
         Assert.Equal(unchecked((uint)-128), U32(captured.Temporary88, 0x18));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Effect101_anchor_capture_keeps_selected_morph_W_registers_and_exact_packets(bool morph)
+    {
+        NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with
+        {
+            Arena = NativeBattleEffectArena.Clear().Write(MorphOffset, Enumerable.Repeat((byte)0xA5, 384).ToArray()),
+            ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0()
+        };
+        NativeBattlePilotVisualIdentity identity = new(101, 88, 0, 48, 32) { ResourceGeneration = 0x44 };
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var native = NativeBattleAnchorDepthAct16.Draw(Memory(), Source(4), Node(morph), Context(-128), Camera(), Temporary(), projection, Constants, MorphAddress, 384);
+        string detachedNative = NativeBattleTestSnapshots.Json(native);
+        var captured = NativeBattleAnchorDepthAct16.Draw(Memory(), Source(4), Node(morph), Context(-128), Camera(), Temporary(), projection, Constants, MorphAddress, 384, pilotIdentity: identity);
+        Assert.Equal(detachedNative, NativeBattleTestSnapshots.Json(captured));
+        Assert.Null(Assert.Single(native.Batch.Attempts).Primitive!.PilotGeometry);
+        var visual = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(identity.Generation, visual.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, visual.Identity.ResourceGeneration);
+        Assert.Equal(new System.Numerics.Vector3(morph ? -350 : -400, -400, 2000), visual.A);
+        Assert.Equal(new System.Numerics.Vector3(morph ? 450 : 400, 400, 2000), visual.D);
+        Assert.Equal(unchecked((uint)-128), U32(captured.Temporary88, 0x18));
+    }
+
     private const int MorphOffset = 0x4000;
     private const uint MorphAddress = NativeBattleEffectNodeMemory.ArenaAddress + MorphOffset;
     private static NativeBattleSummonColors Constants => NativeBattleGteColorInterpolation.CodeConstants45F270;

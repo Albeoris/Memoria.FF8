@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleDuel112DrawingInputs(NativeBattleDuel112ActorServices Actor, Func<int, byte, short, NativeBattleVector> ReadBone502170, NativeBattleActionMatrix View, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Action<int, int, int, int> Flash5712C0);
+public sealed record NativeBattleDuel112DrawingInputs(NativeBattleDuel112ActorServices Actor, Func<int, byte, short, NativeBattleVector> ReadBone502170, NativeBattleActionMatrix View, NativeBattleCameraProjection Projection, NativeBattleSummonColors Colors, Action<int, int, int, int> Flash5712C0)
+{
+    public bool CapturePresentation { get; init; }
+}
 public sealed record NativeBattleDuel112DrawingStep(NativeBattleDuel112Frame Frame, NativeBattleLogicalOrdering Ordering);
 
 public static partial class NativeBattleDuel112Target
@@ -92,13 +95,13 @@ public static partial class NativeBattleDuel112Target
 
         void Draw(int offset, NativeBattleDuel112HierarchyContext context)
         {
-            NativeBattleDuel112WorkspaceStep step = NativeBattleDuel112Workspaces.Advance701970(frame, slot, offset, context, inputs.View, inputs.Projection, inputs.Colors, ordering);
+            NativeBattleDuel112WorkspaceStep step = NativeBattleDuel112Workspaces.Advance701970(frame, slot, offset, context, inputs.View, inputs.Projection, inputs.Colors, ordering, inputs.CapturePresentation);
             frame = step.Frame;
             ordering = step.Ordering;
         }
         void Flash(int red, int green, int blue, int elapsed, int duration)
         {
-            NativeBattleDuel112DrawingStep step = Append6CBF90(frame, ordering, NativeBattleDuelSharedPackets.Flash6A83B0(red, green, blue, elapsed, duration));
+            NativeBattleDuel112DrawingStep step = Append6CBF90(frame, ordering, CaptureFixedFlash(NativeBattleDuelSharedPackets.Flash6A83B0(red, green, blue, elapsed, duration), inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(112, frame.Effect.Pools[1].Slots[slot], 0x6A83B0) : null));
             frame = step.Frame;
             ordering = step.Ordering;
         }
@@ -124,6 +127,28 @@ public static partial class NativeBattleDuel112Target
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, cursor, ordering, batch, NativeBattleEffectGouraudWrites.FullDword);
         frame = frame with { Memory = written.Memory, Effect = frame.Effect with { DrawArenaOffset = written.Cursor }, Staging = frame.Staging.Write(0x2521914, BitConverter.GetBytes(checked(0x20DFAB8u + (uint)written.Cursor))) };
         return new(frame, written.Ordering);
+    }
+
+    public static NativeBattleModulePacketBatch CaptureFixedFlash(NativeBattleModulePacketBatch batch, NativeBattlePilotVisualIdentity? pilotIdentity)
+    {
+        if (pilotIdentity is not { } identity)
+        {
+            return batch;
+        }
+        return batch with { Primitives = batch.Primitives.Select(item =>
+        {
+            NativeBattleGeometryPrimitive primitive = item.Primitive;
+            if (primitive.Words.Length != 6 || (primitive.Words[1] >> 24) != 0x2A)
+            {
+                return item;
+            }
+            System.Numerics.Vector3 Corner(int index)
+            {
+                uint xy = primitive.Words[index + 2];
+                return new(unchecked((short)xy), unchecked((short)(xy >> 16)), 0);
+            }
+            return item with { Primitive = primitive with { PilotGeometry = new(identity, Corner(0), Corner(1), Corner(2), Corner(3), 4, false) { ScreenSpace = true } } };
+        }).ToImmutableArray() };
     }
 
     private static uint MorphAddress(NativeBattleDuel112Frame frame) => unchecked(BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging.Read(0x25218E8, 4)) + 0x1808);

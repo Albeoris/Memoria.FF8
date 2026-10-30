@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState EnterNativeAngeloRestoration(NativeBattleGraphicsState graphics)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = graphics.OriginalEffect! with { PresentationPackets = [] };
         NativeBattleAngeloRestorationProfile profile = NativeBattleAngeloRestorationProfile.ForBinding(effect.Binding);
         NativeBattleRecover93Resources resources = (profile.Effect == 93 ? effect.Binding.Recover93Resources : effect.Binding.Reverse94Resources) ?? throw new NotSupportedException("Native Angelo restoration requires its original per-module resources.");
         NativeBattleRecover93Frame frame = NativeBattleRecover93Controller.Initialize74E390(NativeEffectMemory ?? throw new NotSupportedException("Native Angelo restoration requires retained effect memory."), effect, nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Angelo restoration requires its CRT random owner."));
@@ -18,7 +18,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState AdvanceNativeAngeloRestoration(NativeBattleGraphicsState graphics)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = graphics.OriginalEffect! with { PresentationPackets = [] };
         NativeBattleAngeloRestorationProfile profile = NativeBattleAngeloRestorationProfile.ForBinding(effect.Binding);
         NativeBattleRecover93Resources resources = (profile.Effect == 93 ? effect.Binding.Recover93Resources : effect.Binding.Reverse94Resources) ?? throw new NotSupportedException("Native Angelo restoration requires its original per-module resources.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Angelo restoration requires its published projection.");
@@ -60,7 +60,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Angelo restoration cannot read an uninitialized projected scratch owner.");
             }
-            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Angelo restoration requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Angelo restoration requires its selected device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray());
+            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Angelo restoration requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Angelo restoration requires its selected device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray(), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(profile.Effect, task) with { ResourceGeneration = resources.Model.Address });
             if (shared.ProjectedScratch is null && drawn.ProjectedBytesWritten != size)
             {
                 throw new InvalidDataException("Native Angelo restoration's first body draw did not establish every projected record.");
@@ -71,7 +71,7 @@ public sealed partial class BattleSession
 
         NativeBattleRecover93ProgramStep AdvanceProgram(NativeBattleRecover93Frame current, NativeBattleModulePoolTask task)
         {
-            NativeBattleSearchProgramDraw drawn = NativeBattleSearchProgramDrawing.Advance758D70(task, resources.ProgramSource, view, projection, colors);
+            NativeBattleSearchProgramDraw drawn = NativeBattleSearchProgramDrawing.Advance758D70(task, resources.ProgramSource, view, projection, colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(profile.Effect, task));
             return new(Append(current, drawn.Packets), drawn.Task, drawn.Remaining);
         }
 
@@ -81,7 +81,7 @@ public sealed partial class BattleSession
             NativeBattleRecover93NodeState nodes = shared.Nodes with { PrivateDrawCursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Angelo restoration requires its current private cursor.") };
             NativeBattleRecover93NodeFrame nodeFrame = new(current.Memory, current.Effect, nodes, current.Random);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Angelo restoration requires its initialized ordering table.");
-            NativeBattleRecover93NodeStep advanced = NativeBattleRecover93Nodes.Advance74F6E0(nodeFrame, address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors);
+            NativeBattleRecover93NodeStep advanced = NativeBattleRecover93Nodes.Advance74F6E0(nodeFrame, address, actor => graphics.Models[actor], projection, NativeCamera!.Roll, primitive.Pending, colors, capturePresentation: true);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = advanced.Ordering } };
             NativeBattleEffectMemory memory = profile.Write(advanced.Frame.Memory, profile.Read(advanced.Frame.Memory)! with { Nodes = advanced.Frame.State });
             return new(new(memory, advanced.Frame.Effect with { DrawArenaOffset = advanced.Frame.State.PrivateDrawCursor }, advanced.Frame.Random), advanced.Complete);
@@ -131,7 +131,9 @@ public sealed partial class BattleSession
         NativeBattleRecover93Frame Append(NativeBattleRecover93Frame current, NativeBattleGfGeometryBatch batch)
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Angelo restoration requires its initialized ordering table.");
-            NativeBattleEffectPacketWrite privateWrite = NativeBattleEffectPacketArena.Append(current.Memory, current.Effect.DrawArenaOffset!.Value, primitive.Pending, batch);
+            int cursor = current.Effect.DrawArenaOffset!.Value;
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, batch) } };
+            NativeBattleEffectPacketWrite privateWrite = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = privateWrite.Ordering } };
             return current with { Memory = privateWrite.Memory, Effect = current.Effect with { DrawArenaOffset = privateWrite.Cursor } };
         }

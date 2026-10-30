@@ -78,14 +78,15 @@ public sealed partial class BattleSession
                 {
                     pools[selected] = pool;
                     NativeBattleModulePoolTask task = pool.Slots[slot];
+                    NativeBattlePilotVisualIdentity pilotIdentity = NativeBattlePilotVisualLifetimes.Identity(110, task);
                     int result = task.Callback switch
                     {
-                        0x6CEA30 => Director(ref task, slot),
+                        0x6CEA30 => Director(ref task, slot, pilotIdentity),
                         0x6CE610 => Target(ref task),
-                        0x6CE990 => SpriteTask(ref task, 0, 8),
-                        0x6CF400 => SpriteTask(ref task, 1, 13),
-                        0x6CF110 => Debris(ref task),
-                        0x6CF280 => Ring(ref task),
+                        0x6CE990 => SpriteTask(ref task, 0, 8, pilotIdentity),
+                        0x6CF400 => SpriteTask(ref task, 1, 13, pilotIdentity),
+                        0x6CF110 => Debris(ref task, pilotIdentity),
+                        0x6CF280 => Ring(ref task, pilotIdentity),
                         _ => throw new NotSupportedException("Native control110 selected an unrelated callback.")
                     };
                     task = task.UpdateHeader(task.Flags, task.State, pools[selected].Slots[slot].Next, task.Callback);
@@ -109,7 +110,7 @@ public sealed partial class BattleSession
         nativeCrtRandom = random;
         return graphics with { OriginalEffect = effect with { Pools = pools.ToImmutableArray(), ReturnedDescriptor = completed ? 0u : 0x2521A40u } };
 
-        int Director(ref NativeBattleModulePoolTask task, int slot)
+        int Director(ref NativeBattleModulePoolTask task, int slot, NativeBattlePilotVisualIdentity pilotIdentity)
         {
             int frame = WindWord(task, 12);
             task = task.WriteWord(54, unchecked((ushort)-4000)).WriteWord(56, unchecked((ushort)-4000));
@@ -164,7 +165,7 @@ public sealed partial class BattleSession
                 NativeBattleActionMatrix basis = NativeBattleFunguarLaser277.Basis50CBA0(0, -dy, dz).Matrix;
                 task = StoreBasis110(task, basis);
                 world = NativeBattleControl110Motion.StreamMatrix(basis, distance, frame, WindVector(task, 52));
-                Append(NativeBattleStorm11Geometry.Emit6CF0C0(resources.Stream, current, NativeBattleGfMatrices.Compose56C2F0(view, world), projection, frame, colors));
+                Append(NativeBattleStorm11Geometry.Emit6CF0C0(resources.Stream, current, NativeBattleGfMatrices.Compose56C2F0(view, world), projection, frame, colors, pilotIdentity with { ResourceGeneration = 0x12E0650 }));
             }
             int elapsed = frame - 5;
             if ((uint)elapsed < 60)
@@ -291,15 +292,15 @@ public sealed partial class BattleSession
             return counter >= 50 ? 2 : 0;
         }
 
-        int SpriteTask(ref NativeBattleModulePoolTask task, int resource, int lifetime)
+        int SpriteTask(ref NativeBattleModulePoolTask task, int resource, int lifetime, NativeBattlePilotVisualIdentity pilotIdentity)
         {
             int frame = WindWord(task, 12);
             int scale = WindWord(task, 22);
-            Sprite(resource, frame, WindVector(task, 16), scale, -(scale >> 2));
+            Sprite(resource, frame, WindVector(task, 16), scale, -(scale >> 2), pilotIdentity);
             task = NativeBattleStorm11Motion.MoveSprite(task, lifetime, out bool ended);
             return ended ? 2 : 0;
         }
-        int Debris(ref NativeBattleModulePoolTask task)
+        int Debris(ref NativeBattleModulePoolTask task, NativeBattlePilotVisualIdentity pilotIdentity)
         {
             int frame = WindWord(task, 12);
             NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CD50(WindVector(task, 32));
@@ -310,11 +311,11 @@ public sealed partial class BattleSession
             }
             NativeBattleVector position = WindVector(task, 16);
             world = world with { X = position.X, Y = position.Y, Z = position.Z };
-            Append(NativeBattleModulePackets.EmitBatch572200(resources.Debris, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, world), projection, new(0, null, null, null, null, null, 17, 2), colors));
+            Append(NativeBattleModulePackets.EmitBatch572200(resources.Debris, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, world), projection, new(0, null, null, null, null, null, 17, 2), colors, pilotIdentity: pilotIdentity with { ResourceGeneration = 0x12E2F40 }));
             task = NativeBattleStorm11Motion.MoveDebris6EB790(task, out bool ended);
             return ended ? 2 : 0;
         }
-        int Ring(ref NativeBattleModulePoolTask task)
+        int Ring(ref NativeBattleModulePoolTask task, NativeBattlePilotVisualIdentity pilotIdentity)
         {
             NativeBattleModulePoolTask director = pools[5].Slots[DirectorSlot(task.ReadDword(16))];
             short phase = WindWord(task, 14);
@@ -325,7 +326,7 @@ public sealed partial class BattleSession
             NativeBattleVector position = NativeBattleGfMatrices.Transform460840(basis, point);
             int scale = unchecked((short)(phase + 1024));
             NativeBattleActionMatrix scaled = NativeBattleGfMatrices.Multiply56C090(ReadBasis110(director), new([unchecked((short)scale), 0, 0, 0, unchecked((short)scale), 0, 0, 0, 4096], 0, 0, 0, 4096)) with { X = position.X, Y = position.Y, Z = position.Z };
-            Append(NativeBattleModulePackets.EmitBatch572200(resources.Ring, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, scaled), projection, new(0x30, null, null, null, null, null, 17, 2), colors));
+            Append(NativeBattleModulePackets.EmitBatch572200(resources.Ring, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, scaled), projection, new(0x30, null, null, null, null, null, 17, 2), colors, pilotIdentity: pilotIdentity with { ResourceGeneration = 0x12E2BD8 }));
             task = task.WriteWord(14, unchecked((ushort)(phase + 128)));
             return WindWord(task, 14) >= 4096 ? 2 : 0;
         }
@@ -381,10 +382,10 @@ public sealed partial class BattleSession
             effect = effect with { DrawArenaOffset = written.Cursor };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
         }
-        void Sprite(int index, int frame, NativeBattleVector point, int scale, int depth)
+        void Sprite(int index, int frame, NativeBattleVector point, int scale, int depth, NativeBattlePilotVisualIdentity pilotIdentity)
         {
             NativeBattleModuleResource resource = resources.Sprites[index];
-            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = depth, SpriteFlags = 0 };
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = depth, SpriteFlags = 0, PilotIdentity = pilotIdentity with { ResourceGeneration = resource.Address } };
             NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch, NativeBattleEffectGouraudWrites.RgbBytes);
             NativeEffectMemory = written.Memory;

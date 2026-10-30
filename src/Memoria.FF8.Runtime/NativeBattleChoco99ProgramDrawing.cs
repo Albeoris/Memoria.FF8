@@ -21,24 +21,24 @@ public static partial class NativeBattleChoco99ProgramDrawing
 {
     public static NativeBattleModulePoolTask InitializeWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8) => NativeBattleChoco97ProgramDrawing.InitializeProfiled(task, source, actorRaw8, NativeBattleChocoProgramProfile.Choco99);
 
-    public static NativeBattleChoco97ProgramDraw Advance718A70(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary) => NativeBattleChoco97ProgramDrawing.AdvanceProfiled(task, source, morphScratch, view, projection, colors, frozenSecondary, NativeBattleChocoProgramProfile.Choco99);
+    public static NativeBattleChoco97ProgramDraw Advance718A70(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, NativeBattlePilotVisualIdentity? pilotIdentity = null) => NativeBattleChoco97ProgramDrawing.AdvanceProfiled(task, source, morphScratch, view, projection, colors, frozenSecondary, NativeBattleChocoProgramProfile.Choco99, pilotIdentity: pilotIdentity);
 
-    public static NativeBattleChoco97NodeDraw Node718B90(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors) => NativeBattleChoco97ProgramDrawing.NodeProfiled(source, node, morphScratch, context, projection, colors, NativeBattleChocoProgramProfile.Choco99);
+    public static NativeBattleChoco97NodeDraw Node718B90(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null) => NativeBattleChoco97ProgramDrawing.NodeProfiled(source, node, morphScratch, context, projection, colors, NativeBattleChocoProgramProfile.Choco99, pilotIdentity: pilotIdentity);
 
-    public static NativeBattleChoco99ProgramDraw AdvanceInitial(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary)
+    public static NativeBattleChoco99ProgramDraw AdvanceInitial(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleChocoLoadedProgramProfile profile = new(NativeBattleChocoProgramProfile.Choco99, 0x166DC58, 0x2884, 0x7189B0, 0x4AC, false, 0, 0, true, [], 0x1529FA4);
-        var result = NativeBattleChoco97ProgramDrawing.AdvanceLoadedProfiled(profile, task, source, actorRaw8, actorRaw8, morphScratch, view, projection, colors, frozenSecondary);
+        var result = NativeBattleChoco97ProgramDrawing.AdvanceLoadedProfiled(profile, task, source, actorRaw8, actorRaw8, morphScratch, view, projection, colors, frozenSecondary, pilotIdentity: pilotIdentity);
         return new(result.Draw, result.SoundDescriptor);
     }
 
-    public static NativeBattleChoco99ProgramDraw AdvanceLoaded(NativeBattleChoco99LoadedProgram profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary)
+    public static NativeBattleChoco99ProgramDraw AdvanceLoaded(NativeBattleChoco99LoadedProgram profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        var result = NativeBattleChoco97ProgramDrawing.AdvanceLoadedProfiled(Profile(profile), task, source, actorRaw8, actorRaw8, morphScratch, view, projection, colors, frozenSecondary);
+        var result = NativeBattleChoco97ProgramDrawing.AdvanceLoadedProfiled(Profile(profile), task, source, actorRaw8, actorRaw8, morphScratch, view, projection, colors, frozenSecondary, pilotIdentity: pilotIdentity);
         return new(result.Draw, result.SoundDescriptor);
     }
 
-    public static NativeBattleChoco99ProgramDraw AdvanceHeldOrStatic(NativeBattleChoco99LoadedProgram profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary)
+    public static NativeBattleChoco99ProgramDraw AdvanceHeldOrStatic(NativeBattleChoco99LoadedProgram profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         var definition = CustomProfile(profile);
         if (task.PayloadLength != 0x548 - 12 || task.Callback != definition.Callback || source.Address != definition.Address || source.IsDefault || source.Length != definition.Length || task.ReadDword(0x74) != source.Address || task.ReadDword(0x78) != definition.Clear || morphScratch.IsDefault || morphScratch.Length != 0x760)
@@ -76,7 +76,7 @@ public static partial class NativeBattleChoco99ProgramDrawing
         NativeBattleGfGeometryBatch packets = new([], 0);
         if (draw)
         {
-            NativeBattleChoco97ProgramDraw step = profile == NativeBattleChoco99LoadedProgram.File482 ? Advance720290(task, source, morphScratch, projection, colors, frozenSecondary) : Advance718A70(task, source, morphScratch, view, projection, colors, frozenSecondary);
+            NativeBattleChoco97ProgramDraw step = profile == NativeBattleChoco99LoadedProgram.File482 ? Advance720290(task, source, morphScratch, projection, colors, frozenSecondary, pilotIdentity: pilotIdentity) : Advance718A70(task, source, morphScratch, view, projection, colors, frozenSecondary, pilotIdentity: pilotIdentity);
             task = step.Task;
             morphScratch = step.MorphScratch;
             remaining = step.Remaining;
@@ -90,10 +90,10 @@ public static partial class NativeBattleChoco99ProgramDrawing
         return new(new(task, source, morphScratch, packets, remaining, (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0), null);
     }
 
-    public static NativeBattleChoco97ProgramDraw Advance720290(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> morphScratch, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary)
+    public static NativeBattleChoco97ProgramDraw Advance720290(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> morphScratch, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleActionMatrix context = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)), unchecked((short)task.ReadWord(0x20)), 4096);
-        return NativeBattleChoco97ProgramDrawing.AdvanceWithExplicitContext(task, source, morphScratch, context, projection, colors, frozenSecondary, NativeBattleChocoProgramProfile.Choco99);
+        return NativeBattleChoco97ProgramDrawing.AdvanceWithExplicitContext(task, source, morphScratch, context, projection, colors, frozenSecondary, NativeBattleChocoProgramProfile.Choco99, pilotIdentity: pilotIdentity);
     }
 
     public static (uint Address, int Length, uint Callback, int Clear) LoadedProfile(NativeBattleChoco99LoadedProgram profile)

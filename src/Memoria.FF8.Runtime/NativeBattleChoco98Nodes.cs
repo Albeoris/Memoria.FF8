@@ -52,7 +52,7 @@ public static class NativeBattleChoco98Nodes
         {
             throw new NotSupportedException("Native Choco nodes require their executed static source initialization.");
         }
-        NativeBattleRecover93NodeStep result = NativeBattleEffectNodeCaller.Advance74F6E0(Policy(frame.Effect), current, address, readModel, projection, roll, ordering, colors);
+        NativeBattleRecover93NodeStep result = NativeBattleEffectNodeCaller.Advance74F6E0(Policy(frame.Effect), current, address, readModel, projection, roll, ordering, colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(98, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address)), captureBuiltInMesh: true);
         return new(Store(frame, result.Frame), result.Complete, result.Ordering, result.PrivateSprites, result.CommonMeshes);
     }
 

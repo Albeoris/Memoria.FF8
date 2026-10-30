@@ -8,7 +8,7 @@ public sealed record NativeBattleDuel112HierarchyStep(NativeBattleDuel112Frame F
 
 public static class NativeBattleDuel112Hierarchy
 {
-    public static NativeBattleDuel112HierarchyStep Draw6CD280(NativeBattleDuel112Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel112HierarchyContext context, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleDuel112HierarchyStep Draw6CD280(NativeBattleDuel112Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleDuel112HierarchyContext context, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleDuel112Resources resources = frame.Memory.Duel112?.Resources ?? throw new NotSupportedException("Native Duel hierarchy requires its actual resource owner.");
         int index = unchecked((short)node.NodeIndex);
@@ -94,7 +94,7 @@ public static class NativeBattleDuel112Hierarchy
             uint address = unchecked(selected + (uint)offset);
             byte[] xyz = morphed ? frame.Memory.Arena!.Read(NativeBattleWaterExecutionFields.ArenaOffset(address, 6), 6) : resources.Read(address, 6).ToArray();
             return new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
-        });
+        }, pilotIdentity: pilotIdentity);
         return new(frame, batch);
     }
 }

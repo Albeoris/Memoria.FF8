@@ -10,17 +10,17 @@ public enum NativeBattleChoco99EmissionKind
 
 public static partial class NativeBattleChoco99ProgramDrawing
 {
-    public static NativeBattleChoco99ProgramDraw AdvanceMoving71FFB0(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, Func<NativeBattleModulePoolTask, NativeBattleChoco99EmissionKind, short, NativeBattleModulePoolTask> emit)
+    public static NativeBattleChoco99ProgramDraw AdvanceMoving71FFB0(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, Func<NativeBattleModulePoolTask, NativeBattleChoco99EmissionKind, short, NativeBattleModulePoolTask> emit, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return AdvanceMoving(task, source, contextMode40, morphScratch, view, projection, colors, frozenSecondary, emit, false);
+        return AdvanceMoving(task, source, contextMode40, morphScratch, view, projection, colors, frozenSecondary, emit, false, pilotIdentity: pilotIdentity);
     }
 
-    public static NativeBattleChoco99ProgramDraw AdvanceSmall720610(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, Func<NativeBattleModulePoolTask, NativeBattleChoco99EmissionKind, short, NativeBattleModulePoolTask> emit)
+    public static NativeBattleChoco99ProgramDraw AdvanceSmall720610(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, Func<NativeBattleModulePoolTask, NativeBattleChoco99EmissionKind, short, NativeBattleModulePoolTask> emit, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return AdvanceMoving(task, source, contextMode40, morphScratch, view, projection, colors, frozenSecondary, emit, true);
+        return AdvanceMoving(task, source, contextMode40, morphScratch, view, projection, colors, frozenSecondary, emit, true, pilotIdentity: pilotIdentity);
     }
 
-    private static NativeBattleChoco99ProgramDraw AdvanceMoving(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, Func<NativeBattleModulePoolTask, NativeBattleChoco99EmissionKind, short, NativeBattleModulePoolTask> emit, bool small)
+    private static NativeBattleChoco99ProgramDraw AdvanceMoving(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, Func<NativeBattleModulePoolTask, NativeBattleChoco99EmissionKind, short, NativeBattleModulePoolTask> emit, bool small, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ArgumentNullException.ThrowIfNull(emit);
         if (task.PayloadLength != 0x548 - 12 || task.Callback != (small ? 0x720610u : 0x71FFB0u) || source.Address != 0x19F0F40 || source.IsDefault || source.Length != 0x1638 || task.ReadDword(0x74) != source.Address || task.ReadDword(0x78) != 0x2C || morphScratch.IsDefault || morphScratch.Length != 0x760)
@@ -114,7 +114,7 @@ public static partial class NativeBattleChoco99ProgramDrawing
 
         void Draw()
         {
-            NativeBattleChoco97ProgramDraw step = Advance718A70(task, source, morphScratch, view, projection, colors, frozenSecondary);
+            NativeBattleChoco97ProgramDraw step = Advance718A70(task, source, morphScratch, view, projection, colors, frozenSecondary, pilotIdentity: pilotIdentity);
             task = step.Task;
             morphScratch = step.MorphScratch;
             remaining = step.Remaining;

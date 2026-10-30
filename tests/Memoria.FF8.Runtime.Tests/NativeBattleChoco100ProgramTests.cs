@@ -110,6 +110,32 @@ public sealed class NativeBattleChoco100ProgramTests
         Assert.Throws<NotSupportedException>(() => NativeBattleChoco100DepthPackets.EmitFace(7, new byte[36], index => vertices[index], Operands, -4096, NativeBattleGteColorInterpolation.CodeConstants45F270));
     }
 
+    [Fact]
+    public void Captured_custom_depth_rejection_does_not_read_the_absent_fourth_vertex()
+    {
+        byte[] mesh = new byte[64];
+        BinaryPrimitives.WriteInt32LittleEndian(mesh, 8);
+        BinaryPrimitives.WriteInt32LittleEndian(mesh.AsSpan(28), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(32), 0x38808080);
+        BinaryPrimitives.WriteUInt16LittleEndian(mesh.AsSpan(38), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(mesh.AsSpan(40), 4);
+        BinaryPrimitives.WriteUInt16LittleEndian(mesh.AsSpan(42), ushort.MaxValue);
+        byte[] selected = new byte[24];
+        for (int index = 0; index < 3; index++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(selected.AsSpan(index * 8 + 4), -1);
+        }
+        NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
+        NativeBattleCameraProjection projection = new(identity, 216, 160, 108);
+        NativeBattleModuleMeshContext operands = Operands with { Flags = 0x2030 };
+        NativeBattleGfGeometryBatch plain = NativeBattleChoco100DepthPackets.EmitBatch(mesh.ToImmutableArray(), 0, selected.ToImmutableArray(), identity, projection, operands, 32, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        NativeBattleGfGeometryBatch captured = NativeBattleChoco100DepthPackets.EmitBatch(mesh.ToImmutableArray(), 0, selected.ToImmutableArray(), identity, projection, operands, 32, NativeBattleGteColorInterpolation.CodeConstants45F270, new(100, 17, 1, 2, 3));
+        Assert.Null(Assert.Single(captured.Attempts).Primitive);
+        Assert.Equal(plain.AllocationBytes, captured.AllocationBytes);
+        Assert.Equal(Assert.Single(plain.Attempts).Data.ToArray(), Assert.Single(captured.Attempts).Data.ToArray());
+        Assert.Equal(Assert.Single(plain.Attempts).WriteMask.ToArray(), Assert.Single(captured.Attempts).WriteMask.ToArray());
+    }
+
     private static NativeBattleModuleMeshContext Operands => new(0x30, null, null, null, null, null, 17, 2);
     private static NativeBattleModuleProjectedVertex[] Corners(short x, short y) => [new(XY(0, 0), 4096, 0), new(XY(x, 0), 4096, 0), new(XY(0, y), 4096, 0), new(XY(x, y), 4096, 0)];
     private static uint XY(short x, short y) => unchecked((ushort)x) | (uint)unchecked((ushort)y) << 16;

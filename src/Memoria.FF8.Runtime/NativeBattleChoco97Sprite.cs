@@ -8,12 +8,12 @@ public sealed record NativeBattleChoco97SpriteStep(NativeBattleModulePoolTask Ta
 
 public static class NativeBattleChoco97Sprite
 {
-    public static NativeBattleChoco97SpriteStep Advance730C10(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources resources, ImmutableArray<byte> contextActorRaw8, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
+    public static NativeBattleChoco97SpriteStep Advance730C10(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources resources, ImmutableArray<byte> contextActorRaw8, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return AdvanceProfiled(task, resources, contextActorRaw8, view, projection, cameraRoll, 0x152B5C8);
+        return AdvanceProfiled(task, resources, contextActorRaw8, view, projection, cameraRoll, 0x152B5C8, pilotIdentity: pilotIdentity);
     }
 
-    internal static NativeBattleChoco97SpriteStep AdvanceProfiled(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources resources, ImmutableArray<byte> contextActorRaw8, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, uint sourceAddress, int taskBytes = 0x70, int delayOffset = 0x6C)
+    internal static NativeBattleChoco97SpriteStep AdvanceProfiled(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources resources, ImmutableArray<byte> contextActorRaw8, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, uint sourceAddress, int taskBytes = 0x70, int delayOffset = 0x6C, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         Require(task, resources, sourceAddress, taskBytes);
         switch (unchecked((sbyte)task.ReadByte(0x29)))
@@ -67,7 +67,7 @@ public static class NativeBattleChoco97Sprite
             default:
                 throw new NotSupportedException("Native Choco sprite phase leaves its six original callbacks.");
         }
-        NativeBattleModulePacketBatch? packets = DrawProfiled(task, resources, view, projection, cameraRoll, sourceAddress, taskBytes);
+        NativeBattleModulePacketBatch? packets = DrawProfiled(task, resources, view, projection, cameraRoll, sourceAddress, taskBytes, pilotIdentity: pilotIdentity);
         task = task.WriteWord(0x24, unchecked((ushort)(task.ReadWord(0x24) + 1)));
         return new(task, packets, (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0);
 
@@ -85,12 +85,12 @@ public static class NativeBattleChoco97Sprite
         }
     }
 
-    public static NativeBattleModulePacketBatch? Draw730C90(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
+    public static NativeBattleModulePacketBatch? Draw730C90(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return DrawProfiled(task, resources, view, projection, cameraRoll, 0x152B5C8);
+        return DrawProfiled(task, resources, view, projection, cameraRoll, 0x152B5C8, pilotIdentity: pilotIdentity);
     }
 
-    internal static NativeBattleModulePacketBatch? DrawProfiled(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, uint sourceAddress, int taskBytes = 0x70)
+    internal static NativeBattleModulePacketBatch? DrawProfiled(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, uint sourceAddress, int taskBytes = 0x70, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         Require(task, resources, sourceAddress, taskBytes);
         if ((task.ReadByte(0x26) & 4) != 0)
@@ -106,6 +106,7 @@ public static class NativeBattleChoco97Sprite
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
             Resource = resource,
+            PilotIdentity = pilotIdentity is { } identity ? identity with { ResourceGeneration = resource.Address } : null,
             SpriteFrame = resource.ProjectedFrame571C80(frame),
             Phase = frame,
             Anchor = new(unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)), unchecked((short)task.ReadWord(0x20)), 0),
@@ -113,7 +114,7 @@ public static class NativeBattleChoco97Sprite
             DepthOffset = unchecked((short)task.ReadWord(0x54)),
             SpriteFlags = 0
         };
-        return NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = view }, cameraRoll, 17, 2);
+        return NativeBattleChocoPresentationDepths.Capture(NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = view }, cameraRoll, 17, 2));
     }
 
     private static void Require(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources resources, uint sourceAddress, int taskBytes)

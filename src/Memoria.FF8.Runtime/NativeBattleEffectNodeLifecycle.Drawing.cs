@@ -52,6 +52,11 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                 {
                     return;
                 }
+                NativeBattlePilotVisualIdentity GeometryIdentity(int instance)
+                {
+                    NativeBattlePilotVisualIdentity owner = memory.PilotGeometryIdentity(pilotIdentity!.Value, node, instance);
+                    return inputs.PilotResourceIdentity is { } select ? select(owner, resource) : owner;
+                }
                 NativeBattleEffectNodePilotMeshInstance? emitPilotMesh = meshes && pilotIdentity.HasValue && preparePilotMesh is not null ? preparePilotMesh(node, source) : null;
                 NativeBattleEffectNodeMeshInstance? emitMesh = meshes && emitPilotMesh is null ? prepareMesh(node, source) : null;
                 int count = unchecked((sbyte)memory.Byte(node + 0x1D8));
@@ -77,13 +82,13 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                     NativeBattleGfGeometryBatch batch;
                     if (meshes)
                     {
-                        batch = emitPilotMesh is not null ? emitPilotMesh(bytes, matrix, memory.PilotGeometryIdentity(pilotIdentity!.Value, node, instance)) : emitMesh!(bytes, matrix);
+                        batch = emitPilotMesh is not null ? emitPilotMesh(bytes, matrix, GeometryIdentity(instance)) : emitMesh!(bytes, matrix);
                     }
                     else
                     {
                         ushort phase = unchecked((ushort)(short)(sbyte)memory.Byte(node + 0x1D0));
                         inputs.SpriteCall?.Invoke(node, count, instance);
-                        batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(bytes, phase, matrix, projection, cameraRoll, 17, 2, observeRolledMatrix: memory.WriteSpriteMatrix, observeQuadMatrix: memory.WriteQuadMatrix, geometry: memory.ProjectedSpriteGeometry(node, resource, bytes, phase, projection), pilotIdentity: pilotIdentity is { } identity ? memory.PilotGeometryIdentity(identity, node, instance) : null);
+                        batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(bytes, phase, matrix, projection, cameraRoll, 17, 2, observeRolledMatrix: memory.WriteSpriteMatrix, observeQuadMatrix: memory.WriteQuadMatrix, geometry: memory.ProjectedSpriteGeometry(node, resource, bytes, phase, projection), pilotIdentity: pilotIdentity.HasValue ? GeometryIdentity(instance) : null);
                     }
                     deliver?.Invoke(meshes, batch);
                     foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)

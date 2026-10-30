@@ -7,11 +7,11 @@ public sealed record NativeBattleChoco99SecondaryStep(NativeBattleModulePoolTask
 
 public static class NativeBattleChoco99Secondary
 {
-    public static NativeBattleChoco99SecondaryStep Advance7211D0(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, short contextMode40, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors) => Advance(task, mesh, contextMode40, view, projection, colors, false);
+    public static NativeBattleChoco99SecondaryStep Advance7211D0(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, short contextMode40, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null) => Advance(task, mesh, contextMode40, view, projection, colors, false, pilotIdentity);
 
-    public static NativeBattleChoco99SecondaryStep Advance721390(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors) => Advance(task, mesh, 0, view, projection, colors, true);
+    public static NativeBattleChoco99SecondaryStep Advance721390(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null) => Advance(task, mesh, 0, view, projection, colors, true, pilotIdentity);
 
-    private static NativeBattleChoco99SecondaryStep Advance(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, short contextMode40, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool timed)
+    private static NativeBattleChoco99SecondaryStep Advance(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, short contextMode40, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool timed, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (task.PayloadLength != 0x58 - 12 || task.Callback != (timed ? 0x721390u : 0x7211D0u) || mesh.Address != (timed ? 0x19DE510u : 0x19DD2D0u) || mesh.Bytes.IsDefault || mesh.Bytes.Length != (timed ? 0xE70 : 0x1240))
         {
@@ -45,12 +45,12 @@ public static class NativeBattleChoco99Secondary
             default:
                 throw new NotSupportedException("Native Choco secondary phase leaves its physical caller.");
         }
-        NativeBattleGfGeometryBatch packets = Draw721230(task, mesh, view, projection, colors);
+        NativeBattleGfGeometryBatch packets = Draw721230(task, mesh, view, projection, colors, pilotIdentity: pilotIdentity);
         task = task.WriteWord(0x24, unchecked((ushort)(task.ReadWord(0x24) + 1)));
         return new(task, packets, (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0);
     }
 
-    public static NativeBattleGfGeometryBatch Draw721230(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Draw721230(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if ((task.ReadByte(0x26) & 4) != 0)
         {
@@ -61,7 +61,7 @@ public static class NativeBattleChoco99Secondary
             throw new InvalidDataException("Native Choco secondary mesh differs from its retained resource pointer.");
         }
         NativeBattleModuleMeshContext context = new(0xF0, task.ReadDword(0x40), unchecked((short)task.ReadWord(0x50)), null, null, null, 17, 2);
-        return NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, ComposeMatrix(task, view), projection, context, colors);
+        return NativeBattleChocoPresentationDepths.Capture(NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, ComposeMatrix(task, view), projection, context, colors, pilotIdentity: pilotIdentity is { } identity ? identity with { ResourceGeneration = mesh.Address } : null));
     }
 
     public static NativeBattleActionMatrix ComposeMatrix(NativeBattleModulePoolTask task, NativeBattleActionMatrix view)

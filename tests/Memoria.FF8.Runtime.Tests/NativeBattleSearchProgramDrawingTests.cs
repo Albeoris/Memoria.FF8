@@ -33,6 +33,24 @@ public sealed class NativeBattleSearchProgramDrawingTests
         Assert.Equal(earlier, NativeBattlePilotVisualGeometry.Sample(earlier, later with { Identity = later.Identity with { Generation = 8 } }, 0.5f));
     }
 
+    [Theory]
+    [InlineData((ushort)93)]
+    [InlineData((ushort)94)]
+    public void Restoration_programme_capture_preserves_native_masks_depths_and_profile_identity(ushort effect)
+    {
+        NativeBattlePilotVisualIdentity identity = new(effect, 0x200, 3, 17, 11) { ResourceGeneration = Source().Address };
+        NativeBattleGfGeometryBatch native = NativeBattleSearchProgramDrawing.Node758EA0(Source(), Node(), View, -256, Projection, Colors);
+        NativeBattleGfGeometryBatch captured = NativeBattleSearchProgramDrawing.Node758EA0(Source(), Node(), View, -256, Projection, Colors, identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(Assert.Single(captured.Attempts).Primitive!.PilotGeometry);
+        Assert.Equal(effect, geometry.Identity.Effect);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(4096, 4096, 4096, 4096), geometry.SourceDepths!.Value);
+        Assert.Equal(native.Attempts[0].WriteMask.ToArray(), captured.Attempts[0].WriteMask.ToArray());
+    }
+
     [Fact]
     public void Direct_node_ignores_context_rotation_but_applies_column_scale_after_its_own_Euler()
     {

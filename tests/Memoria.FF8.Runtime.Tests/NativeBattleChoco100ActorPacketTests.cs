@@ -117,6 +117,34 @@ public sealed class NativeBattleChoco100ActorPacketTests
         Assert.Throws<NotSupportedException>(() => NativeBattleChoco100ActorPackets.Emit716DD0(Mesh(), [Identity], Identity, Projection, 0, new(0, 0, 0, 0, 0), NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Length - 0xA000 + 1));
     }
 
+    [Fact]
+    public void Captured_deformed_corners_preserve_native_work_masks_UVs_and_depths()
+    {
+        NativeBattleActionMatrix camera = Identity with { Z = 1024 };
+        NativeBattleCameraProjection projection = Projection with { View = Identity };
+        NativeBattleChoco100Wave wave = new(512, 2048, 1024, 32, 1024);
+        NativeBattleChoco100ActorDraw plain = NativeBattleChoco100ActorPackets.Emit716DD0(Mesh(), [Identity], camera, projection, 0xFF102030, wave, NativeBattleEffectArena.Clear(), 0x20000);
+        string nativeArena = NativeBattleTestSnapshots.Json(plain.Arena);
+        NativeBattleChoco100ActorDraw captured = NativeBattleChoco100ActorPackets.Emit716DD0(Mesh(), [Identity], camera, projection, 0xFF102030, wave, NativeBattleEffectArena.Clear(), 0x20000, pilotIdentity: new(100, 17, 2, 3, 4) { ResourceGeneration = 91 });
+        Assert.Equal(nativeArena, NativeBattleTestSnapshots.Json(captured.Arena));
+        Assert.Equal(plain.Packets.AllocationBytes, captured.Packets.AllocationBytes);
+        Assert.Equal(plain.Packets.Attempts.Length, captured.Packets.Attempts.Length);
+        Assert.NotEmpty(captured.Packets.Attempts);
+        for (int index = 0; index < plain.Packets.Attempts.Length; index++)
+        {
+            NativeBattleGfGeometryAttempt before = plain.Packets.Attempts[index];
+            NativeBattleGfGeometryAttempt after = captured.Packets.Attempts[index];
+            NativeBattleGeometryPrimitive primitive = after.Primitive!;
+            NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(after with { Primitive = primitive with { PilotGeometry = null } }));
+            Assert.True(visual.UseSourceDepths);
+            Assert.Equal(91, visual.Identity.ResourceGeneration);
+            NativeBattleVector expected = NativeBattleChoco100ActorPackets.DeformVertex(Mesh().Vertices[0].Position, wave);
+            Assert.Equal(new NativeBattleVector(expected.X, expected.Y, (short)(expected.Z + 1024)), new NativeBattleVector((short)visual.A.X, (short)visual.A.Y, (short)visual.A.Z));
+            Assert.Equal(primitive.VertexPayload4[0], visual.SourceDepths!.Value.X);
+        }
+    }
+
     private static NativeBattleChoco100ActorDraw Emit(NativeBattleRawMesh mesh, NativeBattleEffectArena arena) => NativeBattleChoco100ActorPackets.Emit716DD0(mesh, [Identity], Identity with { Z = 1024 }, Projection, 0xFF102030, new(0, 0, 0, 0, 0), arena, 0x20000);
     private static NativeBattleRawMesh Mesh() => new([new(new(0, 0, 0), 0), new(new(64, 0, 0), 0), new(new(0, 64, 0), 0), new(new(64, 64, 0), 0)], [Face(true), Face(false)]);
     private static NativeBattleRawPolygon Face(bool quad)

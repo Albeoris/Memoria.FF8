@@ -83,7 +83,7 @@ public static class NativeBattleChoco97Nodes
         {
             throw new NotSupportedException("Native Choco context requires its current physical source's executed initialization.");
         }
-        NativeBattleRecover93NodeStep step = NativeBattleEffectNodeCaller.Advance74F6E0(profile, current, address, readModel, projection, roll, ordering, colors, NativeBattleChoco97Uv.MutateDrawableResource);
+        NativeBattleRecover93NodeStep step = NativeBattleEffectNodeCaller.Advance74F6E0(profile, current, address, readModel, projection, roll, ordering, colors, NativeBattleChoco97Uv.MutateDrawableResource, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(97, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address)), captureBuiltInMesh: true);
         return new(Store(frame, source, step.Frame), step.Complete, step.Ordering, step.PrivateSprites, step.CommonMeshes);
     }
 

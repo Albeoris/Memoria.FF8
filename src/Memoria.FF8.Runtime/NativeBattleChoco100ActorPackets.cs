@@ -17,7 +17,7 @@ public static class NativeBattleChoco100ActorPackets
         return new(vertex.X, vertex.Y, unchecked((short)(flatZ + displacement)));
     }
 
-    public static NativeBattleChoco100ActorDraw Emit716DD0(NativeBattleRawMesh mesh, IReadOnlyList<NativeBattleActionMatrix> bodyBones, NativeBattleActionMatrix contextCamera, NativeBattleCameraProjection projection, uint actorColor, NativeBattleChoco100Wave wave, NativeBattleEffectArena arena, int workArenaOffset, NativeBattleModelTextureBinding? textureBinding = null)
+    public static NativeBattleChoco100ActorDraw Emit716DD0(NativeBattleRawMesh mesh, IReadOnlyList<NativeBattleActionMatrix> bodyBones, NativeBattleActionMatrix contextCamera, NativeBattleCameraProjection projection, uint actorColor, NativeBattleChoco100Wave wave, NativeBattleEffectArena arena, int workArenaOffset, NativeBattleModelTextureBinding? textureBinding = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         mesh.Validate();
         arena.Validate();
@@ -27,11 +27,16 @@ public static class NativeBattleChoco100ActorPackets
             throw new NotSupportedException("Native deformed actor requires its posed body bones and actual A000-byte TIM work owner.");
         }
         NativeBattleModuleProjectedVertex[] projected = new NativeBattleModuleProjectedVertex[mesh.Vertices.Length];
+        NativeBattleVector[]? reached = pilotIdentity.HasValue ? new NativeBattleVector[mesh.Vertices.Length] : null;
         byte[] work = new byte[checked(mesh.Vertices.Length * 16)];
         for (int index = 0; index < mesh.Vertices.Length; index++)
         {
             NativeBattleVector transformed = NativeBattleCureActorPackets.TransformBone4607E0(mesh.Vertices[index], bodyBones);
             NativeBattleVector deformed = DeformVertex(transformed, wave);
+            if (reached is not null)
+            {
+                reached[index] = deformed;
+            }
             int offset = index * 16;
             BinaryPrimitives.WriteInt16LittleEndian(work.AsSpan(offset), deformed.X);
             BinaryPrimitives.WriteInt16LittleEndian(work.AsSpan(offset + 2), deformed.Y);
@@ -50,9 +55,11 @@ public static class NativeBattleChoco100ActorPackets
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
+        int polygonIdentity = -1;
         //Only the original plain FT3 and FT4 directories are visited, in that order.
         foreach (NativeBattleRawPolygon polygon in mesh.Polygons.Where(polygon => !polygon.Quad && polygon.Bytes.Length == 16).Concat(mesh.Polygons.Where(polygon => polygon.Quad && polygon.Bytes.Length == 20)))
         {
+            polygonIdentity++;
             ImmutableArray<byte> source = textureBinding is null ? polygon.Bytes : NativeBattleRawGeometryPackets.Relocate507550(polygon, textureBinding);
             int count = polygon.Quad ? 4 : 3;
             NativeBattleModuleProjectedVertex[] corners = new NativeBattleModuleProjectedVertex[count];
@@ -88,7 +95,17 @@ public static class NativeBattleChoco100ActorPackets
             int depthSum = unchecked(corners.Sum(vertex => (int)vertex.Depth));
             int bucket = 17 + (polygon.Quad ? depthSum >> 6 : (depthSum / 3) >> 4);
             ImmutableArray<int> depths = corners.Select(vertex => (int)vertex.Depth).ToImmutableArray();
-            attempts.Add(packet.Attempt(new(bucket, packet.Words(), polygon.Quad ? depths : depths.Add(0))));
+            NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), polygon.Quad ? depths : depths.Add(0));
+            if (pilotIdentity is { } identity)
+            {
+                System.Numerics.Vector3 World(int corner)
+                {
+                    int vertex = BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan().Slice(corner * 2)) & 0xFFF;
+                    return NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(contextCamera, reached![vertex]), projection);
+                }
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + polygonIdentity) }, World(0), World(1), World(2), polygon.Quad ? World(3) : default, checked((byte)count)) { SourceDepths = new(depths[0], depths[1], depths[2], polygon.Quad ? depths[3] : 0), UseSourceDepths = true } };
+            }
+            attempts.Add(packet.Attempt(primitive));
             allocation = checked(allocation + length);
         }
         return new(arena, new(attempts.ToImmutable(), allocation));

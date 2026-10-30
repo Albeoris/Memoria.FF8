@@ -16,12 +16,12 @@ internal sealed record NativeBattleChocoLoadedProgramProfile(NativeBattleChocoPr
 
 public static partial class NativeBattleChoco97ProgramDrawing
 {
-    public static NativeBattleChoco97LoadedProgramDraw AdvanceLoaded(NativeBattleChoco97LoadedProgram profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> targetRaw8, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozen)
+    public static NativeBattleChoco97LoadedProgramDraw AdvanceLoaded(NativeBattleChoco97LoadedProgram profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> targetRaw8, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozen, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return AdvanceLoadedProfiled(Profile97(profile), task, source, actorRaw8, targetRaw8, morphScratch, view, projection, colors, frozen).Draw;
+        return AdvanceLoadedProfiled(Profile97(profile), task, source, actorRaw8, targetRaw8, morphScratch, view, projection, colors, frozen, pilotIdentity: pilotIdentity).Draw;
     }
 
-    internal static (NativeBattleChoco97LoadedProgramDraw Draw, uint? SoundDescriptor) AdvanceLoadedProfiled(NativeBattleChocoLoadedProgramProfile profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> targetRaw8, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozen)
+    internal static (NativeBattleChoco97LoadedProgramDraw Draw, uint? SoundDescriptor) AdvanceLoadedProfiled(NativeBattleChocoLoadedProgramProfile profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> targetRaw8, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozen, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         source = NativeBattleOwnedGfAnimationSource.Own(source);
         RequireTask(task, source, profile.Core);
@@ -58,7 +58,7 @@ public static partial class NativeBattleChoco97ProgramDrawing
         }
         if (draw)
         {
-            NativeBattleChoco97ProgramDraw step = AdvanceProfiled(task, source, morphScratch, view, projection, colors, frozen, profile.Core);
+            NativeBattleChoco97ProgramDraw step = AdvanceProfiled(task, source, morphScratch, view, projection, colors, frozen, profile.Core, pilotIdentity: pilotIdentity);
             task = step.Task;
             packets = step.Packets;
             morphScratch = step.MorphScratch;

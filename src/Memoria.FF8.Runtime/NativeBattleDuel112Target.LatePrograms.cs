@@ -100,13 +100,13 @@ public static partial class NativeBattleDuel112Target
         NativeBattleActionMatrix Matrix140() => new(Enumerable.Range(0, 9).Select(index => Signed(140 + 2 * index)).ToImmutableArray(), unchecked((int)task.ReadDword(160)), unchecked((int)task.ReadDword(164)), unchecked((int)task.ReadDword(168)), 4096);
         void Draw(int offset, NativeBattleDuel112HierarchyContext context)
         {
-            NativeBattleDuel112WorkspaceStep step = NativeBattleDuel112Workspaces.Advance701970(frame, slot, offset, context, drawing.View, drawing.Projection, drawing.Colors, ordering);
+            NativeBattleDuel112WorkspaceStep step = NativeBattleDuel112Workspaces.Advance701970(frame, slot, offset, context, drawing.View, drawing.Projection, drawing.Colors, ordering, drawing.CapturePresentation);
             frame = step.Frame;
             ordering = step.Ordering;
         }
         void Append(NativeBattleModulePacketBatch batch)
         {
-            NativeBattleDuel112DrawingStep step = Append6CBF90(frame, ordering, batch);
+            NativeBattleDuel112DrawingStep step = Append6CBF90(frame, ordering, CaptureFixedFlash(batch, drawing.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(112, frame.Effect.Pools[1].Slots[slot], 0x6CBF90) : null));
             frame = step.Frame;
             ordering = step.Ordering;
         }

@@ -76,7 +76,7 @@ public static class NativeBattleMoogle96Nodes
         NativeBattleRecover93NodeFrame initialized = NativeBattleEffectNodeCaller.Initialize74EC00(profile, Assemble(frame, selected), address, new(resource.Data), packets, readModel, readPoseSource, dogOrigins);
         return Store(frame, selected, initialized);
     }
-    public static NativeBattleMoogle96NodeStep AdvanceContext(NativeBattleMoogle96NodeFrame frame, uint address, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short roll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors)
+    public static NativeBattleMoogle96NodeStep AdvanceContext(NativeBattleMoogle96NodeFrame frame, uint address, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short roll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors colors, bool capturePresentation = false)
     {
         frame.State.Validate();
         uint source = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address).ReadDword(0x30);
@@ -86,7 +86,7 @@ public static class NativeBattleMoogle96Nodes
         {
             throw new NotSupportedException("Native Moogle context requires its selected source's executed initialization.");
         }
-        NativeBattleRecover93NodeStep step = NativeBattleEffectNodeCaller.Advance74F6E0(profile, Assemble(frame, selected), address, readModel, projection, roll, ordering, colors);
+        NativeBattleRecover93NodeStep step = NativeBattleEffectNodeCaller.Advance74F6E0(profile, Assemble(frame, selected), address, readModel, projection, roll, ordering, colors, pilotIdentity: capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(96, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address)) : null, captureBuiltInMesh: capturePresentation);
         return new(Store(frame, selected, step.Frame), step.Complete, step.Ordering, step.PrivateSprites, step.CommonMeshes);
     }
     private static NativeBattleRecover93NodeFrame Assemble(NativeBattleMoogle96NodeFrame frame, int selected)

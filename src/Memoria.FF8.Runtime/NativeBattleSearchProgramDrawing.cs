@@ -19,7 +19,7 @@ public static class NativeBattleSearchProgramDrawing
         return Store(task, workspace);
     }
 
-    public static NativeBattleSearchProgramDraw Advance758D70(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool capturePresentation = false)
+    public static NativeBattleSearchProgramDraw Advance758D70(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool capturePresentation = false, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         RequireTask(task, source);
         NativeBattleActionMatrix context = ComposeContext758D70(task, view);
@@ -28,7 +28,7 @@ public static class NativeBattleSearchProgramDrawing
         int allocated = 0;
         NativeBattleGfAnimationAdvance advanced = Workspace(task).Advance701970(source, 0, (current, node) =>
         {
-            NativeBattleGfGeometryBatch batch = Node758EA0(source, node, context, depthBias, projection, colors, capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(92, task, node.ResourceOffset) with { ResourceGeneration = source.Address } : null);
+            NativeBattleGfGeometryBatch batch = Node758EA0(source, node, context, depthBias, projection, colors, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + node.ResourceOffset), ResourceGeneration = unchecked(((long)source.Address << 32) ^ node.GeometryIndex) } : capturePresentation ? NativeBattlePilotVisualLifetimes.Identity(92, task, node.ResourceOffset) with { ResourceGeneration = source.Address } : null);
             attempts.AddRange(batch.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) }));
             allocated += batch.AllocationBytes;
             return current;

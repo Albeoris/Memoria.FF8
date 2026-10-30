@@ -195,6 +195,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         BattleScenePresentation? scene = null;
         int callbacks = 0;
         int smooth24Captured = 0;
+        int captured101Frames = 0;
         int contacts = 0;
         int completions = 0;
         int contactGlyphs = 0;
@@ -7048,6 +7049,15 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         ColdNext("secondary-contact", current);
                     }
                 }
+                if (effectId == 101 && (before?.ReturnedDescriptor is > 0 || after?.ReturnedDescriptor is > 0))
+                {
+                    int captured101 = NativeBattleExplicitComponentCapture.AssertFrame(current, effectId);
+                    smooth24Captured += captured101;
+                    if (captured101 > 0)
+                    {
+                        captured101Frames++;
+                    }
+                }
                 if (effectId is 8 or 20 or 23 or 37 or 44 or 61 && (before?.ReturnedDescriptor is > 0 || after?.ReturnedDescriptor is > 0))
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned24 = ActorDirectorPacketReferences(prior, current);
@@ -7154,7 +7164,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.False(stageChanged);
             }
             Assert.Equal(1, completions);
-            if (effectId is 8 or 20 or 23 or 37 or 44 or 61)
+            if (effectId == 101)
+            {
+                Assert.True(captured101Frames > 1);
+            }
+            if (effectId is 8 or 20 or 23 or 37 or 44 or 61 or 101)
             {
                 Assert.True(smooth24Captured > 0);
             }

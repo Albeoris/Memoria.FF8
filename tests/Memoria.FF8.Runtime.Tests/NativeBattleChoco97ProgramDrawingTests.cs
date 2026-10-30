@@ -75,6 +75,86 @@ public sealed class NativeBattleChoco97ProgramDrawingTests
         Assert.Empty(skipped.Packets.Attempts);
     }
 
+    [Theory]
+    [InlineData(97)]
+    [InlineData(98)]
+    [InlineData(99)]
+    [InlineData(100)]
+    public void Captured_morph_uses_current_selected_vertices_without_changing_native_packets_or_scratch(ushort effect)
+    {
+        byte[] bytes = new byte[160];
+        Put(0, 1);
+        Put(4, 160);
+        Put(8, 12);
+        Put(12, 60);
+        Put(16, 3);
+        Put(20, 2);
+        for (int shape = 0; shape < 2; shape++)
+        {
+            for (int vertex = 0; vertex < 3; vertex++)
+            {
+                int offset = 24 + shape * 24 + vertex * 8;
+                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset), (short)((vertex == 1 ? 128 : 0) + shape * 64));
+                BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset + 2), (short)(vertex == 2 ? 128 : 0));
+            }
+        }
+        Put(80, 1);
+        Put(84, 0x24808080);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(90), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(92), 4);
+        NativeBattleGfAnimationSource source = new(0x1000, bytes.ToImmutableArray());
+        NativeBattleChocoProgramProfile profile = effect switch
+        {
+            98 => NativeBattleChocoProgramProfile.Choco98,
+            99 => NativeBattleChocoProgramProfile.Choco99,
+            100 => NativeBattleChocoProgramProfile.Choco100,
+            _ => NativeBattleChocoProgramProfile.Choco97
+        };
+        ImmutableArray<byte> scratch = new byte[profile.ScratchBytes].ToImmutableArray();
+        NativeBattleGfAnimationNode node = Node(0, angles: new(0, 0, 0), second: 1, ratio: 2048);
+        byte[] nodeBytes = node.Data.ToArray();
+        Array.Clear(nodeBytes, 8, 8);
+        node = node with { Data = nodeBytes.ToImmutableArray() };
+        NativeBattleCameraProjection projection = Projection;
+        if (effect == 100)
+        {
+            NativeBattleChoco97NodeDraw rejected = NativeBattleChoco97ProgramDrawing.NodeProfiled(source, node, scratch, Context, projection, Colors, profile, depthBias: 32);
+            NativeBattleChoco97NodeDraw rejectedCapture = NativeBattleChoco97ProgramDrawing.NodeProfiled(source, node, scratch, Context, projection, Colors, profile, depthBias: 32, pilotIdentity: new(effect, 17, 1, 2, 3));
+            NativeBattleGfGeometryAttempt rejectedBefore = Assert.Single(rejected.Packets.Attempts);
+            NativeBattleGfGeometryAttempt rejectedAfter = Assert.Single(rejectedCapture.Packets.Attempts);
+            Assert.Equal(0, rejected.Packets.AllocationBytes);
+            Assert.Equal(0, rejectedCapture.Packets.AllocationBytes);
+            Assert.Null(rejectedBefore.Primitive);
+            Assert.Null(rejectedAfter.Primitive);
+            Assert.Equal(rejectedBefore.Data.ToArray(), rejectedAfter.Data.ToArray());
+            Assert.Equal(rejectedBefore.WriteMask.ToArray(), rejectedAfter.WriteMask.ToArray());
+            Assert.Equal(rejected.MorphScratch.ToArray(), rejectedCapture.MorphScratch.ToArray());
+            projection = projection with { OffsetX = 0, OffsetY = 0 };
+        }
+        NativeBattleChoco97NodeDraw plain = NativeBattleChoco97ProgramDrawing.NodeProfiled(source, node, scratch, Context, projection, Colors, profile, depthBias: effect == 100 ? (short)32 : (short)0);
+        NativeBattleChoco97NodeDraw captured = NativeBattleChoco97ProgramDrawing.NodeProfiled(source, node, scratch, Context, projection, Colors, profile, depthBias: effect == 100 ? (short)32 : (short)0, pilotIdentity: new(effect, 17, 1, 2, 3));
+        Assert.Equal(plain.MorphScratch.ToArray(), captured.MorphScratch.ToArray());
+        Assert.Equal(plain.Packets.AllocationBytes, captured.Packets.AllocationBytes);
+        NativeBattleGfGeometryAttempt before = Assert.Single(plain.Packets.Attempts);
+        NativeBattleGfGeometryAttempt after = Assert.Single(captured.Packets.Attempts);
+        Assert.Equal(before.Data.ToArray(), after.Data.ToArray());
+        Assert.Equal(before.WriteMask.ToArray(), after.WriteMask.ToArray());
+        Assert.Equal(before.Primitive!.Words.ToArray(), after.Primitive!.Words.ToArray());
+        Assert.Equal(before.Primitive.VertexPayload4.ToArray(), after.Primitive.VertexPayload4.ToArray());
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(after.Primitive.PilotGeometry);
+        Assert.Equal(effect, visual.Identity.Effect);
+        Assert.Equal(0x100C, visual.Identity.ResourceGeneration);
+        Assert.Equal(32, visual.A.X);
+        Assert.Equal(0, visual.A.Y);
+        Assert.True(visual.UseSourceDepths);
+        Assert.Equal(bytes, source.Data.ToArray());
+
+        void Put(int offset, uint value)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset), value);
+        }
+    }
+
     private static NativeBattleGfAnimationNode Node(uint header, NativeBattleVector? angles = null, NativeBattleVector? scale = null, ushort geometry = 0, short second = 0, short ratio = 0)
     {
         byte[] bytes = new byte[44];

@@ -22,7 +22,7 @@ public static class NativeBattleMoogle96ProgramDrawing
         return task.WriteDword(0x1C, BinaryPrimitives.ReadUInt32LittleEndian(dogActorRaw8.AsSpan())).WriteDword(0x20, BinaryPrimitives.ReadUInt32LittleEndian(dogActorRaw8.AsSpan().Slice(4))).WriteWord(0x1E, 0).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096);
     }
 
-    public static NativeBattleMoogle96ProgramDraw Advance734450(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, int frozen)
+    public static NativeBattleMoogle96ProgramDraw Advance734450(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, int frozen, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         RequireTask(task, source);
         NativeBattleActionMatrix context = NativeBattleSearchProgramDrawing.ComposeContext758D70(task, view);
@@ -30,7 +30,7 @@ public static class NativeBattleMoogle96ProgramDrawing
         int allocated = 0;
         NativeBattleGfAnimationAdvance advanced = Workspace(task).Advance701970(source, frozen, (current, node) =>
         {
-            NativeBattleGfGeometryBatch batch = Node734580(source, node, context, projection, colors);
+            NativeBattleGfGeometryBatch batch = Node734580(source, node, context, projection, colors, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + node.ResourceOffset) } : null);
             attempts.AddRange(batch.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) }));
             allocated = checked(allocated + batch.AllocationBytes);
             return current;
@@ -38,7 +38,7 @@ public static class NativeBattleMoogle96ProgramDrawing
         return new(Store(task, advanced.Workspace), advanced.Remaining, new(attempts.ToImmutable(), allocated));
     }
 
-    public static NativeBattleGfGeometryBatch Node734580(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch Node734580(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Data.IsDefault || node.Data.Length != 44)
         {
@@ -77,7 +77,7 @@ public static class NativeBattleMoogle96ProgramDrawing
             flags |= 0xC0;
         }
         NativeBattleModuleMeshContext operands = new(flags, cue ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2);
-        return NativeBattleModulePackets.EmitBatch572200(reader, geometry, selected, ComposeNodeMatrix(node, context), projection, operands, colors);
+        return NativeBattleModulePackets.EmitBatch572200(reader, geometry, selected, ComposeNodeMatrix(node, context), projection, operands, colors, pilotIdentity: pilotIdentity is { } identity ? identity with { ResourceGeneration = unchecked(((long)source.Address << 32) ^ (uint)geometry) } : null);
     }
 
     public static NativeBattleActionMatrix ComposeNodeMatrix(NativeBattleGfAnimationNode node, NativeBattleActionMatrix context)

@@ -32,7 +32,7 @@ public sealed partial class BattleSession
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native Duel requires its original color arithmetic.");
         NativeBattleDuel112Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Duel requires its entered shared byte owner."), nativeCrtRandom ?? throw new NotSupportedException("Native Duel requires its CRT random owner."));
         NativeBattleDuel112ActorServices actor = new(index => graphics.Models[index], (index, model) => graphics = graphics with { Models = graphics.Models.SetItem(index, model) }, sequence => nativeActionPackets.ReadContact(FirstContact(sequence)).Primary.ActorIndex, Bind, Select);
-        NativeBattleDuel112DrawingInputs drawing = new(actor, (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), view, projection, colors, (rise, hold, fall, strength) => graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash((short)rise, (short)hold, (short)fall, (short)strength) });
+        NativeBattleDuel112DrawingInputs drawing = new(actor, (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), view, projection, colors, (rise, hold, fall, strength) => graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash((short)rise, (short)hold, (short)fall, (short)strength) }) { CapturePresentation = true };
         NativeBattleDuel112TargetInputs target = new(new(drawing, index => ReadNativeModelAnchor(graphics, index) with { W = (graphics.Models[index].Transform ?? throw new NotSupportedException("Native571400 requires its actual model WORD36.")).Angle36 }), descriptor => PublishNativeModuleSound(new(descriptor, 0, null) { Pan = 128, RawPan = 128 }), intensity =>
         {
             NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native Duel stage depth requires its actual retained groups.");
@@ -130,7 +130,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleSearchSpriteResource source = resources.Sprites.Single(resource => resource.Address == sprite.ResourceAddress);
                 NativeBattleModuleResource resource = new(0, source.Address, 0, 0, source.Bytes);
-                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(sprite.Phase), Phase = sprite.Phase, Anchor = new(sprite.Position.X, sprite.Position.Y, sprite.Position.Z, 0), Scale = unchecked((short)sprite.Scale), DepthOffset = sprite.DepthOffset, SpriteFlags = 0 };
+                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(sprite.Phase), Phase = sprite.Phase, Anchor = new(sprite.Position.X, sprite.Position.Y, sprite.Position.Z, 0), Scale = unchecked((short)sprite.Scale), DepthOffset = sprite.DepthOffset, SpriteFlags = 0, PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(112, pool.Slots[slot]) with { ResourceGeneration = source.Address } };
                 NativeBattleDuel112DrawingStep drawn = NativeBattleDuel112Target.Append6CBF90(current, Ordering(), NativeBattleModulePackets.EmitSprite571DC0(draw, projection with { View = view }, camera.Roll, 17, 2));
                 current = drawn.Frame;
                 StoreOrdering(drawn.Ordering);
@@ -140,7 +140,7 @@ public sealed partial class BattleSession
                 NativeBattleStaticMeshResource source = resources.Meshes.Single(mesh => mesh.Address == 0x12C7230);
                 NativeBattleVector position = new(Signed(16), Signed(18), Signed(20));
                 NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CD50(new(Signed(32), Signed(34), Signed(36))) with { X = position.X, Y = position.Y, Z = position.Z };
-                NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(source.Bytes, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, local), projection, new(0, null, null, null, null, null, 17, 2), colors);
+                NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(source.Bytes, 0, default, NativeBattleGfMatrices.Compose56C2F0(view, local), projection, new(0, null, null, null, null, null, 17, 2), colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(112, pool.Slots[slot]) with { ResourceGeneration = source.Address });
                 int cursor = current.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Duel debris requires its actual packet cursor.");
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, Ordering(), batch);
                 current = current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = written.Cursor }, Staging = current.Staging.Write(0x2521914, BitConverter.GetBytes(checked(0x20DFAB8u + (uint)written.Cursor))) };

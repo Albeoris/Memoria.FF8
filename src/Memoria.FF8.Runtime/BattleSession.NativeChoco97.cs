@@ -15,7 +15,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState AdvanceNativeChoco729BD0(NativeBattleGraphicsState graphics)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = graphics.OriginalEffect! with { PresentationPackets = [] };
         NativeBattleChoco97Resources resources = effect.Binding.Choco97Resources ?? throw new NotSupportedException("Native Choco requires its original resources.");
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native Choco requires its published projection.");
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Choco requires its retained view matrix.");
@@ -35,7 +35,7 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native Choco cannot read an uninitialized projected scratch owner.");
             }
-            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Choco requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Choco requires its device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray());
+            NativeBattleEffectOwnedModelDraw drawn = NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, model, resources.Model.Model, view, projection, definition.Rules.ShadowSource ?? throw new NotSupportedException("Native Choco requires its original shadow source."), definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native Choco requires its device capabilities."), colors, shared.ProjectedScratch ?? new byte[size].ToImmutableArray(), pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(97, task) with { ResourceGeneration = model.ResourceAddress });
             if (shared.ProjectedScratch is null && drawn.ProjectedBytesWritten != size)
             {
                 throw new InvalidDataException("Native Choco's first body draw did not establish every projected record.");
@@ -50,7 +50,7 @@ public sealed partial class BattleSession
             uint frozen = shared.FreezeSecondary ?? throw new NotSupportedException("Native Choco requires its retained program pause operand.");
             if (task.ReadDword(0x74) == resources.ProgramSource.Address)
             {
-                NativeBattleChoco97ProgramDraw drawn = NativeBattleChoco97ProgramDrawing.Advance72A720(task, shared.ProgramSource ?? throw new NotSupportedException("Native Choco requires its retained static program source."), shared.MorphScratch, view, projection, colors, frozen);
+                NativeBattleChoco97ProgramDraw drawn = NativeBattleChoco97ProgramDrawing.Advance72A720(task, shared.ProgramSource ?? throw new NotSupportedException("Native Choco requires its retained static program source."), shared.MorphScratch, view, projection, colors, frozen, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(97, task));
                 current = current with { Memory = current.Memory with { Choco97 = shared with { MorphScratch = drawn.MorphScratch } } };
                 return new(AppendCommon(current, drawn.Packets), drawn.Task, drawn.Remaining);
             }
@@ -65,7 +65,7 @@ public sealed partial class BattleSession
             NativeBattleChoco97IoState io = shared.Io ?? throw new NotSupportedException("Native Choco requires its loaded program IO owner.");
             NativeBattleChoco97Context context = shared.Context ?? throw new NotSupportedException("Native Choco requires its current context origins.");
             NativeBattleGfAnimationSource source = NativeBattleGfAnimationSource.Borrow(selected.Address, io.Banks.Bytes, checked((int)(selected.Address - io.Banks.BaseAddress)), selected.Length);
-            NativeBattleChoco97LoadedProgramDraw loaded = NativeBattleChoco97ProgramDrawing.AdvanceLoaded(profile, task, source, context.Data.Slice(0, 8), context.Data.Slice(8, 8), shared.MorphScratch, view, projection, colors, frozen);
+            NativeBattleChoco97LoadedProgramDraw loaded = NativeBattleChoco97ProgramDrawing.AdvanceLoaded(profile, task, source, context.Data.Slice(0, 8), context.Data.Slice(8, 8), shared.MorphScratch, view, projection, colors, frozen, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(97, task));
             current = current with { Memory = current.Memory with { Choco97 = shared with { Io = io, MorphScratch = loaded.MorphScratch } } };
             return new(AppendCommon(current, loaded.Packets), loaded.Task, loaded.Remaining);
         }
@@ -84,9 +84,11 @@ public sealed partial class BattleSession
         NativeBattleChoco97SpriteDrawStep AdvanceSprite(NativeBattleChoco97Frame current, NativeBattleModulePoolTask task)
         {
             NativeBattleChoco97Context context = Shared(current).Context ?? throw new NotSupportedException("Native Choco sprite requires its current actor origin.");
-            NativeBattleChoco97SpriteStep step = NativeBattleChoco97Sprite.Advance730C10(task, resources.Sprite, context.Data.Slice(0, 8), view, projection, NativeCamera!.Roll);
+            NativeBattleChoco97SpriteStep step = NativeBattleChoco97Sprite.Advance730C10(task, resources.Sprite, context.Data.Slice(0, 8), view, projection, NativeCamera!.Roll, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(97, task));
             if (step.Packets is { } packets)
             {
+                NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess!;
+                current = current with { Effect = current.Effect with { PresentationPackets = current.Effect.PresentationPackets.AddRange(packets.Primitives.Select(item => new NativeBattlePrimitiveReference(process.PacketBank!, process.PacketBuffer, checked(process.ByteCursor!.Value + item.ByteOffset)))) } };
                 NativeEffectMemory = current.Memory;
                 graphics = AppendNativeModulePacketBatch(graphics, packets, null, null);
                 current = current with { Memory = NativeEffectMemory! };
@@ -151,7 +153,9 @@ public sealed partial class BattleSession
         NativeBattleChoco97Frame AppendCommon(NativeBattleChoco97Frame current, NativeBattleGfGeometryBatch batch)
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Choco requires its initialized ordering table.");
-            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Choco requires its common packet owner."), primitive.Pending, batch);
+            NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Choco requires its common packet owner.");
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
+            NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = current.Memory with { PrimitiveProcess = written.Process } };
         }

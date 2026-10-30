@@ -31,7 +31,7 @@ public static partial class NativeBattleDuel112Target
         else
         {
             NativeBattleVector anchor = new(Signed(76), transform.Angle36, Signed(80));
-            NativeBattleDuel112WorkspaceStep drawn = NativeBattleDuel112Workspaces.Advance701970(frame, slot, 180, new(0x12DB65C, MorphAddress(frame), anchor, null, null), inputs.View, inputs.Projection, inputs.Colors, ordering);
+            NativeBattleDuel112WorkspaceStep drawn = NativeBattleDuel112Workspaces.Advance701970(frame, slot, 180, new(0x12DB65C, MorphAddress(frame), anchor, null, null), inputs.View, inputs.Projection, inputs.Colors, ordering, inputs.CapturePresentation);
             frame = drawn.Frame;
             ordering = drawn.Ordering;
             if (elapsed <= 7)
@@ -77,7 +77,7 @@ public static partial class NativeBattleDuel112Target
             {
                 byte[] vertex = frame.Memory.Arena!.Read(checked(offset + vertexOffset), 6);
                 return new(BinaryPrimitives.ReadInt16LittleEndian(vertex), BinaryPrimitives.ReadInt16LittleEndian(vertex.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(vertex.AsSpan(4)));
-            });
+            }, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(112, frame.Effect.Pools[1].Slots[slot], 0x6CD7F0) with { ResourceGeneration = mesh.Address } : null);
             int cursor = frame.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Duel sword packet requires its actual draw cursor.");
             uint physicalCursor = BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging.Read(0x2521914, 4));
             if (physicalCursor != checked(0x20DFAB8u + (uint)cursor))

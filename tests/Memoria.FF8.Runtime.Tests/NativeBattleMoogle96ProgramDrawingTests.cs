@@ -92,6 +92,51 @@ public sealed class NativeBattleMoogle96ProgramDrawingTests
         Assert.NotEqual(source.Data.ToArray(), NativeBattleStorageSnapshots.Capture(next).Data.ToArray());
     }
 
+    [Fact]
+    public void Programme_capture_preserves_detached_source_and_all_native_groups_with_actual_resource_identity()
+    {
+        NativeBattleGfAnimationSource nativeSource = Source();
+        byte[] bytes = nativeSource.Data.ToArray();
+        int geometry = checked((int)U32(nativeSource.Data, 8));
+        short[] coordinates = [-100, -100, 100, -100, -100, 100, 100, 100];
+        for (int corner = 0; corner < 4; corner++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(geometry + 12 + corner * 8), coordinates[corner * 2]);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(geometry + 14 + corner * 8), coordinates[corner * 2 + 1]);
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(geometry + 16 + corner * 8), 0);
+        }
+        int cursor = geometry + 44;
+        for (int group = 0; group < 8; group++)
+        {
+            int face = cursor + 4;
+            uint opcode = (uint)(0x20 + (group & 1) * 8 + ((group >> 1) & 1) * 4 + (group >> 2) * 16);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(face), opcode << 24 | 0x808080);
+            for (int corner = 0; corner < ((group & 1) == 0 ? 3 : 4); corner++)
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(face + 4 + corner * 2), (ushort)(corner * 2));
+            }
+            cursor += 4 + Stride(group);
+        }
+        nativeSource = nativeSource with { Data = bytes.ToImmutableArray() };
+        NativeBattleGfAnimationSource visualSource = NativeBattleTestSnapshots.Independent(nativeSource);
+        string sourceBefore = NativeBattleTestSnapshots.Json(nativeSource);
+        NativeBattlePilotVisualIdentity identity = new(96, 0x300, 0, 23, 7);
+        NativeBattleGfGeometryBatch native = NativeBattleMoogle96ProgramDrawing.Node734580(nativeSource, Node(), View, Projection, Colors);
+        NativeBattleGfGeometryBatch captured = NativeBattleMoogle96ProgramDrawing.Node734580(visualSource, Node(), View, Projection, Colors, identity);
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(sourceBefore, NativeBattleTestSnapshots.Json(nativeSource));
+        Assert.Equal(sourceBefore, NativeBattleTestSnapshots.Json(visualSource));
+        NativeBattleGeometryPrimitive[] polygons = captured.Attempts.Where(attempt => attempt.Primitive is not null && ((attempt.Primitive.Words[1] >> 24) & 0xE0) == 0x20).Select(attempt => attempt.Primitive!).ToArray();
+        Assert.Equal(8, polygons.Length);
+        Assert.All(polygons, primitive =>
+        {
+            NativeBattlePilotVisualGeometry capturedGeometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            Assert.Equal((ushort)96, capturedGeometry.Identity.Effect);
+            Assert.Equal(identity.Generation, capturedGeometry.Identity.Generation);
+            Assert.Equal(unchecked(((long)nativeSource.Address << 32) ^ (uint)geometry), capturedGeometry.Identity.ResourceGeneration);
+        });
+    }
+
     private static NativeBattleGfAnimationNode Node(uint header = 0, NativeBattleVector? position = null, NativeBattleVector? angles = null, NativeBattleVector? scale = null)
     {
         byte[] bytes = new byte[44];
