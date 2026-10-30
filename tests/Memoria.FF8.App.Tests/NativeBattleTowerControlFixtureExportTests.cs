@@ -41,7 +41,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
                 InitialHidden = placement.Hidden,
                 InitialUntargetable = placement.Untargetable,
                 InitialSuspended = placement.InitiallySuspended,
-                NativeAi = null,
+                NativeAi = actor.ModelId == 91 ? assets.ReadEnemyAi(91, 20) with { Scripts = [[0], [0], [0], [0], [0]] } : null,
                 NativeTemplate = actor.ModelId == 91 ? assets.ReadEnemyTemplate(91, checked((byte)placement.Level)) : null
             };
         }).ToArray();
