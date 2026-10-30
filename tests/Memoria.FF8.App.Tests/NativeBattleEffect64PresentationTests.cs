@@ -134,7 +134,7 @@ public sealed class NativeBattleEffect64PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect64State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect64));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect64State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.NativeEffectMemory.Effect64)));
         string casterId = graphics.ActorIds[5] ?? throw new InvalidDataException("Effect64 requires its actual allocated caster.");
         NativeBattleEnemyAllocation allocation = Assert.Single(original.NativeAllocations, item => item.Id == casterId);
         Assert.Equal(3, allocation.SceneSlot);

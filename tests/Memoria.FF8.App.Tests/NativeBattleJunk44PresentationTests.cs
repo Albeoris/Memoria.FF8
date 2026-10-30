@@ -41,7 +41,8 @@ public sealed class NativeBattleJunk44PresentationTests
         BattleCombatantSnapshot target = ready.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The declared Junk contact requires its current target status owner.");
         target = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
-        ready = ready with { Combatants = ready.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray() };
+        NativeBattlePresentationStatusMemory presentationStatus = (ready.NativePresentationStatusMemory ?? throw new InvalidDataException("The declared Junk contact requires its current physical presentation-status bank.")).Observe(0, target.NativeStatus!.Presentation);
+        ready = ready with { Combatants = ready.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePresentationStatusMemory = presentationStatus };
         Assert.Equal(status.Saved, target.NativeStatus!.Presentation.Saved);
         Assert.Equal(status.Battle, target.NativeStatus!.Presentation.Battle);
         NativeBattleActionPacketsState packets = ready.NativeActionPackets!;

@@ -171,7 +171,7 @@ public sealed class NativeBattleEffect63PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.Null(graphics.OriginalEffect);
         Assert.Equal(0, original.NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect63State.FromColdProcess()), JsonSerializer.Serialize(original.NativeEffectMemory.Effect63));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect63State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.NativeEffectMemory.Effect63)));
         string casterId = graphics.ActorIds[4] ?? throw new InvalidDataException("Effect63 requires its current caster.");
         string targetId = graphics.ActorIds[0] ?? throw new InvalidDataException("Effect63 requires its actual party recipient.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);
@@ -203,7 +203,8 @@ public sealed class NativeBattleEffect63PresentationTests
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([63])[62];
         Assert.Same(game.ReadNativeEffect63Resources(), binding.Effect63Resources);
-        BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(62, binding) }, Combatants = original.Combatants.Select(actor => actor.Id == targetId ? actor with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } } : actor).ToArray(), NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
+        NativeBattlePresentationStatusMemory presentationStatus = (original.NativePresentationStatusMemory ?? throw new InvalidDataException("The declared effect63 contact requires its current physical presentation-status bank.")).Observe(0, new(status.Saved, status.Battle));
+        BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(62, binding) }, Combatants = original.Combatants.Select(actor => actor.Id == targetId ? actor with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } } : actor).ToArray(), NativePresentationStatusMemory = presentationStatus, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(original.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)), source.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)));
         Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(source.NativeGraphics!.Models));
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(source.NativeEffectMemory));
