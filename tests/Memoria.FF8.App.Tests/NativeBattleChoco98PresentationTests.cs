@@ -9,7 +9,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleChoco98PresentationTests
 {
-    private static readonly TimeSpan Callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
+    private static readonly TimeSpan Callback = NativeBattleGraphicsPresentationClock.ElapsedForCallbacks(1) + TimeSpan.FromTicks(1);
 
     [Fact]
     public void External_ChocoFlare_runs_original_IO_models_nodes_programs_contact_and_independent_live_restores()
