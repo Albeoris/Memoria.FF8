@@ -10380,6 +10380,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
 
     private static object AssertAdditional181Body(BattleSnapshot prior, BattleSnapshot current, BattleAssets assets, int oldAge, List<Additional181Pair> pairs)
     {
+        prior = NativeBattleStorageSnapshots.Restore(prior);
         NativeBattleGraphicsModel model = prior.NativeGraphics!.Models[0];
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(prior.Definition.Combatants.Single(actor => actor.IsPlayer));
         Assert.Equal((int?)1, model.ActiveResourceRow100);
