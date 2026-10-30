@@ -1322,7 +1322,7 @@ public sealed partial class BattleSession
         RestoreDiagnosticTerminalHold(snapshot);
         BattleOutcome expectedOutcome = DetermineOutcome();
         // Native graphics can release the last action after this host frame's outcome admission pass.
-        bool awaitingNativeOutcomeAdmission = DebugOutcome is null && snapshot.Outcome == BattleOutcome.Active && NativeGraphics is { NativeOutcome: null } && expectedOutcome is BattleOutcome.Victory or BattleOutcome.Defeat;
+        bool awaitingNativeOutcomeAdmission = DebugOutcome is null && snapshot.Outcome == BattleOutcome.Active && NativeGraphics is not null && NativeGraphics.NativeOutcome?.ResultByte6E7 is null or 0 && expectedOutcome is BattleOutcome.Victory or BattleOutcome.Defeat;
         bool awaitingDiagnosticRearm = DiagnosticTerminalHold is { Phase: BattleDiagnosticTerminalHoldPhase.Held } && snapshot.Outcome == BattleOutcome.Active && expectedOutcome == BattleOutcome.Defeat;
         if ((!awaitingNativeOutcomeAdmission && !awaitingDiagnosticRearm && snapshot.Outcome != expectedOutcome) || (snapshot.Outcome != BattleOutcome.Active && busy.Count != 0))
         {
