@@ -6,6 +6,8 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleTheEnd85NodeServices(NativeBattleTheEnd85Resources Resources, NativeBattleActionPacketsState Packets, Func<int, NativeBattleGraphicsModel> ReadModel, Func<int, NativeBattlePoseSource> ReadPoseSource, NativeBattleActionMatrix CopiedCamera, Func<NativeBattleTheEnd85Frame, uint, uint, uint, NativeBattleTheEnd85Frame> DrawNode)
 {
     public NativeBattleEffectNodeDogOrigins? Mode2Origins { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Func<NativeBattleTheEnd85Frame, uint, uint, uint, NativeBattlePilotVisualIdentity, NativeBattleTheEnd85Frame>? DrawCapturedNode { get; init; }
 }
 public sealed record NativeBattleTheEnd85NodeStep(NativeBattleTheEnd85Frame Frame, bool Complete);
 
@@ -104,13 +106,13 @@ public static class NativeBattleTheEnd85GroundInitialization
                 }
                 if (meshes)
                 {
-                    frame = services.DrawNode(frame, node, model, 0x7897F0);
+                    frame = Render(node, model, 0x7897F0, 0);
                     continue;
                 }
                 int count = unchecked((sbyte)Read(node + 472, 1)[0]);
                 if (count == 1)
                 {
-                    frame = services.DrawNode(frame, node, model, 0x789A10);
+                    frame = Render(node, model, 0x789A10, 0);
                 }
                 else
                 {
@@ -120,10 +122,19 @@ public static class NativeBattleTheEnd85GroundInitialization
                         {
                             Write(node + 192 + (uint)(axis * 4), BitConverter.GetBytes(unchecked((int)(short)W(node + 412 + (uint)(index * 8 + axis * 2)))));
                         }
-                        frame = services.DrawNode(frame, node, model, 0x789A10);
+                        frame = Render(node, model, 0x789A10, index);
                     }
                 }
             }
+        }
+        NativeBattleTheEnd85Frame Render(uint node, uint model, uint callback, int instance)
+        {
+            if (services.DrawCapturedNode is null)
+            {
+                return services.DrawNode(frame, node, model, callback);
+            }
+            NativeBattlePilotVisualIdentity identity = NativeBattleTheEnd85Presentation.NodeIdentity(frame, ReadTask(), node, model, instance);
+            return services.DrawCapturedNode(frame, node, model, callback, identity);
         }
         byte[] ReadModel(uint address, int length)
         {

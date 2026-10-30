@@ -127,6 +127,36 @@ public sealed class NativeBattleTheEnd85DrawingTests
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_screen_paths_keep_authored_copies_flags_and_exact_zero_depths(bool title)
+    {
+        NativeBattleTheEnd85DrawingStep Draw() => title ? NativeBattleTheEnd85Drawing.Draw78D2E0(Task().WriteWord(88, 64).WriteByte(90, 37), NativeBattleFileStaging.Unknown()) : NativeBattleTheEnd85Drawing.Draw78D4D0(Task(), 40, NativeBattleFileStaging.Unknown());
+        var native = Draw();
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = Draw();
+        var batch = NativeBattleTheEnd85Presentation.Depths(NativeBattleTheEnd85Presentation.Screen(captured.Packets, new(85, 1, 2, 3, 4)));
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured with { Packets = batch }));
+        Assert.Equal((ushort)1, captured.LinkFlags);
+        Assert.Equal(batch.Attempts.Length, batch.Attempts.Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+        foreach (var attempt in batch.Attempts)
+        {
+            var primitive = attempt.Primitive!;
+            var geometry = primitive.PilotGeometry!;
+            Assert.True(geometry.ScreenSpace);
+            Assert.False(geometry.Continuous);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(System.Numerics.Vector4.Zero, geometry.SourceDepths);
+            for (int corner = 0; corner < 4; corner++)
+            {
+                uint word = primitive.Words[2 + corner * (title ? 3 : 1)];
+                Assert.Equal(unchecked((short)word), geometry.Corner(corner).X * geometry.ScreenScale * 0.125f);
+                Assert.Equal(unchecked((short)(word >> 16)), geometry.Corner(corner).Y * geometry.ScreenScale * 0.125f);
+            }
+        }
+    }
+
     private static NativeBattleModulePoolTask Task() => new(1, 0, null, 0x7855C0, new byte[732 - 12].ToImmutableArray());
     private static NativeBattleActionMatrix View() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4000, 4096);
     private static NativeBattleCameraProjection Projection() => new(View(), 160, 160, 108);

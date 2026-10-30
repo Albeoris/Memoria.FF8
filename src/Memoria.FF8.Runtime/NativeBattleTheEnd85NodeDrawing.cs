@@ -37,7 +37,7 @@ public static class NativeBattleTheEnd85NodeDrawing
                     services.Write(node + 192u + (uint)axis * 4, BitConverter.GetBytes((int)position).ToImmutableArray());
                 }
             }
-            NativeBattleTheEnd85MeshStep emitted = NativeBattleTheEnd85GeometryPackets.Emit785A90(result.Staging, context, Matrix(services, node + 172), projection, colors, services.Read);
+            NativeBattleTheEnd85MeshStep emitted = NativeBattleTheEnd85GeometryPackets.Emit785A90(result.Staging, context, Matrix(services, node + 172), projection, colors, services.Read, pilotIdentity: services.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + instance) } : null);
             attempts.AddRange(emitted.Packets.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + allocated) }));
             allocated = checked(allocated + emitted.Packets.AllocationBytes);
             result = new(emitted.Staging, emitted.Packets, true, emitted.FarRed, emitted.FarGreen, emitted.FarBlue);
@@ -132,7 +132,7 @@ public static class NativeBattleTheEnd85NodeDrawing
                 Store(60, (uint)projected.Sum(point => (int)point.Depth) >> 4);
                 depthStored = true;
             }
-        });
+        }, pilotIdentity: services.PilotIdentity is { } identity ? identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ source) } : null);
         if (rolled is null)
         {
             throw new InvalidDataException("Native The End sprite lost its executed rotation-copy owner.");

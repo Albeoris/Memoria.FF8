@@ -43,7 +43,7 @@ public sealed partial class BattleSession
                     return new(frame, environment.Complete);
                 case 0x8DDC30:
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native The End overlay requires its current ordering table.");
-                    NativeBattleFullscreenOverlayStep overlay = NativeBattleFullscreenOverlay.Advance8DDC30(new(frame.Memory, frame.Effect.Pools, primitive.Pending), address, frame.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("Native The End requires its retained overlay pause."), resources.Overlay);
+                    NativeBattleFullscreenOverlayStep overlay = NativeBattleFullscreenOverlay.Advance8DDC30(new(frame.Memory, frame.Effect.Pools, primitive.Pending), address, frame.Memory.FullscreenOverlayPause2795914 ?? throw new NotSupportedException("Native The End requires its retained overlay pause."), resources.Overlay, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(85, task));
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = overlay.Frame.Ordering } };
                     frame = frame with { Memory = overlay.Frame.Memory, Effect = frame.Effect with { Pools = overlay.Frame.Pools } };
                     return new(frame, overlay.Result == 2) { HierarchyReleased = overlay.Result == 2 };
@@ -117,7 +117,7 @@ public sealed partial class BattleSession
             input =>
             {
                 AcceptInput(address, input);
-                AppendShadows();
+                AppendShadows(NativeBattlePilotVisualLifetimes.Identity(85, Task(address)));
                 return Input(address);
             });
 

@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private (NativeBattleWall189State State, NativeBattleGraphicsState Graphics, int Cursor) CaptureNativeWall189(NativeBattleWall189State state, NativeBattleGraphicsState graphics, NativeBattleVector center, int cursor)
+    private (NativeBattleWall189State State, NativeBattleGraphicsState Graphics, int Cursor) CaptureNativeWall189(NativeBattleWall189State state, NativeBattleGraphicsState graphics, NativeBattleVector center, int cursor, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattlePrimitiveProcess process = NativeEffectMemory!.PrimitiveProcess ?? throw new NotSupportedException("Native Wall capture requires its actual primitive process.");
         byte buffer = process.Buffer80 ?? throw new NotSupportedException("Native Wall capture requires its current draw environment selector.");
@@ -40,8 +40,8 @@ public sealed partial class BattleSession
             int capacity = checked(NativeModelCpuResources!.ScratchMaximum!.Value * 8);
             uint workspace = checked(0x196B018u - (uint)capacity);
             (byte[] retained, _) = staging.ReadSnapshot(workspace, capacity);
-            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, group.Matrices, projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), definition.NativeGraphics!.Rules.SummonColors!, 16, new(0, 0, 320, 216), 17, group.ColorDepth);
-            NativeBattleRegionalPacketWrite written = NativeBattleRegionalPacketArena.Append(state.Packets, "2296A30", cursor, 0x1C000, graphics.PrimitiveFrame!.Pending, drawn.Packets);
+            NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(geometry, group.Matrices, projection, group.ColorFlags, uint.MaxValue, retained.ToImmutableArray(), definition.NativeGraphics!.Rules.SummonColors!, 16, new(0, 0, 320, 216), 17, group.ColorDepth, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + index) } : null, pilotScreenSpace: true, pilotContinuous: false);
+            NativeBattleRegionalPacketWrite written = NativeBattleRegionalPacketArena.Append(state.Packets, "2296A30", cursor, 0x1C000, graphics.PrimitiveFrame!.Pending, pilotIdentity.HasValue ? NativeBattleWall189Presentation.Depths(drawn.Packets) : drawn.Packets);
             state = state with { Packets = written.Arena };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
             cursor = written.Cursor;
@@ -63,7 +63,8 @@ public sealed partial class BattleSession
             links.InvalidatePacketRange(reference, bytes.Length);
             ImmutableArray<uint> words = Enumerable.Range(0, bytes.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(index * 4))).ToImmutableArray();
             bool linked = links.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
-            links.Prepend(17, reference, words, flags, [0, 0, 0, 0]);
+            NativeBattlePilotVisualGeometry? visual = bank == "D1B490" && pilotIdentity is { } identity ? NativeBattleWall189Presentation.CaptureClear(words, identity) : null;
+            links.Prepend(17, reference, words, flags, [0, 0, 0, 0], pilotGeometry: visual);
             byte[] result = bytes.ToArray();
             if (linked)
             {

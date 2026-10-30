@@ -7,7 +7,7 @@ public sealed record NativeBattleRapture288Draw(NativeBattleEffectMemory Memory,
 
 public static class NativeBattleRapture288Part
 {
-    public static NativeBattleRapture288Draw Draw(NativeBattleEffectMemory memory, NativeBattleFileStaging staging, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, int scale, int depth, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
+    public static NativeBattleRapture288Draw Draw(NativeBattleEffectMemory memory, NativeBattleFileStaging staging, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, int scale, int depth, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
         {
@@ -53,7 +53,7 @@ public static class NativeBattleRapture288Part
             Store(8, node.Color32);
         }
         Store(24, unchecked((uint)depth));
-        NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch7043B0(staging, header, checked(source.Address + (uint)geometry), data.Slice(geometry, data.Length - geometry), matrix, projection, new(node.Scalar36 == 0 ? 0x2030u : 0x20F0u, node.Color32, node.Scalar36, null, null, depth, 17, 2), colors, offset => new(BinaryPrimitives.ReadInt16LittleEndian(selected.AsSpan().Slice(offset)), BinaryPrimitives.ReadInt16LittleEndian(selected.AsSpan().Slice(offset + 2)), BinaryPrimitives.ReadInt16LittleEndian(selected.AsSpan().Slice(offset + 4))));
+        NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch7043B0(staging, header, checked(source.Address + (uint)geometry), data.Slice(geometry, data.Length - geometry), matrix, projection, new(node.Scalar36 == 0 ? 0x2030u : 0x20F0u, node.Color32, node.Scalar36, null, null, depth, 17, 2), colors, offset => new(BinaryPrimitives.ReadInt16LittleEndian(selected.AsSpan().Slice(offset)), BinaryPrimitives.ReadInt16LittleEndian(selected.AsSpan().Slice(offset + 2)), BinaryPrimitives.ReadInt16LittleEndian(selected.AsSpan().Slice(offset + 4))), pilotIdentity: pilotIdentity);
         staging = drawn.Staging;
         NativeBattleGfGeometryBatch batch = drawn.Batch;
         if (node.Scalar36 != 0)
@@ -63,7 +63,7 @@ public static class NativeBattleRapture288Part
             memory = memory with { PrimitiveProcess = process with { ModelRendererRegisters = registers.PublishModelColor(node.Color32) } };
         }
         staging = NativeBattleTemporaryMemory.Release5082D0(staging, 0x58);
-        return new(memory, staging, batch);
+        return new(memory, staging, NativeBattleSlot280288Presentation.Depths(288, batch));
 
         void Store(int offset, uint value)
         {

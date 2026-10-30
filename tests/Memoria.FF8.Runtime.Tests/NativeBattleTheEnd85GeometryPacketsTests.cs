@@ -118,10 +118,86 @@ public sealed class NativeBattleTheEnd85GeometryPacketsTests
         Assert.Equal(new[] { Mesh + 8, Mesh + 16, Mesh + 24, Mesh + 32 }, reads.Where(read => read.Count == 6).Select(read => read.Address));
     }
 
-    private static NativeBattleTheEnd85MeshStep Emit(byte[] source, NativeBattleFileStaging staging, bool threshold)
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void Presentation_all_authored_groups_capture_actual_selected_corners_and_preserve_native_context_and_packets(int group)
+    {
+        NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 5, 7, 4096], 0, 0, 4000, 4096);
+        var native = Emit(Source(group), Initial(), false, matrix: matrix);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = Emit(Source(group), Initial(), false, new(85, 1, 2, 3, 4), matrix);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        var primitive = Assert.Single(captured.Packets.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+        var geometry = primitive.PilotGeometry!;
+        Assert.Equal(new System.Numerics.Vector3(-100, -100, 100 - 1200f / 4096), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(100, -100, 100 - 200f / 4096), geometry.B);
+        Assert.Equal(new System.Numerics.Vector3(-100, 100, 100 + 200f / 4096), geometry.C);
+        Assert.Equal((group & 1) == 0 ? 3 : 4, geometry.CornerCount);
+        if (geometry.CornerCount == 4)
+        {
+            Assert.Equal(new System.Numerics.Vector3(100, 100, 100 + 1200f / 4096), geometry.D);
+        }
+        var finalized = NativeBattleTheEnd85Presentation.Depths(captured.Packets);
+        var retained = Assert.Single(finalized.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+        Assert.True(retained.PilotGeometry!.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), retained.PilotGeometry.SourceDepths);
+        Assert.All(native.Packets.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+    }
+
+    [Fact]
+    public void Presentation_title_threshold_window_packets_keep_state_commands_unannotated_and_native_words_unchanged()
+    {
+        byte[] SourceWithUvs()
+        {
+            byte[] bytes = Source(7);
+            bytes[Face(7) + 12] = 250;
+            bytes[Face(7) + 16] = 240;
+            return bytes;
+        }
+        NativeBattleFileStaging ContextWithUvs() => Initial().Write(Context + 24, BitConverter.GetBytes((ushort)16)).Write(Context + 40, BitConverter.GetBytes((ushort)128));
+        var native = Emit(SourceWithUvs(), ContextWithUvs(), true);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = Emit(SourceWithUvs(), ContextWithUvs(), true, new(85, 1, 2, 3, 4));
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.Single(captured.Packets.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null);
+        Assert.All(captured.Packets.Attempts.Where(attempt => attempt.Primitive is { } primitive && (primitive.Words[1] >> 24 & 0xE0) == 0xE0), attempt => Assert.Null(attempt.Primitive!.PilotGeometry));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Presentation_rejected_first_triple_preserves_native_deferred_fourth_load(bool capture)
+    {
+        byte[] source = Source(3);
+        for (int corner = 0; corner < 3; corner++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(source.AsSpan(12 + corner * 8), -5000);
+        }
+        List<(uint Address, int Count)> reads = [];
+        var result = NativeBattleTheEnd85GeometryPackets.Emit785A90(Initial(), Context, View(), Projection(), NativeBattleGteColorInterpolation.CodeConstants45F270, (address, count) =>
+        {
+            reads.Add((address, count));
+            if (address == Mesh + 32 && count == 6)
+            {
+                throw new InvalidOperationException("Native fourth corner must stay unread after rejected first triple.");
+            }
+            return source.AsSpan(checked((int)(address - Mesh)), count).ToArray();
+        }, pilotIdentity: capture ? new(85, 1, 2, 3, 4) : null);
+        Assert.Null(Assert.Single(result.Packets.Attempts).Primitive);
+        Assert.DoesNotContain(reads, read => read.Address == Mesh + 32 && read.Count == 6);
+    }
+
+    private static NativeBattleTheEnd85MeshStep Emit(byte[] source, NativeBattleFileStaging staging, bool threshold, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleActionMatrix? matrix = null)
     {
         byte[] Read(uint address, int length) => source.AsSpan(checked((int)(address - Mesh)), length).ToArray();
-        return threshold ? NativeBattleTheEnd85GeometryPackets.Emit78C660(staging, Context, View(), Projection(), NativeBattleGteColorInterpolation.CodeConstants45F270, Read) : NativeBattleTheEnd85GeometryPackets.Emit785A90(staging, Context, View(), Projection(), NativeBattleGteColorInterpolation.CodeConstants45F270, Read);
+        return threshold ? NativeBattleTheEnd85GeometryPackets.Emit78C660(staging, Context, matrix ?? View(), Projection(), NativeBattleGteColorInterpolation.CodeConstants45F270, Read, pilotIdentity: pilotIdentity) : NativeBattleTheEnd85GeometryPackets.Emit785A90(staging, Context, matrix ?? View(), Projection(), NativeBattleGteColorInterpolation.CodeConstants45F270, Read, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleFileStaging Initial()

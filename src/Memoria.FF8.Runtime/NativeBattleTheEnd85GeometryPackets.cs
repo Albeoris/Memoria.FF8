@@ -10,17 +10,17 @@ public static class NativeBattleTheEnd85GeometryPackets
 {
     private static readonly int[] Lengths = [12, 12, 20, 24, 20, 24, 28, 36];
 
-    public static NativeBattleTheEnd85MeshStep Emit785A90(NativeBattleFileStaging staging, uint context, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int, byte[]> read)
+    public static NativeBattleTheEnd85MeshStep Emit785A90(NativeBattleFileStaging staging, uint context, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int, byte[]> read, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return Emit(staging, context, matrix, projection, colors, read, false);
+        return Emit(staging, context, matrix, projection, colors, read, false, pilotIdentity);
     }
 
-    public static NativeBattleTheEnd85MeshStep Emit78C660(NativeBattleFileStaging staging, uint context, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int, byte[]> read)
+    public static NativeBattleTheEnd85MeshStep Emit78C660(NativeBattleFileStaging staging, uint context, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int, byte[]> read, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
-        return Emit(staging, context, matrix, projection, colors, read, true);
+        return Emit(staging, context, matrix, projection, colors, read, true, pilotIdentity);
     }
 
-    private static NativeBattleTheEnd85MeshStep Emit(NativeBattleFileStaging staging, uint context, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int, byte[]> read, bool thresholdQuad)
+    private static NativeBattleTheEnd85MeshStep Emit(NativeBattleFileStaging staging, uint context, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int, byte[]> read, bool thresholdQuad, NativeBattlePilotVisualIdentity? pilotIdentity)
     {
         uint mesh = Dword(0);
         uint flags = Dword(20);
@@ -52,6 +52,7 @@ public static class NativeBattleTheEnd85GeometryPackets
             {
                 byte[] face = Read(cursor, Lengths[group]);
                 NativeBattleModuleProjectedVertex?[] projected = new NativeBattleModuleProjectedVertex?[(group & 1) == 0 ? 3 : 4];
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[projected.Length] : null;
                 NativeBattleModuleProjectedVertex Corner(int corner)
                 {
                     if (projected[corner] is not { } value)
@@ -59,6 +60,10 @@ public static class NativeBattleTheEnd85GeometryPackets
                         ushort index = BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2));
                         byte[] point = Read(checked(vertices + (uint)index * 4), 6);
                         NativeBattleVector position = new(BinaryPrimitives.ReadInt16LittleEndian(point), BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(point.AsSpan(4)));
+                        if (world is not null)
+                        {
+                            world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, position), projection);
+                        }
                         value = NativeBattleModuleProjection.Project45FE10(matrix, position, projection);
                         projected[corner] = value;
                     }
@@ -89,6 +94,10 @@ public static class NativeBattleTheEnd85GeometryPackets
                     {
                         emitted = ApplyThreshold78C6D0(emitted, unchecked((short)Word(100)));
                     }
+                }
+                if (pilotIdentity is { } identity && world is not null)
+                {
+                    emitted = emitted with { Attempts = emitted.Attempts.Select(attempt => attempt.Primitive is { Words.Length: > 1 } primitive && (primitive.Words[1] & 0xE0000000) == 0x20000000 ? attempt with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + (int)cursor), ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ mesh) }, world[0], world[1], world[2], world.Length == 4 ? world[3] : default, checked((byte)world.Length)) } } : attempt).ToImmutableArray() };
                 }
                 attempts.AddRange(emitted.Attempts);
                 allocation = checked(allocation + emitted.AllocationBytes);

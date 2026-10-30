@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleWall189ClipPackets
 {
-    public static NativeBattleModuleMeshTemporaryResult Emit5BD1C0(NativeBattleFileStaging staging, uint temporary, NativeBattleWall189Resources resources, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short age, uint orderingTable, uint packetCursor, NativeBattleScriptedGraphicsMemory registers)
+    public static NativeBattleModuleMeshTemporaryResult Emit5BD1C0(NativeBattleFileStaging staging, uint temporary, NativeBattleWall189Resources resources, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short age, uint orderingTable, uint packetCursor, NativeBattleScriptedGraphicsMemory registers, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleStaticMeshResource mesh = resources.Shield;
         NativeBattleShivaPlane plane = NativeBattleShivaPlaneClipping.CreatePlane5C3130(new(0, unchecked((short)(2013 * age / 20 - 2013)), 0), new(0, -4096, 0));
@@ -82,6 +82,11 @@ public static class NativeBattleWall189ClipPackets
                     short zsf3 = registers.Zsf3 ?? throw new NotSupportedException("Native Wall clipping requires its actual ZSF3 register.");
                     short zsf4 = registers.Zsf4 ?? throw new NotSupportedException("Native Wall clipping requires its actual ZSF4 register.");
                     NativeBattleGfGeometryAttempt emitted = NativeBattleShivaPlaneClipping.Emit5C3410(clipped, matrix, projection, color, material0, material1, zsf3, zsf4, registers.Dqa, registers.Dqb, allocated);
+                    if (emitted.Primitive is { } primitive && pilotIdentity is { } identity)
+                    {
+                        System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, clipped[corner].Position), projection);
+                        emitted = emitted with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, World(0), World(1), World(2), clipped.Length == 4 ? World(3) : default, checked((byte)clipped.Length)) } };
+                    }
                     attempts.Add(emitted);
                     allocated = checked(allocated + emitted.PacketLength);
                     uint total = 0;

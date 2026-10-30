@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleWall189ShieldPackets
 {
-    public static NativeBattleModuleMeshTemporaryResult Emit64F6D0(NativeBattleFileStaging staging, uint temporary, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short age, NativeBattleSummonColors colors)
+    public static NativeBattleModuleMeshTemporaryResult Emit64F6D0(NativeBattleFileStaging staging, uint temporary, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short age, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint flags = age >= 48 ? 243u : 0u;
         int fade = age >= 48 ? 341 * (age - 48) : 0;
@@ -26,7 +26,7 @@ public static class NativeBattleWall189ShieldPackets
             ObserveArea = value => staging = Dword(36, unchecked((uint)value)),
             ObserveAverageDepth = value => staging = Dword(44, value)
         };
-        NativeBattleGfGeometryBatch plain = NativeBattleGfGeometryPackets.EmitBatch(mesh.Bytes, 0, default, matrix, projection, new(flags, 0, fade, null, null, 0, 0, 17, 2), colors, observeSourceCursor: cursor => staging = Dword(32, checked(mesh.Address + (uint)cursor)), variant: observations);
+        NativeBattleGfGeometryBatch plain = NativeBattleGfGeometryPackets.EmitBatch(mesh.Bytes, 0, default, matrix, projection, new(flags, 0, fade, null, null, 0, 0, 17, 2), colors, observeSourceCursor: cursor => staging = Dword(32, checked(mesh.Address + (uint)cursor)), variant: observations, pilotIdentity: pilotIdentity);
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         foreach (NativeBattleGfGeometryAttempt attempt in plain.Attempts)

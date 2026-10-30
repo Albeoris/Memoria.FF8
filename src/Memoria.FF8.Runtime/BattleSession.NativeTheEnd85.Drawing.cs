@@ -21,7 +21,7 @@ public sealed partial class BattleSession
                 return nodes.Complete ? 1 : 0;
             }
             NativeBattleModulePoolTask task = Task(address);
-            NativeBattleTheEnd85DrawServices services = new(Read, Write);
+            NativeBattleTheEnd85DrawServices services = new(Read, Write) { PilotIdentity = NativeBattlePilotVisualLifetimes.Identity(85, task) };
             NativeBattleTheEnd85DrawingStep drawn = callback switch
             {
                 0x785660 => NativeBattleTheEnd85Drawing.Advance785660(task, Program(task.ReadDword(116)), Projection, Colors, Staging, State.Dword(0x25BC894), services),
@@ -31,6 +31,10 @@ public sealed partial class BattleSession
                 0x78D4D0 => NativeBattleTheEnd85Drawing.Draw78D4D0(task, parameter, Staging),
                 _ => throw new NotSupportedException("Native The End selected an unsupported drawing callback.")
             };
+            if (callback is 0x78D2E0 or 0x78D4D0)
+            {
+                drawn = drawn with { Packets = NativeBattleTheEnd85Presentation.Screen(drawn.Packets, NativeBattlePilotVisualLifetimes.Identity(85, task)) };
+            }
             Staging = drawn.Staging;
             Put(address, drawn.Task);
             AppendCommon(drawn.Packets, drawn.LinkFlags);
@@ -38,9 +42,14 @@ public sealed partial class BattleSession
             return drawn.Remaining;
         }
 
-        private NativeBattleTheEnd85NodeServices NodeServices() => new(resources, owner.nativeActionPackets, ReadModel, ReadPose, Camera.CapturePackedView1D97778().ReadMatrix(), DrawNode);
+        private NativeBattleTheEnd85NodeServices NodeServices() => new(resources, owner.nativeActionPackets, ReadModel, ReadPose, Camera.CapturePackedView1D97778().ReadMatrix(), DrawNode) { DrawCapturedNode = (current, node, model, callback, identity) => DrawCapturedNode(current, node, model, callback, identity) };
 
         private NativeBattleTheEnd85Frame DrawNode(NativeBattleTheEnd85Frame current, uint node, uint model, uint callback)
+        {
+            return DrawCapturedNode(current, node, model, callback, null);
+        }
+
+        private NativeBattleTheEnd85Frame DrawCapturedNode(NativeBattleTheEnd85Frame current, uint node, uint model, uint callback, NativeBattlePilotVisualIdentity? pilotIdentity)
         {
             frame = current;
             int size = callback == 0x7897F0 ? 104 : callback == 0x789A10 ? 180 : throw new NotSupportedException("Native The End node drawing callback is unknown.");
@@ -52,7 +61,7 @@ public sealed partial class BattleSession
             uint temporary = cursor - (uint)size;
             State = State.WriteDword(0x25C21CC, temporary);
             Staging = NativeBattleTemporaryMemory.PublishView(Staging, NativeBattleEffectNodeContextMemory.Address, NativeBattleEffectNodeContextMemory.Capture(frame.Memory), NativeBattleEffectNodeContextMemory.Length);
-            NativeBattleTheEnd85DrawServices services = new(Read, Write);
+            NativeBattleTheEnd85DrawServices services = new(Read, Write) { PilotIdentity = pilotIdentity };
             NativeBattleTheEnd85NodeDrawingStep drawn = callback == 0x7897F0
                 ? NativeBattleTheEnd85NodeDrawing.Draw7897F0(Staging, temporary, node, model, Projection, Colors, services)
                 : NativeBattleTheEnd85NodeDrawing.Draw789A10(Staging, temporary, node, Projection, Camera.Roll, services);
@@ -75,6 +84,7 @@ public sealed partial class BattleSession
 
         private void AppendCommon(NativeBattleGfGeometryBatch batch, ushort flags20 = 0)
         {
+            batch = NativeBattleTheEnd85Presentation.Depths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native The End drawing requires its ordering table.");
             NativeBattleCommonPacketWrite result = NativeBattleCommonPacketArena.Append(frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native The End requires its COMMON packet owner."), primitive.Pending, batch, flags20);
             frame = frame with { Memory = frame.Memory with { PrimitiveProcess = result.Process } };
@@ -83,6 +93,7 @@ public sealed partial class BattleSession
 
         private void AppendPrivate(NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleTheEnd85Presentation.Depths(batch);
             uint cursor = State.Dword(0x25BC394);
             if (cursor < 0x20DFAB8 || cursor > 0x21DFAB8)
             {
@@ -106,7 +117,7 @@ public sealed partial class BattleSession
             frame = frame with { Memory = frame.Memory with { PrimitiveProcess = process with { ModelRendererRegisters = old with { FarRed = red, FarGreen = green, FarBlue = blue } } } };
         }
 
-        private void AppendShadows()
+        private void AppendShadows(NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleGraphicsDefinition definition = owner.definition.NativeGraphics ?? throw new NotSupportedException("Native The End shadows require their current graphics definition.");
             bool gouraud = (definition.PrimitiveCapabilities ?? throw new NotSupportedException("Native The End shadows require their current device capability profile.")).GouraudAlpha;
@@ -120,7 +131,8 @@ public sealed partial class BattleSession
                 }
                 NativeBattleShadowGeometry shadow = NativeBattlePoseMatrices.ShadowGeometry5088A0(model, model.GeometryBounds52 ?? throw new NotSupportedException("Native The End shadow requires its retained model bounds."), Projection.View ?? throw new NotSupportedException("Native The End shadow requires its current view."), source, gouraud);
                 NativeBattleModuleProjectedVertex[] vertices = shadow.Vertices.Select(vertex => NativeBattleModuleProjection.Project45FE10(shadow.CameraMatrix, vertex, Projection)).ToArray();
-                AppendPrivate(NativeBattleShadowPackets.EmitBatch5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native The End shadow requires its current model color."), gouraud, 17, 4));
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? shadow.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(shadow.CameraMatrix, vertex), Projection)).ToArray() : null;
+                AppendPrivate(NativeBattleShadowPackets.EmitBatch5088A0(vertices, model.Color44 ?? throw new NotSupportedException("Native The End shadow requires its current model color."), gouraud, 17, 4, pilotWorldVertices: world, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + actor), ResourceGeneration = 0x5088A0 } : null));
             }
         }
 

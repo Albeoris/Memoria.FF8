@@ -160,6 +160,80 @@ public sealed class NativeBattleTheEnd85NodeDrawingTests
         }
     }
 
+    [Fact]
+    public void Presentation_node_mesh_authored_instances_keep_source_position_and_packet_write_order()
+    {
+        (NativeBattleTheEnd85NodeDrawingStep Step, Fixture Fixture) Run(bool capture)
+        {
+            Fixture fixture = new(Mesh());
+            fixture.Node[472] = 2;
+            fixture.Position(412, new(10, 20, 4000));
+            fixture.Position(420, new(-30, -40, 5000));
+            var services = fixture.Services() with { PilotIdentity = capture ? new(85, 1, 2, 3, 4) : null };
+            var staging = NativeBattleFileStaging.Unknown().Write(Context + 8, new byte[] { 3, 5, 7 }).Write(Context + 12, BitConverter.GetBytes(0x12345678u));
+            return (NativeBattleTheEnd85NodeDrawing.Draw7897F0(staging, Context, Node, Template, new(NativeBattleCuragaMatrices.Identity8DD770(), 160, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, services), fixture);
+        }
+        var native = Run(false);
+        string baseline = NativeBattleTestSnapshots.Json(native.Step);
+        var captured = Run(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured.Step));
+        Assert.Equal(native.Fixture.Reads, captured.Fixture.Reads);
+        Assert.Equal(native.Fixture.Writes.Select(write => write.Address), captured.Fixture.Writes.Select(write => write.Address));
+        var geometries = captured.Step.Packets.Attempts.Select(attempt => attempt.Primitive!.PilotGeometry!).ToArray();
+        Assert.Equal(2, geometries.Select(geometry => geometry.Identity).Distinct().Count());
+        Assert.NotEqual(geometries[0].A, geometries[1].A);
+        Assert.All(native.Step.Packets.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+    }
+
+    [Fact]
+    public void Presentation_node_sprite_keeps_native_reads_writes_quad_corners_and_actual_payload()
+    {
+        (NativeBattleTheEnd85NodeDrawingStep Step, Fixture Fixture) Run(bool capture)
+        {
+            Fixture fixture = new(NativeBattleCuragaProjectedSpritesTests.Resource(true, NativeBattleCuragaProjectedSpritesTests.Quad()).ToArray());
+            var staging = NativeBattleFileStaging.Unknown();
+            foreach (int offset in new[] { 74, 82, 90, 98, 118, 150 })
+            {
+                staging = staging.Write(Context + (uint)offset, BitConverter.GetBytes((ushort)0xCAFE));
+            }
+            var services = fixture.Services() with { PilotIdentity = capture ? new(85, 1, 2, 3, 4) : null };
+            var projection = new NativeBattleCameraProjection(NativeBattleCuragaMatrices.Identity8DD770(), 160, 160, 108);
+            return (NativeBattleTheEnd85NodeDrawing.Draw789A10(staging, Context, Node, projection, 0, services), fixture);
+        }
+        var native = Run(false);
+        string baseline = NativeBattleTestSnapshots.Json(native.Step);
+        var captured = Run(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured.Step));
+        Assert.Equal(native.Fixture.Reads, captured.Fixture.Reads);
+        Assert.Equal(native.Fixture.Writes, captured.Fixture.Writes);
+        var primitive = Assert.Single(captured.Step.Packets.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+        Assert.Equal(4, primitive.PilotGeometry!.CornerCount);
+        var final = Assert.Single(NativeBattleTheEnd85Presentation.Depths(captured.Step.Packets).Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), final.PilotGeometry!.SourceDepths);
+    }
+
+    [Fact]
+    public void Presentation_node_identity_preserves_actual_task_and_each_authored_copy_but_breaks_on_native_row_rebirth()
+    {
+        var pool = NativeBattleEffectTaskPool.Initialize(0x25C1748, 0x300000, 676, 1);
+        (pool, int slot) = pool.Append(0x789700);
+        var task = pool.Slots[slot];
+        NativeBattleOriginalEffectState effect = new(85, 85, new(85, 0x7844A0, 0x784480), null, null) { Pools = [pool] };
+        var frame = new NativeBattleTheEnd85Frame(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, NativeCrtRandomState.FromColdProcess());
+        string baseline = NativeBattleTestSnapshots.Json(frame);
+        var first = NativeBattleTheEnd85Presentation.NodeIdentity(frame, task, Node, Template, 0);
+        Assert.Equal(first, NativeBattleTheEnd85Presentation.NodeIdentity(frame, task, Node, Template, 0));
+        Assert.NotEqual(first, NativeBattleTheEnd85Presentation.NodeIdentity(frame, task, Node, Template, 1));
+        Assert.NotEqual(first, NativeBattleTheEnd85Presentation.NodeIdentity(frame, task, Node + 672, Template, 0));
+        Assert.NotEqual(first, NativeBattleTheEnd85Presentation.NodeIdentity(frame, task, Node, Template + 4, 0));
+        NativeBattlePilotVisualLifetimes.Allocated(frame.Memory.Arena!, Node, 0);
+        var next = NativeBattleTheEnd85Presentation.NodeIdentity(frame, task, Node, Template, 0);
+        Assert.Equal(first.Generation, next.Generation);
+        Assert.Equal(first.Primitive, next.Primitive);
+        Assert.NotEqual(first.ResourceGeneration, next.ResourceGeneration);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(frame));
+    }
+
     private static byte[] Mesh()
     {
         byte[] bytes = new byte[108];

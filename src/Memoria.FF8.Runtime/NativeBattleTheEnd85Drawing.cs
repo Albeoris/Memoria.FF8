@@ -3,7 +3,11 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleTheEnd85DrawServices(Func<uint, int, byte[]> Read, Action<uint, ImmutableArray<byte>> Write);
+public sealed record NativeBattleTheEnd85DrawServices(Func<uint, int, byte[]> Read, Action<uint, ImmutableArray<byte>> Write)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleTheEnd85DrawingStep(NativeBattleModulePoolTask Task, int Remaining, NativeBattleFileStaging Staging, NativeBattleGfGeometryBatch Packets, bool PublishedFarColor, uint? FarRed, uint? FarGreen, uint? FarBlue)
 {
     public ushort LinkFlags { get; init; }
@@ -92,7 +96,7 @@ public static class NativeBattleTheEnd85Drawing
         }
         Store(16, unchecked((uint)bias));
         SetWindows(ref staging, temporary);
-        NativeBattleTheEnd85MeshStep emitted = NativeBattleTheEnd85GeometryPackets.Emit785A90(staging, temporary, matrix, projection, colors, ReadObserved);
+        NativeBattleTheEnd85MeshStep emitted = NativeBattleTheEnd85GeometryPackets.Emit785A90(staging, temporary, matrix, projection, colors, ReadObserved, pilotIdentity: services.PilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 397 + node.ResourceOffset), ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ source.Address) } : null);
         return Completed(task, emitted);
 
         byte[] ReadObserved(uint address, int length)
@@ -219,11 +223,11 @@ public static class NativeBattleTheEnd85Drawing
         if (threshold is short value)
         {
             staging = staging.Write(context + 100, BitConverter.GetBytes(value));
-            emitted = NativeBattleTheEnd85GeometryPackets.Emit78C660(staging, context, matrix, projection, colors, services.Read);
+            emitted = NativeBattleTheEnd85GeometryPackets.Emit78C660(staging, context, matrix, projection, colors, services.Read, pilotIdentity: services.PilotIdentity);
         }
         else
         {
-            emitted = NativeBattleTheEnd85GeometryPackets.Emit785A90(staging, context, matrix, projection, colors, services.Read);
+            emitted = NativeBattleTheEnd85GeometryPackets.Emit785A90(staging, context, matrix, projection, colors, services.Read, pilotIdentity: services.PilotIdentity);
         }
         return Completed(task, emitted);
     }

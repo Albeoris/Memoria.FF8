@@ -79,7 +79,7 @@ public sealed partial class BattleSession
                 NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CD50(WindVector(task, 24)), scale, scale, scale) with { X = position.X, Y = position.Y, Z = position.Z };
                 matrix = NativeBattleGfMatrices.Compose56C2F0(view, matrix);
                 NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging!, 88);
-                NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(temporary.Staging.Write(temporary.Address, BitConverter.GetBytes(resources.Debris.Address)).Write(temporary.Address + 28, new byte[4]), temporary.Address, resources.Debris.Address, resources.Debris.Bytes, matrix, projection, new(0, null, null, null, null, null, 17, 2), colors);
+                NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(temporary.Staging.Write(temporary.Address, BitConverter.GetBytes(resources.Debris.Address)).Write(temporary.Address + 28, new byte[4]), temporary.Address, resources.Debris.Address, resources.Debris.Bytes, matrix, projection, new(0, null, null, null, null, null, 17, 2), colors, pilotIdentity: NativeBattleSlot280288Presentation.Task(288, task, resources.Debris.Address));
                 NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(drawn.Staging, 88);
                 Append(drawn.Batch);
                 task = task.WriteWord(24, unchecked((ushort)(WindWord(task, 24) + (sbyte)task.ReadByte(32)))).WriteWord(26, unchecked((ushort)(WindWord(task, 26) + (sbyte)task.ReadByte(33)))).WriteWord(28, unchecked((ushort)(WindWord(task, 28) + (sbyte)task.ReadByte(34)))).WriteWord(18, unchecked((ushort)(WindWord(task, 18) + WindWord(task, 22)))).WriteWord(12, unchecked((ushort)(WindWord(task, 12) + 1)));
@@ -94,12 +94,12 @@ public sealed partial class BattleSession
                 NativeBattleModulePoolTask task = pool.Slots[slot];
                 int phase = WindWord(task, 18);
                 NativeBattleVector point = WindVector(task, 12);
-                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Spark, SpriteFrame = resources.Spark.ProjectedFrame571C80(phase), Phase = unchecked((ushort)phase), Anchor = new(point.X, point.Y, point.Z, 0), Scale = 4096, DepthOffset = -1024, SpriteFlags = 0 };
+                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Spark, SpriteFrame = resources.Spark.ProjectedFrame571C80(phase), Phase = unchecked((ushort)phase), Anchor = new(point.X, point.Y, point.Z, 0), Scale = 4096, DepthOffset = -1024, SpriteFlags = 0, PilotIdentity = NativeBattleSlot280288Presentation.Task(288, task, resources.Spark.Address) };
                 NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging!, 180);
                 NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(temporary.Staging, temporary.Address, resources.Spark.Address, 0).Write(temporary.Address + 4, BitConverter.GetBytes((ushort)phase));
                 NativeBattleModuleSpriteTemporaryResult drawn = NativeBattleModuleSpriteTemporary.Emit571C80(staging, temporary.Address, draw, projection, NativeCamera!.Roll, 17, 2);
                 NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(drawn.Staging, 180);
-                NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, drawn.Batch, NativeBattleEffectGouraudWrites.FullDword);
+                NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, NativeBattleSlot280288Presentation.Depths(288, drawn.Batch), NativeBattleEffectGouraudWrites.FullDword);
                 NativeEffectMemory = written.Memory;
                 effect = effect with { DrawArenaOffset = written.Cursor };
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
@@ -204,9 +204,10 @@ public sealed partial class BattleSession
         void Play(ref NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleActionMatrix context, int scale, int depth)
         {
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size);
+            NativeBattlePilotVisualIdentity ownerIdentity = NativeBattleSlot280288Presentation.Task(288, task, source.Address, offset);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (owner, node) =>
             {
-                NativeBattleRapture288Draw draw = NativeBattleRapture288Part.Draw(NativeEffectMemory!, NativeFileStaging!, source, node, context, scale, depth, projection, colors);
+                NativeBattleRapture288Draw draw = NativeBattleRapture288Part.Draw(NativeEffectMemory!, NativeFileStaging!, source, node, context, scale, depth, projection, colors, pilotIdentity: ownerIdentity with { Primitive = unchecked(ownerIdentity.Primitive * 397 + node.ResourceOffset) });
                 NativeEffectMemory = draw.Memory;
                 NativeFileStaging = draw.Staging;
                 Append(draw.Batch);
@@ -240,6 +241,7 @@ public sealed partial class BattleSession
         }
         void Append(NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleSlot280288Presentation.Depths(288, batch);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch);
             NativeEffectMemory = written.Memory;
             effect = effect with { DrawArenaOffset = written.Cursor };

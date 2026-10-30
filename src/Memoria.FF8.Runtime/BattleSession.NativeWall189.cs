@@ -127,7 +127,7 @@ public sealed partial class BattleSession
                 NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(world, new(0, 0, -1500));
                 center = new(unchecked((short)(center.X + offset.X)), unchecked((short)(center.Y + offset.Y)), unchecked((short)(center.Z + offset.Z)));
                 task = WindStore(task, 16, center);
-                (state, graphics, cursor) = CaptureNativeWall189(state, graphics, center, cursor);
+                (state, graphics, cursor) = CaptureNativeWall189(state, graphics, center, cursor, NativeBattlePilotVisualLifetimes.Identity(189, task));
             }
             if (age == 1)
             {
@@ -186,7 +186,7 @@ public sealed partial class BattleSession
             matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, WindWord(task, 28), WindWord(task, 32), WindWord(task, 28));
             NativeBattleVector point = WindVector(task, 16);
             matrix = NativeBattleGfMatrices.Compose56C2F0(view, matrix with { X = point.X, Y = point.Y, Z = point.Z });
-            Mesh(resources.Burst, matrix, age >= 16 ? 243u : 51u, age >= 16 ? (age - 16) << 9 : null);
+            Mesh(resources.Burst, matrix, age >= 16 ? 243u : 51u, age >= 16 ? (age - 16) << 9 : null, NativeBattlePilotVisualLifetimes.Identity(189, task));
             if (frozen)
             {
                 return 0;
@@ -214,7 +214,7 @@ public sealed partial class BattleSession
                 short frame = S(row, 4);
                 short scale = S(row, 6);
                 NativeBattleVector point = V(row, 8);
-                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Spark, SpriteFrame = resources.Spark.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = -(scale >> 4), SpriteFlags = 8 };
+                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Spark, SpriteFrame = resources.Spark.ProjectedFrame571C80(frame), Phase = unchecked((ushort)frame), Anchor = new(point.X, point.Y, point.Z, 0), Scale = scale, DepthOffset = -(scale >> 4), SpriteFlags = 8, PilotIdentity = NativeBattleWall189Presentation.Row(task, 0x5BDCC0, index, resources.Spark.Address) };
                 staging = staging.Write(temporary.Address + 4, BitConverter.GetBytes(frame));
                 NativeBattleModuleSpriteTemporaryResult drawn = NativeBattleModuleSpriteTemporary.Emit571C80(staging, temporary.Address, draw, projection, NativeCamera!.Roll, 17, 2);
                 staging = drawn.Staging;
@@ -258,6 +258,7 @@ public sealed partial class BattleSession
                     W(row, 18, -100);
                     W(row, 20, speed * direction.Z >> 12);
                     state = state with { Sprites = SetRow(state.Sprites, index, row.ToImmutableArray()) };
+                    NativeBattleWall189Presentation.Allocated(task, 0x5BDCC0, index);
                 }
             }
             int age = WindWord(task, 12) + 1;
@@ -285,7 +286,7 @@ public sealed partial class BattleSession
                 matrix = NativeBattleGfMatrices.Compose56C2F0(view, matrix);
                 retained = retained.Write(scratch.Address, BitConverter.GetBytes(S(row, 18))).Write(scratch.Address + 4, BitConverter.GetBytes(S(row, 22)));
                 retained = PublishMatrix(retained, scratch.Address + 8, matrix, true).Write(scratch.Address + 72, BitConverter.GetBytes((int)scale)).Write(scratch.Address + 76, BitConverter.GetBytes((int)scale)).Write(scratch.Address + 80, BitConverter.GetBytes((int)scale));
-                retained = MeshAt(retained, meshHeader.Address, resources.Debris, matrix, 0, null);
+                retained = MeshAt(retained, meshHeader.Address, resources.Debris, matrix, 0, null, NativeBattleWall189Presentation.Row(task, 0x5BDF60, index, resources.Debris.Address));
                 if (!frozen)
                 {
                     row = NativeBattleWall189Motion.Mesh(row);
@@ -329,6 +330,7 @@ public sealed partial class BattleSession
                     W(row, 18, rotation);
                     W(row, 22, rotation >> 1);
                     state = state with { Meshes = SetRow(state.Meshes, index, row.ToImmutableArray()) };
+                    NativeBattleWall189Presentation.Allocated(task, 0x5BDF60, index);
                 }
             }
             int age = WindWord(task, 12) + 1;
@@ -348,13 +350,13 @@ public sealed partial class BattleSession
             NativeBattleModuleMeshTemporaryResult drawn;
             if (age >= 20)
             {
-                drawn = NativeBattleWall189ShieldPackets.Emit64F6D0(temporary.Staging, temporary.Address, resources.Shield, matrix, projection, age, colors);
+                drawn = NativeBattleWall189ShieldPackets.Emit64F6D0(temporary.Staging, temporary.Address, resources.Shield, matrix, projection, age, colors, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(189, task) with { ResourceGeneration = resources.Shield.Address });
             }
             else
             {
                 NativeBattlePrimitiveProcess process = NativeEffectMemory!.PrimitiveProcess!;
                 uint table = checked(0x1D8E058u + (uint)process.Buffer80!.Value * 17544 + 68);
-                drawn = NativeBattleWall189ClipPackets.Emit5BD1C0(temporary.Staging, temporary.Address, resources, matrix, projection, age, table, checked(0x2296A30u + (uint)cursor), NativeEffectMemory.ScriptedGraphics!);
+                drawn = NativeBattleWall189ClipPackets.Emit5BD1C0(temporary.Staging, temporary.Address, resources, matrix, projection, age, table, checked(0x2296A30u + (uint)cursor), NativeEffectMemory.ScriptedGraphics!, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(189, task) with { ResourceGeneration = resources.Shield.Address });
             }
             NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(drawn.Staging, size);
             Emit(drawn.Batch);
@@ -372,20 +374,20 @@ public sealed partial class BattleSession
             return age + 1 >= 60 ? 2 : 0;
         }
 
-        void Mesh(NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, uint flags, int? fade)
+        void Mesh(NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, uint flags, int? fade, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(NativeFileStaging!, 88);
-            NativeBattleFileStaging staging = MeshAt(temporary.Staging, temporary.Address, resource, matrix, flags, fade);
+            NativeBattleFileStaging staging = MeshAt(temporary.Staging, temporary.Address, resource, matrix, flags, fade, pilotIdentity);
             NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(staging, 88);
         }
-        NativeBattleFileStaging MeshAt(NativeBattleFileStaging staging, uint address, NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, uint flags, int? fade)
+        NativeBattleFileStaging MeshAt(NativeBattleFileStaging staging, uint address, NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, uint flags, int? fade, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             staging = staging.Write(address, BitConverter.GetBytes(resource.Address)).Write(address + 8, new byte[4]).Write(address + 28, BitConverter.GetBytes(flags));
             if (fade is int value)
             {
                 staging = staging.Write(address + 12, BitConverter.GetBytes(value));
             }
-            NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(staging, address, resource.Address, resource.Bytes, matrix, projection, new(flags, 0, fade, null, null, null, 17, 2), colors);
+            NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch572200(staging, address, resource.Address, resource.Bytes, matrix, projection, new(flags, 0, fade, null, null, null, 17, 2), colors, pilotIdentity: pilotIdentity is { } identity ? identity with { ResourceGeneration = unchecked(identity.ResourceGeneration * 397 ^ resource.Address) } : null);
             Emit(drawn.Batch);
             return drawn.Staging;
         }
@@ -404,6 +406,7 @@ public sealed partial class BattleSession
         }
         void Emit(NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleWall189Presentation.Depths(batch);
             NativeBattleRegionalPacketWrite written = NativeBattleRegionalPacketArena.Append(state.Packets, "2296A30", cursor, 0x1C000, graphics.PrimitiveFrame!.Pending, batch);
             state = state with { Packets = written.Arena };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
