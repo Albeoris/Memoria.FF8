@@ -158,6 +158,7 @@ internal sealed class DiagnosticBattleDriver
     internal int Execution { get; private set; } = 1;
     internal string? Blocker { get; private set; }
     internal BattleDiagnosticInvocationRelease? FocalRelease { get; private set; }
+    internal BattleDiagnosticInvocationAftercareReceipt? InvocationAftercare { get; private set; }
 
     internal void ObserveInvocationRelease(BattleDiagnosticInvocationRelease release)
     {
@@ -167,6 +168,16 @@ internal sealed class DiagnosticBattleDriver
         }
         DiagnosticInvocationReleaseValidation.Validate(release, currentFocalDispatch, release.LifecycleId);
         FocalRelease = release;
+    }
+
+    internal void ObserveInvocationAftercare(BattleDiagnosticInvocationAftercareReceipt receipt)
+    {
+        if (recipe.FreshEntry is null || Stage != DiagnosticDriverStage.Drain || FocalRelease?.Aftercare is null || InvocationAftercare is not null)
+        {
+            throw new InvalidDataException("Aftercare completion is outside its declared sealed single-use invocation.");
+        }
+        DiagnosticInvocationAftercareValidation.Validate(FocalRelease, receipt);
+        InvocationAftercare = receipt;
     }
 
     internal IReadOnlyList<BattleDiagnosticEffectDispatch> Dispatches => dispatches;
@@ -289,7 +300,7 @@ internal sealed class DiagnosticBattleDriver
         {
             return false;
         }
-        bool drained = recipe.FreshEntry is not null && (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) ? FocalRelease is not null : observation.Drained;
+        bool drained = recipe.FreshEntry is not null && (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) ? FocalRelease is not null && (FocalRelease.Aftercare is null || InvocationAftercare is not null) : observation.Drained;
         LastDrainBlockers = observation.DrainBlockers;
         if (observation.Callback < previousCallback)
         {

@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -157,6 +158,102 @@ public sealed class FreshEntryPairValidationTests
     {
         BattleDiagnosticInvocationRelease certificate = baseline with { Timestamp = baseline.Timestamp - 1, GraphicsCallback = 7, Owners = baseline.Owners with { AuxiliaryHead = true }, Blockers = ["effect-or-auxiliary-task"] };
         return certificate with { Boundary = BattleDiagnosticInvocationRelease.GraphicsFrameBoundary, PacketRemoved = true, GraphicsCallback = 8, RemovedCompletionPacket = certificate.CompletionPacket! with { Bytes = certificate.CompletionPacket!.Bytes.SetItem(1, 0) }, ExecutingCompletion = certificate, Timestamp = baseline.Timestamp, Owners = baseline.Owners with { DescriptorPackets = 0 }, Blockers = [] };
+    }
+
+    [Fact]
+    public void Separate_typed_aftercare_passes_full_file_pair_without_extending_the_main_execution_window()
+    {
+        using Fixture fixture = new(ActualExecutable());
+        JsonNode[] mainFrames = fixture.Reports.Select(report => report["executions"]![0]!["frames"]!.DeepClone()).ToArray();
+        JsonNode[] mainAfter = fixture.Reports.Select(report => report["executions"]![0]!["after"]!.DeepClone()).ToArray();
+        long[] mainCallbacks = fixture.Reports.Select(report => report["executions"]![0]!["end_callback"]!.GetValue<long>()).ToArray();
+        fixture.UseAftercareRelease();
+        for (int index = 0; index < fixture.Reports.Length; index++)
+        {
+            JsonObject execution = fixture.Reports[index]["executions"]![0]!.AsObject();
+            Assert.Equal(mainCallbacks[index], execution["end_callback"]!.GetValue<long>());
+            Assert.True(JsonNode.DeepEquals(mainFrames[index], execution["frames"]));
+            Assert.True(JsonNode.DeepEquals(mainAfter[index], execution["after"]));
+            using JsonDocument document = JsonDocument.Parse(fixture.Reports[index].ToJsonString());
+            LiveEvidenceVerdict verdict = LiveEvidenceValidation.ValidateFreshEntry(document.RootElement);
+            Assert.True(verdict.Verdict == "PASS", string.Join(";", verdict.Errors));
+        }
+        FreshEntryPairVerdict pair = FreshEntryPairValidation.ValidateFiles(fixture.Pins());
+        Assert.True(pair.FunctionalPass, string.Join(";", pair.Errors));
+        Assert.False(pair.CampaignAcceptance);
+    }
+
+    [Theory]
+    [InlineData("missing-receipt")]
+    [InlineData("handler-rng")]
+    [InlineData("unbound-queue")]
+    [InlineData("false-bank-writer")]
+    [InlineData("tail-before-aftercare")]
+    [InlineData("tail-anchor")]
+    [InlineData("main-window-extended")]
+    public void Full_file_aftercare_rejects_unproved_handler_cleanup_or_tail_and_main_window_changes(string fault)
+    {
+        using Fixture fixture = new(ActualExecutable());
+        fixture.UseAftercareRelease();
+        JsonObject execution = fixture.Reports[1]["executions"]![0]!.AsObject();
+        BattleDiagnosticInvocationAftercareReceipt receipt = execution["invocation_aftercare"]!.Deserialize<BattleDiagnosticInvocationAftercareReceipt>(Json)!;
+        switch (fault)
+        {
+            case "missing-receipt":
+                execution["invocation_aftercare"] = null;
+                break;
+            case "handler-rng":
+                execution["invocation_aftercare"] = JsonSerializer.SerializeToNode(receipt with { HandlerRandomAfter = receipt.HandlerRandomAfter with { Crt = new(99) } }, Json);
+                break;
+            case "unbound-queue":
+                execution["invocation_aftercare"] = JsonSerializer.SerializeToNode(receipt with { CommandBanks = receipt.CommandBanks.SetItem(2, receipt.CommandBanks[2] with { Tail = 3, Links = receipt.CommandBanks[2].Links.SetItem(3, new(255, 255, 0, null)) }) }, Json);
+                break;
+            case "false-bank-writer":
+                execution["invocation_aftercare"] = JsonSerializer.SerializeToNode(receipt with { ReleasedBankPacket = receipt.ReleasedBankPacket with { Bytes = receipt.ReleasedBankPacket.Bytes.SetItem(6, 1) } }, Json);
+                break;
+            case "tail-before-aftercare":
+                execution["post_release_tail"]!["first_timestamp"] = receipt.CompletedTimestamp;
+                break;
+            case "tail-anchor":
+                execution["aftercare_tail_preceding_frame"] = execution["end_frame"]!.DeepClone();
+                break;
+            case "main-window-extended":
+                execution["end_callback"] = receipt.CompletedCallback;
+                break;
+        }
+        Assert.False(FreshEntryPairValidation.ValidateFiles(fixture.Pins()).FunctionalPass);
+    }
+
+    private static (BattleDiagnosticInvocationRelease Main, BattleDiagnosticInvocationAftercareReceipt Aftercare) AftercareFixture(BattleDiagnosticInvocationRelease initial)
+    {
+        BattleDiagnosticEffectDispatch focal = initial.Dispatch with { NativeTargetMask = 1 };
+        BattleDiagnosticTextureTask texture = new(0, 1, 0, null, NativeBattleAuxiliaryKind.TextureAnimation5057D0, 0xF0, 32, 0x1D972C0, 11, 0, 1, 255, 0, 3, 10, 11);
+        BattleDiagnosticTextureQuiescence textures = new(16, 1, 0, 0, true, [texture]);
+        BattleDiagnosticInvocationRelease certificate = initial with { Dispatch = focal, GraphicsCallback = 7, Owners = initial.Owners with { AuxiliaryHead = true, ActionOrCommand = true }, Blockers = ["effect-or-auxiliary-task", "action-or-reaction"] };
+        BattleDiagnosticInvocationRelease main = certificate with { Boundary = BattleDiagnosticInvocationRelease.AftercareBoundary, PacketRemoved = true, GraphicsCallback = 8, RemovedCompletionPacket = certificate.CompletionPacket! with { Bytes = certificate.CompletionPacket!.Bytes.SetItem(1, 0) }, ExecutingCompletion = certificate, Owners = certificate.Owners with { DescriptorPackets = 0 } };
+        byte[] callbackBytes = new byte[12];
+        callbackBytes[1] = 255;
+        callbackBytes[4] = 2;
+        BattleDiagnosticNoOpPlayerCallback callback = new(0, 0, 0, focal.ActorId!, 0, 0, 0, 2, new(callbackBytes.ToImmutableArray(), 0), new(255, 255, 0, null), focal.NativeHeaderIndex!.Value, focal.NativeHeaderGeneration!.Value);
+        BattleDiagnosticRepairRandomState mainRandom = new(NativeBattleRandomState.ForecastPhase(2), new(7), new(8), new(9));
+        main = main with { Aftercare = new(main.LifecycleId, focal.Serial, main.Callback, main.SimulationFrame, main.Timestamp, mainRandom, callback, textures) { CommandBanks = AftercareBanks(callback) } };
+        byte[] releasedBank = callbackBytes.ToArray();
+        releasedBank[0] = 255;
+        byte[] child = new byte[12];
+        child[0] = 8;
+        child[1] = 128;
+        child[2] = 10;
+        BinaryPrimitives.WriteUInt32LittleEndian(child.AsSpan(4), 0x47DDA0);
+        BattleDiagnosticRepairRandomState before = new(NativeBattleRandomState.ForecastPhase(3), new(10), new(11), new(12));
+        BattleDiagnosticRepairRandomState after = new(before.Battle with { Indexes = before.Battle.Indexes.ToArray().ToImmutableArray() }, new(10), new(11), new(12));
+        BattleDiagnosticInvocationAftercareReceipt receipt = new(main.LifecycleId, focal.Serial, main.Callback, main.Callback + 1, main.Callback + 1, main.Callback + 1, main.Callback + 2, main.SimulationFrame + 1, main.Timestamp + 100, callback, new(releasedBank.ToImmutableArray(), 0), callback.Link with { Previous = 0, Next = 0, State = 0 }, before, after, 0, 0, 0, focal.Serial, focal.Serial, 1, new(child.ToImmutableArray()), new(child.ToImmutableArray().SetItem(1, 0)), true, true, true, main.Owners with { ActionOrCommand = false }, textures);
+        receipt = receipt with { CommandBanks = AftercareBanks(null) };
+        return (main, receipt);
+    }
+
+    private static ImmutableArray<BattleDiagnosticCommandBankClosure> AftercareBanks(BattleDiagnosticNoOpPlayerCallback? callback)
+    {
+        return Enumerable.Range(0, 3).Select(bank => new BattleDiagnosticCommandBankClosure((byte)bank, callback is not null && bank == 0 ? callback.Slot : (byte)255, Enumerable.Range(0, 11).Select(slot => callback is not null && bank == 0 && slot == callback.Slot ? callback.Link : new NativeBattleCommandLink(0, 0, 0, null)).ToImmutableArray())).ToImmutableArray();
     }
 
     [Theory]
@@ -447,6 +544,24 @@ public sealed class FreshEntryPairValidationTests
                 JsonObject execution = report["executions"]![0]!.AsObject();
                 BattleDiagnosticInvocationRelease baseline = execution["invocation_release"]!.Deserialize<BattleDiagnosticInvocationRelease>(Json)!;
                 execution["invocation_release"] = JsonSerializer.SerializeToNode(PostFrameRelease(baseline), Json);
+            }
+        }
+
+        public void UseAftercareRelease()
+        {
+            foreach (JsonObject report in Reports)
+            {
+                JsonObject execution = report["executions"]![0]!.AsObject();
+                BattleDiagnosticInvocationRelease original = execution["invocation_release"]!.Deserialize<BattleDiagnosticInvocationRelease>(Json)!;
+                var fixture = AftercareFixture(original);
+                execution["dispatches"] = new JsonArray(JsonSerializer.SerializeToNode(fixture.Main.Dispatch, Json));
+                execution["invocation_release"] = JsonSerializer.SerializeToNode(fixture.Main, Json);
+                execution["invocation_aftercare"] = JsonSerializer.SerializeToNode(fixture.Aftercare, Json);
+                long anchor = execution["end_frame"]!.GetValue<long>() + 3;
+                execution["aftercare_tail_preceding_frame"] = anchor;
+                execution["aftercare_tail_preceding_timestamp"] = fixture.Aftercare.CompletedTimestamp - 1;
+                execution["tail_presented_frames"] = 2;
+                execution["post_release_tail"] = new JsonObject { ["first_presented_frame"] = anchor + 1, ["last_presented_frame"] = anchor + 2, ["first_timestamp"] = fixture.Aftercare.CompletedTimestamp + 1, ["last_timestamp"] = fixture.Aftercare.CompletedTimestamp + 2, ["presented_frames"] = 2 };
             }
         }
 

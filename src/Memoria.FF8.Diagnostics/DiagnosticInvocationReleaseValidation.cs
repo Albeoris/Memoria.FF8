@@ -7,6 +7,20 @@ public static class DiagnosticInvocationReleaseValidation
     public static void Validate(BattleDiagnosticInvocationRelease release, BattleDiagnosticEffectDispatch focal, Guid lifecycle)
     {
         ValidateIdentity(release, focal, lifecycle);
+        if (release.Boundary == BattleDiagnosticInvocationRelease.AftercareBoundary)
+        {
+            if (!release.PacketRemoved)
+            {
+                throw new InvalidDataException("Scoped aftercare begins only after actual main packet retirement.");
+            }
+            ValidateGraphicsFrameCertificate(release, focal, lifecycle);
+            DiagnosticInvocationAftercareValidation.ValidatePlan(release, focal, lifecycle);
+            return;
+        }
+        if (release.Aftercare is not null)
+        {
+            throw new InvalidDataException("Aftercare cannot be attached to an ordinary completion mode.");
+        }
         if (!release.Blockers.IsEmpty)
         {
             throw new InvalidDataException("Focal release retains explicit native blockers.");
@@ -23,11 +37,16 @@ public static class DiagnosticInvocationReleaseValidation
         {
             throw new InvalidDataException("Completed graphics-frame release requires its removed packet and all actual native owners empty.");
         }
+        ValidateGraphicsFrameCertificate(release, focal, lifecycle);
+    }
+
+    private static void ValidateGraphicsFrameCertificate(BattleDiagnosticInvocationRelease release, BattleDiagnosticEffectDispatch focal, Guid lifecycle)
+    {
         BattleDiagnosticInvocationRelease certificate = release.ExecutingCompletion ?? throw new InvalidDataException("Completed graphics-frame release lacks its original exact executing certificate.");
         ValidateIdentity(certificate, focal, lifecycle);
         NativeBattleDescriptorPacket originalPacket = certificate.CompletionPacket!;
         NativeBattleDescriptorPacket focalPacket = release.CompletionPacket!;
-        if (certificate.Boundary != BattleDiagnosticInvocationRelease.ExecutingBoundary || certificate.PacketRemoved || certificate.RemovedCompletionPacket is not null || certificate.ExecutingCompletion is not null || certificate.Owners.DescriptorPackets != 1 || certificate.Blockers.IsEmpty || !HasOutstandingOwners(certificate.Owners, 1) || certificate.Callback != release.Callback || certificate.SimulationFrame != release.SimulationFrame || certificate.Timestamp > release.Timestamp || certificate.GraphicsCallback is not >= 0 || release.GraphicsCallback != certificate.GraphicsCallback + 1 || certificate.CompletionPacketSlot != release.CompletionPacketSlot || certificate.CompletionPacketSerial != release.CompletionPacketSerial || certificate.CompletionCallback != release.CompletionCallback || certificate.CompletionPacketArgument != release.CompletionPacketArgument || !certificate.Header.Payload.AsSpan().SequenceEqual(release.Header.Payload.AsSpan()) || certificate.Header.UnknownByteMask != release.Header.UnknownByteMask || certificate.Header.FirstContactIndex != release.Header.FirstContactIndex || certificate.Header.Data != release.Header.Data || !originalPacket.Bytes.AsSpan().SequenceEqual(focalPacket.Bytes.AsSpan()) || originalPacket.UnknownByteMask != focalPacket.UnknownByteMask || originalPacket.PriorityState == 0)
+        if (certificate.Boundary != BattleDiagnosticInvocationRelease.ExecutingBoundary || certificate.PacketRemoved || certificate.RemovedCompletionPacket is not null || certificate.ExecutingCompletion is not null || certificate.Aftercare is not null || certificate.Owners.DescriptorPackets != 1 || certificate.Blockers.IsEmpty || !HasOutstandingOwners(certificate.Owners, 1) || certificate.Callback != release.Callback || certificate.SimulationFrame != release.SimulationFrame || certificate.Timestamp > release.Timestamp || certificate.GraphicsCallback is not >= 0 || release.GraphicsCallback != certificate.GraphicsCallback + 1 || certificate.CompletionPacketSlot != release.CompletionPacketSlot || certificate.CompletionPacketSerial != release.CompletionPacketSerial || certificate.CompletionCallback != release.CompletionCallback || certificate.CompletionPacketArgument != release.CompletionPacketArgument || !certificate.Header.Payload.AsSpan().SequenceEqual(release.Header.Payload.AsSpan()) || certificate.Header.UnknownByteMask != release.Header.UnknownByteMask || certificate.Header.FirstContactIndex != release.Header.FirstContactIndex || certificate.Header.Data != release.Header.Data || !originalPacket.Bytes.AsSpan().SequenceEqual(focalPacket.Bytes.AsSpan()) || originalPacket.UnknownByteMask != focalPacket.UnknownByteMask || originalPacket.PriorityState == 0)
         {
             throw new InvalidDataException("Deferred release changed its same-callback native event/header/packet certificate or retried across graphics frames.");
         }

@@ -54,6 +54,60 @@ public sealed class DiagnosticLiveTelemetryTests
         Assert.Equal(release, final.InvocationRelease);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("SEALED_INTEGRITY_FAILURE")]
+    public void Aftercare_keeps_main_sealed_and_starts_tail_only_after_its_actual_completion(string? sealedError)
+    {
+        BattleSession battle = Battle();
+        using DiagnosticLiveTelemetry telemetry = new(battle, Guid.NewGuid(), 2);
+        long begin = System.Diagnostics.Stopwatch.GetTimestamp();
+        telemetry.Begin(begin, 10, 0, "renderer");
+        BattleDiagnosticInvocationRelease original = DiagnosticInvocationReleaseTests.Receipt() with { LifecycleId = battle.DiagnosticLifecycleId, SimulationFrame = battle.Frame };
+        var fixture = DiagnosticInvocationReleaseTests.AftercareFixture(original);
+        typeof(DiagnosticLiveTelemetry).GetMethod("ObserveDispatch", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(telemetry, [fixture.Main.Dispatch]);
+        NativeBattleTelemetry.Record(1001, NativeBattleTrafficKind.CpuCopyPayload, 17);
+        telemetry.Presented(System.Diagnostics.Stopwatch.GetTimestamp(), 11, "Drain", 1, 1, 0);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeHostCallbacks))!.SetValue(battle, 3L);
+        long mainTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+        BattleDiagnosticInvocationRelease main = fixture.Main with { Timestamp = mainTicks, Aftercare = fixture.Main.Aftercare! with { MainTimestamp = mainTicks } };
+        telemetry.SealInvocation(main);
+        DiagnosticLiveExecution sealedMain = Assert.Single(telemetry.Executions);
+        if (sealedError is not null)
+        {
+            var retained = (List<DiagnosticLiveExecution>)typeof(DiagnosticLiveTelemetry).GetField("executions", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(telemetry)!;
+            retained[0] = sealedMain with { IntegrityError = sealedError };
+        }
+        battle.QueueAttack("party", "enemy");
+        NativeBattleTelemetry.Record(1001, NativeBattleTrafficKind.CpuCopyPayload, 999);
+        telemetry.Presented(mainTicks + 1, 12, "Drain", 2, 2, 0);
+        telemetry.Presented(mainTicks + 2, 13, "Drain", 3, 2, 0);
+        Assert.Null(Assert.Single(telemetry.Executions).PostReleaseTail);
+        BattleDiagnosticInvocationAftercareReceipt aftercare = fixture.Aftercare with { CompletedTimestamp = mainTicks + 3, CompletedFrame = battle.Frame };
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeHostCallbacks))!.SetValue(battle, aftercare.CompletedCallback);
+        telemetry.ObserveInvocationAftercare(aftercare);
+        telemetry.Presented(mainTicks + 4, 14, "Tail", 4, 2, 0);
+        telemetry.Presented(mainTicks + 5, 15, "Tail", 5, 2, 0);
+        telemetry.Complete(15, true, 2, null);
+        DiagnosticLiveExecution final = Assert.Single(telemetry.Executions);
+        Assert.Equal(sealedMain.EndCallback, final.EndCallback);
+        Assert.Equal(sealedMain.EndFrame, final.EndFrame);
+        Assert.Equal(sealedMain.EffectCompletedTicks, final.EffectCompletedTicks);
+        Assert.Equal(sealedMain.EndOwners, final.EndOwners);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(sealedMain.After), System.Text.Json.JsonSerializer.Serialize(final.After));
+        Assert.Equal(17, final.Traffic.CpuCopyPayloadBytes);
+        Assert.Single(final.Frames.Intervals);
+        Assert.DoesNotContain(final.Events, value => value.Kind == "Queued");
+        Assert.Equal(13L, final.AftercareTailPrecedingFrame!.Value);
+        Assert.Equal(mainTicks + 2, final.AftercareTailPrecedingTimestamp!.Value);
+        Assert.Equal(14, final.PostReleaseTail!.FirstPresentedFrame);
+        Assert.Equal(2, final.PostReleaseTail.PresentedFrames);
+        Assert.Equal(aftercare, final.InvocationAftercare);
+        Assert.Equal(sealedError, final.IntegrityError);
+        Assert.Equal(sealedError is null, final.Completed);
+        Assert.Equal(sealedError is null, final.CleanupCompleted);
+    }
+
     [Fact]
     public void Window_observes_live_events_and_actual_payload_without_snapshot_polling()
     {

@@ -17,6 +17,12 @@ internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool C
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleDiagnosticInvocationRelease? InvocationRelease { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleDiagnosticInvocationAftercareReceipt? InvocationAftercare { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public long? AftercareTailPrecedingFrame { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public long? AftercareTailPrecedingTimestamp { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticInvocationTail? PostReleaseTail { get; init; }
     public int ReflectionDispatchCount => Dispatches.Count(dispatch => dispatch.Reflection is not null);
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -57,6 +63,8 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     private long effectStartedTicks;
     private long effectCompletedTicks;
     private long lastPresentedFrame;
+    private long lastPresentedTimestamp;
+    private BattleDiagnosticInvocationAftercareReceipt? invocationAftercare;
     private BattleDiagnosticInvocationRelease? invocationRelease;
     private DiagnosticInvocationTail? postReleaseTail;
     private int sealedExecutionIndex = -1;
@@ -146,6 +154,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
             throw new InvalidOperationException("A live telemetry window cannot overlap or replace an execution.");
         }
         lastPresentedFrame = frame;
+        lastPresentedTimestamp = timestamp;
         rendererOwner = rendererId;
         before = battle.ObserveDiagnosticCombatants();
         SlotsStart = slotsSource is null ? null : DiagnosticSlotsObservations.Observe(battle, slotsSource.BattleInstanceId, slotsSource.ActorId, slotsSource);
@@ -197,7 +206,9 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     internal void Presented(long timestamp, long frame, string phase, long rendererVersion, int drawCalls, int textureUploads)
     {
         lastPresentedFrame = frame;
-        if (invocationRelease is not null && !sealedTailFinalized && timestamp > invocationRelease.Timestamp)
+        lastPresentedTimestamp = timestamp;
+        long? tailBoundary = invocationRelease?.Aftercare is null ? invocationRelease?.Timestamp : invocationAftercare?.CompletedTimestamp;
+        if (invocationRelease is not null && tailBoundary is long completedBoundary && !sealedTailFinalized && timestamp > completedBoundary)
         {
             if (postReleaseTail is null)
             {
@@ -241,6 +252,18 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         sealedExecutionIndex = executions.Count - 1;
     }
 
+    internal void ObserveInvocationAftercare(BattleDiagnosticInvocationAftercareReceipt receipt)
+    {
+        if (Active || invocationRelease?.Aftercare is null || invocationAftercare is not null || sealedExecutionIndex < 0 || sealedTailFinalized || receipt.LifecycleId != battle.DiagnosticLifecycleId || receipt.CompletedCallback != battle.NativeHostCallbacks || receipt.CompletedFrame != battle.Frame || lastPresentedTimestamp > receipt.CompletedTimestamp)
+        {
+            throw new InvalidDataException("Aftercare telemetry is outside the actual synchronous sealed completion boundary.");
+        }
+        DiagnosticInvocationAftercareValidation.Validate(invocationRelease, receipt);
+        invocationAftercare = receipt;
+        DiagnosticLiveExecution sealedExecution = executions[sealedExecutionIndex];
+        executions[sealedExecutionIndex] = sealedExecution with { InvocationAftercare = receipt, AftercareTailPrecedingFrame = lastPresentedFrame, AftercareTailPrecedingTimestamp = lastPresentedTimestamp };
+    }
+
     internal void Complete(long frame, bool completed, int tailFrames, string? error)
     {
         if (start is null)
@@ -249,7 +272,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
             {
                 DiagnosticLiveExecution sealedExecution = executions[sealedExecutionIndex];
                 string? integrityError = sealedExecution.IntegrityError ?? error;
-                bool actualTail = completed && integrityError is null && postReleaseTail is { PresentedFrames: >= 2 } && postReleaseTail.PresentedFrames >= tailFrames;
+                bool actualTail = completed && integrityError is null && (invocationRelease?.Aftercare is null || invocationAftercare is not null) && postReleaseTail is { PresentedFrames: >= 2 } && postReleaseTail.PresentedFrames >= tailFrames;
                 executions[sealedExecutionIndex] = sealedExecution with { Completed = actualTail, CleanupCompleted = actualTail, TailPresentedFrames = postReleaseTail?.PresentedFrames ?? 0, PostReleaseTail = postReleaseTail, IntegrityError = integrityError ?? (actualTail ? null : "POST_RELEASE_PRESENTATION_TAIL_INCOMPLETE") };
                 sealedTailFinalized = true;
             }

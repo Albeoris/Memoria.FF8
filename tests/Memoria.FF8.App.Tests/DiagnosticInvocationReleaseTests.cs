@@ -276,4 +276,187 @@ public sealed class DiagnosticInvocationReleaseTests
         Assert.Equal(DiagnosticDriverStage.Completed, driver.Stage);
         Assert.Single(driver.Dispatches);
     }
+    internal static (BattleDiagnosticInvocationRelease Main, BattleDiagnosticInvocationAftercareReceipt Aftercare) AftercareFixture(BattleDiagnosticInvocationRelease? original = null)
+    {
+        BattleDiagnosticInvocationRelease initial = original ?? Receipt();
+        BattleDiagnosticEffectDispatch focal = initial.Dispatch with { NativeTargetMask = 1 };
+        BattleDiagnosticTextureTask texture = new(0, 1, 0, null, NativeBattleAuxiliaryKind.TextureAnimation5057D0, 0xF0, 32, 0x1D972C0, 11, 0, 1, 255, 0, 3, 10, 11);
+        BattleDiagnosticTextureQuiescence textures = new(16, 1, 0, 0, true, [texture]);
+        BattleDiagnosticInvocationRelease certificate = initial with { Dispatch = focal, GraphicsCallback = 7, Owners = initial.Owners with { AuxiliaryHead = true, ActionOrCommand = true }, Blockers = ["effect-or-auxiliary-task", "action-or-reaction"] };
+        BattleDiagnosticInvocationRelease main = certificate with { Boundary = BattleDiagnosticInvocationRelease.AftercareBoundary, PacketRemoved = true, GraphicsCallback = 8, RemovedCompletionPacket = certificate.CompletionPacket! with { Bytes = certificate.CompletionPacket!.Bytes.SetItem(1, 0) }, ExecutingCompletion = certificate, Owners = certificate.Owners with { DescriptorPackets = 0 } };
+        byte[] callbackBytes = new byte[12];
+        callbackBytes[1] = 255;
+        callbackBytes[4] = 2;
+        BattleDiagnosticNoOpPlayerCallback callback = new(0, 0, 0, focal.ActorId!, 0, 0, 0, 2, new(callbackBytes.ToImmutableArray(), 0), new(255, 255, 0, null), focal.NativeHeaderIndex!.Value, focal.NativeHeaderGeneration!.Value);
+        BattleDiagnosticRepairRandomState mainRandom = new(NativeBattleRandomState.ForecastPhase(2), new(7), new(8), new(9));
+        main = main with { Aftercare = new(main.LifecycleId, focal.Serial, main.Callback, main.SimulationFrame, main.Timestamp, mainRandom, callback, textures) { CommandBanks = AftercareBanks(callback) } };
+        byte[] releasedBank = callbackBytes.ToArray();
+        releasedBank[0] = 255;
+        byte[] child = new byte[12];
+        child[0] = 8;
+        child[1] = 128;
+        child[2] = 10;
+        BinaryPrimitives.WriteUInt32LittleEndian(child.AsSpan(4), 0x47DDA0);
+        BattleDiagnosticRepairRandomState before = new(NativeBattleRandomState.ForecastPhase(3), new(10), new(11), new(12));
+        BattleDiagnosticRepairRandomState after = new(before.Battle with { Indexes = before.Battle.Indexes.ToArray().ToImmutableArray() }, new(10), new(11), new(12));
+        BattleDiagnosticInvocationAftercareReceipt receipt = new(main.LifecycleId, focal.Serial, main.Callback, main.Callback + 1, main.Callback + 1, main.Callback + 1, main.Callback + 2, main.SimulationFrame + 1, main.Timestamp + 100, callback, new(releasedBank.ToImmutableArray(), 0), callback.Link with { Previous = 0, Next = 0, State = 0 }, before, after, 0, 0, 0, focal.Serial, focal.Serial, 1, new(child.ToImmutableArray()), new(child.ToImmutableArray().SetItem(1, 0)), true, true, true, main.Owners with { ActionOrCommand = false }, textures);
+        receipt = receipt with { CommandBanks = AftercareBanks(null) };
+        return (main, receipt);
+    }
+
+    internal static ImmutableArray<BattleDiagnosticCommandBankClosure> AftercareBanks(BattleDiagnosticNoOpPlayerCallback? callback)
+    {
+        return Enumerable.Range(0, 3).Select(bank => new BattleDiagnosticCommandBankClosure((byte)bank, callback is not null && bank == 0 ? callback.Slot : (byte)255, Enumerable.Range(0, 11).Select(slot => callback is not null && bank == 0 && slot == callback.Slot ? callback.Link : new NativeBattleCommandLink(0, 0, 0, null)).ToImmutableArray())).ToImmutableArray();
+    }
+
+    [Fact]
+    public void Scoped_aftercare_keeps_main_factual_random_and_requires_separate_real_handler_bank_and_child_completion()
+    {
+        var fixture = AftercareFixture();
+        DiagnosticInvocationReleaseValidation.Validate(fixture.Main, fixture.Main.Dispatch, fixture.Main.LifecycleId);
+        DiagnosticInvocationAftercareValidation.Validate(fixture.Main, fixture.Aftercare);
+        Assert.True(fixture.Main.Owners.ActionOrCommand);
+        Assert.True(fixture.Main.Owners.AuxiliaryHead);
+        Assert.False(fixture.Aftercare.CleanupOwners.ActionOrCommand);
+        Assert.True(fixture.Aftercare.CleanupOwners.AuxiliaryHead);
+        Assert.NotEqual(fixture.Main.Aftercare!.MainRandom.Battle.Indexes[0], fixture.Aftercare.HandlerRandomBefore.Battle.Indexes[0]);
+        Assert.Equal<byte>(fixture.Aftercare.HandlerRandomBefore.Battle.Indexes, fixture.Aftercare.HandlerRandomAfter.Battle.Indexes);
+    }
+
+    [Theory]
+    [InlineData("lifecycle")]
+    [InlineData("serial")]
+    [InlineData("main-callback")]
+    [InlineData("handler-before-selection")]
+    [InlineData("bank-before-handler")]
+    [InlineData("completion-before-bank")]
+    [InlineData("native-event")]
+    [InlineData("bank-release")]
+    [InlineData("child-retirement")]
+    [InlineData("produced-action")]
+    [InlineData("produced-header")]
+    [InlineData("produced-contact")]
+    [InlineData("later-dispatch")]
+    [InlineData("rng-index")]
+    [InlineData("rng-lane")]
+    [InlineData("rng-crt")]
+    [InlineData("rng-ui")]
+    [InlineData("rng-global")]
+    [InlineData("bank-packet")]
+    [InlineData("bank-link")]
+    [InlineData("child-callback")]
+    [InlineData("child-reused")]
+    [InlineData("live-action")]
+    [InlineData("unknown-files")]
+    [InlineData("textures-missing")]
+    [InlineData("banks-missing")]
+    [InlineData("unbound-queued-row")]
+    [InlineData("texture-replacement")]
+    public void Scoped_aftercare_rejects_changed_callback_random_native_writer_output_or_cleanup(string fault)
+    {
+        var fixture = AftercareFixture();
+        BattleDiagnosticInvocationAftercareReceipt baseline = fixture.Aftercare;
+        BattleDiagnosticInvocationAftercareReceipt invalid = fault switch
+        {
+            "lifecycle" => baseline with { LifecycleId = Guid.NewGuid() },
+            "serial" => baseline with { FocalSerial = baseline.FocalSerial + 1 },
+            "main-callback" => baseline with { MainCallback = baseline.MainCallback + 1 },
+            "handler-before-selection" => baseline with { HandlerCompletedCallback = baseline.DispatchCallback - 1 },
+            "bank-before-handler" => baseline with { BankReleasedCallback = baseline.HandlerCompletedCallback - 1 },
+            "completion-before-bank" => baseline with { CompletedCallback = baseline.BankReleasedCallback - 1 },
+            "native-event" => baseline with { NativeEventCompleted = false },
+            "bank-release" => baseline with { BankReleased = false },
+            "child-retirement" => baseline with { PacketRemoved = false },
+            "produced-action" => baseline with { ProducedActions = 1 },
+            "produced-header" => baseline with { ProducedHeaders = 1 },
+            "produced-contact" => baseline with { ProducedContacts = 1 },
+            "later-dispatch" => baseline with { DispatchSerialAfter = baseline.DispatchSerialBefore + 1 },
+            "rng-index" => baseline with { HandlerRandomAfter = baseline.HandlerRandomAfter with { Battle = baseline.HandlerRandomAfter.Battle with { Indexes = baseline.HandlerRandomAfter.Battle.Indexes.SetItem(0, 99) } } },
+            "rng-lane" => baseline with { HandlerRandomAfter = baseline.HandlerRandomAfter with { Battle = baseline.HandlerRandomAfter.Battle with { Lane = 1 } } },
+            "rng-crt" => baseline with { HandlerRandomAfter = baseline.HandlerRandomAfter with { Crt = new(99) } },
+            "rng-ui" => baseline with { HandlerRandomAfter = baseline.HandlerRandomAfter with { Ui = null } },
+            "rng-global" => baseline with { HandlerRandomAfter = baseline.HandlerRandomAfter with { Global = new(99) } },
+            "bank-packet" => baseline with { ReleasedBankPacket = baseline.ReleasedBankPacket with { Bytes = baseline.ReleasedBankPacket.Bytes.SetItem(6, 1) } },
+            "bank-link" => baseline with { ReleasedBankLink = baseline.ReleasedBankLink with { State = 1 } },
+            "child-callback" => baseline with { CompletionPacket = baseline.CompletionPacket with { Bytes = baseline.CompletionPacket.Bytes.SetItem(4, 0) } },
+            "child-reused" => baseline with { RemovedCompletionPacket = baseline.RemovedCompletionPacket with { Bytes = baseline.RemovedCompletionPacket.Bytes.SetItem(0, 9) } },
+            "live-action" => baseline with { CleanupOwners = baseline.CleanupOwners with { ActionOrCommand = true } },
+            "unknown-files" => baseline with { CleanupOwners = baseline.CleanupOwners with { Files = null } },
+            "textures-missing" => baseline with { CleanupTextures = null },
+            "banks-missing" => baseline with { CommandBanks = [] },
+            "unbound-queued-row" => baseline with { CommandBanks = baseline.CommandBanks.SetItem(2, baseline.CommandBanks[2] with { Tail = 3, Links = baseline.CommandBanks[2].Links.SetItem(3, new(255, 255, 0, null)) }) },
+            "texture-replacement" => baseline with { CleanupTextures = baseline.CleanupTextures! with { Tasks = baseline.CleanupTextures!.Tasks.SetItem(0, baseline.CleanupTextures!.Tasks[0] with { ProgramLength = 2, ProgramOffset = 1 }) } },
+            _ => throw new ArgumentOutOfRangeException(nameof(fault))
+        };
+        Assert.Throws<InvalidDataException>(() => DiagnosticInvocationAftercareValidation.Validate(fixture.Main, invalid));
+    }
+
+    [Fact]
+    public void Fresh_driver_waits_for_actual_aftercare_even_if_global_drain_looks_empty_then_counts_real_tail()
+    {
+        var fixture = AftercareFixture();
+        var recipe = new DiagnosticBattleDriverRecipe(new(BattleInputKind.Action, ActorId: "party-0", TargetId: "party-0", Ability: BattleAbility.Magic, ActionId: 1), 2) { BaselineSeconds = 0, FreshEntry = new(DiagnosticFreshEntryDeclaration.SingleUse, [new("container.bin", new string('a', 64))]) };
+        DiagnosticBattleDriver driver = new(recipe, 0);
+        DiagnosticDriverObservation Observation(double seconds, long frame, bool drained) => new(seconds, frame, frame, true, drained, false, drained ? [] : ["action-or-command"]);
+        driver.Advance(Observation(0, 0, true));
+        Assert.True(driver.Advance(Observation(.1, 1, true)));
+        driver.ObserveDispatch(fixture.Main.Dispatch);
+        driver.ObserveInvocationRelease(fixture.Main);
+        driver.Advance(Observation(.2, 3, true));
+        Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
+        Assert.Null(driver.InvocationAftercare);
+        driver.ObserveInvocationAftercare(fixture.Aftercare);
+        driver.Advance(Observation(.3, 5, false));
+        Assert.Equal(DiagnosticDriverStage.Tail, driver.Stage);
+        driver.Advance(Observation(.4, 6, false));
+        driver.Advance(Observation(.5, 7, false));
+        Assert.Equal(DiagnosticDriverStage.Completed, driver.Stage);
+        Assert.Equal(fixture.Main, driver.FocalRelease);
+        Assert.Equal(fixture.Aftercare, driver.InvocationAftercare);
+    }
+
+    [Theory]
+    [InlineData("model")]
+    [InlineData("passives")]
+    [InlineData("bank")]
+    [InlineData("stage")]
+    [InlineData("packet")]
+    [InlineData("source-generation")]
+    [InlineData("extra-blocker")]
+    [InlineData("texture")]
+    [InlineData("main-time")]
+    [InlineData("main-unbound-queue")]
+    public void Main_aftercare_plan_requires_exact_causal_noop_and_complete_terminal_texture_proof(string fault)
+    {
+        var fixture = AftercareFixture();
+        BattleDiagnosticInvocationRelease baseline = fixture.Main;
+        BattleDiagnosticInvocationAftercarePlan plan = baseline.Aftercare!;
+        BattleDiagnosticInvocationRelease invalid = fault switch
+        {
+            "model" => baseline with { Aftercare = plan with { Callback = plan.Callback with { ModelId = 4 } } },
+            "passives" => baseline with { Aftercare = plan with { Callback = plan.Callback with { PassiveFlags = 4 } } },
+            "bank" => baseline with { Aftercare = plan with { Callback = plan.Callback with { Bank = 1 } } },
+            "stage" => baseline with { Aftercare = plan with { Callback = plan.Callback with { Stage = 1 } } },
+            "packet" => baseline with { Aftercare = plan with { Callback = plan.Callback with { Packet = plan.Callback.Packet with { Bytes = plan.Callback.Packet.Bytes.SetItem(1, 1) } } } },
+            "source-generation" => baseline with { Aftercare = plan with { Callback = plan.Callback with { SourceHeaderGeneration = 2 } } },
+            "extra-blocker" => baseline with { Blockers = baseline.Blockers.Add("pending-contact") },
+            "texture" => baseline with { Aftercare = plan with { TerminalTextures = plan.TerminalTextures! with { Tasks = plan.TerminalTextures!.Tasks.SetItem(0, plan.TerminalTextures!.Tasks[0] with { Deadline = 254 }) } } },
+            "main-time" => baseline with { Aftercare = plan with { MainTimestamp = plan.MainTimestamp + 1 } },
+            "main-unbound-queue" => baseline with { Aftercare = plan with { CommandBanks = plan.CommandBanks.SetItem(1, plan.CommandBanks[1] with { Tail = 2, Links = plan.CommandBanks[1].Links.SetItem(2, new(255, 255, 0, null)) }) } },
+            _ => throw new ArgumentOutOfRangeException(nameof(fault))
+        };
+        Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(invalid, baseline.Dispatch, baseline.LifecycleId));
+    }
+
+    [Fact]
+    public void Terminal_texture_continuity_keeps_live_task_sources_while_allowing_current_valid_model_flags_or_actual_retirement()
+    {
+        var fixture = AftercareFixture();
+        BattleDiagnosticTextureQuiescence textures = fixture.Aftercare.CleanupTextures!;
+        BattleDiagnosticInvocationAftercareReceipt changedModel = fixture.Aftercare with { CleanupTextures = textures with { Tasks = textures.Tasks.SetItem(0, textures.Tasks[0] with { ModelFlags0 = 7, ResourceFlags44 = 8 }) } };
+        DiagnosticInvocationAftercareValidation.Validate(fixture.Main, changedModel);
+        BattleDiagnosticInvocationAftercareReceipt retired = fixture.Aftercare with { CleanupTextures = null, CleanupOwners = fixture.Aftercare.CleanupOwners with { AuxiliaryHead = false } };
+        DiagnosticInvocationAftercareValidation.Validate(fixture.Main, retired);
+    }
+
 }

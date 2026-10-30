@@ -210,7 +210,7 @@ public static class LiveEvidenceValidation
                 {
                     invocationRelease = ValidateFreshInvocationRelease(report, execution, typedDispatches, startCallback, endCallback, endFrame);
                 }
-                else if (execution.TryGetProperty("invocation_release", out JsonElement unexpectedRelease) && unexpectedRelease.ValueKind != JsonValueKind.Null)
+                else if (execution.TryGetProperty("invocation_release", out JsonElement unexpectedRelease) && unexpectedRelease.ValueKind != JsonValueKind.Null || HasAftercareValue(execution, "invocation_aftercare") || HasAftercareValue(execution, "aftercare_tail_preceding_frame") || HasAftercareValue(execution, "aftercare_tail_preceding_timestamp"))
                 {
                     throw new InvalidDataException("Ordinary two-use evidence cannot substitute a focal release for global drain.");
                 }
@@ -470,12 +470,38 @@ public static class LiveEvidenceValidation
         return invocations;
     }
 
+    private static bool HasAftercareValue(JsonElement execution, string name) => execution.TryGetProperty(name, out JsonElement value) && value.ValueKind != JsonValueKind.Null;
+
     private static BattleDiagnosticInvocationRelease ValidateFreshInvocationRelease(JsonElement report, JsonElement execution, BattleDiagnosticEffectDispatch[] dispatches, long startCallback, long endCallback, long endFrame)
     {
         BattleDiagnosticInvocationRelease release = execution.GetProperty("invocation_release").Deserialize<BattleDiagnosticInvocationRelease>(Json) ?? throw new InvalidDataException("Fresh entry requires its actual native invocation release.");
         BattleDiagnosticEffectDispatch focal = dispatches.Single(value => value.Serial == release.Dispatch.Serial);
         TelemetryOwnerState end = execution.GetProperty("end_owners").Deserialize<TelemetryOwnerState>(Json) ?? throw new InvalidDataException("Fresh release has no retained end owner.");
         DiagnosticInvocationReleaseValidation.Validate(release, focal, Guid.Parse(end.RetainedMemoryOwnerId));
+        long tailPrecedingFrame = endFrame;
+        long tailBoundaryTicks = release.Timestamp;
+        if (release.Aftercare is not null)
+        {
+            BattleDiagnosticInvocationAftercareReceipt aftercare = execution.GetProperty("invocation_aftercare").Deserialize<BattleDiagnosticInvocationAftercareReceipt>(Json) ?? throw new InvalidDataException("Scoped aftercare has no separate actual completion receipt.");
+            DiagnosticInvocationAftercareValidation.Validate(release, aftercare);
+            tailPrecedingFrame = Number(execution, "aftercare_tail_preceding_frame");
+            long precedingTicks = Number(execution, "aftercare_tail_preceding_timestamp");
+            JsonElement intervals = execution.GetProperty("frames").GetProperty("intervals");
+            if (intervals.ValueKind != JsonValueKind.Array || intervals.GetArrayLength() == 0)
+            {
+                throw new InvalidDataException("Aftercare cannot fabricate a missing main presentation interval.");
+            }
+            long lastMainPresentation = Number(intervals[intervals.GetArrayLength() - 1].GetProperty("end"), "timestamp_ticks");
+            if (tailPrecedingFrame < endFrame || precedingTicks < lastMainPresentation || precedingTicks > aftercare.CompletedTimestamp || (tailPrecedingFrame == endFrame ? precedingTicks != lastMainPresentation : precedingTicks <= lastMainPresentation))
+            {
+                throw new InvalidDataException("Aftercare tail anchor is not the actual retained presentation boundary.");
+            }
+            tailBoundaryTicks = aftercare.CompletedTimestamp;
+        }
+        else if (HasAftercareValue(execution, "invocation_aftercare") || HasAftercareValue(execution, "aftercare_tail_preceding_frame") || HasAftercareValue(execution, "aftercare_tail_preceding_timestamp"))
+        {
+            throw new InvalidDataException("Ordinary release cannot attach an undeclared aftercare or new tail anchor.");
+        }
         JsonElement tail = execution.GetProperty("post_release_tail");
         long first = Number(tail, "first_presented_frame");
         long last = Number(tail, "last_presented_frame");
@@ -483,7 +509,7 @@ public static class LiveEvidenceValidation
         long lastTicks = Number(tail, "last_timestamp");
         long count = Number(tail, "presented_frames");
         long requiredTail = Number(report.GetProperty("initialization").GetProperty("preparation").GetProperty("driver"), "tail_frames");
-        if (release.Callback != endCallback || release.Callback <= startCallback || release.Timestamp != Number(execution, "effect_completed_ticks") || first != endFrame + 1 || requiredTail < 2 || count < requiredTail || last - first + 1 != count || Number(execution, "tail_presented_frames") != count || firstTicks <= release.Timestamp || lastTicks <= firstTicks)
+        if (release.Callback != endCallback || release.Callback <= startCallback || release.Timestamp != Number(execution, "effect_completed_ticks") || first != tailPrecedingFrame + 1 || requiredTail < 2 || count < requiredTail || last - first + 1 != count || Number(execution, "tail_presented_frames") != count || firstTicks <= tailBoundaryTicks || lastTicks <= firstTicks)
         {
             throw new InvalidDataException("Fresh release and separate actual presentation tail do not match their focal execution boundary.");
         }

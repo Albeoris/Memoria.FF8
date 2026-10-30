@@ -51,6 +51,7 @@ internal sealed partial class RecreateGame
         if (recipe.FreshEntry is not null)
         {
             diagnosticDriverBattle.DiagnosticInvocationReleased += ObserveDiagnosticInvocationRelease;
+            diagnosticDriverBattle.DiagnosticInvocationAftercareCompleted += ObserveDiagnosticInvocationAftercare;
             diagnosticDriverBattle.ConfigureDiagnosticInvocationCompletion(recipe.ExpectedEffect, recipe.Input.ActorId!, recipe.ExpectedNativeCommand, recipe.ExpectedNativeAction ?? recipe.Input.ActionId);
         }
         PublishDiagnosticDriverProgress();
@@ -65,6 +66,16 @@ internal sealed partial class RecreateGame
         }
         driver.ObserveInvocationRelease(release);
         diagnosticTelemetry!.SealInvocation(release);
+    }
+
+    private void ObserveDiagnosticInvocationAftercare(BattleDiagnosticInvocationAftercareReceipt receipt)
+    {
+        if (receipt.LifecycleId != diagnosticDriverBattle!.DiagnosticLifecycleId)
+        {
+            throw new InvalidDataException("Aftercare changed the actual sealed battle lifecycle.");
+        }
+        diagnosticDriver!.ObserveInvocationAftercare(receipt);
+        diagnosticTelemetry!.ObserveInvocationAftercare(receipt);
     }
 
     private void AdvanceDiagnosticDriver(TimeSpan now)
@@ -250,6 +261,7 @@ internal sealed partial class RecreateGame
         diagnosticTelemetry.Dispose();
         diagnosticDriverBattle!.DiagnosticEffectDispatched -= ObserveDiagnosticDriverDispatch;
         diagnosticDriverBattle.DiagnosticInvocationReleased -= ObserveDiagnosticInvocationRelease;
+        diagnosticDriverBattle.DiagnosticInvocationAftercareCompleted -= ObserveDiagnosticInvocationAftercare;
         UnsubscribeDiagnosticCounter(diagnosticDriverBattle);
         if (world?.IsDiagnosticBattle == true)
         {
