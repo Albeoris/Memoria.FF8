@@ -7895,7 +7895,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.True(oilOrdinaryNodes > 0);
                 Assert.True(oilDefaultNodes > 0);
                 Assert.Equal(2, oilPacketBanks.Count);
-                Assert.Equal(JsonSerializer.Serialize(source.Combatants.Single(actor => actor.Id == target).NativeStatus), JsonSerializer.Serialize(completed.Combatants.Single(actor => actor.Id == target).NativeStatus));
+                NativeBattleStatusSnapshot oilSourceStatus = source.Combatants.Single(actor => actor.Id == target).NativeStatus!;
+                NativeBattleContactHalf oilContact = source.NativeActionPackets!.ReadContact(0).Primary;
+                NativeBattleStatusMirror oilPresented = new(oilContact.SavedStatuses4, oilContact.BattleStatuses8);
+                Assert.Equal(JsonSerializer.Serialize(oilSourceStatus with { Presentation = oilPresented }), JsonSerializer.Serialize(completed.Combatants.Single(actor => actor.Id == target).NativeStatus));
+                Assert.Equal(oilPresented, completed.NativePresentationStatusMemory!.Rows[oilContact.ActorIndex]);
                 File.WriteAllText(Path.Combine(output!, "oil-blast-native-observations.json"), JsonSerializer.Serialize(new { OrdinaryStaticNodes = oilOrdinaryNodes, DefaultActNodes = oilDefaultNodes, PrivateBankStarts = oilPacketBanks.Order().ToArray(), CustomTextureWindow = oilCustomRestored }));
             }
             if (effectId == 158)
