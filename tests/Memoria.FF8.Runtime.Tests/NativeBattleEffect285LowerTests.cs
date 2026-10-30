@@ -89,6 +89,57 @@ public sealed class NativeBattleEffect285LowerTests
         Assert.Equal(0x2507D60u, Assert.IsType<NativeBattleEffect285DrawBatch>(Assert.Single(fixture.Operations)).CursorGlobal);
     }
 
+    [Fact]
+    public void Presentation_sprite_preserves_native_phase_W_registers_row_and_packet_ledger()
+    {
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108);
+        Fixture nativeFixture = new();
+        SetPositiveSprite(nativeFixture);
+        nativeFixture.Task(task => task.WriteWord(16, 4000).WriteWord(18, 2));
+        NativeBattleEffect285Step native = NativeBattleEffect285Sprite.Advance(nativeFixture.Frame, Fixture.Address, nativeFixture.Resources, nativeFixture.Inputs() with { ReadProjection = _ => projection });
+        string nativeFrame = NativeBattleTestSnapshots.Json(native.Frame);
+        string nativeOperations = NativeBattleTestSnapshots.Json(nativeFixture.Operations);
+        Fixture capturedFixture = new();
+        SetPositiveSprite(capturedFixture);
+        capturedFixture.Task(task => task.WriteWord(16, 4000).WriteWord(18, 2));
+        NativeBattleEffect285Step captured = NativeBattleEffect285Sprite.Advance(capturedFixture.Frame, Fixture.Address, capturedFixture.Resources, capturedFixture.Inputs() with { ReadProjection = _ => projection, CapturePresentation = true });
+        Assert.Equal(nativeFrame, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(nativeOperations, NativeBattleTestSnapshots.Json(capturedFixture.Operations));
+        NativeBattleGfGeometryBatch batch = Assert.IsType<NativeBattleEffect285DrawBatch>(Assert.Single(capturedFixture.Operations)).Batch;
+        NativeBattleGfGeometryBatch nativeBatch = Assert.IsType<NativeBattleEffect285DrawBatch>(Assert.Single(nativeFixture.Operations)).Batch;
+        NativeBattleGeometryPrimitive nativePrimitive = Assert.Single(nativeBatch.Attempts, attempt => attempt.Primitive is not null).Primitive!;
+        Assert.Null(nativePrimitive.PilotGeometry);
+        Assert.Equal(new[] { 3488, 3488, 3488, 3488 }, nativePrimitive.VertexPayload4);
+        Assert.Equal(40, nativeBatch.AllocationBytes);
+        Assert.Equal((ushort)3, Read(captured.Frame, Fixture.Address).ReadWord(18));
+        NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(captured.Frame.Staging!, NativeBattleTemporaryMemory.Address, 180);
+        Assert.Equal((short)2, Word285(temporary, 4));
+        Assert.Equal(1u, Dword285(temporary, 0x30));
+        Assert.Equal(0u, Dword285(temporary, 0x40) & 0x60000);
+        NativeBattlePilotVisualGeometry geometry = Assert.Single(batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!.PilotGeometry!;
+        Assert.Equal(new System.Numerics.Vector3(0, 0, 3488), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(16, 0, 3488), geometry.B);
+        Assert.Equal(new System.Numerics.Vector3(0, 16, 3488), geometry.C);
+        Assert.Equal(new System.Numerics.Vector3(16, 16, 3488), geometry.D);
+        Assert.Equal((ushort)285, geometry.Identity.Effect);
+        Assert.True(geometry.Identity.Generation > 0);
+        Assert.Equal(0x1084AF8, geometry.Identity.ResourceGeneration);
+        Assert.Equal(nativeFrame, NativeBattleTestSnapshots.Json(captured.Frame));
+
+        static void SetPositiveSprite(Fixture fixture)
+        {
+            NativeBattleModuleResource original = fixture.Resources.Sprites[0x1084AF8];
+            byte[] bytes = new byte[50];
+            original.Bytes.AsSpan().CopyTo(bytes);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(26), 1);
+            bytes[30] = bytes[32] = 2;
+            bytes[31] = 128;
+            bytes[33] = 0x2C;
+            var sprite = original with { Bytes = bytes.ToImmutableArray() };
+            fixture.Resources = fixture.Resources with { Sprites = fixture.Resources.Sprites.SetItem(sprite.Address, sprite) };
+        }
+    }
+
     internal static NativeBattleEffectArena Point(short x, short y, short z) => PutWord285(PutWord285(PutWord285(NativeBattleEffectArena.Clear(), 0, x), 2, y), 4, z);
 
     internal sealed class Fixture

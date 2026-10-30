@@ -8,7 +8,7 @@ public static partial class NativeBattleMicroMissiles299Controller
 {
     private static (NativeBattleMicroMissiles299Frame Frame, int Result) Particle(NativeBattleMicroMissiles299Frame frame, uint address, NativeBattleMicroMissiles299Inputs inputs)
     {
-        frame = inputs.Execute(frame, new NativeBattleMicroMissiles299DrawParticle(address));
+        frame = inputs.Execute(frame, new NativeBattleMicroMissiles299DrawParticle(address) { PilotIdentity = inputs.EmitNodePresentation is null ? null : NativeBattlePilotVisualLifetimes.Identity(299, Read(frame, address), 3) });
         NativeBattleModulePoolTask task = Read(frame, address);
         for (int axis = 0; axis < 3; axis++)
         {
@@ -35,7 +35,7 @@ public static partial class NativeBattleMicroMissiles299Controller
             frame = LoadMatrix(frame, sprite, null);
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(RequireStaging(frame), 180);
             frame = frame with { Staging = allocation.Staging };
-            frame = EmitSprite(frame, allocation.Address, resources.ImpactSprite.Address, unchecked((ushort)age), inputs);
+            frame = EmitSprite(frame, allocation.Address, resources.ImpactSprite.Address, unchecked((ushort)age), inputs, address);
             frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 180) };
         }
         else if (remaining == 0)
@@ -70,7 +70,7 @@ public static partial class NativeBattleMicroMissiles299Controller
             (x, y, z) = NativeBattleGfMatrices.RotateLong56C600(camera, x, y, z);
             NativeBattleActionMatrix sprite = NativeBattleCuragaMatrices.Identity8DD770() with { X = unchecked(x + camera.X), Y = unchecked(y + camera.Y), Z = unchecked(z + camera.Z) };
             frame = LoadMatrix(frame, sprite, null);
-            frame = EmitSprite(frame, allocation.Address, resources.TrailSprite.Address, (ushort)phase, inputs);
+            frame = EmitSprite(frame, allocation.Address, resources.TrailSprite.Address, (ushort)phase, inputs, address, phase);
         }
         frame = frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 180) };
         task = Read(frame, address);
@@ -177,18 +177,26 @@ public static partial class NativeBattleMicroMissiles299Controller
         NativeBattleGfAnimationAdvance advance = workspace.Advance701970(source, 0, (current, node) =>
         {
             frame = Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), offset, current));
-            frame = inputs.EmitNode(frame, source, context, node);
+            if (inputs.EmitNodePresentation is { } emitPresentation)
+            {
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(299, Read(frame, address), node.ResourceOffset) with { ResourceGeneration = unchecked((((long)source.Address << 32) | (uint)offset) * 397 ^ (ushort)node.GeometryIndex) };
+                frame = emitPresentation(frame, source, context, node, identity);
+            }
+            else
+            {
+                frame = inputs.EmitNode(frame, source, context, node);
+            }
             return NativeBattleGfAnimationWorkspace.Borrow(Read(frame, address), offset, size);
         });
         return (Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), offset, advance.Workspace)), advance.Remaining);
     }
-    private static NativeBattleMicroMissiles299Frame EmitSprite(NativeBattleMicroMissiles299Frame frame, uint address, uint resource, ushort phase, NativeBattleMicroMissiles299Inputs inputs)
+    private static NativeBattleMicroMissiles299Frame EmitSprite(NativeBattleMicroMissiles299Frame frame, uint address, uint resource, ushort phase, NativeBattleMicroMissiles299Inputs inputs, uint ownerAddress, int copy = 0)
     {
         NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(RequireStaging(frame), address, resource, 0);
         byte[] word = new byte[2];
         BinaryPrimitives.WriteUInt16LittleEndian(word, phase);
         frame = frame with { Staging = staging.Write(address + 4, word) };
-        return inputs.Execute(frame, new NativeBattleMicroMissiles299DrawSprite(address, resource, phase));
+        return inputs.Execute(frame, new NativeBattleMicroMissiles299DrawSprite(address, resource, phase) { PilotIdentity = inputs.EmitNodePresentation is null ? null : NativeBattlePilotVisualLifetimes.Identity(299, Read(frame, ownerAddress), unchecked(2 * 397 + copy)) with { ResourceGeneration = resource } });
     }
     private static NativeBattleEffectArena Context(NativeBattleMicroMissiles299Frame frame, NativeBattleActionMatrix matrix, int depth)
     {

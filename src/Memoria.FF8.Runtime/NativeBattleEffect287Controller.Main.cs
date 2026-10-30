@@ -107,11 +107,11 @@ public static partial class NativeBattleEffect287Controller
     {
         uint morph = frame.State.ReadDword(ArenaGlobal) + MorphOffset;
         NativeBattleEffectArena caller = ProgrammeCaller(inputs.ReadView(frame), world, 0, unchecked((byte)((age & 3) << 5)), morph);
-        frame = NativeBattleEffect287Programme.Advance(frame, main + 0x2C, 0x8C4, caller, resources, inputs).Frame;
+        frame = NativeBattleEffect287Programme.Advance(frame, main + 0x2C, 0x8C4, caller, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(287, Read(frame, main)) : null).Frame;
         uint caster = frame.State.ReadDword(CasterGlobal);
         short secondY = BinaryPrimitives.ReadInt16LittleEndian(inputs.ReadModelArena9C(frame, caster).Read(36, 2));
         caller = ProgrammeCaller(inputs.ReadView(frame), world with { Y = secondY }, 1, unchecked((byte)((-age & 3) << 5)), morph);
-        return NativeBattleEffect287Programme.Advance(frame, main + 0x8F0, 0xB8, caller, resources, inputs).Frame;
+        return NativeBattleEffect287Programme.Advance(frame, main + 0x8F0, 0xB8, caller, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(287, Read(frame, main)) : null).Frame;
     }
 
     public static NativeBattleEffectArena ProgrammeCaller(NativeBattlePackedMatrix32 view, NativeBattleActionMatrix world, byte selector, byte phase, uint morph)

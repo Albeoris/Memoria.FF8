@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleSnipeLaser302StaticMeshContext88
 {
-    public static NativeBattleStaticMeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift)
+    public static NativeBattleStaticMeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint flags = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(28, 4));
         if (mesh.Address != 0x103462C || BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4)) != 220 || flags is not (0x30 or 0xF0))
@@ -26,6 +26,6 @@ public static class NativeBattleSnipeLaser302StaticMeshContext88
                 throw new InvalidDataException("Snipe Laser static mesh directory leaves its original source.");
             }
         }
-        return NativeBattleStaticMeshContext88.DrawLoaded(memory, mesh, projection, context, constants, tableBaseBucket, depthShift);
+        return NativeBattleStaticMeshContext88.DrawLoaded(memory, mesh, projection, context, constants, tableBaseBucket, depthShift, pilotIdentity: pilotIdentity);
     }
 }

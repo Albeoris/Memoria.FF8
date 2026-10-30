@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleWhiteWind297Drawing
 {
-    public static NativeBattleWhiteWind297Frame EmitNode(NativeBattleWhiteWind297Frame frame, NativeBattleGfAnimationSource source, NativeBattleEffectArena context40, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<NativeBattleWhiteWind297Frame, NativeBattleGfGeometryBatch, NativeBattleWhiteWind297Frame> deliverPrivate)
+    public static NativeBattleWhiteWind297Frame EmitNode(NativeBattleWhiteWind297Frame frame, NativeBattleGfAnimationSource source, NativeBattleEffectArena context40, NativeBattleGfAnimationNode node, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, Func<NativeBattleWhiteWind297Frame, NativeBattleGfGeometryBatch, NativeBattleWhiteWind297Frame> deliverPrivate, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (!NativeBattleWhiteWindActMesh.Visible(node))
         {
@@ -19,7 +19,7 @@ public static class NativeBattleWhiteWind297Drawing
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Blue Magic White Wind requires its actual primitive process.");
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Blue Magic White Wind requires its actual projection controls.");
         NativeBattleGeometryRegisterStep registers = new(frame.Memory.GeometryRegisters ?? NativeBattleGeometryRegisters.Unknown(), frame.Memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown());
-        NativeBattleWhiteWindActMeshStep drawn = NativeBattleWhiteWindActMesh.Draw(source, node, context40, billboard, temporary, frame.Memory.Arena ?? throw new NotSupportedException("Blue Magic White Wind requires its shared working arena."), registers, process.ModelRendererRegisters ?? throw new NotSupportedException("Blue Magic White Wind requires its retained FAR controls."), projection, controls.Dqa, controls.Dqb, controls.Zsf4, constants);
+        NativeBattleWhiteWindActMeshStep drawn = NativeBattleWhiteWindActMesh.Draw(source, node, context40, billboard, temporary, frame.Memory.Arena ?? throw new NotSupportedException("Blue Magic White Wind requires its shared working arena."), registers, process.ModelRendererRegisters ?? throw new NotSupportedException("Blue Magic White Wind requires its retained FAR controls."), projection, controls.Dqa, controls.Dqb, controls.Zsf4, constants, pilotIdentity: pilotIdentity);
         frame = frame with
         {
             Memory = frame.Memory with { Arena = drawn.Arena, GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors, PrimitiveProcess = process with { ModelRendererRegisters = drawn.FarControls } },

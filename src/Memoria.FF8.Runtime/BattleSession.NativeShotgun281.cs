@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Shotgun requires its actual process memory.");
         NativeBattleShotgun281Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Shotgun requires its actual CRT stream."), memory.Shotgun281 ?? throw new NotSupportedException("Shotgun requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Shotgun requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Shotgun requires its original arithmetic constants.");
-        NativeBattleShotgun281Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), _ => nativeActionPackets, Execute);
+        NativeBattleShotgun281Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), _ => nativeActionPackets, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleShotgun281Controller.Initialize(frame, resources, inputs) : NativeBattleShotgun281Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -119,7 +119,7 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(new(sound.Packed, sound.Flags, null) { Pan = sound.Pan });
                     return Import(current);
                 case NativeBattleShotgun281Flash5712C0 flash:
-                    graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(checked((short)flash.Arg0), checked((short)flash.Arg1), checked((short)flash.Arg2), checked((short)flash.Arg3)) };
+                    graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(checked((short)flash.Arg0), checked((short)flash.Arg1), checked((short)flash.Arg2), checked((short)flash.Arg3), pilotIdentity: flash.PilotIdentity) };
                     return current;
                 case NativeBattleShotgun281DrawMesh7043B0 mesh:
                     return DrawMesh(current, mesh);
@@ -139,7 +139,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Shotgun mesh selected pointer differs from its actual context.");
             }
-            NativeBattleShotgun281MeshContext88Step drawn = NativeBattleShotgun281MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex);
+            NativeBattleShotgun281MeshContext88Step drawn = NativeBattleShotgun281MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context88, 88) };
             return Deliver(current, drawn.Batch);
 
@@ -180,7 +180,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Shotgun sprite source differs from its current temporary pointer.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Shotgun sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Shotgun sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

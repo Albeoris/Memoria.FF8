@@ -33,10 +33,10 @@ public static class NativeBattleFlashPackets
         {
             throw new NotSupportedException("Native fullscreen packet requires its original command, vertices and physical arena owner.");
         }
-        return Packet(words, bucket);
+        return Packet(words, bucket, draw.PilotIdentity);
     }
 
-    private static NativeBattleModulePacketBatch Packet(ImmutableArray<uint> words, int bucket)
+    private static NativeBattleModulePacketBatch Packet(ImmutableArray<uint> words, int bucket, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         System.Numerics.Vector3 Point(uint xy) => new(unchecked((short)xy), unchecked((short)(xy >> 16)), 0);
         System.Numerics.Vector3 a = Point(words[2]);
@@ -58,6 +58,10 @@ public static class NativeBattleFlashPackets
             d = Point(words[5]);
         }
         NativeBattlePilotVisualGeometry overlay = new(new(0, 0, 0, 0, unchecked((int)(words[1] >> 24))), a, b, c, d, 4, false) { ScreenSpace = true, ScreenScale = 8 };
+        if (pilotIdentity is { } identity)
+        {
+            overlay = overlay with { Identity = identity, SourceDepths = System.Numerics.Vector4.Zero, UseSourceDepths = true };
+        }
         NativeBattleGeometryPrimitive primitive = new(bucket, words, [0, 0, 0, 0]) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, words.Length * 4).ToImmutableArray(), PilotGeometry = overlay };
         return new([new(primitive, 0, 1)], words.Length * 4);
     }

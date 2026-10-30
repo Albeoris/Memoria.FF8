@@ -6,6 +6,36 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleSnipeLaser302MeshContext88Tests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Group19_actual_static_and_selected_source_capture_preserves_full_native_state(bool selected)
+    {
+        NativeBattleSnipeLaser302MeshContext88Step Run(bool capture)
+        {
+            var mesh = Mesh(selected ? 3 : 5, !selected);
+            var context = Context(mesh.Address, selected ? 0x2030u : 0x30u);
+            NativeBattlePilotVisualIdentity? identity = capture ? new(302, 0x25076B8, 1, 123, 4) { ResourceGeneration = mesh.Address } : null;
+            if (selected)
+            {
+                context = context.Write(4, BitConverter.GetBytes(0x20000000u)).Write(24, BitConverter.GetBytes(-128));
+                return NativeBattleSnipeLaser302MeshContext88.DrawLoaded(Memory(), mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, offset => (Vertex(offset), null), identity);
+            }
+            var result = NativeBattleSnipeLaser302StaticMeshContext88.DrawLoaded(Memory(), mesh, new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, identity);
+            return new(result.Memory, result.Context, result.Batch);
+        }
+        var native = Run(false);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var captured = Run(true);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.All(native.Batch.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+        var geometry = Assert.Single(captured.Batch.Attempts).Primitive!.PilotGeometry!;
+        Assert.NotNull(geometry);
+        Assert.Equal((ushort)302, geometry.Identity.Effect);
+        Assert.Equal(123, geometry.Identity.Generation);
+        Assert.Equal(4, geometry.CornerCount);
+    }
+
+    [Theory]
     [InlineData(3, 0x30u)]
     [InlineData(3, 0xF0u)]
     [InlineData(5, 0x30u)]

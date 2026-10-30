@@ -7,6 +7,58 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleMicroMissiles299ControllerTests
 {
+    [Fact]
+    public void Group19_twelve_actual_trail_phases_are_distinct_stable_copies_with_native_state_and_operation_parity()
+    {
+        Fixture nativeFixture = new();
+        Fixture capturedFixture = new();
+        NativeBattleMicroMissiles299Frame Prepare(Fixture fixture)
+        {
+            var frame = fixture.Frame;
+            for (int tick = 0; tick < 11; tick++)
+            {
+                frame = fixture.Step(frame);
+            }
+            var owner = frame.Effect.Pools[1];
+            int slot = Enumerable.Range(0, owner.Slots.Length).Single(index => (owner.Slots[index].Flags & 1) != 0);
+            uint address = owner.BankAddress + (uint)(slot * owner.Stride);
+            frame = NativeBattleMicroMissiles299Controller.Write(frame, address, NativeBattleMicroMissiles299Controller.Read(frame, address).WriteWord(0x2A, 0x990));
+            fixture.Operations.Clear();
+            return frame;
+        }
+        var native = Prepare(nativeFixture);
+        var captured = Prepare(capturedFixture);
+        capturedFixture.CapturePresentation = true;
+        Dictionary<ushort, NativeBattlePilotVisualIdentity>? previous = null;
+        for (int scan = 0; scan < 2; scan++)
+        {
+            nativeFixture.Operations.Clear();
+            capturedFixture.Operations.Clear();
+            native = nativeFixture.Step(native);
+            string baseline = NativeBattleTestSnapshots.Json(native);
+            string operations = string.Join("\n", nativeFixture.Operations.Select(operation => JsonSerializer.Serialize(operation, operation.GetType())));
+            captured = capturedFixture.Step(captured);
+            Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+            Assert.Equal(operations, string.Join("\n", capturedFixture.Operations.Select(operation => JsonSerializer.Serialize(operation, operation.GetType()))));
+            var trail = capturedFixture.Operations.OfType<NativeBattleMicroMissiles299DrawSprite>().Where(sprite => sprite.ResourceAddress == capturedFixture.Resources.TrailSprite.Address).ToArray();
+            Assert.Equal(12, trail.Length);
+            Assert.Equal(Enumerable.Range(0, 12).Select(value => (ushort)value), trail.Select(sprite => sprite.Phase).Order());
+            Assert.Equal(12, trail.Select(sprite => sprite.PilotIdentity!.Value).Distinct().Count());
+            var identities = trail.ToDictionary(sprite => sprite.Phase, sprite => sprite.PilotIdentity!.Value);
+            foreach (var sprite in trail)
+            {
+                Assert.Equal((ushort)299, sprite.PilotIdentity!.Value.Effect);
+                Assert.Equal(unchecked(2 * 397 + sprite.Phase), sprite.PilotIdentity.Value.Primitive);
+                Assert.Equal((long)sprite.ResourceAddress, sprite.PilotIdentity.Value.ResourceGeneration);
+                if (previous is not null)
+                {
+                    Assert.Equal(previous[sprite.Phase], identities[sprite.Phase]);
+                }
+            }
+            previous = identities;
+        }
+    }
+
     [Theory]
     [InlineData(0u, SecondPacketOffset, 1u)]
     [InlineData(1u, FirstPacketOffset, 0u)]
@@ -117,6 +169,7 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
         public List<int> Anchors { get; } = [];
         public int EmittedNodes { get; private set; }
         public Action<NativeBattleMicroMissiles299Frame, NativeBattleMicroMissiles299Operation>? Observe { get; set; }
+        public bool CapturePresentation { get; set; }
         private NativeBattlePoseSource Pose { get; }
         private NativeBattleGraphicsModel Model { get; }
         public Fixture()
@@ -160,7 +213,14 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
         {
             EmittedNodes++;
             return current;
-        }, new(0, 0, 1f / 4096f, BitConverter.Int64BitsToDouble(0x4330000080000000L))));
+        }, new(0, 0, 1f / 4096f, BitConverter.Int64BitsToDouble(0x4330000080000000L)))
+        {
+            EmitNodePresentation = CapturePresentation ? (current, _, _, _, _) =>
+            {
+                EmittedNodes++;
+                return current;
+            } : null
+        });
         private static NativeBattleGfAnimationSource Source(uint address, int duration)
         {
             byte[] bytes = new byte[80];

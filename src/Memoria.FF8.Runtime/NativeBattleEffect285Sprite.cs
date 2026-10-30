@@ -16,7 +16,7 @@ public static class NativeBattleEffect285Sprite
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = PutWord285(PutWord285(Put285(Context(frame, temporary, 180), 0, 0x1084AF8), 4, task.ReadWord(18)), 0x24, 0);
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCamera(frame).Roll, 17, 2);
+        NativeBattleModuleSpriteDraw draw = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCamera(frame).Roll, 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(285, task) with { ResourceGeneration = 0x1084AF8 } : null);
         frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect285DrawBatch(draw.Batch, 0x2507D60));
         frame = Release(frame, 180);

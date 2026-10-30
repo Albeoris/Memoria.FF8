@@ -49,7 +49,11 @@ public enum NativeBattleModuleDrawKind
 
 public sealed partial record NativeBattleModuleDraw(NativeBattleModuleDrawKind Kind, byte Intensity);
 public sealed partial record NativeBattleModuleInputs(uint GraphicsFlags);
-public sealed partial record NativeBattleModuleTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleModuleKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload);
+public sealed partial record NativeBattleModuleTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleModuleKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
+{
+    [JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed partial record NativeBattleModuleStep(NativeBattleModuleState State, ImmutableArray<NativeBattleModuleDraw> Draws);
 public sealed partial record NativeBattleModuleCallback(NativeBattleModuleState State, bool Release, ImmutableArray<NativeBattleModuleDraw> Draws);
 
@@ -119,7 +123,7 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         {
             throw new InvalidOperationException("Native effect module exhausted its300 physical task slots.");
         }
-        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, UnlinkedNextPointer = null, Kind = kind, Callback = callback };
+        NativeBattleModuleTask task = Slots[slot] with { Flags = (ushort)(Slots[slot].Flags | 1), State = 0, Next = null, UnlinkedNextPointer = null, Kind = kind, Callback = callback, PilotIdentity = null };
         ImmutableArray<NativeBattleModuleTask> slots = Slots.SetItem(slot, task);
         if (Tail is int tail)
         {
@@ -128,9 +132,15 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         return (this with { Slots = slots, Head = Tail is null ? slot : Head, Tail = slot }, slot);
     }
 
-    public NativeBattleModuleState AppendFlash(short rise, short hold, short fall, short intensity)
+    public NativeBattleModuleState AppendFlash(short rise, short hold, short fall, short intensity, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         (NativeBattleModuleState state, int slot) = Append(NativeBattleModuleKind.CriticalFlash571300);
+        if (pilotIdentity is { } source)
+        {
+            NativeBattleModuleTask child = state.Slots[slot];
+            NativeBattlePilotVisualIdentity identity = new(source.Effect, DescriptorAddress, slot, NativeBattlePilotVisualLifetimes.EpochFor(child), source.Primitive) { ResourceGeneration = unchecked(source.Generation * 397 ^ source.Bank ^ source.Slot ^ source.ResourceGeneration) };
+            state = state with { Slots = state.Slots.SetItem(slot, child with { PilotIdentity = identity }) };
+        }
         byte[] payload = NativeBattleTelemetry.Materialize(1068, state.Slots[slot].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2), unchecked((short)((ushort)rise | 16 * ((ushort)hold | 16 * (ushort)fall))));
@@ -250,6 +260,6 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         byte[] payload = NativeBattleTelemetry.Materialize(1069, task.Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, unchecked((short)(frame + 1)));
         NativeBattleModuleState state = this with { Slots = Slots.SetItem(slot, task with { Payload = NativeBattleTelemetry.Immutable(1071, payload) }) };
-        return brightness < 0 ? new(state, true, []) : new(state, false, [new(NativeBattleModuleDrawKind.Flash, unchecked((byte)brightness))]);
+        return brightness < 0 ? new(state, true, []) : new(state, false, [new(NativeBattleModuleDrawKind.Flash, unchecked((byte)brightness)) { PilotIdentity = task.PilotIdentity }]);
     }
 }

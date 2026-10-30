@@ -6,6 +6,32 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleBadBreath300ActMeshTests
 {
+    [Theory]
+    [InlineData((short)0)]
+    [InlineData((short)1024)]
+    [InlineData((short)4096)]
+    public void Group19_capture_preserves_selected_and_morphed_native_state_and_actual_owner(short ratio)
+    {
+        var projection = new NativeBattleCameraProjection(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        byte[] nodeBytes = Node(0).Data.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(nodeBytes.AsSpan(38), ratio);
+        BinaryPrimitives.WriteInt16LittleEndian(nodeBytes.AsSpan(42), 1);
+        var node = Node(0) with { Data = nodeBytes.ToImmutableArray() };
+        var native = Draw(node, Context(0), projection: projection);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var identity = new NativeBattlePilotVisualIdentity(300, 0x2500000, 2, 123, 44) { ResourceGeneration = 0x100000001 };
+        var captured = Draw(node, Context(0), pilotIdentity: identity, projection: projection);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.All(native.Batch.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+        var geometry = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!.PilotGeometry!;
+        Assert.Equal(identity.Effect, geometry.Identity.Effect);
+        Assert.Equal(identity.Bank, geometry.Identity.Bank);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(4, geometry.CornerCount);
+        Assert.NotEqual(default(System.Numerics.Vector3), geometry.A);
+    }
+
     private static NativeBattleSummonColors Constants => NativeBattleGteColorInterpolation.CodeConstants45F270;
 
     [Fact]
@@ -117,9 +143,9 @@ public sealed class NativeBattleBadBreath300ActMeshTests
         Assert.Equal(NativeBattleTestSnapshots.Json(Next(result)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
-    private static NativeBattleBadBreath300ActMeshStep Draw(NativeBattleGfAnimationNode node, NativeBattleEffectArena context, NativeBattleActionMatrix? camera = null, NativeBattleEffectArena? arena = null, int count = 4)
+    private static NativeBattleBadBreath300ActMeshStep Draw(NativeBattleGfAnimationNode node, NativeBattleEffectArena context, NativeBattleActionMatrix? camera = null, NativeBattleEffectArena? arena = null, int count = 4, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null)
     {
-        return NativeBattleBadBreath300ActMesh.Draw(Source(count), node, context, NativeBattlePackedMatrix32.FromMatrix(camera ?? NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), arena ?? NativeBattleEffectArena.Clear(), new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), new(1, 2, 3, 4, 5), new(null, 100, 160, 108), 0, 0, 0x155, 0x100, Constants);
+        return NativeBattleBadBreath300ActMesh.Draw(Source(count), node, context, NativeBattlePackedMatrix32.FromMatrix(camera ?? NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), arena ?? NativeBattleEffectArena.Clear(), new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), new(1, 2, 3, 4, 5), projection ?? new(null, 100, 160, 108), 0, 0, 0x155, 0x100, Constants, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleEffectArena Context(int gate)

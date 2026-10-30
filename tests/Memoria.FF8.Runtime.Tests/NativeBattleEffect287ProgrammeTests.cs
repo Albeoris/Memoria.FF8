@@ -100,6 +100,44 @@ public sealed class NativeBattleEffect287ProgrammeTests
         Assert.All(temporary.Read(36, 16), value => Assert.Equal(0xBC, value));
     }
 
+    [Theory]
+    [InlineData(0, -100)]
+    [InlineData(2048, 0)]
+    [InlineData(4096, 100)]
+    public void Presentation_selected_and_morph_rows_preserve_actual_packed_operands_and_native_full_ledger(short factor, int expectedX)
+    {
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleEffect287Frame Run(Fixture fixture, NativeBattlePilotVisualIdentity? identity)
+        {
+            (NativeBattleGfAnimationSource source, NativeBattleStaticMeshResource mesh) = Source(true);
+            fixture.Resources = fixture.Resources with { Geometry = fixture.Resources.Geometry.Add(mesh.Address, mesh) };
+            uint scratch = Fixture.Common + 0x1A18;
+            for (int index = 0; index < 3; index++)
+            {
+                fixture.Frame = WriteBytes(fixture.Frame, scratch + (uint)(index * 8), NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(6, [(byte)(0xA0 + index)]), 8);
+            }
+            return NativeBattleEffect287Programme.DrawNode(fixture.Frame, source, Node(0x200, 0, 0, 1, factor), Caller(NativeBattleCuragaMatrices.Identity8DD770()).Write(36, BitConverter.GetBytes(scratch)), fixture.Resources, fixture.Inputs() with { ReadProjection = _ => projection }, pilotIdentity: identity);
+        }
+        Fixture nativeFixture = new();
+        NativeBattleEffect287Frame native = Run(nativeFixture, null);
+        string nativeFrame = NativeBattleTestSnapshots.Json(native);
+        string nativeOperations = NativeBattleTestSnapshots.Json(nativeFixture.Operations);
+        Fixture capturedFixture = new();
+        NativeBattlePilotVisualIdentity identity = new(287, 123, 4, 5, 6) { ResourceGeneration = 7 };
+        NativeBattleEffect287Frame captured = Run(capturedFixture, identity);
+        Assert.Equal(nativeFrame, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(nativeOperations, NativeBattleTestSnapshots.Json(capturedFixture.Operations));
+        NativeBattleGfGeometryBatch batch = Assert.IsType<NativeBattleEffect287DrawBatch>(Assert.Single(capturedFixture.Operations)).Batch;
+        NativeBattleGeometryPrimitive primitive = Assert.Single(batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!;
+        NativeBattlePilotVisualGeometry geometry = primitive.PilotGeometry!;
+        Assert.Equal(new System.Numerics.Vector3(expectedX, -100, 1000), geometry.A);
+        Assert.Equal(new System.Numerics.Vector3(expectedX + 200, -100, 1000), geometry.B);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.True(geometry.UseSourceDepths);
+        Assert.Equal(primitive.VertexPayload4.Length == 4 ? new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]) : System.Numerics.Vector4.Zero, geometry.SourceDepths);
+    }
+
     private static NativeBattleEffectArena Caller(NativeBattleActionMatrix matrix) => PackedArena(NativeBattlePackedMatrix32.FromMatrix(matrix, null)).Write(32, BitConverter.GetBytes((short)-128)).MarkUnknown(34, 1).Write(35, [0]);
     private static NativeBattleGfAnimationNode Node(uint header, short x, short first = 0, short second = 0, short factor = 0)
     {

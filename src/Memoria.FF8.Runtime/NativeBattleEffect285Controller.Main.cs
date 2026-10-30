@@ -12,23 +12,23 @@ public static partial class NativeBattleEffect285Controller
         if ((uint)(age - 48) < 39)
         {
             NativeBattleEffectArena caller = ProgrammeCaller(PointView(new(0, -10000, 0)), 0, 0, frame.State.ReadDword(ArenaGlobal) + MorphOffset);
-            frame = NativeBattleEffect285Programme.Advance(frame, address + FirstWorkspaceOffset, FirstWorkspaceLength, caller, resources, inputs).Frame;
+            frame = NativeBattleEffect285Programme.Advance(frame, address + FirstWorkspaceOffset, FirstWorkspaceLength, caller, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(285, Read(frame, address)) : null).Frame;
             if (age == 82)
             {
-                frame = DeliverWhite(frame, inputs);
+                frame = DeliverWhite(frame, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(285, Read(frame, address), 0x7040) : null);
             }
         }
         if ((uint)(age - 86) < 48)
         {
             NativeBattleEffectArena caller = ProgrammeCaller(PointView(new(0, 0, unchecked((short)frame.State.ReadWord(CentroidGlobal)))), -256, (ushort)((-(age - 86) & 3) << 5), frame.State.ReadDword(ArenaGlobal) + MorphOffset);
-            frame = NativeBattleEffect285Programme.Advance(frame, address + SecondWorkspaceOffset, SecondWorkspaceLength, caller, resources, inputs).Frame;
+            frame = NativeBattleEffect285Programme.Advance(frame, address + SecondWorkspaceOffset, SecondWorkspaceLength, caller, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(285, Read(frame, address)) : null).Frame;
         }
         frame = EmitMainEvents(frame, age, inputs);
         if ((uint)age < 24)
         {
             frame = BirthSprites(frame, age, resources, inputs);
         }
-        frame = AdvanceCamera(frame, age, resources, inputs);
+        frame = AdvanceCamera(frame, age, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(285, Read(frame, address), 0x5712) : null);
         frame = EmitContacts(frame, age, inputs);
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(Read(frame, address).ReadWord(12) + 1))));
         if (Signed(Read(frame, address), 12) >= 135)
@@ -64,7 +64,7 @@ public static partial class NativeBattleEffect285Controller
         return CopyBytes(point8, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 16), 0, 8).Write(8, BitConverter.GetBytes(depth)).Write(10, BitConverter.GetBytes(phase)).Write(12, BitConverter.GetBytes(morph));
     }
 
-    private static NativeBattleEffect285Frame DeliverWhite(NativeBattleEffect285Frame frame, NativeBattleEffect285Inputs inputs) => inputs.Execute(frame, new NativeBattleEffect285DrawBatch(NativeBattleRinoa89FadeDrawing.Draw7040B0(128, 128, 128, 4096), CursorGlobal));
+    private static NativeBattleEffect285Frame DeliverWhite(NativeBattleEffect285Frame frame, NativeBattleEffect285Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null) => inputs.Execute(frame, new NativeBattleEffect285DrawBatch(NativeBattleRinoa89FadeDrawing.Draw7040B0(128, 128, 128, 4096, pilotIdentity: pilotIdentity), CursorGlobal));
 
     public static NativeBattleEffect285Frame BirthSprites(NativeBattleEffect285Frame frame, int age, NativeBattleEffect285Resources resources, NativeBattleEffect285Inputs inputs)
     {

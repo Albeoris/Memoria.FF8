@@ -75,7 +75,7 @@ public static class NativeBattleEffect287Attachments
             }
         }
         frame = PublishContext(frame, temporary, rows, 128);
-        frame = NativeBattleEffect287Ribbon.Draw41C0(frame, temporary, resources, inputs);
+        frame = NativeBattleEffect287Ribbon.Draw41C0(frame, temporary, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(287, task) with { ResourceGeneration = unchecked(((long)task.ReadDword(28) << 32) ^ task.ReadDword(24) ^ task.ReadDword(16) ^ ((long)task.ReadDword(20) << 1)) } : null);
         frame = Release(frame, 128);
         task = Read(frame, address);
         if (task.ReadByte(12) >= 10)

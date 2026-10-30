@@ -27,7 +27,7 @@ public static class NativeBattleEffect287Lower
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = PutWord287(PutWord287(Put287(Context(frame, temporary, 180), 0, task.ReadDword(12)), 4, task.ReadWord(26)), 36, 0);
         frame = PublishContext(frame, temporary, context, 180);
-        NativeBattleModuleSpriteDraw result = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+        NativeBattleModuleSpriteDraw result = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, context, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(287, task) with { ResourceGeneration = task.ReadDword(12) } : null);
         frame = PublishContext(frame with { Memory = result.Memory }, temporary, result.Temporary180, 180);
         frame = inputs.Execute(frame, new NativeBattleEffect287DrawBatch(result.Batch, 0x2556374));
         frame = Release(frame, 180);
@@ -50,7 +50,7 @@ public static class NativeBattleEffect287Lower
         frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(composed, null));
         NativeBattleEffectArena context = Put287(Put287(Context(frame, temporary, 88), 0, 0x13EF72C), 28, 0);
         frame = PublishContext(frame, temporary, context, 88);
-        NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(0x13EF72C), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
+        NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(0x13EF72C), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(287, task) with { ResourceGeneration = 0x13EF72C } : null);
         frame = PublishContext(frame with { Memory = result.Memory }, temporary, result.Context, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect287DrawBatch(result.Batch, 0x2556374));
         frame = Release(frame, 88);
@@ -71,7 +71,7 @@ public static class NativeBattleEffect287Lower
         NativeBattleActionMatrix local = NativeBattlePandemona291Restoration.Rotation701270(0) with { X = Signed(task, 12), Y = Signed(task, 14), Z = Signed(task, 16) };
         NativeBattleActionMatrix composed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);
         NativeBattleEffectArena caller = PackedArena(NativeBattlePackedMatrix32.FromMatrix(composed, null)).MarkUnknown(34, 1).Write(32, BitConverter.GetBytes((short)-128)).Write(35, [0]).Write(36, BitConverter.GetBytes(checked(frame.State.ReadDword(0x2556380) + 0x1A18)));
-        NativeBattleEffect287Step result = NativeBattleEffect287Programme.Advance(frame, address + 20, resources.WorkspaceLength(0x13F8F5C), caller, resources, inputs);
+        NativeBattleEffect287Step result = NativeBattleEffect287Programme.Advance(frame, address + 20, resources.WorkspaceLength(0x13F8F5C), caller, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(287, task) : null);
         return new(result.Frame, result.Result == 0 ? 2 : 0);
     }
 

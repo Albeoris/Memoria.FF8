@@ -16,6 +16,7 @@ public sealed partial class BattleSession
         NativeBattleBadBreath300Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Bad Breath requires its CRT stream."), memory.BadBreath300 ?? throw new NotSupportedException("Bad Breath requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Bad Breath requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Bad Breath requires its original interpolation constants.");
         NativeBattleBadBreath300Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Bad Breath requires its current actor skeleton."), _ => Camera().CapturePackedView1D97778(), Anchor, Mouth, Bone, Execute, (current, source, context, node) => NativeBattleBadBreath300Drawing.EmitNode(current, source, context, node, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Bad Breath requires its published projection."), colors, Deliver), NativeHostCallbacks ?? graphics.Callback);
+        inputs = inputs with { EmitNodePresentation = (current, source, context, node, identity) => NativeBattleBadBreath300Drawing.EmitNode(current, source, context, node, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Bad Breath requires its published projection."), colors, Deliver, pilotIdentity: identity) };
         frame = initialize ? NativeBattleBadBreath300Controller.Initialize(frame, resources, inputs) : NativeBattleBadBreath300Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -89,7 +90,7 @@ public sealed partial class BattleSession
             return new(current with { Memory = observed, Staging = NativeFileStaging }, point);
         }
 
-        NativeBattleBadBreath300Frame DrawStrip(NativeBattleBadBreath300Frame current, uint address, uint sourceAddress, uint selectedVerticesAddress)
+        NativeBattleBadBreath300Frame DrawStrip(NativeBattleBadBreath300Frame current, uint address, uint sourceAddress, uint selectedVerticesAddress, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             ImmutableArray<byte> source = current.State.ReadMesh(sourceAddress);
             if (selectedVerticesAddress != NativeBattleBadBreath300Profile.ArenaAddress + NativeBattleBadBreath300Profile.ScratchOffset)
@@ -101,7 +102,7 @@ public sealed partial class BattleSession
             NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Bad Breath strip drawing requires its current working arena.");
             NativeBattleScriptedGraphicsMemory controls = current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Bad Breath strip drawing requires its retained projection controls.");
             NativeBattleGeometryRegisterStep registers = new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Bad Breath strip drawing requires its current geometry registers."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Bad Breath strip drawing requires its current data registers."));
-            NativeBattleBadBreath300StripMeshStep drawn = NativeBattleBadBreath300StripMesh.Draw66F710(source, sourceAddress, temporary, selectedVerticesAddress, ReadVertex, registers, Camera().Projection ?? throw new NotSupportedException("Bad Breath strip drawing requires its current projection."), controls.Dqa, controls.Dqb, controls.Zsf4, colors);
+            NativeBattleBadBreath300StripMeshStep drawn = NativeBattleBadBreath300StripMesh.Draw66F710(source, sourceAddress, temporary, selectedVerticesAddress, ReadVertex, registers, Camera().Projection ?? throw new NotSupportedException("Bad Breath strip drawing requires its current projection."), controls.Dqa, controls.Dqb, controls.Zsf4, colors, pilotIdentity: pilotIdentity);
             current = current with { Memory = current.Memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors }, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Context92, 92) };
             return Deliver(current, drawn.Batch);
 
@@ -157,9 +158,9 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(new(sound.Value, 0, null) { Pan = checked((byte)sound.Pan) });
                     return Import(current);
                 case NativeBattleBadBreath300Clip clip:
-                    return Deliver(current, NativeBattleModuleRenderCommands.Emit700150(clip.Phase, 64, 64, 0, 14, 22, 14));
+                    return Deliver(current, NativeBattleModuleRenderCommands.Emit700150(clip.Phase, 64, 64, 0, 14, 22, 14, clip.PilotIdentity));
                 case NativeBattleBadBreath300DrawStrip strip:
-                    return DrawStrip(current, strip.TemporaryAddress, strip.SourceAddress, strip.SelectedVerticesAddress);
+                    return DrawStrip(current, strip.TemporaryAddress, strip.SourceAddress, strip.SelectedVerticesAddress, strip.PilotIdentity);
                 case NativeBattleBadBreath300DrawParticle particle:
                     NativeBattleModulePoolTask task = NativeBattleBadBreath300Controller.Read(current, particle.TaskAddress);
                     if (task.Callback != NativeBattleBadBreath300Profile.ParticleCallback)
@@ -171,7 +172,7 @@ public sealed partial class BattleSession
                     NativeBattleModuleAnchor point = new(unchecked((short)task.ReadWord(0x10)), unchecked((short)task.ReadWord(0x12)), unchecked((short)task.ReadWord(0x14)), scale);
                     current = current with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(current.Memory, Camera().CapturePackedView1D97778(), point, scale, checked((short)-(scale >> 2))) };
                     NativeBattleFileStaging particleStaging = NativeBattleModuleSpriteTemporary.Begin571C80(allocation.Staging, allocation.Address, resources.ParticleSprite.Address, 0).Write(allocation.Address + 4, BitConverter.GetBytes(task.ReadWord(0xC)));
-                    current = DrawSprite(current with { Staging = particleStaging }, allocation.Address, task.ReadWord(0xC));
+                    current = DrawSprite(current with { Staging = particleStaging }, allocation.Address, task.ReadWord(0xC), particle.PilotIdentity);
                     return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging!, 180) };
                 case NativeBattleBadBreath300Contact contact:
                     Publish(current);
@@ -184,7 +185,7 @@ public sealed partial class BattleSession
             }
         }
 
-        NativeBattleBadBreath300Frame DrawSprite(NativeBattleBadBreath300Frame current, uint address, ushort phase)
+        NativeBattleBadBreath300Frame DrawSprite(NativeBattleBadBreath300Frame current, uint address, ushort phase, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleModuleResource resource = resources.ParticleSprite;
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Bad Breath sprite drawing requires its physical temporary memory.");
@@ -193,7 +194,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Bad Breath sprite arguments differ from its current physical frame.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Bad Breath sprite dispatcher selected a different source."), Camera().Projection ?? throw new NotSupportedException("Bad Breath sprite drawing requires its current projection."), Camera().Roll, 17);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Bad Breath sprite dispatcher selected a different source."), Camera().Projection ?? throw new NotSupportedException("Bad Breath sprite drawing requires its current projection."), Camera().Roll, 17, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

@@ -117,6 +117,44 @@ public sealed class NativeBattleEffect287LowerTests
         Assert.Equal(NativePrecision53.RoundInteger(coefficient / 2d), scaled.Rotation[0]);
     }
 
+    [Fact]
+    public void Presentation_attachment_captures_post_native_rows_before_SXY_overwrite_and_preserves_process_random_FIFO_and_masks()
+    {
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        Fixture nativeFixture = new();
+        NativeBattleEffect287Step native = NativeBattleEffect287Attachments.Advance(nativeFixture.Frame, Fixture.Task, nativeFixture.Resources, nativeFixture.Inputs() with { ReadProjection = _ => projection });
+        string nativeFrame = NativeBattleTestSnapshots.Json(native.Frame);
+        string nativeOps = NativeBattleTestSnapshots.Json(nativeFixture.Operations);
+        Fixture capturedFixture = new();
+        NativeBattleEffect287Inputs inputs = capturedFixture.Inputs() with { ReadProjection = _ => projection, CapturePresentation = true };
+        NativeBattleEffect287Step captured = NativeBattleEffect287Attachments.Advance(capturedFixture.Frame, Fixture.Task, capturedFixture.Resources, inputs);
+        Assert.Equal(nativeFrame, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(nativeOps, NativeBattleTestSnapshots.Json(capturedFixture.Operations));
+        Assert.Equal(nativeFixture.RandomCalls, capturedFixture.RandomCalls);
+        Assert.Equal(18, capturedFixture.RandomCalls);
+        Assert.Equal(nativeFixture.Bones, capturedFixture.Bones);
+        NativeBattleGfGeometryBatch batch = Assert.IsType<NativeBattleEffect287DrawBatch>(Assert.Single(capturedFixture.Operations)).Batch;
+        Assert.NotEmpty(batch.Attempts);
+        Assert.All(batch.Attempts, attempt =>
+        {
+            NativeBattleGeometryPrimitive primitive = attempt.Primitive!;
+            NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            Assert.Equal((ushort)287, geometry.Identity.Effect);
+            Assert.True(geometry.Identity.Generation > 0);
+            Assert.True(geometry.UseSourceDepths);
+            Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), geometry.SourceDepths);
+            Assert.Equal(4, geometry.ScreenOffsets.Length);
+            Assert.Equal(geometry.A, geometry.B);
+            Assert.Equal(geometry.C, geometry.D);
+        });
+        NativeBattlePilotVisualGeometry first = batch.Attempts[0].Primitive!.PilotGeometry!;
+        Assert.Equal(new System.Numerics.Vector3(333, 333, 20999), first.A);
+        Assert.Equal(batch.Attempts.Length, batch.Attempts.Select(attempt => attempt.Primitive!.PilotGeometry!.Identity).Distinct().Count());
+        string beforeSampling = NativeBattleTestSnapshots.Json(captured.Frame);
+        _ = NativeBattlePilotVisualGeometry.Sample(first, first with { A = first.A + System.Numerics.Vector3.One }, 0.5f);
+        Assert.Equal(beforeSampling, NativeBattleTestSnapshots.Json(captured.Frame));
+    }
+
     internal sealed class Fixture
     {
         public const uint Common = 0x20DFAB8;

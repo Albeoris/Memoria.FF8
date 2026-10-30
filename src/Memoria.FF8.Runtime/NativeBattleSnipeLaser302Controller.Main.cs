@@ -197,7 +197,7 @@ public static partial class NativeBattleSnipeLaser302Controller
                 }
                 frame = PublishContext(frame, temporary, context, 88);
                 frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), scaled), null));
-                frame = inputs.Execute(frame, new NativeBattleSnipeLaser302DrawStatic88(temporary, resources.Mesh.Address));
+                frame = inputs.Execute(frame, new NativeBattleSnipeLaser302DrawStatic88(temporary, resources.Mesh.Address) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(302, Read(frame, address), clone) with { ResourceGeneration = resources.Mesh.Address } : null });
                 frame = Release(frame, 88);
             }
         }
@@ -257,7 +257,7 @@ public static partial class NativeBattleSnipeLaser302Controller
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, task + (uint)offset, current);
-            frame = DrawProgrammeNode66D3C0(frame, source, node, caller, resources, inputs);
+            frame = DrawProgrammeNode66D3C0(frame, source, node, caller, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(302, Read(frame, task), node.ResourceOffset) with { ResourceGeneration = unchecked((((long)source.Address << 32) | (uint)offset) * 397 ^ (ushort)node.GeometryIndex) } : null);
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, task + (uint)offset, advanced.Workspace);

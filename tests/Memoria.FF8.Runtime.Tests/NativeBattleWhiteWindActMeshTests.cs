@@ -6,6 +6,28 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleWhiteWindActMeshTests
 {
+    [Theory]
+    [InlineData((short)0)]
+    [InlineData((short)1024)]
+    [InlineData((short)4096)]
+    public void Group19_capture_preserves_selected_and_morphed_native_state_and_actual_owner(short ratio)
+    {
+        var projection = new NativeBattleCameraProjection(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        var native = Draw(Source(4), Node(0x200, ratio), NativeBattleEffectArena.Clear(), projection: projection);
+        string baseline = NativeBattleTestSnapshots.Json(native);
+        var identity = new NativeBattlePilotVisualIdentity(297, 0x2500000, 2, 123, 44) { ResourceGeneration = 0x100000001 };
+        var captured = Draw(Source(4), Node(0x200, ratio), NativeBattleEffectArena.Clear(), pilotIdentity: identity, projection: projection);
+        Assert.Equal(baseline, NativeBattleTestSnapshots.Json(captured));
+        Assert.All(native.Batch.Attempts, attempt => Assert.Null(attempt.Primitive?.PilotGeometry));
+        var geometry = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive?.PilotGeometry is not null).Primitive!.PilotGeometry!;
+        Assert.Equal(identity.Effect, geometry.Identity.Effect);
+        Assert.Equal(identity.Bank, geometry.Identity.Bank);
+        Assert.Equal(identity.Generation, geometry.Identity.Generation);
+        Assert.Equal(identity.ResourceGeneration, geometry.Identity.ResourceGeneration);
+        Assert.Equal(4, geometry.CornerCount);
+        Assert.NotEqual(default(System.Numerics.Vector3), geometry.A);
+    }
+
     private static NativeBattleSummonColors Constants => new(0, 0, 1f / 4096f, BitConverter.Int64BitsToDouble(0x4330000080000000L));
 
     [Fact]
@@ -55,13 +77,13 @@ public sealed class NativeBattleWhiteWindActMeshTests
         Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
-    private static NativeBattleWhiteWindActMeshStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena arena, NativeBattleActionMatrix? billboard = null, NativeBattleGeometryRegisterStep? registers = null)
+    private static NativeBattleWhiteWindActMeshStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena arena, NativeBattleActionMatrix? billboard = null, NativeBattleGeometryRegisterStep? registers = null, NativeBattlePilotVisualIdentity? pilotIdentity = null, NativeBattleCameraProjection? projection = null)
     {
         NativeBattleActionMatrix root = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 };
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 40).Write(0, NativeBattlePackedMatrix32.FromMatrix(root, null).Bytes.AsSpan());
         context = UInt(context, 0x20, unchecked((uint)-128));
         context = UInt(context, 0x24, 0x20DFAB8 + 0xAEC);
-        return NativeBattleWhiteWindActMesh.Draw(source, node, context, NativeBattlePackedMatrix32.FromMatrix(billboard ?? root, 0x1234), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), arena, registers ?? new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), new(1, 2, 3, 4, 5), new(null, 100, 160, 108), 0, 0, 0x100, Constants);
+        return NativeBattleWhiteWindActMesh.Draw(source, node, context, NativeBattlePackedMatrix32.FromMatrix(billboard ?? root, 0x1234), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), arena, registers ?? new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), new(1, 2, 3, 4, 5), projection ?? new(null, 100, 160, 108), 0, 0, 0x100, Constants, pilotIdentity: pilotIdentity);
     }
 
     private static NativeBattleGfAnimationNode Node(uint header, short ratio, short x = 0)

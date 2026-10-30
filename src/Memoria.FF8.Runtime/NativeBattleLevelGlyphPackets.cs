@@ -7,7 +7,7 @@ public sealed record NativeBattleLevelGlyphPacketsStep(NativeBattleEffectMemory 
 
 public static class NativeBattleLevelGlyphPackets
 {
-    public static NativeBattleLevelGlyphPacketsStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context88, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, Func<int, NativeBattleEffectArena> readPackedVertex, bool applyDepthBias = false)
+    public static NativeBattleLevelGlyphPacketsStep DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context88, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, Func<int, NativeBattleEffectArena> readPackedVertex, bool applyDepthBias = false, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if (mesh.Bytes.IsDefaultOrEmpty || Dword(context88, 0) != mesh.Address || depthShift > 31)
         {
@@ -18,6 +18,7 @@ public static class NativeBattleLevelGlyphPackets
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Level glyph drawing requires current projection controls.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Level glyph drawing requires current primitive controls.");
         NativeBattleModelRendererRegisters far = process.ModelRendererRegisters ?? throw new NotSupportedException("Level glyph drawing requires current far-color controls.");
+        NativeBattleActionMatrix? pilotMatrix = pilotIdentity.HasValue ? NativeBattleGeometry.CaptureMatrix(registers.Geometry) : null;
         var attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         int cursor = checked(ReadInt(0) + 12);
@@ -36,6 +37,7 @@ public static class NativeBattleLevelGlyphPackets
             for (int index = 0; index < count; index++)
             {
                 byte[] face = Read(cursor, stride);
+                System.Numerics.Vector3[]? world = pilotIdentity.HasValue ? new System.Numerics.Vector3[4] : null;
                 NativeBattleModuleProjectedVertex[] projected = new NativeBattleModuleProjectedVertex[4];
                 for (int corner = 0; corner < 3; corner++)
                 {
@@ -68,7 +70,12 @@ public static class NativeBattleLevelGlyphPackets
                     int bucket = unchecked(tableBaseBucket + (selectedDepth >> depthShift));
                     foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
                     {
-                        attempts.Add(attempt.Primitive is null ? attempt : attempt with { Primitive = attempt.Primitive with { Bucket = bucket } });
+                        NativeBattleGfGeometryAttempt captured = attempt.Primitive is null ? attempt : attempt with { Primitive = attempt.Primitive with { Bucket = bucket } };
+                        if (pilotIdentity is { } identity && world is not null && captured.Primitive is { Words.Length: > 2 } primitive && (primitive.Words[1] & 0xFC000000u) is 0x2C000000u or 0x3C000000u)
+                        {
+                            captured = captured with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + cursor) }, world[0], world[1], world[2], world[3], 4) } };
+                        }
+                        attempts.Add(captured);
                     }
                     uint cue = Dword(context88, 12);
                     if (cue != 0)
@@ -93,6 +100,10 @@ public static class NativeBattleLevelGlyphPackets
                     NativeBattleVector vertex = new(BinaryPrimitives.ReadInt16LittleEndian(packed.Read(0, 2)), BinaryPrimitives.ReadInt16LittleEndian(packed.Read(2, 2)), BinaryPrimitives.ReadInt16LittleEndian(packed.Read(4, 2)));
                     short? padding = known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : null;
                     registers = NativeBattleGeometry.LoadVector(registers, slot, vertex, padding);
+                    if (world is not null && pilotMatrix is not null)
+                    {
+                        world[corner] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(pilotMatrix, vertex), projection);
+                    }
                 }
             }
             context88 = Put(context88, 0x34, checked(mesh.Address + (uint)cursor));

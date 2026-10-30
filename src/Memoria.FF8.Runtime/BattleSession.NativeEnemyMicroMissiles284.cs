@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual process memory.");
         NativeBattleEnemyMicroMissiles284Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Enemy Micro Missiles requires its actual CRT stream."), memory.EnemyMicroMissiles284 ?? throw new NotSupportedException("Enemy Micro Missiles requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Enemy Micro Missiles requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Enemy Micro Missiles requires its original arithmetic constants.");
-        NativeBattleEnemyMicroMissiles284Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), _ => nativeActionPackets, Execute);
+        NativeBattleEnemyMicroMissiles284Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], (_, pointer) => PoseSource(pointer).BoneCount, ReadParent, ReadAlias, ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), _ => nativeActionPackets, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleEnemyMicroMissiles284Controller.Initialize(frame, resources, inputs) : NativeBattleEnemyMicroMissiles284Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -126,7 +126,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Enemy Micro Missiles mesh selected pointer differs from its actual context.");
             }
-            NativeBattleEnemyMicroMissiles284MeshContext88Step drawn = NativeBattleEnemyMicroMissiles284MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex);
+            NativeBattleEnemyMicroMissiles284MeshContext88Step drawn = NativeBattleEnemyMicroMissiles284MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context88, 88) };
             return Deliver(current, drawn.Batch);
 
@@ -167,7 +167,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Enemy Micro Missiles sprite source differs from its current temporary pointer.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Enemy Micro Missiles sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Enemy Micro Missiles sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

@@ -16,6 +16,7 @@ public sealed partial class BattleSession
         NativeBattleMicroMissiles299Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Micro Missiles requires its CRT stream."), memory.MicroMissiles299 ?? throw new NotSupportedException("Micro Missiles requires its retained native globals.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Micro Missiles requires its addressed file and temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Micro Missiles requires its original interpolation constants.");
         NativeBattleMicroMissiles299Inputs inputs = new(nativeActionPackets, actor => graphics.Models[actor], actor => NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Micro Missiles requires its current actor skeleton."), _ => Camera().CapturePackedView1D97778(), Anchor, Execute, (current, source, context, node) => NativeBattleMicroMissiles299Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Micro Missiles requires its published projection."), colors, Deliver), colors);
+        inputs = inputs with { EmitNodePresentation = (current, source, context, node, identity) => NativeBattleMicroMissiles299Drawing.EmitNode(current, source, context, node, Camera().Projection ?? throw new NotSupportedException("Micro Missiles requires its published projection."), colors, Deliver, pilotIdentity: identity) };
         frame = initialize ? NativeBattleMicroMissiles299Controller.Initialize(frame, resources, inputs) : NativeBattleMicroMissiles299Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -109,7 +110,7 @@ public sealed partial class BattleSession
                     PublishNativeModuleSound(new(sound.Value, 0, null) { Pan = checked((byte)sound.Pan) });
                     return Import(current);
                 case NativeBattleMicroMissiles299DrawSprite sprite:
-                    return DrawSprite(current, sprite.TemporaryAddress, sprite.ResourceAddress, sprite.Phase);
+                    return DrawSprite(current, sprite.TemporaryAddress, sprite.ResourceAddress, sprite.Phase, sprite.PilotIdentity);
                 case NativeBattleMicroMissiles299DrawParticle particle:
                     NativeBattleModulePoolTask task = NativeBattleMicroMissiles299Controller.Read(current, particle.TaskAddress);
                     if (task.Callback != NativeBattleMicroMissiles299Profile.ParticleCallback)
@@ -120,7 +121,7 @@ public sealed partial class BattleSession
                     current = current with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(current.Memory, Camera().CapturePackedView1D97778(), point, 1024, -256) };
                     NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("Micro Missiles particle drawing requires its physical temporary memory."), 180);
                     NativeBattleFileStaging particleStaging = NativeBattleModuleSpriteTemporary.Begin571C80(allocation.Staging, allocation.Address, resources.ParticleSprite.Address, 0).Write(allocation.Address + 4, BitConverter.GetBytes(task.ReadWord(0x12)));
-                    current = DrawSprite(current with { Staging = particleStaging }, allocation.Address, resources.ParticleSprite.Address, task.ReadWord(0x12));
+                    current = DrawSprite(current with { Staging = particleStaging }, allocation.Address, resources.ParticleSprite.Address, task.ReadWord(0x12), particle.PilotIdentity);
                     return current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging!, 180) };
                 case NativeBattleMicroMissiles299Contact contact:
                     Publish(current);
@@ -133,7 +134,7 @@ public sealed partial class BattleSession
             }
         }
 
-        NativeBattleMicroMissiles299Frame DrawSprite(NativeBattleMicroMissiles299Frame current, uint address, uint resourceAddress, ushort phase)
+        NativeBattleMicroMissiles299Frame DrawSprite(NativeBattleMicroMissiles299Frame current, uint address, uint resourceAddress, ushort phase, NativeBattlePilotVisualIdentity? pilotIdentity = null)
         {
             NativeBattleModuleResource resource = resourceAddress == resources.ParticleSprite.Address ? resources.ParticleSprite : resourceAddress == resources.TrailSprite.Address ? resources.TrailSprite : resourceAddress == resources.ImpactSprite.Address ? resources.ImpactSprite : throw new NotSupportedException("Micro Missiles sprite resource leaves its original banks.");
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Micro Missiles sprite drawing requires its physical temporary memory.");
@@ -142,7 +143,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Micro Missiles sprite arguments differ from its current physical frame.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Micro Missiles sprite dispatcher selected a different source."), Camera().Projection ?? throw new NotSupportedException("Micro Missiles sprite drawing requires its current projection."), Camera().Roll, 17);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, selected => selected == resource.Address ? resource : throw new InvalidDataException("Micro Missiles sprite dispatcher selected a different source."), Camera().Projection ?? throw new NotSupportedException("Micro Missiles sprite drawing requires its current projection."), Camera().Roll, 17, pilotIdentity: pilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, address, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

@@ -236,6 +236,46 @@ public sealed class NativeBattleShotgun281LowerTests
         return new(0, 0, bytes.ToImmutableArray());
     }
     private static uint U(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
+    [Fact]
+    public void Presentation_all_128_particle_rows_keep_actual_task_birth_source_and_native_only_default()
+    {
+        (NativeBattleShotgun281Frame Frame, List<NativeBattleShotgun281Operation> Operations) Run(bool capture)
+        {
+            NativeBattleShotgun281Frame frame = Frame();
+            List<NativeBattleShotgun281Operation> operations = [];
+            NativeBattleShotgun281Inputs inputs = Inputs((current, operation) =>
+            {
+                operations.Add(operation);
+                return current;
+            }) with { CapturePresentation = capture };
+            for (int row = 0; row < 128; row++)
+            {
+                (frame, uint address) = Append(frame, 0x2507F38, 0x67E5F0);
+                Assert.NotEqual(0u, address);
+                NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[28]).WriteDword(12, (row & 1) == 0 ? SpriteAAddress : SpriteBAddress).WriteWord(20, 4000).WriteWord(30, 10);
+                frame = Write(frame, address, task);
+                frame = AdvanceSprite67E5F0(frame, address, NativeBattleShotgun281StateTests.Resources(), inputs).Frame;
+            }
+            return (frame, operations);
+        }
+        var native = Run(false);
+        string nativeFrame = NativeBattleTestSnapshots.Json(native.Frame);
+        string nativeOperations = NativeBattleTestSnapshots.Json(native.Operations);
+        var captured = Run(true);
+        Assert.Equal(nativeFrame, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(nativeOperations, NativeBattleTestSnapshots.Json(captured.Operations));
+        Assert.All(native.Operations, operation => Assert.Null(operation.PilotIdentity));
+        NativeBattlePilotVisualIdentity[] identities = captured.Operations.Cast<NativeBattleShotgun281DrawSprite180>().Select(operation => operation.PilotIdentity!.Value).ToArray();
+        Assert.Equal(128, identities.Distinct().Count());
+        Assert.All(identities, identity =>
+        {
+            Assert.Equal((ushort)281, identity.Effect);
+            Assert.Equal(0x2507F38u, identity.Bank);
+            Assert.True(identity.Generation > 0);
+        });
+        Assert.Equal(2, identities.Select(identity => identity.ResourceGeneration).Distinct().Count());
+    }
+
     private static NativeBattleShotgun281Frame SeedTemporary(NativeBattleShotgun281Frame frame) => frame with { Staging = NativeBattleTemporaryMemory.PublishView(frame.Staging!, NativeBattleTemporaryMemory.Address, NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xAA, 20).ToArray()), 20) };
     private static NativeBattleShotgun281Frame Frame()
     {

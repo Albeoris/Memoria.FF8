@@ -8,6 +8,36 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleSnipeLaser302ControllerTests
 {
     [Fact]
+    public void Group19_actual_main_owners_keep_native_clock_rng_and_operations_while_capturing_each_copy()
+    {
+        List<NativeBattleSnipeLaser302Operation> nativeOperations = [];
+        var native = AdvanceTask(MainAt(35, 0), Pools[4].Bank, Resources(), Inputs(nativeOperations)).Frame;
+        string nativeState = NativeBattleTestSnapshots.Json(native);
+        string nativeLog = string.Join("\n", nativeOperations.Select(operation => JsonSerializer.Serialize(operation, operation.GetType())));
+        List<NativeBattleSnipeLaser302Operation> capturedOperations = [];
+        var captured = AdvanceTask(MainAt(35, 0), Pools[4].Bank, Resources(), Inputs(capturedOperations) with { CapturePresentation = true }).Frame;
+        Assert.Equal(nativeState, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(nativeLog, string.Join("\n", capturedOperations.Select(operation => JsonSerializer.Serialize(operation, operation.GetType()))));
+        Assert.All(nativeOperations, operation => Assert.Null(operation.PilotIdentity));
+        var draws = capturedOperations.OfType<NativeBattleSnipeLaser302DrawStatic88>().ToArray();
+        Assert.NotEmpty(draws);
+        var programmes = capturedOperations.OfType<NativeBattleSnipeLaser302DrawMesh7043B0>().ToArray();
+        Assert.NotEmpty(programmes);
+        Assert.All(programmes, programme => Assert.NotNull(programme.PilotIdentity));
+        long expectedB = unchecked((((long)ProgrammeBAddress << 32) | 972u) * 397);
+        long expectedC = unchecked((((long)ProgrammeCAddress << 32) | 1204u) * 397);
+        Assert.Contains(programmes, programme => programme.PilotIdentity!.Value.ResourceGeneration == expectedB);
+        Assert.Contains(programmes, programme => programme.PilotIdentity!.Value.ResourceGeneration == expectedC);
+        Assert.All(programmes, programme => Assert.Equal((ushort)302, programme.PilotIdentity!.Value.Effect));
+        Assert.All(draws, draw =>
+        {
+            Assert.Equal((ushort)302, draw.PilotIdentity!.Value.Effect);
+            Assert.Equal((long)Resources().Mesh.Address, draw.PilotIdentity.Value.ResourceGeneration);
+        });
+
+    }
+
+    [Fact]
     public void Entry_has_only_root_owner_and_defers_common_reset()
     {
         var frame = Initialize(Inactive(), Resources(), Inputs([]));

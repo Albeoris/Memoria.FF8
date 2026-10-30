@@ -16,7 +16,7 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)workspaceOffset, current);
-            frame = DrawProgrammeNode67C010(frame, source, node, caller40, resources, inputs);
+            frame = DrawProgrammeNode67C010(frame, source, node, caller40, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(284, Read(frame, address)) with { Primitive = node.ResourceOffset, ResourceGeneration = ((long)source.Address << 32) | (uint)workspaceOffset } : null);
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)workspaceOffset, advanced.Workspace);
@@ -25,7 +25,7 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
 
     private static NativeBattleEffectArena ProgrammeCaller284(NativeBattleActionMatrix matrix, int depth) => PackedArena(NativeBattlePackedMatrix32.FromMatrix(matrix, null)).Write(32, BitConverter.GetBytes(depth)).Write(36, BitConverter.GetBytes(NativeBattleEnemyMicroMissiles284Profile.ArenaAddress + 0x45A8));
 
-    public static NativeBattleEnemyMicroMissiles284Frame DrawProgrammeNode67C010(NativeBattleEnemyMicroMissiles284Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller40, NativeBattleEnemyMicroMissiles284Resources resources, NativeBattleEnemyMicroMissiles284Inputs inputs)
+    public static NativeBattleEnemyMicroMissiles284Frame DrawProgrammeNode67C010(NativeBattleEnemyMicroMissiles284Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller40, NativeBattleEnemyMicroMissiles284Resources resources, NativeBattleEnemyMicroMissiles284Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -90,7 +90,7 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
             context = context.Write(8, BitConverter.GetBytes(node.Color32));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleEnemyMicroMissiles284DrawMesh7043B0(temporary, geometryAddress, vertices));
+        frame = inputs.Execute(frame, new NativeBattleEnemyMicroMissiles284DrawMesh7043B0(temporary, geometryAddress, vertices) { PilotIdentity = pilotIdentity });
         return Release(frame, 88);
     }
 

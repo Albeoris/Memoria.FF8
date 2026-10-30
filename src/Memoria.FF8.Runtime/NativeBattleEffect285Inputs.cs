@@ -9,9 +9,16 @@ public sealed record NativeBattleEffect285Step(NativeBattleEffect285Frame Frame,
 public sealed record NativeBattleEffect285PointStep(NativeBattleEffect285Frame Frame, NativeBattleEffectArena Output8);
 public sealed record NativeBattleEffect285IoCompletionStep(NativeBattleEffect285Frame Frame, bool Complete);
 public sealed record NativeBattleEffect285CameraSnapshot(NativeBattleEffectArena Eye8, NativeBattleEffectArena Target8, NativeBattleEffectArena SavedEye8, NativeBattleEffectArena SavedTarget8, short? ScalarFocal, short? SavedScalarFocal, short Roll);
-public sealed record NativeBattleEffect285Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect285Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect285Frame, uint, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect285Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect285Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect285Frame, NativeBattleEffect285CameraSnapshot> ReadCamera, Func<NativeBattleEffect285Frame, uint, NativeBattleEffectArena, NativeBattleEffectArena, NativeBattleEffect285PointStep> BonePoint67B560, Func<NativeBattleEffect285Frame, int, NativeBattleEffect285IoCompletionStep> Select5342C0, Func<NativeBattleEffect285Frame, NativeBattleEffect285Operation, NativeBattleEffect285Frame> Execute);
+public sealed record NativeBattleEffect285Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect285Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect285Frame, uint, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect285Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect285Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect285Frame, NativeBattleEffect285CameraSnapshot> ReadCamera, Func<NativeBattleEffect285Frame, uint, NativeBattleEffectArena, NativeBattleEffectArena, NativeBattleEffect285PointStep> BonePoint67B560, Func<NativeBattleEffect285Frame, int, NativeBattleEffect285IoCompletionStep> Select5342C0, Func<NativeBattleEffect285Frame, NativeBattleEffect285Operation, NativeBattleEffect285Frame> Execute)
+{
+    public bool CapturePresentation { get; init; }
+}
 
-public abstract record NativeBattleEffect285Operation;
+public abstract record NativeBattleEffect285Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleEffect285UploadTim505E30(uint SourceAddress) : NativeBattleEffect285Operation;
 public sealed record NativeBattleEffect285Sound501330(uint SourceAddress, uint Flags, byte Pan) : NativeBattleEffect285Operation;
 public sealed record NativeBattleEffect285AllContacts506BA0(int FirstContactIndex, int Count) : NativeBattleEffect285Operation;

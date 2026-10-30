@@ -42,8 +42,10 @@ public sealed class NativeBattleWhiteWind297ControllerTests
         Assert.Throws<InvalidDataException>(() => (cold with { Globals = cold.Globals.Write((int)(RootBank - NativeBattleWhiteWind297State.BaseAddress), [1]) }).Validate());
     }
 
-    [Fact]
-    public void Real_ACT_workspaces_finish_same_scan_children_and_apply_each_matching_contact()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Real_ACT_workspaces_finish_same_scan_children_and_apply_each_matching_contact(bool capturePresentation)
     {
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
         (packets, _) = packets.Prepare(new(0, 2, 4, 0, 0, 297, null));
@@ -79,6 +81,20 @@ public sealed class NativeBattleWhiteWind297ControllerTests
             emits++;
             return frame with { State = frame.State.WriteDword(0x2507914, (uint)emits) };
         });
+        List<NativeBattlePilotVisualIdentity> identities = [];
+        if (capturePresentation)
+        {
+            var nativeEmit = inputs.EmitNode;
+            inputs = inputs with
+            {
+                EmitNodePresentation = (frame, source, context, node, identity) =>
+                {
+                    identities.Add(identity);
+                    Assert.Equal(node.ResourceOffset, identity.Primitive);
+                    return nativeEmit(frame, source, context, node);
+                }
+            };
+        }
         NativeBattleWhiteWind297Frame current = Frame(0) with { State = Frame(0).State.WriteDword(CasterGlobal, 0x1D972C0) };
         NativeBattleWhiteWind297Resources resources = new(Source(22), Source(26), Source(26), new("fixture", []), 0x5578A, new("fixture", []));
         int callbacks = 0;
@@ -92,6 +108,18 @@ public sealed class NativeBattleWhiteWind297ControllerTests
         Assert.Equal(new[] { 0, 3, 4, 5 }, anchors);
         Assert.Single(operations.OfType<NativeBattleWhiteWind297Sound>());
         Assert.True(emits > 0);
+        if (capturePresentation)
+        {
+            Assert.NotEmpty(identities);
+            Assert.All(identities, identity => Assert.Equal((ushort)297, identity.Effect));
+            Assert.Contains(identities, identity => identity.Bank == SceneDescriptor);
+            Assert.Contains(identities, identity => identity.Bank == TargetDescriptor);
+            Assert.True(identities.Select(identity => identity.Generation).Distinct().Count() > 1);
+        }
+        else
+        {
+            Assert.Empty(identities);
+        }
         Assert.Equal((uint)emits, current.State.ReadDword(0x2507914));
         Assert.All(current.Effect.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
     }

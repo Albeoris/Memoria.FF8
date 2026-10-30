@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Snipe Laser requires its actual process memory.");
         NativeBattleSnipeLaser302Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Snipe Laser requires its actual CRT stream."), memory.SnipeLaser302 ?? throw new NotSupportedException("Snipe Laser requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Snipe Laser requires its current temporary memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Snipe Laser requires its original arithmetic constants.");
-        NativeBattleSnipeLaser302Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute);
+        NativeBattleSnipeLaser302Inputs inputs = new(nativeActionPackets, colors, graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], ReadBoneMatrix, (_, pointer) => NativeBattlePackedMatrix32.FromMatrix(World(pointer), null), ReadBone502170, Anchor571400, _ => nativeActionPackets, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleSnipeLaser302Controller.Initialize(frame, resources, inputs) : NativeBattleSnipeLaser302Controller.Advance(frame, resources, inputs);
         Publish(frame);
         if (initialize)
@@ -129,7 +129,7 @@ public sealed partial class BattleSession
             NativeBattleStaticMeshResource mesh = resources.ReadStatic(operation.SourceAddress);
             NativeBattleFileStaging staging = current.Staging ?? throw new NotSupportedException("Snipe Laser requires its actual static-mesh temporary memory.");
             NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, operation.TemporaryAddress, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
-            NativeBattleStaticMeshContext88Step drawn = NativeBattleSnipeLaser302StaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleStaticMeshContext88Step drawn = NativeBattleSnipeLaser302StaticMeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context, 88) }, drawn.Batch);
         }
 
@@ -142,7 +142,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Snipe Laser mesh selected pointer differs from its actual context.");
             }
-            NativeBattleSnipeLaser302MeshContext88Step drawn = NativeBattleSnipeLaser302MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex);
+            NativeBattleSnipeLaser302MeshContext88Step drawn = NativeBattleSnipeLaser302MeshContext88.DrawLoaded(current.Memory, mesh, Projection(), context, colors, operation.TableBaseBucket, checked((byte)operation.DepthShift), ReadVertex, pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Context88, 88) };
             return Deliver(current, drawn.Batch);
 
@@ -183,7 +183,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Snipe Laser sprite source differs from its current temporary pointer.");
             }
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Snipe Laser sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift));
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, temporary, pointer => pointer == resource.Address ? resource : throw new InvalidDataException("Snipe Laser sprite source changed during drawing."), Projection(), Camera().Roll, operation.TableBaseBucket, checked((byte)operation.DepthShift), pilotIdentity: operation.PilotIdentity);
             current = current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, operation.TemporaryAddress, drawn.Temporary180, 180) };
             return Deliver(current, drawn.Batch);
         }

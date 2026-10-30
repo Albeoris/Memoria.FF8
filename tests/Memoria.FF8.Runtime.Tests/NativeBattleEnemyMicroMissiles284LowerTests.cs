@@ -225,6 +225,45 @@ public sealed class NativeBattleEnemyMicroMissiles284LowerTests
         }
         return task;
     }
+    [Fact]
+    public void Presentation_all_96_particle_rows_use_actual_pool_birth_and_preserve_velocity_phase_W_and_native_state()
+    {
+        (NativeBattleEnemyMicroMissiles284Frame Frame, List<NativeBattleEnemyMicroMissiles284Operation> Operations) Run(bool capture)
+        {
+            NativeBattleEnemyMicroMissiles284Frame frame = Frame();
+            List<NativeBattleEnemyMicroMissiles284Operation> operations = [];
+            NativeBattleEnemyMicroMissiles284Inputs inputs = Inputs((current, operation) =>
+            {
+                operations.Add(operation);
+                return current;
+            }) with { CapturePresentation = capture };
+            for (int row = 0; row < 96; row++)
+            {
+                (frame, uint address) = Append(frame, 0x2507DC0, 0x67C240);
+                Assert.NotEqual(0u, address);
+                frame = Write(frame, address, Read(frame, address).WriteBytes(12, new byte[24]).WriteWord(16, 4000));
+                frame = AdvanceParticle67C240(frame, address, Resources(), inputs).Frame;
+            }
+            return (frame, operations);
+        }
+        var native = Run(false);
+        string nativeFrame = NativeBattleTestSnapshots.Json(native.Frame);
+        string nativeOperations = NativeBattleTestSnapshots.Json(native.Operations);
+        var captured = Run(true);
+        Assert.Equal(nativeFrame, NativeBattleTestSnapshots.Json(captured.Frame));
+        Assert.Equal(nativeOperations, NativeBattleTestSnapshots.Json(captured.Operations));
+        Assert.All(native.Operations, operation => Assert.Null(operation.PilotIdentity));
+        NativeBattlePilotVisualIdentity[] identities = captured.Operations.Cast<NativeBattleEnemyMicroMissiles284DrawSprite180>().Select(operation => operation.PilotIdentity!.Value).ToArray();
+        Assert.Equal(96, identities.Distinct().Count());
+        Assert.All(identities, identity =>
+        {
+            Assert.Equal((ushort)284, identity.Effect);
+            Assert.Equal(0x2507DC0u, identity.Bank);
+            Assert.Equal(ParticleSpriteAddress, identity.ResourceGeneration);
+            Assert.True(identity.Generation > 0);
+        });
+    }
+
     private static NativeBattleGfAnimationNode Node(uint header)
     {
         byte[] bytes = new byte[44];

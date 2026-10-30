@@ -6,16 +6,28 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleEffect287Ribbon
 {
-    public static NativeBattleEffect287Frame Draw41C0(NativeBattleEffect287Frame frame, uint address, NativeBattleEffect287Resources resources, NativeBattleEffect287Inputs inputs)
+    public static NativeBattleEffect287Frame Draw41C0(NativeBattleEffect287Frame frame, uint address, NativeBattleEffect287Resources resources, NativeBattleEffect287Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena rows = ReadBytes(frame, address, 128);
         frame = LoadMatrix(frame, inputs.ReadView(frame));
         NativeBattleGeometryRegisterStep registers = Registers(frame);
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Ribbon requires its current projection controls.");
+        System.Numerics.Vector3[]? world = pilotIdentity is null ? null : new System.Numerics.Vector3[8];
+        uint[]? centers = pilotIdentity is null ? null : new uint[8];
         for (int index = 0; index < 8; index++)
         {
             NativeBattleEffectArena point = NativeBattleEffectNodeContextMemory.Copy(rows, index * 16, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
-            registers = NativeBattleGeometry.ProjectSingle(NativeBattleEffect287Attachments.LoadPacked(registers, point), inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
+            registers = NativeBattleEffect287Attachments.LoadPacked(registers, point);
+            if (world is not null)
+            {
+                NativeBattleActionMatrix matrix = NativeBattleModuleSpriteSetup.CaptureCurrentMatrix(registers.Geometry).ReadMatrix();
+                world[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, new(Word287(point, 0), Word287(point, 2), Word287(point, 4))), inputs.ReadProjection(frame));
+            }
+            registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
+            if (centers is not null)
+            {
+                centers[index] = registers.Geometry.Sxy[2]!.Value;
+            }
             rows = Put287(rows, index * 16, registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Ribbon requires its current projected point."));
             rows = PutWord287(rows, index * 16 + 4, unchecked((int)(registers.Geometry.Sz[3] ?? throw new NotSupportedException("Ribbon requires its current projected depth."))) >> 2);
         }
@@ -27,7 +39,7 @@ public static class NativeBattleEffect287Ribbon
         }
         (rows, _, _) = Extrude4350(rows, 7, null, true, previousX, previousY, resources);
         frame = WriteBytes(frame, address, rows, 128);
-        NativeBattleGfGeometryBatch batch = Emit(rows, registers.Geometry.Sz);
+        NativeBattleGfGeometryBatch batch = Emit(rows, registers.Geometry.Sz, pilotIdentity: pilotIdentity, world: world, centers: centers);
         return inputs.Execute(frame, new NativeBattleEffect287DrawBatch(batch, 0x1D8E054));
     }
 
@@ -64,7 +76,7 @@ public static class NativeBattleEffect287Ribbon
         return (rows, previousX, previousY);
     }
 
-    public static NativeBattleGfGeometryBatch Emit(NativeBattleEffectArena rows, ImmutableArray<uint?> currentSz)
+    public static NativeBattleGfGeometryBatch Emit(NativeBattleEffectArena rows, ImmutableArray<uint?> currentSz, NativeBattlePilotVisualIdentity? pilotIdentity = null, IReadOnlyList<System.Numerics.Vector3>? world = null, IReadOnlyList<uint>? centers = null)
     {
         ImmutableArray<int> payload = currentSz.Select(value => unchecked((int)(value ?? throw new NotSupportedException("Ribbon insertion requires its actual current depth FIFO.")))).ToImmutableArray();
         if (payload.Length != 4)
@@ -101,7 +113,17 @@ public static class NativeBattleEffect287Ribbon
             packet.Word16(36, 0xC048);
             packet.Word16(48, 0xC078);
             int bucket = unchecked(17 + ((firstDepth + secondDepth) >> 3));
-            attempts.Add(packet.Attempt(new(bucket, packet.Words(), payload)));
+            NativeBattleGeometryPrimitive primitive = new(bucket, packet.Words(), payload);
+            if (pilotIdentity is { } identity)
+            {
+                if (world?.Count != 8 || centers?.Count != 8)
+                {
+                    throw new InvalidDataException("Ribbon capture requires its eight actually projected source rows.");
+                }
+                System.Numerics.Vector2 Offset(int row, int corner) => new System.Numerics.Vector2(Word287(rows, row * 16 + corner), Word287(rows, row * 16 + corner + 2)) - new System.Numerics.Vector2(unchecked((short)centers[row]), unchecked((short)(centers[row] >> 16)));
+                primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 397 + index) }, world[index], world[index], world[index + 1], world[index + 1], 4) { ScreenOffsets = [Offset(index, 0), Offset(index, 8), Offset(index + 1, 0), Offset(index + 1, 8)], SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+            }
+            attempts.Add(packet.Attempt(primitive));
             allocated += 52;
         }
         return new(attempts.ToImmutable(), allocated);

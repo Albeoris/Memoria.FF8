@@ -21,7 +21,7 @@ public static partial class NativeBattleShotgun281Controller
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x14, current);
-            frame = DrawProgrammeNode281(frame, source, node, caller, -128, resources, inputs);
+            frame = DrawProgrammeNode281(frame, source, node, caller, -128, resources, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(281, Read(frame, address)) with { Primitive = node.ResourceOffset, ResourceGeneration = ((long)source.Address << 32) | 0x14 } : null);
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x14, advanced.Workspace);
@@ -44,7 +44,7 @@ public static partial class NativeBattleShotgun281Controller
         return new(bytes.ToImmutableArray(), known.ToImmutableArray());
     }
 
-    public static NativeBattleShotgun281Frame DrawProgrammeNode281(NativeBattleShotgun281Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 caller, int depthBias, NativeBattleShotgun281Resources resources, NativeBattleShotgun281Inputs inputs)
+    public static NativeBattleShotgun281Frame DrawProgrammeNode281(NativeBattleShotgun281Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattlePackedMatrix32 caller, int depthBias, NativeBattleShotgun281Resources resources, NativeBattleShotgun281Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -106,7 +106,7 @@ public static partial class NativeBattleShotgun281Controller
             context = context.Write(8, BitConverter.GetBytes(node.Color32));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleShotgun281DrawMesh7043B0(temporary, geometryAddress, vertices));
+        frame = inputs.Execute(frame, new NativeBattleShotgun281DrawMesh7043B0(temporary, geometryAddress, vertices) { PilotIdentity = pilotIdentity });
         return Release(frame, 88);
     }
 

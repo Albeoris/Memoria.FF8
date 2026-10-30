@@ -51,7 +51,7 @@ public sealed partial class BattleSession
                 NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = unchecked((short)color.Amount), ColorFlags = color.Color }).ToImmutableArray() };
                 return frame;
             case NativeBattleEffect285Flash5712C0 flash:
-                graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(unchecked((short)flash.Rise), unchecked((short)flash.Hold), unchecked((short)flash.Fall), flash.Intensity) };
+                graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(unchecked((short)flash.Rise), unchecked((short)flash.Hold), unchecked((short)flash.Fall), flash.Intensity, pilotIdentity: flash.PilotIdentity) };
                 return frame;
             case NativeBattleEffect285IoInitialize534110 initialize:
                 return frame with { Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, NativeBattleWaterExecutionFields.ArenaOffset(initialize.Address, 5)) };

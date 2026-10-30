@@ -10,7 +10,7 @@ public static partial class NativeBattleShotgun281Controller
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(task.ReadDword(12))).Write(4, BitConverter.GetBytes(task.ReadWord(0x16))).Write(36, BitConverter.GetBytes((ushort)0));
         frame = PublishContext(frame, temporary, context, 180);
-        frame = inputs.Execute(frame, new NativeBattleShotgun281DrawSprite180(temporary, task.ReadDword(12)));
+        frame = inputs.Execute(frame, new NativeBattleShotgun281DrawSprite180(temporary, task.ReadDword(12)) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(281, task) with { ResourceGeneration = task.ReadDword(12) } : null });
         frame = Release(frame, 180);
         task = Read(frame, address);
         ushort x = unchecked((ushort)(task.ReadWord(0x10) + task.ReadWord(0x18)));

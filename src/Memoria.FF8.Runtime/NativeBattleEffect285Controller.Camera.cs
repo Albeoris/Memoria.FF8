@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect285Controller
 {
-    public static NativeBattleEffect285Frame AdvanceCamera(NativeBattleEffect285Frame frame, int age, NativeBattleEffect285Resources resources, NativeBattleEffect285Inputs inputs)
+    public static NativeBattleEffect285Frame AdvanceCamera(NativeBattleEffect285Frame frame, int age, NativeBattleEffect285Resources resources, NativeBattleEffect285Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         if ((uint)age < 32)
         {
@@ -48,11 +48,11 @@ public static partial class NativeBattleEffect285Controller
                 short centroid = unchecked((short)frame.State.ReadWord(CentroidGlobal));
                 frame = inputs.Execute(frame, new NativeBattleEffect285CameraPoint(false, PointView(new(0, -877, centroid))));
                 frame = inputs.Execute(frame, new NativeBattleEffect285CameraPoint(true, PointView(new(-1500, -1500, unchecked((short)(centroid + 5400))))));
-                frame = DeliverWhite(frame, inputs);
+                frame = DeliverWhite(frame, inputs, pilotIdentity: pilotIdentity is { } identity ? identity with { Primitive = 0x7040 } : null);
             }
             if (elapsed is 1 or 8 or 10)
             {
-                frame = inputs.Execute(frame, new NativeBattleEffect285Flash5712C0(0, 1, elapsed == 1 ? 1 : 0, elapsed == 10 ? (short)96 : (short)128));
+                frame = inputs.Execute(frame, new NativeBattleEffect285Flash5712C0(0, 1, elapsed == 1 ? 1 : 0, elapsed == 10 ? (short)96 : (short)128) { PilotIdentity = pilotIdentity });
             }
             int phase = ((elapsed << 12) / 48) >> 1;
             int angle = NativeBattleCameraMath.Sine(phase) >> 7;

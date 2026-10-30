@@ -29,7 +29,7 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
             (x, y, z) = NativeBattleGfMatrices.RotateLong56C600(camera, x, y, z);
             NativeBattleActionMatrix sprite = NativeBattleCuragaMatrices.Identity8DD770() with { X = unchecked(x + camera.X), Y = unchecked(y + camera.Y), Z = unchecked(z + camera.Z) };
             frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(sprite, null));
-            frame = DrawSprite284(frame, temporary, resources.TrailSprite.Address, (ushort)phase, inputs);
+            frame = DrawSprite284(frame, temporary, resources.TrailSprite.Address, (ushort)phase, inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(284, task, phase) with { ResourceGeneration = resources.TrailSprite.Address } : null);
         }
         frame = Release(frame, 180);
         task = Read(frame, address);
@@ -115,7 +115,7 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
             NativeBattleActionMatrix sprite = NativeBattleCuragaMatrices.Identity8DD770() with { X = matrix.X, Y = matrix.Y, Z = matrix.Z };
             frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(sprite, null));
             (frame, uint temporary) = Allocate(frame, 180);
-            frame = DrawSprite284(frame, temporary, resources.ImpactSprite.Address, unchecked((ushort)age), inputs);
+            frame = DrawSprite284(frame, temporary, resources.ImpactSprite.Address, unchecked((ushort)age), inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(284, task) with { ResourceGeneration = resources.ImpactSprite.Address } : null);
             frame = Release(frame, 180);
         }
         else if (remaining == 0)
@@ -130,7 +130,7 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), new(Signed(task, 12), Signed(task, 14), Signed(task, 16)), Signed(task, 18), 1024, -256) };
         (frame, uint temporary) = Allocate(frame, 180);
-        frame = DrawSprite284(frame, temporary, resources.ParticleSprite.Address, task.ReadWord(18), inputs);
+        frame = DrawSprite284(frame, temporary, resources.ParticleSprite.Address, task.ReadWord(18), inputs, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(284, task) with { ResourceGeneration = resources.ParticleSprite.Address } : null);
         frame = Release(frame, 180);
         task = Read(frame, address);
         for (int axis = 0; axis < 3; axis++)
@@ -171,11 +171,11 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
         return new(unchecked((short)x), 0, unchecked((short)z));
     }
 
-    private static NativeBattleEnemyMicroMissiles284Frame DrawSprite284(NativeBattleEnemyMicroMissiles284Frame frame, uint temporary, uint source, ushort phase, NativeBattleEnemyMicroMissiles284Inputs inputs)
+    private static NativeBattleEnemyMicroMissiles284Frame DrawSprite284(NativeBattleEnemyMicroMissiles284Frame frame, uint temporary, uint source, ushort phase, NativeBattleEnemyMicroMissiles284Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(source)).Write(4, BitConverter.GetBytes(phase)).Write(36, BitConverter.GetBytes((ushort)0));
         frame = PublishContext(frame, temporary, context, 180);
-        return inputs.Execute(frame, new NativeBattleEnemyMicroMissiles284DrawSprite180(temporary, source));
+        return inputs.Execute(frame, new NativeBattleEnemyMicroMissiles284DrawSprite180(temporary, source) { PilotIdentity = pilotIdentity });
     }
     private static NativeBattleGeometryRegisterStep Registers284(NativeBattleEnemyMicroMissiles284Frame frame) => new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Enemy Micro Missiles requires its current geometry owner."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Enemy Micro Missiles requires its current arithmetic owner."));
     private static NativeBattleEnemyMicroMissiles284Frame Publish284(NativeBattleEnemyMicroMissiles284Frame frame, NativeBattleGeometryRegisterStep registers) => frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };

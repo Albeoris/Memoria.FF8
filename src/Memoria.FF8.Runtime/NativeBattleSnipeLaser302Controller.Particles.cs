@@ -7,7 +7,7 @@ public static partial class NativeBattleSnipeLaser302Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         (frame, uint temporary) = Allocate(frame, 180);
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), new(Signed(task, 12), Signed(task, 14), Signed(task, 16)), Signed(task, 18), 3072, -768) };
-        frame = DrawSprite302(frame, temporary, resources.SpriteB.Address, task.ReadWord(18), inputs);
+        frame = DrawSprite302(frame, temporary, resources.SpriteB.Address, task.ReadWord(18), inputs, task);
         frame = Release(frame, 180);
         task = Read(frame, address);
         short phase = unchecked((short)(task.ReadWord(18) + 1));
@@ -33,7 +33,7 @@ public static partial class NativeBattleSnipeLaser302Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         (frame, uint temporary) = Allocate(frame, 180);
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), new(Signed(task, 12), Signed(task, 14), Signed(task, 16)), Signed(task, 18), 2800, -1024) };
-        frame = DrawSprite302(frame, temporary, resources.SpriteA.Address, task.ReadWord(18), inputs);
+        frame = DrawSprite302(frame, temporary, resources.SpriteA.Address, task.ReadWord(18), inputs, task);
         frame = Release(frame, 180);
         task = Read(frame, address);
         short phase = unchecked((short)(task.ReadWord(18) + 1));
@@ -41,10 +41,10 @@ public static partial class NativeBattleSnipeLaser302Controller
         return (frame, phase < 16 ? 0 : 2);
     }
 
-    private static NativeBattleSnipeLaser302Frame DrawSprite302(NativeBattleSnipeLaser302Frame frame, uint temporary, uint source, ushort phase, NativeBattleSnipeLaser302Inputs inputs)
+    private static NativeBattleSnipeLaser302Frame DrawSprite302(NativeBattleSnipeLaser302Frame frame, uint temporary, uint source, ushort phase, NativeBattleSnipeLaser302Inputs inputs, NativeBattleModulePoolTask owner)
     {
         NativeBattleEffectArena context = Context(frame, temporary, 180).Write(0, BitConverter.GetBytes(source)).Write(4, BitConverter.GetBytes(phase)).Write(36, BitConverter.GetBytes((ushort)0));
         frame = PublishContext(frame, temporary, context, 180);
-        return inputs.Execute(frame, new NativeBattleSnipeLaser302DrawSprite180(temporary, source));
+        return inputs.Execute(frame, new NativeBattleSnipeLaser302DrawSprite180(temporary, source) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(302, owner) with { ResourceGeneration = source } : null });
     }
 }

@@ -25,7 +25,7 @@ public static partial class NativeBattleSnipeLaser302Controller
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)workspaceOffset, current);
-            frame = DrawProgrammeNode66D3C0(frame, source, node, caller40, resources, inputs);
+            frame = DrawProgrammeNode66D3C0(frame, source, node, caller40, resources, inputs, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(302, Read(frame, address), node.ResourceOffset) with { ResourceGeneration = unchecked((((long)source.Address << 32) | (uint)workspaceOffset) * 397 ^ (ushort)node.GeometryIndex) } : null);
             return Workspace();
         });
         NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)workspaceOffset, advanced.Workspace);
@@ -34,7 +34,7 @@ public static partial class NativeBattleSnipeLaser302Controller
 
     private static NativeBattleEffectArena ProgrammeCaller302(NativeBattleActionMatrix matrix, int depth) => PackedArena(NativeBattlePackedMatrix32.FromMatrix(matrix, null)).Write(32, BitConverter.GetBytes(depth)).Write(36, BitConverter.GetBytes(NativeBattleSnipeLaser302Profile.ArenaAddress + 0x1588));
 
-    public static NativeBattleSnipeLaser302Frame DrawProgrammeNode66D3C0(NativeBattleSnipeLaser302Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller40, NativeBattleSnipeLaser302Resources resources, NativeBattleSnipeLaser302Inputs inputs)
+    public static NativeBattleSnipeLaser302Frame DrawProgrammeNode66D3C0(NativeBattleSnipeLaser302Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller40, NativeBattleSnipeLaser302Resources resources, NativeBattleSnipeLaser302Inputs inputs, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleVector scale = node.Vector24;
         if (scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -107,7 +107,7 @@ public static partial class NativeBattleSnipeLaser302Controller
             context = context.Write(8, BitConverter.GetBytes(node.Color32));
         }
         frame = PublishContext(frame, temporary, context, 88);
-        frame = inputs.Execute(frame, new NativeBattleSnipeLaser302DrawMesh7043B0(temporary, geometryAddress, vertices));
+        frame = inputs.Execute(frame, new NativeBattleSnipeLaser302DrawMesh7043B0(temporary, geometryAddress, vertices) { PilotIdentity = pilotIdentity });
         return Release(frame, 88);
     }
 

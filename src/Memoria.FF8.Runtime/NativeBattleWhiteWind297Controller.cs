@@ -211,7 +211,15 @@ public static class NativeBattleWhiteWind297Controller
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
             frame = Put(frame, pool, slot, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Task(frame, pool, slot), offset, current));
-            frame = inputs.EmitNode(frame, source, context, node);
+            if (inputs.EmitNodePresentation is { } emitPresentation)
+            {
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(297, Task(frame, pool, slot), node.ResourceOffset) with { ResourceGeneration = unchecked((((long)source.Address << 32) | (uint)offset) * 397 ^ (ushort)node.GeometryIndex) };
+                frame = emitPresentation(frame, source, context, node, identity);
+            }
+            else
+            {
+                frame = inputs.EmitNode(frame, source, context, node);
+            }
             return NativeBattleGfAnimationWorkspace.Borrow(Task(frame, pool, slot), offset, size);
         });
         frame = Put(frame, pool, slot, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Task(frame, pool, slot), offset, advanced.Workspace));

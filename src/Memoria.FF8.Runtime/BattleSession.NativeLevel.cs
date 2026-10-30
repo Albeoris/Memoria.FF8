@@ -105,7 +105,7 @@ public sealed partial class BattleSession
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x20), profile.WorkspaceBytes);
                 NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Animation, 0, (current, node) =>
                 {
-                    DrawLevelNode(node, anchor, scale, scroll, depthBias);
+                    DrawLevelNode(node, anchor, scale, scroll, depthBias, task);
                     return current;
                 });
                 task = PublishWorkspace(task, 0x2C, advance.Workspace);
@@ -153,7 +153,7 @@ public sealed partial class BattleSession
             return measured;
         }
 
-        void DrawLevelNode(NativeBattleGfAnimationNode node, NativeBattleVector anchor, NativeBattleLevelScale scale, short scroll, int depthBias)
+        void DrawLevelNode(NativeBattleGfAnimationNode node, NativeBattleVector anchor, NativeBattleLevelScale scale, short scroll, int depthBias, NativeBattleModulePoolTask owner)
         {
             if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
             {
@@ -161,6 +161,7 @@ public sealed partial class BattleSession
             }
             NativeBattleGfAnimationSource source = resources.Animation;
             int geometryIndex = unchecked((short)node.GeometryIndex);
+            NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(checked((ushort)profile.Effect), owner, node.ResourceOffset) with { ResourceGeneration = unchecked(((long)source.Address << 32) | (uint)geometryIndex) };
             int geometry = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(8 + geometryIndex * 4));
             int count = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(geometry + 4));
             ImmutableArray<byte> vertices;
@@ -206,7 +207,7 @@ public sealed partial class BattleSession
                 }
                 context = context.Write(0x22, BitConverter.GetBytes(unchecked((ushort)((unchecked((byte)scroll) << (geometryIndex + 3)) & 0x7F))));
                 context = context.Write(0x24, new byte[4]).Write(0x28, new byte[] { 0, 1, 0, 1 }).Write(0x2C, new byte[4]).Write(0x30, new byte[] { 0, 1, 0x80, 0 });
-                NativeBattleLevelGlyphPacketsStep drawn = NativeBattleLevelGlyphPackets.DrawLoaded(memory, mesh, projection, context, colors, 17, 2, PackedVertex, profile.Effect == 272);
+                NativeBattleLevelGlyphPacketsStep drawn = NativeBattleLevelGlyphPackets.DrawLoaded(memory, mesh, projection, context, colors, 17, 2, PackedVertex, profile.Effect == 272, identity);
                 memory = drawn.Memory;
                 context = drawn.Context88;
                 batch = drawn.Batch;
@@ -217,7 +218,7 @@ public sealed partial class BattleSession
                 context = LevelPut(context, 24, unchecked((uint)bias));
                 if (profile.Effect == 272 && geometryIndex is 2 or 4)
                 {
-                    NativeBattleLevelPlainPacketsStep drawn = NativeBattleLevelPlainPackets.DrawLoaded(memory, mesh, projection, context, colors, 17, 2, PackedVertex);
+                    NativeBattleLevelPlainPacketsStep drawn = NativeBattleLevelPlainPackets.DrawLoaded(memory, mesh, projection, context, colors, 17, 2, PackedVertex, identity);
                     memory = drawn.Memory;
                     context = drawn.Context88;
                     batch = drawn.Batch;
@@ -225,7 +226,7 @@ public sealed partial class BattleSession
                 else
                 {
                     NativeFileStaging = NativeBattleTemporaryMemory.PublishView(NativeFileStaging, allocation.Address, context, 88);
-                    NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch7043B0(NativeFileStaging, allocation.Address, meshAddress, mesh.Bytes, matrix, projection, new(node.Scalar36 != 0 ? 0x20F0u : 0x2030u, node.Color32, node.Scalar36, null, null, bias, 17, 2), colors, offset => NativeBattleScriptedMeshPreparation.Vector(vertices.AsSpan().Slice(offset, 6).ToArray()));
+                    NativeBattleModuleMeshTemporaryResult drawn = NativeBattleModulePackets.EmitRetainedBatch7043B0(NativeFileStaging, allocation.Address, meshAddress, mesh.Bytes, matrix, projection, new(node.Scalar36 != 0 ? 0x20F0u : 0x2030u, node.Color32, node.Scalar36, null, null, bias, 17, 2), colors, offset => NativeBattleScriptedMeshPreparation.Vector(vertices.AsSpan().Slice(offset, 6).ToArray()), identity);
                     NativeFileStaging = drawn.Staging;
                     context = NativeBattleTemporaryMemory.ReadView(NativeFileStaging, allocation.Address, 88);
                     batch = drawn.Batch;

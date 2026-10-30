@@ -25,7 +25,15 @@ public static partial class NativeBattleBadBreath300Controller
         NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Target, 0, (current, node) =>
         {
             frame = Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), 0x18, current));
-            frame = inputs.EmitNode(frame, resources.Target, context, node);
+            if (inputs.EmitNodePresentation is { } emitPresentation)
+            {
+                NativeBattlePilotVisualIdentity identity = NativeBattlePilotVisualLifetimes.Identity(300, Read(frame, address), node.ResourceOffset) with { ResourceGeneration = unchecked((((long)resources.Target.Address << 32) | 0x18u) * 397 ^ (ushort)node.GeometryIndex) };
+                frame = emitPresentation(frame, resources.Target, context, node, identity);
+            }
+            else
+            {
+                frame = inputs.EmitNode(frame, resources.Target, context, node);
+            }
             return NativeBattleGfAnimationWorkspace.Borrow(Read(frame, address), 0x18, 0x128);
         });
         frame = Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), 0x18, advance.Workspace));
@@ -60,7 +68,7 @@ public static partial class NativeBattleBadBreath300Controller
 
     private static (NativeBattleBadBreath300Frame Frame, int Result) AdvanceParticle(NativeBattleBadBreath300Frame frame, uint address, NativeBattleBadBreath300Inputs inputs)
     {
-        frame = inputs.Execute(frame, new NativeBattleBadBreath300DrawParticle(address));
+        frame = inputs.Execute(frame, new NativeBattleBadBreath300DrawParticle(address) { PilotIdentity = inputs.EmitNodePresentation is null ? null : NativeBattlePilotVisualLifetimes.Identity(300, Read(frame, address), 3) });
         NativeBattleModulePoolTask task = Read(frame, address);
         ushort next = unchecked((ushort)(task.ReadWord(12) + 1));
         task = task.WriteWord(0x12, unchecked((ushort)(task.ReadWord(0x12) - 16))).WriteWord(12, next);

@@ -65,7 +65,7 @@ public static partial class NativeBattleShotgun281Controller
             }
             if (age == 1)
             {
-                frame = inputs.Execute(frame, new NativeBattleShotgun281Flash5712C0(0, 1, 0, 96));
+                frame = inputs.Execute(frame, new NativeBattleShotgun281Flash5712C0(0, 1, 0, 96) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(281, Read(frame, address), 0x5712) : null });
             }
         }
         if ((uint)(Signed(Read(frame, address), 12) - 4) < 8)
