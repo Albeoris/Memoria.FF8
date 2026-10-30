@@ -92,7 +92,32 @@ public sealed class NativeBattleEffect167LowerTests
         Assert.Equal(frame.Random, step.Frame.Random);
     }
 
-    private static NativeBattleEffect167TrailStep Trail(int z)
+    [Theory]
+    [InlineData(2000)]
+    [InlineData(0)]
+    public void Actual167_trail_capture_preserves_paired_native_packets_reservations_and_rejections(int z)
+    {
+        NativeBattleEffect167TrailStep native = Trail(z);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattleEffect167TrailStep captured = Trail(z, new(167, 1, 2, 3, 4) { ResourceGeneration = 5 });
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(native));
+        if (z == 0)
+        {
+            Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+        }
+        else
+        {
+            Assert.Equal(60, captured.Batch.Attempts.Length);
+            Assert.All(captured.Batch.Attempts, attempt =>
+            {
+                Assert.NotNull(attempt.Primitive!.PilotGeometry);
+                Assert.Equal((ushort)167, attempt.Primitive.PilotGeometry!.Identity.Effect);
+            });
+        }
+    }
+
+    private static NativeBattleEffect167TrailStep Trail(int z, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena first = NativeBattleEffectArena.Clear().MarkUnknown(0, 256);
         NativeBattleEffectArena second = NativeBattleEffectArena.Clear().MarkUnknown(0, 256);
@@ -102,7 +127,7 @@ public sealed class NativeBattleEffect167LowerTests
             second = Store(second, row * 8, (short)(row * 4 - 60), 100, 0);
         }
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 64);
-        return NativeBattleEffect167Lower.DrawTrail(NativeBattleEffect167BodyDrawingTests.Memory(z), first, second, context, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
+        return NativeBattleEffect167Lower.DrawTrail(NativeBattleEffect167BodyDrawingTests.Memory(z), first, second, context, new(pilotIdentity.HasValue ? NativeBattleCuragaMatrices.Identity8DD770() : null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, pilotIdentity);
     }
 
     private static NativeBattleEffectArena Store(NativeBattleEffectArena arena, int offset, short x, short y, short z) => arena.Write(offset, BitConverter.GetBytes(x)).Write(offset + 2, BitConverter.GetBytes(y)).Write(offset + 4, BitConverter.GetBytes(z));

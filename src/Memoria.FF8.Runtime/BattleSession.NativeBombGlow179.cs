@@ -30,7 +30,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState AdvanceNativeBombGlow179(NativeBattleGraphicsState graphics)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = graphics.OriginalEffect! with { PresentationPackets = [] };
         NativeBattleBombGlow179Resources resources = effect.Binding.BombGlow179Resources!;
         NativeBattleBombGlow179State state = NativeEffectMemory!.BombGlow179 ?? throw new NotSupportedException("Native Bomb glow requires its retained particle bank.");
         byte[] data = state.Particles.ToArray();
@@ -100,7 +100,7 @@ public sealed partial class BattleSession
                 int fade = frame < 4 ? (4 - frame) << 10 : frame >= 22 ? (frame - 22) << 9 : 0;
                 uint color = definition.NativeGraphics!.Rules.SummonColors!.Interpolate(resources.Colors[frame % 8], fade, 0);
                 graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 | 4) }) };
-                graphics = DrawNativeBombActor(graphics, actor, color, frame * 72, true);
+                graphics = DrawNativeBombActor(graphics, actor, color, frame * 72, true, NativeBattlePilotVisualLifetimes.Identity(179, task), references => effect = effect with { PresentationPackets = effect.PresentationPackets.AddRange(references) });
             }
             if (paused)
             {
@@ -126,8 +126,9 @@ public sealed partial class BattleSession
                 }
                 NativeBattleModuleSpriteFrame sprite = resources.Spark.SpriteFrame(Read(offset + 4));
                 short scale = Read(offset + 6);
-                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Spark, SpriteFrame = sprite, Phase = unchecked((ushort)Read(offset + 4)), Anchor = new(Read(offset + 8), Read(offset + 10), Read(offset + 12), 0), Scale = unchecked((ushort)scale), DepthOffset = -(scale >> 4), Direction = Read(offset + 16), SpriteYScale = Read(offset + 18), SpriteFlags = 2 };
+                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Spark, SpriteFrame = sprite, Phase = unchecked((ushort)Read(offset + 4)), Anchor = new(Read(offset + 8), Read(offset + 10), Read(offset + 12), 0), Scale = unchecked((ushort)scale), DepthOffset = -(scale >> 4), Direction = Read(offset + 16), SpriteYScale = Read(offset + 18), SpriteFlags = 2, PilotIdentity = NativeBattleCloudBombVisualLifetimes.Identity(179, task, particle, resources.Spark.Address) };
                 NativeBattleGfGeometryBatch batch = NativeBattleMeltdownPacketConversion.FromSprite(NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2));
+                effect = effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(effect.PresentationPackets, "230AD0C", 0, cursor, batch) };
                 NativeBattleRegionalPacketWrite written = NativeBattleRegionalPacketArena.Append(state.Packets, "230AD0C", cursor, 0x10000, graphics.PrimitiveFrame!.Pending, batch);
                 cursor = written.Cursor;
                 state = state with { Packets = written.Arena };
@@ -163,6 +164,7 @@ public sealed partial class BattleSession
                     }
                     int offset = free * 24;
                     Put32(offset, 1);
+                    NativeBattleCloudBombVisualLifetimes.Allocated(task, free);
                     Put(offset + 4, 0);
                     Put(offset + 6, Roll() % 0x6A0 + unchecked((ushort)(frame + 64)) * 8);
                     short fraction = (short)(Roll() % 4096);

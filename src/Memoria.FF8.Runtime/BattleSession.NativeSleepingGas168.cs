@@ -36,7 +36,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState AdvanceNativeSleepingGas168(NativeBattleGraphicsState graphics)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = graphics.OriginalEffect! with { PresentationPackets = [] };
         NativeBattleSleepingGas168Resources resources = effect.Binding.SleepingGas168Resources ?? throw new NotSupportedException("Native Sleeping Gas requires its original resources.");
         NativeBattleSleepingGas168State process = NativeEffectMemory!.SleepingGas168 ?? throw new NotSupportedException("Native Sleeping Gas requires its retained process arrays.");
         NativeCrtRandomState random = nativeCrtRandom ?? throw new NotSupportedException("Native Sleeping Gas requires its shared CRT random stream.");
@@ -190,7 +190,7 @@ public sealed partial class BattleSession
             short width = TaskWord(task, 0x1C);
             matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, width, width + (width >> 1), unchecked(distance << 12) / 1600);
             matrix = NativeBattleGfMatrices.Compose56C2F0(view, matrix);
-            Append(DrawCloud(resources.Model, output.ToArray().ToImmutableArray(), matrix, projection, TaskWord(task, 12), colors));
+            Append(DrawCloud(resources.Model, output.ToArray().ToImmutableArray(), matrix, projection, TaskWord(task, 12), colors, NativeBattlePilotVisualLifetimes.Identity(168, task, cloud) with { ResourceGeneration = 0xD6EDE4 }));
             if (paused)
             {
                 return 0;
@@ -233,8 +233,9 @@ public sealed partial class BattleSession
                 NativeBattleModuleSpriteFrame sprite = resources.Sprite.SpriteFrame(frame);
                 short scale = Word(entries, offset + 6);
                 NativeBattleVector position = EntryVector(entries, offset + 8);
-                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Sprite, SpriteFrame = sprite, Phase = (ushort)frame, Anchor = new(position.X, position.Y, position.Z, 0), Scale = scale, DepthOffset = -(scale >> (caster ? 3 : 4)), Direction = 4096, SpriteFlags = flags, SpriteColor = color };
+                NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resources.Sprite, SpriteFrame = sprite, Phase = (ushort)frame, Anchor = new(position.X, position.Y, position.Z, 0), Scale = scale, DepthOffset = -(scale >> (caster ? 3 : 4)), Direction = 4096, SpriteFlags = flags, SpriteColor = color, PilotIdentity = NativeBattleCloudBombVisualLifetimes.Identity(168, task, (caster ? 100 : 0) + index, resources.Sprite.Address) };
                 NativeBattleModulePacketBatch batch = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera.Roll, 17, 2);
+                effect = effect with { PresentationPackets = effect.PresentationPackets.AddRange(batch.Primitives.Select(item => new NativeBattlePrimitiveReference("20DFAB8", 0, checked(effect.DrawArenaOffset!.Value + item.ByteOffset)))) };
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch, NativeBattleEffectGouraudWrites.FullDword);
                 NativeEffectMemory = written.Memory;
                 effect = effect with { DrawArenaOffset = written.Cursor };
@@ -291,6 +292,7 @@ public sealed partial class BattleSession
                 {
                     int offset = free * 24;
                     BinaryPrimitives.WriteInt32LittleEndian(entries.AsSpan(offset), mask);
+                    NativeBattleCloudBombVisualLifetimes.Allocated(task, (caster ? 100 : 0) + free);
                     PutWord(entries, offset + 4, 0);
                     PutWord(entries, offset + 6, (short)(Roll() % (caster ? 2048 : 2560) + 1536));
                     if (caster)
@@ -324,6 +326,7 @@ public sealed partial class BattleSession
 
         void Append(NativeBattleGfGeometryBatch batch)
         {
+            effect = effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(effect.PresentationPackets, "20DFAB8", 0, effect.DrawArenaOffset!.Value, batch) };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, effect.DrawArenaOffset!.Value, graphics.PrimitiveFrame!.Pending, batch);
             NativeEffectMemory = written.Memory;
             effect = effect with { DrawArenaOffset = written.Cursor };

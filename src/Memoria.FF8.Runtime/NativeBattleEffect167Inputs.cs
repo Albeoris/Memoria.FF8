@@ -9,6 +9,7 @@ public sealed record NativeBattleEffect167Step(NativeBattleEffect167Frame Frame,
 public sealed record NativeBattleEffect167PointStep(NativeBattleEffect167Frame Frame, NativeBattleEffectArena Output8);
 public sealed record NativeBattleEffect167Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect167Frame, uint> ReadFlags, Func<NativeBattleEffect167Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect167Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect167Frame, int, NativeBattleEffectArena> ReadModelArena9C, Func<NativeBattleEffect167Frame, int, int, NativeBattlePackedMatrix32> ReadCurrentBoneMatrix32, Func<NativeBattleEffect167Frame, int, NativeBattlePackedMatrix32> ReadWorld, Func<NativeBattleEffect167Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect167Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect167Frame, short> ReadScalarFocal, Func<NativeBattleEffect167Frame, short> ReadCameraRoll, Func<NativeBattleEffect167Frame, int, byte, short, NativeBattleEffectArena, NativeBattleEffect167PointStep> Point502170, Func<NativeBattleEffect167Frame, int, int, int, NativeBattleEffectArena, NativeBattleEffect167PointStep> LocalBonePoint3B20, Func<NativeBattleEffect167Frame, NativeBattleEffect167Operation, NativeBattleEffect167Frame> Execute)
 {
+    public bool CapturePresentation { get; init; }
     public Func<NativeBattleEffect167Frame, uint, uint>? ReadColor { get; init; }
 }
 

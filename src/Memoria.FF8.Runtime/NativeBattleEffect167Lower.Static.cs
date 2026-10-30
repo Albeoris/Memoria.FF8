@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect167Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect167Profile;
 
@@ -22,7 +23,11 @@ public static partial class NativeBattleEffect167Lower
         uint source = first ? 0xD6FA7Cu : 0xD7042Cu;
         NativeBattleEffectArena context = Context(frame, temporary, 88).Write(0, BitConverter.GetBytes(source)).Write(8, BitConverter.GetBytes(0u)).Write(0x1C, BitConverter.GetBytes(0x33u));
         frame = inputs.Execute(frame, new NativeBattleEffect167SetProjectionH(288));
-        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
+        NativeBattleStaticMeshContext88Step drawn = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(source), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(167, task) with { ResourceGeneration = source } : null);
+        if (inputs.CapturePresentation)
+        {
+            drawn = drawn with { Batch = drawn.Batch with { Attempts = NativeBattleContextBodyPresentation.CaptureDepths(drawn.Batch).Attempts.Select(attempt => attempt.Primitive is { PilotGeometry: { } visual } primitive ? attempt with { Primitive = primitive with { PilotGeometry = visual with { FocalLengthOverride = 288 } } } : attempt).ToImmutableArray() } };
+        }
         frame = frame with { Memory = drawn.Memory };
         frame = PublishContext(frame, temporary, drawn.Context, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect167DrawBatch(drawn.Batch, CursorGlobal));

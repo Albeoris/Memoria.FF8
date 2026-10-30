@@ -12,6 +12,12 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         Installed_special_target_Renzokuken_completes_target_animation_camera_and_standalones(159, 92);
     }
 
+    [Fact]
+    public void Installed_original161_model91_completes_authored_contacts_and_standalones()
+    {
+        RunSpecial(161, 91, false);
+    }
+
     [Theory]
     [InlineData((ushort)161, 91)]
     [InlineData((ushort)161, 131)]
@@ -51,6 +57,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         Directory.CreateDirectory(output);
         Console.WriteLine("Renzokuken evidence: " + output);
         BattleSnapshot before = battle.Capture();
+        int capturedFrames = 0;
         try
         {
             for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
@@ -114,6 +121,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             Assert.NotNull(battle.GetNativeRenzokuken("party"));
             Assert.Equal(effectId, battle.GetNativeRenzokuken("party")!.MagicId);
             bool selected = false;
+
             bool registeredCamera = false;
             bool capturedMidpoint = false;
             bool targetAnimated = false;
@@ -125,6 +133,10 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                 Assert.Equal(shadowColor, battle.NativeGraphics!.Models[actorIndex].Color44);
                 interpolatedCurrentStageColor |= battle.NativeGraphics.Models[actorIndex].Color40 == interpolatedColor;
                 selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
+                if (effectId is 159 or 161 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+                {
+                    capturedFrames++;
+                }
                 targetAnimated |= battle.NativeGraphics.Models.Any(target => target.ResourceMagicId == effectId && target.ResourceRenzokukenTargetBank == 0 && target.SequenceState is not null);
                 if (battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
                 {
@@ -145,6 +157,10 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                 }
                 if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
+                    if (effectId is 159 or 161)
+                    {
+                        Assert.True(capturedFrames > 1);
+                    }
                     Assert.True(capturedMidpoint);
                     Assert.True(targetAnimated, "The special native target must execute its own embedded animation sequence.");
                     Assert.All(battle.NativeGraphics.Models, target => Assert.Null(target.ResourceRenzokukenTargetBank));
@@ -195,6 +211,14 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             before = battle.Capture();
             battle.Tick();
             clone.Tick();
+            if (effectId is 159 or 161)
+            {
+                if (NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+                {
+                    capturedFrames++;
+                }
+                _ = NativeBattleRenzokukenCaptureAssertions.AssertFrame(clone.Capture(), effectId);
+            }
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
             Publish(name + "-next");

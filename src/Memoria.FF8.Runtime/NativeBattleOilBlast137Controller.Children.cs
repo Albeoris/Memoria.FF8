@@ -11,7 +11,7 @@ public static partial class NativeBattleOilBlast137Controller
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadCamera(frame), Vector(task, 12), OptionalWord(task, 18), scale, unchecked((short)-(scale >> 2))) };
         (frame, uint temporary) = Allocate(frame, 180);
         NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(frame.Staging!, temporary, SpriteAddress, 0).Write(temporary + 4, BitConverter.GetBytes(task.ReadWord(18)));
-        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleOilBlast137DrawSprite180(temporary, SpriteAddress));
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleOilBlast137DrawSprite180(temporary, SpriteAddress) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(137, Read(frame, address)) with { ResourceGeneration = SpriteAddress } : null });
         frame = Release(frame, 180);
         task = Read(frame, address);
         for (int index = 0; index < 3; index++)
@@ -41,7 +41,7 @@ public static partial class NativeBattleOilBlast137Controller
         frame = LoadMatrix(frame, NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(inputs.ReadCamera(frame).ReadMatrix(), local), null));
         (frame, uint temporary) = Allocate(frame, 88);
         NativeBattleFileStaging staging = frame.Staging!.Write(temporary, BitConverter.GetBytes(StaticMeshAddress)).Write(temporary + 0x1C, BitConverter.GetBytes(0u));
-        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleOilBlast137DrawStatic88(temporary, StaticMeshAddress));
+        frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleOilBlast137DrawStatic88(temporary, StaticMeshAddress) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(137, Read(frame, address)) with { ResourceGeneration = StaticMeshAddress } : null });
         frame = Release(frame, 88);
         task = Read(frame, address);
         short vertical = unchecked((short)(Word(task, 0x16) + 16));

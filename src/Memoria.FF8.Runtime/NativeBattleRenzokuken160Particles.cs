@@ -38,7 +38,7 @@ public static partial class NativeBattleRenzokuken160Controller
                     color = resources.SpiralColors[colorIndex];
                 }
                 NativeBattleVector position = new(Read(bytes, offset + 4), Read(bytes, offset + 6), Read(bytes, offset + 8));
-                NativeBattleRenzokuken160SpriteStep rendered = draw(frame, new(resources.ParticleSprites[bank], unchecked((ushort)counter), position, scale, color, bank == 2 ? (ushort)4 : (ushort)0));
+                NativeBattleRenzokuken160SpriteStep rendered = draw(frame, new(resources.ParticleSprites[bank], unchecked((ushort)counter), position, scale, color, bank == 2 ? (ushort)4 : (ushort)0) { PilotIdentity = NativeBattleRenzokukenVisualLifetimes.Particle(frame.Effect, NativeBattleRenzokukenVisualLifetimes.Bank(frame.Effect.Binding.Effect, bank), offset / stride, resources.ParticleSprites[bank].Address) });
                 frame = rendered.Frame;
                 if (!advance)
                 {

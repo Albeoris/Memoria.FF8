@@ -100,7 +100,7 @@ public static class NativeBattleSleepingGas168
         }
     }
 
-    public static NativeBattleGfGeometryBatch DrawCloud(ImmutableArray<byte> model, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short frame, NativeBattleSummonColors colors)
+    public static NativeBattleGfGeometryBatch DrawCloud(ImmutableArray<byte> model, ImmutableArray<byte> vertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short frame, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         uint flags = frame < 24 || frame >= 52 ? 0x20F3u : 0x2033u;
         int fade = frame < 24 ? 4096 - frame * 170 : frame >= 52 ? (frame - 52) << 9 : 0;
@@ -112,8 +112,15 @@ public static class NativeBattleSleepingGas168
         for (int index = 0; index < count; index++)
         {
             ImmutableArray<byte> face = model.Slice(cursor, 24);
-            NativeBattleGfGeometryPackets.ProjectedCorners corners = new(Enumerable.Range(0, 4).Select(corner => BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan().Slice(4 + corner * 2))).ToArray(), Project);
+            ushort[] selectors = Enumerable.Range(0, 4).Select(corner => BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan().Slice(4 + corner * 2))).ToArray();
+            Dictionary<ushort, NativeBattleVector>? reached = pilotIdentity.HasValue ? [] : null;
+            NativeBattleGfGeometryPackets.ProjectedCorners corners = new(selectors, offset => Project(offset, reached));
             NativeBattleGfGeometryAttempt packet = NativeBattleGfGeometryPackets.EmitAttempt(face.AsSpan(), corners, 3, new(flags, 0, fade, null, null, 0, 0, 17, 2), colors, allocated, variant: new(null, null, false, true));
+            if (pilotIdentity is { } identity && packet.Primitive is { } primitive)
+            {
+                System.Numerics.Vector3 World(int corner) => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(matrix, reached![selectors[corner]]), projection);
+                packet = packet with { Primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + cursor) }, World(0), World(1), World(2), World(3), 4) { SourceDepths = new(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), UseSourceDepths = true } } };
+            }
             attempts.Add(packet);
             if (packet.Primitive is not null)
             {
@@ -123,10 +130,12 @@ public static class NativeBattleSleepingGas168
         }
         return new(attempts.ToImmutable(), allocated);
 
-        NativeBattleModuleProjectedVertex Project(ushort offset)
+        NativeBattleModuleProjectedVertex Project(ushort offset, Dictionary<ushort, NativeBattleVector>? reached)
         {
             ReadOnlySpan<byte> source = vertices.AsSpan().Slice(offset * 4, 6);
-            return NativeBattleModuleProjection.Project45FE10(matrix, new(Word(source, 0), Word(source, 2), Word(source, 4)), projection);
+            NativeBattleVector point = new(Word(source, 0), Word(source, 2), Word(source, 4));
+            reached?.TryAdd(offset, point);
+            return NativeBattleModuleProjection.Project45FE10(matrix, point, projection);
         }
     }
 

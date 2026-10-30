@@ -18,7 +18,7 @@ public static partial class NativeBattleRenzokukenVariantController
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(view, world);
         short counter = unchecked((short)task.ReadWord(12));
         NativeBattleModuleMeshContext context = new(counter >= 6 ? 0xF3u : 0x33u, 0, counter >= 6 ? (counter - 6) << 9 : null, null, null, null, 17, 2);
-        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(resources.Meshes[2].Bytes, 0, default, matrix, projection, context, colors);
+        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(resources.Meshes[2].Bytes, 0, default, matrix, projection, context, colors, pilotIdentity: inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Task(frame.Effect, task, resources.Meshes[2].Address) : null);
         frame = inputs.Execute(frame, new NativeBattleRenzokuken160MeshDraw(packets));
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {

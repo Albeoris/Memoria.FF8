@@ -159,6 +159,39 @@ public sealed class NativeBattleOilBlast137MeshTests
         Assert.Equal(Address + 40, U32(result.Context84, 0x1C));
     }
 
+    [Theory]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(7)]
+    public void Captured_custom_mesh_preserves_windows_UVs_masks_native_GTE_and_zero_proxy_depths(int group)
+    {
+        NativeBattleCameraProjection projection = Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() };
+        NativeBattleOilBlast137MeshStep native = NativeBattleOilBlast137Mesh.Draw(Memory(), Source(group), Context(), projection);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattleOilBlast137MeshStep captured = NativeBattleOilBlast137Mesh.DrawPresentation(Memory(), Source(group), Context(), projection, pilotIdentity: new(137, 1, 2, 3, 4) { ResourceGeneration = Address });
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(native));
+        NativeBattleGeometryPrimitive polygon = Assert.Single(captured.Batch.Attempts, attempt => attempt.Primitive is { PilotGeometry: not null }).Primitive!;
+        NativeBattlePilotVisualGeometry visual = polygon.PilotGeometry!;
+        Assert.Equal((ushort)137, visual.Identity.Effect);
+        Assert.True(visual.UseSourceDepths);
+        Assert.Equal(System.Numerics.Vector4.Zero, visual.SourceDepths);
+        Assert.Empty(polygon.VertexPayload4);
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(7)]
+    public void Captured_custom_rejection_leaves_the_bad_fourth_vertex_unread(int group)
+    {
+        NativeBattleCameraProjection projection = Projection with { View = NativeBattleCuragaMatrices.Identity8DD770() };
+        NativeBattleOilBlast137MeshStep native = NativeBattleOilBlast137Mesh.Draw(Memory(0), Source(group, badFourth: true), Context(), projection);
+        NativeBattleOilBlast137MeshStep captured = NativeBattleOilBlast137Mesh.DrawPresentation(Memory(0), Source(group, badFourth: true), Context(), projection, pilotIdentity: new(137, 1, 2, 3, 4));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.All(captured.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+    }
+
     private const uint Address = 0x1234000;
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);
     private static NativeBattleOilBlast137MeshStep Draw(int group, NativeBattleEffectArena? context = null, NativeBattleEffectMemory? memory = null, NativeBattleCameraProjection? projection = null) => NativeBattleOilBlast137Mesh.Draw(memory ?? Memory(), Source(group), context ?? Context(), projection ?? Projection);

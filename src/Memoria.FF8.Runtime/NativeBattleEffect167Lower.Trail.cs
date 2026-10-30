@@ -65,7 +65,7 @@ public static partial class NativeBattleEffect167Lower
             }
             frame = Release(frame, 400);
             frame = LoadMatrix(frame, inputs.ReadView(frame));
-            NativeBattleEffect167TrailStep drawn = DrawTrail(frame.Memory, frame.State.ReadView(FirstSamplesAddress, 256), frame.State.ReadView(SecondSamplesAddress, 256), context, inputs.ReadProjection(frame), inputs.Colors);
+            NativeBattleEffect167TrailStep drawn = DrawTrail(frame.Memory, frame.State.ReadView(FirstSamplesAddress, 256), frame.State.ReadView(SecondSamplesAddress, 256), context, inputs.ReadProjection(frame), inputs.Colors, inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(167, Read(frame, address)) with { ResourceGeneration = FirstSamplesAddress } : null);
             frame = frame with { Memory = drawn.Memory };
             context = drawn.Temporary64;
             frame = PublishContext(frame, temporary, context, 64);
@@ -86,7 +86,12 @@ public static partial class NativeBattleEffect167Lower
 
     public static NativeBattleEffect167TrailStep DrawTrail(NativeBattleEffectMemory memory, NativeBattleEffectArena firstSamples, NativeBattleEffectArena secondSamples, NativeBattleEffectArena temporary64, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
     {
-        NativeBattleRibbonPair72Step result = NativeBattleRibbonPair72.DrawLoaded(memory, firstSamples, secondSamples, temporary64, projection, colors, 0x3A903030);
+        return DrawTrail(memory, firstSamples, secondSamples, temporary64, projection, colors, null);
+    }
+
+    public static NativeBattleEffect167TrailStep DrawTrail(NativeBattleEffectMemory memory, NativeBattleEffectArena firstSamples, NativeBattleEffectArena secondSamples, NativeBattleEffectArena temporary64, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattlePilotVisualIdentity? pilotIdentity)
+    {
+        NativeBattleRibbonPair72Step result = NativeBattleRibbonPair72.DrawLoaded(memory, firstSamples, secondSamples, temporary64, projection, colors, 0x3A903030, pilotIdentity);
         return new(result.Memory, result.Temporary64, result.Batch);
     }
 }

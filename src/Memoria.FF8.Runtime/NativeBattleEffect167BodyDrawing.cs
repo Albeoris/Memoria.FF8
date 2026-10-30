@@ -4,7 +4,11 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect167BodyStep(NativeBattleEffectMemory Memory, NativeBattleEffectArena Temporary464, NativeBattleEffectArena Scratch, NativeBattleGfGeometryBatch Batch);
-public sealed record NativeBattleEffect167DrawBody464(uint TemporaryAddress, int Actor, NativeBattlePackedMatrix32 OffsetWorld) : NativeBattleEffect167Operation;
+public sealed record NativeBattleEffect167DrawBody464(uint TemporaryAddress, int Actor, NativeBattlePackedMatrix32 OffsetWorld) : NativeBattleEffect167Operation
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 
 public static class NativeBattleEffect167BodyDrawing
 {

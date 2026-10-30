@@ -30,6 +30,7 @@ public static partial class NativeBattleRenzokuken159Controller
                 }
                 int offset = index * 16;
                 Write(particles, offset, 0);
+                NativeBattleRenzokukenVisualLifetimes.Allocated(frame.Effect, NativeBattleRenzokukenVisualLifetimes.Bank(frame.Effect.Binding.Effect, 2), index);
                 Write(particles, offset + 2, Rand() % 768 + 1024);
                 int bones = (inputs.ReadBoneCount ?? throw new NotSupportedException("Native601EC0 requires the original body pose bone-count BYTE."))(state.Actor);
                 int bone = bones == 0 ? 0 : Rand() % bones;

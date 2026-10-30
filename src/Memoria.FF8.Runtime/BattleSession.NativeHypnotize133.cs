@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState RunNativeHypnotize133(NativeBattleGraphicsState graphics, bool initialize)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Hypnotize requires its selected original effect.");
+        NativeBattleOriginalEffectState effect = (graphics.OriginalEffect ?? throw new NotSupportedException("Hypnotize requires its selected original effect.")) with { PresentationPackets = [] };
         NativeBattleHypnotize133Resources resources = effect.Binding.Hypnotize133Resources ?? throw new NotSupportedException("Hypnotize requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Hypnotize requires its actual process memory.");
         NativeBattleHypnotize133Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Hypnotize requires its CRT stream."), memory.Hypnotize133 ?? throw new NotSupportedException("Hypnotize requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Hypnotize requires its addressed memory.") };
@@ -103,7 +103,7 @@ public sealed partial class BattleSession
                 }
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("Hypnotize drawing requires its addressed temporary memory."), 88);
                 NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
-                NativeBattleDefaultActContext40Step drawn = NativeBattleDefaultActContext40.Draw(current.Memory, source, node, context, temporary, Projection(), colors, BinaryPrimitives.ReadUInt32LittleEndian(context.Read(36, 4)), NativeBattleActContext40Policy.Hypnotize133);
+                NativeBattleDefaultActContext40Step drawn = NativeBattleDefaultActContext40.Draw(current.Memory, source, node, context, temporary, Projection(), colors, BinaryPrimitives.ReadUInt32LittleEndian(context.Read(36, 4)), NativeBattleActContext40Policy.Hypnotize133, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(133, NativeBattleHypnotize133Controller.Read(current, address), unchecked(offset * 65537 + node.ResourceOffset)) with { ResourceGeneration = unchecked(((long)source.Address << 32) ^ node.GeometryIndex) });
                 NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.Temporary88, 88);
                 current = Deliver(current with { Memory = drawn.Memory, Staging = published }, drawn.Batch);
                 current = current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging!, 88) };
@@ -115,8 +115,10 @@ public sealed partial class BattleSession
 
         NativeBattleHypnotize133Frame Deliver(NativeBattleHypnotize133Frame current, NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleContextBodyPresentation.CaptureDepths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Hypnotize requires its current ordering table.");
             uint cursor = current.State.ReadDword(NativeBattleHypnotize133Profile.CursorGlobal);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, checked((int)(cursor - NativeBattleEffectNodeMemory.ArenaAddress)), batch) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, checked((int)(cursor - NativeBattleEffectNodeMemory.ArenaAddress)), primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleHypnotize133Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
@@ -143,7 +145,7 @@ public sealed partial class BattleSession
                     NativeBattleEffectMemory prepared = NativeBattleModuleSpriteSetup.Setup571BC0(current.Memory, Camera().CapturePackedView1D97778(), position, phase, 1024, -256);
                     NativeBattleFileStaging staging = NativeBattleModuleSpriteTemporary.Begin571C80(current.Staging!, sprite.Temporary180, resources.Sprite.Address, 0).Write(sprite.Temporary180 + 4, BitConverter.GetBytes(phase));
                     NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(staging, sprite.Temporary180, 180), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 180), 0, 180);
-                    NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(prepared, temporary, source => source == resources.Sprite.Address ? resources.Sprite : throw new NotSupportedException("Hypnotize selected an unsupported sprite source."), Projection(), Camera().Roll);
+                    NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(prepared, temporary, source => source == resources.Sprite.Address ? resources.Sprite : throw new NotSupportedException("Hypnotize selected an unsupported sprite source."), Projection(), Camera().Roll, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(133, task) with { ResourceGeneration = resources.Sprite.Address });
                     return Deliver(current with { Memory = drawn.Memory, Staging = NativeBattleTemporaryMemory.PublishView(staging, sprite.Temporary180, drawn.Temporary180, 180) }, drawn.Batch);
                 default:
                     throw new NotSupportedException("Hypnotize operation has no proved implementation.");

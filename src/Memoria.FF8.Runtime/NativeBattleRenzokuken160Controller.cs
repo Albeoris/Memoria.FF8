@@ -5,6 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleRenzokuken160Inputs(uint GraphicsFlags, ImmutableArray<byte> AbSegments, Func<byte, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleRenzokuken160Frame, NativeBattleRenzokuken160Operation, NativeBattleRenzokuken160Frame> Execute)
 {
+    public bool CapturePresentation { get; init; }
     public Func<byte, int>? ReadBoneCount { get; init; }
     public Func<byte, int, short, NativeBattleVector>? ReadBone { get; init; }
     public Func<byte, NativeBattleRenzokuken160WeaponTip>? ReadWeaponTip { get; init; }

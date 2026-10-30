@@ -37,7 +37,7 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState AdvanceNativeSuicide180(NativeBattleGraphicsState graphics)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native Suicide requires its selected original effect.");
+        NativeBattleOriginalEffectState effect = (graphics.OriginalEffect ?? throw new NotSupportedException("Native Suicide requires its selected original effect.")) with { PresentationPackets = [] };
         NativeBattleSuicide180Resources resources = effect.Binding.Suicide180Resources ?? throw new NotSupportedException("Native Suicide requires its original resources.");
         NativeBattleSuicide180State state = NativeEffectMemory?.Suicide180 ?? throw new NotSupportedException("Native Suicide requires its retained particle bank.");
         byte[] particles = state.Particles.ToArray();
@@ -148,7 +148,7 @@ public sealed partial class BattleSession
             {
                 uint color = colors.Interpolate(0, NativeBattleSuicide180.GlowLevel(age), 0xC0C0C0);
                 graphics = graphics with { Models = graphics.Models.SetItem(actor, graphics.Models[actor] with { Flags0 = (ushort)(graphics.Models[actor].Flags0 | 4) }) };
-                graphics = DrawNativeBombActor(graphics, actor, color, 0, false);
+                graphics = DrawNativeBombActor(graphics, actor, color, 0, false, NativeBattlePilotVisualLifetimes.Identity(180, task), references => effect = effect with { PresentationPackets = effect.PresentationPackets.AddRange(references) });
             }
             if (paused)
             {
@@ -170,7 +170,7 @@ public sealed partial class BattleSession
             NativeBattleActionMatrix local = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(new(0, Word(task, 24), 0)), scale, scale, scale) with { X = Word(task, 16), Y = Word(task, 18), Z = Word(task, 20) };
             int fadeStart = second ? 10 : 8;
             NativeBattleStaticMeshResource resource = second ? resources.SecondRing : resources.Ring;
-            DrawMesh(resource, NativeBattleGfMatrices.Compose56C2F0(view, local), age >= fadeStart ? 0xF3u : 0x33u, age >= fadeStart ? (age - fadeStart) << 9 : 0);
+            DrawMesh(resource, NativeBattleGfMatrices.Compose56C2F0(view, local), age >= fadeStart ? 0xF3u : 0x33u, age >= fadeStart ? (age - fadeStart) << 9 : 0, NativeBattlePilotVisualLifetimes.Identity(180, task) with { ResourceGeneration = resource.Address });
             if (paused)
             {
                 return 0;
@@ -179,13 +179,14 @@ public sealed partial class BattleSession
             return Word(task, 12) >= (second ? 18 : 16) ? 2 : 0;
         }
 
-        void DrawMesh(NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, uint flags, int fade)
+        void DrawMesh(NativeBattleStaticMeshResource resource, NativeBattleActionMatrix matrix, uint flags, int fade, NativeBattlePilotVisualIdentity pilotIdentity)
         {
-            NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, matrix, projection, new(flags, 0, fade, null, null, null, 17, 2), colors);
+            NativeBattleGfGeometryBatch batch = NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, matrix, projection, new(flags, 0, fade, null, null, null, 17, 2), colors, pilotIdentity: pilotIdentity);
             Append(batch);
         }
         void Append(NativeBattleGfGeometryBatch batch)
         {
+            effect = effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(effect.PresentationPackets, "20DFAB8", 0, cursor, batch) };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeEffectMemory!, cursor, graphics.PrimitiveFrame!.Pending, batch);
             NativeEffectMemory = written.Memory;
             cursor = written.Cursor;
@@ -236,7 +237,7 @@ public sealed partial class BattleSession
                     NativeBattleActionMatrix matrix = new(NativeBattleModuleAlignment.DownToVelocity573C40(vx, vy, vz), Read(offset + 8), Read(offset + 10), Read(offset + 12), 4096);
                     matrix = NativeBattlePoseMatrices.Scale56BEF0(matrix, 4096, Read(offset + 6), 4096);
                     explosionHeader = explosionHeader.SelectParticle(frame);
-                    DrawMesh(resources.Explosion, NativeBattleGfMatrices.Compose56C2F0(view, matrix), explosionHeader.Flags, explosionHeader.Fade);
+                    DrawMesh(resources.Explosion, NativeBattleGfMatrices.Compose56C2F0(view, matrix), explosionHeader.Flags, explosionHeader.Fade, NativeBattleCloudBombVisualLifetimes.Identity(180, task, particle, resources.Explosion.Address));
                     ended = frame + 1 >= 6;
                 }
                 else
@@ -244,7 +245,7 @@ public sealed partial class BattleSession
                     NativeBattleModuleResource resource = kind == 4 ? resources.Smoke : resources.Spark;
                     NativeBattleModuleSpriteFrame sprite = resource.SpriteFrame(frame);
                     short scale = Read(offset + 6);
-                    NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = sprite, Phase = unchecked((ushort)frame), Anchor = new(Read(offset + 8), Read(offset + 10), Read(offset + 12), 0), Scale = unchecked((ushort)scale), DepthOffset = -(scale >> 4), Direction = kind == 8 ? Read(offset + 16) : 4096, SpriteYScale = kind == 8 ? Read(offset + 18) : null, SpriteFlags = kind == 8 ? (ushort)2 : (ushort)0 };
+                    NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = sprite, Phase = unchecked((ushort)frame), Anchor = new(Read(offset + 8), Read(offset + 10), Read(offset + 12), 0), Scale = unchecked((ushort)scale), DepthOffset = -(scale >> 4), Direction = kind == 8 ? Read(offset + 16) : 4096, SpriteYScale = kind == 8 ? Read(offset + 18) : null, SpriteFlags = kind == 8 ? (ushort)2 : (ushort)0, PilotIdentity = NativeBattleCloudBombVisualLifetimes.Identity(180, task, particle, resource.Address) };
                     Append(NativeBattleMeltdownPacketConversion.FromSprite(NativeBattleModulePackets.EmitSprite571DC0(draw, projection, camera.Roll, 17, 2)));
                     ended = sprite.NextOffset < 0;
                 }
@@ -300,6 +301,7 @@ public sealed partial class BattleSession
                         break;
                     }
                     Put32(offset, (uint)kind);
+                    NativeBattleCloudBombVisualLifetimes.Allocated(task, offset / 24);
                     Put(offset + 4, 0);
                     if (kind is 1 or 2)
                     {

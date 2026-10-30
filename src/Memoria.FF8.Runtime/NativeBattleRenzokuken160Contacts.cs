@@ -66,6 +66,7 @@ public static partial class NativeBattleRenzokuken160Controller
                 }
                 int offset = 12 * index;
                 Write(sparks, offset, 0);
+                NativeBattleRenzokukenVisualLifetimes.Allocated(frame.Effect, 0, index);
                 Write(sparks, offset + 2, Rand() % 1536 + 2560);
                 Write(sparks, offset + 4, origin.Position.X);
                 Write(sparks, offset + 6, origin.Position.Y);
@@ -84,6 +85,7 @@ public static partial class NativeBattleRenzokuken160Controller
                 }
                 int offset = 20 * index;
                 Write(debris, offset, 0);
+                NativeBattleRenzokukenVisualLifetimes.Allocated(frame.Effect, 1, index);
                 Write(debris, offset + 2, Rand() % 2048 + 3072);
                 Write(debris, offset + 4, origin.Position.X);
                 Write(debris, offset + 6, origin.Position.Y);

@@ -12,10 +12,21 @@ public static class NativeBattleOilBlast137ActContext44
 
     public static NativeBattleOilBlast137ActContextStep Draw(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context44, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, int morphLength, short? localVectorW = null)
     {
+        return DrawCore(memory, source, node, context44, temporary88, projection, colors, morphAddress, morphLength, localVectorW, null);
+    }
+
+    public static NativeBattleOilBlast137ActContextStep DrawPresentation(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context44, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, int morphLength, short? localVectorW = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
+    {
+        return DrawCore(memory, source, node, context44, temporary88, projection, colors, morphAddress, morphLength, localVectorW, pilotIdentity);
+    }
+
+    private static NativeBattleOilBlast137ActContextStep DrawCore(NativeBattleEffectMemory memory, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena context44, NativeBattleEffectArena temporary88, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint morphAddress, int morphLength, short? localVectorW, NativeBattlePilotVisualIdentity? pilotIdentity)
+    {
         NativeBattleOilBlast137ActPreparation prepared = Prepare(memory, source, node, context44, temporary88, colors, morphAddress, morphLength, localVectorW);
+        pilotIdentity = pilotIdentity is { } identity ? identity with { ResourceGeneration = unchecked(((long)source.Address << 32) ^ (uint)prepared.GeometryOffset) } : null;
         if (prepared.DefaultBackend)
         {
-            NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(prepared.Memory, source, prepared.GeometryOffset, prepared.Temporary88, projection, colors, prepared.ReadVertex, prepared.ReadW);
+            NativeBattleDefaultActMeshStep drawn = NativeBattleDefaultActMesh.Draw(prepared.Memory, source, prepared.GeometryOffset, prepared.Temporary88, projection, colors, prepared.ReadVertex, prepared.ReadW, pilotIdentity: pilotIdentity);
             return new(drawn.Memory, drawn.Context88, drawn.Batch);
         }
         NativeBattleScriptedGraphicsMemory controls = prepared.Memory.ScriptedGraphics ?? throw new NotSupportedException("Oil Blast ACT requires its current projection controls.");
@@ -34,7 +45,7 @@ public static class NativeBattleOilBlast137ActContext44
         }
         ImmutableArray<byte> shape = source.Data.AsSpan(geometry, checked(end - geometry)).ToArray().ToImmutableArray();
         NativeBattleGeometryRegisterStep registers = new(prepared.Memory.GeometryRegisters!, prepared.Memory.ScriptedColorRegisters!);
-        NativeBattleCuraga88MeshStep emitted = NativeBattleCuraga88Mesh.EmitBatch(shape, checked(source.Address + (uint)geometry), prepared.Matrix, projection, prepared.Temporary88, registers, far, controls.Dqa, controls.Dqb, controls.Zsf4, colors, zsf3: controls.Zsf3, selectedVerticesAddress: prepared.SelectedVerticesAddress, readSelectedVertex: offset => (prepared.ReadVertex(offset), prepared.ReadW(offset)));
+        NativeBattleCuraga88MeshStep emitted = NativeBattleCuraga88Mesh.EmitBatch(shape, checked(source.Address + (uint)geometry), prepared.Matrix, projection, prepared.Temporary88, registers, far, controls.Dqa, controls.Dqb, controls.Zsf4, colors, zsf3: controls.Zsf3, selectedVerticesAddress: prepared.SelectedVerticesAddress, readSelectedVertex: offset => (prepared.ReadVertex(offset), prepared.ReadW(offset)), pilotIdentity: pilotIdentity);
         memory = prepared.Memory with { GeometryRegisters = emitted.Registers.Geometry, ScriptedColorRegisters = emitted.Registers.Colors, PrimitiveProcess = primitive with { ModelRendererRegisters = emitted.FarControls } };
         return new(memory, emitted.Context88, emitted.Batch);
     }

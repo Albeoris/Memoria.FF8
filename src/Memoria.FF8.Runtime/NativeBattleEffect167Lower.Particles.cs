@@ -71,7 +71,7 @@ public static partial class NativeBattleEffect167Lower
             sprite = ParticleWord(Context(frame, spriteAddress, 180), 4, ParticleSigned(row, 4));
             frame = PublishContext(frame, spriteAddress, sprite, 180);
             frame = frame with { Memory = NativeBattleEffect315Gte.MacToTranslation64DE40(frame.Memory) };
-            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, sprite, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2);
+            NativeBattleModuleSpriteDraw drawn = NativeBattleModuleSpriteDrawing.Draw571C80(frame.Memory, sprite, resources.Sprite, inputs.ReadProjection(frame), inputs.ReadCameraRoll(frame), 17, 2, pilotIdentity: inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(167, frame.State.Storage, FirstRecordsAddress, index) with { ResourceGeneration = SpriteAddress } : null);
             frame = PublishContext(frame with { Memory = drawn.Memory }, spriteAddress, drawn.Temporary180, 180);
             frame = inputs.Execute(frame, new NativeBattleEffect167DrawBatch(drawn.Batch, CursorGlobal));
             if ((inputs.ReadFlags(frame) & 0x201) == 0)
@@ -117,14 +117,14 @@ public static partial class NativeBattleEffect167Lower
                 }
             }
             frame = Release(frame, 400);
-            frame = BirthParticles(frame);
+            frame = BirthParticles(frame, inputs.CapturePresentation);
         }
         short next = unchecked((short)(age + 1));
         frame = Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)next)));
         return new(frame, next >= 4 && survivors == 0 ? 2 : 0);
     }
 
-    private static NativeBattleEffect167Frame BirthParticles(NativeBattleEffect167Frame frame)
+    private static NativeBattleEffect167Frame BirthParticles(NativeBattleEffect167Frame frame, bool capturePresentation = false)
     {
         for (int birth = 0; birth < 5; birth++)
         {
@@ -138,6 +138,10 @@ public static partial class NativeBattleEffect167Lower
                 break;
             }
             uint destination = FirstRecordsAddress + (uint)(index * FirstRecordStride);
+            if (capturePresentation)
+            {
+                NativeBattlePilotVisualLifetimes.Allocated(frame.State.Storage, FirstRecordsAddress, index);
+            }
             NativeBattleEffectArena row = frame.State.ReadView(destination, FirstRecordStride).Write(0, BitConverter.GetBytes(1u));
             row = ParticleWord(row, 4, 0);
             row = ParticleWord(row, 6, ParticleRoll(ref frame) % 896 + 640);

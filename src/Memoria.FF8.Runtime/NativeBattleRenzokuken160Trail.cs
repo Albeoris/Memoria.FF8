@@ -86,7 +86,7 @@ public static partial class NativeBattleRenzokuken160Controller
             var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(Read(outer, 0) - origin.X, Read(outer, 2) - origin.Y, Read(outer, 4) - origin.Z);
             state = state with { TrailInner = Words(curve.Read(NativeBattleGilgameshSwordTrailState.CurveA, 256)), TrailOuter = Words(outer), Origin = origin, OriginPadding = unchecked((ushort)Read(outer, 14)), Direction = new(unchecked((short)direction.X), unchecked((short)direction.Y), unchecked((short)direction.Z)) };
             frame = WriteState(frame, state);
-            NativeBattleGilgameshSwordTrailPacketResult packets = NativeBattleGilgameshSwordTrailPackets.Emit(new(curve), view, projection, registers, colors, 0x3A903030);
+            NativeBattleGilgameshSwordTrailPacketResult packets = NativeBattleGilgameshSwordTrailPackets.Emit(new(curve), view, projection, registers, colors, 0x3A903030, pilotIdentity: inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Task(frame.Effect, task, NativeBattleGilgameshSwordTrailState.CurveA) : null);
             frame = inputs.Execute(frame, new NativeBattleRenzokuken160TrailDraw(packets.Batch, packets.PoolCursorAdvance));
         }
         else

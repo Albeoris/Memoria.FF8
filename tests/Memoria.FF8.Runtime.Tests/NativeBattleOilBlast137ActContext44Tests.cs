@@ -101,6 +101,31 @@ public sealed class NativeBattleOilBlast137ActContext44Tests
         Assert.Null(step.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
     }
 
+    [Theory]
+    [InlineData(0, 0, 6, false)]
+    [InlineData(0, 0, 6, true)]
+    [InlineData(1, 3, 7, false)]
+    [InlineData(1, 3, 7, true)]
+    public void Presentation_capture_keeps_both_native_ACT_backends_selected_morph_W_and_all_registers(int mode, int geometry, int group, bool morph)
+    {
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleGfAnimationSource source = Source(group);
+        NativeBattleGfAnimationNode node = Node(geometry, interpolate: morph);
+        NativeBattleOilBlast137ActContextStep native = NativeBattleOilBlast137ActContext44.Draw(Memory(), source, node, Context(mode), Temporary(), projection, Colors, MorphAddress, 712);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattleOilBlast137ActContextStep captured = NativeBattleOilBlast137ActContext44.DrawPresentation(Memory(), source, node, Context(mode), Temporary(), projection, Colors, MorphAddress, 712, pilotIdentity: new(137, 1, 2, 3, 4));
+        captured = captured with { Batch = NativeBattleContextBodyPresentation.CaptureDepths(captured.Batch) };
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(native));
+        NativeBattleGeometryPrimitive polygon = Assert.Single(captured.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(polygon.PilotGeometry);
+        Assert.Equal((ushort)137, visual.Identity.Effect);
+        Assert.Equal(unchecked(((long)source.Address << 32) ^ 32u), visual.Identity.ResourceGeneration);
+        Assert.True(visual.UseSourceDepths);
+        Assert.Equal(polygon.VertexPayload4[0], visual.SourceDepths!.Value.X);
+        Assert.Equal(Source(group).Data.ToArray(), source.Data.ToArray());
+    }
+
     private static NativeBattleOilBlast137ActPreparation Prepare(NativeBattleGfAnimationNode node, NativeBattleEffectArena context, NativeBattleEffectMemory? memory = null) => NativeBattleOilBlast137ActContext44.Prepare(memory ?? Memory(), Source(7), node, context, Temporary(), Colors, MorphAddress, 712);
     private static NativeBattleEffectMemory Memory()
     {

@@ -5,12 +5,14 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleBombActorPackets
 {
-    public static NativeBattleGfGeometryBatch Emit(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> vertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint modelColor, uint overlayColor, int scroll, bool textured, short zsf3, short zsf4)
+    public static NativeBattleGfGeometryBatch Emit(ImmutableArray<NativeBattleRawPolygon> polygons, ImmutableArray<byte> vertices, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint modelColor, uint overlayColor, int scroll, bool textured, short zsf3, short zsf4, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
+        int authored = -1;
         foreach (NativeBattleRawPolygon polygon in polygons)
         {
+            authored++;
             int count = polygon.Quad ? 4 : 3;
             if (polygon.Bytes.Length != (polygon.Quad ? 20 : 16))
             {
@@ -62,7 +64,7 @@ public static class NativeBattleBombActorPackets
             int depth = (int)(average >> 2);
             int bucket = 17 + depth;
             ImmutableArray<int> payload = polygon.Quad ? projected.Select(vertex => (int)vertex.Depth).ToImmutableArray() : [projected[0].Depth, projected[1].Depth, projected[2].Depth, 0];
-            attempts.Add(packet.Attempt(new(bucket, packet.Words(), payload)));
+            attempts.Add(packet.Attempt(Capture(new(bucket, packet.Words(), payload), 0)));
             allocation += length;
             int overlayLength = textured ? polygon.Quad ? 48 : 40 : polygon.Quad ? 24 : 20;
             SkinWrites overlay = new(overlayLength, allocation);
@@ -96,8 +98,18 @@ public static class NativeBattleBombActorPackets
                     overlay.Word(8 + corner * 4, projected[corner].Screen);
                 }
             }
-            attempts.Add(overlay.Attempt(new(17 + Math.Max(0, depth - 1), overlay.Words(), payload)));
+            attempts.Add(overlay.Attempt(Capture(new(17 + Math.Max(0, depth - 1), overlay.Words(), payload), 1)));
             allocation += overlayLength;
+
+            NativeBattleGeometryPrimitive Capture(NativeBattleGeometryPrimitive primitive, int pass)
+            {
+                if (pilotIdentity is not { } identity)
+                {
+                    return primitive;
+                }
+                System.Numerics.Vector3 World(int corner) => new(positions[corner].X, positions[corner].Y, positions[corner].Z);
+                return primitive with { PilotGeometry = new(identity with { Primitive = unchecked(identity.Primitive * 65537 + authored * 2 + pass) }, World(0), World(1), World(2), polygon.Quad ? World(3) : default, checked((byte)count)) { SourceDepths = new(payload[0], payload[1], payload[2], payload[3]), UseSourceDepths = true } };
+            }
         }
         return new(attempts.ToImmutable(), allocation);
     }

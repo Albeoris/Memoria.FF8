@@ -68,7 +68,7 @@ public static partial class NativeBattleOilBlast137Controller
             {
                 staging = staging.Write(temporary + 8u + (uint)(index * 2), BitConverter.GetBytes(windows[index]));
             }
-            frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleOilBlast137DrawCustom84(temporary));
+            frame = inputs.Execute(frame with { Staging = staging }, new NativeBattleOilBlast137DrawCustom84(temporary) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(137, Read(frame, address)) with { ResourceGeneration = CustomMeshAddress } : null });
             frame = Release(frame, 84);
             for (int index = 0; index < 2; index++)
             {

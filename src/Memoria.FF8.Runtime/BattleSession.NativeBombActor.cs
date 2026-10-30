@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState DrawNativeBombActor(NativeBattleGraphicsState graphics, int index, uint overlayColor, int scroll, bool textured)
+    private NativeBattleGraphicsState DrawNativeBombActor(NativeBattleGraphicsState graphics, int index, uint overlayColor, int scroll, bool textured, NativeBattlePilotVisualIdentity? pilotIdentity = null, Action<ImmutableArray<NativeBattlePrimitiveReference>>? recordPresentation = null)
     {
         NativeBattleGraphicsModel actor = graphics.Models[index];
         NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
@@ -13,7 +13,11 @@ public sealed partial class BattleSession
         NativeBattleActionMatrix view = projection.View!;
         if ((actor.Flags0 & 0x20) == 0)
         {
-            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4121, false);
+            NativeBattlePrimitiveProcess process = NativeEffectMemory!.PrimitiveProcess!;
+            int start = process.ByteCursor!.Value;
+            graphics = SubmitNativeShadowPackets5088A0(graphics, actor, projection, 4121, false, callerPilotIdentity: pilotIdentity is { } shadow ? shadow with { Primitive = unchecked(shadow.Primitive * 65537 + 0x10000), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null);
+            int end = NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value;
+            recordPresentation?.Invoke(graphics.PrimitiveFrame!.Pending.Packets.Select(packet => packet.Reference).Where(reference => reference.Bank == process.PacketBank && reference.Buffer == process.PacketBuffer && reference.ByteOffset >= start && reference.ByteOffset < end).ToImmutableArray());
         }
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Bomb actor drawing requires its original rig.");
         NativeBattleActionMatrix world = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native Bomb actor drawing requires its retained world matrix.");
@@ -32,7 +36,7 @@ public sealed partial class BattleSession
                 continue;
             }
             NativeBattleModelTextureBinding texture = resource.LinkedGeometryUsesBodySkeleton == true && mesh == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!;
-            Draw(geometry[mesh], bones, texture, true);
+            Draw(geometry[mesh], bones, texture, true, mesh);
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
         graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
@@ -47,21 +51,21 @@ public sealed partial class BattleSession
                 if (ResetAndEnterNativeModelRenderer5099D0(actor.Color40!.Value))
                 {
                     ImmutableArray<NativeBattleActionMatrix> cameraBones = linkedBones.Select(matrix => NativeBattleGfMatrices.Compose56C2F0(view, matrix)).ToImmutableArray();
-                    ImmutableArray<NativeBattleGeometryPrimitive> packets = NativeBattleRawGeometryPackets.Emit5099D0(linked, cameraBones, projection, actor.Color40.Value, uint.MaxValue, null, 17, 4, resource.GeometryRelocated507550 ? null : actor.LinkedTextureSlots, definition.NativeGraphics!.Rules.SummonColors, PublishNativeBodyProjectionScratch);
+                    ImmutableArray<NativeBattleGeometryPrimitive> packets = NativeBattleRawGeometryPackets.Emit5099D0(linked, cameraBones, projection, actor.Color40.Value, uint.MaxValue, null, 17, 4, resource.GeometryRelocated507550 ? null : actor.LinkedTextureSlots, definition.NativeGraphics!.Rules.SummonColors, PublishNativeBodyProjectionScratch, pilotIdentity: pilotIdentity is { } linkedIdentity ? linkedIdentity with { Primitive = unchecked(linkedIdentity.Primitive * 65537 + 0x20000), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null);
                     Common(NativeActorPrimitiveBatch(packets));
                 }
             }
             else
             {
-                foreach (NativeBattleRawMesh mesh in linked)
+                for (int linkedIndex = 0; linkedIndex < linked.Length; linkedIndex++)
                 {
-                    Draw(mesh, linkedBones, actor.LinkedTextureSlots!, resource.GeometryRelocated507550);
+                    Draw(linked[linkedIndex], linkedBones, actor.LinkedTextureSlots!, resource.GeometryRelocated507550, 0x100 + linkedIndex);
                 }
             }
         }
         return graphics;
 
-        void Draw(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding texture, bool alreadyRelocated)
+        void Draw(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding texture, bool alreadyRelocated, int meshIndex)
         {
             if (mesh.Vertices.Length > maximum)
             {
@@ -83,10 +87,12 @@ public sealed partial class BattleSession
                 NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native Bomb actor drawing requires its canonical shared vertex owner.")).Write(address + (uint)(vertex * 8), output.AsSpan(vertex * 8, stored));
             }
             ImmutableArray<NativeBattleRawPolygon> polygons = alreadyRelocated ? mesh.Polygons : mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, texture) }).ToImmutableArray();
-            Common(NativeBattleBombActorPackets.Emit(polygons, output.ToImmutableArray(), view, projection, actor.Color40!.Value, overlayColor, scroll, textured, zsf3, zsf4));
+            Common(NativeBattleBombActorPackets.Emit(polygons, output.ToImmutableArray(), view, projection, actor.Color40!.Value, overlayColor, scroll, textured, zsf3, zsf4, pilotIdentity is { } identity ? identity with { Primitive = unchecked(identity.Primitive * 65537 + meshIndex), ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(resource) } : null));
         }
         void Common(NativeBattleGfGeometryBatch batch)
         {
+            NativeBattlePrimitiveProcess process = NativeEffectMemory!.PrimitiveProcess!;
+            recordPresentation?.Invoke(NativeBattleEffectPresentationPackets.Record([], process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch));
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory!.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, batch);
             NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };

@@ -21,6 +21,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                 break;
             }
             Put161(particles, offset, 0);
+            NativeBattleRenzokukenVisualLifetimes.Allocated(frame.Effect, 2, offset / 20);
             Put161(particles, offset + 2, Rand() % 1792 + 1536);
             Put161(particles, offset + 4, end.X);
             Put161(particles, offset + 6, end.Y);
@@ -46,6 +47,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         for (int offset = 0; offset < particles.Length - 40; offset += 20)
         {
             Put161(particles, offset, 0);
+            NativeBattleRenzokukenVisualLifetimes.Allocated(frame.Effect, 3, offset / 20);
             Put161(particles, offset + 2, Rand() % 1536 + 5120);
             Put161(particles, offset + 4, anchor.X);
             Put161(particles, offset + 6, anchor.Y);

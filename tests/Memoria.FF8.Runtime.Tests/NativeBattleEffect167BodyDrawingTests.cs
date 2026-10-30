@@ -159,6 +159,40 @@ public sealed class NativeBattleEffect167BodyDrawingTests
         Assert.Equal((ushort)510, W(result, 0x76));
     }
 
+    [Theory]
+    [InlineData(false, (short)4096)]
+    [InlineData(true, (short)0)]
+    public void Actual167_capture_preserves_clipped_body_rows_native_work_and_source_depths(bool quad, short plane)
+    {
+        NativeBattleEffect167BodyStep native = Draw(Geometry(quad, false), normalX: plane);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattleEffect167BodyStep captured = Draw(Geometry(quad, false), normalX: plane, pilotIdentity: new(167, 1, 2, 3, 4) { ResourceGeneration = 0x20000 });
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(native));
+        Assert.NotEmpty(captured.Batch.Attempts);
+        foreach (NativeBattleGfGeometryAttempt attempt in captured.Batch.Attempts)
+        {
+            NativeBattleGeometryPrimitive primitive = attempt.Primitive!;
+            NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+            Assert.Equal((ushort)167, visual.Identity.Effect);
+            Assert.True(visual.UseSourceDepths);
+            Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), visual.SourceDepths);
+        }
+    }
+
+    [Fact]
+    public void Actual167_capture_does_not_touch_a_rejected_fourth_selector()
+    {
+        byte[] geometry = Geometry(true, false);
+        BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(54), 0);
+        BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(56), 0);
+        BinaryPrimitives.WriteUInt16LittleEndian(geometry.AsSpan(58), 0xFFF);
+        NativeBattleEffect167BodyStep native = Draw(geometry);
+        NativeBattleEffect167BodyStep captured = Draw(geometry, pilotIdentity: new(167, 1, 2, 3, 4));
+        Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+        Assert.Empty(captured.Batch.Attempts);
+    }
+
     private static NativeBattleEffect167BodyStep Draw(byte[] geometry, uint mask = 1, short normalX = 0, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 464).Write(0x10, BitConverter.GetBytes(mask)).Write(0x18, BitConverter.GetBytes(0x123456u));

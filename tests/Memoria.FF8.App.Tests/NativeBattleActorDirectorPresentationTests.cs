@@ -196,6 +196,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         int callbacks = 0;
         int smooth24Captured = 0;
         int captured101Frames = 0;
+        int contextBodyCapturedFrames = 0;
         int contacts = 0;
         int completions = 0;
         int contactGlyphs = 0;
@@ -1618,6 +1619,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
                 NativeBattleOriginalEffectState? after = Selected(current);
+                if (effectId is 133 or 137 && NativeBattleContextBodyCaptureAssertions.AssertFrame(current, effectId) > 0)
+                {
+                    contextBodyCapturedFrames++;
+                }
                 Assert.Equal(logicalHp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.NotNull(current.NativeCamera?.Projection?.View);
                 if (effectId == 129 && after?.ReturnedDescriptor is > 0)
@@ -7168,6 +7173,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
             {
                 Assert.True(captured101Frames > 1);
             }
+            if (effectId is 133 or 137)
+            {
+                Assert.True(contextBodyCapturedFrames > 1);
+            }
             if (effectId is 8 or 20 or 23 or 37 or 44 or 61 or 101)
             {
                 Assert.True(smooth24Captured > 0);
@@ -8254,6 +8263,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
                 cold.Tick();
                 direct.Tick();
+                if (effectId is 133 or 137)
+                {
+                    NativeBattleContextBodyCaptureAssertions.AssertFrame(direct.Capture(), effectId);
+                    NativeBattleContextBodyCaptureAssertions.AssertFrame(cold.Capture(), effectId);
+                }
                 Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
                 if (effectId == 43)
                 {

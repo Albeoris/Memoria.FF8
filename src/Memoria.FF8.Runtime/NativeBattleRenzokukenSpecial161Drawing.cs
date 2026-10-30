@@ -12,7 +12,7 @@ public static partial class NativeBattleRenzokukenSpecialController
         NativeBattleActionMatrix world = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CD50(new(0, 0, 0)), scale, 4096, scale) with { X = unchecked((short)task.ReadWord(16)), Y = unchecked((short)task.ReadWord(18)), Z = unchecked((short)task.ReadWord(20)) };
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(view, world);
         NativeBattleModuleMeshContext context = counter >= 4 ? new(195, 0, 682 * (counter - 4), null, null, null, 17, 2) : new(3, null, null, null, null, null, 17, 2);
-        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(resources.Meshes[2].Bytes, 0, default, matrix, projection, context, colors);
+        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(resources.Meshes[2].Bytes, 0, default, matrix, projection, context, colors, pilotIdentity: inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Task(frame.Effect, task, resources.Meshes[2].Address) : null);
         frame = inputs.Execute(frame, new NativeBattleRenzokuken160MeshDraw(packets));
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -52,7 +52,7 @@ public static partial class NativeBattleRenzokukenSpecialController
                 short scale = Get161(bytes, offset + 2);
                 uint? color = bank == 4 ? state.Resources.SpiralColors[Get161(bytes, offset + 12)] : null;
                 NativeBattleVector position = new(Get161(bytes, offset + 4), Get161(bytes, offset + 6), Get161(bytes, offset + 8));
-                NativeBattleRenzokuken160SpriteStep rendered = draw(frame, new(sprites[bank], unchecked((ushort)counter), position, scale, color, bank == 4 ? (ushort)4 : (ushort)0));
+                NativeBattleRenzokuken160SpriteStep rendered = draw(frame, new(sprites[bank], unchecked((ushort)counter), position, scale, color, bank == 4 ? (ushort)4 : (ushort)0) { PilotIdentity = NativeBattleRenzokukenVisualLifetimes.Particle(frame.Effect, bank, offset / stride, sprites[bank].Address) });
                 frame = rendered.Frame;
                 if (!advance)
                 {

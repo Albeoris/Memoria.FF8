@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState RunNativeEffect167(NativeBattleGraphicsState graphics, bool initialize)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect167 requires its selected original effect.");
+        NativeBattleOriginalEffectState effect = (graphics.OriginalEffect ?? throw new NotSupportedException("Effect167 requires its selected original effect.")) with { PresentationPackets = [] };
         NativeBattleEffect167Resources resources = effect.Binding.Effect167Resources ?? throw new NotSupportedException("Effect167 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect167 requires its current process memory.");
         NativeBattleEffect167Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect167 requires its current CRT stream."), memory.Effect167 ?? throw new NotSupportedException("Effect167 requires its retained storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect167 requires its current addressed memory.") };
@@ -15,6 +15,7 @@ public sealed partial class BattleSession
         inputs = new(definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect167 requires its arithmetic constants."), _ => graphics.Flags, _ => nativeActionPackets, (_, actor) => graphics.Models[actor], (_, actor) => NativeBattleRaldo19ModelMemory.Capture(graphics.Models[actor]), ReadBoneMatrix, (_, actor) => NativeBattlePackedMatrix32.FromMatrix(graphics.Models[actor].GeometryWorldMatrix ?? throw new NotSupportedException("Effect167 requires its current model world matrix."), null), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect167 requires its current projection."), _ => Camera().FocalLength ?? throw new NotSupportedException("Effect167 requires its current scalar focal WORD."), _ => Camera().Roll, Point502170, LocalPoint, Execute);
         inputs = inputs with
         {
+            CapturePresentation = true,
             ReadColor = (_, address) => address == 0xB8B7D8 ? (NativeStage?.ModelColors ?? throw new NotSupportedException("Effect167 requires its current stage model colors.")).Color40 : throw new NotSupportedException("Effect167 selected an unsupported current color owner.")
         };
         frame = initialize ? NativeBattleEffect167Controller.Initialize(frame, resources, inputs) : NativeBattleEffect167Controller.Advance(frame, resources, inputs);
@@ -120,7 +121,7 @@ public sealed partial class BattleSession
                     graphics = graphics with { PendingContacts = pending };
                     return Import(current);
                 case NativeBattleEffect167DrawBody464 body:
-                    (graphics, current) = DrawNativeEffect167Body(graphics, current, body.TemporaryAddress, body.Actor, body.OffsetWorld, resources);
+                    (graphics, current) = DrawNativeEffect167Body(graphics, current, body.TemporaryAddress, body.Actor, body.OffsetWorld, resources, body.PilotIdentity);
                     return current;
                 case NativeBattleEffect167DrawBatch draw:
                     if (draw.CursorGlobal != NativeBattleEffect167Profile.CursorGlobal)
@@ -135,6 +136,7 @@ public sealed partial class BattleSession
                         (byte[] bytes, bool[] known) = arena.ReadSnapshot(offset, 1);
                         return (bytes[0], known[0]);
                     });
+                    current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, resolved) } };
                     NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, resolved, draw.Flags);
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     return current with { Memory = written.Memory, State = current.State.WriteDword(draw.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };

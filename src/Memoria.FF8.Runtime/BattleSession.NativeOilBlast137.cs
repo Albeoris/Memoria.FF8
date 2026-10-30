@@ -7,12 +7,12 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState RunNativeOilBlast137(NativeBattleGraphicsState graphics, bool initialize)
     {
-        NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Oil Blast requires its selected original effect.");
+        NativeBattleOriginalEffectState effect = (graphics.OriginalEffect ?? throw new NotSupportedException("Oil Blast requires its selected original effect.")) with { PresentationPackets = [] };
         NativeBattleOilBlast137Resources resources = effect.Binding.OilBlast137Resources ?? throw new NotSupportedException("Oil Blast requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Oil Blast requires its actual process memory.");
         NativeBattleOilBlast137Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Oil Blast requires its CRT stream."), memory.OilBlast137 ?? throw new NotSupportedException("Oil Blast requires its retained native globals; migrate the selected older snapshot explicitly.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Oil Blast requires its addressed memory.") };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Oil Blast requires its original interpolation constants.");
-        NativeBattleOilBlast137Inputs inputs = new(nativeActionPackets, colors, Bone, _ => Camera().CapturePackedView1D97778(), ModelYaw, AdvanceAct, Execute);
+        NativeBattleOilBlast137Inputs inputs = new(nativeActionPackets, colors, Bone, _ => Camera().CapturePackedView1D97778(), ModelYaw, AdvanceAct, Execute) { CapturePresentation = true };
         frame = initialize ? NativeBattleOilBlast137Controller.Initialize(frame, resources, inputs) : NativeBattleOilBlast137Controller.Advance(frame, resources, inputs);
         if (!initialize && frame.Effect.ReturnedDescriptor == 0)
         {
@@ -77,10 +77,12 @@ public sealed partial class BattleSession
                 NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(current.Staging ?? throw new NotSupportedException("OilBlast137 drawing requires its addressed temporary memory."), 88);
                 NativeBattleEffectArena temporary = NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, 88);
                 uint morph = checked(current.State.ReadDword(NativeBattleOilBlast137Profile.WorkingGlobal) + NativeBattleOilBlast137Profile.MorphOffset);
-                NativeBattleOilBlast137ActContextStep drawn = NativeBattleOilBlast137ActContext44.Draw(current.Memory, source, node, context, temporary, Projection(), colors, morph, NativeBattleOilBlast137Profile.MorphBytes);
+                NativeBattleOilBlast137ActContextStep drawn = NativeBattleOilBlast137ActContext44.DrawPresentation(current.Memory, source, node, context, temporary, Projection(), colors, morph, NativeBattleOilBlast137Profile.MorphBytes, pilotIdentity: NativeBattlePilotVisualLifetimes.Identity(137, NativeBattleOilBlast137Controller.Read(current, address), unchecked(offset * 65537 + node.ResourceOffset)) with { ResourceGeneration = source.Address });
+                drawn = drawn with { Batch = NativeBattleContextBodyPresentation.CaptureDepths(drawn.Batch) };
                 NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, drawn.Temporary88, 88);
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("OilBlast137 requires its current ordering table.");
                 uint cursor = current.State.ReadDword(NativeBattleOilBlast137Profile.CursorGlobal);
+                current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, checked((int)(cursor - NativeBattleEffectNodeMemory.ArenaAddress)), drawn.Batch) } };
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(drawn.Memory, checked((int)(cursor - NativeBattleEffectNodeMemory.ArenaAddress)), primitive.Pending, drawn.Batch);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                 current = current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleOilBlast137Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)), Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
@@ -92,8 +94,10 @@ public sealed partial class BattleSession
 
         NativeBattleOilBlast137Frame Deliver(NativeBattleOilBlast137Frame current, NativeBattleGfGeometryBatch batch)
         {
+            batch = NativeBattleContextBodyPresentation.CaptureDepths(batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Oil Blast requires its current ordering table.");
             uint cursor = current.State.ReadDword(NativeBattleOilBlast137Profile.CursorGlobal);
+            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, checked((int)(cursor - NativeBattleEffectNodeMemory.ArenaAddress)), batch) } };
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, checked((int)(cursor - NativeBattleEffectNodeMemory.ArenaAddress)), primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleOilBlast137Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
@@ -111,14 +115,14 @@ public sealed partial class BattleSession
                     return NativeBattleOilBlast137Controller.Write(current, initializeAct.TaskAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, initializeAct.WorkspaceOffset, initialized));
                 case NativeBattleOilBlast137DrawCustom84 custom:
                     NativeBattleEffectArena customContext = ReadTemporary(current, custom.Temporary84, 84);
-                    NativeBattleOilBlast137MeshStep customDraw = NativeBattleOilBlast137Mesh.Draw(current.Memory, resources.CustomMesh, customContext, Projection());
+                    NativeBattleOilBlast137MeshStep customDraw = NativeBattleOilBlast137Mesh.DrawPresentation(current.Memory, resources.CustomMesh, customContext, Projection(), pilotIdentity: custom.PilotIdentity);
                     return Deliver(current with { Memory = customDraw.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, custom.Temporary84, customDraw.Context84, 84) }, customDraw.Batch);
                 case NativeBattleOilBlast137DrawStatic88 mesh:
                     if (mesh.SourceAddress != resources.StaticMesh.Address)
                     {
                         throw new NotSupportedException("Oil Blast selected an unsupported static mesh.");
                     }
-                    NativeBattleStaticMeshContext88Step meshDraw = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, resources.StaticMesh, Projection(), ReadTemporary(current, mesh.Temporary88, 88), colors);
+                    NativeBattleStaticMeshContext88Step meshDraw = NativeBattleStaticMeshContext88.DrawLoaded(current.Memory, resources.StaticMesh, Projection(), ReadTemporary(current, mesh.Temporary88, 88), colors, pilotIdentity: mesh.PilotIdentity);
                     return Deliver(current with { Memory = meshDraw.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, mesh.Temporary88, meshDraw.Context, 88) }, meshDraw.Batch);
                 case NativeBattleOilBlast137Sound sound:
                     Publish(current);
@@ -135,7 +139,7 @@ public sealed partial class BattleSession
                     {
                         throw new NotSupportedException("Oil Blast selected an unsupported sprite source.");
                     }
-                    NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, ReadTemporary(current, sprite.Temporary180, 180), address => address == resources.Sprite.Address ? resources.Sprite : throw new NotSupportedException("Oil Blast selected an unsupported sprite source."), Projection(), Camera().Roll);
+                    NativeBattleModuleSpriteDraw spriteDraw = NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, ReadTemporary(current, sprite.Temporary180, 180), address => address == resources.Sprite.Address ? resources.Sprite : throw new NotSupportedException("Oil Blast selected an unsupported sprite source."), Projection(), Camera().Roll, pilotIdentity: sprite.PilotIdentity);
                     return Deliver(current with { Memory = spriteDraw.Memory, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging!, sprite.Temporary180, spriteDraw.Temporary180, 180) }, spriteDraw.Batch);
                 default:
                     throw new NotSupportedException("Oil Blast operation has no proved implementation.");

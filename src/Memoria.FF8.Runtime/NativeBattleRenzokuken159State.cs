@@ -73,6 +73,10 @@ public sealed record NativeBattleRenzokuken159Resources(NativeBattleEffectHeapAl
     public ImmutableArray<NativeBattleVector>? ContactOffsets { get; init; }
 }
 public sealed record NativeBattleRenzokuken159Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random);
-public sealed record NativeBattleRenzokuken159Sprite(NativeBattleSearchSpriteResource Resource, ushort Frame, NativeBattleVector Position, short Scale, uint? Color, ushort Flags);
+public sealed record NativeBattleRenzokuken159Sprite(NativeBattleSearchSpriteResource Resource, ushort Frame, NativeBattleVector Position, short Scale, uint? Color, ushort Flags)
+{
+    [JsonIgnore]
+    public NativeBattlePilotVisualIdentity? PilotIdentity { get; init; }
+}
 public sealed record NativeBattleRenzokuken159SpriteStep(NativeBattleRenzokuken159Frame Frame, bool AnimationEnded);
 public sealed record NativeBattleRenzokuken159ChildStep(NativeBattleRenzokuken159Frame Frame, NativeBattleEffectTaskPool Pool, int Result);

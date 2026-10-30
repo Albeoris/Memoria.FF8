@@ -78,6 +78,29 @@ public sealed class NativeBattleEffect167ParticleTests
         Assert.Throws<NotSupportedException>(() => history.Read(18, 2));
     }
 
+    [Fact]
+    public void Captured_record_births_and_reuse_preserve_all_native_rows_history_and_CRT_draws()
+    {
+        NativeBattleEffect167Frame native = Frame(1);
+        NativeBattleEffect167Frame captured = Frame(1);
+        long previousBirth = 0;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            native = NativeBattleEffect167Lower.AdvanceParticles(native, ChildBank, null!, Inputs(0, [])).Frame;
+            captured = NativeBattleEffect167Lower.AdvanceParticles(captured, ChildBank, null!, Inputs(0, []) with { CapturePresentation = true }).Frame;
+            Assert.Equal(NativeBattleTestSnapshots.Json(native), NativeBattleTestSnapshots.Json(captured));
+            NativeBattlePilotVisualIdentity actual = NativeBattlePilotVisualLifetimes.Identity(167, captured.State.Storage, FirstRecordsAddress, 0);
+            Assert.True(actual.Generation > previousBirth);
+            previousBirth = actual.Generation;
+            for (int index = 0; index < 5; index++)
+            {
+                uint row = FirstRecordsAddress + (uint)(index * FirstRecordStride);
+                native = native with { State = native.State.WriteDword(row, 0) };
+                captured = captured with { State = captured.State.WriteDword(row, 0) };
+            }
+        }
+    }
+
     private static NativeBattleEffect167Frame Frame(short age)
     {
         NativeBattleEffect167Frame frame = NativeBattleEffect167ControllerTests.Frame(age, 0x5E2F30) with { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

@@ -30,7 +30,7 @@ public static partial class NativeBattleRenzokuken159Controller
         NativeBattleActionMatrix world = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CD50(new(0, 0, 0)), scale, delayed ? Word(task, 32) : scale, depthScale ?? scale) with { X = Word(task, 16), Y = Word(task, 18), Z = Word(task, 20) };
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.Compose56C2F0(view, world);
         NativeBattleModuleMeshContext context = new(counter >= 4 ? 0xF3u : 0x33u, counter >= 4 ? 0u : null, counter >= 4 ? fadeStep * (counter - 4) : null, null, null, null, 17, 2);
-        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, matrix, projection, context, colors);
+        NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, matrix, projection, context, colors, pilotIdentity: inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Task(frame.Effect, task, mesh.Address) : null);
         frame = inputs.Execute(frame, new NativeBattleRenzokuken159MeshDraw(packets));
         if (!advance)
         {
@@ -49,6 +49,7 @@ public static partial class NativeBattleRenzokuken159Controller
     public static NativeBattleRenzokuken159ChildStep Advance602390(NativeBattleRenzokuken159Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken159Inputs inputs, NativeBattleRenzokuken159Resources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
     {
         NativeBattleModulePoolTask task = pool.Slots[slot];
+        int primitiveIndex = 0;
         int impact = Word(task, 14) * 156;
         byte[] memory = State(frame).ImpactStates.ToArray();
         if (impact < 0 || impact > memory.Length - 156 || resources.ImpactAxis.IsDefault || resources.ImpactAxis.Length != 3)
@@ -101,7 +102,7 @@ public static partial class NativeBattleRenzokuken159Controller
         void Draw(uint address, NativeBattleActionMatrix basis, NativeBattleModuleMeshContext parameters)
         {
             NativeBattleStaticMeshResource resource = resources.Meshes.Single(mesh => mesh.Address == address);
-            NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, basis, projection, parameters, colors);
+            NativeBattleGfGeometryBatch packets = NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, basis, projection, parameters, colors, pilotIdentity: inputs.CapturePresentation ? NativeBattleRenzokukenVisualLifetimes.Task(frame.Effect, task, resource.Address, primitiveIndex++) : null);
             frame = inputs.Execute(frame, new NativeBattleRenzokuken159MeshDraw(packets));
         }
     }

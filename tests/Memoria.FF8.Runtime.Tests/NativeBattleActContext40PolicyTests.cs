@@ -78,6 +78,32 @@ public sealed class NativeBattleActContext40PolicyTests
         Assert.Equal(result.Memory.Arena.ReadSnapshot(MorphOffset, 392).Known, restored.Memory.Arena!.ReadSnapshot(MorphOffset, 392).Known);
     }
 
+    [Theory]
+    [InlineData((short)0, -400)]
+    [InlineData((short)4096, -200)]
+    public void Hypnotize133_capture_preserves_native_selected_rows_W_registers_and_actual_depths(short ratio, int expectedX)
+    {
+        NativeBattleGfAnimationSource source = Source(4, 2, 4);
+        byte[] bytes = source.Data.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(60), -200);
+        source = source with { Data = bytes.ToImmutableArray() };
+        NativeBattleGfAnimationNode node = Node(ratio: ratio, second: 1);
+        NativeBattleCameraProjection projection = new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108);
+        NativeBattleDefaultActContext40Step native = NativeBattleDefaultActContext40.Draw(Memory(), source, node, Context(), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), projection, NativeBattleGteColorInterpolation.CodeConstants45F270, MorphAddress, NativeBattleActContext40Policy.Hypnotize133);
+        string frozen = NativeBattleTestSnapshots.Json(native);
+        NativeBattleDefaultActContext40Step captured = NativeBattleDefaultActContext40.Draw(Memory(), source, node, Context(), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), projection, NativeBattleGteColorInterpolation.CodeConstants45F270, MorphAddress, NativeBattleActContext40Policy.Hypnotize133, pilotIdentity: new(133, 1, 2, 3, 4) { ResourceGeneration = source.Address });
+        captured = captured with { Batch = NativeBattleContextBodyPresentation.CaptureDepths(captured.Batch) };
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(captured));
+        Assert.Equal(frozen, NativeBattleTestSnapshots.Json(native));
+        NativeBattleGeometryPrimitive primitive = Assert.Single(captured.Batch.Attempts).Primitive!;
+        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(primitive.PilotGeometry);
+        Assert.Equal(expectedX, visual.A.X);
+        Assert.Equal((ushort)133, visual.Identity.Effect);
+        Assert.True(visual.UseSourceDepths);
+        Assert.Equal(new System.Numerics.Vector4(primitive.VertexPayload4[0], primitive.VertexPayload4[1], primitive.VertexPayload4[2], primitive.VertexPayload4[3]), visual.SourceDepths);
+        Assert.Equal(bytes, source.Data.ToArray());
+    }
+
     private static NativeBattleGfAnimationNode RotatedScaled(uint header)
     {
         NativeBattleGfAnimationNode node = Node(header);

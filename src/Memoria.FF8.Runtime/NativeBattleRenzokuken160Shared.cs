@@ -27,6 +27,7 @@ public static partial class NativeBattleRenzokuken160Controller
                     continue;
                 }
                 (modules, int child) = modules.AppendCallback(streakCallback);
+                modules = NativeBattleRenzokukenVisualLifetimes.Shared(modules, child, task.PilotIdentity);
                 byte[] bytes = modules.Slots[child].Payload.ToArray();
                 Write(bytes, 0, 0);
                 Write(bytes, 2, emitted + Rand() % 6);
@@ -118,7 +119,7 @@ public static partial class NativeBattleRenzokuken160Controller
         }
         NativeBattleStaticMeshResource resource = resources.Meshes[3];
         NativeBattleModuleMeshContext context = new(4339, 0, resources.StreakAgeOffsets[counter], null, null, resources.StreakPaletteOffsets[palette], 17, 2);
-        draw(NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, matrix, projection, context, colors));
+        draw(NativeBattleModulePackets.EmitBatch572200(resource.Bytes, 0, default, matrix, projection, context, colors, pilotIdentity: task.PilotIdentity is { } owner && NativeBattleRenzokukenVisualLifetimes.Owns(owner.Effect) ? owner with { ResourceGeneration = resource.Address } : null));
         if (!advance)
         {
             return new(modules, false, []);

@@ -6,6 +6,18 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleRenzokukenCastTests
 {
+    [Fact]
+    public void Installed_original141_completes_five_authored_contacts_and_standalones()
+    {
+        Installed_selected_Renzokuken_completes_original_effect_and_standalones(141, 5, 1);
+    }
+
+    [Fact]
+    public void Installed_original160_completes_four_authored_contacts_and_standalones()
+    {
+        Installed_selected_Renzokuken_completes_original_effect_and_standalones(160, 4, 1);
+    }
+
     [Theory]
     [InlineData((ushort)160, 4, (byte)1)]
     [InlineData((ushort)141, 5, (byte)1)]
@@ -26,6 +38,7 @@ public sealed class NativeBattleRenzokukenCastTests
         Directory.CreateDirectory(output);
         Console.WriteLine("Renzokuken evidence: " + output);
         BattleSnapshot before = battle.Capture();
+        int capturedFrames = 0;
         try
         {
             for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
@@ -53,6 +66,7 @@ public sealed class NativeBattleRenzokukenCastTests
             CompareNext("queued");
             Assert.Equal(effectId, battle.GetNativeRenzokuken("party")!.MagicId);
             bool selected = false;
+
             bool registeredCamera = false;
             bool capturedMidpoint = false;
             for (int callback = 0; callback < 4096; callback++)
@@ -62,6 +76,10 @@ public sealed class NativeBattleRenzokukenCastTests
                 Assert.Equal(shadowColor, battle.NativeGraphics!.Models[actorIndex].Color44);
                 interpolatedCurrentStageColor |= battle.NativeGraphics.Models[actorIndex].Color40 == interpolatedColor;
                 selected |= battle.NativeGraphics!.OriginalEffect?.Binding.Effect == effectId;
+                if (effectId is 141 or 160 && NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+                {
+                    capturedFrames++;
+                }
                 if (battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
                 {
                     Assert.NotNull(battle.NativeEffectMemory!.Textures!.Animation);
@@ -76,6 +94,10 @@ public sealed class NativeBattleRenzokukenCastTests
                 }
                 if (selected && battle.GetNativeRenzokuken("party") is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 })
                 {
+                    if (effectId is 141 or 160)
+                    {
+                        Assert.True(capturedFrames > 1);
+                    }
                     Assert.True(capturedMidpoint);
                     Assert.True(registeredCamera);
                     Assert.True(interpolatedCurrentStageColor, "Renzokuken must interpolate the current stage transition color into model DWORD40 without changing the shadow command in DWORD44.");
@@ -110,6 +132,14 @@ public sealed class NativeBattleRenzokukenCastTests
             before = battle.Capture();
             battle.Tick();
             clone.Tick();
+            if (effectId is 141 or 160)
+            {
+                if (NativeBattleRenzokukenCaptureAssertions.AssertFrame(battle.Capture(), effectId) > 0)
+                {
+                    capturedFrames++;
+                }
+                _ = NativeBattleRenzokukenCaptureAssertions.AssertFrame(clone.Capture(), effectId);
+            }
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(clone, 320, 224).ToArray());
             Publish(name + "-next");

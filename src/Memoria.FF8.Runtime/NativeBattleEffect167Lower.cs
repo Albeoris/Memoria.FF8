@@ -65,7 +65,7 @@ public static partial class NativeBattleEffect167Lower
                 frame = inputs.Execute(frame, new NativeBattleEffect167WriteModelBytes(actor, 7, NativeBattleEffectArena.Clear().Write(0, [0]), 1));
             }
             frame = PublishContext(frame, temporary, context, 464);
-            frame = inputs.Execute(frame, new NativeBattleEffect167DrawBody464(temporary, actor, offsetWorld));
+            frame = inputs.Execute(frame, new NativeBattleEffect167DrawBody464(temporary, actor, offsetWorld) { PilotIdentity = inputs.CapturePresentation ? NativeBattlePilotVisualLifetimes.Identity(167, Read(frame, address)) : null });
             frame = Release(frame, 464);
         }
         if ((inputs.ReadFlags(frame) & 0x201) != 0)

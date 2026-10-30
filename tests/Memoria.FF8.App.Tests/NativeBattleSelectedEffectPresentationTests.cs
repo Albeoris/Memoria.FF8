@@ -112,6 +112,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                         Cold("casting18-live", current);
                     }
                 }
+                NativeBattleCloudBombPresentationOwnership.AssertFrame(current, effect);
                 if (effect == 7)
                 {
                     recoveryCapturedGeometry += NativeBattleRecoveryCaptureAssertions.AssertOwnedGeometry(current, 7);
@@ -197,7 +198,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                         captured30++;
                     }
                 }
-                if (effect is 9 or 17 && currentEffect?.Binding.Effect == effect && primitive is not null && (currentEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0))
+                if (effect is 9 or 17 or 168 or 179 or 180 && currentEffect?.Binding.Effect == effect && primitive is not null && (currentEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0))
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> appended = currentEffect.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
                     ownedCommands = primitive.LastCommands.Select(item => item.Command).Where(command => appended.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet))).ToArray();
@@ -206,7 +207,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 {
                     ownedCommands = NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value, includeCompleted: true);
                 }
-                if (effect is 9 or 17 or 18 && primitive is not null)
+                if (effect is 9 or 17 or 18 or 168 or 179 or 180 && primitive is not null)
                 {
                     NativeBattleLogicalCommand[] geometry = ownedCommands.Where(command => command.Opcode is >= 0x20 and < 0x40).ToArray();
                     foreach (NativeBattleLogicalCommand command in geometry)
@@ -268,7 +269,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             {
                 Assert.True(captured30 > 0);
             }
-            if (effect is 9 or 17 or 18)
+            if (effect is 9 or 17 or 18 or 168 or 179 or 180)
             {
                 Assert.True(capturedOwnedFrames > 1, "The standalone component must reach captured physical geometry on multiple callbacks.");
             }
@@ -340,6 +341,8 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
             cold.Tick();
             direct.Tick();
+            NativeBattleCloudBombPresentationOwnership.AssertFrame(direct.Capture(), effect);
+            NativeBattleCloudBombPresentationOwnership.AssertFrame(cold.Capture(), effect);
             Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
             if (effect == 18 && cold.NativeGraphics?.OriginalEffect?.Binding.Effect == 18)
             {

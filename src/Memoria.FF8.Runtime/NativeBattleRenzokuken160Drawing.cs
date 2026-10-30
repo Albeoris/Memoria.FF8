@@ -10,7 +10,7 @@ public static class NativeBattleRenzokuken160Drawing
         NativeBattleModuleSpriteFrame frame = resource.ProjectedFrame571C80(sprite.Frame);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0)
         {
-            PilotIdentity = pilotIdentity,
+            PilotIdentity = pilotIdentity ?? sprite.PilotIdentity,
             Resource = resource,
             SpriteFrame = frame,
             Phase = sprite.Frame,

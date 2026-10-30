@@ -42,7 +42,8 @@ public sealed partial class BattleSession
         {
             ReadBoneCount = actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Renzokuken variant requires its actual body skeleton.")).BoneCount,
             ReadBone = (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), fraction),
-            ReadWeaponTip = actor => ReadNativeRenzokuken160WeaponTip(graphics, actor)
+            ReadWeaponTip = actor => ReadNativeRenzokuken160WeaponTip(graphics, actor),
+            CapturePresentation = NativeBattleRenzokukenVisualLifetimes.Owns(current.Effect.Binding.Effect)
         };
 
         NativeBattleRenzokuken160ChildStep Child(NativeBattleRenzokuken160Frame current, NativeBattleEffectTaskPool pool, int slot)
@@ -83,6 +84,10 @@ public sealed partial class BattleSession
             {
                 NativeBattleRenzokuken160SpritePackets drawn = NativeBattleRenzokuken160Drawing.DrawSprite571C80(sprite, projection, view, NativeCamera!.Roll);
                 NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Renzokuken variant requires its initialized ordering table.");
+                if (NativeBattleRenzokukenVisualLifetimes.Owns(actual.Effect.Binding.Effect))
+                {
+                    actual = actual with { Effect = actual.Effect with { PresentationPackets = NativeBattleRenzokukenVisualLifetimes.Record(actual.Effect.PresentationPackets, "20DFAB8", 0, actual.Effect.DrawArenaOffset!.Value, drawn.Packets) } };
+                }
                 NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(actual.Memory, actual.Effect.DrawArenaOffset ?? throw new InvalidDataException("Native Renzokuken variant lost its current packet cursor."), primitive.Pending, drawn.Packets, NativeBattleEffectGouraudWrites.FullDword);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                 return new(actual with { Memory = written.Memory, Effect = actual.Effect with { DrawArenaOffset = written.Cursor } }, drawn.AnimationEnded);
@@ -115,6 +120,7 @@ public sealed partial class BattleSession
                     return current with { Memory = NativeEffectMemory! };
                 case NativeBattleRenzokuken160SharedTask shared:
                     (NativeBattleModuleState modules, int slot) = graphics.ModuleEffects.AppendCallback(shared.Callback);
+                    modules = NativeBattleRenzokukenVisualLifetimes.Shared(modules, slot, NativeBattleRenzokukenVisualLifetimes.Task(current.Effect, current.Effect.Pools[0].Slots[0], 0));
                     byte[] bytes = modules.Slots[slot].Payload.ToArray();
                     BinaryPrimitives.WriteUInt16LittleEndian(bytes, shared.Counter);
                     BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), shared.Actor);
@@ -134,6 +140,10 @@ public sealed partial class BattleSession
         {
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Renzokuken variant requires its initialized ordering table.");
             int start = current.Effect.DrawArenaOffset ?? throw new InvalidDataException("Native Renzokuken variant lost its current packet cursor.");
+            if (NativeBattleRenzokukenVisualLifetimes.Owns(current.Effect.Binding.Effect))
+            {
+                current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, start, batch) } };
+            }
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, start, primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, Effect = current.Effect with { DrawArenaOffset = advance is int bytes ? checked(start + bytes) : written.Cursor } };
@@ -147,6 +157,7 @@ public sealed partial class BattleSession
 
     private (NativeBattleGraphicsState Graphics, NativeBattleModuleCallback Callback) AdvanceNativeRenzokukenVariantShared(NativeBattleGraphicsState graphics, NativeBattleModuleState modules, int slot, NativeBattleModuleInputs inputs, NativeBattleRenzokukenVariantProfile profile)
     {
+        modules = NativeBattleRenzokukenVisualLifetimes.EnsureShared(modules, slot, profile.Effect);
         inputs = inputs with { ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index) with { W = (graphics.Models[index].Transform ?? throw new NotSupportedException("Native571400 requires its actual angleWORD36.")).Angle36 } };
         if (modules.Slots[slot].Callback == profile.SharedEmitterCallback)
         {
@@ -164,6 +175,11 @@ public sealed partial class BattleSession
         {
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native5FF770 requires retained packet memory.");
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native5FF770 requires its initialized ordering table.");
+            if (graphics.OriginalEffect is { } selected && modules.Slots[slot].PilotIdentity?.Effect == selected.Binding.Effect && NativeBattleRenzokukenVisualLifetimes.Owns(selected.Binding.Effect))
+            {
+                NativeBattlePrimitiveProcess process = memory.PrimitiveProcess!;
+                graphics = graphics with { OriginalEffect = selected with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(selected.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
+            }
             NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(memory.PrimitiveProcess ?? throw new NotSupportedException("Native5FF770 requires its current common packet owner."), primitive.Pending, batch);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             NativeEffectMemory = memory with { PrimitiveProcess = written.Process };

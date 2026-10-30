@@ -104,11 +104,29 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                 prior = battle.Capture();
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
+                NativeBattleCloudBombPresentationOwnership.AssertFrame(current, native.MagicId);
                 NativeBattleGraphicsState graphics = current.NativeGraphics!;
                 produced |= current.Events.Any(item => item.Kind == "Windup" && item.ActorId == "monster");
                 if (control is not null && native.MagicId == 110 && graphics.OriginalEffect is { Binding.Effect: 110 } streamEffect && (streamEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
                 {
                     if (NativeBattleExplicitComponentCapture.AssertFrame(current, 110) > 0)
+                    {
+                        capturedControlFrames++;
+                    }
+                }
+                if (native.MagicId is 168 or 179 or 180 && graphics.OriginalEffect is { } cloudBomb && cloudBomb.Binding.Effect == native.MagicId && (cloudBomb.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
+                {
+                    ImmutableHashSet<NativeBattlePrimitiveReference> references = cloudBomb.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
+                    NativeBattleLogicalCommand[] owned = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x40).ToArray();
+                    foreach (NativeBattleLogicalCommand command in owned)
+                    {
+                        NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
+                        Assert.Equal(native.MagicId, visual.Identity.Effect);
+                        Assert.True(visual.Identity.Generation > 0);
+                        Assert.True(visual.Identity.ResourceGeneration != 0);
+                        capturedControlBanks.Add(visual.Identity.Bank);
+                    }
+                    if (owned.Length > 0)
                     {
                         capturedControlFrames++;
                     }
@@ -179,6 +197,10 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             Assert.True(native.MagicId == 0 || selected, "The ordinary command never selected its original effect module.");
             Assert.True(visible, "The selected action submitted no visible packet contribution.");
             Assert.True(completed, "The selected ordinary monster action did not release its command and effect task.");
+            if (native.MagicId is 168 or 179 or 180)
+            {
+                Assert.True(capturedControlFrames > 1, "The component must capture its actual moving producers across multiple callbacks.");
+            }
             if (control is not null && native.MagicId is 17 or 18 or 110)
             {
                 Assert.True(capturedControlFrames > 1, "The original control component must reach captured owned geometry on multiple callbacks.");
@@ -232,6 +254,8 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             second.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             first.Tick();
             second.Tick();
+            NativeBattleCloudBombPresentationOwnership.AssertFrame(first.Capture(), native.MagicId);
+            NativeBattleCloudBombPresentationOwnership.AssertFrame(second.Capture(), native.MagicId);
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
             Assert.Equal(new BattleScenePresentation(assets, definition, true).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(second, 320, 224).ToArray());
             Publish(name + "-next", first.Capture());
